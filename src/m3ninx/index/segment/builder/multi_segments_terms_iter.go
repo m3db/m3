@@ -165,7 +165,7 @@ func (i *termsIterFromSegments) Err() error {
 func (i *termsIterFromSegments) Close() error {
 	err := i.keyIter.Close()
 	// Free resources
-	i.clear()
+	i.clearTermIters()
 	return err
 }
 

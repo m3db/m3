@@ -33,15 +33,19 @@ var (
 
 var (
 	// TODO(prateek): tweak builderopts for vellum
-	// NB(r): The cache used by vellum is: table size * mru size * cell size
+	// NB(r): The registry cache used by vellum is: table size * mru size * cell size
 	// where cell size = 16 bytes (since its an addr and a ptr)
 	// basically MRU size is the size of each bucket for each combination of
 	// a builder node
 	vellumBuilderOpts = &vellum.BuilderOpts{
 		Encoder:                  1,
-		RegistryTableSize:        2 << 16, // 130k
-		RegistryMRUSize:          4,
-		UnfinishedNodesStackSize: 8192,
+		RegistryTableSize:        2 << 16, // ~130k
+		RegistryMRUSize:          2 << 1,  // 4
+		UnfinishedNodesStackSize: 4096,
+		BuilderNodePoolingConfig: vellum.BuilderNodePoolingConfig{
+			MaxSize:           2 << 14, // ~32k
+			MaxTransitionSize: 2 << 8,  // 512
+		},
 	}
 )
 

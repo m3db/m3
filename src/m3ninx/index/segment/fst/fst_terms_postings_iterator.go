@@ -27,6 +27,9 @@ import (
 	"github.com/pilosa/pilosa/roaring"
 )
 
+// postingsIterRoaringPoolingConfig uses a configuration that avoids allocating
+// any containers in the roaring bitmap, since these roaring bitmaps are backed
+// by mmaps and don't have any native containers themselves.
 var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
 	AllocateArray:                   false,
 	AllocateRuns:                    false,
@@ -51,24 +54,32 @@ type fstTermsPostingsIter struct {
 
 func newFSTTermsPostingsIter() *fstTermsPostingsIter {
 	bitmap := roaring.NewBitmapWithPooling(postingsIterRoaringPoolingConfig)
-	return &fstTermsPostingsIter{
+	i := &fstTermsPostingsIter{
 		bitmap:   bitmap,
 		postings: postingsroaring.NewPostingsListFromBitmap(bitmap),
 	}
+	i.clear()
+	return i
 }
 
 var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
+
+func (f *fstTermsPostingsIter) clear() {
+	f.bitmap.Reset()
+	f.retriever = nil
+	f.termsIter = nil
+	f.currTerm = nil
+	f.err = nil
+}
 
 func (f *fstTermsPostingsIter) reset(
 	retriever postingsListRetriever,
 	termsIter *fstTermsIter,
 ) {
-	f.bitmap.Reset()
+	f.clear()
 
 	f.retriever = retriever
 	f.termsIter = termsIter
-	f.currTerm = nil
-	f.err = nil
 }
 
 func (f *fstTermsPostingsIter) Next() bool {
@@ -81,9 +92,9 @@ func (f *fstTermsPostingsIter) Next() bool {
 		return false
 	}
 
-	var offset uint64
-	f.currTerm, offset = f.termsIter.CurrentExtended()
-	f.err = f.retriever.UnmarshalPostingsListBitmap(f.bitmap, offset)
+	f.currTerm = f.termsIter.Current()
+	f.err = f.retriever.UnmarshalPostingsListBitmap(f.bitmap,
+		f.termsIter.CurrentOffset())
 	if f.err != nil {
 		return false
 	}
@@ -101,6 +112,6 @@ func (f *fstTermsPostingsIter) Err() error {
 
 func (f *fstTermsPostingsIter) Close() error {
 	err := f.termsIter.Close()
-	f.reset(nil, nil)
+	f.clear()
 	return err
 }

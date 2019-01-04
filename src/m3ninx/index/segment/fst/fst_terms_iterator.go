@@ -40,11 +40,13 @@ func (o fstTermsIterOpts) Close() error {
 }
 
 func newFSTTermsIter() *fstTermsIter {
-	return &fstTermsIter{}
+	i := &fstTermsIter{iter: new(vellum.FSTIterator)}
+	i.clear()
+	return i
 }
 
 type fstTermsIter struct {
-	iter         vellum.FSTIterator
+	iter         *vellum.FSTIterator
 	opts         fstTermsIterOpts
 	err          error
 	done         bool
@@ -55,10 +57,20 @@ type fstTermsIter struct {
 
 var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
 
+func (f *fstTermsIter) clear() {
+	*f.iter = vellum.FSTIterator{}
+	f.opts = fstTermsIterOpts{}
+	f.err = nil
+	f.done = false
+	f.firstNext = true
+	f.current = nil
+	f.currentValue = 0
+}
+
 func (f *fstTermsIter) reset(opts fstTermsIterOpts) {
 	f.clear()
-	f.opts = opts
 
+	f.opts = opts
 	if err := f.iter.Reset(opts.fst, nil, nil, nil); err != nil {
 		f.handleIterErr(err)
 	}
@@ -70,16 +82,6 @@ func (f *fstTermsIter) handleIterErr(err error) {
 	} else {
 		f.err = err
 	}
-}
-
-func (f *fstTermsIter) clear() {
-	f.iter = vellum.FSTIterator{}
-	f.opts = fstTermsIterOpts{}
-	f.err = nil
-	f.done = false
-	f.firstNext = true
-	f.current = nil
-	f.currentValue = 0
 }
 
 func (f *fstTermsIter) Next() bool {
@@ -100,8 +102,8 @@ func (f *fstTermsIter) Next() bool {
 	return true
 }
 
-func (f *fstTermsIter) CurrentExtended() ([]byte, uint64) {
-	return f.current, f.currentValue
+func (f *fstTermsIter) CurrentOffset() uint64 {
+	return f.currentValue
 }
 
 func (f *fstTermsIter) Current() []byte {

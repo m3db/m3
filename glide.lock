@@ -1,5 +1,5 @@
-hash: 9f8622d0ae068e099d882c42477ffd6cbb4dc9a10460a4b52a862a1a818a7794
-updated: 2019-01-03T15:09:54.544976-05:00
+hash: 19a263a25ec1879bffbfc6cc69ac87d195dafb8c65b9763b84a1362bee7bed23
+updated: 2019-01-04T11:30:59.227269-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -108,7 +108,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: 51c732079c882f52f8e6af889d99ac2a1611d5e4
+  version: a2fd4d85d01e67e32c0dab4415e3acb10ea1bdbf
   repo: https://github.com/m3db/vellum
   subpackages:
   - regexp
