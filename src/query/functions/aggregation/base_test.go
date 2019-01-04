@@ -59,8 +59,6 @@ var (
 		Duration: time.Minute * 5,
 		StepSize: time.Minute,
 	}
-
-	typeBytes = []byte(StandardDeviationType)
 )
 
 func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
@@ -88,9 +86,9 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("1")}})},
-		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("2")}})},
-		{Name: typeBytes, Tags: models.EmptyTags()},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("1")}})},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("2")}})},
+		{Name: StandardDeviationType, Tags: models.EmptyTags()},
 	}
 	expectedMetaTags := models.EmptyTags()
 
@@ -115,9 +113,9 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: typeBytes, Tags: models.EmptyTags()},
-		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
-		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
+		{Name: StandardDeviationType, Tags: models.EmptyTags()},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
@@ -138,7 +136,7 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: typeBytes, Tags: models.EmptyTags()},
+		{Name: StandardDeviationType, Tags: models.EmptyTags()},
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
@@ -168,11 +166,11 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}})},
-		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"b", "2"}})},
-		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{"a", "2"}, {"b", "2"}})},
-		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}})},
-		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"b", "2"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "2"}, {"b", "2"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}})},
 	}
 	expectedMetaTags := models.EmptyTags()
 

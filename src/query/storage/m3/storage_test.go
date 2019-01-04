@@ -538,14 +538,14 @@ func TestLocalSearchSuccess(t *testing.T) {
 
 	actual := make(map[string]models.Metric)
 	for _, m := range result.Metrics {
-		actual[string(m.ID)] = m
+		actual[m.ID] = m
 	}
 
 	for id, actual := range actual {
 		expected, ok := expected[id]
 		require.True(t, ok)
 
-		assert.Equal(t, []byte(expected.id), actual.ID)
+		assert.Equal(t, expected.id, actual.ID)
 		assert.Equal(t, []models.Tag{{
 			Name: []byte(expected.tagName), Value: []byte(expected.tagValue),
 		}}, actual.Tags.Tags)

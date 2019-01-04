@@ -250,8 +250,7 @@ func testCollect(t *testing.T, without bool) {
 				match[i] = []byte(m)
 			}
 
-			bName := []byte(name)
-			buckets, collected := GroupSeries(match, without, bName, metas)
+			buckets, collected := GroupSeries(match, without, name, metas)
 			expectedTags := tt.withTagsExpectedTags
 			expectedIndicies := tt.withTagsExpectedIndices
 			if without {
@@ -263,7 +262,7 @@ func testCollect(t *testing.T, without bool) {
 			for i, tags := range expectedTags {
 				expectedMetas[i] = block.SeriesMeta{
 					Tags: tags,
-					Name: bName,
+					Name: name,
 				}
 			}
 

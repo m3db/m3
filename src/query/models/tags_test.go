@@ -45,21 +45,9 @@ func createTags(withName bool) Tags {
 	return tags
 }
 
-func TestLongTagIDOutOfOrder(t *testing.T) {
-	tags := NewTags(3, nil).AddTags([]Tag{
-		{Name: []byte("t1"), Value: []byte("v1")},
-		{Name: []byte("t3"), Value: []byte("v3")},
-		{Name: []byte("t2"), Value: []byte("v2")},
-		{Name: []byte("t4"), Value: []byte("v4")},
-	})
-
-	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), tags.ID())
-	assert.Equal(t, tags.IDLen(), len(tags.ID()))
-}
-
 func TestTagID(t *testing.T) {
 	tags := createTags(false)
-	assert.Equal(t, []byte("t1=v1,t2=v2,"), tags.ID())
+	assert.Equal(t, "t1=v1,t2=v2,", tags.ID())
 	assert.Equal(t, tags.IDLen(), len(tags.ID()))
 }
 

@@ -133,7 +133,7 @@ func TestScalars(t *testing.T) {
 			assert.Equal(t, 0, sink.Meta.Tags.Len())
 
 			assert.Len(t, sink.Metas, 1)
-			assert.Equal(t, []byte(nil), sink.Metas[0].Name)
+			assert.Equal(t, "", sink.Metas[0].Name)
 			assert.Equal(t, 0, sink.Metas[0].Tags.Len())
 		})
 	}
@@ -185,7 +185,7 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			assert.Equal(t, 0, sink.Meta.Tags.Len())
 
 			assert.Len(t, sink.Metas, 1)
-			assert.Equal(t, []byte(nil), sink.Metas[0].Name)
+			assert.Equal(t, "", sink.Metas[0].Name)
 			assert.Equal(t, 0, sink.Metas[0].Tags.Len())
 		})
 	}

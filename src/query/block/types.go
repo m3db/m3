@@ -60,7 +60,7 @@ type UnconsolidatedBlock interface {
 // SeriesMeta is metadata data for the series
 type SeriesMeta struct {
 	Tags models.Tags
-	Name []byte
+	Name string
 }
 
 // Iterator is the base iterator

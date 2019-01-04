@@ -35,10 +35,9 @@ func TestCreateNewSeries(t *testing.T) {
 		{Name: []byte("biz"), Value: []byte("baz")},
 	})
 	values := NewFixedStepValues(1000, 10000, 1, time.Now())
-	name := []byte("metrics")
-	series := NewSeries(name, values, tags)
+	series := NewSeries("metrics", values, tags)
 
-	assert.Equal(t, name, series.Name())
+	assert.Equal(t, "metrics", series.Name())
 	assert.Equal(t, 10000, series.Len())
 	assert.Equal(t, 1.0, series.Values().ValueAt(0))
 }

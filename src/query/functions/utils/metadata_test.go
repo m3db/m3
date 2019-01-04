@@ -37,20 +37,18 @@ func TestFlattenMetadata(t *testing.T) {
 	})}
 
 	seriesMetas := []block.SeriesMeta{
-		{Name: []byte("foo"),
-			Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("e"), Value: []byte("f")}})},
-		{Name: []byte("bar"),
-			Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("g"), Value: []byte("h")}})},
+		{Name: "foo", Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("e"), Value: []byte("f")}})},
+		{Name: "bar", Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("g"), Value: []byte("h")}})},
 	}
 	flattened := FlattenMetadata(meta, seriesMetas)
 
 	expected := []block.SeriesMeta{
-		{Name: []byte("foo"), Tags: test.TagSliceToTags([]models.Tag{
+		{Name: "foo", Tags: test.TagSliceToTags([]models.Tag{
 			{Name: []byte("a"), Value: []byte("b")},
 			{Name: []byte("c"), Value: []byte("d")},
 			{Name: []byte("e"), Value: []byte("f")},
 		})},
-		{Name: []byte("bar"), Tags: test.TagSliceToTags([]models.Tag{
+		{Name: "bar", Tags: test.TagSliceToTags([]models.Tag{
 			{Name: []byte("a"), Value: []byte("b")},
 			{Name: []byte("c"), Value: []byte("d")},
 			{Name: []byte("g"), Value: []byte("h")},

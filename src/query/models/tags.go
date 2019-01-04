@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+	"strings"
 )
 
 var (
@@ -49,18 +50,22 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
-// ID returns a byte slice representation of the tags.
-func (t Tags) ID() []byte {
-	id := make([]byte, t.IDLen())
-	idx := -1
+// ID returns a string representation of the tags.
+func (t Tags) ID() string {
+	var (
+		idLen      = t.IDLen()
+		strBuilder = strings.Builder{}
+	)
+
+	strBuilder.Grow(idLen)
 	for _, tag := range t.Tags {
-		idx += copy(id[idx+1:], tag.Name) + 1
-		id[idx] = eq
-		idx += copy(id[idx+1:], tag.Value) + 1
-		id[idx] = sep
+		strBuilder.Write(tag.Name)
+		strBuilder.WriteByte(eq)
+		strBuilder.Write(tag.Value)
+		strBuilder.WriteByte(sep)
 	}
 
-	return id
+	return strBuilder.String()
 }
 
 // IDMarshalTo writes out the ID representation
