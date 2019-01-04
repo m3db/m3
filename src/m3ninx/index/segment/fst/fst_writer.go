@@ -39,12 +39,12 @@ var (
 	// a builder node
 	vellumBuilderOpts = &vellum.BuilderOpts{
 		Encoder:                  1,
-		RegistryTableSize:        2 << 16, // ~130k
-		RegistryMRUSize:          2 << 1,  // 4
+		RegistryTableSize:        10000, // 10k
+		RegistryMRUSize:          2,     // 4
 		UnfinishedNodesStackSize: 4096,
 		BuilderNodePoolingConfig: vellum.BuilderNodePoolingConfig{
-			MaxSize:           2 << 14, // ~32k
-			MaxTransitionSize: 2 << 8,  // 512
+			MaxSize:           2 << 16, // ~130k
+			MaxTransitionSize: 2 << 7,  // 256
 		},
 	}
 )

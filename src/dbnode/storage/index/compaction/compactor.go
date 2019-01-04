@@ -23,6 +23,7 @@ package compaction
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/mmap"
 	xerrors "github.com/m3db/m3x/errors"
 )
@@ -216,9 +216,6 @@ func (c *Compactor) compactFromBuilderWithLock(
 		return nil, errCompactorBuilderEmpty
 	}
 
-	allDocsCopy := make([]doc.Document, len(allDocs))
-	copy(allDocsCopy, allDocs)
-
 	err := c.writer.Reset(builder)
 	if err != nil {
 		return nil, err
@@ -230,7 +227,6 @@ func (c *Compactor) compactFromBuilderWithLock(
 		MajorVersion: c.writer.MajorVersion(),
 		MinorVersion: c.writer.MinorVersion(),
 		Metadata:     append([]byte(nil), c.writer.Metadata()...),
-		DocsReader:   docs.NewSliceReader(0, allDocsCopy),
 		Closer:       closers,
 	}
 
@@ -240,6 +236,26 @@ func (c *Compactor) compactFromBuilderWithLock(
 			closers.Close()
 		}
 	}()
+
+	c.buff.Reset()
+	if err := c.writer.WriteDocumentsData(c.buff); err != nil {
+		return nil, err
+	}
+
+	fstData.DocsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	if err != nil {
+		return nil, err
+	}
+
+	c.buff.Reset()
+	if err := c.writer.WriteDocumentsIndex(c.buff); err != nil {
+		return nil, err
+	}
+
+	fstData.DocsIdxData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	if err != nil {
+		return nil, err
+	}
 
 	c.buff.Reset()
 	if err := c.writer.WritePostingsOffsets(c.buff); err != nil {
