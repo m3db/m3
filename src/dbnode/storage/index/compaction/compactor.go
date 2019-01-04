@@ -23,7 +23,6 @@ package compaction
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"sync"
 
