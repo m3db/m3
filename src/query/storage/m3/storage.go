@@ -105,13 +105,20 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	if options.UseLegacy {
+	opts := s.opts
+	switch options.BlockType {
+	case models.TypeDecodedBlock:
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
 			return block.Result{}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query)
+	case models.TypeMultiBlock:
+		// If using multiblock, update options to reflect this.
+		opts = opts.
+			SetLookbackDuration(0).
+			SetSplitSeriesByBlock(true)
 	}
 
 	raw, _, err := s.FetchCompressed(ctx, query, options)
@@ -125,7 +132,7 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, s.opts)
+	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, opts)
 	if err != nil {
 		return block.Result{}, err
 	}
