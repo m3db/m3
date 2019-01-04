@@ -263,22 +263,26 @@ func (s *m3storage) CompleteTags(
 	}
 
 	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	// only filter if there are tags to filter on.
+	filtering := len(query.FilterNameTags) > 0
 	for _, elem := range results {
 		it := elem.Iter
 		tags := make([]storage.CompletedTag, 0, it.Len())
 		for i := 0; it.Next(); i++ {
 			tag := it.Current()
 			name := tag.Name.Bytes()
-			found := false
-			for _, filterName := range query.FilterNameTags {
-				if bytes.Equal(filterName, name) {
-					found = true
-					break
+			if filtering {
+				found := false
+				for _, filterName := range query.FilterNameTags {
+					if bytes.Equal(filterName, name) {
+						found = true
+						break
+					}
 				}
-			}
 
-			if !found {
-				continue
+				if !found {
+					continue
+				}
 			}
 
 			tags = append(tags, storage.CompletedTag{
