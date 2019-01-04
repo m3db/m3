@@ -32,8 +32,17 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+const initBlockLength = 10
+
+type blockAtTime struct {
+	time  time.Time
+	block encodedBlock
+}
+
+type blocksAtTime []blockAtTime
+
 type encodedBlockBuilder struct {
-	blocksAtTime    map[string]encodedBlock
+	blocksAtTime    blocksAtTime
 	tagOptions      models.TagOptions
 	consolidationFn consolidators.ConsolidationFunc
 }
@@ -43,7 +52,7 @@ func newEncodedBlockBuilder(
 	consolidationFn consolidators.ConsolidationFunc,
 ) *encodedBlockBuilder {
 	return &encodedBlockBuilder{
-		blocksAtTime:    make(map[string]encodedBlock, 10),
+		blocksAtTime:    make(blocksAtTime, 0, initBlockLength),
 		tagOptions:      tagOptions,
 		consolidationFn: consolidationFn,
 	}
@@ -61,23 +70,29 @@ func (b *encodedBlockBuilder) add(
 		bounds:          bounds,
 	}
 
-	str := start.String()
-	if _, found := b.blocksAtTime[str]; !found {
-		// Add a new encoded block
-		// NB: the lookback will always be 0, as splitting series into blocks is not
-		// supported with positive lookback durations.
-		b.blocksAtTime[str] = newEncodedBlock(
-			[]encoding.SeriesIterator{},
-			b.tagOptions,
-			consolidation,
-			time.Duration(0),
-			lastBlock,
-		)
+	for idx, bl := range b.blocksAtTime {
+		if bl.time.Equal(start) {
+			block := bl.block
+			block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
+			b.blocksAtTime[idx].block = block
+
+			return
+		}
 	}
 
-	block := b.blocksAtTime[str]
+	block := newEncodedBlock(
+		[]encoding.SeriesIterator{},
+		b.tagOptions,
+		consolidation,
+		time.Duration(0),
+		lastBlock,
+	)
+
 	block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
-	b.blocksAtTime[str] = block
+	b.blocksAtTime = append(b.blocksAtTime, blockAtTime{
+		time:  start,
+		block: block,
+	})
 }
 
 func (b *encodedBlockBuilder) build() ([]block.Block, error) {
@@ -86,13 +101,13 @@ func (b *encodedBlockBuilder) build() ([]block.Block, error) {
 	}
 
 	blocks := make([]block.Block, 0, len(b.blocksAtTime))
-	for _, block := range b.blocksAtTime {
+	for _, bl := range b.blocksAtTime {
+		block := bl.block
 		if err := block.generateMetas(); err != nil {
 			return nil, err
 		}
 
-		bl := block
-		blocks = append(blocks, &bl)
+		blocks = append(blocks, &block)
 	}
 
 	return blocks, nil
@@ -107,9 +122,10 @@ func (b *encodedBlockBuilder) build() ([]block.Block, error) {
 // series order. This is functionally throwaway code and should be regarded
 // as such.
 func (b *encodedBlockBuilder) backfillMissing() error {
-	// Collect all possible IDs and tag iterator lists
+	// map series to indeces of b.blocksAtTime at which they are seen
 	seenMap := make(map[string]seriesIteratorDetails, initBlockReplicaLength)
-	for key, block := range b.blocksAtTime {
+	for idx, bl := range b.blocksAtTime {
+		block := bl.block
 		for _, iter := range block.seriesBlockIterators {
 			id := iter.ID().String()
 			if seen, found := seenMap[id]; !found {
@@ -119,47 +135,61 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 					id:      iter.ID(),
 					ns:      iter.Namespace(),
 					tagIter: iter.Tags(),
-					present: []string{key},
+					present: []int{idx},
 				}
 			} else {
-				seen.present = append(seen.present, key)
+				seen.present = append(seen.present, idx)
 				seenMap[id] = seen
 			}
 		}
 	}
 
-	for key, block := range b.blocksAtTime {
-		for _, iterDetails := range seenMap {
-			keyPresent := false
-			for _, k := range iterDetails.present {
-				if k == key {
-					keyPresent = true
+	// make sure that each seen series exists in every block.
+	blockLen := len(b.blocksAtTime)
+	for _, iterDetails := range seenMap {
+		present := iterDetails.present
+		if len(present) == blockLen {
+			// This series exists in every block already, thus no backfilling necessary.
+			continue
+		}
+
+		for blockIdx, bl := range b.blocksAtTime {
+			found := false
+			for _, presentVal := range present {
+				if presentVal == blockIdx {
+					found = true
 					break
 				}
 			}
 
-			if !keyPresent {
-				tags, err := cloneTagIterator(iterDetails.tagIter)
-				if err != nil {
-					return err
-				}
-
-				iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
-					ID:             ident.StringID(iterDetails.id.String()),
-					Namespace:      ident.StringID(iterDetails.ns.String()),
-					Tags:           tags,
-					StartInclusive: iterDetails.start,
-					EndExclusive:   iterDetails.end,
-				}, nil)
-
-				block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
-				b.blocksAtTime[key] = block
+			// this series exists in the current block.
+			if found {
+				continue
 			}
+
+			// blockIdx does not contain the present value; need to populate it with
+			// an empty series iterator.
+			tags, err := cloneTagIterator(iterDetails.tagIter)
+			if err != nil {
+				return err
+			}
+
+			iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+				ID:             ident.StringID(iterDetails.id.String()),
+				Namespace:      ident.StringID(iterDetails.ns.String()),
+				Tags:           tags,
+				StartInclusive: iterDetails.start,
+				EndExclusive:   iterDetails.end,
+			}, nil)
+
+			block := bl.block
+			block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
+			b.blocksAtTime[blockIdx].block = block
 		}
 	}
 
-	for _, block := range b.blocksAtTime {
-		sort.Sort(seriesIteratorByID(block.seriesBlockIterators))
+	for _, bl := range b.blocksAtTime {
+		sort.Sort(seriesIteratorByID(bl.block.seriesBlockIterators))
 	}
 
 	return nil
@@ -170,7 +200,7 @@ type seriesIteratorDetails struct {
 	id, ns     ident.ID
 	tagIter    ident.TagIterator
 	// NB: the indices that this series iterator exists in already.
-	present []string
+	present []int
 }
 
 type seriesIteratorByID []encoding.SeriesIterator
