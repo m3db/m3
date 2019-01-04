@@ -21,12 +21,15 @@
 package m3db
 
 import (
+	"bytes"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3x/ident"
 )
 
 type encodedBlockBuilder struct {
@@ -77,12 +80,103 @@ func (b *encodedBlockBuilder) add(
 	b.blocksAtTime[str] = block
 }
 
-func (b *encodedBlockBuilder) build() []block.Block {
-	blocks := make([]block.Block, 0, len(b.blocksAtTime))
-	for _, block := range b.blocksAtTime {
-		block.generateMetas()
-		blocks = append(blocks, &block)
+func (b *encodedBlockBuilder) build() ([]block.Block, error) {
+	if err := b.backfillMissing(); err != nil {
+		return nil, err
 	}
 
-	return blocks
+	blocks := make([]block.Block, 0, len(b.blocksAtTime))
+	for _, block := range b.blocksAtTime {
+		if err := block.generateMetas(); err != nil {
+			return nil, err
+		}
+
+		bl := block
+		blocks = append(blocks, &bl)
+	}
+
+	return blocks, nil
+}
+
+// Since some series can be missing if there are no values in composing blocks,
+// need to backfill these, since downstream functions rely on series order.
+//
+// TODO: this will be removed after https://github.com/m3db/m3/issues/1281 is
+// completed, which will allow temporal functions, and final read accumulator
+// to empty series, and do its own matching rather than relying on matching
+// series order. This is functionally throwaway code and should be regarded
+// as such.
+func (b *encodedBlockBuilder) backfillMissing() error {
+	// Collect all possible IDs and tag iterator lists
+	seenMap := make(map[string]seriesIteratorDetails, initBlockReplicaLength)
+	for key, block := range b.blocksAtTime {
+		for _, iter := range block.seriesBlockIterators {
+			id := iter.ID().String()
+			if seen, found := seenMap[id]; !found {
+				seenMap[id] = seriesIteratorDetails{
+					start:   iter.Start(),
+					end:     iter.End(),
+					id:      iter.ID(),
+					ns:      iter.Namespace(),
+					tagIter: iter.Tags(),
+					present: []string{key},
+				}
+			} else {
+				seen.present = append(seen.present, key)
+				seenMap[id] = seen
+			}
+		}
+	}
+
+	for key, block := range b.blocksAtTime {
+		for _, iterDetails := range seenMap {
+			keyPresent := false
+			for _, k := range iterDetails.present {
+				if k == key {
+					keyPresent = true
+					break
+				}
+			}
+
+			if !keyPresent {
+				tags, err := cloneTagIterator(iterDetails.tagIter)
+				if err != nil {
+					return err
+				}
+
+				iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+					ID:             ident.StringID(iterDetails.id.String()),
+					Namespace:      ident.StringID(iterDetails.ns.String()),
+					Tags:           tags,
+					StartInclusive: iterDetails.start,
+					EndExclusive:   iterDetails.end,
+				}, nil)
+
+				block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
+				b.blocksAtTime[key] = block
+			}
+		}
+	}
+
+	for _, block := range b.blocksAtTime {
+		sort.Sort(seriesIteratorByID(block.seriesBlockIterators))
+	}
+
+	return nil
+}
+
+type seriesIteratorDetails struct {
+	start, end time.Time
+	id, ns     ident.ID
+	tagIter    ident.TagIterator
+	// NB: the indices that this series iterator exists in already.
+	present []string
+}
+
+type seriesIteratorByID []encoding.SeriesIterator
+
+func (s seriesIteratorByID) Len() int      { return len(s) }
+func (s seriesIteratorByID) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s seriesIteratorByID) Less(i, j int) bool {
+	return bytes.Compare(s[i].ID().Bytes(), s[j].ID().Bytes()) == -1
 }
