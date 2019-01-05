@@ -51,7 +51,8 @@ func EmptyTags() Tags {
 
 // ID returns a byte slice representation of the tags.
 func (t Tags) ID() []byte {
-	id := make([]byte, t.IDLen())
+	// TODO: pool these bytes.
+	id := make([]byte, t.idLen())
 	idx := -1
 	for _, tag := range t.Tags {
 		idx += copy(id[idx+1:], tag.Name) + 1
@@ -63,22 +64,8 @@ func (t Tags) ID() []byte {
 	return id
 }
 
-// IDMarshalTo writes out the ID representation
-// of the tags into the provided buffer.
-func (t Tags) IDMarshalTo(b []byte) []byte {
-	for _, tag := range t.Tags {
-		b = append(b, tag.Name...)
-		b = append(b, eq)
-		b = append(b, tag.Value...)
-		b = append(b, sep)
-	}
-
-	return b
-}
-
-// IDLen returns the length of the ID that would be
-// generated from the tags.
-func (t Tags) IDLen() int {
+// idLen returns the length of the ID that would be generated from the tags.
+func (t Tags) idLen() int {
 	idLen := 2 * t.Len() // account for eq and sep
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
