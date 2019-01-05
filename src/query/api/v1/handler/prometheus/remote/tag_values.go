@@ -82,5 +82,9 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Support multiple result types
-	prometheus.RenderTagCompletionResultsJSON(w, result)
+	err = prometheus.RenderTagValuesResultsJSON(w, result)
+	if err != nil {
+		logger.Error("unable to render tag values", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+	}
 }

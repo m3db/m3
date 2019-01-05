@@ -97,7 +97,7 @@ func searchServer(t *testing.T) *SearchHandler {
 
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(mockTaggedIDsIter, false, nil)
+		Return(mockTaggedIDsIter, false, nil).AnyTimes()
 
 	search := &SearchHandler{store: storage}
 	return search
