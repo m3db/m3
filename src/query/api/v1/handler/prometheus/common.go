@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	matchValues = []byte("*")
+	matchValues = []byte(".*")
 )
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
@@ -296,6 +296,51 @@ func RenderTagCompletionResultsJSON(
 	}
 
 	return renderDefaultTagCompletionResultsJSON(w, results)
+}
+
+// RenderTagValuesResultsJSON renders tag values results to json format
+func RenderTagValuesResultsJSON(
+	w io.Writer,
+	result *storage.CompleteTagsResult,
+) error {
+	if result.CompleteNameOnly {
+		return errors.ErrNamesOnly
+	}
+
+	tagCount := len(result.CompletedTags)
+
+	if tagCount > 1 {
+		return errors.ErrMultipleResults
+	}
+
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginArray()
+
+	// if no tags found, return empty array
+	if tagCount == 0 {
+		jw.EndArray()
+
+		jw.EndObject()
+
+		return jw.Close()
+	}
+
+	values := result.CompletedTags[0].Values
+	for _, value := range values {
+		jw.WriteString(string(value))
+	}
+
+	jw.EndArray()
+
+	jw.EndObject()
+
+	return jw.Close()
 }
 
 type tag struct {

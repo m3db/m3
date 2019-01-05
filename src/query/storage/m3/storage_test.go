@@ -568,3 +568,124 @@ func newTestIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
 
 	return pools
 }
+
+func newCompleteTagsReq() *storage.CompleteTagsQuery {
+	matchers := models.Matchers{
+		{
+			Type:  models.MatchEqual,
+			Name:  []byte("qux"),
+			Value: []byte(".*"),
+		},
+	}
+
+	return &storage.CompleteTagsQuery{
+		CompleteNameOnly: false,
+		FilterNameTags:   [][]byte{[]byte("qux")},
+		TagMatchers:      matchers,
+	}
+}
+
+func TestLocalCompleteTagsSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store, sessions := setup(t, ctrl)
+
+	type testFetchTaggedID struct {
+		id        string
+		namespace string
+		tagName   string
+		tagValue  string
+	}
+
+	fetches := []testFetchTaggedID{
+		{
+			id:        "foo",
+			namespace: "metrics_unaggregated",
+			tagName:   "qux",
+			tagValue:  "qaz",
+		},
+		{
+			id:        "bar",
+			namespace: "metrics_aggregated_1m:30d",
+			tagName:   "qel",
+			tagValue:  "quz",
+		},
+		{
+			id:        "baz",
+			namespace: "metrics_aggregated_5m:90d",
+			tagName:   "qam",
+			tagValue:  "qak",
+		},
+		{
+			id:        "qux",
+			namespace: "metrics_aggregated_10m:365d",
+			tagName:   "qux",
+			tagValue:  "qaz2",
+		},
+	}
+
+	sessions.forEach(func(session *client.MockSession) {
+		var f testFetchTaggedID
+		switch {
+		case session == sessions.unaggregated1MonthRetention:
+			f = fetches[0]
+		case session == sessions.aggregated1MonthRetention1MinuteResolution:
+			f = fetches[1]
+		case session == sessions.aggregated3MonthRetention5MinuteResolution:
+			f = fetches[2]
+		case session == sessions.aggregated1YearRetention10MinuteResolution:
+			f = fetches[3]
+		default:
+			// Not expecting from other (partial) namespaces
+			iter := client.NewMockTaggedIDsIterator(ctrl)
+			gomock.InOrder(
+				iter.EXPECT().Next().Return(false),
+				iter.EXPECT().Err().Return(nil),
+				iter.EXPECT().Finalize(),
+			)
+			session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(iter, true, nil)
+			session.EXPECT().IteratorPools().
+				Return(nil, nil).AnyTimes()
+			return
+		}
+		iter := client.NewMockTaggedIDsIterator(ctrl)
+		gomock.InOrder(
+			iter.EXPECT().Next().Return(true),
+			iter.EXPECT().Current().Return(
+				ident.StringID(f.namespace),
+				ident.StringID(f.id),
+				ident.NewTagsIterator(ident.NewTags(
+					ident.Tag{
+						Name:  ident.StringID(f.tagName),
+						Value: ident.StringID(f.tagValue),
+					})),
+			),
+			iter.EXPECT().Next().Return(false),
+			iter.EXPECT().Err().Return(nil),
+			iter.EXPECT().Finalize(),
+		)
+
+		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(iter, true, nil)
+
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
+	})
+
+	req := newCompleteTagsReq()
+	result, err := store.CompleteTags(context.TODO(), req, &storage.FetchOptions{Limit: 100})
+	require.NoError(t, err)
+
+	require.False(t, result.CompleteNameOnly)
+
+	require.Equal(t, 1, len(result.CompletedTags))
+	expected := []storage.CompletedTag{
+		{
+			Name:   []byte("qux"),
+			Values: [][]byte{[]byte("qaz"), []byte("qaz2")},
+		},
+	}
+
+	assert.Equal(t, expected, result.CompletedTags)
+}
