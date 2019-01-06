@@ -58,7 +58,6 @@ type fstTermsIter struct {
 var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
 
 func (f *fstTermsIter) clear() {
-	*f.iter = vellum.FSTIterator{}
 	f.opts = fstTermsIterOpts{}
 	f.err = nil
 	f.done = false

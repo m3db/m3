@@ -21,6 +21,8 @@
 package builder
 
 import (
+	"errors"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -32,6 +34,10 @@ const (
 	defaultBitmapContainerPooling = 128
 )
 
+var (
+	errPostingsListNotRoaring = errors.New("postings list not a roaring postings list")
+)
+
 // Ensure for our use case that the terms iter from segments we return
 // matches the signature for the terms iterator.
 var _ segment.TermsIterator = &termsIterFromSegments{}
@@ -39,8 +45,11 @@ var _ segment.TermsIterator = &termsIterFromSegments{}
 type termsIterFromSegments struct {
 	keyIter          *multiKeyIterator
 	currPostingsList postings.MutableList
+	bitmapIter       *bitmap.Iterator
 
-	segments   []segmentTermsMetadata
+	segments []segmentTermsMetadata
+
+	err        error
 	termsIters []*termsKeyIter
 }
 
@@ -54,6 +63,7 @@ func newTermsIterFromSegments() *termsIterFromSegments {
 	return &termsIterFromSegments{
 		keyIter:          newMultiKeyIterator(),
 		currPostingsList: roaring.NewPostingsListFromBitmap(b),
+		bitmapIter:       &bitmap.Iterator{},
 	}
 }
 
@@ -65,6 +75,7 @@ func (i *termsIterFromSegments) clear() {
 func (i *termsIterFromSegments) clearTermIters() {
 	i.keyIter.reset()
 	i.currPostingsList.Reset()
+	i.err = nil
 	for _, termIter := range i.termsIters {
 		termIter.iter = nil
 		termIter.segment = segmentMetadata{}
@@ -116,50 +127,69 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 }
 
 func (i *termsIterFromSegments) Next() bool {
-	return i.keyIter.Next()
-}
+	if i.err != nil {
+		return false
+	}
 
-func (i *termsIterFromSegments) Current() ([]byte, postings.List) {
-	term := i.keyIter.Current()
+	if !i.keyIter.Next() {
+		return false
+	}
 
-	currIters := i.keyIter.CurrentIters()
-
+	// Create the overlayed postings list for this term
 	i.currPostingsList.Reset()
-	for _, iter := range currIters {
+	for _, iter := range i.keyIter.CurrentIters() {
 		termsKeyIter := iter.(*termsKeyIter)
 		_, list := termsKeyIter.iter.Current()
+
 		if termsKeyIter.segment.offset == 0 {
+			// No offset, which means is first segment we are combining from
+			// so can just direct union
 			i.currPostingsList.Union(list)
-		} else {
-			// We have to taken into account the offset and duplicates
-			var (
-				listIter       = list.Iterator()
-				duplicates     = termsKeyIter.segment.duplicatesAsc
-				negativeOffset postings.ID
-			)
-			for listIter.Next() {
-				curr := listIter.Current()
-				for len(duplicates) > 0 && curr > duplicates[0] {
-					duplicates = duplicates[1:]
-					negativeOffset++
-				}
-				if len(duplicates) > 0 && curr == duplicates[0] {
-					duplicates = duplicates[1:]
-					negativeOffset++
-					// Also skip this value, as itself is a duplicate
-					continue
-				}
-				value := curr + termsKeyIter.segment.offset - negativeOffset
-				_ = i.currPostingsList.Insert(value)
+			continue
+		}
+
+		// We have to taken into account the offset and duplicates
+		var (
+			iter           = i.bitmapIter
+			duplicates     = termsKeyIter.segment.duplicatesAsc
+			negativeOffset postings.ID
+		)
+		bitmap, ok := roaring.BitmapFromPostingsList(list)
+		if !ok {
+			i.err = errPostingsListNotRoaring
+			return false
+		}
+
+		iter.Reset(bitmap)
+		for v, eof := iter.Next(); !eof; v, eof = iter.Next() {
+			curr := postings.ID(v)
+			for len(duplicates) > 0 && curr > duplicates[0] {
+				duplicates = duplicates[1:]
+				negativeOffset++
 			}
+			if len(duplicates) > 0 && curr == duplicates[0] {
+				duplicates = duplicates[1:]
+				negativeOffset++
+				// Also skip this value, as itself is a duplicate
+				continue
+			}
+			value := curr + termsKeyIter.segment.offset - negativeOffset
+			_ = i.currPostingsList.Insert(value)
 		}
 	}
 
-	return term, i.currPostingsList
+	return true
+}
+
+func (i *termsIterFromSegments) Current() ([]byte, postings.List) {
+	return i.keyIter.Current(), i.currPostingsList
 }
 
 func (i *termsIterFromSegments) Err() error {
-	return i.keyIter.Err()
+	if err := i.keyIter.Err(); err != nil {
+		return err
+	}
+	return i.err
 }
 
 func (i *termsIterFromSegments) Close() error {

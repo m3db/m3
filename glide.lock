@@ -1,5 +1,5 @@
-hash: 19a263a25ec1879bffbfc6cc69ac87d195dafb8c65b9763b84a1362bee7bed23
-updated: 2019-01-04T11:30:59.227269-05:00
+hash: 95cb3f6fe6af24a41b9bd32eb225e51331a82e0fda3ede1c7ab2a74b36476276
+updated: 2019-01-06T00:21:59.302424-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -108,7 +108,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: a2fd4d85d01e67e32c0dab4415e3acb10ea1bdbf
+  version: 5bc79ec889e35b42dfd36b1253d93c1780942c2b
   repo: https://github.com/m3db/vellum
   subpackages:
   - regexp
@@ -299,14 +299,14 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
-  version: 9fc1371ae50fd09de86b8d88eef1e15596d545b6
-  repo: https://github.com/richardartoul/pilosa
+  version: 07a128ae25fb8180d497487719be86db5b0c9d00
+  repo: https://github.com/m3db/pilosa
   subpackages:
   - logger
   - roaring
   - stats
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib

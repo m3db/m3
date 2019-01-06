@@ -116,16 +116,24 @@ import:
   - package: github.com/satori/go.uuid
     version: ^1.2.0
 
+  # NB(r): make sure to use the master commit for vellum
+  # once all upstream changes are complete
+  # Curr PRs:
+  # - https://github.com/m3db/vellum/pull/4
   - package: github.com/couchbase/vellum
     repo: https://github.com/m3db/vellum
-    version: a2fd4d85d01e67e32c0dab4415e3acb10ea1bdbf
+    version: 5bc79ec889e35b42dfd36b1253d93c1780942c2b
 
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
     version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 
+  # NB(r): make sure to use the master commit for pilosa
+  # once all upstream changes are complete
+  # Curr PRs:
+  # - https://github.com/m3db/pilosa/pull/3
   - package: github.com/pilosa/pilosa/roaring
-    repo: https://github.com/richardartoul/pilosa
-    version: 9fc1371ae50fd09de86b8d88eef1e15596d545b6
+    repo: https://github.com/m3db/pilosa
+    version: 07a128ae25fb8180d497487719be86db5b0c9d00
 
   # NB(prateek): ideally, the following dependencies would be under testImport, but
   # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564
