@@ -35,15 +35,6 @@ var (
 	errUnionRoaringOnly      = errors.New("Union only supported between roaringDocId sets")
 	errDifferenceRoaringOnly = errors.New("Difference only supported between roaringDocId sets")
 	errIteratorClosed        = errors.New("iterator has been closed")
-
-	poolingMaxCapacity = 1
-	poolingConfig      = roaring.ContainerPoolingConfiguration{
-		AllocateArray:                   true,
-		AllocateRuns:                    true,
-		AllocateBitmap:                  true,
-		MaxCapacity:                     poolingMaxCapacity,
-		MaxKeysAndContainersSliceLength: poolingMaxCapacity * 10,
-	}
 )
 
 // Union retrieves a new postings list which is the union of the provided lists.
@@ -84,7 +75,7 @@ type postingsList struct {
 // NewPostingsList returns a new mutable postings list backed by a Roaring Bitmap.
 func NewPostingsList() postings.MutableList {
 	return &postingsList{
-		bitmap: roaring.NewBitmapWithPooling(poolingConfig),
+		bitmap: roaring.NewBitmap(),
 	}
 }
 

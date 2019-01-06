@@ -31,9 +31,9 @@ const (
 const (
 	defaultMaxFinalizerCapacity = 4
 	// defaultPostingsListPoolSize has a small default pool size since postings
-	// lists can frequently reach the size of 100kb each in practice even when
+	// lists can frequently reach the size of 4mb each in practice even when
 	// reset.
-	defaultPostingsListPoolSize = 512
+	defaultPostingsListPoolSize = 16
 )
 
 // PoolingPolicy specifies the pooling policy.
