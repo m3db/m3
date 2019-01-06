@@ -37,6 +37,12 @@ var (
 	errIteratorClosed        = errors.New("iterator has been closed")
 )
 
+const (
+	// numContainersPooled * 2^16 will be how many values can be represented
+	// without requiring any further allocation than the first upfront alloc.
+	numContainersPooled = 16 // = 1 million distinct using bitsets before alloc
+)
+
 // Union retrieves a new postings list which is the union of the provided lists.
 func Union(inputs []postings.List) (postings.MutableList, error) {
 	if len(inputs) == 0 {
@@ -75,7 +81,7 @@ type postingsList struct {
 // NewPostingsList returns a new mutable postings list backed by a Roaring Bitmap.
 func NewPostingsList() postings.MutableList {
 	return &postingsList{
-		bitmap: roaring.NewBitmap(),
+		bitmap: roaring.NewBitmapWithDefaultPooling(numContainersPooled),
 	}
 }
 

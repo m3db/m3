@@ -299,7 +299,7 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
-  version: 07a128ae25fb8180d497487719be86db5b0c9d00
+  version: 638d01146b9d6aed6d8a26d07c05c2db26e1ec87
   repo: https://github.com/m3db/pilosa
   subpackages:
   - logger

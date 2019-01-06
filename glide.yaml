@@ -133,7 +133,7 @@ import:
   # - https://github.com/m3db/pilosa/pull/3
   - package: github.com/pilosa/pilosa/roaring
     repo: https://github.com/m3db/pilosa
-    version: 07a128ae25fb8180d497487719be86db5b0c9d00
+    version: 638d01146b9d6aed6d8a26d07c05c2db26e1ec87
 
   # NB(prateek): ideally, the following dependencies would be under testImport, but
   # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564

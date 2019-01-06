@@ -83,7 +83,7 @@ func (t *terms) reset() {
 	for _, entry := range t.postings.Iter() {
 		t.pool.Put(entry.Value())
 	}
-	t.postings.Reallocate()
+	t.postings.Reset()
 
 	// Reset the unique terms slice
 	var emptyTerm termElem
