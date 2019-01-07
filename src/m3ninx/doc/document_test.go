@@ -105,28 +105,28 @@ func TestDocumentGetField(t *testing.T) {
 	}{
 		{
 			name: "get existing field",
-			input: Document{
+			input: DocumentBuilder{
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			fieldName:   []byte("apple"),
 			expectedOk:  true,
 			expectedVal: []byte("red"),
 		},
 		{
 			name: "get nonexisting field",
-			input: Document{
+			input: DocumentBuilder{
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			fieldName:  []byte("banana"),
 			expectedOk: false,
 		},
@@ -159,7 +159,7 @@ func TestDocumentCompare(t *testing.T) {
 		},
 		{
 			name: "documents with the same id and the same fields in the same order are equal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -171,8 +171,8 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -184,12 +184,12 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
+			}.Build(),
 			expected: 0,
 		},
 		{
 			name: "documents are ordered by their IDs",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -197,8 +197,8 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831991"),
 				Fields: []Field{
 					Field{
@@ -206,12 +206,12 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			expected: 1,
 		},
 		{
 			name: "documents are ordered by their field names",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -219,8 +219,8 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -228,12 +228,12 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			expected: 1,
 		},
 		{
 			name: "documents are ordered by their field values",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -241,8 +241,8 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("green"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -250,12 +250,12 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			expected: -1,
 		},
 		{
 			name: "documents are ordered by their lengths",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -263,8 +263,8 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -276,14 +276,16 @@ func TestDocumentCompare(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
+			}.Build(),
 			expected: -1,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expected, test.l.Compare(test.r))
+			result, err := test.l.Compare(test.r)
+			require.NoError(t, err)
+			require.Equal(t, test.expected, result)
 		})
 	}
 }
@@ -301,7 +303,7 @@ func TestDocumentEquality(t *testing.T) {
 		},
 		{
 			name: "documents with the same fields in the same order are equal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -313,8 +315,8 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -326,12 +328,12 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
+			}.Build(),
 			expected: true,
 		},
 		{
 			name: "documents with the same fields in different order are equal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -343,8 +345,8 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -356,12 +358,12 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
+			}.Build(),
 			expected: true,
 		},
 		{
 			name: "documents with different fields are unequal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -373,8 +375,8 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -386,12 +388,12 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("orange"),
 					},
 				},
-			},
+			}.Build(),
 			expected: false,
 		},
 		{
 			name: "documents with different IDs are unequal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -399,8 +401,8 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("080292"),
 				Fields: []Field{
 					Field{
@@ -408,13 +410,14 @@ func TestDocumentEquality(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			expected: false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// equal, err :=
 			require.Equal(t, test.expected, test.l.Equal(test.r))
 		})
 	}

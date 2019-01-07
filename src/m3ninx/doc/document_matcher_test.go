@@ -40,7 +40,7 @@ func TestDocumentMatcher(t *testing.T) {
 		},
 		{
 			name: "documents with the same fields in the same order are equal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -52,8 +52,8 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -65,12 +65,12 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
+			}.Build(),
 			expected: true,
 		},
 		{
 			name: "documents with the same fields in different order are unequal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -82,8 +82,8 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -95,12 +95,12 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
+			}.Build(),
 			expected: false,
 		},
 		{
 			name: "documents with different fields are unequal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -112,8 +112,8 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("yellow"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -125,12 +125,12 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("orange"),
 					},
 				},
-			},
+			}.Build(),
 			expected: false,
 		},
 		{
 			name: "documents with different IDs are unequal",
-			l: Document{
+			l: DocumentBuilder{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -138,8 +138,8 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
-			r: Document{
+			}.Build(),
+			r: DocumentBuilder{
 				ID: []byte("080292"),
 				Fields: []Field{
 					Field{
@@ -147,7 +147,7 @@ func TestDocumentMatcher(t *testing.T) {
 						Value: []byte("red"),
 					},
 				},
-			},
+			}.Build(),
 			expected: false,
 		},
 	}
