@@ -151,6 +151,37 @@ func (d *clusterDB) Close() error {
 	return d.stopActiveTopologyWatch()
 }
 
+func (d *clusterDB) IsBootstrappedAndDurable() bool {
+	if !d.Database.IsBootstrapped() {
+		return false
+	}
+
+	entry, ok := d.watch.Get().LookupHostShardSet(d.hostID)
+	if !ok {
+		// If we're bootstrapped, but not in the placement, then we
+		// are durable because we don't have any data we need to store
+		// anyways.
+		return true
+	}
+
+	for _, s := range entry.ShardSet().All() {
+		switch s.State() {
+		case shard.Leaving:
+			continue
+		case shard.Available:
+			continue
+		}
+
+		return false
+	}
+
+	// If all of the shards we own are either LEAVING or AVAILABLE then we know
+	// we are durable because we will only mark shards as AVAILABLE once we become
+	// durable for them, and then once a shard has reached the AVAILABLE state we
+	// are responsible for always remaining in a durable state.
+	return true
+}
+
 func (d *clusterDB) startActiveTopologyWatch() error {
 	d.watchMutex.Lock()
 	defer d.watchMutex.Unlock()
@@ -283,7 +314,8 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		return
 	}
 
-	if !d.IsBootstrappedAndDurable() {
+	// Call IsBootstrappedAndDurable on storage database, not cluster.
+	if !d.Database.IsBootstrappedAndDurable() {
 		return
 	}
 
