@@ -156,6 +156,15 @@ func (d *clusterDB) IsBootstrappedAndDurable() bool {
 		return false
 	}
 
+	_, ok := d.topo.(topology.DynamicTopology)
+	if !ok {
+		// If the topology is not dynamic, then the only thing we care
+		// about is whether the node is bootstrapped or not because the
+		// concept of durability as it relates to shard state doesn't
+		// make sense if we're using a static topology.
+		return true
+	}
+
 	entry, ok := d.watch.Get().LookupHostShardSet(d.hostID)
 	if !ok {
 		// If we're bootstrapped, but not in the placement, then we

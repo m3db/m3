@@ -144,7 +144,7 @@ func TestWriteTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 
 	// No writes succeed to available nodes
 	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[3].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
 	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
@@ -180,7 +180,7 @@ func TestWriteTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testin
 	// Writes succeed to one available node
 	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[3].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
@@ -217,7 +217,7 @@ func TestWriteTaggedAddNodeQuorumAllUp(t *testing.T) {
 	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[1].startServer())
 	require.NoError(t, nodes[2].startServer())
-	require.NoError(t, nodes[3].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})

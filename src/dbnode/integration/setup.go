@@ -450,7 +450,15 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 	return errServerStopTimedOut
 }
 
+func (ts *testSetup) startServerDontWaitBootstrap() error {
+	return ts.startServerBase(false)
+}
+
 func (ts *testSetup) startServer() error {
+	return ts.startServerBase(true)
+}
+
+func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 	ts.logger.Infof("starting server")
 
 	var (
@@ -491,9 +499,13 @@ func (ts *testSetup) startServer() error {
 		ts.closedCh <- struct{}{}
 	}()
 
+	waitFn := ts.waitUntilServerIsUp
+	if waitForBootstrap {
+		waitFn = ts.waitUntilServerIsBootstrapped
+	}
 	go func() {
 		select {
-		case resultCh <- ts.waitUntilServerIsBootstrapped():
+		case resultCh <- waitFn():
 		default:
 		}
 	}()

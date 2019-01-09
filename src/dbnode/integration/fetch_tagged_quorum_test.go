@@ -294,7 +294,7 @@ func startAndWriteTagged(
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
-		require.NoError(t, n.startServer())
+		require.NoError(t, n.startServerDontWaitBootstrap())
 		require.NoError(t, n.db.WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
 			n.getNowFn(), 42, xtime.Second, nil))
