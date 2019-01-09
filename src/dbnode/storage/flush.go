@@ -139,6 +139,7 @@ func (m *flushManager) Flush(
 	// has completed, then all data that had been received by the dbnode up until the
 	// snapshot "start time" has been persisted durably.
 	shouldSnapshot := tickStart.Sub(m.lastSuccessfulSnapshotStartTime) >= m.opts.MinimumSnapshotInterval()
+
 	if shouldSnapshot {
 		m.setState(flushManagerSnapshotInProgress)
 		maxBlocksSnapshottedByNamespace := 0

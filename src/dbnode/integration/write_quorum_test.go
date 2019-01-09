@@ -232,6 +232,18 @@ func makeTestWrite(
 	nspaces := []namespace.Metadata{md}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false)
 	now := nodes[0].getNowFn()
+	go func() {
+		// Tick the time up in the background so that background operations like
+		// snapshotting will run (they have a configurable minimum interval between
+		// runs.)
+		for {
+			now = now.Add(time.Second)
+			for _, node := range nodes {
+				node.setNowFn(now)
+			}
+			time.Sleep(time.Second)
+		}
+	}()
 
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)

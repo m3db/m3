@@ -125,14 +125,37 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
+	var logger xlog.Logger
+	if level := os.Getenv("LOG_LEVEL"); level != "" {
+		parsedLevel, err := xlog.ParseLevel(level)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse log level: %v", err)
+		}
+		logger = xlog.NewLevelLogger(xlog.SimpleLogger, parsedLevel)
+	} else {
+		logger = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelInfo)
+	}
+
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(nsInit).
 		SetMinimumSnapshotInterval(opts.MinimumSnapshotInterval())
 
+		// Use specified series cache policy from environment if set
+	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
+	if seriesCachePolicy != "" {
+		value, err := series.ParseCachePolicy(seriesCachePolicy)
+		if err != nil {
+			return nil, err
+		}
+		storageOpts = storageOpts.SetSeriesCachePolicy(value)
+	}
+
 	fields := []xlog.Field{
 		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
 	}
-	logger := storageOpts.InstrumentOptions().Logger().WithFields(fields...)
+	logger = logger.WithFields(fields...)
+	iOpts := storageOpts.InstrumentOptions()
+	storageOpts = storageOpts.SetInstrumentOptions(iOpts.SetLogger(logger))
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -244,16 +267,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	// Set up repair options
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
-
-	// Use specified series cache policy from environment if set
-	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
-	if seriesCachePolicy != "" {
-		value, err := series.ParseCachePolicy(seriesCachePolicy)
-		if err != nil {
-			return nil, err
-		}
-		storageOpts = storageOpts.SetSeriesCachePolicy(value)
-	}
 
 	// Set up block retriever manager
 	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {
