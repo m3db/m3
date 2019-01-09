@@ -60,7 +60,8 @@ func TestFetchTaggedQuorumNormalOnlyOneUp(t *testing.T) {
 	defer closeFn()
 
 	// fetch succeeds from one node
-	startAndWriteTagged(t, nodes[0])
+	require.NoError(t, nodes[0].startServer())
+	writeTagged(t, nodes[0])
 
 	testFetch.assertContainsTaggedResult(t,
 		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority)
@@ -85,7 +86,9 @@ func TestFetchTaggedQuorumNormalOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	startAndWriteTagged(t, nodes[0], nodes[1])
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
+	writeTagged(t, nodes[0], nodes[1])
 
 	// succeed to two nodes
 	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
@@ -110,7 +113,10 @@ func TestFetchTaggedQuorumNormalAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	startAndWriteTagged(t, nodes...)
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[2].startServer())
+	writeTagged(t, nodes...)
 
 	// succeed to all nodes
 	testFetch.assertContainsTaggedResult(t,
@@ -136,7 +142,9 @@ func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	startAndWriteTagged(t, nodes[0], nodes[3])
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	writeTagged(t, nodes[0], nodes[3])
 
 	// No fetches succeed to available nodes
 	testFetch.assertFailsTaggedResult(t,
@@ -162,7 +170,10 @@ func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testin
 	})
 	defer closeFn()
 
-	startAndWriteTagged(t, nodes[0], nodes[1], nodes[3])
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	writeTagged(t, nodes[0], nodes[1], nodes[3])
 
 	// fetches succeed to one available node
 	testFetch.assertContainsTaggedResult(t,
@@ -191,7 +202,11 @@ func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	defer closeFn()
 
 	// fetches succeed to one available node
-	startAndWriteTagged(t, nodes...)
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[2].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	writeTagged(t, nodes...)
 
 	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
 		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority)
@@ -287,14 +302,13 @@ func makeTestFetchTagged(
 	return nodes, closeFn, testFetch
 }
 
-func startAndWriteTagged(
+func writeTagged(
 	t *testing.T,
 	nodes ...*testSetup,
 ) {
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
-		require.NoError(t, n.startServerDontWaitBootstrap())
 		require.NoError(t, n.db.WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
 			n.getNowFn(), 42, xtime.Second, nil))
