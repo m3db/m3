@@ -54,6 +54,7 @@ func (t Tags) ID() []byte {
 	// TODO: pool these bytes.
 	id := make([]byte, t.idLen())
 	idx := -1
+
 	for _, tag := range t.Tags {
 		idx += copy(id[idx+1:], tag.Name) + 1
 		id[idx] = eq
@@ -66,13 +67,66 @@ func (t Tags) ID() []byte {
 
 // idLen returns the length of the ID that would be generated from the tags.
 func (t Tags) idLen() int {
-	idLen := 2 * t.Len() // account for eq and sep
+	idLen := 0 // 2 * t.Len() // account for eq and sep
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
 		idLen += len(tag.Value)
 	}
 
 	return idLen
+}
+
+// ID returns a byte slice representation of the tags.
+func (t Tags) newid() []byte {
+	// TODO: pool these bytes.
+	id := make([]byte, t.idLen())
+	idx := -1
+
+	for _, tag := range t.Tags {
+		idx += copy(id[idx+1:], tag.Name) + 1
+		id[idx] = eq
+		idx += copy(id[idx+1:], tag.Value) + 1
+		id[idx] = sep
+	}
+
+	return id
+}
+
+func tagLengthsToBytes(tagLengths []int) []byte {
+	// account for tag length seperator and final character,
+	// and at least a single byte for the length
+	byteLength := 1 + len(tagLengths)
+	for _, l := range tagLengths {
+		for ; l > 0; l >>= 8 {
+			byteLength++
+		}
+	}
+
+	tagBytes := make([]byte, byteLength)
+	idx := 0
+	for _, l := range tagLengths {
+		for ; l > 0; l >>= 8 {
+			tagBytes[idx] = byte(l % 256)
+			idx++
+		}
+		idx++
+	}
+
+	return tagBytes
+}
+
+// idLen returns the length of the ID that would be generated from the tags.
+func (t Tags) newlen() (int, []int) {
+	idLen := 0 // t.Len() // 2 * t.Len()  // account for eq and sep
+	tagLengths := make([]int, len(t.Tags))
+	for i, tag := range t.Tags {
+		tagLen := len(tag.Name) + 1
+		tagLen += len(tag.Value)
+		tagLengths[i] = tagLen
+		idLen += tagLen
+	}
+
+	return idLen, tagLengths
 }
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys.
