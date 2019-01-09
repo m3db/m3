@@ -55,7 +55,7 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 
 	// Writes succeed to one node
@@ -81,9 +81,9 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[1].startServer())
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 
 	// Writes succeed to two nodes
@@ -109,11 +109,11 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[1].startServer())
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[2].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[2].startServer())
 	defer func() { require.NoError(t, nodes[2].stopServer()) }()
 
 	// Writes succeed to all nodes
@@ -140,7 +140,7 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 
 	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
@@ -170,9 +170,9 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[1].startServer())
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].stopServer()) }()
@@ -201,11 +201,11 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[1].startServer())
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[2].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[2].startServer())
 	defer func() { require.NoError(t, nodes[2].stopServer()) }()
 	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].stopServer()) }()
