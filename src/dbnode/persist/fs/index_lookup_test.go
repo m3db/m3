@@ -110,7 +110,7 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 		},
 	}
 
-	indexLookup := newIndexLookupWithSummaries(t, indexSummaries)
+	indexLookup := newIndexLookupWithSummaries(t, indexSummaries, false)
 	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 	require.NoError(t, clone.close())
@@ -126,6 +126,14 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 }
 
 func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
+	testParentAndClonesSafeForConcurrentUse(t, false)
+}
+
+func TestParentAndClonesSafeForConcurrentUseForceMmapMemory(t *testing.T) {
+	testParentAndClonesSafeForConcurrentUse(t, true)
+}
+
+func testParentAndClonesSafeForConcurrentUse(t *testing.T, forceMmapMemory bool) {
 	numSummaries := 1000
 	numClones := 10
 
@@ -141,7 +149,7 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 	sort.Sort(sortableSummaries(indexSummaries))
 
 	// Create indexLookup and associated clones
-	indexLookup := newIndexLookupWithSummaries(t, indexSummaries)
+	indexLookup := newIndexLookupWithSummaries(t, indexSummaries, forceMmapMemory)
 	clones := []*nearestIndexOffsetLookup{}
 	for i := 0; i < numClones; i++ {
 		clone, err := indexLookup.concurrentClone()
@@ -185,7 +193,8 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 
 // newIndexLookupWithSummaries will return a new index lookup that is backed by the provided
 // indexSummaries (in the order that they are provided).
-func newIndexLookupWithSummaries(t *testing.T, indexSummaries []schema.IndexSummary) *nearestIndexOffsetLookup {
+func newIndexLookupWithSummaries(
+	t *testing.T, indexSummaries []schema.IndexSummary, forceMmapMemory bool) *nearestIndexOffsetLookup {
 	// Create a temp file
 	file, err := ioutil.TempFile("", "index-lookup-sort")
 	require.NoError(t, err)
@@ -212,7 +221,7 @@ func newIndexLookupWithSummaries(t *testing.T, indexSummaries []schema.IndexSumm
 		expectedDigest,
 		msgpack.NewDecoder(nil),
 		len(indexSummaries),
-		false,
+		forceMmapMemory,
 	)
 	require.NoError(t, err)
 	return indexLookup
