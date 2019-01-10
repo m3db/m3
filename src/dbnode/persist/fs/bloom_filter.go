@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/m3db/bloom"
@@ -78,45 +77,12 @@ func newManagedConcurrentBloomFilterFromFile(
 ) (*ManagedConcurrentBloomFilter, error) {
 	// Determine how many bytes to request for the mmap'd region
 	bloomFilterFdWithDigest.Reset(bloomFilterFd)
-	stat, err := bloomFilterFd.Stat()
+
+	bloomFilterMmap, err := validateAndMmap(bloomFilterFdWithDigest, expectedDigest, forceMmapMemory)
 	if err != nil {
 		return nil, err
 	}
-	numBytes := stat.Size()
 
-	var mmapBytes []byte
-	if forceMmapMemory {
-		// Request an anonymous (non-file-backed) mmap region. Note that we're going
-		// to use the mmap'd region to create a read-only bloom filter, but the mmap
-		// region itself needs to be writable so we can copy the bytes from disk
-		// into it
-		result, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
-		if err != nil {
-			return nil, err
-		}
-		mmapBytes = result.Result
-
-		// Validate the bytes on disk using the digest, and read them into
-		// the mmap'd region
-		_, err = bloomFilterFdWithDigest.ReadAllAndValidate(mmapBytes, expectedDigest)
-		if err != nil {
-			mmap.Munmap(mmapBytes)
-			return nil, err
-		}
-	} else {
-		mmapResult, err := mmap.File(bloomFilterFdWithDigest.Fd(), mmap.Options{Read: true, Write: false})
-		if err != nil {
-			return nil, err
-		}
-
-		mmapBytes = mmapResult.Result
-		if calculatedDigest := digest.Checksum(mmapBytes); calculatedDigest != expectedDigest {
-			mmap.Munmap(mmapBytes)
-			return nil, fmt.Errorf("expected summaries file digest was: %d, but got: %d",
-				expectedDigest, calculatedDigest)
-		}
-	}
-
-	bloomFilter := bloom.NewConcurrentReadOnlyBloomFilter(numElementsM, numHashesK, mmapBytes)
-	return newManagedConcurrentBloomFilter(bloomFilter, mmapBytes), nil
+	bloomFilter := bloom.NewConcurrentReadOnlyBloomFilter(numElementsM, numHashesK, bloomFilterMmap)
+	return newManagedConcurrentBloomFilter(bloomFilter, bloomFilterMmap), nil
 }

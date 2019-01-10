@@ -161,49 +161,14 @@ func (il *nearestIndexOffsetLookup) close() error {
 // the summaries file is sorted (which it always should be).
 func newNearestIndexOffsetLookupFromSummariesFile(
 	summariesFdWithDigest digest.FdWithDigestReader,
-	expectedSummariesDigest uint32,
+	expectedDigest uint32,
 	decoder *xmsgpack.Decoder,
 	numEntries int,
 	forceMmapMemory bool,
 ) (*nearestIndexOffsetLookup, error) {
-	summariesFd := summariesFdWithDigest.Fd()
-	stat, err := summariesFd.Stat()
+	summariesMmap, err := validateAndMmap(summariesFdWithDigest, expectedDigest, forceMmapMemory)
 	if err != nil {
 		return nil, err
-	}
-	numBytes := stat.Size()
-
-	var summariesMmap []byte
-
-	if forceMmapMemory {
-		// Request an anonymous (non-file-backed) mmap region. Note that we're going
-		// to use the mmap'd region to store the read-only summaries data, but the mmap
-		// region itself needs to be writable so we can copy the bytes from disk
-		// into it
-		mmapResult, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
-		if err != nil {
-			return nil, err
-		}
-		summariesMmap = mmapResult.Result
-
-		// Validate the bytes on disk using the digest, and read them into
-		// the mmap'd region
-		_, err = summariesFdWithDigest.ReadAllAndValidate(summariesMmap, expectedSummariesDigest)
-		if err != nil {
-			mmap.Munmap(summariesMmap)
-			return nil, err
-		}
-	} else {
-		mmapResult, err := mmap.File(summariesFdWithDigest.Fd(), mmap.Options{Read: true, Write: false})
-		if err != nil {
-			return nil, err
-		}
-		summariesMmap = mmapResult.Result
-		if calculatedDigest := digest.Checksum(summariesMmap); calculatedDigest != expectedSummariesDigest {
-			mmap.Munmap(summariesMmap)
-			return nil, fmt.Errorf("expected summaries file digest was: %d, but got: %d",
-				expectedSummariesDigest, calculatedDigest)
-		}
 	}
 
 	// Msgpack decode the entire summaries file (we need to store the offsets
@@ -227,7 +192,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 		// if they're not. This should never happen as files should be sorted on disk.
 		if lastReadID != nil && bytes.Compare(lastReadID, entry.ID) != -1 {
 			mmap.Munmap(summariesMmap)
-			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFd.Name())
+			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFdWithDigest.Fd().Name())
 		}
 		summaryTokens = append(summaryTokens, summaryToken)
 		lastReadID = entry.ID
