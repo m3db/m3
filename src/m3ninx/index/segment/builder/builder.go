@@ -117,7 +117,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 			continue
 		}
 
-		// Generate ID if needed
+		// Generate ID if needed.
 		if !d.HasID() {
 			id, err := b.newUUIDFn()
 			if err != nil {
@@ -134,7 +134,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 			batch.Docs[i] = d
 		}
 
-		// Avoid duplicates
+		// Avoid duplicates.
 		if _, ok := b.idSet.Get(d.ID); ok {
 			if !batch.AllowPartialUpdates {
 				return index.ErrDuplicateID
@@ -143,7 +143,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 			continue
 		}
 
-		// Write to document set
+		// Write to document set.
 		b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
@@ -152,7 +152,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 		idx := len(b.docs)
 		b.docs = append(b.docs, d)
 
-		// Index the terms
+		// Index the terms.
 		for _, f := range d.Fields {
 			if err := b.index(postings.ID(idx), f); err != nil {
 				if !batch.AllowPartialUpdates {
