@@ -220,7 +220,7 @@ func (b *block) maybeBackgroundCompactWithLock() {
 		return
 	}
 
-	// Create a logical plan
+	// Create a logical plan.
 	segs := make([]compaction.Segment, 0, len(b.backgroundSegments))
 	for _, seg := range b.backgroundSegments {
 		segs = append(segs, compaction.Segment{
@@ -243,7 +243,7 @@ func (b *block) maybeBackgroundCompactWithLock() {
 		return
 	}
 
-	// Kick off compaction
+	// Kick off compaction.
 	b.compactingBackground = true
 	go func() {
 		b.backgroundCompactWithPlan(plan)
@@ -266,7 +266,7 @@ func (b *block) shouldEvictCompactedSegmentsWithLock() bool {
 
 func (b *block) cleanupBackgroundCompactWithLock() {
 	if b.state == blockStateOpen {
-		// See if we need to trigger another compaction
+		// See if we need to trigger another compaction.
 		b.maybeBackgroundCompactWithLock()
 		return
 	}
@@ -277,11 +277,11 @@ func (b *block) cleanupBackgroundCompactWithLock() {
 		return
 	}
 
-	// Evict compacted segments
+	// Evict compacted segments.
 	b.closeCompactedSegments(b.backgroundSegments)
 	b.backgroundSegments = nil
 
-	// Free compactor resources
+	// Free compactor resources.
 	if b.backgroundCompactor == nil {
 		return
 	}
@@ -370,7 +370,7 @@ func (b *block) backgroundCompactWithTask(
 		return err
 	}
 
-	// Rotate out the replaced frozen segments and add the compacted one
+	// Rotate out the replaced frozen segments and add the compacted one.
 	b.Lock()
 	defer b.Unlock()
 
@@ -391,7 +391,7 @@ func (b *block) addCompactedSegmentFromSegments(
 		keepCurr := true
 		for _, seg := range segmentsJustCompacted {
 			if existing.Segment() == seg {
-				// Do not keep this one, it was compacted just then
+				// Do not keep this one, it was compacted just then.
 				keepCurr = false
 				break
 			}
@@ -404,14 +404,14 @@ func (b *block) addCompactedSegmentFromSegments(
 
 		err := existing.Segment().Close()
 		if err != nil {
-			// Already compacted, not much we can do about not closing it
+			// Already compacted, not much we can do about not closing it.
 			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
 				l.Errorf("unable to close compacted block: %v", err)
 			})
 		}
 	}
 
-	// Return all the ones we kept plus the new compacted segment
+	// Return all the ones we kept plus the new compacted segment.
 	return append(result, newReadableSeg(compacted))
 }
 
@@ -443,19 +443,19 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		AllowPartialUpdates: true,
 	})
 	if len(builder.Docs()) == 0 {
-		// No inserts, no need to compact
+		// No inserts, no need to compact.
 		return b.writeBatchResult(inserts, insertResultErr)
 	}
 
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment from the segment builder before we can serve reads
-	// from an FST segment
+	// from an FST segment.
 	err := b.foregroundCompactWithBuilder(builder)
 	if err != nil {
 		return b.writeBatchResult(inserts, err)
 	}
 
-	// Return result from the original insertion since compaction was successful
+	// Return result from the original insertion since compaction was successful.
 	return b.writeBatchResult(inserts, insertResultErr)
 }
 
@@ -472,18 +472,18 @@ func (b *block) writeBatchResult(
 
 	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
 	if !ok {
-		// NB: marking all the inserts as failure, cause we don't know which ones failed
+		// NB: marking all the inserts as failure, cause we don't know which ones failed.
 		inserts.MarkUnmarkedEntriesError(err)
 		return WriteBatchResult{NumError: int64(inserts.Len())}, err
 	}
 
 	numErr := len(partialErr.Errs())
 	for _, err := range partialErr.Errs() {
-		// Avoid marking these as success
+		// Avoid marking these as success.
 		inserts.MarkUnmarkedEntryError(err.Err, err.Idx)
 	}
 
-	// mark all non-error inserts success, so we don't repeatedly index them
+	// Mark all non-error inserts success, so we don't repeatedly index them.
 	inserts.MarkUnmarkedEntriesSuccess()
 	return WriteBatchResult{
 		NumSuccess: int64(inserts.Len() - numErr),
@@ -493,7 +493,7 @@ func (b *block) writeBatchResult(
 
 func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) error {
 	// We inserted some documents, need to compact immediately into a
-	// foreground segment
+	// foreground segment.
 	b.Lock()
 	foregroundSegments := b.foregroundSegments
 	b.Unlock()
@@ -518,25 +518,25 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		return err
 	}
 
-	// Check plan
+	// Check plan.
 	var planErr error
 	switch {
 	case len(builder.Docs()) == 0:
-		// Must be compacting with a builder that has some inserted documents
+		// Must be compacting with a builder that has some inserted documents.
 		planErr = errForegroundCompactorNoBuilderDocs
 	case len(plan.Tasks) == 0:
-		// Must generate a plan since we gave it a mutable segment type to compact
+		// Must generate a plan since we gave it a mutable segment type to compact.
 		planErr = errForegroundCompactorNoPlan
 	case !taskHasNilSegment(plan.Tasks[0]):
 		// First task of plan must include the builder, so we can avoid resetting it
-		// for the first task, but then safely reset it in consequent tasks
+		// for the first task, but then safely reset it in consequent tasks.
 		planErr = errForegroundCompactorBadPlanFirstTask
 	}
 	if planErr != nil {
 		return planErr
 	}
 
-	// Move any unused segments to the background
+	// Move any unused segments to the background.
 	b.Lock()
 	b.maybeMoveForegroundSegmentsToBackgroundWithLock(plan.UnusedSegments)
 	b.Unlock()
@@ -562,11 +562,11 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		}
 	}
 
-	// Run the plan
+	// Run the plan.
 	sw := b.metrics.foregroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
 
-	// Run the first task, without resetting the builder
+	// Run the first task, without resetting the builder.
 	if err := b.foregroundCompactWithTask(
 		builder, plan.Tasks[0],
 		log, logger.WithFields(xlog.NewField("task", 0)),
@@ -576,13 +576,13 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 
 	// Now run each consequent task, resetting the builder each time since
 	// the results from the builder have already been compacted in the first
-	// task
+	// task.
 	for i := 1; i < len(plan.Tasks); i++ {
 		task := plan.Tasks[i]
-		if taskHasNilSegment(task) { // Only the first task should have the nil segment
+		if taskHasNilSegment(task) { // Only the first task should have the nil segment.
 			return errForegroundCompactorBadPlanSecondaryTask
 		}
-		// Now use the builder after resetting it
+		// Now use the builder after resetting it.
 		builder.Reset(0)
 		if err := b.foregroundCompactWithTask(
 			builder, task,
@@ -602,7 +602,7 @@ func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
 		return
 	}
 	if b.backgroundCompactor == nil {
-		// No longer performing background compaction due to evict/close
+		// No longer performing background compaction due to evict/close.
 		return
 	}
 
@@ -632,7 +632,7 @@ func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
 
 	b.foregroundSegments = b.foregroundSegments[:i]
 
-	// Potentially kick off a background compaction
+	// Potentially kick off a background compaction.
 	b.maybeBackgroundCompactWithLock()
 }
 
@@ -649,7 +649,7 @@ func (b *block) foregroundCompactWithTask(
 	segments := make([]segment.Segment, 0, len(task.Segments))
 	for _, seg := range task.Segments {
 		if seg.Segment == nil {
-			continue // This means the builder is being used
+			continue // This means the builder is being used.
 		}
 		segments = append(segments, seg.Segment)
 	}
@@ -668,7 +668,7 @@ func (b *block) foregroundCompactWithTask(
 		return err
 	}
 
-	// Rotate in the ones we just compacted
+	// Rotate in the ones we just compacted.
 	b.Lock()
 	defer b.Unlock()
 
@@ -686,11 +686,11 @@ func (b *block) cleanupForegroundCompactWithLock() {
 		return
 	}
 
-	// Evict compacted segments
+	// Evict compacted segments.
 	b.closeCompactedSegments(b.foregroundSegments)
 	b.foregroundSegments = nil
 
-	// Free compactor resources
+	// Free compactor resources.
 	if b.foregroundCompactor == nil {
 		return
 	}
@@ -840,7 +840,7 @@ func (b *block) AddResults(
 	}
 
 	// First see if this block can cover all our current blocks covering shard
-	// time ranges
+	// time ranges.
 	currFulfilled := make(result.ShardTimeRanges)
 	for _, existing := range b.shardRangesSegments {
 		currFulfilled.AddRanges(existing.shardTimeRanges)
@@ -850,17 +850,17 @@ func (b *block) AddResults(
 	unfulfilledBySegments.Subtract(results.Fulfilled())
 	if !unfulfilledBySegments.IsEmpty() {
 		// This is the case where it cannot wholly replace the current set of blocks
-		// so simply append the segments in this case
+		// so simply append the segments in this case.
 		b.shardRangesSegments = append(b.shardRangesSegments, entry)
 		return nil
 	}
 
 	// This is the case where the new segments can wholly replace the
-	// current set of blocks since unfullfilled by the new segments is zero
+	// current set of blocks since unfullfilled by the new segments is zero.
 	multiErr := xerrors.NewMultiError()
 	for i, group := range b.shardRangesSegments {
 		for _, seg := range group.segments {
-			// Make sure to close the existing segments
+			// Make sure to close the existing segments.
 			multiErr = multiErr.Add(seg.Close())
 		}
 		b.shardRangesSegments[i] = blockShardRangesSegments{}
@@ -1002,7 +1002,7 @@ func (b *block) EvictMutableSegments() error {
 
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted
-	// segments will get closed,
+	// segments will get closed.
 	if !b.compactingForeground {
 		b.cleanupForegroundCompactWithLock()
 	}
