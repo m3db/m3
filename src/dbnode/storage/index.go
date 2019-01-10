@@ -435,7 +435,7 @@ func (i *nsIndex) WriteBatch(
 
 		// Re-sort the batch by initial enqueue order
 		if numErrs := batch.NumErrs(); numErrs > 0 {
-			// Restore the sort order from when enqueued for the caller
+			// Restore the sort order from when enqueued for the caller.
 			batch.SortByEnqueued()
 			return fmt.Errorf("check batch: %d insert errors", numErrs)
 		}
