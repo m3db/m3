@@ -46,7 +46,7 @@ func createTags(withName bool) Tags {
 	return tags
 }
 
-func tstLongTagIDOutOfOrder(t *testing.T) {
+func TestLongTagIDOutOfOrder(t *testing.T) {
 	tags := NewTags(3, nil).AddTags([]Tag{
 		{Name: []byte("t1"), Value: []byte("v1")},
 		{Name: []byte("t3"), Value: []byte("v3")},
@@ -54,8 +54,40 @@ func tstLongTagIDOutOfOrder(t *testing.T) {
 		{Name: []byte("t4"), Value: []byte("v4")},
 	})
 
-	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), tags.ID())
-	assert.Equal(t, tags.idLen(), len(tags.ID()))
+	// assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), tags.ID())
+	assert.Equal(t, ("t1=v1,t2=v2,t3=v3,t4=v4,"), string(tags.NewID()))
+	// assert.Equal(t, tags.idLen(), len(tags.ID()))
+}
+
+func TestLongTagNewIDOutOfOrder(t *testing.T) {
+	tags := NewTags(3, nil).AddTags([]Tag{
+		{Name: []byte("t1"), Value: []byte("v1")},
+		{Name: []byte("t3"), Value: []byte("v3")},
+		{Name: []byte("t2"), Value: []byte("v2")},
+		{Name: []byte("t4"), Value: []byte("v4")},
+	})
+
+	actual := tags.NewID()
+	assert.Equal(t, tags.newIdLen(), len(actual))
+	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
+}
+
+func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
+	tags := NewTags(3, nil).AddTags([]Tag{
+		{Name: []byte("t1"), Value: []byte("v1")},
+		{Name: []byte("t3"), Value: []byte("v3")},
+		{Name: []byte("t2"), Value: []byte("v2")},
+		{Name: []byte("t4"), Value: []byte("v4")},
+	})
+
+	actual := tags.newid()
+	// assert.Equal(t, tags.newIdLen(), len(actual))
+	expected := []byte(`4444t1v1t2v2t3v3t4v4`)
+	expected[0] = 5
+	expected[1] = 5
+	expected[2] = 5
+	expected[3] = 5
+	assert.Equal(t, expected, actual)
 }
 
 func tstTagID(t *testing.T) {
@@ -258,4 +290,69 @@ func TestTagAppend(t *testing.T) {
 
 func TestLol(t *testing.T) {
 	fmt.Println(tagLengthsToBytes([]int{1, 2, 3, 4, 44, 256, 8, 257, 9, 256 * 256, 10, 256*256 + 1, 11}))
+}
+
+func buildTags(b *testing.B, count, length int) Tags {
+	tags := make([]Tag, count)
+	for i := range tags {
+		n := []byte(fmt.Sprint("t", i))
+		v := make([]byte, length)
+		for j := range v {
+			v[j] = byte(j)
+		}
+
+		tags[i] = Tag{Name: n, Value: v}
+	}
+
+	return NewTags(count, nil).AddTags(tags)
+}
+
+var tagBenchmarks = []struct {
+	name                string
+	tagCount, tagLength int
+}{
+	{"10 tags, 2 length", 10, 2},
+	{"100 tags, 2 length", 100, 2},
+	{"1000 tags, 2 length", 1000, 2},
+	{"10 tags, 10 length", 10, 10},
+	{"100 tags, 10 length", 100, 10},
+	{"1000 tags, 10 length", 1000, 10},
+	{"10 tags, 100 length", 10, 100},
+	{"100 tags, 100 length", 100, 100},
+	{"1000 tags, 100 length", 1000, 100},
+	{"10 tags, 1000 length", 10, 1000},
+	{"100 tags, 1000 length", 100, 1000},
+	{"1000 tags, 1000 length", 1000, 1000},
+}
+
+func BenchmarkIDs(b *testing.B) {
+	for _, bb := range tagBenchmarks {
+		b.Run(bb.name, func(b *testing.B) {
+			tags := buildTags(b, bb.tagCount, bb.tagLength)
+			for i := 0; i < b.N; i++ {
+				_ = tags.ID()
+			}
+		})
+	}
+}
+func BenchmarkNewIDs(b *testing.B) {
+	for _, bb := range tagBenchmarks {
+		b.Run(bb.name, func(b *testing.B) {
+			tags := buildTags(b, bb.tagCount, bb.tagLength)
+			for i := 0; i < b.N; i++ {
+				_ = tags.NewID()
+			}
+		})
+	}
+}
+
+func BenchmarkNumericIDs(b *testing.B) {
+	for _, bb := range tagBenchmarks {
+		b.Run(bb.name, func(b *testing.B) {
+			tags := buildTags(b, bb.tagCount, bb.tagLength)
+			for i := 0; i < b.N; i++ {
+				_ = tags.newid()
+			}
+		})
+	}
 }

@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+
+	"github.com/m3db/m3/src/query/models/strconv"
 )
 
 var (
@@ -54,7 +56,6 @@ func (t Tags) ID() []byte {
 	// TODO: pool these bytes.
 	id := make([]byte, t.idLen())
 	idx := -1
-
 	for _, tag := range t.Tags {
 		idx += copy(id[idx+1:], tag.Name) + 1
 		id[idx] = eq
@@ -67,7 +68,7 @@ func (t Tags) ID() []byte {
 
 // idLen returns the length of the ID that would be generated from the tags.
 func (t Tags) idLen() int {
-	idLen := 0 // 2 * t.Len() // account for eq and sep
+	idLen := 2 * t.Len() // account for eq and sep
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
 		idLen += len(tag.Value)
@@ -76,17 +77,41 @@ func (t Tags) idLen() int {
 	return idLen
 }
 
-// ID returns a byte slice representation of the tags.
-func (t Tags) newid() []byte {
+// NewID returns a byte slice representation of the tags.
+func (t Tags) NewID() []byte {
 	// TODO: pool these bytes.
-	id := make([]byte, t.idLen())
-	idx := -1
+	id := make([]byte, t.newIdLen())
+	idx := 0
 
 	for _, tag := range t.Tags {
-		idx += copy(id[idx+1:], tag.Name) + 1
-		id[idx] = eq
-		idx += copy(id[idx+1:], tag.Value) + 1
-		id[idx] = sep
+		idx += copy(id[idx:], tag.Name)
+		idx = strconv.Quote(id, tag.Value, idx)
+		// idx += copy(id[idx+1:], tag.Value) + 1
+	}
+
+	return id
+}
+
+// newIdLen returns the length of the ID that would be generated from the tags.
+func (t Tags) newIdLen() int {
+	idLen := 0
+	for _, tag := range t.Tags {
+		idLen += len(tag.Name)
+		idLen += strconv.QuotedLength(tag.Value)
+	}
+
+	return idLen
+}
+
+// ID returns a byte slice representation of the tags.
+func (t Tags) newid() []byte {
+	l, lens := t.newlen()
+	// TODO: pool these bytes.
+	id := make([]byte, l)
+	idx := writeTagLengths(id, lens)
+	for _, tag := range t.Tags {
+		idx += copy(id[idx:], tag.Name)
+		idx += copy(id[idx:], tag.Value)
 	}
 
 	return id
@@ -95,9 +120,9 @@ func (t Tags) newid() []byte {
 func tagLengthsToBytes(tagLengths []int) []byte {
 	// account for tag length seperator and final character,
 	// and at least a single byte for the length
-	byteLength := 1 + len(tagLengths)
+	byteLength := len(tagLengths)
 	for _, l := range tagLengths {
-		for ; l > 0; l >>= 8 {
+		for l >>= 8; l > 0; l >>= 8 {
 			byteLength++
 		}
 	}
@@ -109,10 +134,21 @@ func tagLengthsToBytes(tagLengths []int) []byte {
 			tagBytes[idx] = byte(l % 256)
 			idx++
 		}
-		idx++
 	}
 
 	return tagBytes
+}
+
+func writeTagLengths(dst []byte, lengths []int) int {
+	idx := 0
+	for _, l := range lengths {
+		for ; l > 0; l >>= 8 {
+			dst[idx] = byte(l % 256)
+			idx++
+		}
+	}
+
+	return idx
 }
 
 // idLen returns the length of the ID that would be generated from the tags.
@@ -124,6 +160,13 @@ func (t Tags) newlen() (int, []int) {
 		tagLen += len(tag.Value)
 		tagLengths[i] = tagLen
 		idLen += tagLen
+	}
+
+	byteLength := len(tagLengths)
+	for _, l := range tagLengths {
+		for l >>= 8; l > 0; l >>= 8 {
+			byteLength++
+		}
 	}
 
 	return idLen, tagLengths
