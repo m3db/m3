@@ -149,19 +149,20 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 			NoFinalizeKey: true,
 		})
 
-		idx := len(b.docs)
+		// Every new document just gets the next available id.
+		postingsListID := len(b.docs)
 		b.docs = append(b.docs, d)
 
 		// Index the terms.
 		for _, f := range d.Fields {
-			if err := b.index(postings.ID(idx), f); err != nil {
+			if err := b.index(postings.ID(postingsListID), f); err != nil {
 				if !batch.AllowPartialUpdates {
 					return err
 				}
 				batchErr.Add(index.BatchError{Err: err, Idx: i})
 			}
 		}
-		if err := b.index(postings.ID(idx), doc.Field{
+		if err := b.index(postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
 		}); err != nil {
