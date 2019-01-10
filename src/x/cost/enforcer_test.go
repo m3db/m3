@@ -17,7 +17,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-//
 
 package cost
 
@@ -224,7 +223,7 @@ func TestNoopEnforcer(t *testing.T) {
 
 	e := NoopEnforcer()
 	limit := e.Limit()
-	assert.Equal(t, MaxCost, limit.Threshold)
+	assert.Equal(t, maxCost, limit.Threshold)
 	assert.False(t, limit.Enabled)
 
 	for _, test := range tests {

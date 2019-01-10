@@ -17,7 +17,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-//
 
 package cost
 
@@ -59,7 +58,7 @@ type limitManagerOptions struct {
 func NewLimitManagerOptions() LimitManagerOptions {
 	return &limitManagerOptions{
 		defaultLimit: Limit{
-			Threshold: MaxCost,
+			Threshold: maxCost,
 			Enabled:   false,
 		},
 		iOpts: instrument.NewOptions(),

@@ -17,7 +17,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-//
 
 // Package cost provides facilities for estimating the cost of operations
 // and enforcing limits on them.
@@ -31,11 +30,8 @@ import (
 type Cost float64
 
 const (
-	// MaxCost is the maximum cost of an operation.
-	MaxCost = Cost(math.MaxFloat64)
-
-	// MinCost is the minimum cost of an operation.
-	MinCost = Cost(0)
+	// maxCost is the maximum cost of an operation.
+	maxCost = Cost(math.MaxFloat64)
 )
 
 // Limit encapulates the configuration of a cost limit for an operation.
