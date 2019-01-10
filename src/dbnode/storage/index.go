@@ -800,7 +800,7 @@ func (i *nsIndex) flushBlockSegment(
 		allResults []block.FetchBlocksMetadataResults
 	)
 	defer func() {
-		// At completion finalize/return resources to pools
+		// At completion finalize/return resources to pools.
 		for _, result := range allResults {
 			result.Close()
 		}
