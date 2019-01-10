@@ -69,17 +69,17 @@ func NewBuilderFromDocuments(opts Options) (segment.DocumentsBuilder, error) {
 func (b *builder) Reset(offset postings.ID) {
 	b.offset = offset
 
-	// Reset the documents slice
+	// Reset the documents slice.
 	var empty doc.Document
 	for i := range b.docs {
 		b.docs[i] = empty
 	}
 	b.docs = b.docs[:0]
 
-	// Remove all entries in the ID set
+	// Remove all entries in the ID set.
 	b.idSet.Reset()
 
-	// Keep fields around, just reset the terms set for each one
+	// Keep fields around, just reset the terms set for each one.
 	for _, entry := range b.fields.Iter() {
 		entry.Value().reset()
 	}
@@ -190,7 +190,7 @@ func (b *builder) index(id postings.ID, f doc.Field) error {
 	}
 
 	// If empty field, track insertion of this key into the fields
-	// collection for correct response when retrieving all fields
+	// collection for correct response when retrieving all fields.
 	newField := terms.size() == 0
 	if err := terms.post(f.Value, id); err != nil {
 		return err
