@@ -21,12 +21,17 @@
 package msgpack
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	msgpacklib "gopkg.in/vmihailenco/msgpack.v2"
 )
 
 // Call Read to accumulate the text of a file
@@ -162,4 +167,64 @@ func TestDecoderStreamUnreadByteMultiple(t *testing.T) {
 			}
 		}
 	}
+}
+
+type bufioWrapCheckReaderNotImpl struct {
+	wasWrappedByBufio bool
+}
+
+func (f *bufioWrapCheckReaderNotImpl) Read(p []byte) (int, error) {
+	buf := make([]byte, 100000)
+	n := runtime.Stack(buf, false)
+	if n == 0 {
+		panic("runtime.Stack did not write anything")
+	}
+	if bytes.Contains(buf, []byte("bufio")) {
+		f.wasWrappedByBufio = true
+	}
+
+	return 0, nil
+}
+
+type bufioWrapCheckReader struct {
+	decoderStream
+	wasWrappedByBufio bool
+}
+
+func (f *bufioWrapCheckReader) Read(p []byte) (int, error) {
+	buf := make([]byte, 100000)
+	n := runtime.Stack(buf, false)
+	if n == 0 {
+		panic("runtime.Stack did not write anything")
+	}
+	if bytes.Contains(buf, []byte("bufio")) {
+		f.wasWrappedByBufio = true
+	}
+
+	return 0, nil
+}
+
+// The underlying msgpack library that we use will attempt to wrap decoder streams
+// that are passed to it that do not implement a specific interface in a bufio.Reader.
+// This is wasteful for us because we're using mmap'd byte slices under the hood which
+// which do not require buffered IO and each of the bufio.Readers() that the library
+// allocates uses 4KiB of memory, and there can be hundreds of thousands of them.
+//
+// This test makes sure that our DecoderStream can be passed to the library without
+// being wrapped by a bufio.Reader().
+func TestStreamCanBeUsedWithMsgpackLibraryNoBufio(t *testing.T) {
+	// First, make sure that we can actually detect if our reader gets
+	// wrapped in a bufio.Reader().
+	wrapCheckNotImpl := &bufioWrapCheckReaderNotImpl{}
+	decoder := msgpacklib.NewDecoder(wrapCheckNotImpl)
+	decoder.DecodeArrayLen()
+	require.True(t, wrapCheckNotImpl.wasWrappedByBufio)
+
+	// Next, make sure that anything implementing our DecoderStream
+	// interface won't get wrapped up in a bufio.Reader().
+	wrapCheckImpl := &bufioWrapCheckReader{}
+	var _ DecoderStream = wrapCheckImpl // Make sure our fake one implements the iFace.
+	decoder = msgpacklib.NewDecoder(wrapCheckImpl)
+	decoder.DecodeArrayLen()
+	require.False(t, wrapCheckImpl.wasWrappedByBufio)
 }
