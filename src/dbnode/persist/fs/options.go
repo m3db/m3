@@ -60,7 +60,7 @@ const (
 	defaultMmapHugePagesThreshold = 2 << 14 // 32kb (or when eclipsing 8 pages of default 4096 page size)
 
 	// defaultForceIndexSummariesMmapMemory is the default configuration for whether the bytes for the index
-	// summaries file should be mmap'd as an anonymous region (force completely into memory) or mmap'd as a file.
+	// summaries file should be mmap'd as an anonymous region (forced completely into memory) or mmap'd as a file.
 	defaultForceIndexSummariesMmapMemory = false
 
 	// defaultForceIndexBloomFilterMmapMemory is the default configuration for whether the bytes for the bloom filter
