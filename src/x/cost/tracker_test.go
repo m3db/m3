@@ -61,12 +61,11 @@ func TestTracker(t *testing.T) {
 }
 
 func TestTrackerConcurrentUpdates(t *testing.T) {
-	var (
-		wg            sync.WaitGroup
-		tracker       = NewTracker()
-		numGoroutines = 10
-		numIterations = 1000
-	)
+	wg := sync.WaitGroup{}
+	tracker := NewTracker()
+	numGoroutines := 10
+	numIterations := 1000
+
 	wg.Add(10)
 
 	for i := 0; i < numGoroutines; i++ {

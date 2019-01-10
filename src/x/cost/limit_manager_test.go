@@ -34,13 +34,11 @@ import (
 )
 
 func TestDynamicLimitManager(t *testing.T) {
-	var (
-		threshold    Cost = 100
-		enabled           = true
-		store             = mem.NewStore()
-		thresholdKey      = "threshold"
-		enabledKey        = "enabled"
-	)
+	threshold := Cost(100)
+	enabled := true
+	store := mem.NewStore()
+	thresholdKey := "threshold"
+	enabledKey := "enabled"
 
 	validateFn := func(data interface{}) error {
 		val := data.(float64)
@@ -50,15 +48,13 @@ func TestDynamicLimitManager(t *testing.T) {
 		return nil
 	}
 
-	var (
-		limit = Limit{
-			Threshold: threshold,
-			Enabled:   enabled,
-		}
-		opts = NewLimitManagerOptions().
-			SetDefaultLimit(limit).
-			SetValidateLimitFn(validateFn)
-	)
+	limit := Limit{
+		Threshold: threshold,
+		Enabled:   enabled,
+	}
+	opts := NewLimitManagerOptions().
+		SetDefaultLimit(limit).
+		SetValidateLimitFn(validateFn)
 
 	m, err := NewDynamicLimitManager(
 		store, thresholdKey, enabledKey, opts,
@@ -105,15 +101,13 @@ func TestDynamicLimitManager(t *testing.T) {
 }
 
 func TestStaticLimitManager(t *testing.T) {
-	var (
-		threshold = Cost(100)
-		enabled   = true
-		limit     = Limit{
-			Threshold: threshold,
-			Enabled:   enabled,
-		}
-		manager = NewStaticLimitManager(NewLimitManagerOptions().SetDefaultLimit(limit))
-	)
+	threshold := Cost(100)
+	enabled := true
+	limit := Limit{
+		Threshold: threshold,
+		Enabled:   enabled,
+	}
+	manager := NewStaticLimitManager(NewLimitManagerOptions().SetDefaultLimit(limit))
 
 	limit = manager.Limit()
 	assert.Equal(t, threshold, limit.Threshold)

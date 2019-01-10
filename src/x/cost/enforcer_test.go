@@ -66,15 +66,13 @@ func TestEnforcer(t *testing.T) {
 		},
 	}
 
-	var (
-		limit = Limit{
-			Threshold: 10,
-			Enabled:   true,
-		}
-		mOpts = NewLimitManagerOptions().SetDefaultLimit(limit)
-		store = mem.NewStore()
-		msg   = "message which contains context on the cost limit"
-	)
+	limit := Limit{
+		Threshold: 10,
+		Enabled:   true,
+	}
+	mOpts := NewLimitManagerOptions().SetDefaultLimit(limit)
+	store := mem.NewStore()
+	msg := "message which contains context on the cost limit"
 
 	m, err := NewDynamicLimitManager(store, testThresholdKey, testEnabledKey, mOpts)
 	require.NoError(t, err)
@@ -148,16 +146,14 @@ func TestEnforcer(t *testing.T) {
 }
 
 func TestEnforcerClone(t *testing.T) {
-	var (
-		store     = mem.NewStore()
-		threshold = Cost(30)
-		limit     = Limit{
-			Threshold: threshold,
-			Enabled:   true,
-		}
-		mOpts = NewLimitManagerOptions().
-			SetDefaultLimit(limit)
-	)
+	store := mem.NewStore()
+	threshold := Cost(30)
+	limit := Limit{
+		Threshold: threshold,
+		Enabled:   true,
+	}
+	mOpts := NewLimitManagerOptions().
+		SetDefaultLimit(limit)
 
 	m, err := NewDynamicLimitManager(store, testThresholdKey, testEnabledKey, mOpts)
 	require.NoError(t, err)
