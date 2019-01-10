@@ -55,7 +55,7 @@ func TestLongTagIDOutOfOrder(t *testing.T) {
 	})
 
 	// assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), tags.ID())
-	assert.Equal(t, ("t1=v1,t2=v2,t3=v3,t4=v4,"), string(tags.NewID()))
+	assert.Equal(t, ("t1=v1,t2=v2,t3=v3,t4=v4,"), string(tags.ID()))
 	// assert.Equal(t, tags.idLen(), len(tags.ID()))
 }
 
