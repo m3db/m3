@@ -43,20 +43,22 @@ var (
 	noopEnforcer = NewEnforcer(noopManager, NewNoopTracker(), nil)
 )
 
-// Report is a report on the cost limits of an Enforcer.
+// Report is a report on the cost limits of an enforcer.
 type Report struct {
 	Cost
 	Error error
 }
 
-// EnforcerIF instances enforce cost limits for operations.
-type EnforcerIF interface {
+// Enforcer instances enforce cost limits for operations.
+type Enforcer interface {
 	Add(op Cost) Report
 	State() (Report, Limit)
+	Limit() Limit
+	Clone() Enforcer
 }
 
-// Enforcer enforces cost limits for operations.
-type Enforcer struct {
+// enforcer enforces cost limits for operations.
+type enforcer struct {
 	LimitManager
 	tracker Tracker
 
@@ -65,12 +67,12 @@ type Enforcer struct {
 }
 
 // NewEnforcer returns a new enforcer for cost limits.
-func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) *Enforcer {
+func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) Enforcer {
 	if opts == nil {
 		opts = NewEnforcerOptions()
 	}
 
-	return &Enforcer{
+	return &enforcer{
 		LimitManager: m,
 		tracker:      t,
 		costMsg:      opts.CostExceededMessage(),
@@ -80,8 +82,7 @@ func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) *Enforcer {
 
 // Add adds the cost of an operation to the enforcer's current total. If the operation exceeds
 // the enforcer's limit the enforcer will return a CostLimit error in addition to the new total.
-func (e *Enforcer) Add(cost Cost) Report {
-	//e.metrics.cost.RecordValue(float64(cost))
+func (e *enforcer) Add(cost Cost) Report {
 	current := e.tracker.Add(cost)
 	return Report{
 		Cost:  current,
@@ -90,7 +91,7 @@ func (e *Enforcer) Add(cost Cost) Report {
 }
 
 // State returns the current state of the enforcer.
-func (e *Enforcer) State() (Report, Limit) {
+func (e *enforcer) State() (Report, Limit) {
 	cost := e.tracker.Current()
 	l := e.Limit()
 	err := e.checkLimit(cost, l)
@@ -101,10 +102,10 @@ func (e *Enforcer) State() (Report, Limit) {
 	return r, l
 }
 
-// Clone clones the current Enforcer. The new Enforcer uses the same Estimator and LimitManager
+// Clone clones the current enforcer. The new enforcer uses the same Estimator and LimitManager
 // as e buts its Tracker is independent.
-func (e *Enforcer) Clone() *Enforcer {
-	return &Enforcer{
+func (e *enforcer) Clone() Enforcer {
+	return &enforcer{
 		LimitManager: e.LimitManager,
 		tracker:      NewTracker(),
 		costMsg:      e.costMsg,
@@ -112,7 +113,7 @@ func (e *Enforcer) Clone() *Enforcer {
 	}
 }
 
-func (e *Enforcer) checkLimit(cost Cost, limit Limit) error {
+func (e *enforcer) checkLimit(cost Cost, limit Limit) error {
 	if cost < limit.Threshold {
 		return nil
 	}
@@ -148,9 +149,9 @@ func costExceededError(customMessage string, cost Cost, limit Limit) error {
 	)
 }
 
-// NoopEnforcer returns a new Enforcer that always returns a current cost of 0 and
+// NoopEnforcer returns a new enforcer that always returns a current cost of 0 and
 //  is always disabled.
-func NoopEnforcer() *Enforcer {
+func NoopEnforcer() Enforcer {
 	return noopEnforcer
 }
 
