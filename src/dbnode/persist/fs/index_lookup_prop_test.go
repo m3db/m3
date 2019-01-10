@@ -118,7 +118,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		expectedSummariesDigest := calculateExpectedChecksum(t, summariesFilePath)
 		decoder := msgpack.NewDecoder(options.DecodingOptions())
 		indexLookup, err := newNearestIndexOffsetLookupFromSummariesFile(
-			summariesFdWithDigest, expectedSummariesDigest, decoder, len(writes))
+			summariesFdWithDigest, expectedSummariesDigest, decoder, len(writes), input.forceMmapMemory)
 		if err != nil {
 			return false, fmt.Errorf("err reading index lookup from summaries file: %v, ", err)
 		}
@@ -173,6 +173,9 @@ type propTestInput struct {
 	realWrites []generatedWrite
 	// Shard number to use for the files
 	shard uint32
+	// Whether the summaries file bytes should be mmap'd as an
+	// anonymous region or file.
+	forceMmapMemory bool
 }
 
 type generatedWrite struct {
@@ -196,10 +199,12 @@ func genPropTestInput(numRealWrites int) gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(numRealWrites, genWrite()),
 		gen.UInt32(),
+		gen.Bool(),
 	).Map(func(vals []interface{}) propTestInput {
 		return propTestInput{
-			realWrites: vals[0].([]generatedWrite),
-			shard:      vals[1].(uint32),
+			realWrites:      vals[0].([]generatedWrite),
+			shard:           vals[1].(uint32),
+			forceMmapMemory: vals[2].(bool),
 		}
 	})
 }

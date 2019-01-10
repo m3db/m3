@@ -56,7 +56,7 @@ func newNearestIndexOffsetLookup(
 		summaryIDsOffsets: summaryIDsOffsets,
 		summariesMmap:     summariesMmap,
 		decoderStream:     decoderStream,
-		msgpackDecoder:    msgpack.NewDecoder(nil),
+		msgpackDecoder:    msgpack.NewDecoder(decoderStream),
 		isClone:           false,
 	}
 }
@@ -66,11 +66,12 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 		return nil, errCloneShouldNotBeCloned
 	}
 
+	decoderStream := xmsgpack.NewDecoderStream(nil)
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: il.summaryIDsOffsets,
 		summariesMmap:     il.summariesMmap,
-		decoderStream:     xmsgpack.NewDecoderStream(nil),
-		msgpackDecoder:    msgpack.NewDecoder(nil),
+		decoderStream:     decoderStream,
+		msgpackDecoder:    msgpack.NewDecoder(decoderStream),
 		isClone:           true,
 	}, nil
 }
@@ -163,6 +164,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	expectedSummariesDigest uint32,
 	decoder *xmsgpack.Decoder,
 	numEntries int,
+	forceMmapMemory bool,
 ) (*nearestIndexOffsetLookup, error) {
 	summariesFd := summariesFdWithDigest.Fd()
 	stat, err := summariesFd.Stat()
@@ -171,22 +173,37 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	}
 	numBytes := stat.Size()
 
-	// Request an anonymous (non-file-backed) mmap region. Note that we're going
-	// to use the mmap'd region to store the read-only summaries data, but the mmap
-	// region itself needs to be writable so we can copy the bytes from disk
-	// into it
-	mmapResult, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
-	if err != nil {
-		return nil, err
-	}
-	summariesMmap := mmapResult.Result
+	var summariesMmap []byte
 
-	// Validate the bytes on disk using the digest, and read them into
-	// the mmap'd region
-	_, err = summariesFdWithDigest.ReadAllAndValidate(summariesMmap, expectedSummariesDigest)
-	if err != nil {
-		mmap.Munmap(summariesMmap)
-		return nil, err
+	if forceMmapMemory {
+		// Request an anonymous (non-file-backed) mmap region. Note that we're going
+		// to use the mmap'd region to store the read-only summaries data, but the mmap
+		// region itself needs to be writable so we can copy the bytes from disk
+		// into it
+		mmapResult, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
+		if err != nil {
+			return nil, err
+		}
+		summariesMmap = mmapResult.Result
+
+		// Validate the bytes on disk using the digest, and read them into
+		// the mmap'd region
+		_, err = summariesFdWithDigest.ReadAllAndValidate(summariesMmap, expectedSummariesDigest)
+		if err != nil {
+			mmap.Munmap(summariesMmap)
+			return nil, err
+		}
+	} else {
+		mmapResult, err := mmap.File(summariesFdWithDigest.Fd(), mmap.Options{Read: true, Write: false})
+		if err != nil {
+			return nil, err
+		}
+		summariesMmap = mmapResult.Result
+		if calculatedDigest := digest.Checksum(summariesMmap); calculatedDigest != expectedSummariesDigest {
+			mmap.Munmap(summariesMmap)
+			return nil, fmt.Errorf("expected summaries file digest was: %d, but got: %d",
+				expectedSummariesDigest, calculatedDigest)
+		}
 	}
 
 	// Msgpack decode the entire summaries file (we need to store the offsets

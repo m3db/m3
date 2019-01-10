@@ -79,6 +79,7 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 		expectedDigest,
 		msgpack.NewDecoder(nil),
 		len(outOfOrderSummaries),
+		false,
 	)
 	expectedErr := fmt.Errorf("summaries file is not sorted: %s", file.Name())
 	require.Equal(t, expectedErr, err)
@@ -211,6 +212,7 @@ func newIndexLookupWithSummaries(t *testing.T, indexSummaries []schema.IndexSumm
 		expectedDigest,
 		msgpack.NewDecoder(nil),
 		len(indexSummaries),
+		false,
 	)
 	require.NoError(t, err)
 	return indexLookup

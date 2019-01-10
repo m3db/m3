@@ -272,6 +272,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		expectedDigests.summariesDigest,
 		s.decoder,
 		int(s.summariesInfo.Summaries),
+		s.opts.opts.ForceIndexSummariesMmapMemory(),
 	)
 	if err != nil {
 		s.Close()
