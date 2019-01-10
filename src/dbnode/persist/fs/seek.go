@@ -260,6 +260,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		expectedDigests.bloomFilterDigest,
 		uint(s.bloomFilterInfo.NumElementsM),
 		uint(s.bloomFilterInfo.NumHashesK),
+		s.opts.opts.ForceBloomFilterMmapMemory(),
 	)
 	if err != nil {
 		s.Close()
