@@ -23,7 +23,6 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -32,6 +31,47 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func testLongTagIDOutOfOrder(t *testing.T, scheme IDSchemeType) Tags {
+	opts := NewTagOptions().SetIDSchemeType(scheme)
+	tags := NewTags(3, opts).AddTags([]Tag{
+		{Name: []byte("t1"), Value: []byte("v1")},
+		{Name: []byte("t3"), Value: []byte("v3")},
+		{Name: []byte("t2"), Value: []byte("v2")},
+		{Name: []byte("t4"), Value: []byte("v4")},
+	})
+
+	return tags
+}
+
+func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
+	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
+	actual := tags.ID()
+	assert.Equal(t, tags.legacyIDLen(), len(actual))
+	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), actual)
+}
+
+func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
+	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
+	actual := tags.ID()
+	assert.Equal(t, tags.quotedIDLen(), len(actual))
+	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
+}
+
+func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
+	tags := testLongTagIDOutOfOrder(t, TypePrependMeta)
+	actual := tags.ID()
+	expectedLength, _ := tags.prependMetaLen()
+	assert.Equal(t, expectedLength, len(actual))
+	tagBytes := []byte(`t1v1t2v2t3v3t4v4`)
+	expected := make([]byte, len(tagBytes)+4)
+	expected[0] = 4
+	expected[1] = 4
+	expected[2] = 4
+	expected[3] = 4
+	copy(expected[4:], tagBytes)
+	assert.Equal(t, expected, actual)
+}
 
 func createTags(withName bool) Tags {
 	tags := NewTags(3, nil).AddTags([]Tag{
@@ -46,81 +86,11 @@ func createTags(withName bool) Tags {
 	return tags
 }
 
-func TestLongTagIDOutOfOrder(t *testing.T) {
-	tags := NewTags(3, nil).AddTags([]Tag{
-		{Name: []byte("t1"), Value: []byte("v1")},
-		{Name: []byte("t3"), Value: []byte("v3")},
-		{Name: []byte("t2"), Value: []byte("v2")},
-		{Name: []byte("t4"), Value: []byte("v4")},
-	})
-
-	// assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), tags.ID())
-	assert.Equal(t, ("t1=v1,t2=v2,t3=v3,t4=v4,"), string(tags.ID()))
-	// assert.Equal(t, tags.idLen(), len(tags.ID()))
-}
-
-func TestLongTagNewIDOutOfOrder(t *testing.T) {
-	tags := NewTags(3, nil).AddTags([]Tag{
-		{Name: []byte("t1"), Value: []byte("v1")},
-		{Name: []byte("t3"), Value: []byte("v3")},
-		{Name: []byte("t2"), Value: []byte("v2")},
-		{Name: []byte("t4"), Value: []byte("v4")},
-	})
-
-	actual := tags.NewID()
-	assert.Equal(t, tags.newIdLen(), len(actual))
-	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
-}
-
-func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
-	tags := NewTags(3, nil).AddTags([]Tag{
-		{Name: []byte("t1"), Value: []byte("v1")},
-		{Name: []byte("t3"), Value: []byte("v3")},
-		{Name: []byte("t2"), Value: []byte("v2")},
-		{Name: []byte("t4"), Value: []byte("v4")},
-	})
-
-	actual := tags.newid()
-	// assert.Equal(t, tags.newIdLen(), len(actual))
-	expected := []byte(`4444t1v1t2v2t3v3t4v4`)
-	expected[0] = 5
-	expected[1] = 5
-	expected[2] = 5
-	expected[3] = 5
-	assert.Equal(t, expected, actual)
-}
-
-func tstTagID(t *testing.T) {
-	tags := createTags(false)
-	assert.Equal(t, []byte("t1=v1,t2=v2,"), tags.ID())
-	assert.Equal(t, tags.idLen(), len(tags.ID()))
-}
-
-// func TestTagIDMarshalTo(t *testing.T) {
-// 	var (
-// 		tags = createTags(false)
-// 		b    = tags.IDMarshalTo([]byte{})
-// 	)
-// 	assert.Equal(t, []byte("t1=v1,t2=v2,"), b)
-// 	assert.Equal(t, tags.idLen(), len(b))
-// }
-
 func TestWithoutName(t *testing.T) {
 	tags := createTags(true)
 	tagsWithoutName := tags.WithoutName()
 
 	assert.Equal(t, createTags(false), tagsWithoutName)
-}
-
-func TestIDWithKeys(t *testing.T) {
-	tags := createTags(true)
-
-	b := []byte("__name__=v0,t1=v1,t2=v2,")
-	h := fnv.New64a()
-	h.Write(b)
-
-	idWithKeys := tags.IDWithKeys([]byte("t1"), []byte("t2"), tags.Opts.MetricName())
-	assert.Equal(t, h.Sum64(), idWithKeys)
 }
 
 func TestTagsWithKeys(t *testing.T) {
@@ -130,35 +100,11 @@ func TestTagsWithKeys(t *testing.T) {
 	assert.Equal(t, []Tag{{Name: []byte("t1"), Value: []byte("v1")}}, tagsWithKeys.Tags)
 }
 
-func TestIDWithExcludes(t *testing.T) {
-	tags := createTags(true)
-
-	b := []byte("t2=v2,")
-	h := fnv.New64a()
-	h.Write(b)
-
-	idWithExcludes := tags.IDWithExcludes([]byte("t1"))
-	assert.Equal(t, h.Sum64(), idWithExcludes)
-}
-
 func TestTagsWithExcludes(t *testing.T) {
 	tags := createTags(true)
 
 	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("t1"), tags.Opts.MetricName()})
 	assert.Equal(t, []Tag{{Name: []byte("t2"), Value: []byte("v2")}}, tagsWithoutKeys.Tags)
-}
-
-func TestTagsIDLen(t *testing.T) {
-	tags := NewTags(3, NewTagOptions().SetMetricName([]byte("N")))
-	tags = tags.AddTags([]Tag{
-		{Name: []byte("a"), Value: []byte("1")},
-		{Name: []byte("b"), Value: []byte("2")},
-		{Name: []byte("c"), Value: []byte("3")},
-	})
-
-	tags = tags.SetName([]byte("9"))
-	idLen := len("a:1,b:2,c:3,N:9,")
-	assert.Equal(t, idLen, tags.idLen())
 }
 
 func TestTagsWithExcludesCustom(t *testing.T) {
@@ -288,11 +234,11 @@ func TestTagAppend(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
-func TestLol(t *testing.T) {
-	fmt.Println(tagLengthsToBytes([]int{1, 2, 3, 4, 44, 256, 8, 257, 9, 256 * 256, 10, 256*256 + 1, 11}))
-}
+// func TestLol(t *testing.T) {
+// 	fmt.Println(tagLengthsToBytes([]int{1, 2, 3, 4, 44, 256, 8, 257, 9, 256 * 256, 10, 256*256 + 1, 11}))
+// }
 
-func buildTags(b *testing.B, count, length int) Tags {
+func buildTags(b *testing.B, count, length int, opts TagOptions) Tags {
 	tags := make([]Tag, count)
 	for i := range tags {
 		n := []byte(fmt.Sprint("t", i))
@@ -304,7 +250,7 @@ func buildTags(b *testing.B, count, length int) Tags {
 		tags[i] = Tag{Name: n, Value: v}
 	}
 
-	return NewTags(count, nil).AddTags(tags)
+	return NewTags(count, opts).AddTags(tags)
 }
 
 var tagBenchmarks = []struct {
@@ -325,34 +271,26 @@ var tagBenchmarks = []struct {
 	{"1000 tags, 1000 length", 1000, 1000},
 }
 
-func BenchmarkIDs(b *testing.B) {
-	for _, bb := range tagBenchmarks {
-		b.Run(bb.name, func(b *testing.B) {
-			tags := buildTags(b, bb.tagCount, bb.tagLength)
-			for i := 0; i < b.N; i++ {
-				_ = tags.ID()
-			}
-		})
-	}
-}
-func BenchmarkNewIDs(b *testing.B) {
-	for _, bb := range tagBenchmarks {
-		b.Run(bb.name, func(b *testing.B) {
-			tags := buildTags(b, bb.tagCount, bb.tagLength)
-			for i := 0; i < b.N; i++ {
-				_ = tags.NewID()
-			}
-		})
-	}
+var tagIDSchemes = []struct {
+	name   string
+	scheme IDSchemeType
+}{
+	{"legacy", TypeLegacy},
+	{"prepen", TypePrependMeta},
+	{"quoted", TypeQuoted},
 }
 
-func BenchmarkNumericIDs(b *testing.B) {
+func BenchmarkIDs(b *testing.B) {
+	opts := NewTagOptions()
 	for _, bb := range tagBenchmarks {
-		b.Run(bb.name, func(b *testing.B) {
-			tags := buildTags(b, bb.tagCount, bb.tagLength)
-			for i := 0; i < b.N; i++ {
-				_ = tags.newid()
-			}
-		})
+		for _, idScheme := range tagIDSchemes {
+			b.Run(bb.name+"_"+idScheme.name, func(b *testing.B) {
+				opts = opts.SetIDSchemeType(idScheme.scheme)
+				tags := buildTags(b, bb.tagCount, bb.tagLength, opts)
+				for i := 0; i < b.N; i++ {
+					_ = tags.ID()
+				}
+			})
+		}
 	}
 }

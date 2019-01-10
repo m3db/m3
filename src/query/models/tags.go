@@ -23,20 +23,15 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"sort"
 
 	"github.com/m3db/m3/src/query/models/strconv"
 )
 
-var (
-	defaultOptions = NewTagOptions()
-)
-
 // NewTags builds a tags with the given size and tag options.
 func NewTags(size int, opts TagOptions) Tags {
 	if opts == nil {
-		opts = defaultOptions
+		opts = NewTagOptions()
 	}
 
 	return Tags{
@@ -51,10 +46,26 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
-// ID returns a byte slice representation of the tags.
+// ID returns a byte slice representation of the tags, using the generation
+// strategy from .
 func (t Tags) ID() []byte {
+	schemeType := t.Opts.IDSchemeType()
+	switch schemeType {
+	case TypeLegacy:
+		return t.legacyID()
+	case TypeQuoted:
+		return t.quotedID()
+	case TypePrependMeta:
+		return t.prependMetaID()
+	default:
+		// Default to prepending meta
+		return t.prependMetaID()
+	}
+}
+
+func (t Tags) legacyID() []byte {
 	// TODO: pool these bytes.
-	id := make([]byte, t.idLen())
+	id := make([]byte, t.legacyIDLen())
 	idx := -1
 	for _, tag := range t.Tags {
 		idx += copy(id[idx+1:], tag.Name) + 1
@@ -66,8 +77,7 @@ func (t Tags) ID() []byte {
 	return id
 }
 
-// idLen returns the length of the ID that would be generated from the tags.
-func (t Tags) idLen() int {
+func (t Tags) legacyIDLen() int {
 	idLen := 2 * t.Len() // account for eq and sep
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
@@ -77,23 +87,20 @@ func (t Tags) idLen() int {
 	return idLen
 }
 
-// NewID returns a byte slice representation of the tags.
-func (t Tags) NewID() []byte {
+func (t Tags) quotedID() []byte {
 	// TODO: pool these bytes.
-	id := make([]byte, t.newIdLen())
+	id := make([]byte, t.quotedIDLen())
 	idx := 0
-
 	for _, tag := range t.Tags {
 		idx += copy(id[idx:], tag.Name)
-		idx = strconv.Quote(id, tag.Value, idx)
-		// idx += copy(id[idx+1:], tag.Value) + 1
+		idx += strconv.Quote(id[idx:], tag.Value)
 	}
 
 	return id
 }
 
 // newIdLen returns the length of the ID that would be generated from the tags.
-func (t Tags) newIdLen() int {
+func (t Tags) quotedIDLen() int {
 	idLen := 0
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
@@ -104,11 +111,11 @@ func (t Tags) newIdLen() int {
 }
 
 // ID returns a byte slice representation of the tags.
-func (t Tags) newid() []byte {
-	l, lens := t.newlen()
+func (t Tags) prependMetaID() []byte {
+	l, metaLengths := t.prependMetaLen()
 	// TODO: pool these bytes.
 	id := make([]byte, l)
-	idx := writeTagLengths(id, lens)
+	idx := prependTagLengthMeta(id, metaLengths)
 	for _, tag := range t.Tags {
 		idx += copy(id[idx:], tag.Name)
 		idx += copy(id[idx:], tag.Value)
@@ -117,29 +124,7 @@ func (t Tags) newid() []byte {
 	return id
 }
 
-func tagLengthsToBytes(tagLengths []int) []byte {
-	// account for tag length seperator and final character,
-	// and at least a single byte for the length
-	byteLength := len(tagLengths)
-	for _, l := range tagLengths {
-		for l >>= 8; l > 0; l >>= 8 {
-			byteLength++
-		}
-	}
-
-	tagBytes := make([]byte, byteLength)
-	idx := 0
-	for _, l := range tagLengths {
-		for ; l > 0; l >>= 8 {
-			tagBytes[idx] = byte(l % 256)
-			idx++
-		}
-	}
-
-	return tagBytes
-}
-
-func writeTagLengths(dst []byte, lengths []int) int {
+func prependTagLengthMeta(dst []byte, lengths []int) int {
 	idx := 0
 	for _, l := range lengths {
 		for ; l > 0; l >>= 8 {
@@ -152,11 +137,11 @@ func writeTagLengths(dst []byte, lengths []int) int {
 }
 
 // idLen returns the length of the ID that would be generated from the tags.
-func (t Tags) newlen() (int, []int) {
-	idLen := 0 // t.Len() // 2 * t.Len()  // account for eq and sep
+func (t Tags) prependMetaLen() (int, []int) {
+	idLen := 0
 	tagLengths := make([]int, len(t.Tags))
 	for i, tag := range t.Tags {
-		tagLen := len(tag.Name) + 1
+		tagLen := len(tag.Name)
 		tagLen += len(tag.Value)
 		tagLengths[i] = tagLen
 		idLen += tagLen
@@ -169,40 +154,7 @@ func (t Tags) newlen() (int, []int) {
 		}
 	}
 
-	return idLen, tagLengths
-}
-
-// IDWithExcludes returns a string representation of the tags excluding some tag keys.
-func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
-	b := make([]byte, 0, t.Len())
-	for _, tag := range t.Tags {
-		// Always exclude the metric name by default
-		if bytes.Equal(tag.Name, t.Opts.MetricName()) {
-			continue
-		}
-
-		found := false
-		for _, n := range excludeKeys {
-			if bytes.Equal(n, tag.Name) {
-				found = true
-				break
-			}
-		}
-
-		// Skip the key
-		if found {
-			continue
-		}
-
-		b = append(b, tag.Name...)
-		b = append(b, eq)
-		b = append(b, tag.Value...)
-		b = append(b, sep)
-	}
-
-	h := fnv.New64a()
-	h.Write(b)
-	return h.Sum64()
+	return idLen + byteLength, tagLengths
 }
 
 func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
@@ -227,26 +179,6 @@ func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
 // TagsWithoutKeys returns only the tags which do not have the given keys.
 func (t Tags) TagsWithoutKeys(excludeKeys [][]byte) Tags {
 	return t.tagSubset(excludeKeys, false)
-}
-
-// IDWithKeys returns a string representation of the tags only including the given keys.
-func (t Tags) IDWithKeys(includeKeys ...[]byte) uint64 {
-	b := make([]byte, 0, t.Len())
-	for _, tag := range t.Tags {
-		for _, k := range includeKeys {
-			if bytes.Equal(tag.Name, k) {
-				b = append(b, tag.Name...)
-				b = append(b, eq)
-				b = append(b, tag.Value...)
-				b = append(b, sep)
-				break
-			}
-		}
-	}
-
-	h := fnv.New64a()
-	h.Write(b)
-	return h.Sum64()
 }
 
 // TagsWithKeys returns only the tags which have the given keys.

@@ -31,22 +31,32 @@ var (
 )
 
 type tagOptions struct {
+	version    int
+	idScheme   IDSchemeType
 	metricName []byte
 }
 
 // NewTagOptions builds a new tag options with default values.
 func NewTagOptions() TagOptions {
 	return &tagOptions{
+		version:    0,
 		metricName: defaultMetricName,
+		idScheme:   TypeDefault,
 	}
 }
 
 func (o *tagOptions) Validate() error {
-	if o.MetricName() == nil {
+	if o.metricName == nil || len(o.metricName) == 0 {
 		return errNoName
 	}
 
-	return nil
+	return o.idScheme.validateIDSchemeType()
+}
+
+func (o *tagOptions) SetVersion(version int) TagOptions {
+	opts := *o
+	opts.version = version
+	return &opts
 }
 
 func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
@@ -57,4 +67,14 @@ func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
 
 func (o *tagOptions) MetricName() []byte {
 	return o.metricName
+}
+
+func (o *tagOptions) SetIDSchemeType(scheme IDSchemeType) TagOptions {
+	opts := *o
+	opts.idScheme = scheme
+	return &opts
+}
+
+func (o *tagOptions) IDSchemeType() IDSchemeType {
+	return o.idScheme
 }

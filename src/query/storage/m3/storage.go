@@ -307,8 +307,7 @@ func (s *m3storage) Write(
 	var (
 		// TODO: Pool this once an ident pool is setup. We will have
 		// to stop calling NoFinalize() below if we do that.
-		buf   = make([]byte, 0, query.Tags.IDLen())
-		idBuf = query.Tags.IDMarshalTo(buf)
+		idBuf = query.Tags.ID()
 		id    = ident.BytesID(idBuf)
 	)
 	// Set id to NoFinalize to avoid cloning it in write operations
