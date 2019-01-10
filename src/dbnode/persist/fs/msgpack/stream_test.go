@@ -30,7 +30,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	msgpacklib "gopkg.in/vmihailenco/msgpack.v2"
 )
 
