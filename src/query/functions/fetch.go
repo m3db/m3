@@ -49,12 +49,12 @@ type FetchOp struct {
 // FetchNode is the execution node
 // TODO: Make FetchNode private
 type FetchNode struct {
+	debug      bool
+	blockType  models.FetchedBlockType
 	op         FetchOp
 	controller *transform.Controller
 	storage    storage.Storage
 	timespec   transform.TimeSpec
-	debug      bool
-	useLegacy  bool
 }
 
 // OpType for the operator
@@ -83,7 +83,7 @@ func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage,
 		storage:    storage,
 		timespec:   options.TimeSpec,
 		debug:      options.Debug,
-		useLegacy:  options.UseLegacy,
+		blockType:  options.BlockType,
 	}
 }
 
@@ -99,7 +99,7 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
 	}, &storage.FetchOptions{
-		UseLegacy: n.useLegacy,
+		BlockType: n.blockType,
 	})
 	if err != nil {
 		return err

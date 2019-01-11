@@ -32,7 +32,7 @@ import (
 type Options struct {
 	TimeSpec  TimeSpec
 	Debug     bool
-	UseLegacy bool
+	BlockType models.FetchedBlockType
 }
 
 // OpNode represents the execution node
