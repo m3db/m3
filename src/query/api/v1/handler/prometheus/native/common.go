@@ -157,16 +157,7 @@ func parseDebugFlag(r *http.Request) bool {
 	return debug
 }
 
-var (
-	validBlockTypes = []models.FetchedBlockType{
-		models.TypeSingleBlock,
-		models.TypeMultiBlock,
-		models.TypeDecodedBlock,
-	}
-)
-
 func parseBlockType(r *http.Request) models.FetchedBlockType {
-	var parseBlockType models.FetchedBlockType
 	// Use default block type if unable to parse blockTypeParam.
 	useLegacyVal := r.FormValue(blockTypeParam)
 	if useLegacyVal != "" {
@@ -175,15 +166,16 @@ func parseBlockType(r *http.Request) models.FetchedBlockType {
 			logging.WithContext(r.Context()).Warn("unable to parse useLegacy flag", zap.Error(err))
 		}
 
-		// If invalid value, return default.
-		if intVal < 0 || int(intVal) >= len(validBlockTypes) {
+		blockType := models.FetchedBlockType(intVal)
+		// Ignore error from receiving an invalid block type, and return default.
+		if blockType.Validate() != nil {
 			return models.TypeSingleBlock
 		}
 
-		return validBlockTypes[intVal]
+		return blockType
 	}
 
-	return parseBlockType
+	return models.TypeSingleBlock
 }
 
 // parseInstantaneousParams parses all params from the GET request

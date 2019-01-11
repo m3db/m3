@@ -75,7 +75,6 @@ func (b *encodedBlockBuilder) add(
 			block := bl.block
 			block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
 			b.blocksAtTime[idx].block = block
-
 			return
 		}
 	}
@@ -98,6 +97,11 @@ func (b *encodedBlockBuilder) add(
 func (b *encodedBlockBuilder) build() ([]block.Block, error) {
 	if err := b.backfillMissing(); err != nil {
 		return nil, err
+	}
+
+	// Sort blocks by ID.
+	for _, bl := range b.blocksAtTime {
+		sort.Sort(seriesIteratorByID(bl.block.seriesBlockIterators))
 	}
 
 	blocks := make([]block.Block, 0, len(b.blocksAtTime))
@@ -186,10 +190,6 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 			block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
 			b.blocksAtTime[blockIdx].block = block
 		}
-	}
-
-	for _, bl := range b.blocksAtTime {
-		sort.Sort(seriesIteratorByID(bl.block.seriesBlockIterators))
 	}
 
 	return nil

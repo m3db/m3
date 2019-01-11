@@ -106,16 +106,18 @@ func (s *m3storage) FetchBlocks(
 	options *storage.FetchOptions,
 ) (block.Result, error) {
 	opts := s.opts
-	switch options.BlockType {
-	case models.TypeDecodedBlock:
+	// If using decoded block, return the legacy path.
+	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
 			return block.Result{}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query)
-	case models.TypeMultiBlock:
-		// If using multiblock, update options to reflect this.
+	}
+
+	// If using multiblock, update options to reflect this.
+	if options.BlockType == models.TypeMultiBlock {
 		opts = opts.
 			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
