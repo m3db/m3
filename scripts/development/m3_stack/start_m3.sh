@@ -170,7 +170,7 @@ echo "Validating topology"
 echo "Done validating topology"
 
 echo "Waiting until shards are marked as available"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then

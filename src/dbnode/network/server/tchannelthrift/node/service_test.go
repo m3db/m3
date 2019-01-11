@@ -73,7 +73,7 @@ func TestServiceHealth(t *testing.T) {
 	service := NewService(mockDB, nil).(*service)
 
 	// Assert bootstrapped false
-	mockDB.EXPECT().IsBootstrapped().Return(false)
+	mockDB.EXPECT().IsBootstrappedAndDurable().Return(false)
 
 	tctx, _ := thrift.NewContext(time.Minute)
 	result, err := service.Health(tctx)
@@ -84,7 +84,7 @@ func TestServiceHealth(t *testing.T) {
 	assert.Equal(t, false, result.Bootstrapped)
 
 	// Assert bootstrapped true
-	mockDB.EXPECT().IsBootstrapped().Return(true)
+	mockDB.EXPECT().IsBootstrappedAndDurable().Return(true)
 
 	tctx, _ = thrift.NewContext(time.Minute)
 	result, err = service.Health(tctx)
@@ -105,13 +105,13 @@ func TestServiceBootstrapped(t *testing.T) {
 	service := NewService(mockDB, nil).(*service)
 
 	// Should return an error when not bootstrapped
-	mockDB.EXPECT().IsBootstrapped().Return(false)
+	mockDB.EXPECT().IsBootstrappedAndDurable().Return(false)
 	tctx, _ := thrift.NewContext(time.Minute)
 	_, err := service.Bootstrapped(tctx)
 	require.Error(t, err)
 
 	// Should not return an error when bootstrapped
-	mockDB.EXPECT().IsBootstrapped().Return(true)
+	mockDB.EXPECT().IsBootstrappedAndDurable().Return(true)
 
 	tctx, _ = thrift.NewContext(time.Minute)
 	_, err = service.Health(tctx)
