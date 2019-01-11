@@ -18,62 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package strconv
 
-import (
-	"errors"
-	"fmt"
-)
+// IntLength determines the number of digits in an integer.
+func IntLength(i int) int {
+	if i == 0 {
+		return 1
+	}
 
-var validIDSchemes = []IDSchemeType{
-	TypeLegacy,
-	TypeQuoted,
-	TypePrependMeta,
+	count := 0
+	for ; i > 0; i /= 10 {
+		count++
+	}
+
+	return count
 }
 
-func (t IDSchemeType) validateIDSchemeType() error {
-	if t == TypeDefault {
-		return errors.New("id scheme type not set")
+// WriteInteger writes a base 10 integer to a buffer at a given index.
+func WriteInteger(dst []byte, value, idx int) int {
+	// Because printing is easier right-to-left: format u into buf, ending at buf[i].
+	// We could make things marginally faster by splitting the 32-bit case out
+	// into a separate block but it's not worth the duplication, so u has 64 bits.
+	// Use constants for the division and modulo for more efficient code.
+	// Switch cases ordered by popularity.
+	idx = idx + IntLength(value)
+	finalIndex := idx
+	for value >= 10 {
+		idx--
+		dst[idx] = byte(48 + value%10)
+		next := value / 10
+		value = next
 	}
 
-	if t >= TypeLegacy && t <= TypePrependMeta {
-		return nil
-	}
-
-	return fmt.Errorf("invalid config id schema type '%v': should be one of %v",
-		t, validIDSchemes)
-}
-
-func (t IDSchemeType) String() string {
-	switch t {
-	case TypeDefault:
-		return ""
-	case TypeLegacy:
-		return "legacy"
-	case TypeQuoted:
-		return "quoted"
-	case TypePrependMeta:
-		return "prependMeta"
-	default:
-		// Should never get here.
-		return "unknown"
-	}
-}
-
-// UnmarshalYAML unmarshals a stored merics type.
-func (t *IDSchemeType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	for _, valid := range validIDSchemes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
-		str, validIDSchemes)
+	dst[idx-1] = byte(48 + value)
+	return finalIndex
 }

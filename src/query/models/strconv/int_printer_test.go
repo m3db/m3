@@ -18,62 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package strconv
 
 import (
-	"errors"
 	"fmt"
+	"math"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var validIDSchemes = []IDSchemeType{
-	TypeLegacy,
-	TypeQuoted,
-	TypePrependMeta,
-}
-
-func (t IDSchemeType) validateIDSchemeType() error {
-	if t == TypeDefault {
-		return errors.New("id scheme type not set")
+func TestIntegerLength(t *testing.T) {
+	for i := 0; i < 18; i++ {
+		small := int(math.Pow(10, float64(i)))
+		large := small*10 - 1
+		expected := i + 1
+		assert.Equal(t, expected, IntLength(small))
+		assert.Equal(t, expected, IntLength(large))
 	}
 
-	if t >= TypeLegacy && t <= TypePrependMeta {
-		return nil
-	}
-
-	return fmt.Errorf("invalid config id schema type '%v': should be one of %v",
-		t, validIDSchemes)
+	assert.Equal(t, 19, IntLength(1000000000000000000))
 }
 
-func (t IDSchemeType) String() string {
-	switch t {
-	case TypeDefault:
-		return ""
-	case TypeLegacy:
-		return "legacy"
-	case TypeQuoted:
-		return "quoted"
-	case TypePrependMeta:
-		return "prependMeta"
-	default:
-		// Should never get here.
-		return "unknown"
+func TestWriteInteger(t *testing.T) {
+	ints := make([]int, 105)
+	for i := range ints {
+		l := IntLength(i)
+		buf := make([]byte, l)
+		idx := WriteInteger(buf, i, 0)
+		assert.Equal(t, l, idx)
+		assert.Equal(t, []byte(fmt.Sprint(i)), buf)
 	}
 }
 
-// UnmarshalYAML unmarshals a stored merics type.
-func (t *IDSchemeType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	for _, valid := range validIDSchemes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
-		str, validIDSchemes)
+func TestWriteIntegersAtIndex(t *testing.T) {
+	l := IntLength(345) + IntLength(12)
+	buf := make([]byte, l)
+	idx := WriteInteger(buf, 12, 0)
+	idx = WriteInteger(buf, 345, idx)
+	assert.Equal(t, 5, idx)
+	assert.Equal(t, []byte("12345"), buf)
 }

@@ -178,6 +178,7 @@ func TestFanoutWriteError(t *testing.T) {
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
+		Tags:       models.NewTags(0, nil),
 	})
 	assert.Error(t, err)
 }
@@ -188,6 +189,7 @@ func TestFanoutWriteSuccess(t *testing.T) {
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
+		Tags:       models.NewTags(0, nil),
 	})
 	assert.NoError(t, err)
 }

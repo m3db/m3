@@ -23,11 +23,13 @@ package config
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/query/models"
 	xconfig "github.com/m3db/m3x/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/validator.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestTagOptionsFromEmptyConfig(t *testing.T) {
@@ -93,4 +95,35 @@ func TestConfigValidation(t *testing.T) {
 			assert.NoError(t, validator.Validate(cfg))
 		})
 	}
+}
+
+func TestDefaultTagOptionsConfig(t *testing.T) {
+	var cfg TagOptionsConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, 0, opts.Version())
+	assert.Equal(t, []byte("__name__"), opts.MetricName())
+	assert.Equal(t, models.TypeLegacy, opts.IDSchemeType())
+}
+
+func TestDefaultTagOptionsConfigVersion1(t *testing.T) {
+	var cfg TagOptionsConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte("version: 1"), &cfg))
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, 1, opts.Version())
+	assert.Equal(t, []byte("__name__"), opts.MetricName())
+	assert.Equal(t, models.TypeQuoted, opts.IDSchemeType())
+}
+
+func TestTagOptionsConfig(t *testing.T) {
+	var cfg TagOptionsConfiguration
+	config := "version: 0\nmetricName: abcdefg\nidScheme: prependMeta"
+	require.NoError(t, yaml.Unmarshal([]byte(config), &cfg))
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, 0, opts.Version())
+	assert.Equal(t, []byte("abcdefg"), opts.MetricName())
+	assert.Equal(t, models.TypePrependMeta, opts.IDSchemeType())
 }

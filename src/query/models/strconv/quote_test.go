@@ -48,6 +48,18 @@ var quotetests = []quoteTest{
 	{`"t"a"g"`, `"\"t\"a\"g\""`},
 }
 
+func TestEscape(t *testing.T) {
+	for _, tt := range quotetests {
+		in := []byte(tt.in)
+		bufferLen := EscapedLength(in)
+		bb := make([]byte, bufferLen)
+		idx := Escape(bb, in, 0)
+		assert.Equal(t, idx, bufferLen)
+		expected := []byte(tt.out)
+		assert.Equal(t, expected[1:len(expected)-1], bb)
+	}
+}
+
 func TestQuote(t *testing.T) {
 	for _, tt := range quotetests {
 		in := []byte(tt.in)

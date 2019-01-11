@@ -23,6 +23,7 @@ package models
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"sort"
 
 	"github.com/m3db/m3/src/query/models/strconv"
@@ -97,7 +98,12 @@ func (t Tags) quotedID() []byte {
 	id := make([]byte, length)
 	idx := 0
 	for i, tag := range t.Tags {
-		idx += copy(id[idx:], tag.Name)
+		if needEscaping[i*2] {
+			idx = strconv.Escape(id, tag.Name, idx)
+		} else {
+			idx += copy(id[idx:], tag.Name)
+		}
+
 		if needEscaping[i*2+1] {
 			idx = strconv.Quote(id, tag.Value, idx)
 		} else {
@@ -133,7 +139,7 @@ func (t Tags) escapingAndLength() ([]bool, int) {
 				escapeAtIndex = make([]bool, len(t.Tags)*2)
 			}
 
-			idLen += strconv.QuotedLength(tag.Name)
+			idLen += strconv.EscapedLength(tag.Name)
 			escapeAtIndex[i*2] = true
 		} else {
 			idLen += len(tag.Name)
@@ -154,21 +160,6 @@ func (t Tags) escapingAndLength() ([]bool, int) {
 	return escapeAtIndex, idLen
 }
 
-func (t Tags) quotedIDLen(needsEscaping []bool) int {
-	idLen := 0
-	for i, tag := range t.Tags {
-		idLen += len(tag.Name)
-		if needsEscaping[i] {
-			idLen += strconv.QuotedLength(tag.Value)
-		} else {
-			// NB: If no need to escape, need length for quotes only.
-			idLen += len(tag.Value) + 2
-		}
-	}
-
-	return idLen
-}
-
 // ID returns a byte slice representation of the tags.
 func (t Tags) prependMetaID() []byte {
 	l, metaLengths := t.prependMetaLen()
@@ -186,10 +177,7 @@ func (t Tags) prependMetaID() []byte {
 func prependTagLengthMeta(dst []byte, lengths []int) int {
 	idx := 0
 	for _, l := range lengths {
-		for ; l > 0; l >>= 8 {
-			dst[idx] = byte(l % 256)
-			idx++
-		}
+		idx = strconv.WriteInteger(dst, l, idx)
 	}
 
 	return idx
@@ -206,14 +194,12 @@ func (t Tags) prependMetaLen() (int, []int) {
 		idLen += tagLen
 	}
 
-	byteLength := len(tagLengths)
+	prefixLen := 0
 	for _, l := range tagLengths {
-		for l >>= 8; l > 0; l >>= 8 {
-			byteLength++
-		}
+		prefixLen += strconv.IntLength(l)
 	}
 
-	return idLen + byteLength, tagLengths
+	return idLen + prefixLen, tagLengths
 }
 
 func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
@@ -328,6 +314,13 @@ func (t Tags) Less(i, j int) bool {
 func (t Tags) Normalize() Tags {
 	sort.Sort(t)
 	return t
+}
+
+// HashedID returns the hashed ID for the tags.
+func (t Tags) HashedID() uint64 {
+	h := fnv.New64a()
+	h.Write(t.ID())
+	return h.Sum64()
 }
 
 func (t Tag) String() string {

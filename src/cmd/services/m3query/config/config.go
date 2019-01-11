@@ -167,10 +167,15 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	version := cfg.Version
 	opts = opts.SetVersion(version)
 
-	if cfg.IDSchemeType == 0 {
-
+	if cfg.Scheme == models.TypeDefault {
+		if version == 0 {
+			cfg.Scheme = models.TypeLegacy
+		} else {
+			cfg.Scheme = models.TypeQuoted
+		}
 	}
 
+	opts = opts.SetIDSchemeType(cfg.Scheme)
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}

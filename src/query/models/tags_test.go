@@ -23,10 +23,12 @@ package models
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"testing"
 	"unsafe"
 
+	"github.com/m3db/m3/src/query/models/strconv"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -60,15 +62,24 @@ func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
 	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
 }
 
+func TestHashedID(t *testing.T) {
+	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
+	actual := tags.HashedID()
+
+	h := fnv.New64a()
+	h.Write([]byte("t1=v1,t2=v2,t3=v3,t4=v4,"))
+	expected := h.Sum64()
+
+	assert.Equal(t, expected, actual)
+}
+
 func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
-	// a"b"c"d"
-	// `a"b"c`d
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
-	tags = tags.AddTag(Tag{Name: []byte("t5"), Value: []byte(`v"5`)})
+	tags = tags.AddTag(Tag{Name: []byte(`t5""`), Value: []byte(`v"5`)})
 	needEscaping, l := tags.escapingAndLength()
 	assert.NotNil(t, needEscaping)
 	for i, escape := range needEscaping {
-		if i == 9 {
+		if i >= 8 {
 			assert.True(t, escape)
 		} else {
 			assert.False(t, escape)
@@ -77,9 +88,7 @@ func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
 
 	actual := tags.ID()
 	assert.Equal(t, l, len(actual))
-	fmt.Println(string(actual))
-	fmt.Println(string([]byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5"v\"5"`)))
-	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5"v\"5"`), actual)
+	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5\"\""v\"5"`), actual)
 }
 
 func TestQuotedCollisions(t *testing.T) {
@@ -105,14 +114,7 @@ func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
 	actual := tags.ID()
 	expectedLength, _ := tags.prependMetaLen()
 	assert.Equal(t, expectedLength, len(actual))
-	tagBytes := []byte(`t1v1t2v2t3v3t4v4`)
-	expected := make([]byte, len(tagBytes)+4)
-	expected[0] = 4
-	expected[1] = 4
-	expected[2] = 4
-	expected[3] = 4
-	copy(expected[4:], tagBytes)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, []byte("4444t1v1t2v2t3v3t4v4"), actual)
 }
 
 func createTags(withName bool) Tags {
@@ -276,9 +278,19 @@ func TestTagAppend(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
-// func TestLol(t *testing.T) {
-// 	fmt.Println(tagLengthsToBytes([]int{1, 2, 3, 4, 44, 256, 8, 257, 9, 256 * 256, 10, 256*256 + 1, 11}))
-// }
+func TestPrependTagLengthMeta(t *testing.T) {
+	lengths := []int{0, 1, 2, 8, 10, 8, 100, 8, 101, 8, 110}
+	l := 0
+	for _, length := range lengths {
+		l += strconv.IntLength(length)
+	}
+
+	assert.Equal(t, 18, l)
+	buf := make([]byte, l)
+	count := prependTagLengthMeta(buf, lengths)
+	assert.Equal(t, 18, count)
+	assert.Equal(t, []byte("012810810081018110"), buf)
+}
 
 func buildTags(b *testing.B, count, length int, opts TagOptions) Tags {
 	tags := make([]Tag, count)

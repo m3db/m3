@@ -63,10 +63,14 @@ type VectorMatching struct {
 // ignoring the provided labels. If on, then the given labels are only used instead.
 func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 	if on {
-		return func(tags models.Tags) uint64 { return tags.IDWithKeys(names...) }
+		return func(tags models.Tags) uint64 {
+			return tags.TagsWithKeys(names).HashedID()
+		}
 	}
 
-	return func(tags models.Tags) uint64 { return tags.IDWithExcludes(names...) }
+	return func(tags models.Tags) uint64 {
+		return tags.TagsWithoutKeys(names).HashedID()
+	}
 }
 
 const initIndexSliceLength = 10

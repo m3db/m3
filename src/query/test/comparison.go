@@ -115,8 +115,8 @@ func (m matches) Len() int      { return len(m) }
 func (m matches) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 func (m matches) Less(i, j int) bool {
 	return bytes.Compare(
-		models.Tags{Tags: m[i].seriesTags}.ID(),
-		models.Tags{Tags: m[j].seriesTags}.ID(),
+		models.NewTags(0, nil).AddTags(m[i].seriesTags).ID(),
+		models.NewTags(0, nil).AddTags(m[j].seriesTags).ID(),
 	) == -1
 }
 

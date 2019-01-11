@@ -21,18 +21,45 @@
 package models
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestIDSchemeValidation(t *testing.T) {
-	err := TypeLegacy.validateIDSchemeType()
+	err := TypeDefault.validateIDSchemeType()
+	assert.EqualError(t, err, "id scheme type not set")
+	err = TypeLegacy.validateIDSchemeType()
 	assert.NoError(t, err)
 	err = TypePrependMeta.validateIDSchemeType()
 	assert.NoError(t, err)
 	err = TypeQuoted.validateIDSchemeType()
 	assert.NoError(t, err)
 	err = IDSchemeType(4).validateIDSchemeType()
-	assert.EqualError(t, err, "invalid config id schema type '3': should be one of [0 1 2]")
+	assert.EqualError(t, err, "invalid config id schema type 'unknown':"+
+		" should be one of [legacy quoted prependMeta]")
+}
+
+func TestMetricsTypeUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Type IDSchemeType `yaml:"type"`
+	}
+
+	for _, value := range validIDSchemes {
+		str := fmt.Sprintf("type: %s\n", value.String())
+
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+
+		assert.Equal(t, value, cfg.Type)
+	}
+
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+
+	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
+	assert.Equal(t, TypeDefault, cfg.Type)
 }
