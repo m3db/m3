@@ -54,6 +54,7 @@ var (
 	errNoWriterConfiguration                    = errors.New("no writer configuration")
 	errNoDynamicOrStaticBackendConfiguration    = errors.New("neither dynamic nor static backend was configured")
 	errBothDynamicAndStaticBackendConfiguration = errors.New("both dynamic and static backend were configured")
+	errInvalidShardingConfiguration             = errors.New("invalid sharding configuration, missing hash type or total shards")
 )
 
 // FlushHandlerConfiguration configures flush handlers.
@@ -92,7 +93,7 @@ func (c FlushHandlerConfiguration) NewHandler(
 			return nil, err
 		}
 		if hc.DynamicBackend != nil {
-			handlers, sharderRouters, err = hc.DynamicBackend.newHandler(
+			handlers, sharderRouters, err = hc.DynamicBackend.constructDynamicBackend(
 				handlers,
 				sharderRouters,
 				cs,
@@ -221,7 +222,7 @@ type dynamicBackendConfiguration struct {
 	ProtobufEnabled *bool `yaml:"protobufEnabled"`
 }
 
-func (c *dynamicBackendConfiguration) newHandler(
+func (c *dynamicBackendConfiguration) constructDynamicBackend(
 	handlers []Handler,
 	sharderRouters []SharderRouter,
 	cs client.Client,
@@ -243,7 +244,7 @@ func (c *dynamicBackendConfiguration) newHandler(
 		return handlers, sharderRouters, nil
 	}
 
-	sharderRouter, err := c.NewSharderRouter(
+	sharderRouter, err := c.newSharderRouter(
 		cs,
 		store,
 		instrumentOpts,
@@ -283,7 +284,7 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 	return NewProtobufHandler(p, wOpts), nil
 }
 
-func (c *dynamicBackendConfiguration) NewSharderRouter(
+func (c *dynamicBackendConfiguration) newSharderRouter(
 	cs client.Client,
 	store kv.Store,
 	instrumentOpts instrument.Options,
@@ -312,6 +313,9 @@ func (c *dynamicBackendConfiguration) NewSharderRouter(
 			return SharderRouter{}, err
 		}
 		r = trafficcontrol.NewRouter(tc, r, scope)
+	}
+	if c.HashType == nil || c.TotalShards == nil {
+		return SharderRouter{}, errInvalidShardingConfiguration
 	}
 	return SharderRouter{
 		SharderID: sharding.NewSharderID(*c.HashType, *c.TotalShards),

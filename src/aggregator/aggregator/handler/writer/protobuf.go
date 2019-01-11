@@ -81,7 +81,7 @@ type protobufWriter struct {
 func NewProtobufWriter(
 	producer producer.Producer,
 	opts Options,
-) (Writer, error) {
+) Writer {
 	nowFn := opts.ClockOptions().NowFn()
 	instrumentOpts := opts.InstrumentOptions()
 	w := &protobufWriter{
@@ -96,7 +96,7 @@ func NewProtobufWriter(
 	}
 	w.randFn = w.rand.Float64
 	w.shardFn = w.shard
-	return w, nil
+	return w
 }
 
 func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {

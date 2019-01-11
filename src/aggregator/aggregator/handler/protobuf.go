@@ -44,7 +44,7 @@ func (h protobufHandler) NewWriter(scope tally.Scope) (writer.Writer, error) {
 	iOpts := h.opts.InstrumentOptions()
 	return writer.NewProtobufWriter(
 		h.p, h.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)),
-	)
+	), nil
 }
 
 func (h protobufHandler) Close() {

@@ -139,7 +139,5 @@ func TestProtobufWriterWrite(t *testing.T) {
 func testProtobufWriter(t *testing.T, ctrl *gomock.Controller, opts Options) *protobufWriter {
 	p := producer.NewMockProducer(ctrl)
 	p.EXPECT().NumShards().Return(uint32(1024))
-	writer, err := NewProtobufWriter(p, opts)
-	require.NoError(t, err)
-	return writer.(*protobufWriter)
+	return NewProtobufWriter(p, opts).(*protobufWriter)
 }
