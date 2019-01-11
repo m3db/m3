@@ -188,6 +188,11 @@ func (it *encodedStepIter) Next() bool {
 		return false
 	}
 
+	checkNextTime := it.currentTime.Add(it.bounds.StepSize * 2)
+	if it.bounds.End().Before(checkNextTime) {
+		return false
+	}
+
 	if !it.started {
 		it.initialStep()
 		it.started = true

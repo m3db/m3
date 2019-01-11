@@ -36,17 +36,14 @@ type columnBlock struct {
 	seriesMeta []SeriesMeta
 }
 
-// Unconsolidated returns the unconsolidated version for the block
 func (c *columnBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil, fmt.Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
 }
 
-// Meta returns the metadata for the block
 func (c *columnBlock) Meta() Metadata {
 	return c.meta
 }
 
-// StepIter returns a StepIterator
 func (c *columnBlock) StepIter() (StepIter, error) {
 	if len(c.columns) != c.meta.Bounds.Steps() {
 		return nil, fmt.Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v", len(c.columns), c.meta.Bounds)
@@ -61,7 +58,6 @@ func (c *columnBlock) StepIter() (StepIter, error) {
 }
 
 // TODO: allow series iteration
-// SeriesIter returns a SeriesIterator
 func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
 }
@@ -78,12 +74,10 @@ func (c *columnBlock) WithMetadata(
 }
 
 // TODO: allow series iteration
-// SeriesMeta returns the metadata for each series in the block
 func (c *columnBlock) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
 
-// StepCount returns the total steps
 func (c *columnBlock) StepCount() int {
 	return len(c.columns)
 }
@@ -115,7 +109,6 @@ func (c *colBlockIter) StepCount() int {
 	return len(c.columns)
 }
 
-// Next returns true if iterator has more values remaining
 func (c *colBlockIter) Next() bool {
 	if c.err != nil {
 		return false
@@ -123,22 +116,22 @@ func (c *colBlockIter) Next() bool {
 
 	c.idx++
 	next := c.idx < len(c.columns)
-	if next {
-		c.timeForStep, c.err = c.meta.Bounds.TimeForIndex(c.idx)
-		if c.err != nil {
-			return false
-		}
+	if !next {
+		return false
+	}
+
+	c.timeForStep, c.err = c.meta.Bounds.TimeForIndex(c.idx)
+	if c.err != nil {
+		return false
 	}
 
 	return next
 }
 
-// Next returns true if iterator has more values remaining
 func (c *colBlockIter) Err() error {
 	return c.err
 }
 
-// Current returns the current step
 func (c *colBlockIter) Current() Step {
 	col := c.columns[c.idx]
 	return ColStep{
@@ -147,9 +140,7 @@ func (c *colBlockIter) Current() Step {
 	}
 }
 
-// Close frees up resources
-func (c *colBlockIter) Close() {
-}
+func (c *colBlockIter) Close() { /*no-op*/ }
 
 // ColStep is a single column containing data from multiple series at a given time step
 type ColStep struct {
@@ -268,18 +259,23 @@ func (m *columnBlockSeriesIter) Err() error {
 func (m *columnBlockSeriesIter) Next() bool {
 	m.idx++
 	next := m.idx < m.SeriesCount()
-	if next {
-		cols := m.columns
-		for i := 0; i < len(cols); i++ {
-			m.values[i] = cols[i].Values[m.idx]
-		}
+	if !next {
+		return false
+	}
+
+	cols := m.columns
+	for i := 0; i < len(cols); i++ {
+		m.values[i] = cols[i].Values[m.idx]
 	}
 
 	return next
 }
 
 func (m *columnBlockSeriesIter) Current() Series {
-	return NewSeries(m.values, m.seriesMeta[m.idx])
+	// TODO: pool these
+	vals := make([]float64, len(m.values))
+	copy(vals, m.values)
+	return NewSeries(vals, m.seriesMeta[m.idx])
 }
 
 // TODO: Actually free resources once we do pooling

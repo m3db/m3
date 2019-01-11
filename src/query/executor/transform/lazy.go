@@ -93,14 +93,14 @@ func (s *stepIter) Next() bool {
 	}
 
 	next := s.iter.Next()
-	step := s.iter.Current()
-	s.step, s.err = s.node.ProcessStep(step)
-	if s.err != nil {
+	if !next {
+		s.err = s.iter.Err()
 		return false
 	}
 
-	if err := s.iter.Err(); err != nil {
-		s.err = err
+	step := s.iter.Current()
+	s.step, s.err = s.node.ProcessStep(step)
+	if s.err != nil {
 		return false
 	}
 
@@ -156,14 +156,14 @@ func (s *seriesIter) Next() bool {
 	}
 
 	next := s.iter.Next()
-	step := s.iter.Current()
-	s.series, s.err = s.node.ProcessSeries(step)
-	if s.err != nil {
+	if !next {
+		s.err = s.iter.Err()
 		return false
 	}
 
-	if err := s.iter.Err(); err != nil {
-		s.err = err
+	step := s.iter.Current()
+	s.series, s.err = s.node.ProcessSeries(step)
+	if s.err != nil {
 		return false
 	}
 

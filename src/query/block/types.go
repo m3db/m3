@@ -52,7 +52,7 @@ type UnconsolidatedBlock interface {
 	// across all series comprising the box at a single time step.
 	StepIter() (UnconsolidatedStepIter, error)
 	// SeriesIter returns a series-wise block iterator, giving unconsolidated
-	// by  series.
+	// by series.
 	SeriesIter() (UnconsolidatedSeriesIter, error)
 	// Consolidate attempts to consolidate the unconsolidated block.
 	Consolidate() (Block, error)
@@ -68,8 +68,15 @@ type SeriesMeta struct {
 
 // Iterator is the base iterator.
 type Iterator interface {
+	// Next moves to the next item in the iterator. It will return false if there
+	// are no more items, or if encountering an error.
+	//
+	// NB: it is important to check that Err() is nil after Next returns false, to
+	// ensure that any errors during iteration are detected and accounted for.
 	Next() bool
+	// Err returns any error encountered during iteration.
 	Err() error
+	// Close frees up resources held by the iterator.
 	Close()
 }
 

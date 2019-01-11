@@ -50,25 +50,27 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 
 	it.idx++
 	next := it.idx < len(it.seriesIters)
-	if next {
-		iter := it.seriesIters[it.idx]
-		values := make(xts.Datapoints, 0, initBlockReplicaLength)
-		for iter.Next() {
-			dp, _, _ := iter.Current()
-			values = append(values,
-				xts.Datapoint{
-					Timestamp: dp.Timestamp,
-					Value:     dp.Value,
-				})
-		}
-
-		if it.err = iter.Err(); it.err != nil {
-			return false
-		}
-
-		alignedValues := values.AlignToBounds(it.meta.Bounds)
-		it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
+	if !next {
+		return false
 	}
+
+	iter := it.seriesIters[it.idx]
+	values := make(xts.Datapoints, 0, initBlockReplicaLength)
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		values = append(values,
+			xts.Datapoint{
+				Timestamp: dp.Timestamp,
+				Value:     dp.Value,
+			})
+	}
+
+	if it.err = iter.Err(); it.err != nil {
+		return false
+	}
+
+	alignedValues := values.AlignToBounds(it.meta.Bounds)
+	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
 
 	return next
 }

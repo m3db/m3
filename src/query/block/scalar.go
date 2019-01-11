@@ -132,14 +132,16 @@ func (it *scalarStepIter) Next() bool {
 
 	it.idx++
 	next := it.idx < it.numVals
-	if next {
-		it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
-		if it.err != nil {
-			return false
-		}
+	if !next {
+		return false
 	}
 
-	return it.idx < it.numVals
+	it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
+	if it.err != nil {
+		return false
+	}
+
+	return next
 }
 
 func (it *scalarStepIter) Current() Step {
@@ -175,12 +177,6 @@ func (it *scalarSeriesIter) Next() bool {
 }
 
 func (it *scalarSeriesIter) Current() Series {
-	if it.idx != 0 {
-		// Indicates an error with the caller, having either not called Next() or attempted
-		// to get Current after Next() is false
-		panic("scalar iterator out of bounds")
-	}
-
 	return Series{
 		Meta:   buildSeriesMeta(),
 		values: it.vals,
