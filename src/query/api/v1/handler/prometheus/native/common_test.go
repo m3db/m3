@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/logging"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -116,6 +117,34 @@ func TestParseDurationError(t *testing.T) {
 	require.NoError(t, err)
 	_, err = parseDuration(r, stepParam)
 	assert.Error(t, err)
+}
+
+func TestParseBlockType(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	r, err := http.NewRequest(http.MethodGet, "/foo", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=0", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeMultiBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeDecodedBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
 }
 
 func TestRenderResultsJSON(t *testing.T) {

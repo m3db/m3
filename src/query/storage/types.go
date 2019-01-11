@@ -82,7 +82,7 @@ func (q *FetchQuery) String() string {
 type FetchOptions struct {
 	// Limit is the maximum number of series to return.
 	Limit     int
-	UseLegacy bool
+	BlockType models.FetchedBlockType
 }
 
 // NewFetchOptions creates a new fetch options.

@@ -134,14 +134,22 @@ func buildCustomIterator(
 	return iter, bounds
 }
 
+// verifies that given sub-bounds are valid, and returns the index of the
+// generated block being checked.
+func verifyBoundsAndGetBlockIndex(t *testing.T, bounds, sub models.Bounds) int {
+	require.Equal(t, bounds.StepSize, sub.StepSize)
+	require.Equal(t, blockSize, sub.Duration)
+	diff := sub.Start.Sub(bounds.Start)
+	require.Equal(t, 0, int(diff%blockSize))
+	return int(diff / blockSize)
+}
+
 func verifyMetas(
 	t *testing.T,
 	i int,
-	bounds models.Bounds,
 	meta block.Metadata,
 	metas []block.SeriesMeta,
 ) {
-	assert.True(t, meta.Bounds.Equals(bounds))
 	require.Equal(t, 1, meta.Tags.Len())
 	val, found := meta.Tags.Get([]byte("a"))
 	assert.True(t, found)
@@ -156,18 +164,21 @@ func verifyMetas(
 	}
 }
 
+// NB: blocks are not necessarily generated in order; last block may be the first
+// one in the returned array. This is fine since they are processed independently
+// and are put back together at the read step, or at any temporal functions in
+// the execution pipeline.
 func generateBlocks(
 	t *testing.T,
 	stepSize time.Duration,
+	opts Options,
 ) ([]block.Block, models.Bounds) {
 	iterators, bounds := generateIterators(t, stepSize)
-	blockOptions := NewOptions().SetLookbackDuration(time.Minute)
 	blocks, err := ConvertM3DBSeriesIterators(
 		iterators,
 		bounds,
-		blockOptions,
+		opts,
 	)
-
 	require.NoError(t, err)
 	return blocks, bounds
 }
