@@ -90,12 +90,18 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
 	logged := logging.WithResponseTimeLogging
 
-	// Deprecated routes, maintained for backwards compatibility.
-	r.HandleFunc(DeprecatedM3DBGetURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(DeprecatedM3DBAddURL, logged(NewGetHandler(client)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(DeprecatedM3DBDeleteURL, logged(NewGetHandler(client)).ServeHTTP).Methods(DeleteHTTPMethod)
+	// Get M3DB namespaces.
+	getHandler := logged(NewGetHandler(client)).ServeHTTP
+	r.HandleFunc(DeprecatedM3DBGetURL, getHandler).Methods(GetHTTPMethod)
+	r.HandleFunc(M3DBGetURL, getHandler).Methods(GetHTTPMethod)
 
-	r.HandleFunc(M3DBGetURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(M3DBAddURL, logged(NewAddHandler(client)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(M3DBDeleteURL, logged(NewDeleteHandler(client)).ServeHTTP).Methods(DeleteHTTPMethod)
+	// Add M3DB mamespaces
+	addHandler := logged(NewAddHandler(client)).ServeHTTP
+	r.HandleFunc(DeprecatedM3DBAddURL, addHandler).Methods(AddHTTPMethod)
+	r.HandleFunc(M3DBAddURL, addHandler).Methods(AddHTTPMethod)
+
+	// Delete M3DB namespaces.
+	deleteHandler := logged(NewDeleteHandler(client)).ServeHTTP
+	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
+	r.HandleFunc(M3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
 }
