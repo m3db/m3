@@ -151,6 +151,49 @@ func (d *clusterDB) Close() error {
 	return d.stopActiveTopologyWatch()
 }
 
+// IsBootstrappedAndDurable determines whether the database is bootstrapped
+// and durable, meaning that it could recover all data in memory using only
+// the local disk.
+//
+// The logic here is a little tricky because there are two levels of
+// IsBootstrappedAndDurable():
+//
+// The first level is this method which exists on the clustered database. It is
+// used by our health check endpoints and tooling in general to determine when
+// it is safe to continue a deploy or performing topology changes. In that case,
+// we only need to determine two things:
+//
+//     1. Is the node bootstrapped?
+//     2. Are all of its shards available?
+//
+// If so, then the node has finished bootstrapping and will be able to recover
+// all of its data (assuming the default bootstrapper configuration of
+// [filesystem, commitlog, peers]) if it goes down and its safe to continue
+// operations. The reason this is true is because a node will ONLY mark its shards
+// as available once it reaches a point where it is durable for the new shards it
+// has received, and M3DB is architected in such a way (again, assuming the default
+// bootstrapping configuration) that once a node reaches the AVAILABLE state it will
+// always remain durable for that shard.
+//
+// The implications of only checking those two conditions means that when we're
+// deploying a cluster, we only have to wait for the node to finish bootstrapping
+// because all the shards will already be in the AVAILABLE state. When performing
+// topology changes (like adding nodes) we'll have to wait until the node finishes
+// bootstrapping AND that it marks its newly acquired shards as available. This is
+// also desired because it means that the operations won't proceed until this node
+// is capable of restoring all of the data it is responsible for from its own disk
+// without relying on its peers.
+//
+// The second level of IsBootstrappedAndDurable exists on the storage database (see
+// the comment on that method for a high-level overview of the conditions it checks
+// for) and we only use that method when we're trying to determine if it is safe to
+// mark newly acquired shards as AVAILABLE. That method is responsible for determining
+// that all the shards it has been assigned are durable. The storage database method
+// is very precautious so we want to avoid checking it if we don't have to (I.E when our
+// shards are already in the AVAILABLE state) because it would significantly slow down
+// our deployments and topology changes operations as every step would require the nodes
+// to wait for a complete snapshot to take place before proceeding, when in fact that is
+// often not required for correctness.
 func (d *clusterDB) IsBootstrappedAndDurable() bool {
 	if !d.Database.IsBootstrapped() {
 		return false
@@ -162,6 +205,13 @@ func (d *clusterDB) IsBootstrappedAndDurable() bool {
 		// about is whether the node is bootstrapped or not because the
 		// concept of durability as it relates to shard state doesn't
 		// make sense if we're using a static topology.
+		//
+		// In other words, we don't need to check the shards states because
+		// they don't change, and we don't need to check if the storage
+		// database IsBootstrappedAndDurable() because that is only important
+		// when we're trying to figure out if the storage database has become
+		// durable since we made a topology change which is not possible with
+		// a static topology.
 		return true
 	}
 
