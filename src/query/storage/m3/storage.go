@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3x/ident"
 	xsync "github.com/m3db/m3x/sync"
 )
@@ -51,25 +53,31 @@ const (
 )
 
 type m3storage struct {
-	tagOptions      models.TagOptions
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
+	opts            m3db.Options
 	nowFn           func() time.Time
 }
 
 // NewStorage creates a new local m3storage instance.
+// TODO: consider taking in an iterator pools here.
 func NewStorage(
 	clusters Clusters,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) Storage {
+	opts := m3db.NewOptions().
+		SetTagOptions(tagOptions).
+		SetLookbackDuration(time.Minute).
+		SetConsolidationFunc(consolidators.TakeLast)
+
 	return &m3storage{
-		tagOptions:      tagOptions,
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,
 		writeWorkerPool: writeWorkerPool,
+		opts:            opts,
 		nowFn:           time.Now,
 	}
 }
@@ -85,7 +93,12 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false, s.tagOptions)
+	return storage.SeriesIteratorsToFetchResult(
+		raw,
+		s.readWorkerPool,
+		false,
+		s.opts.TagOptions(),
+	)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -113,12 +126,7 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		raw,
-		s.tagOptions,
-		bounds,
-	)
-
+	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, s.opts)
 	if err != nil {
 		return block.Result{}, err
 	}
@@ -214,7 +222,7 @@ func (s *m3storage) FetchTags(
 
 	metrics := make(models.Metrics, len(tagResult))
 	for i, result := range tagResult {
-		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.tagOptions)
+		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.opts.TagOptions())
 		if err != nil {
 			return nil, err
 		}
@@ -228,11 +236,73 @@ func (s *m3storage) FetchTags(
 }
 
 func (s *m3storage) CompleteTags(
-	_ context.Context,
-	_ *storage.CompleteTagsQuery,
-	_ *storage.FetchOptions,
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	return nil, errors.ErrNotImplemented
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// TODO: instead of aggregating locally, have the DB aggregate it before
+	// sending results back.
+	fetchQuery := &storage.FetchQuery{
+		TagMatchers: query.TagMatchers,
+		// NB: complete tags matches every tag from the start of time until now
+		Start: time.Time{},
+		End:   time.Now(),
+	}
+
+	results, cleanup, err := s.SearchCompressed(ctx, fetchQuery, options)
+	defer cleanup()
+	if err != nil {
+		return nil, err
+	}
+
+	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	// only filter if there are tags to filter on.
+	filtering := len(query.FilterNameTags) > 0
+	for _, elem := range results {
+		it := elem.Iter
+		tags := make([]storage.CompletedTag, 0, it.Len())
+		for i := 0; it.Next(); i++ {
+			tag := it.Current()
+			name := tag.Name.Bytes()
+			if filtering {
+				found := false
+				for _, filterName := range query.FilterNameTags {
+					if bytes.Equal(filterName, name) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					continue
+				}
+			}
+
+			tags = append(tags, storage.CompletedTag{
+				Name:   name,
+				Values: [][]byte{tag.Value.Bytes()},
+			})
+		}
+
+		if err := elem.Iter.Err(); err != nil {
+			return nil, err
+		}
+
+		accumulatedTags.Add(&storage.CompleteTagsResult{
+			CompleteNameOnly: query.CompleteNameOnly,
+			CompletedTags:    tags,
+		})
+	}
+
+	built := accumulatedTags.Build()
+	return &built, nil
 }
 
 func (s *m3storage) SearchCompressed(
@@ -266,7 +336,6 @@ func (s *m3storage) SearchCompressed(
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
-
 		go func() {
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()

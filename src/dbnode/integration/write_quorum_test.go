@@ -143,7 +143,7 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 
-	require.NoError(t, nodes[3].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].stopServer()) }()
 
 	// No writes succeed to available nodes
@@ -174,7 +174,7 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 	require.NoError(t, nodes[1].startServer())
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[3].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].stopServer()) }()
 
 	// Writes succeed to one available node
@@ -207,7 +207,7 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 	require.NoError(t, nodes[2].startServer())
 	defer func() { require.NoError(t, nodes[2].stopServer()) }()
-	require.NoError(t, nodes[3].startServer())
+	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].stopServer()) }()
 
 	// Writes succeed to two available nodes

@@ -1,4 +1,5 @@
 common: &common
+  timeout_in_minutes: 20
   agents:
     queue: monorepo
   retry:
@@ -7,11 +8,6 @@ common: &common
       limit: 1
     # Allow manual retries.
     manual: true
-
-# Environment variables to apply to all steps.
-env:
-  # Per-step
-  BUILDKITE_TIMEOUT: 20 # Minutes
 
 steps:
   - name: "Codegen"

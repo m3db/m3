@@ -88,7 +88,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 	}{
 		{
 			name:     "exact match",
-			expected: "conjunction(term(t1, v1))",
+			expected: "term(t1, v1)",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchEqual,
@@ -99,7 +99,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "exact match negated",
-			expected: "conjunction(negation(term(t1, v1)))",
+			expected: "negation(term(t1, v1))",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotEqual,
@@ -110,7 +110,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match",
-			expected: "conjunction(regexp(t1, v1))",
+			expected: "regexp(t1, v1)",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
@@ -121,7 +121,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match negated",
-			expected: "conjunction(negation(regexp(t1, v1)))",
+			expected: "negation(regexp(t1, v1))",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotRegexp,

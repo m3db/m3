@@ -78,7 +78,7 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
 
 echo "Sleep until bootstrapped"
-ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
+ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Waiting until shards are marked as available"

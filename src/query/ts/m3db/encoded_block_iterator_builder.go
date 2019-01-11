@@ -21,6 +21,8 @@
 package m3db
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -59,10 +61,13 @@ func (b *encodedBlockBuilder) add(
 	str := start.String()
 	if _, found := b.blocksAtTime[str]; !found {
 		// Add a new encoded block
+		// NB: the lookback will always be 0, as splitting series into blocks is not
+		// supported with positive lookback durations.
 		b.blocksAtTime[str] = newEncodedBlock(
 			[]encoding.SeriesIterator{},
 			b.tagOptions,
 			consolidation,
+			time.Duration(0),
 			lastBlock,
 		)
 	}
