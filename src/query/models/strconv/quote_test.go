@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -72,6 +72,34 @@ func TestQuoteWithOffset(t *testing.T) {
 	}
 }
 
+func TestSimpleQuote(t *testing.T) {
+	for _, tt := range quotetests {
+		in := []byte(tt.in)
+		// accounts for buffer and 2 quotation characters
+		bufferLen := len(in) + 2
+		bb := make([]byte, bufferLen)
+		idx := QuoteSimple(bb, in, 0)
+		assert.Equal(t, idx, bufferLen)
+		expected := []byte("\"" + tt.in + "\"")
+		assert.Equal(t, expected, bb)
+	}
+}
+
+func TestSimpleQuoteWithOffset(t *testing.T) {
+	for _, tt := range quotetests {
+		in := []byte(tt.in)
+		// accounts for buffer, additional characters, and 2 quotation characters
+		bufferLen := len(in) + 4
+		bb := make([]byte, bufferLen)
+		bb[0] = '!'
+		bb[bufferLen-1] = '!'
+		idx := QuoteSimple(bb, in, 1)
+		assert.Equal(t, idx, bufferLen-1)
+		expected := []byte("!\"" + tt.in + "\"!")
+		assert.Equal(t, expected, bb)
+	}
+}
+
 func TestLongQuoteWithOffset(t *testing.T) {
 	for _, tt := range quotetests {
 		repeat := 100
@@ -88,6 +116,14 @@ func TestLongQuoteWithOffset(t *testing.T) {
 
 			assert.Equal(t, []byte(expected), bb[0:idx])
 		}
+	}
+}
+
+func BenchmarkQuoteSimple(b *testing.B) {
+	src := []byte("\a\b\f\r\n\t\v\a\b\f\r\n\t\v\a\b\f\r\n\t\v")
+	dst := make([]byte, len(src)+2)
+	for i := 0; i < b.N; i++ {
+		QuoteSimple(dst, src, 0)
 	}
 }
 
@@ -151,7 +187,7 @@ func TestEncodeRune(t *testing.T) {
 	for _, m := range utf8map {
 		b := []byte(m.str)
 		var bb [10]byte
-		n := encodeRune(bb[0:], m.r)
+		n := encodeRune(bb[:], m.r, 0)
 		b1 := bb[0:n]
 		if !bytes.Equal(b, b1) {
 			t.Errorf("EncodeRune(%#04x) = %q want %q", m.r, b1, b)
@@ -164,8 +200,8 @@ func TestEncodeRuneWithOffset(t *testing.T) {
 		b := []byte("!" + m.str)
 		var bb [10]byte
 		bb[0] = '!'
-		n := encodeRune(bb[1:], m.r)
-		b1 := bb[0 : n+1]
+		n := encodeRune(bb[:], m.r, 1)
+		b1 := bb[0:n]
 		if !bytes.Equal(b, b1) {
 			t.Errorf("EncodeRune(%#04x) = %q want %q", m.r, b1, b)
 		}

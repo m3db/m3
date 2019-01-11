@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,60 +21,36 @@
 package models
 
 import (
-	"errors"
+	"fmt"
 )
 
-var (
-	defaultMetricName = []byte("__name__")
-
-	errNoName = errors.New("metric name is missing or empty")
-)
-
-type tagOptions struct {
-	version    int
-	idScheme   IDSchemeType
-	metricName []byte
+var validIDSchemes = []IDSchemeType{
+	TypeLegacy,
+	TypeQuoted,
+	TypePrependMeta,
 }
 
-// NewTagOptions builds a new tag options with default values.
-func NewTagOptions() TagOptions {
-	return &tagOptions{
-		version:    0,
-		metricName: defaultMetricName,
-		idScheme:   TypeLegacy,
-	}
-}
-
-func (o *tagOptions) Validate() error {
-	if o.metricName == nil || len(o.metricName) == 0 {
-		return errNoName
+func (v IDSchemeType) validateIDSchemeType() error {
+	if v >= TypeLegacy && v <= TypePrependMeta {
+		return nil
 	}
 
-	return o.idScheme.validateIDSchemeType()
+	return fmt.Errorf("invalid config id schema type '%v': should be one of %v",
+		v, validIDSchemes)
 }
 
-func (o *tagOptions) SetVersion(version int) TagOptions {
-	opts := *o
-	opts.version = version
-	return &opts
-}
-
-func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
-	opts := *o
-	opts.metricName = metricName
-	return &opts
-}
-
-func (o *tagOptions) MetricName() []byte {
-	return o.metricName
-}
-
-func (o *tagOptions) SetIDSchemeType(scheme IDSchemeType) TagOptions {
-	opts := *o
-	opts.idScheme = scheme
-	return &opts
-}
-
-func (o *tagOptions) IDSchemeType() IDSchemeType {
-	return o.idScheme
-}
+// UnmarshalYAML unmarshals a stored merics type.
+// func (v *IDSchemeType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// 	var str string
+// 	if err := unmarshal(&str); err != nil {
+// 		return err
+// 	}
+// 	for _, valid := range validIDSchemes {
+// 		if str == valid.String() {
+// 			*v = valid
+// 			return nil
+// 		}
+// 	}
+// 	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
+// 		str, validIDSchemes)
+// }

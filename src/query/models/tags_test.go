@@ -47,15 +47,57 @@ func testLongTagIDOutOfOrder(t *testing.T, scheme IDSchemeType) Tags {
 func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
 	actual := tags.ID()
-	assert.Equal(t, tags.legacyIDLen(), len(actual))
+	assert.Equal(t, tags.idLen(), len(actual))
 	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), actual)
 }
 
 func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
+	needEscaping, l := tags.escapingAndLength()
+	assert.Nil(t, needEscaping)
 	actual := tags.ID()
-	assert.Equal(t, tags.quotedIDLen(), len(actual))
+	assert.Equal(t, l, len(actual))
 	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
+}
+
+func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
+	// a"b"c"d"
+	// `a"b"c`d
+	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
+	tags = tags.AddTag(Tag{Name: []byte("t5"), Value: []byte(`v"5`)})
+	needEscaping, l := tags.escapingAndLength()
+	assert.NotNil(t, needEscaping)
+	for i, escape := range needEscaping {
+		if i == 9 {
+			assert.True(t, escape)
+		} else {
+			assert.False(t, escape)
+		}
+	}
+
+	actual := tags.ID()
+	assert.Equal(t, l, len(actual))
+	fmt.Println(string(actual))
+	fmt.Println(string([]byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5"v\"5"`)))
+	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5"v\"5"`), actual)
+}
+
+func TestQuotedCollisions(t *testing.T) {
+	twoTags := NewTags(2, NewTagOptions().SetIDSchemeType(TypeQuoted)).
+		AddTags([]Tag{
+			{Name: []byte("t1"), Value: []byte("v1")},
+			{Name: []byte("t2"), Value: []byte("v2")},
+		})
+
+	tagValue := NewTags(2, NewTagOptions().SetIDSchemeType(TypeQuoted)).
+		AddTag(Tag{Name: []byte("t1"), Value: []byte(`"v1"t2"v2"`)})
+	assert.NotEqual(t, twoTags.ID(), tagValue.ID())
+
+	tagName := NewTags(2, NewTagOptions().SetIDSchemeType(TypeQuoted)).
+		AddTag(Tag{Name: []byte(`t1"v1"t2`), Value: []byte("v2")})
+	assert.NotEqual(t, twoTags.ID(), tagName.ID())
+
+	assert.NotEqual(t, tagValue.ID(), tagName.ID())
 }
 
 func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
@@ -244,7 +286,7 @@ func buildTags(b *testing.B, count, length int, opts TagOptions) Tags {
 		n := []byte(fmt.Sprint("t", i))
 		v := make([]byte, length)
 		for j := range v {
-			v[j] = byte(j)
+			v[j] = 'a'
 		}
 
 		tags[i] = Tag{Name: n, Value: v}

@@ -65,7 +65,7 @@ func (t Tags) ID() []byte {
 
 func (t Tags) legacyID() []byte {
 	// TODO: pool these bytes.
-	id := make([]byte, t.legacyIDLen())
+	id := make([]byte, t.idLen())
 	idx := -1
 	for _, tag := range t.Tags {
 		idx += copy(id[idx+1:], tag.Name) + 1
@@ -77,8 +77,8 @@ func (t Tags) legacyID() []byte {
 	return id
 }
 
-func (t Tags) legacyIDLen() int {
-	idLen := 2 * t.Len() // account for eq and sep
+func (t Tags) idLen() int {
+	idLen := 2 * t.Len() // account for separators
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
 		idLen += len(tag.Value)
@@ -88,23 +88,82 @@ func (t Tags) legacyIDLen() int {
 }
 
 func (t Tags) quotedID() []byte {
+	needEscaping, length := t.escapingAndLength()
+	if needEscaping == nil {
+		return t.quoteIDSimple(length)
+	}
+
 	// TODO: pool these bytes.
-	id := make([]byte, t.quotedIDLen())
+	id := make([]byte, length)
 	idx := 0
-	for _, tag := range t.Tags {
+	for i, tag := range t.Tags {
 		idx += copy(id[idx:], tag.Name)
-		idx += strconv.Quote(id[idx:], tag.Value)
+		if needEscaping[i*2+1] {
+			idx = strconv.Quote(id, tag.Value, idx)
+		} else {
+			idx = strconv.QuoteSimple(id, tag.Value, idx)
+		}
 	}
 
 	return id
 }
 
-// newIdLen returns the length of the ID that would be generated from the tags.
-func (t Tags) quotedIDLen() int {
-	idLen := 0
+// adds quotes to tag values when no characters need escaping.
+func (t Tags) quoteIDSimple(length int) []byte {
+	// TODO: pool these bytes.
+	id := make([]byte, length)
+	idx := 0
 	for _, tag := range t.Tags {
+		idx += copy(id[idx:], tag.Name)
+		idx = strconv.QuoteSimple(id, tag.Value, idx)
+	}
+
+	return id
+}
+
+func (t Tags) escapingAndLength() ([]bool, int) {
+	var (
+		escapeAtIndex []bool
+		idLen         int
+	)
+
+	for i, tag := range t.Tags {
+		if strconv.NeedToEscape(tag.Name) {
+			if escapeAtIndex == nil {
+				escapeAtIndex = make([]bool, len(t.Tags)*2)
+			}
+
+			idLen += strconv.QuotedLength(tag.Name)
+			escapeAtIndex[i*2] = true
+		} else {
+			idLen += len(tag.Name)
+		}
+
+		if strconv.NeedToEscape(tag.Value) {
+			if escapeAtIndex == nil {
+				escapeAtIndex = make([]bool, len(t.Tags)*2)
+			}
+
+			idLen += strconv.QuotedLength(tag.Value)
+			escapeAtIndex[i*2+1] = true
+		} else {
+			idLen += len(tag.Value) + 2
+		}
+	}
+
+	return escapeAtIndex, idLen
+}
+
+func (t Tags) quotedIDLen(needsEscaping []bool) int {
+	idLen := 0
+	for i, tag := range t.Tags {
 		idLen += len(tag.Name)
-		idLen += strconv.QuotedLength(tag.Value)
+		if needsEscaping[i] {
+			idLen += strconv.QuotedLength(tag.Value)
+		} else {
+			// NB: If no need to escape, need length for quotes only.
+			idLen += len(tag.Value) + 2
+		}
 	}
 
 	return idLen
