@@ -148,7 +148,6 @@ func parseDebugAndLegacyFlags(r *http.Request) (bool, bool) {
 		err              error
 	)
 
-	params.Step.Seconds()
 	// Skip debug if unable to parse debug param
 	debugVal := r.FormValue(debugParam)
 	if debugVal != "" {

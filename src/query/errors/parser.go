@@ -29,3 +29,11 @@ import (
 func NewParseError(inner error, query string) error {
 	return errors.Wrap(inner, fmt.Sprintf("error while parsing query: %s", query))
 }
+
+func NewParseErr(inner error) error {
+	return errors.Wrap(inner, "error while parsing query")
+}
+
+func New(err string) error {
+	return errors.New(err)
+}

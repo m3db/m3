@@ -22,7 +22,7 @@ package m3ql
 
 import "reflect"
 
-type scriptBuilder interface {
+type compiler interface {
 	newMacro(string)
 	newPipeline()
 	endPipeline()
@@ -44,11 +44,3 @@ type functionArgument interface {
 	TypeName() string
 	Raw() string
 }
-
-type keywordArgType int
-
-const (
-	_ keywordArgType = iota // ignore default value
-	genericArg
-	strArg
-)
