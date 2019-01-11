@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -45,8 +46,16 @@ const (
 )
 
 var (
-	// DeleteURL is the url for the namespace delete handler.
-	DeleteURL = fmt.Sprintf("%s/namespace/{%s}", handler.RoutePrefixV1, namespaceIDVar)
+	// DeprecatedM3DBDeleteURL is the deprecated url for the M3DB namespace delete handler.
+	// Maintained for backwards compatibility.
+	DeprecatedM3DBDeleteURL = fmt.Sprintf("%s/namespace/{%s}", handler.RoutePrefixV1, namespaceIDVar)
+
+	// M3DBDeleteURL is the url for the M3DB namespace delete handler.
+	M3DBDeleteURL = path.Join(
+		handler.RoutePrefixV1,
+		M3DBServiceNamespacePathName,
+		fmt.Sprintf("{%s}", namespaceIDVar),
+	)
 )
 
 var (
