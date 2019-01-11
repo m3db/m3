@@ -92,8 +92,8 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
 
 	// Deprecated routes, maintained for backwards compatibility.
 	r.HandleFunc(DeprecatedM3DBGetURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(DeprecatedM3DBAddURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(DeprecatedM3DBDeleteURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBAddURL, logged(NewGetHandler(client)).ServeHTTP).Methods(AddHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBDeleteURL, logged(NewGetHandler(client)).ServeHTTP).Methods(DeleteHTTPMethod)
 
 	r.HandleFunc(M3DBGetURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBAddURL, logged(NewAddHandler(client)).ServeHTTP).Methods(AddHTTPMethod)
