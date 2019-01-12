@@ -75,6 +75,14 @@ type FilesystemConfiguration struct {
 
 	// Mmap is the mmap options which features are primarily platform dependent
 	Mmap *MmapConfiguration `yaml:"mmap"`
+
+	// ForceIndexSummariesMmapMemory forces the mmap that stores the index lookup bytes
+	// to be an anonymous region in memory as opposed to a file-based mmap.
+	ForceIndexSummariesMmapMemory bool `yaml:"force_index_summaries_mmap_memory"`
+
+	// ForceBloomFilterMmapMemory forces the mmap that stores the index lookup bytes
+	// to be an anonymous region in memory as opposed to a file-based mmap.
+	ForceBloomFilterMmapMemory bool `yaml:"force_bloom_filter_mmap_memory"`
 }
 
 // MmapConfiguration is the mmap configuration.

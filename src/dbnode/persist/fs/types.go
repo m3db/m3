@@ -374,6 +374,22 @@ type Options interface {
 	// rate to use for the index bloom filter size and k hashes estimation
 	IndexBloomFilterFalsePositivePercent() float64
 
+	// SetForceIndexSummariesMmapMemory sets whether the summaries files will be mmap'd
+	// as an anonymous region, or as a file.
+	SetForceIndexSummariesMmapMemory(value bool) Options
+
+	// ForceIndexSummariesMmapMemory returns whether the summaries files will be mmap'd
+	// as an anonymous region, or as a file.
+	ForceIndexSummariesMmapMemory() bool
+
+	// SetForceBloomFilterMmapMemory sets whether the bloom filters will be mmap'd
+	// as an anonymous region, or as a file.
+	SetForceBloomFilterMmapMemory(value bool) Options
+
+	// ForceBloomFilterMmapMemory returns whether the bloom filters will be mmap'd
+	// as an anonymous region, or as a file.
+	ForceBloomFilterMmapMemory() bool
+
 	// SetWriterBufferSize sets the buffer size for writing TSDB files
 	SetWriterBufferSize(value int) Options
 
