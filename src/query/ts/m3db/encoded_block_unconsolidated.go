@@ -21,6 +21,8 @@
 package m3db
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -29,6 +31,7 @@ import (
 type encodedBlockUnconsolidated struct {
 	// There is slightly different execution for the last block in the series
 	lastBlock            bool
+	lookback             time.Duration
 	meta                 block.Metadata
 	tagOptions           models.TagOptions
 	consolidation        consolidationSettings
@@ -39,6 +42,7 @@ type encodedBlockUnconsolidated struct {
 func (b *encodedBlockUnconsolidated) Consolidate() (block.Block, error) {
 	return &encodedBlock{
 		lastBlock:            b.lastBlock,
+		lookback:             b.lookback,
 		meta:                 b.meta,
 		tagOptions:           b.tagOptions,
 		consolidation:        b.consolidation,

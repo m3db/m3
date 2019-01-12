@@ -95,6 +95,7 @@ func newEncodedBlock(
 func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return &encodedBlockUnconsolidated{
 		lastBlock:            b.lastBlock,
+		lookback:             b.lookback,
 		meta:                 b.meta,
 		tagOptions:           b.tagOptions,
 		consolidation:        b.consolidation,

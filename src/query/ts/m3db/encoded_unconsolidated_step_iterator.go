@@ -21,10 +21,13 @@
 package m3db
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	xts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIterUnconsolidated struct {
@@ -35,12 +38,25 @@ type encodedStepIterUnconsolidated struct {
 	seriesMeta     []block.SeriesMeta
 	seriesIters    []encoding.SeriesIterator
 	expandedSeries [][]xts.Datapoints
+
+	stepTime    time.Time
+	lookback    time.Duration
+	accumulator *consolidators.StepLookbackAccumulator
+	seriesPeek  []peekValue
 }
 
 func (b *encodedBlockUnconsolidated) StepIter() (
 	block.UnconsolidatedStepIter,
 	error,
 ) {
+	cs := b.consolidation
+	accumulator := consolidators.NewStepLookbackAccumulator(
+		b.lookback,
+		cs.bounds.StepSize,
+		cs.currentTime,
+		len(b.seriesBlockIterators),
+	)
+
 	return &encodedStepIterUnconsolidated{
 		idx:            -1,
 		meta:           b.meta,
@@ -48,41 +64,67 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 		seriesIters:    b.seriesBlockIterators,
 		lastBlock:      b.lastBlock,
 		expandedSeries: make([][]xts.Datapoints, len(b.seriesBlockIterators)),
+
+		lookback:    b.lookback,
+		accumulator: accumulator,
+		seriesPeek:  make([]peekValue, len(b.seriesBlockIterators)),
 	}, nil
 }
 
 func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
-	stepTime, _ := it.meta.Bounds.TimeForIndex(it.idx)
-	stepValues := make([]xts.Datapoints, len(it.expandedSeries))
-	for j, series := range it.expandedSeries {
-		stepValues[j] = series[it.idx]
-	}
-
-	step := storage.NewUnconsolidatedStep(stepTime, stepValues)
-	return step
+	points := it.accumulator.AccumulateAndMoveToNext()
+	return storage.NewUnconsolidatedStep(it.stepTime, points)
 }
 
-func (it *encodedStepIterUnconsolidated) decodeSeries() bool {
-	values := make(xts.Datapoints, 0, initBlockReplicaLength)
-	for i, iter := range it.seriesIters {
-		values = values[:0]
-		for iter.Next() {
-			dp, _, _ := iter.Current()
-			values = append(values,
-				xts.Datapoint{
-					Timestamp: dp.Timestamp,
-					Value:     dp.Value,
-				})
-		}
-
-		if it.err = iter.Err(); it.err != nil {
-			return false
-		}
-
-		it.expandedSeries[i] = values.AlignToBounds(it.meta.Bounds)
+func (it *encodedStepIterUnconsolidated) nextForStep(
+	i int,
+	stepTime time.Time,
+) {
+	peek := it.seriesPeek[i]
+	if peek.finished {
+		// No next value in this iterator
+		return
 	}
 
-	return true
+	if peek.started {
+		point := peek.point
+		if point.Timestamp.After(stepTime) {
+			// This point exists further than the current step
+			// There are next values, but current step is empty.
+			return
+		}
+
+		// clear peeked point.
+		it.seriesPeek[i].started = false
+		// Currently at a potentially viable data point.
+		// Record previously peeked value, and all potentially valid values.
+		it.accumulator.AddPointForIterator(point, i)
+
+		// If at boundary, add the point as the current value.
+		if point.Timestamp.Equal(stepTime) {
+			return
+		}
+	}
+
+	iter := it.seriesIters[i]
+	// Read through iterator until finding a data point outside of the
+	// range of this step; then set the next peek value.
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+
+		// If this datapoint is before the current timestamp, add it to
+		// the accumulator
+		if !dp.Timestamp.After(stepTime) {
+			it.seriesPeek[i].started = false
+			it.accumulator.AddPointForIterator(dp, i)
+		} else {
+			// This point exists further than the current step; set peeked value
+			// to this point.
+			it.seriesPeek[i].point = dp
+			it.seriesPeek[i].started = true
+			return
+		}
+	}
 }
 
 func (it *encodedStepIterUnconsolidated) Next() bool {
@@ -91,14 +133,27 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 	}
 
 	it.idx++
-	if it.idx == 0 {
-		// decode the series on initial Next() call
-		if success := it.decodeSeries(); !success {
-			return success
+	next := it.idx < it.meta.Bounds.Steps()
+
+	if !next {
+		return false
+	}
+
+	stepTime, err := it.meta.Bounds.TimeForIndex(it.idx)
+	if err != nil {
+		it.err = err
+		return false
+	}
+
+	for i, iter := range it.seriesIters {
+		it.nextForStep(i, stepTime)
+		if it.err = iter.Err(); it.err != nil {
+			return false
 		}
 	}
 
-	return it.idx < it.meta.Bounds.Steps()
+	it.stepTime = stepTime
+	return next
 }
 
 func (it *encodedStepIterUnconsolidated) StepCount() int {

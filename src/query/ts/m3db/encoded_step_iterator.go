@@ -30,12 +30,6 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
-type peekValue struct {
-	started  bool
-	finished bool
-	point    ts.Datapoint
-}
-
 type encodedStepIter struct {
 	lastBlock    bool
 	started      bool
@@ -120,7 +114,7 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) {
 	iter := it.seriesIters[i]
 	// Read through iterator until finding a data point outside of the
 	// range of this consolidated step; then consolidate those points into
-	// a value, set the next peek value, and return true.
+	// a value, set the next peek value.
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 

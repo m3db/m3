@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
@@ -64,4 +65,10 @@ type Options interface {
 
 	// Validate ensures that the given block options are valid.
 	Validate() error
+}
+
+type peekValue struct {
+	started  bool
+	finished bool
+	point    ts.Datapoint
 }
