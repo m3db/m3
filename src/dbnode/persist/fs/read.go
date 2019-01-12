@@ -369,6 +369,7 @@ func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 		r.expectedBloomFilterDigest,
 		uint(r.bloomFilterInfo.NumElementsM),
 		uint(r.bloomFilterInfo.NumHashesK),
+		r.opts.ForceBloomFilterMmapMemory(),
 	)
 }
 
