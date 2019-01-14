@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -52,6 +53,26 @@ var (
 
 func TestAggregatedEncoderDecoder_RoundTrip(t *testing.T) {
 	enc := NewAggregatedEncoder(nil)
+	dec := NewAggregatedDecoder(nil)
+	require.NoError(t, enc.Encode(testAggregatedMetric1, 2000))
+	require.NoError(t, dec.Decode(enc.Buffer().Bytes()))
+	require.Equal(t, int64(2000), dec.EncodeNanos())
+	sp, err := dec.StoragePolicy()
+	require.NoError(t, err)
+	require.Equal(t, testAggregatedMetric1.StoragePolicy, sp)
+	require.Equal(t, string(testAggregatedMetric1.ID), string(dec.ID()))
+	require.Equal(t, testAggregatedMetric1.TimeNanos, dec.TimeNanos())
+	require.Equal(t, testAggregatedMetric1.Value, dec.Value())
+}
+
+func TestAggregatedEncoderDecoder_WithBytesPool(t *testing.T) {
+	buckets := []pool.Bucket{
+		// Use a capacity way larger than the metric size.
+		{Capacity: 2048, Count: 1},
+	}
+	p := pool.NewBytesPool(buckets, nil)
+	p.Init()
+	enc := NewAggregatedEncoder(p)
 	dec := NewAggregatedDecoder(nil)
 	require.NoError(t, enc.Encode(testAggregatedMetric1, 2000))
 	require.NoError(t, dec.Decode(enc.Buffer().Bytes()))

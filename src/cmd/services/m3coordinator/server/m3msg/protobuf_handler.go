@@ -54,7 +54,7 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 func (h *pbHandler) Process(msg consumer.Message) {
 	dec := h.pool.Get()
 	if err := dec.Decode(msg.Bytes()); err != nil {
-		h.logger.WithFields(log.NewErrField(err)).Error("invalid raw metric")
+		h.logger.WithFields(log.NewErrField(err)).Error("could not decode metric from message")
 		h.m.droppedMetricDecodeError.Inc(1)
 		return
 	}
