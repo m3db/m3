@@ -240,6 +240,7 @@ aggregator:
           name: m3msg
           hashType: murmur32
           totalShards: 64
+          protobufEnabled: false
           producer:
             buffer:
               maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.

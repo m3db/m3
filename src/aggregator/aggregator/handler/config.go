@@ -54,6 +54,7 @@ var (
 	errNoWriterConfiguration                    = errors.New("no writer configuration")
 	errNoDynamicOrStaticBackendConfiguration    = errors.New("neither dynamic nor static backend was configured")
 	errBothDynamicAndStaticBackendConfiguration = errors.New("both dynamic and static backend were configured")
+	errInvalidShardingConfiguration             = errors.New("invalid sharding configuration, missing hash type or total shards")
 )
 
 // FlushHandlerConfiguration configures flush handlers.
@@ -75,6 +76,7 @@ func (c FlushHandlerConfiguration) NewHandler(
 		handlers       = make([]Handler, 0, len(c.Handlers))
 		sharderRouters = make([]SharderRouter, 0, len(c.Handlers))
 		store          kv.Store
+		err            error
 	)
 	if c.TrafficControlKVOverride != nil {
 		kvOpts, err := c.TrafficControlKVOverride.NewOverrideOptions()
@@ -91,15 +93,17 @@ func (c FlushHandlerConfiguration) NewHandler(
 			return nil, err
 		}
 		if hc.DynamicBackend != nil {
-			sharderRouter, err := hc.DynamicBackend.NewSharderRouter(
+			handlers, sharderRouters, err = hc.DynamicBackend.constructDynamicBackend(
+				handlers,
+				sharderRouters,
 				cs,
 				store,
+				c.Writer,
 				instrumentOpts,
 			)
 			if err != nil {
 				return nil, err
 			}
-			sharderRouters = append(sharderRouters, sharderRouter)
 			continue
 		}
 		switch hc.StaticBackend.Type {
@@ -138,6 +142,9 @@ type writerConfiguration struct {
 	// Pool of buffered encoders.
 	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
 
+	// Pool of buffered bytes.
+	BytesPool *pool.BucketizedPoolConfiguration `yaml:"bytesPool"`
+
 	// How frequent is the encoding time sampled and included in the payload.
 	EncodingTimeSamplingRate float64 `yaml:"encodingTimeSamplingRate" validate:"min=0.0,max=1.0"`
 }
@@ -165,6 +172,12 @@ func (c *writerConfiguration) NewWriterOptions(
 	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
 		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
 	})
+	if c.BytesPool != nil {
+		iOpts := iOpts.SetMetricsScope(scope.SubScope("buffered-bytes-pool"))
+		bytesPool := pool.NewBytesPool(c.BytesPool.NewBuckets(), c.BytesPool.NewObjectPoolOptions(iOpts))
+		bytesPool.Init()
+		opts = opts.SetBytesPool(bytesPool)
+	}
 	return opts
 }
 
@@ -191,10 +204,10 @@ type dynamicBackendConfiguration struct {
 	Name string `yaml:"name"`
 
 	// Hashing function type.
-	HashType sharding.HashType `yaml:"hashType"`
+	HashType *sharding.HashType `yaml:"hashType"`
 
 	// Total number of shards.
-	TotalShards int `yaml:"totalShards" validate:"nonzero"`
+	TotalShards *int `yaml:"totalShards" validate:"nonzero"`
 
 	// Producer configs the m3msg producer.
 	Producer config.ProducerConfiguration `yaml:"producer"`
@@ -204,9 +217,74 @@ type dynamicBackendConfiguration struct {
 
 	// TrafficControl configs the traffic controller.
 	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
+
+	// ProtobufEnabled enables the protobuf handler.
+	ProtobufEnabled *bool `yaml:"protobufEnabled"`
 }
 
-func (c *dynamicBackendConfiguration) NewSharderRouter(
+func (c *dynamicBackendConfiguration) constructDynamicBackend(
+	handlers []Handler,
+	sharderRouters []SharderRouter,
+	cs client.Client,
+	store kv.Store,
+	cfg *writerConfiguration,
+	instrumentOpts instrument.Options,
+) ([]Handler, []SharderRouter, error) {
+	if c.ProtobufEnabled != nil && *c.ProtobufEnabled {
+		h, err := c.newProtobufHandler(
+			cs,
+			cfg,
+			instrumentOpts,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		handlers = append(handlers, h)
+		instrumentOpts.Logger().Infof("created flush handler %s with protobuf encoding", c.Name)
+		return handlers, sharderRouters, nil
+	}
+
+	sharderRouter, err := c.newSharderRouter(
+		cs,
+		store,
+		instrumentOpts,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	sharderRouters = append(sharderRouters, sharderRouter)
+	instrumentOpts.Logger().Infof("created flush handler %s with msgpack encoding", c.Name)
+	return handlers, sharderRouters, nil
+}
+
+func (c *dynamicBackendConfiguration) newProtobufHandler(
+	cs client.Client,
+	cfg *writerConfiguration,
+	instrumentOpts instrument.Options,
+) (Handler, error) {
+	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
+		"backend":   c.Name,
+		"component": "producer",
+	})
+	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+	p, err := c.Producer.NewProducer(cs, instrumentOpts)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.Init(); err != nil {
+		return nil, err
+	}
+	logger := instrumentOpts.Logger()
+	for _, filter := range c.Filters {
+		sid, f := filter.NewConsumerServiceFilter()
+		p.RegisterFilter(sid, f)
+		logger.Infof("registered filter for consumer service: %s", sid.String())
+	}
+	wOpts := cfg.NewWriterOptions(instrumentOpts)
+	return NewProtobufHandler(p, wOpts), nil
+}
+
+func (c *dynamicBackendConfiguration) newSharderRouter(
 	cs client.Client,
 	store kv.Store,
 	instrumentOpts instrument.Options,
@@ -236,8 +314,11 @@ func (c *dynamicBackendConfiguration) NewSharderRouter(
 		}
 		r = trafficcontrol.NewRouter(tc, r, scope)
 	}
+	if c.HashType == nil || c.TotalShards == nil {
+		return SharderRouter{}, errInvalidShardingConfiguration
+	}
 	return SharderRouter{
-		SharderID: sharding.NewSharderID(c.HashType, c.TotalShards),
+		SharderID: sharding.NewSharderID(*c.HashType, *c.TotalShards),
 		Router:    r,
 	}, nil
 }
