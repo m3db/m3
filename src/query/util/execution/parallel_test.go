@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,13 +79,34 @@ func TestOrderedParallel(t *testing.T) {
 }
 
 func TestSingleError(t *testing.T) {
+	defer leaktest.Check(t)()
 	requests := make([]Request, 3)
 	signalChan := make(chan bool)
-	requests[0] = &request{order: 0, wait: signalChan}
+
+	var cancelErr error
+	requests[0] = funcRequest(func(ctx context.Context) error {
+		// wait for the second goroutine to finish
+		<-signalChan
+
+		// wait for cancellation. This will hang if there's a bug here (i.e. the context doesn't get cancelled);
+		// we rely on leaktest to catch that case.
+		<-ctx.Done()
+
+		cancelErr = ctx.Err()
+		return nil
+	})
 	requests[1] = &request{order: 1, err: fmt.Errorf("problem executing"), ack: signalChan}
 	requests[2] = &request{order: 2}
 
 	err := ExecuteParallel(context.Background(), requests)
 	assert.Error(t, err, "error in second request")
-	assert.False(t, requests[0].(*request).processed, "skip request on error")
+
+	assert.EqualError(t, cancelErr, "context canceled",
+		"context should be cancelled in case of any request error")
+}
+
+type funcRequest func(ctx context.Context) error
+
+func (f funcRequest) Process(ctx context.Context) error {
+	return f(ctx)
 }

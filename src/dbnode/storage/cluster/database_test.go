@@ -207,6 +207,104 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDatabaseIsBootstrappedAndDurableNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
+	mockStorageDB.EXPECT().Open().Return(nil)
+	defer restore()
+
+	viewsCh := make(chan testutil.TopologyView, 64)
+	defer close(viewsCh)
+
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
+		"testhost0": sharding.NewShards([]uint32{0, 1}, shard.Available),
+		"testhost1": sharding.NewShards([]uint32{2, 3}, shard.Available),
+	})
+
+	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
+
+	db, err := newTestDatabase(t, "testhost0", topoInit)
+	require.NoError(t, err)
+
+	err = db.Open()
+	require.NoError(t, err)
+
+	// If storage database is not bootstrapped, cluster database should
+	// not be bootstrapped and durable.
+	mockStorageDB.EXPECT().IsBootstrapped().Return(false)
+	require.False(t, db.IsBootstrappedAndDurable())
+
+	// Storage DB is bootstrapped and all shards are available so we should
+	// be bootstrapped and durable.
+	mockStorageDB.EXPECT().IsBootstrapped().Return(true)
+	require.True(t, db.IsBootstrappedAndDurable())
+
+	mockStorageDB.EXPECT().Close().Return(nil)
+	err = db.Close()
+	require.NoError(t, err)
+}
+
+func TestDatabaseIsBootstrappedAndDurableShardsNotAvailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
+	mockStorageDB.EXPECT().Open().Return(nil)
+	defer restore()
+
+	viewsCh := make(chan testutil.TopologyView, 64)
+	defer close(viewsCh)
+
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
+		"testhost0": sharding.NewShards([]uint32{0, 1}, shard.Initializing),
+		"testhost1": sharding.NewShards([]uint32{2, 3}, shard.Initializing),
+	})
+
+	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
+
+	db, err := newTestDatabase(t, "testhost0", topoInit)
+	require.NoError(t, err)
+
+	err = db.Open()
+	require.NoError(t, err)
+
+	// Even though the storage database is bootstrapped, the clustered database
+	// should not be bootstrapped and durable because not all of its shards are
+	// in the AVAILABLE or LEAVING state.
+	mockStorageDB.EXPECT().IsBootstrapped().Return(true)
+	require.False(t, db.IsBootstrappedAndDurable())
+
+	// Prepare and send a new topology in which all the shards are AVAILABLE
+	// or LEAVING.
+	updatedView := map[string][]shard.Shard{
+		"testhost0": sharding.NewShards([]uint32{0, 1}, shard.Available),
+		"testhost1": sharding.NewShards([]uint32{2, 3}, shard.Leaving),
+	}
+
+	wg := sync.WaitGroup{}
+	mockStorageDB.EXPECT().AssignShardSet(gomock.Any()).Do(func(interface{}) interface{} {
+		wg.Done()
+		return nil
+	})
+
+	wg.Add(1)
+	viewsCh <- testutil.NewTopologyView(1, updatedView)
+
+	// Wait for the new shard states to be assigned.
+	wg.Wait()
+
+	// Cluster database should now be bootstrapped and durable because storage
+	// database is bootstrapped and all shards are either AVAILABLE or LEAVING.
+	mockStorageDB.EXPECT().IsBootstrapped().Return(true)
+	require.True(t, db.IsBootstrappedAndDurable())
+
+	mockStorageDB.EXPECT().Close().Return(nil)
+	err = db.Close()
+	require.NoError(t, err)
+}
+
 func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

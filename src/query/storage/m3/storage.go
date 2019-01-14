@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -105,13 +106,22 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	if options.UseLegacy {
+	opts := s.opts
+	// If using decoded block, return the legacy path.
+	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
 			return block.Result{}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query)
+	}
+
+	// If using multiblock, update options to reflect this.
+	if options.BlockType == models.TypeMultiBlock {
+		opts = opts.
+			SetLookbackDuration(0).
+			SetSplitSeriesByBlock(true)
 	}
 
 	raw, _, err := s.FetchCompressed(ctx, query, options)
@@ -125,7 +135,7 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, s.opts)
+	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, opts)
 	if err != nil {
 		return block.Result{}, err
 	}
@@ -235,11 +245,73 @@ func (s *m3storage) FetchTags(
 }
 
 func (s *m3storage) CompleteTags(
-	_ context.Context,
-	_ *storage.CompleteTagsQuery,
-	_ *storage.FetchOptions,
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	return nil, errors.ErrNotImplemented
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// TODO: instead of aggregating locally, have the DB aggregate it before
+	// sending results back.
+	fetchQuery := &storage.FetchQuery{
+		TagMatchers: query.TagMatchers,
+		// NB: complete tags matches every tag from the start of time until now
+		Start: time.Time{},
+		End:   time.Now(),
+	}
+
+	results, cleanup, err := s.SearchCompressed(ctx, fetchQuery, options)
+	defer cleanup()
+	if err != nil {
+		return nil, err
+	}
+
+	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	// only filter if there are tags to filter on.
+	filtering := len(query.FilterNameTags) > 0
+	for _, elem := range results {
+		it := elem.Iter
+		tags := make([]storage.CompletedTag, 0, it.Len())
+		for i := 0; it.Next(); i++ {
+			tag := it.Current()
+			name := tag.Name.Bytes()
+			if filtering {
+				found := false
+				for _, filterName := range query.FilterNameTags {
+					if bytes.Equal(filterName, name) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					continue
+				}
+			}
+
+			tags = append(tags, storage.CompletedTag{
+				Name:   name,
+				Values: [][]byte{tag.Value.Bytes()},
+			})
+		}
+
+		if err := elem.Iter.Err(); err != nil {
+			return nil, err
+		}
+
+		accumulatedTags.Add(&storage.CompleteTagsResult{
+			CompleteNameOnly: query.CompleteNameOnly,
+			CompletedTags:    tags,
+		})
+	}
+
+	built := accumulatedTags.Build()
+	return &built, nil
 }
 
 func (s *m3storage) SearchCompressed(
@@ -273,7 +345,6 @@ func (s *m3storage) SearchCompressed(
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
-
 		go func() {
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()

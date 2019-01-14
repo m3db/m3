@@ -56,7 +56,7 @@ func newNearestIndexOffsetLookup(
 		summaryIDsOffsets: summaryIDsOffsets,
 		summariesMmap:     summariesMmap,
 		decoderStream:     decoderStream,
-		msgpackDecoder:    msgpack.NewDecoder(nil),
+		msgpackDecoder:    msgpack.NewDecoder(decoderStream),
 		isClone:           false,
 	}
 }
@@ -66,11 +66,12 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 		return nil, errCloneShouldNotBeCloned
 	}
 
+	decoderStream := xmsgpack.NewDecoderStream(nil)
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: il.summaryIDsOffsets,
 		summariesMmap:     il.summariesMmap,
-		decoderStream:     xmsgpack.NewDecoderStream(nil),
-		msgpackDecoder:    msgpack.NewDecoder(nil),
+		decoderStream:     decoderStream,
+		msgpackDecoder:    msgpack.NewDecoder(decoderStream),
 		isClone:           true,
 	}, nil
 }
@@ -160,32 +161,13 @@ func (il *nearestIndexOffsetLookup) close() error {
 // the summaries file is sorted (which it always should be).
 func newNearestIndexOffsetLookupFromSummariesFile(
 	summariesFdWithDigest digest.FdWithDigestReader,
-	expectedSummariesDigest uint32,
+	expectedDigest uint32,
 	decoder *xmsgpack.Decoder,
 	numEntries int,
+	forceMmapMemory bool,
 ) (*nearestIndexOffsetLookup, error) {
-	summariesFd := summariesFdWithDigest.Fd()
-	stat, err := summariesFd.Stat()
+	summariesMmap, err := validateAndMmap(summariesFdWithDigest, expectedDigest, forceMmapMemory)
 	if err != nil {
-		return nil, err
-	}
-	numBytes := stat.Size()
-
-	// Request an anonymous (non-file-backed) mmap region. Note that we're going
-	// to use the mmap'd region to store the read-only summaries data, but the mmap
-	// region itself needs to be writable so we can copy the bytes from disk
-	// into it
-	mmapResult, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
-	if err != nil {
-		return nil, err
-	}
-	summariesMmap := mmapResult.Result
-
-	// Validate the bytes on disk using the digest, and read them into
-	// the mmap'd region
-	_, err = summariesFdWithDigest.ReadAllAndValidate(summariesMmap, expectedSummariesDigest)
-	if err != nil {
-		mmap.Munmap(summariesMmap)
 		return nil, err
 	}
 
@@ -210,7 +192,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 		// if they're not. This should never happen as files should be sorted on disk.
 		if lastReadID != nil && bytes.Compare(lastReadID, entry.ID) != -1 {
 			mmap.Munmap(summariesMmap)
-			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFd.Name())
+			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFdWithDigest.Fd().Name())
 		}
 		summaryTokens = append(summaryTokens, summaryToken)
 		lastReadID = entry.ID

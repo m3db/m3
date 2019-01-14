@@ -94,6 +94,16 @@ func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery)
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query
 func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 	matchers := fetchQuery.TagMatchers
+	// Optimization for single matcher case.
+	if len(matchers) == 1 {
+		q, err := matcherToQuery(matchers[0])
+		if err != nil {
+			return index.Query{}, err
+		}
+
+		return index.Query{Query: q}, nil
+	}
+
 	idxQueries := make([]idx.Query, len(matchers))
 	var err error
 	for i, matcher := range matchers {

@@ -74,7 +74,10 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 	}
 
 	j := 0
-	blocks, bounds := generateBlocks(t, time.Minute)
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(true)
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
@@ -82,7 +85,8 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 		iters, err := unconsolidated.StepIter()
 		require.NoError(t, err)
 
-		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
+		require.True(t, bounds.Equals(iters.Meta().Bounds))
+		verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			step := iters.Current()
 			vals := step.Values()
@@ -114,7 +118,10 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 	}
 
 	j := 0
-	blocks, bounds := generateBlocks(t, time.Minute)
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(false)
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
@@ -122,7 +129,8 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 		iters, err := unconsolidated.SeriesIter()
 		require.NoError(t, err)
 
-		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
+		require.True(t, bounds.Equals(iters.Meta().Bounds))
+		verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			series := iters.Current()
 			vals := series.Datapoints()

@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -37,9 +38,13 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// AddURL is the url for the namespace add handler.
-	AddURL = handler.RoutePrefixV1 + "/namespace"
+var (
+	// DeprecatedM3DBAddURL is the old url for the namespace add handler, maintained
+	// for backwards compatibility.
+	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
+
+	// M3DBAddURL is the url for the M3DB namespace add handler.
+	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost

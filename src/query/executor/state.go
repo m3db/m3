@@ -120,7 +120,7 @@ func GenerateExecutionState(
 	options := transform.Options{
 		TimeSpec:  pplan.TimeSpec,
 		Debug:     pplan.Debug,
-		UseLegacy: pplan.UseLegacy,
+		BlockType: pplan.BlockType,
 	}
 
 	controller, err := state.createNode(step, options)

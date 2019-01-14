@@ -70,6 +70,9 @@ type Configuration struct {
 	// ListenAddress is the server listen address.
 	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
 
+	// Filter is the read/write/complete tags filter configuration.
+	Filter FilterConfiguration `yaml:"filter"`
+
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
@@ -93,6 +96,27 @@ type Configuration struct {
 
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
+}
+
+// Filter is a query filter type.
+type Filter string
+
+const (
+	// FilterLocalOnly is a filter that specifies local only storage should be used.
+	FilterLocalOnly Filter = "local_only"
+	// FilterRemoteOnly is a filter that specifies remote only storage should be used.
+	FilterRemoteOnly Filter = "remote_only"
+	// FilterAllowAll is a filter that specifies all storages should be used.
+	FilterAllowAll Filter = "allow_all"
+	// FilterAllowNone is a filter that specifies no storages should be used.
+	FilterAllowNone Filter = "allow_none"
+)
+
+// FilterConfiguration is the filters for write/read/complete tags storage filters.
+type FilterConfiguration struct {
+	Read         Filter `yaml:"read"`
+	Write        Filter `yaml:"write"`
+	CompleteTags Filter `yaml:"completeTags"`
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.

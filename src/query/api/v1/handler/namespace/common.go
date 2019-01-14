@@ -22,6 +22,7 @@ package namespace
 
 import (
 	"fmt"
+	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -33,8 +34,22 @@ import (
 )
 
 const (
-	// M3DBNodeNamespacesKey is the KV key that holds namespaces
+	// M3DBServiceName is the service name for M3DB.
+	M3DBServiceName = "m3db"
+
+	// ServicesPathName is the services part of the API path.
+	ServicesPathName = "services"
+
+	// M3DBNodeNamespacesKey is the KV key that holds namespaces.
 	M3DBNodeNamespacesKey = "m3db.node.namespaces"
+
+	// NamespacePathName is the namespace part of the API path.
+	NamespacePathName = "namespace"
+)
+
+var (
+	// M3DBServiceNamespacePathName is the M3DB service namespace API path.
+	M3DBServiceNamespacePathName = path.Join(ServicesPathName, M3DBServiceName, NamespacePathName)
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -75,7 +90,18 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(GetURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL, logged(NewAddHandler(client)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client)).ServeHTTP).Methods(DeleteHTTPMethod)
+	// Get M3DB namespaces.
+	getHandler := logged(NewGetHandler(client)).ServeHTTP
+	r.HandleFunc(DeprecatedM3DBGetURL, getHandler).Methods(GetHTTPMethod)
+	r.HandleFunc(M3DBGetURL, getHandler).Methods(GetHTTPMethod)
+
+	// Add M3DB mamespaces
+	addHandler := logged(NewAddHandler(client)).ServeHTTP
+	r.HandleFunc(DeprecatedM3DBAddURL, addHandler).Methods(AddHTTPMethod)
+	r.HandleFunc(M3DBAddURL, addHandler).Methods(AddHTTPMethod)
+
+	// Delete M3DB namespaces.
+	deleteHandler := logged(NewDeleteHandler(client)).ServeHTTP
+	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
+	r.HandleFunc(M3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
 }

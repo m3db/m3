@@ -102,7 +102,7 @@ func (r *multiSearchResult) Add(
 		if !exists {
 			r.dedupeMap[id] = MultiTagResult{
 				ID:   ident,
-				Iter: tagIter,
+				Iter: tagIter.Duplicate(),
 			}
 		}
 	}

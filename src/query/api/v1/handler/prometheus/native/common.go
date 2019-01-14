@@ -49,11 +49,7 @@ const (
 	stepParam         = "step"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
-
-	// NB: this will force series decompression on fetch. Will be left for a few
-	// releases to help debug any issues that may arise with compressed series
-	// block fetch
-	useLegacyParam = "legacy"
+	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -122,7 +118,8 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	}
 
 	params.Query = query
-	params.Debug, params.UseLegacy = parseDebugAndLegacyFlags(r)
+	params.Debug = parseDebugFlag(r)
+	params.BlockType = parseBlockType(r)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -142,10 +139,10 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	return params, nil
 }
 
-func parseDebugAndLegacyFlags(r *http.Request) (bool, bool) {
+func parseDebugFlag(r *http.Request) bool {
 	var (
-		debug, useLegacy bool
-		err              error
+		debug bool
+		err   error
 	)
 
 	// Skip debug if unable to parse debug param
@@ -157,16 +154,28 @@ func parseDebugAndLegacyFlags(r *http.Request) (bool, bool) {
 		}
 	}
 
-	// Skip useLegacy if unable to parse useLegacy param
-	useLegacyVal := r.FormValue(useLegacyParam)
+	return debug
+}
+
+func parseBlockType(r *http.Request) models.FetchedBlockType {
+	// Use default block type if unable to parse blockTypeParam.
+	useLegacyVal := r.FormValue(blockTypeParam)
 	if useLegacyVal != "" {
-		useLegacy, err = strconv.ParseBool(r.FormValue(useLegacyParam))
+		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
 		if err != nil {
 			logging.WithContext(r.Context()).Warn("unable to parse useLegacy flag", zap.Error(err))
 		}
+
+		blockType := models.FetchedBlockType(intVal)
+		// Ignore error from receiving an invalid block type, and return default.
+		if blockType.Validate() != nil {
+			return models.TypeSingleBlock
+		}
+
+		return blockType
 	}
 
-	return debug, useLegacy
+	return models.TypeSingleBlock
 }
 
 // parseInstantaneousParams parses all params from the GET request
@@ -199,7 +208,8 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
-	params.Debug, params.UseLegacy = parseDebugAndLegacyFlags(r)
+	params.Debug = parseDebugFlag(r)
+	params.BlockType = parseBlockType(r)
 	return params, nil
 }
 
