@@ -48,7 +48,7 @@ const (
 	bucketsCacheSize = 2
 	// In the most common case, there would only be one bucket in a
 	// buckets slice, i.e. it gets written to, flushed, and then the buckets
-	// get evicted from the map
+	// get evicted from the map.
 	defaultBufferBucketPoolSize         = 2
 	defaultBufferBucketVersionsPoolSize = defaultBufferBucketPoolSize
 
@@ -120,7 +120,7 @@ type dbBuffer struct {
 	blockRetriever QueryableBlockRetriever
 
 	bucketsMap map[xtime.UnixNano]BufferBucketVersions
-	// Cache of buckets to avoid map lookup of above
+	// Cache of buckets to avoid map lookup of above.
 	bucketsCache       [bucketsCacheSize]BufferBucketVersions
 	bucketVersionsPool BufferBucketVersionsPool
 	bucketPool         BufferBucketPool
@@ -193,10 +193,10 @@ func (b *dbBuffer) Write(
 	return buckets.Write(timestamp, value, unit, annotation, wType)
 }
 
-func (b *dbBuffer) writeType(timestamp time.Time, writeTime time.Time) WriteType {
+func (b *dbBuffer) writeType(timestamp time.Time, now time.Time) WriteType {
 	ropts := b.opts.RetentionOptions()
-	futureLimit := writeTime.Add(1 * ropts.BufferFuture())
-	pastLimit := writeTime.Add(-1 * ropts.BufferPast())
+	futureLimit := now.Add(ropts.BufferFuture())
+	pastLimit := now.Add(-1 * ropts.BufferPast())
 
 	if pastLimit.Before(timestamp) && futureLimit.After(timestamp) {
 		return WarmWrite
@@ -227,13 +227,14 @@ func (b *dbBuffer) Tick() bufferTickResult {
 			continue
 		}
 
-		// Avoid allocating a new backing array
+		// Avoid allocating a new backing array.
 		version := retriever.RetrievableBlockVersion(blockStart)
 		buckets.RemoveBucketsUpToVersion(version)
 
-		// All underlying buckets have been flushed successfully, so we can
-		// just remove the buckets from the bucketsMap
 		if buckets.StreamsLen() == 0 {
+			// All underlying buckets have been flushed successfully, so we can
+			// just remove the buckets from the bucketsMap.
+
 			// TODO(juchan): in order to support cold writes, the buffer needs
 			// to tell the series that these buckets were evicted from the
 			// buffer so that the cached block in the series can either:
@@ -246,6 +247,8 @@ func (b *dbBuffer) Tick() bufferTickResult {
 			continue
 		}
 
+		// Once we've evicted all eligible buckets, we merge duplicate encoders
+		// in the remaining ones to try and reclaim memory.
 		merges, err := buckets.Merge(WarmWrite)
 		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
@@ -275,7 +278,7 @@ func (b *dbBuffer) Snapshot(
 		return nil, nil
 	}
 
-	// A call to snapshot can only be for warm writes
+	// A call to snapshot can only be for warm writes.
 	_, err := buckets.Merge(WarmWrite)
 	if err != nil {
 		return nil, err
@@ -408,7 +411,7 @@ func (b *dbBuffer) forEachBucketAsc(fn func(BufferBucketVersions)) {
 	})
 
 	for _, key := range keys {
-		// No need to check for existence since we just got the list of keys
+		// No need to check for existence since we just got the list of keys.
 		bucket, _ := b.bucketsAt(key.ToTime())
 		fn(bucket)
 	}
@@ -432,7 +435,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		}
 	}
 
-	// Result should be sorted in ascending order
+	// Result should be sorted in ascending order.
 	sort.Slice(res, func(i, j int) bool { return res[i].Start.Before(res[j].Start) })
 
 	return res
@@ -488,7 +491,7 @@ func (b *dbBuffer) newBucketsAt(
 func (b *dbBuffer) bucketsAt(
 	t time.Time,
 ) (BufferBucketVersions, bool) {
-	// First check LRU cache
+	// First check LRU cache.
 	for _, buckets := range b.bucketsCache {
 		if buckets == nil {
 			continue
@@ -498,7 +501,7 @@ func (b *dbBuffer) bucketsAt(
 		}
 	}
 
-	// Then check the map
+	// Then check the map.
 	if buckets, exists := b.bucketsMap[xtime.ToUnixNano(t)]; exists {
 		return buckets, true
 	}
@@ -519,7 +522,7 @@ func (b *dbBuffer) bucketsAtCreate(
 func (b *dbBuffer) putBucketInCache(newBuckets BufferBucketVersions) {
 	replaceIdx := bucketsCacheSize - 1
 	for i, buckets := range b.bucketsCache {
-		// Check if we have the same pointer in cache
+		// Check if we have the same pointer in cache.
 		if buckets == newBuckets {
 			replaceIdx = i
 		}
@@ -537,7 +540,7 @@ func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
 	if !exists {
 		return
 	}
-	// nil out pointers
+	// nil out pointers.
 	buckets.ResetTo(timeZero, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
 	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
@@ -556,7 +559,7 @@ func (b *dbBufferBucketVersions) ResetTo(
 	opts Options,
 	bucketPool BufferBucketPool,
 ) {
-	// nil all elements so that they get GC'd
+	// nil all elements so that they get GC'd.
 	for i := range b.buckets {
 		b.buckets[i] = nil
 	}
@@ -603,7 +606,7 @@ func (b *dbBufferBucketVersions) Write(
 func (b *dbBufferBucketVersions) Merge(wType WriteType) (int, error) {
 	res := 0
 	for _, bucket := range b.buckets {
-		// Only makes sense to merge buckets that are writable
+		// Only makes sense to merge buckets that are writable.
 		if bucket.Version() == writableBucketVer && wType == bucket.WriteType() {
 			merges, err := bucket.Merge()
 			if err != nil {
@@ -617,17 +620,17 @@ func (b *dbBufferBucketVersions) Merge(wType WriteType) (int, error) {
 }
 
 func (b *dbBufferBucketVersions) RemoveBucketsUpToVersion(version int) {
-	// Avoid allocating a new backing array
+	// Avoid allocating a new backing array.
 	nonEvictedBuckets := b.buckets[:0]
 
 	for _, bucket := range b.buckets {
 		bVersion := bucket.Version()
-		// TODO(juchan): deal with ColdWrite too
+		// TODO(juchan): deal with ColdWrite too.
 		if bucket.WriteType() == WarmWrite && bVersion != writableBucketVer &&
 			bVersion <= version {
 			// We no longer need to keep any version which is equal to
 			// or less than the retrievable version, since that means
-			// that the version has successfully persisted to disk
+			// that the version has successfully persisted to disk.
 			bucket.Reset()
 			b.bucketPool.Put(bucket)
 			continue
@@ -716,7 +719,7 @@ func (b *dbBufferBucket) ResetTo(
 	wType WriteType,
 	opts Options,
 ) {
-	// Close the old context if we're resetting for use
+	// Close the old context if we're resetting for use.
 	b.Reset()
 	b.wType = wType
 	b.opts = opts
@@ -872,7 +875,7 @@ func (b *dbBufferBucket) StreamsLen() int {
 func (b *dbBufferBucket) resetEncoders() {
 	var zeroed inOrderEncoder
 	for i := range b.encoders {
-		// Register when this bucket resets we close the encoder
+		// Register when this bucket resets we close the encoder.
 		encoder := b.encoders[i].encoder
 		encoder.Close()
 		b.encoders[i] = zeroed

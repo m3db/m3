@@ -45,7 +45,7 @@ const (
 	// Namespace requires repair disabled by default.
 	defaultRepairEnabled = false
 
-	// Namespace with cold writes disabled by default
+	// Namespace with cold writes disabled by default.
 	defaultColdWritesEnabled = false
 )
 

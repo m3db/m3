@@ -33,8 +33,8 @@ var (
 	// ErrTooPast is returned for a write which is too far in the past.
 	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
 
-	// ErrColdWritesNotEnabled is returned for when cold writes are disabled
-	// and a write is too far in the past or future
+	// ErrColdWritesNotEnabled is returned when cold writes are disabled
+	// and a write is too far in the past or future.
 	ErrColdWritesNotEnabled = xerrors.NewInvalidParamsError(errors.New(
 		"cold writes not enabled and datapoint is too far in the past or future"))
 )
