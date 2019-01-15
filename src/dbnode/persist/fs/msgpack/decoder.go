@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3x/pool"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
@@ -52,6 +53,7 @@ type Decoder struct {
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
+	checkedBytesPool  pool.CheckedBytesPool
 
 	legacy legacyEncodingOptions
 }
@@ -85,6 +87,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 	reader := NewDecoderStream(nil)
 	return &Decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
+		checkedBytesPool:  opts.CheckedBytesPool(),
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
@@ -569,16 +572,13 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		Remaining() int64
 	})
 
-	if dec.allocDecodedBytes || !ok {
+	if dec.allocDecodedBytes || (!ok && dec.checkedBytesPool == nil) {
 		value, dec.err = dec.dec.DecodeBytes()
 		return value, -1, -1
 	}
 
 	var (
-		bytesLen     = dec.decodeBytesLen()
-		backingBytes = byteProvider.Bytes()
-		numBytes     = len(backingBytes)
-		currPos      = int(int64(numBytes) - byteProvider.Remaining())
+		bytesLen = dec.decodeBytesLen()
 	)
 
 	if dec.err != nil {
@@ -589,16 +589,27 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		return nil, -1, -1
 	}
 
-	targetPos := currPos + bytesLen
-	if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
-		dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
-		return nil, -1, -1
+	var (
+		backingBytes = byteProvider.Bytes()
+		numBytes     = len(backingBytes)
+		currPos      = int(int64(numBytes) - byteProvider.Remaining())
+	)
+
+	if ok {
+		targetPos := currPos + bytesLen
+		if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
+			dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
+			return nil, -1, -1
+		}
+		if err := dec.reader.Skip(int64(bytesLen)); err != nil {
+			dec.err = err
+			return nil, -1, -1
+		}
+		value = backingBytes[currPos:targetPos]
+	} else {
+
 	}
-	if err := dec.reader.Skip(int64(bytesLen)); err != nil {
-		dec.err = err
-		return nil, -1, -1
-	}
-	value = backingBytes[currPos:targetPos]
+
 	return value, currPos, bytesLen
 }
 

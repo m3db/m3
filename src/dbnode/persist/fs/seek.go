@@ -148,11 +148,14 @@ type fileSetSeeker interface {
 }
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
+	decodingOpts := opts.decodingOpts.
+		SetCheckedBytesPool(opts.bytesPool)
+
 	return &seeker{
 		filePathPrefix: opts.filePathPrefix,
 		keepUnreadBuf:  opts.keepUnreadBuf,
 		bytesPool:      opts.bytesPool,
-		decoder:        msgpack.NewDecoder(opts.decodingOpts),
+		decoder:        msgpack.NewDecoder(decodingOpts),
 		buffReader:     &buffReaderWithSkip{bufio.NewReader(nil)},
 		decodingOpts:   opts.decodingOpts,
 		opts:           opts,
@@ -478,10 +481,12 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		return nil, err
 	}
 
+	decodingOpts := s.decodingOpts.
+		SetCheckedBytesPool(s.bytesPool)
 	seeker := &seeker{
 		// Bare-minimum required fields for a clone to function properly
 		bytesPool: s.bytesPool,
-		decoder:   msgpack.NewDecoder(s.decodingOpts),
+		decoder:   msgpack.NewDecoder(decodingOpts),
 		opts:      s.opts,
 		// Mmaps are read-only so they're concurrency safe
 		dataFd:        s.dataFd,
