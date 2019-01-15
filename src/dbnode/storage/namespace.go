@@ -557,7 +557,6 @@ func (n *dbNamespace) Write(
 	wopts series.WriteOptions,
 ) (ts.Series, error) {
 	callStart := n.nowFn()
-
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
