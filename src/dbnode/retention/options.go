@@ -30,7 +30,9 @@ const (
 	defaultRetentionPeriod = 2 * 24 * time.Hour
 
 	// defaultFutureRetentionPeriod is how long we keep data in memory in the
-	// future (if cold writes are enabled) by default.
+	// future (if cold writes are enabled) by default. If this default is used,
+	// M3DB will not accept any future writes outside of the bufferFuture
+	// threshold.
 	defaultFutureRetentionPeriod = time.Duration(0)
 
 	// defaultBlockSize is the default block size
