@@ -279,6 +279,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
 				).Errorf("wired list tried to process a block that was not retrieved from disk")
 			})
+
 		}
 
 		// Evict the block before closing it so that callers of series.ReadEncoded()
@@ -293,6 +294,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 						xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
 					).Errorf("wired list entry does not have seriesID set")
 				})
+
 			} else {
 				onEvict.OnEvictedFromWiredList(entry.seriesID, entry.startTime)
 			}
@@ -313,7 +315,6 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 				).Errorf("wired list tried to close a block that was not from disk")
 			})
 		}
-		bl.Close()
 
 		l.metrics.evicted.Inc(1)
 
