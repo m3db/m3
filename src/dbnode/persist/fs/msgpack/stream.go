@@ -165,3 +165,115 @@ func (s *decoderStream) Remaining() int64 {
 func (s *decoderStream) Offset() int {
 	return s.bytesLen - int(s.Remaining())
 }
+
+// type fileDecoderStream struct {
+// 	// reader *bytes.Reader
+// 	// bytes  []byte
+// 	f *os.File
+// 	// Store so we don't have to keep calling len()
+// 	bytesLen     int
+// 	lastReadByte int
+// 	unreadByte   int
+// 	readByteBuf  []byte
+// }
+
+// // NewFileDecoderStream creates a new decoder stream from a file.
+// func NewFileDecoderStream() DecoderStream {
+// 	return &fileDecoderStream{
+// 		lastReadByte: -1,
+// 		unreadByte:   -1,
+// 		readByteBuf:  make([]byte, 1, 1),
+// 	}
+// }
+
+// func (s *fileDecoderStream) Reset(f *os.File) error {
+// 	stat, err := f.Stat()
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	s.bytesLen = int(stat.Size())
+// 	s.f = f
+// 	// s.bytes = b
+// 	s.lastReadByte = -1
+// 	s.unreadByte = -1
+// 	// s.bytesLen = len(b)
+// }
+
+// func (s *fileDecoderStream) Read(p []byte) (int, error) {
+// 	if len(p) == 0 {
+// 		return 0, nil
+// 	}
+
+// 	ref := p
+
+// 	var numUnreadByte int
+// 	if s.unreadByte >= 0 {
+// 		p[0] = byte(s.unreadByte)
+// 		p = p[1:]
+// 		s.unreadByte = -1
+// 		numUnreadByte = 1
+// 	}
+// 	n, err := s.f.Read(p)
+// 	n += numUnreadByte
+// 	if n > 0 {
+// 		s.lastReadByte = int(ref[n-1])
+// 	}
+// 	if err == io.EOF && n > 0 {
+// 		return n, nil // return EOF next time, might be returning last byte still
+// 	}
+// 	return n, err
+// }
+
+// func (s *fileDecoderStream) ReadByte() (byte, error) {
+// 	if s.unreadByte >= 0 {
+// 		r := byte(s.unreadByte)
+// 		s.unreadByte = -1
+// 		return r, nil
+// 	}
+// 	n, err := s.f.Read(s.readByteBuf)
+// 	if n == 0 && err == nil {
+// 		return 0, io.EOF
+// 	}
+
+// 	if err == nil {
+// 		s.lastReadByte = int(s.readByteBuf[0])
+// 	}
+// 	return s.readByteBuf[0], err
+// }
+
+// func (s *fileDecoderStream) UnreadByte() error {
+// 	if s.lastReadByte < 0 {
+// 		return fmt.Errorf("no previous read byte or already unread byte")
+// 	}
+// 	s.unreadByte = s.lastReadByte
+// 	s.lastReadByte = -1
+// 	return nil
+// }
+
+// func (s *fileDecoderStream) Bytes() []byte {
+// 	return nil
+// }
+
+// func (s *fileDecoderStream) Skip(length int64) error {
+// 	defer func() {
+// 		if length > 0 {
+// 			s.unreadByte = -1
+// 			s.lastReadByte = -1
+// 		}
+// 	}()
+// 	_, err := s.f.Seek(length, io.SeekCurrent)
+// 	return err
+// }
+
+// func (s *fileDecoderStream) Remaining() int64 {
+// 	var unreadBytes int64
+// 	if s.unreadByte != -1 {
+// 		unreadBytes = 1
+// 	}
+// 	return int64(s.reader.Len()) + unreadBytes
+// }
+
+// func (s *fileDecoderStream) Offset() int {
+// 	return s.bytesLen - int(s.Remaining())
+// }

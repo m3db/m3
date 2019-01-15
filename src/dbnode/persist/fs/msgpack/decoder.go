@@ -23,6 +23,7 @@ package msgpack
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -47,12 +48,29 @@ var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num 
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	reader            DecoderStream
+	reader            DecoderStreamDecoder
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
 
 	legacy legacyEncodingOptions
+}
+
+type DecoderStreamDecoder interface {
+	io.Reader
+
+	// ReadByte reads the next byte.
+	ReadByte() (byte, error)
+
+	// UnreadByte unreads the last read byte or returns error if none read
+	// yet. Only a single byte can be unread at a time, a consecutive call
+	// to UnreadByte will result in an error.
+	UnreadByte() error
+
+	// Skip progresses the reader by a certain amount of bytes, useful
+	// when taking a ref to some of the bytes and progressing the reader
+	// itself.
+	Skip(length int64) error
 }
 
 // NewDecoder creates a new decoder
@@ -74,7 +92,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 }
 
 // Reset resets the data stream to decode from
-func (dec *Decoder) Reset(stream DecoderStream) {
+func (dec *Decoder) Reset(stream DecoderStreamDecoder) {
 	dec.reader = stream
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
@@ -98,12 +116,14 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 // DecodeIndexEntry decodes index entry
 func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	if dec.err != nil {
+		fmt.Println("1: ", dec.err)
 		return emptyIndexEntry, dec.err
 	}
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
 	indexEntry := dec.decodeIndexEntry()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
+		fmt.Println("2: ", dec.err)
 		return emptyIndexEntry, dec.err
 	}
 	return indexEntry, nil
@@ -541,16 +561,26 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
 	// slice as part of the encoded byte stream and return it
 	var value []byte
-	if dec.allocDecodedBytes {
+	var byteProvider interface {
+		Bytes() []byte
+		Remaining() int64
+	}
+	var ok bool
+	byteProvider, ok = dec.reader.(interface {
+		Bytes() []byte
+		Remaining() int64
+	})
+
+	if dec.allocDecodedBytes || !ok {
 		value, dec.err = dec.dec.DecodeBytes()
 		return value, -1, -1
 	}
 
 	var (
 		bytesLen     = dec.decodeBytesLen()
-		backingBytes = dec.reader.Bytes()
+		backingBytes = byteProvider.Bytes()
 		numBytes     = len(backingBytes)
-		currPos      = int(int64(numBytes) - dec.reader.Remaining())
+		currPos      = int(int64(numBytes) - byteProvider.Remaining())
 	)
 
 	if dec.err != nil {
