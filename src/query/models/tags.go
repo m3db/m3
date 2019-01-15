@@ -27,6 +27,7 @@ import (
 	"sort"
 
 	"github.com/m3db/m3/src/query/models/strconv"
+	"github.com/m3db/m3/src/query/util/writer"
 )
 
 // NewTags builds a tags with the given size and tag options.
@@ -88,27 +89,40 @@ func (t Tags) idLen() int {
 	return idLen
 }
 
+type tagEscaping struct {
+	escapeName  bool
+	escapeValue bool
+}
+
 func (t Tags) quotedID() []byte {
-	needEscaping, length := t.escapingAndLength()
-	if needEscaping == nil {
-		return t.quoteIDSimple(length)
+	var (
+		idLen        int
+		needEscaping []tagEscaping
+		l            int
+		escape       tagEscaping
+	)
+
+	for i, tt := range t.Tags {
+		l, escape = tt.serializedLength()
+		idLen += l
+		if escape.escapeName || escape.escapeValue {
+			if needEscaping == nil {
+				needEscaping = make([]tagEscaping, len(t.Tags))
+			}
+
+			needEscaping[i] = escape
+		}
 	}
 
-	// TODO: pool these bytes.
-	id := make([]byte, length)
-	idx := 0
-	for i, tag := range t.Tags {
-		if needEscaping[i*2] {
-			idx = strconv.Escape(id, tag.Name, idx)
-		} else {
-			idx += copy(id[idx:], tag.Name)
-		}
+	if needEscaping == nil {
+		return t.quoteIDSimple(idLen)
+	}
 
-		if needEscaping[i*2+1] {
-			idx = strconv.Quote(id, tag.Value, idx)
-		} else {
-			idx = strconv.QuoteSimple(id, tag.Value, idx)
-		}
+	// TODO: pool these bytes
+	id := make([]byte, idLen)
+	idx := 0
+	for i, tt := range t.Tags {
+		idx = tt.writeAtIndex(id, needEscaping[i], idx)
 	}
 
 	return id
@@ -127,45 +141,49 @@ func (t Tags) quoteIDSimple(length int) []byte {
 	return id
 }
 
-func (t Tags) escapingAndLength() ([]bool, int) {
-	var (
-		escapeAtIndex []bool
-		idLen         int
-	)
-
-	for i, tag := range t.Tags {
-		if strconv.NeedToEscape(tag.Name) {
-			if escapeAtIndex == nil {
-				escapeAtIndex = make([]bool, len(t.Tags)*2)
-			}
-
-			idLen += strconv.EscapedLength(tag.Name)
-			escapeAtIndex[i*2] = true
-		} else {
-			idLen += len(tag.Name)
-		}
-
-		if strconv.NeedToEscape(tag.Value) {
-			if escapeAtIndex == nil {
-				escapeAtIndex = make([]bool, len(t.Tags)*2)
-			}
-
-			idLen += strconv.QuotedLength(tag.Value)
-			escapeAtIndex[i*2+1] = true
-		} else {
-			idLen += len(tag.Value) + 2
-		}
+func (t Tag) writeAtIndex(id []byte, escape tagEscaping, idx int) int {
+	if escape.escapeName {
+		idx = strconv.Escape(id, t.Name, idx)
+	} else {
+		idx += copy(id[idx:], t.Name)
 	}
 
-	return escapeAtIndex, idLen
+	if escape.escapeValue {
+		idx = strconv.Quote(id, t.Value, idx)
+	} else {
+		idx = strconv.QuoteSimple(id, t.Value, idx)
+	}
+
+	return idx
 }
 
-// ID returns a byte slice representation of the tags.
+func (t Tag) serializedLength() (int, tagEscaping) {
+	var (
+		idLen    int
+		escaping tagEscaping
+	)
+	if strconv.NeedToEscape(t.Name) {
+		idLen += strconv.EscapedLength(t.Name)
+		escaping.escapeName = true
+	} else {
+		idLen += len(t.Name)
+	}
+
+	if strconv.NeedToEscape(t.Value) {
+		idLen += strconv.QuotedLength(t.Value)
+		escaping.escapeValue = true
+	} else {
+		idLen += len(t.Value) + 2
+	}
+
+	return idLen, escaping
+}
+
 func (t Tags) prependMetaID() []byte {
 	l, metaLengths := t.prependMetaLen()
 	// TODO: pool these bytes.
 	id := make([]byte, l)
-	idx := prependTagLengthMeta(id, metaLengths)
+	idx := writeTagLengthMeta(id, metaLengths)
 	for _, tag := range t.Tags {
 		idx += copy(id[idx:], tag.Name)
 		idx += copy(id[idx:], tag.Value)
@@ -174,16 +192,15 @@ func (t Tags) prependMetaID() []byte {
 	return id
 }
 
-func prependTagLengthMeta(dst []byte, lengths []int) int {
+func writeTagLengthMeta(dst []byte, lengths []int) int {
 	idx := 0
 	for _, l := range lengths {
-		idx = strconv.WriteInteger(dst, l, idx)
+		idx = writer.WriteInteger(dst, l, idx)
 	}
 
 	return idx
 }
 
-// idLen returns the length of the ID that would be generated from the tags.
 func (t Tags) prependMetaLen() (int, []int) {
 	idLen := 0
 	tagLengths := make([]int, len(t.Tags))
@@ -196,7 +213,7 @@ func (t Tags) prependMetaLen() (int, []int) {
 
 	prefixLen := 0
 	for _, l := range tagLengths {
-		prefixLen += strconv.IntLength(l)
+		prefixLen += writer.IntLength(l)
 	}
 
 	return idLen + prefixLen, tagLengths

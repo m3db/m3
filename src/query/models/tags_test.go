@@ -28,7 +28,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/m3db/m3/src/query/models/strconv"
+	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -55,10 +55,7 @@ func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
 
 func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
-	needEscaping, l := tags.escapingAndLength()
-	assert.Nil(t, needEscaping)
 	actual := tags.ID()
-	assert.Equal(t, l, len(actual))
 	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
 }
 
@@ -76,18 +73,7 @@ func TestHashedID(t *testing.T) {
 func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
 	tags = tags.AddTag(Tag{Name: []byte(`t5""`), Value: []byte(`v"5`)})
-	needEscaping, l := tags.escapingAndLength()
-	assert.NotNil(t, needEscaping)
-	for i, escape := range needEscaping {
-		if i >= 8 {
-			assert.True(t, escape)
-		} else {
-			assert.False(t, escape)
-		}
-	}
-
 	actual := tags.ID()
-	assert.Equal(t, l, len(actual))
 	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5\"\""v\"5"`), actual)
 }
 
@@ -278,27 +264,31 @@ func TestTagAppend(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
-func TestPrependTagLengthMeta(t *testing.T) {
+func TestWriteTagLengthMeta(t *testing.T) {
 	lengths := []int{0, 1, 2, 8, 10, 8, 100, 8, 101, 8, 110}
 	l := 0
 	for _, length := range lengths {
-		l += strconv.IntLength(length)
+		l += writer.IntLength(length)
 	}
 
 	assert.Equal(t, 18, l)
 	buf := make([]byte, l)
-	count := prependTagLengthMeta(buf, lengths)
+	count := writeTagLengthMeta(buf, lengths)
 	assert.Equal(t, 18, count)
 	assert.Equal(t, []byte("012810810081018110"), buf)
 }
 
-func buildTags(b *testing.B, count, length int, opts TagOptions) Tags {
+func buildTags(b *testing.B, count, length int, opts TagOptions, escape bool) Tags {
 	tags := make([]Tag, count)
 	for i := range tags {
 		n := []byte(fmt.Sprint("t", i))
 		v := make([]byte, length)
 		for j := range v {
-			v[j] = 'a'
+			if escape {
+				v[j] = '"'
+			} else {
+				v[j] = 'a'
+			}
 		}
 
 		tags[i] = Tag{Name: n, Value: v}
@@ -311,40 +301,99 @@ var tagBenchmarks = []struct {
 	name                string
 	tagCount, tagLength int
 }{
-	{"10 tags, 2 length", 10, 2},
-	{"100 tags, 2 length", 100, 2},
-	{"1000 tags, 2 length", 1000, 2},
-	{"10 tags, 10 length", 10, 10},
-	{"100 tags, 10 length", 100, 10},
-	{"1000 tags, 10 length", 1000, 10},
-	{"10 tags, 100 length", 10, 100},
-	{"100 tags, 100 length", 100, 100},
-	{"1000 tags, 100 length", 1000, 100},
-	{"10 tags, 1000 length", 10, 1000},
-	{"100 tags, 1000 length", 100, 1000},
-	{"1000 tags, 1000 length", 1000, 1000},
+	{"10  Tags 10  Length", 10, 10},
+	{"100 Tags 10  Length", 100, 10},
+	{"10  Tags 100 Length", 10, 100},
+	{"100 Tags 100 Length", 100, 100},
 }
+
+const typeQuotedEscaped = IDSchemeType(100)
 
 var tagIDSchemes = []struct {
 	name   string
 	scheme IDSchemeType
 }{
-	{"legacy", TypeLegacy},
-	{"prepen", TypePrependMeta},
-	{"quoted", TypeQuoted},
+	{"__legacy", TypeLegacy},
+	{"_prepend", TypePrependMeta},
+	// only simple quotable tag values.
+	{"__quoted", TypeQuoted},
+	// only escaped tag values.
+	{"_esc_qtd", typeQuotedEscaped},
 }
+
+/*
+Benchmark results:
+
+10__Tags_10__Length__legacy-8 	10000000     242 ns/op	144 B/op
+10__Tags_10__Length_prepend-8 	 5000000     388 ns/op	224 B/op
+10__Tags_10__Length__quoted-8 	 5000000     385 ns/op	144 B/op
+10__Tags_10__Length_esc_qtd-8 	 1000000    1385 ns/op	272 B/op
+
+100_Tags_10__Length__legacy-8 	 1000000    2000 ns/op	1536 B/op
+100_Tags_10__Length_prepend-8 	  500000    3372 ns/op	2432 B/op
+100_Tags_10__Length__quoted-8 	  500000    3679 ns/op	1536 B/op
+100_Tags_10__Length_esc_qtd-8 	  100000   12622 ns/op	2896 B/op
+
+10__Tags_100_Length__legacy-8 	 3000000     451 ns/op	1152 B/op
+10__Tags_100_Length_prepend-8 	 2000000     636 ns/op	1232 B/op
+10__Tags_100_Length__quoted-8 	 1000000    1101 ns/op	1152 B/op
+10__Tags_100_Length_esc_qtd-8 	  200000    9006 ns/op	2080 B/op
+
+100_Tags_100_Length__legacy-8 	  300000    3731 ns/op	10880 B/op
+100_Tags_100_Length_prepend-8 	  200000    5617 ns/op	11776 B/op
+100_Tags_100_Length__quoted-8 	  200000   11163 ns/op	10880 B/op
+100_Tags_100_Length_esc_qtd-8 	   20000  107747 ns/op	21969 B/op
+*/
 
 func BenchmarkIDs(b *testing.B) {
 	opts := NewTagOptions()
 	for _, bb := range tagBenchmarks {
 		for _, idScheme := range tagIDSchemes {
-			b.Run(bb.name+"_"+idScheme.name, func(b *testing.B) {
-				opts = opts.SetIDSchemeType(idScheme.scheme)
-				tags := buildTags(b, bb.tagCount, bb.tagLength, opts)
+			name := bb.name + idScheme.name
+			b.Run(name, func(b *testing.B) {
+				var (
+					tags Tags
+				)
+
+				if idScheme.scheme == typeQuotedEscaped {
+					opts = opts.SetIDSchemeType(TypeQuoted)
+					tags = buildTags(b, bb.tagCount, bb.tagLength, opts, true)
+				} else {
+					opts = opts.SetIDSchemeType(idScheme.scheme)
+					tags = buildTags(b, bb.tagCount, bb.tagLength, opts, false)
+				}
+
 				for i := 0; i < b.N; i++ {
 					_ = tags.ID()
 				}
 			})
 		}
+		fmt.Println()
 	}
+}
+
+func TestSerializedLength(t *testing.T) {
+	tag := Tag{Name: []byte("foo"), Value: []byte("bar")}
+	len, escaping := tag.serializedLength()
+	assert.Equal(t, 8, len)
+	assert.False(t, escaping.escapeName)
+	assert.False(t, escaping.escapeValue)
+
+	tag.Name = []byte("f\ao")
+	len, escaping = tag.serializedLength()
+	assert.Equal(t, 9, len)
+	assert.True(t, escaping.escapeName)
+	assert.False(t, escaping.escapeValue)
+
+	tag.Value = []byte(`b"ar`)
+	len, escaping = tag.serializedLength()
+	assert.Equal(t, 11, len)
+	assert.True(t, escaping.escapeName)
+	assert.True(t, escaping.escapeValue)
+
+	tag.Name = []byte("baz")
+	len, escaping = tag.serializedLength()
+	assert.Equal(t, 10, len)
+	assert.False(t, escaping.escapeName)
+	assert.True(t, escaping.escapeValue)
 }

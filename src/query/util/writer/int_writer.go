@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package strconv
+package writer
 
-// IntLength determines the number of digits in an integer.
+// IntLength determines the number of digits in a base 10 integer.
 func IntLength(i int) int {
 	if i == 0 {
 		return 1
@@ -35,6 +35,8 @@ func IntLength(i int) int {
 }
 
 // WriteInteger writes a base 10 integer to a buffer at a given index.
+//
+// NB: based on fmt.Printf handling of integers, specifically base 10 case.
 func WriteInteger(dst []byte, value, idx int) int {
 	// Because printing is easier right-to-left: format u into buf, ending at buf[i].
 	// We could make things marginally faster by splitting the 32-bit case out

@@ -68,10 +68,9 @@ func NewTakeOp(
 
 // takeOp stores required properties for take ops
 type takeOp struct {
-	params      NodeParams
-	opType      string
-	opTypeBytes []byte
-	takeFunc    takeFunc
+	params   NodeParams
+	opType   string
+	takeFunc takeFunc
 }
 
 // OpType for the operator
@@ -97,10 +96,9 @@ func (o takeOp) Node(
 
 func newTakeOp(params NodeParams, opType string, takeFunc takeFunc) takeOp {
 	return takeOp{
-		params:      params,
-		opType:      opType,
-		opTypeBytes: []byte(opType),
-		takeFunc:    takeFunc,
+		params:   params,
+		opType:   opType,
+		takeFunc: takeFunc,
 	}
 }
 
@@ -125,7 +123,7 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, _ := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opTypeBytes,
+		[]byte(n.op.opType),
 		seriesMetas,
 	)
 

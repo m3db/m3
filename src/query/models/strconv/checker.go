@@ -20,15 +20,18 @@
 
 package strconv
 
-// NB: for nicer table formaffing.
+// NB: for nicer table formatting.
 const (
+	// Indicates this rune does not need escaping.
 	ff = false
+	// Indicates this rune needs escaping.
 	tt = true
 )
 
 // Determines valid characters that do not require escaping.
 //
-// NB: escape all control characters, `"`, and any character above `~`
+// NB: escape all control characters, `"`, and any character above `~`. This
+// table loosely based on constants used in utf8.DecodeRune.
 var escape = [256]bool{
 	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
 	tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, // 0x00-0x0F
