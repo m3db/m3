@@ -116,14 +116,12 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 // DecodeIndexEntry decodes index entry
 func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	if dec.err != nil {
-		fmt.Println("1: ", dec.err)
 		return emptyIndexEntry, dec.err
 	}
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
 	indexEntry := dec.decodeIndexEntry()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		fmt.Println("2: ", dec.err)
 		return emptyIndexEntry, dec.err
 	}
 	return indexEntry, nil

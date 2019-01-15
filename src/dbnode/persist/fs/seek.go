@@ -346,7 +346,6 @@ func (s *seeker) readInfo(size int, infoDigestReader digest.FdWithDigestReader, 
 func (s *seeker) SeekByID(id ident.ID) (checked.Bytes, error) {
 	entry, err := s.SeekIndexEntry(id)
 	if err != nil {
-		fmt.Println("error seeking index entry")
 		return nil, err
 	}
 
@@ -362,10 +361,6 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	// if int(entry.Offset) > len(s.dataMmap)-1 {
 	// 	return nil, errInvalidDataFileOffset
 	// }
-	if entry.Checksum == 0 {
-		fmt.Println("WTF: ", entry)
-		panic("hmm")
-	}
 
 	newOffset, err := s.dataFd.Seek(entry.Offset, 0)
 	if err != nil {
@@ -401,7 +396,6 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	underlyingBuf := buffer.Bytes()
 	n, err := s.dataFd.Read(underlyingBuf)
 	if err != nil {
-		fmt.Println("hmm EOF")
 		return nil, err
 	}
 	if n != int(entry.Size) {
@@ -412,9 +406,6 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
 	if entry.Checksum != digest.Checksum(underlyingBuf) {
-		fmt.Println("underlyingBuf:", underlyingBuf)
-		fmt.Println("entry.size: ", entry.Size)
-		fmt.Println("bad checksum, offset: ", entry.Offset)
 		return nil, errSeekChecksumMismatch
 	}
 
@@ -426,10 +417,8 @@ type yoloStruct struct {
 }
 
 func (y *yoloStruct) Skip(n int64) error {
-	fmt.Println("skipping: ", n)
 	_, err := y.Discard(int(n))
 	if err != nil {
-		fmt.Println("discard error: ", err)
 		return err
 	}
 	return nil
@@ -470,20 +459,10 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		// Should never happen, either something is really wrong with the code or
 		// the file on disk was corrupted
 		if err != nil {
-			currOffset, err1 := s.indexFd.Seek(0, 1)
-			if err1 != nil {
-				panic(err1)
-			}
-			fmt.Println("currOffset: ", currOffset)
-			fmt.Println("s.indexFileSize: ", s.indexFileSize)
-			fmt.Println("reader.Buffered(): ", reader.Buffered())
-			fmt.Println("decoder error: ", err)
 			return IndexEntry{}, err
 		}
 		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
-			fmt.Println("found: ", string(entry.ID), " offset: ", entry.Offset)
-			fmt.Println("found: ", string(entry.ID), " Size: ", entry.Size)
 			return IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
