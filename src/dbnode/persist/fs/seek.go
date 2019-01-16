@@ -202,11 +202,9 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	defer func() {
 		// NB(rartoul): We don't need to keep these FDs open as we use these up front
 		infoFdWithDigest.Close()
-		// indexFdWithDigest.Close()
 		bloomFilterFdWithDigest.Close()
 		summariesFdWithDigest.Close()
 		digestFdWithDigestContents.Close()
-		// dataFd.Close()
 	}()
 
 	infoFdWithDigest.Reset(infoFd)
