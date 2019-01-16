@@ -566,10 +566,6 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	if dec.err != nil {
 		return nil, -1, -1
 	}
-	if dec.byteReader == nil {
-		dec.err = errorCalledDecodeBytesWithoutByteStreamDecoder
-		return nil, -1, -1
-	}
 	// If we need to allocate new space for decoded byte slice, we delegate it to msgpack
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
 	// slice as part of the encoded byte stream and return it
@@ -577,6 +573,14 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
 		return value, -1, -1
+	}
+
+	if dec.byteReader == nil {
+		// If we're not allowing the msgpack library to allocate the bytes and we haven't been
+		// provided a byte decoder stream, then we've reached an invalid state as its not
+		// possible for us to decode the bytes in an alloc-less way.
+		dec.err = errorCalledDecodeBytesWithoutByteStreamDecoder
+		return nil, -1, -1
 	}
 
 	var (
