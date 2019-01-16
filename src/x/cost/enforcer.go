@@ -49,14 +49,6 @@ type Report struct {
 	Error error
 }
 
-// Enforcer instances enforce cost limits for operations.
-type Enforcer interface {
-	Add(op Cost) Report
-	State() (Report, Limit)
-	Limit() Limit
-	Clone() Enforcer
-}
-
 // enforcer enforces cost limits for operations.
 type enforcer struct {
 	LimitManager
@@ -84,9 +76,21 @@ func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) Enforcer {
 // the enforcer's limit the enforcer will return a CostLimit error in addition to the new total.
 func (e *enforcer) Add(cost Cost) Report {
 	current := e.tracker.Add(cost)
+
+	limit := e.Limit()
+	overLimit := e.checkLimit(current, limit)
+
+	if overLimit != nil {
+		// Emit metrics on number of operations that are over the limit even when not enabled.
+		e.metrics.overLimit.Inc(1)
+		if limit.Enabled {
+			e.metrics.overLimitAndEnabled.Inc(1)
+		}
+	}
+
 	return Report{
 		Cost:  current,
-		Error: e.checkLimit(current, e.Limit()),
+		Error: overLimit,
 	}
 }
 
@@ -114,17 +118,9 @@ func (e *enforcer) Clone() Enforcer {
 }
 
 func (e *enforcer) checkLimit(cost Cost, limit Limit) error {
-	if cost < limit.Threshold {
+	if cost < limit.Threshold || !limit.Enabled {
 		return nil
 	}
-
-	// Emit metrics on number of operations that are over the limit even when not enabled.
-	e.metrics.overLimit.Inc(1)
-	if !limit.Enabled {
-		return nil
-	}
-
-	e.metrics.overLimitAndEnabled.Inc(1)
 
 	if e.costMsg == "" {
 		return defaultCostExceededError(cost, limit)

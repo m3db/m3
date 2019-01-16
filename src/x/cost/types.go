@@ -18,8 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package cost provides facilities for estimating the cost of operations
-// and enforcing limits on them.
+// Package cost is a library providing utilities for estimating the cost of operations
+// and enforcing limits on them. The primary type of interest is Enforcer, which tracks the cost of operations,
+// and errors when that cost goes over a particular limit.
 package cost
 
 import (
@@ -59,4 +60,12 @@ type Tracker interface {
 
 	// Current returns the tracker's current cost total.
 	Current() Cost
+}
+
+// Enforcer instances enforce cost limits for operations.
+type Enforcer interface {
+	Add(op Cost) Report
+	State() (Report, Limit)
+	Limit() Limit
+	Clone() Enforcer
 }
