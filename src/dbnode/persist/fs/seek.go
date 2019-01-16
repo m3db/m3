@@ -525,10 +525,6 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 	return seeker, nil
 }
 
-func newfileDecoderStream(b *bufio.Reader, fd *os.File) *fileDecoderStream {
-	return &fileDecoderStream{b, fd}
-}
-
 func (s *seeker) validateIndexFileDigest(
 	indexFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
@@ -544,6 +540,10 @@ func (s *seeker) validateIndexFileDigest(
 		}
 	}
 	return indexFdWithDigest.Validate(expectedDigest)
+}
+
+func newfileDecoderStream(b *bufio.Reader, fd *os.File) *fileDecoderStream {
+	return &fileDecoderStream{b, fd}
 }
 
 // fileDecoderStream wraps a file descriptor with a buffered reader and some
