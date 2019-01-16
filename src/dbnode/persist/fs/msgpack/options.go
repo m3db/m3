@@ -32,8 +32,10 @@ type DecodingOptions interface {
 	// a byte slice
 	AllocDecodedBytes() bool
 
+	// SetCheckedBytesPool sets the checked bytes pool.
 	SetCheckedBytesPool(value pool.CheckedBytesPool) DecodingOptions
 
+	// CheckedBytesPool returns the checked bytes pool.
 	CheckedBytesPool() pool.CheckedBytesPool
 }
 
