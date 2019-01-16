@@ -487,7 +487,7 @@ func (s *seeker) Close() error {
 }
 
 func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
-	// indexLookup is not concurrency safe, but a parent and its clone can be used
+	// IndexLookup is not concurrency safe, but a parent and its clone can be used
 	// concurrently safely.
 	indexLookupClone, err := s.indexLookup.concurrentClone()
 	if err != nil {
@@ -497,18 +497,19 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 	decodingOpts := s.decodingOpts.
 		SetCheckedBytesPool(s.bytesPool)
 	seeker := &seeker{
-		// Bare-minimum required fields for a clone to function properly
+		// Bare-minimum required fields for a clone to function properly.
 		bytesPool:     s.bytesPool,
 		decoder:       msgpack.NewDecoder(decodingOpts),
 		opts:          s.opts,
 		indexFileSize: s.indexFileSize,
-		// bloomFilter is concurrency safe
+		// BloomFilter is concurrency safe.
 		bloomFilter: s.bloomFilter,
 		indexLookup: indexLookupClone,
 		isClone:     true,
 	}
 
-	// Open necessary files
+	// File descriptors are not concurrency safe since they have an internal
+	// seek position.
 	if err := openFiles(os.Open, map[string]**os.File{
 		s.indexFilePath: &seeker.indexFd,
 		s.dataFilePath:  &seeker.dataFd,
