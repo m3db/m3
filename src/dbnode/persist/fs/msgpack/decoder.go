@@ -367,7 +367,6 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	}
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
-	fmt.Println("hmm offset: ", indexEntry.Offset)
 	indexEntry.Checksum = dec.decodeVarint()
 
 	if dec.legacy.decodeLegacyV1IndexEntry || actual < 6 {

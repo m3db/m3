@@ -422,12 +422,9 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 			return IndexEntry{}, err
 		}
 		comparison := bytes.Compare(entry.CheckedID.Bytes(), idBytes)
-		fmt.Println("Found: ", string(entry.CheckedID.Bytes()))
 		entry.CheckedID.DecRef()
 		entry.CheckedID.Finalize()
 		if comparison == 0 {
-			fmt.Println("entry.size: ", entry.Size)
-			fmt.Println("entry.Offset: ", entry.Offset)
 			return IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
@@ -539,6 +536,5 @@ func (y *buffReaderWithSkip) Offset() (int, error) {
 		return -1, err
 	}
 
-	fmt.Println("in offset, offset: ", offset, " buffered: ", int(y.Buffered()))
 	return int(offset - int64(y.Buffered())), nil
 }
