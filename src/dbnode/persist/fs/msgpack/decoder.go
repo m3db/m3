@@ -576,14 +576,8 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
 	// slice as part of the encoded byte stream and return it
 	var value []byte
-	var byteProvider interface {
-		Bytes() []byte
-		Remaining() int64
-	}
-	byteProvider = dec.reader.(interface {
-		Bytes() []byte
-		Remaining() int64
-	})
+	var byteProvider ByteStream
+	byteProvider = dec.reader.(ByteStream)
 
 	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
