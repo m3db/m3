@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3db/m3x/checked"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3x/pool"
@@ -48,7 +50,10 @@ var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num 
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	reader            DecoderStream
+	reader DecoderStream
+	// Will only be set if the Decoder is Reset() with a DecoderStream
+	// that also implements ByteStream.
+	byteReader        ByteStream
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
@@ -79,6 +84,15 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 // Reset resets the data stream to decode from
 func (dec *Decoder) Reset(stream DecoderStream) {
 	dec.reader = stream
+
+	// Do the type assertion upfront so that we don't have to do it
+	// repeatedly later.
+	if byteStream, ok := stream.(ByteStream); ok {
+		dec.byteReader = byteStream
+	} else {
+		dec.byteReader = nil
+	}
+
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
 }
@@ -322,28 +336,12 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
 
-	_, ok = dec.reader.(ByteStream)
-	if ok {
+	if dec.byteReader != nil {
 		indexEntry.ID, _, _ = dec.decodeBytes()
 	} else {
-		_, length := dec.decodeBytesOffsets()
-		if dec.err != nil {
-			return emptyIndexEntry
-		}
-		checkedBytes := dec.checkedBytesPool.Get(length)
-		checkedBytes.IncRef()
-		checkedBytes.Resize(length)
-		n, err := dec.reader.Read(checkedBytes.Bytes())
-		if n != length {
-			panic("bad id")
-		}
-		if err != nil {
-			panic(err)
-			dec.err = err
-			return emptyIndexEntry
-		}
-		indexEntry.CheckedID = checkedBytes
+		indexEntry.CheckedID = dec.decodeCheckedBytes()
 	}
+
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
@@ -353,16 +351,10 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 		return indexEntry
 	}
 
-	if ok {
+	if dec.byteReader != nil {
 		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
 	} else {
-		_, length := dec.decodeBytesOffsets()
-		if dec.err != nil {
-			return emptyIndexEntry
-		}
-		// indexEntry.IDOffset = startOffset
-		// indexEntry.IDLength = length
-		dec.reader.Skip(int64(length))
+		indexEntry.CheckedTags = dec.decodeCheckedBytes()
 	}
 
 	dec.skip(numFieldsToSkip)
@@ -612,22 +604,37 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	return value, currPos, bytesLen
 }
 
-func (dec *Decoder) decodeBytesOffsets() (int, int) {
+func (dec *Decoder) decodeCheckedBytes() checked.Bytes {
 	if dec.err != nil {
-		return -1, -1
+		return nil
 	}
 
 	bytesLen := dec.decodeBytesLen()
-	offsetProvider := dec.reader.(interface {
-		Offset() (int, error)
-	})
-	currPos, err := offsetProvider.Offset()
-	if err != nil {
-		dec.err = err
-		return -1, -1
+	if dec.err != nil {
+		return nil
+	}
+	if bytesLen < 0 {
+		return nil
 	}
 
-	return currPos, bytesLen
+	checkedBytes := dec.checkedBytesPool.Get(bytesLen)
+	checkedBytes.IncRef()
+	checkedBytes.Resize(bytesLen)
+	n, err := dec.reader.Read(checkedBytes.Bytes())
+	if n != bytesLen {
+		dec.err = fmt.Errorf(
+			"tried to decode checked bytes of length: %d, but read: %d",
+			bytesLen, n)
+		checkedBytes.Finalize()
+		return nil
+	}
+	if err != nil {
+		dec.err = err
+		checkedBytes.Finalize()
+		return nil
+	}
+
+	return checkedBytes
 }
 
 func (dec *Decoder) decodeArrayLen() int {

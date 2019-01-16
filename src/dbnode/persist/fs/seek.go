@@ -54,6 +54,9 @@ var (
 
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
+
+	// errDecodedIndexEntryHadNoID is returned when the decoded index entry has no idea.
+	errDecodedIndexEntryHadNoID = errors.New("decoded index entry had no ID")
 )
 
 type seeker struct {
@@ -97,7 +100,7 @@ type IndexEntry struct {
 	Size        uint32
 	Checksum    uint32
 	Offset      int64
-	EncodedTags []byte
+	EncodedTags checked.Bytes
 }
 
 // NewSeeker returns a new seeker.
@@ -405,7 +408,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 
 	idBytes := id.Bytes()
 	for {
-		// Prevent panic's when we're scanning to the end of the buffer
+		// Prevent panics when we're scanning to the end of the buffer.
 		currOffset, err := s.indexFd.Seek(0, 1)
 		if err != nil {
 			return IndexEntry{}, err
@@ -413,23 +416,38 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		if currOffset >= s.indexFileSize && s.fileDecoderStream.Buffered() <= 0 {
 			return IndexEntry{}, errSeekIDNotFound
 		}
+
 		entry, err := s.decoder.DecodeIndexEntry()
-		// Should never happen, either something is really wrong with the code or
-		// the file on disk was corrupted
-		if err != nil {
+		if err != nil || entry.CheckedID == nil {
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
 			return IndexEntry{}, err
 		}
+		if entry.CheckedID == nil {
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return IndexEntry{}, errDecodedIndexEntryHadNoID
+		}
+
 		comparison := bytes.Compare(entry.CheckedID.Bytes(), idBytes)
-		entry.CheckedID.DecRef()
-		entry.CheckedID.Finalize()
 		if comparison == 0 {
-			return IndexEntry{
+			indexEntry := IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
 				Offset:      entry.Offset,
-				EncodedTags: entry.EncodedTags,
-			}, nil
+				EncodedTags: entry.CheckedTags,
+			}
+
+			// Not returned in the IndexEntry so we can finalize.
+			entry.CheckedID.DecRef()
+			entry.CheckedID.Finalize()
+
+			return indexEntry, nil
 		}
+
+		// No longer being used so we can finalize.
+		entry.CheckedID.DecRef()
+		entry.CheckedID.Finalize()
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
