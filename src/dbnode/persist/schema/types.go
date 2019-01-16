@@ -63,8 +63,11 @@ type IndexEntry struct {
 	Checksum    int64
 	EncodedTags []byte
 
-	// Yolo
-	CheckedID checked.Bytes
+	// Fields below are returned from DecodeIndexEntry if
+	// we're using pooled checked bytes instead of allocating
+	// or subslicing. They're never used on the encode path.
+	CheckedID   checked.Bytes
+	CheckedTags checked.Bytes
 }
 
 // IndexSummary stores a summary of an index entry to lookup
