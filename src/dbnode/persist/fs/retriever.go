@@ -161,9 +161,11 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
+
 	var (
-		inFlight      []*retrieveRequest
-		currBatchReqs []*retrieveRequest
+		seekerResources = NewReusableSeekerResources(r.fsOpts)
+		inFlight        []*retrieveRequest
+		currBatchReqs   []*retrieveRequest
 	)
 	for {
 		// Free references to the inflight requests
@@ -226,7 +228,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 				req.shard != currBatchShard {
 				// Fetch any outstanding in the current batch
 				if len(currBatchReqs) > 0 {
-					r.fetchBatch(seekerMgr, currBatchShard, currBatchStart, currBatchReqs)
+					r.fetchBatch(
+						seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
 					for i := range currBatchReqs {
 						currBatchReqs[i] = nil
 					}
@@ -244,7 +247,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 
 		// Fetch any finally outstanding in the current batch
 		if len(currBatchReqs) > 0 {
-			r.fetchBatch(seekerMgr, currBatchShard, currBatchStart, currBatchReqs)
+			r.fetchBatch(
+				seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
 			for i := range currBatchReqs {
 				currBatchReqs[i] = nil
 			}
@@ -260,6 +264,7 @@ func (r *blockRetriever) fetchBatch(
 	shard uint32,
 	blockStart time.Time,
 	reqs []*retrieveRequest,
+	seekerResources ReusableSeekerResources,
 ) {
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
@@ -273,7 +278,7 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
-		entry, err := seeker.SeekIndexEntry(req.id)
+		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
@@ -296,7 +301,7 @@ func (r *blockRetriever) fetchBatch(
 		// Only try to seek the ID if it exists, otherwise we'll get a checksum
 		// mismatch error because default offset value for indexEntry is zero.
 		if !req.notFound {
-			data, err = seeker.SeekByIndexEntry(req.indexEntry)
+			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
 				continue

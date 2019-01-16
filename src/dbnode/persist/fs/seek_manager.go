@@ -34,6 +34,11 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	seekManagerCloseInterval        = time.Second
+	reusableSeekerResourcesPoolSize = 10
+)
+
 var (
 	errSeekerManagerAlreadyOpenOrClosed              = errors.New("seeker manager already open or is closed")
 	errSeekerManagerAlreadyClosed                    = errors.New("seeker manager already closed")
@@ -43,8 +48,6 @@ var (
 	errCantCloseSeekerManagerWhileSeekersAreBorrowed = errors.New("cant close seeker manager while seekers are borrowed")
 	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
 )
-
-const seekManagerCloseInterval = time.Second
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
 
@@ -80,6 +83,8 @@ type seekerManager struct {
 	newOpenSeekerFn        newOpenSeekerFn
 	sleepFn                func(d time.Duration)
 	openCloseLoopDoneCh    chan struct{}
+	// Pool of seeker resources that can be used to open new seekers.
+	reusableSeekerResourcesPool chan ReusableSeekerResources
 }
 
 type seekerUnreadBuf struct {
@@ -120,13 +125,20 @@ func NewSeekerManager(
 	opts Options,
 	fetchConcurrency int,
 ) DataFileSetSeekerManager {
+	reusableSeekerResourcesPool := make(
+		chan ReusableSeekerResources, reusableSeekerResourcesPoolSize)
+	for i := 0; i < reusableSeekerResourcesPoolSize; i++ {
+		reusableSeekerResourcesPool <- NewReusableSeekerResources(opts)
+	}
+
 	m := &seekerManager{
-		bytesPool:           bytesPool,
-		filePathPrefix:      opts.FilePathPrefix(),
-		opts:                opts,
-		fetchConcurrency:    fetchConcurrency,
-		logger:              opts.InstrumentOptions().Logger(),
-		openCloseLoopDoneCh: make(chan struct{}),
+		bytesPool:                   bytesPool,
+		filePathPrefix:              opts.FilePathPrefix(),
+		opts:                        opts,
+		fetchConcurrency:            fetchConcurrency,
+		logger:                      opts.InstrumentOptions().Logger(),
+		openCloseLoopDoneCh:         make(chan struct{}),
+		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
 	}
 	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
 	m.newOpenSeekerFn = m.newOpenSeeker
@@ -381,7 +393,7 @@ func (m *seekerManager) newOpenSeeker(
 		m.opts.SeekReaderBufferSize(),
 		m.bytesPool,
 		true,
-		nil,
+		m.opts.DecodingOptions().SetCheckedBytesPool(m.bytesPool),
 		m.opts,
 	)
 	seeker := seekerIface.(*seeker)
@@ -389,9 +401,12 @@ func (m *seekerManager) newOpenSeeker(
 	// Set the unread buffer to reuse it amongst all seekers.
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
-	if err := seeker.Open(m.namespace, shard, blockStart); err != nil {
+	resources := m.getSeekerResources()
+	if err := seeker.Open(m.namespace, shard, blockStart, m.getSeekerResources()); err != nil {
+		m.putSeekerResources(resources)
 		return nil, err
 	}
+	m.putSeekerResources(resources)
 
 	// Retrieve the buffer, it may have changed due to
 	// growing. Also release reference to the unread buffer.
@@ -611,4 +626,22 @@ func (m *seekerManager) openCloseLoop() {
 	m.Unlock()
 
 	m.openCloseLoopDoneCh <- struct{}{}
+}
+
+func (m *seekerManager) getSeekerResources() ReusableSeekerResources {
+	// Try and use the pool, but allocate if its empty.
+	select {
+	case resources := <-m.reusableSeekerResourcesPool:
+		return resources
+	default:
+		return NewReusableSeekerResources(m.opts)
+	}
+}
+
+func (m *seekerManager) putSeekerResources(r ReusableSeekerResources) {
+	// Try and return to pool, but don't block if its full.
+	select {
+	case m.reusableSeekerResourcesPool <- r:
+	default:
+	}
 }
