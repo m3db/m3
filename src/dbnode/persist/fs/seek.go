@@ -347,7 +347,7 @@ func (s *seeker) SeekByID(id ident.ID) (checked.Bytes, error) {
 // instead of looking it up on its own. Useful in cases where you've already
 // obtained an entry and don't want to waste resources looking it up again.
 func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
-	newOffset, err := s.dataFd.Seek(entry.Offset, 0)
+	newOffset, err := s.dataFd.Seek(entry.Offset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +395,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		return IndexEntry{}, err
 	}
 
-	seekedOffset, err := s.indexFd.Seek(offset, 0)
+	seekedOffset, err := s.indexFd.Seek(offset, os.SEEK_CUR)
 	if err != nil {
 		return IndexEntry{}, err
 	}
@@ -409,7 +409,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 	idBytes := id.Bytes()
 	for {
 		// Prevent panics when we're scanning to the end of the buffer.
-		currOffset, err := s.indexFd.Seek(0, 1)
+		currOffset, err := s.indexFd.Seek(0, os.SEEK_CUR)
 		if err != nil {
 			return IndexEntry{}, err
 		}
@@ -553,7 +553,7 @@ func (w *fileDecoderStream) Skip(n int64) error {
 }
 
 func (w *fileDecoderStream) Offset() (int, error) {
-	offset, err := w.fd.Seek(0, 1)
+	offset, err := w.fd.Seek(0, os.SEEK_CUR)
 	if err != nil {
 		return -1, err
 	}
