@@ -240,17 +240,8 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	s.indexFileSize = indexFdStat.Size()
 	s.fileDecoderStream.setFd(s.indexFd)
 
-	buf := make([]byte, 4096)
-	for {
-		n, err := indexFdWithDigest.Read(buf)
-		if err != nil && err != io.EOF {
-			return fmt.Errorf("error reading index file: %v", err)
-		}
-		if n == 0 || err == io.EOF {
-			break
-		}
-	}
-	err = indexFdWithDigest.Validate(expectedDigests.indexDigest)
+	err = s.validateIndexFileDigest(
+		indexFdWithDigest, expectedDigests.indexDigest)
 	if err != nil {
 		s.Close()
 		return fmt.Errorf(
@@ -395,7 +386,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		return IndexEntry{}, err
 	}
 
-	seekedOffset, err := s.indexFd.Seek(offset, os.SEEK_CUR)
+	seekedOffset, err := s.indexFd.Seek(offset, os.SEEK_SET)
 	if err != nil {
 		return IndexEntry{}, err
 	}
@@ -535,6 +526,23 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 
 func newfileDecoderStream(b *bufio.Reader, fd *os.File) *fileDecoderStream {
 	return &fileDecoderStream{b, fd}
+}
+
+func (s *seeker) validateIndexFileDigest(
+	indexFdWithDigest digest.FdWithDigestReader,
+	expectedDigest uint32,
+) error {
+	buf := make([]byte, s.opts.dataBufferSize)
+	for {
+		n, err := indexFdWithDigest.Read(buf)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("error reading index file: %v", err)
+		}
+		if n == 0 || err == io.EOF {
+			break
+		}
+	}
+	return indexFdWithDigest.Validate(expectedDigest)
 }
 
 // fileDecoderStream wraps a file descriptor with a buffered reader and some
