@@ -148,6 +148,9 @@ type fileSetSeeker interface {
 }
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
+	if opts.decodingOpts == nil {
+		opts.decodingOpts = msgpack.NewDecodingOptions()
+	}
 	decodingOpts := opts.decodingOpts.
 		SetCheckedBytesPool(opts.bytesPool)
 
@@ -156,7 +159,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		keepUnreadBuf:  opts.keepUnreadBuf,
 		bytesPool:      opts.bytesPool,
 		decoder:        msgpack.NewDecoder(decodingOpts),
-		buffReader:     &buffReaderWithSkip{bufio.NewReader(nil)},
+		buffReader:     &buffReaderWithSkip{bufio.NewReader(nil), nil},
 		decodingOpts:   opts.decodingOpts,
 		opts:           opts,
 	}
@@ -234,6 +237,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 	s.indexFileSize = indexFdStat.Size()
+	s.buffReader.file = s.indexFd
 
 	buf := make([]byte, 4096)
 	for {
@@ -417,8 +421,13 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		if err != nil {
 			return IndexEntry{}, err
 		}
-		comparison := bytes.Compare(entry.ID, idBytes)
+		comparison := bytes.Compare(entry.CheckedID.Bytes(), idBytes)
+		fmt.Println("Found: ", string(entry.CheckedID.Bytes()))
+		entry.CheckedID.DecRef()
+		entry.CheckedID.Finalize()
 		if comparison == 0 {
+			fmt.Println("entry.size: ", entry.Size)
+			fmt.Println("entry.Offset: ", entry.Offset)
 			return IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
@@ -485,14 +494,10 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		SetCheckedBytesPool(s.bytesPool)
 	seeker := &seeker{
 		// Bare-minimum required fields for a clone to function properly
-		bytesPool: s.bytesPool,
-		decoder:   msgpack.NewDecoder(decodingOpts),
-		opts:      s.opts,
-		// Mmaps are read-only so they're concurrency safe
-		dataFd:        s.dataFd,
-		indexFd:       s.indexFd,
+		bytesPool:     s.bytesPool,
+		decoder:       msgpack.NewDecoder(decodingOpts),
+		opts:          s.opts,
 		indexFileSize: s.indexFileSize,
-		buffReader:    &buffReaderWithSkip{bufio.NewReader(nil)},
 		// bloomFilter is concurrency safe
 		bloomFilter: s.bloomFilter,
 		indexLookup: indexLookupClone,
@@ -501,10 +506,15 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		s.indexFilePath: &s.indexFd,
-		s.dataFilePath:  &s.dataFd,
+		s.indexFilePath: &seeker.indexFd,
+		s.dataFilePath:  &seeker.dataFd,
 	}); err != nil {
 		return nil, err
+	}
+
+	seeker.buffReader = &buffReaderWithSkip{
+		bufio.NewReader(nil),
+		seeker.indexFd,
 	}
 
 	return seeker, nil
@@ -512,6 +522,7 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 
 type buffReaderWithSkip struct {
 	*bufio.Reader
+	file *os.File
 }
 
 func (y *buffReaderWithSkip) Skip(n int64) error {
@@ -520,4 +531,14 @@ func (y *buffReaderWithSkip) Skip(n int64) error {
 		return err
 	}
 	return nil
+}
+
+func (y *buffReaderWithSkip) Offset() (int, error) {
+	offset, err := y.file.Seek(0, 1)
+	if err != nil {
+		return -1, err
+	}
+
+	fmt.Println("in offset, offset: ", offset, " buffered: ", int(y.Buffered()))
+	return int(offset - int64(y.Buffered())), nil
 }

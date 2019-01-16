@@ -339,9 +339,35 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
-	indexEntry.ID, _, _ = dec.decodeBytes()
+
+	_, ok = dec.reader.(interface {
+		Bytes() []byte
+		Remaining() int64
+	})
+	if ok {
+		indexEntry.ID, _, _ = dec.decodeBytes()
+	} else {
+		_, length := dec.decodeBytesOffsets()
+		if dec.err != nil {
+			return emptyIndexEntry
+		}
+		checkedBytes := dec.checkedBytesPool.Get(length)
+		checkedBytes.IncRef()
+		checkedBytes.Resize(length)
+		n, err := dec.reader.Read(checkedBytes.Bytes())
+		if n != length {
+			panic("bad id")
+		}
+		if err != nil {
+			panic(err)
+			dec.err = err
+			return emptyIndexEntry
+		}
+		indexEntry.CheckedID = checkedBytes
+	}
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
+	fmt.Println("hmm offset: ", indexEntry.Offset)
 	indexEntry.Checksum = dec.decodeVarint()
 
 	if dec.legacy.decodeLegacyV1IndexEntry || actual < 6 {
@@ -349,7 +375,17 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 		return indexEntry
 	}
 
-	indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+	if ok {
+		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+	} else {
+		_, length := dec.decodeBytesOffsets()
+		if dec.err != nil {
+			return emptyIndexEntry
+		}
+		// indexEntry.IDOffset = startOffset
+		// indexEntry.IDLength = length
+		dec.reader.Skip(int64(length))
+	}
 
 	dec.skip(numFieldsToSkip)
 	return indexEntry
@@ -566,19 +602,21 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		Bytes() []byte
 		Remaining() int64
 	}
-	var ok bool
-	byteProvider, ok = dec.reader.(interface {
+	byteProvider = dec.reader.(interface {
 		Bytes() []byte
 		Remaining() int64
 	})
 
-	if dec.allocDecodedBytes || (!ok && dec.checkedBytesPool == nil) {
+	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
 		return value, -1, -1
 	}
 
 	var (
-		bytesLen = dec.decodeBytesLen()
+		bytesLen     = dec.decodeBytesLen()
+		backingBytes = byteProvider.Bytes()
+		numBytes     = len(backingBytes)
+		currPos      = int(int64(numBytes) - byteProvider.Remaining())
 	)
 
 	if dec.err != nil {
@@ -589,28 +627,35 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		return nil, -1, -1
 	}
 
-	var (
-		backingBytes = byteProvider.Bytes()
-		numBytes     = len(backingBytes)
-		currPos      = int(int64(numBytes) - byteProvider.Remaining())
-	)
+	targetPos := currPos + bytesLen
+	if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
+		dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
+		return nil, -1, -1
+	}
+	if err := dec.reader.Skip(int64(bytesLen)); err != nil {
+		dec.err = err
+		return nil, -1, -1
+	}
+	value = backingBytes[currPos:targetPos]
+	return value, currPos, bytesLen
+}
 
-	if ok {
-		targetPos := currPos + bytesLen
-		if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
-			dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
-			return nil, -1, -1
-		}
-		if err := dec.reader.Skip(int64(bytesLen)); err != nil {
-			dec.err = err
-			return nil, -1, -1
-		}
-		value = backingBytes[currPos:targetPos]
-	} else {
-
+func (dec *Decoder) decodeBytesOffsets() (int, int) {
+	if dec.err != nil {
+		return -1, -1
 	}
 
-	return value, currPos, bytesLen
+	bytesLen := dec.decodeBytesLen()
+	offsetProvider := dec.reader.(interface {
+		Offset() (int, error)
+	})
+	currPos, err := offsetProvider.Offset()
+	if err != nil {
+		dec.err = err
+		return -1, -1
+	}
+
+	return currPos, bytesLen
 }
 
 func (dec *Decoder) decodeArrayLen() int {
