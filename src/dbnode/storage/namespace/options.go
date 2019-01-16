@@ -98,7 +98,7 @@ func (o *options) Validate() error {
 	if indexBlockSize <= 0 {
 		return errIndexBlockSizePositive
 	}
-	if retention+futureRetention < indexBlockSize {
+	if retention < indexBlockSize || futureRetention < indexBlockSize {
 		return errIndexBlockSizeTooLarge
 	}
 	if indexBlockSize%dataBlockSize != 0 {

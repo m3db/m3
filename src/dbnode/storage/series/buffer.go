@@ -122,8 +122,8 @@ type dbBuffer struct {
 	bucketsMap map[xtime.UnixNano]*BufferBucketVersions
 	// Cache of buckets to avoid map lookup of above.
 	bucketsCache       [bucketsCacheSize]*BufferBucketVersions
-	bucketVersionsPool BufferBucketVersionsPool
-	bucketPool         BufferBucketPool
+	bucketVersionsPool *BufferBucketVersionsPool
+	bucketPool         *BufferBucketPool
 
 	blockSize             time.Duration
 	bufferPast            time.Duration
@@ -148,10 +148,6 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	ropts := opts.RetentionOptions()
 	b.blockRetriever = blockRetriever
 	b.bucketPool = opts.BufferBucketPool()
-	if b.bucketPool == nil {
-		b.bucketPool = NewBufferBucketPool(
-			pool.NewObjectPoolOptions().SetSize(defaultBufferBucketPoolSize))
-	}
 	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
 	if b.bucketVersionsPool == nil {
 		b.bucketVersionsPool = NewBufferBucketVersionsPool(
@@ -564,13 +560,13 @@ type BufferBucketVersions struct {
 	start             time.Time
 	opts              Options
 	lastReadUnixNanos int64
-	bucketPool        BufferBucketPool
+	bucketPool        *BufferBucketPool
 }
 
 func (b *BufferBucketVersions) resetTo(
 	start time.Time,
 	opts Options,
-	bucketPool BufferBucketPool,
+	bucketPool *BufferBucketPool,
 ) {
 	// nil all elements so that they get GC'd.
 	for i := range b.buckets {
@@ -1031,44 +1027,50 @@ func (b *BufferBucket) toBlock() (block.DatabaseBlock, error) {
 	return newBlock, nil
 }
 
-type bufferBucketVersionsPool struct {
+// BufferBucketVersionsPool provides a pool for BufferBucketVersions.
+type BufferBucketVersionsPool struct {
 	pool pool.ObjectPool
 }
 
-// NewBufferBucketVersionsPool creates a new BufferBucketVersionsPool
-func NewBufferBucketVersionsPool(opts pool.ObjectPoolOptions) BufferBucketVersionsPool {
-	p := &bufferBucketVersionsPool{pool: pool.NewObjectPool(opts)}
+// NewBufferBucketVersionsPool creates a new BufferBucketVersionsPool.
+func NewBufferBucketVersionsPool(opts pool.ObjectPoolOptions) *BufferBucketVersionsPool {
+	p := &BufferBucketVersionsPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
 		return &BufferBucketVersions{}
 	})
 	return p
 }
 
-func (p *bufferBucketVersionsPool) Get() *BufferBucketVersions {
+// Get gets a BufferBucketVersions from the pool.
+func (p *BufferBucketVersionsPool) Get() *BufferBucketVersions {
 	return p.pool.Get().(*BufferBucketVersions)
 }
 
-func (p *bufferBucketVersionsPool) Put(buckets *BufferBucketVersions) {
+// Put puts a BufferBucketVersions back into the pool.
+func (p *BufferBucketVersionsPool) Put(buckets *BufferBucketVersions) {
 	p.pool.Put(buckets)
 }
 
-type dbBufferBucketPool struct {
+// BufferBucketPool provides a pool for BufferBuckets.
+type BufferBucketPool struct {
 	pool pool.ObjectPool
 }
 
-// NewBufferBucketPool creates a new BufferBucketPool
-func NewBufferBucketPool(opts pool.ObjectPoolOptions) BufferBucketPool {
-	p := &dbBufferBucketPool{pool: pool.NewObjectPool(opts)}
+// NewBufferBucketPool creates a new BufferBucketPool.
+func NewBufferBucketPool(opts pool.ObjectPoolOptions) *BufferBucketPool {
+	p := &BufferBucketPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
 		return &BufferBucket{}
 	})
 	return p
 }
 
-func (p *dbBufferBucketPool) Get() *BufferBucket {
+// Get gets a BufferBucket from the pool.
+func (p *BufferBucketPool) Get() *BufferBucket {
 	return p.pool.Get().(*BufferBucket)
 }
 
-func (p *dbBufferBucketPool) Put(bucket *BufferBucket) {
+// Put puts a BufferBucket back into the pool.
+func (p *BufferBucketPool) Put(bucket *BufferBucket) {
 	p.pool.Put(bucket)
 }

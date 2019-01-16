@@ -280,16 +280,16 @@ type Options interface {
 	ColdWritesEnabled() bool
 
 	// SetBufferBucketVersionsPool sets the BufferBucketVersionsPool.
-	SetBufferBucketVersionsPool(value BufferBucketVersionsPool) Options
+	SetBufferBucketVersionsPool(value *BufferBucketVersionsPool) Options
 
 	// BufferBucketVersionsPool returns the BufferBucketVersionsPool.
-	BufferBucketVersionsPool() BufferBucketVersionsPool
+	BufferBucketVersionsPool() *BufferBucketVersionsPool
 
 	// SetBufferBucketPool sets the BufferBucketPool.
-	SetBufferBucketPool(value BufferBucketPool) Options
+	SetBufferBucketPool(value *BufferBucketPool) Options
 
 	// BufferBucketPool returns the BufferBucketPool.
-	BufferBucketPool() BufferBucketPool
+	BufferBucketPool() *BufferBucketPool
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
@@ -327,22 +327,4 @@ const (
 // WriteOptions define different options for a write
 type WriteOptions struct {
 	WriteType WriteType
-}
-
-// BufferBucketPool provides a pool for BufferBucket.
-type BufferBucketPool interface {
-	// Get provides a BufferBucket from the pool.
-	Get() *BufferBucket
-
-	// Put returns a BufferBucket to the pool.
-	Put(b *BufferBucket)
-}
-
-// BufferBucketVersionsPool provides a pool for BufferBucketVersions.
-type BufferBucketVersionsPool interface {
-	// Get provides a BufferBucketVersions from the pool.
-	Get() *BufferBucketVersions
-
-	// Put returns a BufferBucketVersions to the pool.
-	Put(bv *BufferBucketVersions)
 }
