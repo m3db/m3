@@ -535,8 +535,10 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onError(err error) {
-	req.err = err
-	req.resultWg.Done()
+	if req.err == nil {
+		req.err = err
+		req.resultWg.Done()
+	}
 }
 
 func (req *retrieveRequest) onRetrieved(segment ts.Segment) {
