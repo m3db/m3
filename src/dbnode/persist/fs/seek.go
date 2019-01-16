@@ -211,7 +211,12 @@ func (s *seeker) Open(
 		s.Close()
 		return err
 	}
-	if err := s.readInfo(int(infoStat.Size()), infoFdWithDigest, expectedDigests.infoDigest); err != nil {
+	if err := s.readInfo(
+		int(infoStat.Size()),
+		infoFdWithDigest,
+		expectedDigests.infoDigest,
+		resources,
+	); err != nil {
 		s.Close()
 		return err
 	}
@@ -284,17 +289,20 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 	s.unreadBuf = buf
 }
 
-func (s *seeker) readInfo(size int, infoDigestReader digest.FdWithDigestReader, expectedInfoDigest uint32) error {
+func (s *seeker) readInfo(
+	size int,
+	infoDigestReader digest.FdWithDigestReader,
+	expectedInfoDigest uint32,
+	resources ReusableSeekerResources,
+) error {
 	s.prepareUnreadBuf(size)
 	n, err := infoDigestReader.ReadAllAndValidate(s.unreadBuf[:size], expectedInfoDigest)
 	if err != nil {
 		return err
 	}
 
-	// TODO: fix me
-	decoder := msgpack.NewDecoder(s.opts.decodingOpts)
-	decoder.Reset(msgpack.NewDecoderStream(s.unreadBuf[:n]))
-	info, err := decoder.DecodeIndexInfo()
+	resources.msgpackDecoder.Reset(msgpack.NewDecoderStream(s.unreadBuf[:n]))
+	info, err := resources.msgpackDecoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
