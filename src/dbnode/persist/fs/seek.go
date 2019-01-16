@@ -232,14 +232,6 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 
-	indexFdStat, err := s.indexFd.Stat()
-	if err != nil {
-		s.Close()
-		return err
-	}
-	s.indexFileSize = indexFdStat.Size()
-	s.fileDecoderStream.setFd(s.indexFd)
-
 	err = s.validateIndexFileDigest(
 		indexFdWithDigest, expectedDigests.indexDigest)
 	if err != nil {
@@ -249,6 +241,14 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 			filesetPathFromTime(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
+
+	indexFdStat, err := s.indexFd.Stat()
+	if err != nil {
+		s.Close()
+		return err
+	}
+	s.indexFileSize = indexFdStat.Size()
+	s.fileDecoderStream.setFd(s.indexFd)
 
 	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
 		bloomFilterFd,
