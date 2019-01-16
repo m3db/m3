@@ -329,84 +329,20 @@ type WriteOptions struct {
 	WriteType WriteType
 }
 
-// BufferBucket is a bucket in the buffer.
-type BufferBucket interface {
-	ResetTo(t time.Time, wType WriteType, opts Options)
-
-	Reset()
-
-	WriteType() WriteType
-
-	StreamsLen() int
-
-	Streams(ctx context.Context) []xio.BlockReader
-
-	Merge() (int, error)
-
-	SetVersion(version int)
-
-	Version() int
-
-	AddBlock(block.DatabaseBlock)
-
-	Write(
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	ToBlock() (block.DatabaseBlock, error)
-}
-
 // BufferBucketPool provides a pool for BufferBucket.
 type BufferBucketPool interface {
 	// Get provides a BufferBucket from the pool.
-	Get() BufferBucket
+	Get() *BufferBucket
 
 	// Put returns a BufferBucket to the pool.
-	Put(b BufferBucket)
-}
-
-// BufferBucketVersions is a container for different versions (from
-// different flushes to disk) of buffer buckets in the database.
-type BufferBucketVersions interface {
-	Write(
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-		wType WriteType,
-	) error
-
-	ResetTo(start time.Time, opts Options, bucketPool BufferBucketPool)
-
-	Merge(wType WriteType) (int, error)
-
-	Streams(ctx context.Context, wType WriteType) []xio.BlockReader
-
-	ToBlocks(wType WriteType) ([]block.DatabaseBlock, error)
-
-	WritableBucket(wType WriteType) (BufferBucket, bool)
-
-	StreamsLen() int
-
-	SetLastRead(t time.Time)
-
-	LastRead() time.Time
-
-	StartTime() time.Time
-
-	Bootstrap(bl block.DatabaseBlock)
-
-	RemoveBucketsUpToVersion(version int)
+	Put(b *BufferBucket)
 }
 
 // BufferBucketVersionsPool provides a pool for BufferBucketVersions.
 type BufferBucketVersionsPool interface {
 	// Get provides a BufferBucketVersions from the pool.
-	Get() BufferBucketVersions
+	Get() *BufferBucketVersions
 
 	// Put returns a BufferBucketVersions to the pool.
-	Put(bv BufferBucketVersions)
+	Put(bv *BufferBucketVersions)
 }

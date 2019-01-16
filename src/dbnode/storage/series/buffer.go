@@ -119,9 +119,9 @@ type dbBuffer struct {
 	nowFn          clock.NowFn
 	blockRetriever QueryableBlockRetriever
 
-	bucketsMap map[xtime.UnixNano]BufferBucketVersions
+	bucketsMap map[xtime.UnixNano]*BufferBucketVersions
 	// Cache of buckets to avoid map lookup of above.
-	bucketsCache       [bucketsCacheSize]BufferBucketVersions
+	bucketsCache       [bucketsCacheSize]*BufferBucketVersions
 	bucketVersionsPool BufferBucketVersionsPool
 	bucketPool         BufferBucketPool
 
@@ -137,7 +137,7 @@ type dbBuffer struct {
 // object prior to use.
 func newDatabaseBuffer() databaseBuffer {
 	b := &dbBuffer{
-		bucketsMap: make(map[xtime.UnixNano]BufferBucketVersions),
+		bucketsMap: make(map[xtime.UnixNano]*BufferBucketVersions),
 	}
 	return b
 }
@@ -235,9 +235,9 @@ func (b *dbBuffer) Tick() bufferTickResult {
 
 		// Avoid allocating a new backing array.
 		version := retriever.RetrievableBlockVersion(blockStart)
-		buckets.RemoveBucketsUpToVersion(version)
+		buckets.removeBucketsUpToVersion(version)
 
-		if buckets.StreamsLen() == 0 {
+		if buckets.streamsLen() == 0 {
 			// All underlying buckets have been flushed successfully, so we can
 			// just remove the buckets from the bucketsMap.
 
@@ -257,7 +257,7 @@ func (b *dbBuffer) Tick() bufferTickResult {
 
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
 		// in the remaining ones to try and reclaim memory.
-		merges, err := buckets.Merge(WarmWrite)
+		merges, err := buckets.merge(WarmWrite)
 		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
 			log.Errorf("buffer merge encode error: %v", err)
@@ -274,7 +274,7 @@ func (b *dbBuffer) Tick() bufferTickResult {
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
 	blockStart := bl.StartTime()
 	buckets := b.bucketsAtCreate(blockStart)
-	buckets.Bootstrap(bl)
+	buckets.bootstrap(bl)
 }
 
 func (b *dbBuffer) Snapshot(
@@ -287,12 +287,12 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	// A call to snapshot can only be for warm writes.
-	_, err := buckets.Merge(WarmWrite)
+	_, err := buckets.merge(WarmWrite)
 	if err != nil {
 		return nil, err
 	}
 
-	streams := buckets.Streams(ctx, WarmWrite)
+	streams := buckets.streams(ctx, WarmWrite)
 	// We may need to merge again here because the regular merge method does
 	// not merge buckets that have different versions.
 	numStreams := len(streams)
@@ -342,7 +342,7 @@ func (b *dbBuffer) Flush(
 	}
 
 	// A call to flush can only be for warm writes.
-	blocks, err := buckets.ToBlocks(WarmWrite)
+	blocks, err := buckets.toBlocks(WarmWrite)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -375,8 +375,8 @@ func (b *dbBuffer) Flush(
 		}
 	}
 
-	if bucket, exists := buckets.WritableBucket(WarmWrite); exists {
-		bucket.SetVersion(version)
+	if bucket, exists := buckets.writableBucket(WarmWrite); exists {
+		bucket.version = version
 	}
 
 	return FlushOutcomeFlushedToDisk, nil
@@ -386,13 +386,13 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
 
-	b.forEachBucketAsc(func(bv BufferBucketVersions) {
-		if !bv.StartTime().Before(end) || !start.Before(bv.StartTime().Add(b.blockSize)) {
+	b.forEachBucketAsc(func(bv *BufferBucketVersions) {
+		if !bv.start.Before(end) || !start.Before(bv.start.Add(b.blockSize)) {
 			return
 		}
 
-		res = append(res, bv.Streams(ctx, WarmWrite))
-		res = append(res, bv.Streams(ctx, ColdWrite))
+		res = append(res, bv.streams(ctx, WarmWrite))
+		res = append(res, bv.streams(ctx, ColdWrite))
 
 		// NB(r): Store the last read time, should not set this when
 		// calling FetchBlocks as a read is differentiated from
@@ -400,13 +400,13 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		// entity and the other is used for streaming blocks between
 		// the storage nodes. This distinction is important as this
 		// data is important for use with understanding access patterns, etc.
-		bv.SetLastRead(b.nowFn())
+		bv.setLastRead(b.nowFn())
 	})
 
 	return res
 }
 
-func (b *dbBuffer) forEachBucketAsc(fn func(BufferBucketVersions)) {
+func (b *dbBuffer) forEachBucketAsc(fn func(*BufferBucketVersions)) {
 	buckets := b.bucketsMap
 
 	// Handle these differently to avoid allocating a slice in these cases.
@@ -443,11 +443,11 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			continue
 		}
 
-		if streams := buckets.Streams(ctx, WarmWrite); len(streams) > 0 {
+		if streams := buckets.streams(ctx, WarmWrite); len(streams) > 0 {
 			res = append(res, block.NewFetchBlockResult(start, streams, nil))
 		}
 
-		if streams := buckets.Streams(ctx, ColdWrite); len(streams) > 0 {
+		if streams := buckets.streams(ctx, ColdWrite); len(streams) > 0 {
 			res = append(res, block.NewFetchBlockResult(start, streams, nil))
 		}
 	}
@@ -466,12 +466,12 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
 
-	b.forEachBucketAsc(func(bv BufferBucketVersions) {
-		if !bv.StartTime().Before(end) || !start.Before(bv.StartTime().Add(blockSize)) {
+	b.forEachBucketAsc(func(bv *BufferBucketVersions) {
+		if !bv.start.Before(end) || !start.Before(bv.start.Add(blockSize)) {
 			return
 		}
 
-		size := int64(bv.StreamsLen())
+		size := int64(bv.streamsLen())
 		// If we have no data in this bucket, skip early without appending it to the result.
 		if size == 0 {
 			return
@@ -482,12 +482,12 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		}
 		var resultLastRead time.Time
 		if opts.IncludeLastRead {
-			resultLastRead = bv.LastRead()
+			resultLastRead = bv.lastRead()
 		}
 		// NB(r): Ignore if opts.IncludeChecksum because we avoid
 		// calculating checksum since block is open and is being mutated
 		res.Add(block.FetchBlockMetadataResult{
-			Start:    bv.StartTime(),
+			Start:    bv.start,
 			Size:     resultSize,
 			LastRead: resultLastRead,
 		})
@@ -498,13 +498,13 @@ func (b *dbBuffer) FetchBlocksMetadata(
 
 func (b *dbBuffer) bucketsAt(
 	t time.Time,
-) (BufferBucketVersions, bool) {
+) (*BufferBucketVersions, bool) {
 	// First check LRU cache.
 	for _, buckets := range b.bucketsCache {
 		if buckets == nil {
 			continue
 		}
-		if buckets.StartTime().Equal(t) {
+		if buckets.start.Equal(t) {
 			return buckets, true
 		}
 	}
@@ -519,18 +519,18 @@ func (b *dbBuffer) bucketsAt(
 
 func (b *dbBuffer) bucketsAtCreate(
 	t time.Time,
-) BufferBucketVersions {
+) *BufferBucketVersions {
 	if buckets, exists := b.bucketsAt(t); exists {
 		return buckets
 	}
 
 	buckets := b.bucketVersionsPool.Get()
-	buckets.ResetTo(t, b.opts, b.bucketPool)
+	buckets.resetTo(t, b.opts, b.bucketPool)
 	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
 	return buckets
 }
 
-func (b *dbBuffer) putBucketInCache(newBuckets BufferBucketVersions) {
+func (b *dbBuffer) putBucketInCache(newBuckets *BufferBucketVersions) {
 	replaceIdx := bucketsCacheSize - 1
 	for i, buckets := range b.bucketsCache {
 		// Check if we have the same pointer in cache.
@@ -552,20 +552,22 @@ func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
 		return
 	}
 	// nil out pointers.
-	buckets.ResetTo(timeZero, nil, nil)
+	buckets.resetTo(timeZero, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
 	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
 }
 
-type dbBufferBucketVersions struct {
-	buckets           []BufferBucket
+// BufferBucketVersions is a container for different versions (from
+// different flushes to disk) of buffer buckets in the database.
+type BufferBucketVersions struct {
+	buckets           []*BufferBucket
 	start             time.Time
 	opts              Options
 	lastReadUnixNanos int64
 	bucketPool        BufferBucketPool
 }
 
-func (b *dbBufferBucketVersions) ResetTo(
+func (b *BufferBucketVersions) resetTo(
 	start time.Time,
 	opts Options,
 	bucketPool BufferBucketPool,
@@ -581,30 +583,26 @@ func (b *dbBufferBucketVersions) ResetTo(
 	b.bucketPool = bucketPool
 }
 
-func (b *dbBufferBucketVersions) Streams(ctx context.Context, wType WriteType) []xio.BlockReader {
+func (b *BufferBucketVersions) streams(ctx context.Context, wType WriteType) []xio.BlockReader {
 	var res []xio.BlockReader
 	for _, bucket := range b.buckets {
-		if bucket.WriteType() == wType {
-			res = append(res, bucket.Streams(ctx)...)
+		if bucket.wType == wType {
+			res = append(res, bucket.streams(ctx)...)
 		}
 	}
 
 	return res
 }
 
-func (b *dbBufferBucketVersions) StreamsLen() int {
+func (b *BufferBucketVersions) streamsLen() int {
 	res := 0
 	for _, bucket := range b.buckets {
-		res += bucket.StreamsLen()
+		res += bucket.streamsLen()
 	}
 	return res
 }
 
-func (b *dbBufferBucketVersions) StartTime() time.Time {
-	return b.start
-}
-
-func (b *dbBufferBucketVersions) Write(
+func (b *BufferBucketVersions) Write(
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -614,12 +612,12 @@ func (b *dbBufferBucketVersions) Write(
 	return b.writableBucketCreate(wType).Write(timestamp, value, unit, annotation)
 }
 
-func (b *dbBufferBucketVersions) Merge(wType WriteType) (int, error) {
+func (b *BufferBucketVersions) merge(wType WriteType) (int, error) {
 	res := 0
 	for _, bucket := range b.buckets {
 		// Only makes sense to merge buckets that are writable.
-		if bucket.Version() == writableBucketVer && wType == bucket.WriteType() {
-			merges, err := bucket.Merge()
+		if bucket.version == writableBucketVer && wType == bucket.wType {
+			merges, err := bucket.merge()
 			if err != nil {
 				return res, nil
 			}
@@ -630,19 +628,19 @@ func (b *dbBufferBucketVersions) Merge(wType WriteType) (int, error) {
 	return res, nil
 }
 
-func (b *dbBufferBucketVersions) RemoveBucketsUpToVersion(version int) {
+func (b *BufferBucketVersions) removeBucketsUpToVersion(version int) {
 	// Avoid allocating a new backing array.
 	nonEvictedBuckets := b.buckets[:0]
 
 	for _, bucket := range b.buckets {
-		bVersion := bucket.Version()
+		bVersion := bucket.version
 		// TODO(juchan): deal with ColdWrite too.
-		if bucket.WriteType() == WarmWrite && bVersion != writableBucketVer &&
+		if bucket.wType == WarmWrite && bVersion != writableBucketVer &&
 			bVersion <= version {
 			// We no longer need to keep any version which is equal to
 			// or less than the retrievable version, since that means
 			// that the version has successfully persisted to disk.
-			bucket.Reset()
+			bucket.reset()
 			b.bucketPool.Put(bucket)
 			continue
 		}
@@ -653,22 +651,22 @@ func (b *dbBufferBucketVersions) RemoveBucketsUpToVersion(version int) {
 	b.buckets = nonEvictedBuckets
 }
 
-func (b *dbBufferBucketVersions) SetLastRead(value time.Time) {
+func (b *BufferBucketVersions) setLastRead(value time.Time) {
 	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
 }
 
-func (b *dbBufferBucketVersions) LastRead() time.Time {
+func (b *BufferBucketVersions) lastRead() time.Time {
 	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
-func (b *dbBufferBucketVersions) Bootstrap(bl block.DatabaseBlock) {
+func (b *BufferBucketVersions) bootstrap(bl block.DatabaseBlock) {
 	// TODO(juchan): what is a "cold" bootstrap?
-	b.writableBucketCreate(WarmWrite).AddBlock(bl)
+	b.writableBucketCreate(WarmWrite).addBlock(bl)
 }
 
-func (b *dbBufferBucketVersions) WritableBucket(wType WriteType) (BufferBucket, bool) {
+func (b *BufferBucketVersions) writableBucket(wType WriteType) (*BufferBucket, bool) {
 	for _, bucket := range b.buckets {
-		if bucket.Version() == writableBucketVer && bucket.WriteType() == wType {
+		if bucket.version == writableBucketVer && bucket.wType == wType {
 			return bucket, true
 		}
 	}
@@ -676,25 +674,25 @@ func (b *dbBufferBucketVersions) WritableBucket(wType WriteType) (BufferBucket, 
 	return nil, false
 }
 
-func (b *dbBufferBucketVersions) writableBucketCreate(wType WriteType) BufferBucket {
-	bucket, exists := b.WritableBucket(wType)
+func (b *BufferBucketVersions) writableBucketCreate(wType WriteType) *BufferBucket {
+	bucket, exists := b.writableBucket(wType)
 
 	if exists {
 		return bucket
 	}
 
 	newBucket := b.bucketPool.Get()
-	newBucket.ResetTo(b.start, wType, b.opts)
+	newBucket.resetTo(b.start, wType, b.opts)
 	b.buckets = append(b.buckets, newBucket)
 	return newBucket
 }
 
-func (b *dbBufferBucketVersions) ToBlocks(wType WriteType) ([]block.DatabaseBlock, error) {
+func (b *BufferBucketVersions) toBlocks(wType WriteType) ([]block.DatabaseBlock, error) {
 	buckets := b.buckets
 	res := make([]block.DatabaseBlock, 0, len(buckets))
 
 	for _, bucket := range buckets {
-		block, err := bucket.ToBlock()
+		block, err := bucket.toBlock()
 		if err != nil {
 			return nil, err
 		}
@@ -704,7 +702,8 @@ func (b *dbBufferBucketVersions) ToBlocks(wType WriteType) ([]block.DatabaseBloc
 	return res, nil
 }
 
-type dbBufferBucket struct {
+// BufferBucket is a bucket in the buffer.
+type BufferBucket struct {
 	opts     Options
 	start    time.Time
 	encoders []inOrderEncoder
@@ -718,13 +717,13 @@ type inOrderEncoder struct {
 	lastWriteAt time.Time
 }
 
-func (b *dbBufferBucket) ResetTo(
+func (b *BufferBucket) resetTo(
 	start time.Time,
 	wType WriteType,
 	opts Options,
 ) {
 	// Close the old context if we're resetting for use.
-	b.Reset()
+	b.reset()
 	b.wType = wType
 	b.opts = opts
 	bopts := b.opts.DatabaseBlockOptions()
@@ -738,18 +737,18 @@ func (b *dbBufferBucket) ResetTo(
 	b.blocks = nil
 }
 
-func (b *dbBufferBucket) Reset() {
+func (b *BufferBucket) reset() {
 	b.resetEncoders()
 	b.resetBlocks()
 }
 
-func (b *dbBufferBucket) AddBlock(
+func (b *BufferBucket) addBlock(
 	bl block.DatabaseBlock,
 ) {
 	b.blocks = append(b.blocks, bl)
 }
 
-func (b *dbBufferBucket) Write(
+func (b *BufferBucket) Write(
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -822,7 +821,7 @@ func (b *dbBufferBucket) Write(
 	return nil
 }
 
-func (b *dbBufferBucket) writeToEncoderIndex(
+func (b *BufferBucket) writeToEncoderIndex(
 	idx int,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
@@ -837,7 +836,7 @@ func (b *dbBufferBucket) writeToEncoderIndex(
 	return nil
 }
 
-func (b *dbBufferBucket) Streams(ctx context.Context) []xio.BlockReader {
+func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	streams := make([]xio.BlockReader, 0, len(b.blocks)+len(b.encoders))
 
 	for i := range b.blocks {
@@ -865,7 +864,7 @@ func (b *dbBufferBucket) Streams(ctx context.Context) []xio.BlockReader {
 	return streams
 }
 
-func (b *dbBufferBucket) StreamsLen() int {
+func (b *BufferBucket) streamsLen() int {
 	length := 0
 	for i := range b.blocks {
 		length += b.blocks[i].Len()
@@ -876,7 +875,7 @@ func (b *dbBufferBucket) StreamsLen() int {
 	return length
 }
 
-func (b *dbBufferBucket) resetEncoders() {
+func (b *BufferBucket) resetEncoders() {
 	var zeroed inOrderEncoder
 	for i := range b.encoders {
 		// Register when this bucket resets we close the encoder.
@@ -887,7 +886,7 @@ func (b *dbBufferBucket) resetEncoders() {
 	b.encoders = b.encoders[:0]
 }
 
-func (b *dbBufferBucket) resetBlocks() {
+func (b *BufferBucket) resetBlocks() {
 	for i := range b.blocks {
 		bl := b.blocks[i]
 		bl.Close()
@@ -895,21 +894,21 @@ func (b *dbBufferBucket) resetBlocks() {
 	b.blocks = nil
 }
 
-func (b *dbBufferBucket) needsMerge() bool {
+func (b *BufferBucket) needsMerge() bool {
 	return !(b.hasJustSingleEncoder() || b.hasJustSingleBootstrappedBlock())
 }
 
-func (b *dbBufferBucket) hasJustSingleEncoder() bool {
+func (b *BufferBucket) hasJustSingleEncoder() bool {
 	return len(b.encoders) == 1 && len(b.blocks) == 0
 }
 
-func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
+func (b *BufferBucket) hasJustSingleBootstrappedBlock() bool {
 	encodersEmpty := len(b.encoders) == 0 ||
 		(len(b.encoders) == 1 && b.encoders[0].encoder.Len() == 0)
 	return encodersEmpty && len(b.blocks) == 1
 }
 
-func (b *dbBufferBucket) Merge() (int, error) {
+func (b *BufferBucket) merge() (int, error) {
 	if !b.needsMerge() {
 		// Save unnecessary work
 		return 0, nil
@@ -980,7 +979,7 @@ func (b *dbBufferBucket) Merge() (int, error) {
 	return merges, nil
 }
 
-func (b *dbBufferBucket) ToBlock() (block.DatabaseBlock, error) {
+func (b *BufferBucket) toBlock() (block.DatabaseBlock, error) {
 	if b.hasJustSingleEncoder() {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
@@ -996,7 +995,7 @@ func (b *dbBufferBucket) ToBlock() (block.DatabaseBlock, error) {
 		// read, since it won't be in the buffer and we don't know when the
 		// flush will fully complete. Blocks are also quicker to stream from
 		// compared to from encoders, so keep the block.
-		b.AddBlock(newBlock)
+		b.addBlock(newBlock)
 		return newBlock, nil
 	}
 
@@ -1007,7 +1006,7 @@ func (b *dbBufferBucket) ToBlock() (block.DatabaseBlock, error) {
 		return b.blocks[0], nil
 	}
 
-	_, err := b.Merge()
+	_, err := b.merge()
 	if err != nil {
 		b.resetEncoders()
 		b.resetBlocks()
@@ -1028,20 +1027,8 @@ func (b *dbBufferBucket) ToBlock() (block.DatabaseBlock, error) {
 	// read, since it won't be in the buffer and we don't know when the
 	// flush will fully complete. It's also quicker to stream from blocks
 	// compared to from encoders, so keep the block instead.
-	b.AddBlock(newBlock)
+	b.addBlock(newBlock)
 	return newBlock, nil
-}
-
-func (b *dbBufferBucket) SetVersion(version int) {
-	b.version = version
-}
-
-func (b *dbBufferBucket) Version() int {
-	return b.version
-}
-
-func (b *dbBufferBucket) WriteType() WriteType {
-	return b.wType
 }
 
 type bufferBucketVersionsPool struct {
@@ -1052,16 +1039,16 @@ type bufferBucketVersionsPool struct {
 func NewBufferBucketVersionsPool(opts pool.ObjectPoolOptions) BufferBucketVersionsPool {
 	p := &bufferBucketVersionsPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return &dbBufferBucketVersions{}
+		return &BufferBucketVersions{}
 	})
 	return p
 }
 
-func (p *bufferBucketVersionsPool) Get() BufferBucketVersions {
-	return p.pool.Get().(BufferBucketVersions)
+func (p *bufferBucketVersionsPool) Get() *BufferBucketVersions {
+	return p.pool.Get().(*BufferBucketVersions)
 }
 
-func (p *bufferBucketVersionsPool) Put(buckets BufferBucketVersions) {
+func (p *bufferBucketVersionsPool) Put(buckets *BufferBucketVersions) {
 	p.pool.Put(buckets)
 }
 
@@ -1073,15 +1060,15 @@ type dbBufferBucketPool struct {
 func NewBufferBucketPool(opts pool.ObjectPoolOptions) BufferBucketPool {
 	p := &dbBufferBucketPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return &dbBufferBucket{}
+		return &BufferBucket{}
 	})
 	return p
 }
 
-func (p *dbBufferBucketPool) Get() BufferBucket {
-	return p.pool.Get().(BufferBucket)
+func (p *dbBufferBucketPool) Get() *BufferBucket {
+	return p.pool.Get().(*BufferBucket)
 }
 
-func (p *dbBufferBucketPool) Put(bucket BufferBucket) {
+func (p *dbBufferBucketPool) Put(bucket *BufferBucket) {
 	p.pool.Put(bucket)
 }
