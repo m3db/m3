@@ -496,7 +496,7 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 	// seek position.
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(s.shardDir, s.start.ToTime(), indexFileSuffix): &seeker.indexFd,
-		filesetPathFromTime(s.shardDir, s.start.ToTime(), indexFileSuffix): &seeker.dataFd,
+		filesetPathFromTime(s.shardDir, s.start.ToTime(), dataFileSuffix):  &seeker.dataFd,
 	}); err != nil {
 		return nil, err
 	}
