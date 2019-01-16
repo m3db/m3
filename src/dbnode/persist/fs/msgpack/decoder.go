@@ -23,7 +23,6 @@ package msgpack
 import (
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -49,30 +48,13 @@ var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num 
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	reader            DecoderStreamDecoder
+	reader            DecoderStream
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
 	checkedBytesPool  pool.CheckedBytesPool
 
 	legacy legacyEncodingOptions
-}
-
-type DecoderStreamDecoder interface {
-	io.Reader
-
-	// ReadByte reads the next byte.
-	ReadByte() (byte, error)
-
-	// UnreadByte unreads the last read byte or returns error if none read
-	// yet. Only a single byte can be unread at a time, a consecutive call
-	// to UnreadByte will result in an error.
-	UnreadByte() error
-
-	// Skip progresses the reader by a certain amount of bytes, useful
-	// when taking a ref to some of the bytes and progressing the reader
-	// itself.
-	Skip(length int64) error
 }
 
 // NewDecoder creates a new decoder
@@ -95,7 +77,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 }
 
 // Reset resets the data stream to decode from
-func (dec *Decoder) Reset(stream DecoderStreamDecoder) {
+func (dec *Decoder) Reset(stream DecoderStream) {
 	dec.reader = stream
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
@@ -340,10 +322,7 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
 
-	_, ok = dec.reader.(interface {
-		Bytes() []byte
-		Remaining() int64
-	})
+	_, ok = dec.reader.(ByteStream)
 	if ok {
 		indexEntry.ID, _, _ = dec.decodeBytes()
 	} else {
