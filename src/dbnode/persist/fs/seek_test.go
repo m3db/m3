@@ -78,46 +78,46 @@ func TestSeekEmptyIndex(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
-func TestSeekDataUnexpectedSize(t *testing.T) {
-	dir, err := ioutil.TempDir("", "testdb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filePathPrefix := filepath.Join(dir, "")
-	defer os.RemoveAll(dir)
+// func TestSeekDataUnexpectedSize(t *testing.T) {
+// 	dir, err := ioutil.TempDir("", "testdb")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	filePathPrefix := filepath.Join(dir, "")
+// 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(t, filePathPrefix)
-	writerOpts := DataWriterOpenOptions{
-		BlockSize: testBlockSize,
-		Identifier: FileSetFileIdentifier{
-			Namespace:  testNs1ID,
-			Shard:      0,
-			BlockStart: testWriterStart,
-		},
-	}
-	err = w.Open(writerOpts)
-	assert.NoError(t, err)
-	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
+// 	w := newTestWriter(t, filePathPrefix)
+// 	writerOpts := DataWriterOpenOptions{
+// 		BlockSize: testBlockSize,
+// 		Identifier: FileSetFileIdentifier{
+// 			Namespace:  testNs1ID,
+// 			Shard:      0,
+// 			BlockStart: testWriterStart,
+// 		},
+// 	}
+// 	err = w.Open(writerOpts)
+// 	assert.NoError(t, err)
+// 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
-	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
-		bytesRefd([]byte{1, 2, 3}),
-		digest.Checksum([]byte{1, 2, 3})))
-	assert.NoError(t, w.Close())
+// 	assert.NoError(t, w.Write(
+// 		ident.StringID("foo"), ident.Tags{},
+// 		bytesRefd([]byte{1, 2, 3}),
+// 		digest.Checksum([]byte{1, 2, 3})))
+// 	assert.NoError(t, w.Close())
 
-	// Truncate one byte
-	assert.NoError(t, os.Truncate(dataFile, 1))
+// 	// Truncate one byte
+// 	assert.NoError(t, os.Truncate(dataFile, 1))
 
-	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
-	assert.NoError(t, err)
+// 	s := newTestSeeker(filePathPrefix)
+// 	err = s.Open(testNs1ID, 0, testWriterStart)
+// 	assert.NoError(t, err)
 
-	_, err = s.SeekByID(ident.StringID("foo"))
-	assert.Error(t, err)
-	assert.Equal(t, errNotEnoughBytes, err)
+// 	_, err = s.SeekByID(ident.StringID("foo"))
+// 	assert.Error(t, err)
+// 	assert.Equal(t, errNotEnoughBytes, err)
 
-	assert.NoError(t, s.Close())
-}
+// 	assert.NoError(t, s.Close())
+// }
 
 func TestSeekBadChecksum(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdb")

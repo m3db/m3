@@ -33,6 +33,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -536,6 +537,7 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onError(err error) {
+	fmt.Println(err)
 	req.err = err
 	req.resultWg.Done()
 }

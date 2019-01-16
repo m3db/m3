@@ -20,6 +20,8 @@
 
 package msgpack
 
+import "github.com/m3db/m3x/pool"
+
 // DecodingOptions provide a set of options for decoding data
 type DecodingOptions interface {
 	// SetAllocDecodedBytes sets whether we allocate new space when decoding
@@ -29,6 +31,10 @@ type DecodingOptions interface {
 	// AllocDecodedBytes determines whether we allocate new space when decoding
 	// a byte slice
 	AllocDecodedBytes() bool
+
+	SetCheckedBytesPool(value pool.CheckedBytesPool) DecodingOptions
+
+	CheckedBytesPool() pool.CheckedBytesPool
 }
 
 const (
@@ -37,12 +43,14 @@ const (
 
 type decodingOptions struct {
 	allocDecodedBytes bool
+	checkedBytesPool  pool.CheckedBytesPool
 }
 
 // NewDecodingOptions creates a new set of decoding options
 func NewDecodingOptions() DecodingOptions {
 	return &decodingOptions{
 		allocDecodedBytes: defaultAllocDecodedBytes,
+		checkedBytesPool:  nil,
 	}
 }
 
@@ -54,4 +62,14 @@ func (o *decodingOptions) SetAllocDecodedBytes(value bool) DecodingOptions {
 
 func (o *decodingOptions) AllocDecodedBytes() bool {
 	return o.allocDecodedBytes
+}
+
+func (o *decodingOptions) SetCheckedBytesPool(value pool.CheckedBytesPool) DecodingOptions {
+	opts := *o
+	opts.checkedBytesPool = value
+	return &opts
+}
+
+func (o *decodingOptions) CheckedBytesPool() pool.CheckedBytesPool {
+	return o.checkedBytesPool
 }

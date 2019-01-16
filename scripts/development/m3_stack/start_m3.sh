@@ -59,7 +59,7 @@ sleep 10
 echo "Nodes online"
 
 echo "Initializing namespaces"
-curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
+curl -X POST localhost:7201/api/v1/namespace -d '{
   "name": "metrics_0_30m",
   "options": {
     "bootstrapEnabled": true,

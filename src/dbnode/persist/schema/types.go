@@ -22,6 +22,7 @@ package schema
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3x/checked"
 )
 
 // MajorVersion is the major schema version for a set of fileset files,
@@ -61,6 +62,9 @@ type IndexEntry struct {
 	Offset      int64
 	Checksum    int64
 	EncodedTags []byte
+
+	// Yolo
+	CheckedID checked.Bytes
 }
 
 // IndexSummary stores a summary of an index entry to lookup
