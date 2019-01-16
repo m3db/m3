@@ -23,9 +23,11 @@ package msgpack
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3x/pool"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
@@ -47,12 +49,30 @@ var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num 
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	reader            DecoderStream
+	reader            DecoderStreamDecoder
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
+	checkedBytesPool  pool.CheckedBytesPool
 
 	legacy legacyEncodingOptions
+}
+
+type DecoderStreamDecoder interface {
+	io.Reader
+
+	// ReadByte reads the next byte.
+	ReadByte() (byte, error)
+
+	// UnreadByte unreads the last read byte or returns error if none read
+	// yet. Only a single byte can be unread at a time, a consecutive call
+	// to UnreadByte will result in an error.
+	UnreadByte() error
+
+	// Skip progresses the reader by a certain amount of bytes, useful
+	// when taking a ref to some of the bytes and progressing the reader
+	// itself.
+	Skip(length int64) error
 }
 
 // NewDecoder creates a new decoder
@@ -67,6 +87,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 	reader := NewDecoderStream(nil)
 	return &Decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
+		checkedBytesPool:  opts.CheckedBytesPool(),
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
@@ -74,7 +95,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 }
 
 // Reset resets the data stream to decode from
-func (dec *Decoder) Reset(stream DecoderStream) {
+func (dec *Decoder) Reset(stream DecoderStreamDecoder) {
 	dec.reader = stream
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
@@ -318,7 +339,32 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
-	indexEntry.ID, _, _ = dec.decodeBytes()
+
+	_, ok = dec.reader.(interface {
+		Bytes() []byte
+		Remaining() int64
+	})
+	if ok {
+		indexEntry.ID, _, _ = dec.decodeBytes()
+	} else {
+		_, length := dec.decodeBytesOffsets()
+		if dec.err != nil {
+			return emptyIndexEntry
+		}
+		checkedBytes := dec.checkedBytesPool.Get(length)
+		checkedBytes.IncRef()
+		checkedBytes.Resize(length)
+		n, err := dec.reader.Read(checkedBytes.Bytes())
+		if n != length {
+			panic("bad id")
+		}
+		if err != nil {
+			panic(err)
+			dec.err = err
+			return emptyIndexEntry
+		}
+		indexEntry.CheckedID = checkedBytes
+	}
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
@@ -328,7 +374,17 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 		return indexEntry
 	}
 
-	indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+	if ok {
+		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+	} else {
+		_, length := dec.decodeBytesOffsets()
+		if dec.err != nil {
+			return emptyIndexEntry
+		}
+		// indexEntry.IDOffset = startOffset
+		// indexEntry.IDLength = length
+		dec.reader.Skip(int64(length))
+	}
 
 	dec.skip(numFieldsToSkip)
 	return indexEntry
@@ -541,6 +597,15 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
 	// slice as part of the encoded byte stream and return it
 	var value []byte
+	var byteProvider interface {
+		Bytes() []byte
+		Remaining() int64
+	}
+	byteProvider = dec.reader.(interface {
+		Bytes() []byte
+		Remaining() int64
+	})
+
 	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
 		return value, -1, -1
@@ -548,9 +613,9 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 
 	var (
 		bytesLen     = dec.decodeBytesLen()
-		backingBytes = dec.reader.Bytes()
+		backingBytes = byteProvider.Bytes()
 		numBytes     = len(backingBytes)
-		currPos      = int(int64(numBytes) - dec.reader.Remaining())
+		currPos      = int(int64(numBytes) - byteProvider.Remaining())
 	)
 
 	if dec.err != nil {
@@ -572,6 +637,24 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	}
 	value = backingBytes[currPos:targetPos]
 	return value, currPos, bytesLen
+}
+
+func (dec *Decoder) decodeBytesOffsets() (int, int) {
+	if dec.err != nil {
+		return -1, -1
+	}
+
+	bytesLen := dec.decodeBytesLen()
+	offsetProvider := dec.reader.(interface {
+		Offset() (int, error)
+	})
+	currPos, err := offsetProvider.Offset()
+	if err != nil {
+		dec.err = err
+		return -1, -1
+	}
+
+	return currPos, bytesLen
 }
 
 func (dec *Decoder) decodeArrayLen() int {

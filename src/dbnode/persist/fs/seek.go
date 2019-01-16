@@ -21,16 +21,17 @@
 package fs
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -66,8 +67,13 @@ type seeker struct {
 	bloomFilterInfo schema.IndexBloomFilterInfo
 	summariesInfo   schema.IndexSummariesInfo
 
-	dataMmap  []byte
-	indexMmap []byte
+	dataFd        *os.File
+	indexFd       *os.File
+	indexFileSize int64
+	buffReader    *buffReaderWithSkip
+
+	dataFilePath  string
+	indexFilePath string
 
 	unreadBuf []byte
 
@@ -142,11 +148,18 @@ type fileSetSeeker interface {
 }
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
+	if opts.decodingOpts == nil {
+		opts.decodingOpts = msgpack.NewDecodingOptions()
+	}
+	decodingOpts := opts.decodingOpts.
+		SetCheckedBytesPool(opts.bytesPool)
+
 	return &seeker{
 		filePathPrefix: opts.filePathPrefix,
 		keepUnreadBuf:  opts.keepUnreadBuf,
 		bytesPool:      opts.bytesPool,
-		decoder:        msgpack.NewDecoder(opts.decodingOpts),
+		decoder:        msgpack.NewDecoder(decodingOpts),
+		buffReader:     &buffReaderWithSkip{bufio.NewReader(nil), nil},
 		decodingOpts:   opts.decodingOpts,
 		opts:           opts,
 	}
@@ -162,13 +175,15 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	}
 
 	shardDir := ShardDataDirPath(s.filePathPrefix, namespace, shard)
-	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
+	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
 
+	s.indexFilePath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
+	s.dataFilePath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
 		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
 		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
 		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
@@ -187,47 +202,17 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	defer func() {
 		// NB(rartoul): We don't need to keep these FDs open as we use these up front
 		infoFdWithDigest.Close()
-		indexFdWithDigest.Close()
+		// indexFdWithDigest.Close()
 		bloomFilterFdWithDigest.Close()
 		summariesFdWithDigest.Close()
 		digestFdWithDigestContents.Close()
-		dataFd.Close()
+		// dataFd.Close()
 	}()
 
 	infoFdWithDigest.Reset(infoFd)
-	indexFdWithDigest.Reset(indexFd)
+	indexFdWithDigest.Reset(s.indexFd)
 	summariesFdWithDigest.Reset(summariesFd)
 	digestFdWithDigestContents.Reset(digestFd)
-
-	// Mmap necessary files
-	mmapOptions := mmap.Options{
-		Read: true,
-		HugeTLB: mmap.HugeTLBOptions{
-			Enabled:   s.opts.opts.MmapEnableHugeTLB(),
-			Threshold: s.opts.opts.MmapHugeTLBThreshold(),
-		},
-	}
-	mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
-			File:    &indexFd,
-			Bytes:   &s.indexMmap,
-			Options: mmapOptions,
-		},
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
-			File:    &dataFd,
-			Bytes:   &s.dataMmap,
-			Options: mmapOptions,
-		},
-	})
-	if err != nil {
-		s.Close()
-		return err
-	}
-	if warning := mmapResult.Warning; warning != nil {
-		logger := s.opts.opts.InstrumentOptions().Logger()
-		logger.Warnf("warning while mmaping files in seeker: %s",
-			warning.Error())
-	}
 
 	expectedDigests, err := readFileSetDigests(digestFdWithDigestContents)
 	if err != nil {
@@ -246,11 +231,30 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 
-	if digest.Checksum(s.indexMmap) != expectedDigests.indexDigest {
+	indexFdStat, err := s.indexFd.Stat()
+	if err != nil {
+		s.Close()
+		return err
+	}
+	s.indexFileSize = indexFdStat.Size()
+	s.buffReader.file = s.indexFd
+
+	buf := make([]byte, 4096)
+	for {
+		n, err := indexFdWithDigest.Read(buf)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("error reading index file: %v", err)
+		}
+		if n == 0 || err == io.EOF {
+			break
+		}
+	}
+	err = indexFdWithDigest.Validate(expectedDigests.indexDigest)
+	if err != nil {
 		s.Close()
 		return fmt.Errorf(
-			"index file digest for file: %s does not match the expected digest",
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix),
+			"index file digest for file: %s does not match the expected digest: %c",
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
 
@@ -342,19 +346,12 @@ func (s *seeker) SeekByID(id ident.ID) (checked.Bytes, error) {
 // instead of looking it up on its own. Useful in cases where you've already
 // obtained an entry and don't want to waste resources looking it up again.
 func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
-	// Should never happen, but prevent panics if somehow we're provided an index entry
-	// with a negative or too large offset
-	if int(entry.Offset) > len(s.dataMmap)-1 {
-		return nil, errInvalidDataFileOffset
+	newOffset, err := s.dataFd.Seek(entry.Offset, 0)
+	if err != nil {
+		return nil, err
 	}
-
-	// We'll treat "data" similar to a reader interface, I.E after every read we'll
-	// reslice it such that the first byte is the next byte we want to read.
-	data := s.dataMmap[entry.Offset:]
-
-	// Should never happen, but prevents panics in the case of malformed data
-	if len(data) < int(entry.Size) {
-		return nil, errNotEnoughBytes
+	if newOffset != entry.Offset {
+		return nil, fmt.Errorf("tried to seek to: %d, but seeked to: %d", entry.Offset, newOffset)
 	}
 
 	// Obtain an appropriately sized buffer
@@ -372,7 +369,13 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 
 	// Copy the actual data into the underlying buffer
 	underlyingBuf := buffer.Bytes()
-	copy(underlyingBuf, data[:entry.Size])
+	n, err := s.dataFd.Read(underlyingBuf)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(entry.Size) {
+		return nil, fmt.Errorf("tried to read: %d bytes but read: %d", entry.Size, n)
+	}
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
@@ -391,19 +394,36 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		return IndexEntry{}, err
 	}
 
-	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
-	s.decoder.Reset(stream)
+	seekedOffset, err := s.indexFd.Seek(offset, 0)
+	if err != nil {
+		return IndexEntry{}, err
+	}
+	if seekedOffset != offset {
+		return IndexEntry{}, fmt.Errorf("tried to seek to offset: %d, but seeked to: %d", seekedOffset, offset)
+	}
+
+	s.buffReader.Reset(s.indexFd)
+	s.decoder.Reset(s.buffReader)
 
 	idBytes := id.Bytes()
-	// Prevent panic's when we're scanning to the end of the buffer
-	for stream.Remaining() != 0 {
+	for {
+		// Prevent panic's when we're scanning to the end of the buffer
+		currOffset, err := s.indexFd.Seek(0, 1)
+		if err != nil {
+			return IndexEntry{}, err
+		}
+		if currOffset >= s.indexFileSize && s.buffReader.Buffered() <= 0 {
+			return IndexEntry{}, errSeekIDNotFound
+		}
 		entry, err := s.decoder.DecodeIndexEntry()
 		// Should never happen, either something is really wrong with the code or
 		// the file on disk was corrupted
 		if err != nil {
 			return IndexEntry{}, err
 		}
-		comparison := bytes.Compare(entry.ID, idBytes)
+		comparison := bytes.Compare(entry.CheckedID.Bytes(), idBytes)
+		entry.CheckedID.DecRef()
+		entry.CheckedID.Finalize()
 		if comparison == 0 {
 			return IndexEntry{
 				Size:        uint32(entry.Size),
@@ -448,13 +468,13 @@ func (s *seeker) Close() error {
 		multiErr = multiErr.Add(s.indexLookup.close())
 		s.indexLookup = nil
 	}
-	if s.indexMmap != nil {
-		multiErr = multiErr.Add(mmap.Munmap(s.indexMmap))
-		s.indexMmap = nil
+	if s.indexFd != nil {
+		multiErr = multiErr.Add(s.indexFd.Close())
+		s.indexFd = nil
 	}
-	if s.dataMmap != nil {
-		multiErr = multiErr.Add(mmap.Munmap(s.dataMmap))
-		s.dataMmap = nil
+	if s.dataFd != nil {
+		multiErr = multiErr.Add(s.dataFd.Close())
+		s.dataFd = nil
 	}
 	return multiErr.FinalError()
 }
@@ -467,17 +487,54 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		return nil, err
 	}
 
-	return &seeker{
+	decodingOpts := s.decodingOpts.
+		SetCheckedBytesPool(s.bytesPool)
+	seeker := &seeker{
 		// Bare-minimum required fields for a clone to function properly
-		bytesPool: s.bytesPool,
-		decoder:   msgpack.NewDecoder(s.decodingOpts),
-		opts:      s.opts,
-		// Mmaps are read-only so they're concurrency safe
-		dataMmap:  s.dataMmap,
-		indexMmap: s.indexMmap,
+		bytesPool:     s.bytesPool,
+		decoder:       msgpack.NewDecoder(decodingOpts),
+		opts:          s.opts,
+		indexFileSize: s.indexFileSize,
 		// bloomFilter is concurrency safe
 		bloomFilter: s.bloomFilter,
 		indexLookup: indexLookupClone,
 		isClone:     true,
-	}, nil
+	}
+
+	// Open necessary files
+	if err := openFiles(os.Open, map[string]**os.File{
+		s.indexFilePath: &seeker.indexFd,
+		s.dataFilePath:  &seeker.dataFd,
+	}); err != nil {
+		return nil, err
+	}
+
+	seeker.buffReader = &buffReaderWithSkip{
+		bufio.NewReader(nil),
+		seeker.indexFd,
+	}
+
+	return seeker, nil
+}
+
+type buffReaderWithSkip struct {
+	*bufio.Reader
+	file *os.File
+}
+
+func (y *buffReaderWithSkip) Skip(n int64) error {
+	_, err := y.Discard(int(n))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (y *buffReaderWithSkip) Offset() (int, error) {
+	offset, err := y.file.Seek(0, 1)
+	if err != nil {
+		return -1, err
+	}
+
+	return int(offset - int64(y.Buffered())), nil
 }
