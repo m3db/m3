@@ -129,6 +129,7 @@ type dbBuffer struct {
 	bufferPast            time.Duration
 	bufferFuture          time.Duration
 	coldWritesEnabled     bool
+	retentionPeriod       time.Duration
 	futureRetentionPeriod time.Duration
 }
 
@@ -160,6 +161,7 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
 	b.coldWritesEnabled = opts.ColdWritesEnabled()
+	b.retentionPeriod = ropts.RetentionPeriod()
 	b.futureRetentionPeriod = ropts.FutureRetentionPeriod()
 }
 
@@ -182,7 +184,11 @@ func (b *dbBuffer) Write(
 			return m3dberrors.ErrColdWritesNotEnabled
 		}
 
-		if now.Add(b.futureRetentionPeriod).Before(timestamp) {
+		if now.Add(-b.retentionPeriod).Truncate(b.blockSize).After(timestamp) {
+			return m3dberrors.ErrTooPast
+		}
+
+		if now.Add(b.futureRetentionPeriod).Truncate(b.blockSize).Add(b.blockSize).Before(timestamp) {
 			return m3dberrors.ErrTooFuture
 		}
 	}
@@ -242,7 +248,9 @@ func (b *dbBuffer) Tick() bufferTickResult {
 			//   2) be merged with the new data.
 			// This needs to happen because the buffer just flushed new data
 			// to disk, which the cached block does not have, and is
-			// therefore invalid.
+			// therefore invalid. This was fine while the missing data was still
+			// in memory, but once we evict it from the buffer we need to make
+			// sure that we bust the cache as well.
 			b.removeBucketsAt(blockStart)
 			continue
 		}
@@ -400,6 +408,15 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 
 func (b *dbBuffer) forEachBucketAsc(fn func(BufferBucketVersions)) {
 	buckets := b.bucketsMap
+
+	// Handle these differently to avoid allocating a slice in these cases.
+	if len(buckets) == 0 || len(buckets) == 1 {
+		for key := range buckets {
+			fn(buckets[key])
+		}
+		return
+	}
+
 	keys := make([]xtime.UnixNano, len(buckets))
 	i := 0
 	for k := range buckets {
@@ -479,15 +496,6 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	return res
 }
 
-func (b *dbBuffer) newBucketsAt(
-	t time.Time,
-) BufferBucketVersions {
-	buckets := b.bucketVersionsPool.Get()
-	buckets.ResetTo(t, b.opts, b.bucketPool)
-	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
-	return buckets
-}
-
 func (b *dbBuffer) bucketsAt(
 	t time.Time,
 ) (BufferBucketVersions, bool) {
@@ -516,7 +524,10 @@ func (b *dbBuffer) bucketsAtCreate(
 		return buckets
 	}
 
-	return b.newBucketsAt(t)
+	buckets := b.bucketVersionsPool.Get()
+	buckets.ResetTo(t, b.opts, b.bucketPool)
+	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
+	return buckets
 }
 
 func (b *dbBuffer) putBucketInCache(newBuckets BufferBucketVersions) {
@@ -672,16 +683,9 @@ func (b *dbBufferBucketVersions) writableBucketCreate(wType WriteType) BufferBuc
 		return bucket
 	}
 
-	return b.newBucketAt(b.start, wType)
-}
-
-func (b *dbBufferBucketVersions) newBucketAt(
-	t time.Time,
-	wType WriteType,
-) BufferBucket {
 	newBucket := b.bucketPool.Get()
-	newBucket.ResetTo(t, wType, b.opts)
-	b.buckets = append([]BufferBucket{newBucket}, b.buckets...)
+	newBucket.ResetTo(b.start, wType, b.opts)
+	b.buckets = append(b.buckets, newBucket)
 	return newBucket
 }
 
