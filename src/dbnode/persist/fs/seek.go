@@ -67,10 +67,10 @@ type seeker struct {
 	bloomFilterInfo schema.IndexBloomFilterInfo
 	summariesInfo   schema.IndexSummariesInfo
 
-	dataFd        *os.File
-	indexFd       *os.File
-	indexFileSize int64
-	buffReader    *buffReaderWithSkip
+	dataFd            *os.File
+	indexFd           *os.File
+	indexFileSize     int64
+	fileDecoderStream *fileDecoderStream
 
 	dataFilePath  string
 	indexFilePath string
@@ -155,13 +155,13 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		SetCheckedBytesPool(opts.bytesPool)
 
 	return &seeker{
-		filePathPrefix: opts.filePathPrefix,
-		keepUnreadBuf:  opts.keepUnreadBuf,
-		bytesPool:      opts.bytesPool,
-		decoder:        msgpack.NewDecoder(decodingOpts),
-		buffReader:     &buffReaderWithSkip{bufio.NewReader(nil), nil},
-		decodingOpts:   opts.decodingOpts,
-		opts:           opts,
+		filePathPrefix:    opts.filePathPrefix,
+		keepUnreadBuf:     opts.keepUnreadBuf,
+		bytesPool:         opts.bytesPool,
+		decoder:           msgpack.NewDecoder(decodingOpts),
+		fileDecoderStream: newfileDecoderStream(bufio.NewReader(nil), nil),
+		decodingOpts:      opts.decodingOpts,
+		opts:              opts,
 	}
 }
 
@@ -235,7 +235,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 	s.indexFileSize = indexFdStat.Size()
-	s.buffReader.file = s.indexFd
+	s.fileDecoderStream.setFd(s.indexFd)
 
 	buf := make([]byte, 4096)
 	for {
@@ -400,8 +400,8 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		return IndexEntry{}, fmt.Errorf("tried to seek to offset: %d, but seeked to: %d", seekedOffset, offset)
 	}
 
-	s.buffReader.Reset(s.indexFd)
-	s.decoder.Reset(s.buffReader)
+	s.fileDecoderStream.Reset(s.indexFd)
+	s.decoder.Reset(s.fileDecoderStream)
 
 	idBytes := id.Bytes()
 	for {
@@ -410,7 +410,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		if err != nil {
 			return IndexEntry{}, err
 		}
-		if currOffset >= s.indexFileSize && s.buffReader.Buffered() <= 0 {
+		if currOffset >= s.indexFileSize && s.fileDecoderStream.Buffered() <= 0 {
 			return IndexEntry{}, errSeekIDNotFound
 		}
 		entry, err := s.decoder.DecodeIndexEntry()
@@ -507,32 +507,42 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		return nil, err
 	}
 
-	seeker.buffReader = &buffReaderWithSkip{
+	seeker.fileDecoderStream = newfileDecoderStream(
 		bufio.NewReader(nil),
 		seeker.indexFd,
-	}
+	)
 
 	return seeker, nil
 }
 
-type buffReaderWithSkip struct {
-	*bufio.Reader
-	file *os.File
+func newfileDecoderStream(b *bufio.Reader, fd *os.File) *fileDecoderStream {
+	return &fileDecoderStream{b, fd}
 }
 
-func (y *buffReaderWithSkip) Skip(n int64) error {
-	_, err := y.Discard(int(n))
+// fileDecoderStream wraps a file descriptor with a buffered reader and some
+// additional methods so that it implements msgpack.DecoderStream.
+type fileDecoderStream struct {
+	*bufio.Reader
+	fd *os.File
+}
+
+func (w *fileDecoderStream) Skip(n int64) error {
+	_, err := w.Discard(int(n))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (y *buffReaderWithSkip) Offset() (int, error) {
-	offset, err := y.file.Seek(0, 1)
+func (w *fileDecoderStream) Offset() (int, error) {
+	offset, err := w.fd.Seek(0, 1)
 	if err != nil {
 		return -1, err
 	}
 
-	return int(offset - int64(y.Buffered())), nil
+	return int(offset - int64(w.Buffered())), nil
+}
+
+func (w *fileDecoderStream) setFd(fd *os.File) {
+	w.fd = fd
 }
