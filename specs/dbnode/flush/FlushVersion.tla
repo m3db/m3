@@ -29,13 +29,14 @@ CONSTANT maxNumTicks
 \*
 \*    2. One process responsible for creating new buckets by issuing "writes". It does
 \*       this by storing them in the BucketsInMemory set, as well as in the
-\*       WrittenBuckets set (so we can keep track of them independentLY of the eviction
+\*       WrittenBuckets set (so we can keep track of them independently of the eviction
 \*       from memory process).
 \*
 \*
 \*    3. One process responsible for the "Ticking" process that will periodically evict
 \*       every bucket from the BucketsInMemory set whose LastSuccessfulFlushVersion is >=
-\*       CurrentLastSuccessfulFlushVersion and also > 0.
+\*       CurrentLastSuccessfulFlushVersion and also > 0 (because version zero is the bucket
+\*       for unflushed writes).
 \*
 \*
 \* The specification verifies the system by allowing all of these processes to run
@@ -61,15 +62,14 @@ variable
     \* The last version that was successfully flushed to disk.
     LastSuccessfulFlushVersion = 0;
 
+\* Simulate background flushes which either succeed, copy buckets to the
+\* PersistedBuckets set and then increment the flush version, or fail and
+\* leave everything as is.
 process Flush = 0
     variable
         CurrentIndex = 0;
         \* Whether a flush is currently ongoing.
         FlushInProgress = FALSE;
-
-\* Simulate background flushes which either succeed, copy buckets to the
-\* PersistedBuckets set and then increment the flush version, or fail and
-\* leave everything as is.
 begin
     flush_loop: while CurrentIndex < maxNumFlushes do
         either
