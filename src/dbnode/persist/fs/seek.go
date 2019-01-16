@@ -60,11 +60,11 @@ var (
 )
 
 type seeker struct {
-	opts           seekerOpts
-	filePathPrefix string
+	opts seekerOpts
 
-	// Data read from the indexInfo file
-	start           time.Time
+	// Data read from the indexInfo file. Note that we use xtime.UnixNano
+	// instead of time.Time to avoid keeping an extra pointer around.
+	start           xtime.UnixNano
 	blockSize       time.Duration
 	entries         int
 	bloomFilterInfo schema.IndexBloomFilterInfo
@@ -75,21 +75,16 @@ type seeker struct {
 	indexFileSize     int64
 	fileDecoderStream *fileDecoderStream
 
-	dataFilePath  string
-	indexFilePath string
+	shardDir string
 
 	unreadBuf []byte
 
-	decoder      *msgpack.Decoder
-	decodingOpts msgpack.DecodingOptions
-	bytesPool    pool.CheckedBytesPool
+	decoder *msgpack.Decoder
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
 	indexLookup *nearestIndexOffsetLookup
-
-	keepUnreadBuf bool
 
 	isClone bool
 }
@@ -158,12 +153,8 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		SetCheckedBytesPool(opts.bytesPool)
 
 	return &seeker{
-		filePathPrefix:    opts.filePathPrefix,
-		keepUnreadBuf:     opts.keepUnreadBuf,
-		bytesPool:         opts.bytesPool,
 		decoder:           msgpack.NewDecoder(decodingOpts),
 		fileDecoderStream: newfileDecoderStream(bufio.NewReader(nil), nil),
-		decodingOpts:      opts.decodingOpts,
 		opts:              opts,
 	}
 }
@@ -177,11 +168,10 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return errClonesShouldNotBeOpened
 	}
 
-	shardDir := ShardDataDirPath(s.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
+	s.shardDir = shardDir
 	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
 
-	s.indexFilePath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-	s.dataFilePath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
@@ -276,7 +266,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 
-	if !s.keepUnreadBuf {
+	if !s.opts.keepUnreadBuf {
 		// NB(r): Free the unread buffer and reset the decoder as unless
 		// using this seeker in the seeker manager we never use this buffer again
 		s.unreadBuf = nil
@@ -314,7 +304,7 @@ func (s *seeker) readInfo(size int, infoDigestReader digest.FdWithDigestReader, 
 		return err
 	}
 
-	s.start = xtime.FromNanoseconds(info.BlockStart)
+	s.start = xtime.UnixNano(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter
@@ -348,8 +338,8 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 
 	// Obtain an appropriately sized buffer
 	var buffer checked.Bytes
-	if s.bytesPool != nil {
-		buffer = s.bytesPool.Get(int(entry.Size))
+	if s.opts.bytesPool != nil {
+		buffer = s.opts.bytesPool.Get(int(entry.Size))
 		buffer.IncRef()
 		defer buffer.DecRef()
 		buffer.Resize(int(entry.Size))
@@ -446,15 +436,10 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 			return IndexEntry{}, errSeekIDNotFound
 		}
 	}
-
-	// Similar to the case above where comparison == 1, except in this case we're
-	// sure that the ID we're looking for doesn't exist because we reached the end
-	// of the index file.
-	return IndexEntry{}, errSeekIDNotFound
 }
 
 func (s *seeker) Range() xtime.Range {
-	return xtime.Range{Start: s.start, End: s.start.Add(s.blockSize)}
+	return xtime.Range{Start: s.start.ToTime(), End: s.start.ToTime().Add(s.blockSize)}
 }
 
 func (s *seeker) Entries() int {
@@ -494,11 +479,10 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		return nil, err
 	}
 
-	decodingOpts := s.decodingOpts.
-		SetCheckedBytesPool(s.bytesPool)
+	decodingOpts := s.opts.decodingOpts.
+		SetCheckedBytesPool(s.opts.bytesPool)
 	seeker := &seeker{
 		// Bare-minimum required fields for a clone to function properly.
-		bytesPool:     s.bytesPool,
 		decoder:       msgpack.NewDecoder(decodingOpts),
 		opts:          s.opts,
 		indexFileSize: s.indexFileSize,
@@ -511,8 +495,8 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 	// File descriptors are not concurrency safe since they have an internal
 	// seek position.
 	if err := openFiles(os.Open, map[string]**os.File{
-		s.indexFilePath: &seeker.indexFd,
-		s.dataFilePath:  &seeker.dataFd,
+		filesetPathFromTime(s.shardDir, s.start.ToTime(), indexFileSuffix): &seeker.indexFd,
+		filesetPathFromTime(s.shardDir, s.start.ToTime(), indexFileSuffix): &seeker.dataFd,
 	}); err != nil {
 		return nil, err
 	}
