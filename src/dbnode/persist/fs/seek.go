@@ -409,7 +409,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		}
 
 		entry, err := s.decoder.DecodeIndexEntry()
-		if err != nil || entry.CheckedID == nil {
+		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
 			return IndexEntry{}, err
