@@ -33,7 +33,6 @@ package fs
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -537,7 +536,6 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onError(err error) {
-	fmt.Println(err)
 	req.err = err
 	req.resultWg.Done()
 }
@@ -563,7 +561,10 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 
 func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.reader.Reset(segment)
-	req.resultWg.Done()
+	if req.err == nil {
+		// If there was an error, we've already called done.
+		req.resultWg.Done()
+	}
 }
 
 func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
