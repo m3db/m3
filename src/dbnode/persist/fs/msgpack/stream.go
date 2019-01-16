@@ -36,9 +36,6 @@ import (
 type DecoderStream interface {
 	io.Reader
 
-	// Reset resets the decoder stream for decoding a new byte slice.
-	Reset(b []byte)
-
 	// ReadByte reads the next byte.
 	ReadByte() (byte, error)
 
@@ -47,21 +44,35 @@ type DecoderStream interface {
 	// to UnreadByte will result in an error.
 	UnreadByte() error
 
-	// Bytes returns the ref to the bytes provided when Reset(...) is
-	// called. To get the current position into the byte slice use:
-	// len(s.Bytes()) - s.Remaining()
-	Bytes() []byte
-
 	// Skip progresses the reader by a certain amount of bytes, useful
 	// when taking a ref to some of the bytes and progressing the reader
 	// itself.
 	Skip(length int64) error
 
+	// Offset returns the current offset in the byte stream.
+	Offset() (int, error)
+}
+
+// ByteDecoderStream is an additional interface that some decoder streams
+// can implement if they are backed by a byte slice.
+type ByteDecoderStream interface {
+	DecoderStream
+	ByteStream
+}
+
+// ByteStream is the interface that contains the additional methods which
+// can be implemented by streams that are backed by byte slices.
+type ByteStream interface {
+	// Bytes returns the ref to the bytes provided when Reset(...) is
+	// called. To get the current position into the byte slice use:
+	// len(s.Bytes()) - s.Remaining()
+	Bytes() []byte
+
 	// Remaining returns the remaining bytes in the stream.
 	Remaining() int64
 
-	// Offset returns the current offset in the byte stream
-	Offset() int
+	// Reset resets the decoder stream for decoding a new byte slice.
+	Reset(b []byte)
 }
 
 type decoderStream struct {
@@ -74,7 +85,7 @@ type decoderStream struct {
 }
 
 // NewDecoderStream creates a new decoder stream from a bytes ref.
-func NewDecoderStream(b []byte) DecoderStream {
+func NewDecoderStream(b []byte) ByteDecoderStream {
 	return &decoderStream{
 		reader:       bytes.NewReader(b),
 		bytes:        b,
@@ -162,6 +173,6 @@ func (s *decoderStream) Remaining() int64 {
 	return int64(s.reader.Len()) + unreadBytes
 }
 
-func (s *decoderStream) Offset() int {
-	return s.bytesLen - int(s.Remaining())
+func (s *decoderStream) Offset() (int, error) {
+	return s.bytesLen - int(s.Remaining()), nil
 }

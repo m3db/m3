@@ -42,7 +42,7 @@ type nearestIndexOffsetLookup struct {
 	// bytes from file mmap'd into anonymous region
 	summariesMmap []byte
 	// reusable decoder stream
-	decoderStream  xmsgpack.DecoderStream
+	decoderStream  xmsgpack.ByteDecoderStream
 	msgpackDecoder *msgpack.Decoder
 	isClone        bool
 }
@@ -50,7 +50,7 @@ type nearestIndexOffsetLookup struct {
 func newNearestIndexOffsetLookup(
 	summaryIDsOffsets []xmsgpack.IndexSummaryToken,
 	summariesMmap []byte,
-	decoderStream xmsgpack.DecoderStream,
+	decoderStream xmsgpack.ByteDecoderStream,
 ) *nearestIndexOffsetLookup {
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,

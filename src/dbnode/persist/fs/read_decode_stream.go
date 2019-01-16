@@ -30,7 +30,7 @@ import (
 )
 
 type dataFileSetReaderDecoderStream interface {
-	msgpack.DecoderStream
+	msgpack.ByteDecoderStream
 
 	// reader returns the underlying reader with access to the
 	// incremental computed digest
@@ -147,6 +147,6 @@ func (s *readerDecoderStream) Remaining() int64 {
 	return int64(s.bytesReader.Len()) + unreadBytes
 }
 
-func (s *readerDecoderStream) Offset() int {
-	return len(s.backingBytes) - int(s.Remaining())
+func (s *readerDecoderStream) Offset() (int, error) {
+	return len(s.backingBytes) - int(s.Remaining()), nil
 }
