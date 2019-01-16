@@ -310,7 +310,7 @@ func (r *blockRetriever) fetchBatch(
 			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
 		}
 
-		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found
+		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
 		callOnRetrieve := req.onRetrieve != nil && !req.notFound
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
