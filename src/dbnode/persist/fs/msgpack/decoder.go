@@ -44,9 +44,10 @@ var (
 	emptyLogEntry               schema.LogEntry
 	emptyLogMetadata            schema.LogMetadata
 	emptyLogEntryRemainingToken DecodeLogEntryRemainingToken
-)
 
-var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num fields to skip")
+	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
+	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+)
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
@@ -563,6 +564,10 @@ func (dec *Decoder) decodeFloat64() float64 {
 // Should only be called if dec.byteReader != nil.
 func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	if dec.err != nil {
+		return nil, -1, -1
+	}
+	if dec.byteReader == nil {
+		dec.err = errorCalledDecodeBytesWithoutByteStreamDecoder
 		return nil, -1, -1
 	}
 	// If we need to allocate new space for decoded byte slice, we delegate it to msgpack
