@@ -161,7 +161,6 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
-
 	var (
 		seekerResources = NewReusableSeekerResources(r.fsOpts)
 		inFlight        []*retrieveRequest
