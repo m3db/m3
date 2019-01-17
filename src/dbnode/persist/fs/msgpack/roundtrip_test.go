@@ -242,7 +242,6 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 }
 
 func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
-
 	var (
 		pool = pool.NewBytesPool(nil, nil)
 		enc  = NewEncoder()
