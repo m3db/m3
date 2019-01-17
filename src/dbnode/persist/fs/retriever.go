@@ -334,19 +334,26 @@ func (r *blockRetriever) fetchBatch(
 				decoder.Reset(tags)
 				req.tags = decoder
 			}
+		} else {
+			// If we didn't transfer ownership of the tags to the decoder above, then we
+			// no longer need them and we can can finalize them.
+			if tags := req.indexEntry.EncodedTags; tags != nil {
+				tags.DecRef()
+				tags.Finalize()
+			}
 		}
 
-		// Complete request
+		// Complete request.
 		req.onRetrieved(seg)
 
 		if !callOnRetrieve {
-			// No need to call the onRetrieve callback
+			// No need to call the onRetrieve callback.
 			req.onCallerOrRetrieverDone()
 			continue
 		}
 
 		go func(r *retrieveRequest) {
-			// Call the onRetrieve callback and finalize
+			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg)
 			r.onCallerOrRetrieverDone()
 		}(req)
