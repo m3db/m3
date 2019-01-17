@@ -234,11 +234,12 @@ func TestConsolidatedSeriesIteratorSplitByBlock(t *testing.T) {
 			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
 			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
-				series, err := iters.Current()
-				require.NoError(t, err)
+				series := iters.Current()
 				test.EqualsWithNans(t, tt.expected[idx][j], series.Values())
 				j++
 			}
+
+			require.NoError(t, iters.Err())
 		}
 	}
 }

@@ -143,11 +143,6 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	}
 
 	firstBlock := blockList[0].block
-	firstStepIter, err := firstBlock.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
 	firstSeriesIter, err := firstBlock.SeriesIter()
 	if err != nil {
 		return nil, err
@@ -171,12 +166,21 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		seriesIters[i] = seriesIter
 	}
 
-	numValues := firstStepIter.StepCount() * len(blockList)
+	numValues := 0
+	for _, block := range blockList {
+		b, _ := block.block.StepIter()
+		numValues += b.StepCount()
+	}
+
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
+				if err = iter.Err(); err != nil {
+					return nil, err
+				}
+
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
@@ -224,21 +228,11 @@ func insertSortedBlock(
 			"the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
 	}
 
-	blockStepIter, err := b.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	blockStepCount := blockStepIter.StepCount()
-	if stepCount != blockStepCount {
-		return nil, fmt.Errorf("mismatch in number of steps for the"+
-			"block, wanted: %d, found: %d", stepCount, blockStepCount)
-	}
-
 	// Binary search to keep the start times sorted
 	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.Before(blockMeta.Bounds.Start)
+		return blockList[i].meta.Bounds.Start.After(blockMeta.Bounds.Start)
 	})
+
 	// Append here ensures enough size in the slice
 	blockList = append(blockList, blockWithMeta{})
 	copy(blockList[index+1:], blockList[index:])
@@ -246,5 +240,6 @@ func insertSortedBlock(
 		block: b,
 		meta:  blockMeta,
 	}
+
 	return blockList, nil
 }

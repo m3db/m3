@@ -258,12 +258,13 @@ func TestConsolidatedStepIteratorSplitByBlock(t *testing.T) {
 			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
 			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
-				step, err := iters.Current()
-				require.NoError(t, err)
+				step := iters.Current()
 				vals := step.Values()
 				test.EqualsWithNans(t, tt.expected[idx][j], vals)
 				j++
 			}
+
+			require.NoError(t, iters.Err())
 		}
 	}
 }

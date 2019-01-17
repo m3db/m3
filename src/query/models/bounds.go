@@ -53,6 +53,10 @@ func (b Bounds) Steps() int {
 		return 0
 	}
 
+	if b.StepSize > b.Duration {
+		return 1
+	}
+
 	return int(b.Duration / b.StepSize)
 }
 
