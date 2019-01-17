@@ -288,7 +288,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	// Verify the onRetrieve callback was called properly for everything.
 	for _, shard := range shardIDStrings {
 		for _, id := range shard {
+			retrievedIDsMutex.Lock()
 			tags, ok := retrievedIDs[id]
+			retrievedIDsMutex.Unlock()
 			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
 
 			expectedTags := ident.NewTags(testTagsFromTestID(id)...)

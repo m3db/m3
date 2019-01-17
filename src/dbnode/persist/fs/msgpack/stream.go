@@ -43,14 +43,6 @@ type DecoderStream interface {
 	// yet. Only a single byte can be unread at a time, a consecutive call
 	// to UnreadByte will result in an error.
 	UnreadByte() error
-
-	// Skip progresses the reader by a certain amount of bytes, useful
-	// when taking a ref to some of the bytes and progressing the reader
-	// itself.
-	Skip(length int64) error
-
-	// Offset returns the current offset in the byte stream.
-	Offset() (int, error)
 }
 
 // ByteDecoderStream is an additional interface that some decoder streams
@@ -74,9 +66,13 @@ type ByteStream interface {
 	// Reset resets the decoder stream for decoding a new byte slice.
 	Reset(b []byte)
 
-	// OffsetNoError returns the current offset in the byte stream without
-	// the possibility of returning an error.
-	OffsetNoError() int
+	// Skip progresses the reader by a certain amount of bytes, useful
+	// when taking a ref to some of the bytes and progressing the reader
+	// itself.
+	Skip(length int64) error
+
+	// Offset returns the current offset in the byte stream.
+	Offset() int
 }
 
 type byteDecoderStream struct {
@@ -177,11 +173,6 @@ func (s *byteDecoderStream) Remaining() int64 {
 	return int64(s.reader.Len()) + unreadBytes
 }
 
-func (s *byteDecoderStream) Offset() (int, error) {
-	return s.bytesLen - int(s.Remaining()), nil
-}
-
-func (s *byteDecoderStream) OffsetNoError() int {
-	n, _ := s.Offset()
-	return n
+func (s *byteDecoderStream) Offset() int {
+	return s.bytesLen - int(s.Remaining())
 }

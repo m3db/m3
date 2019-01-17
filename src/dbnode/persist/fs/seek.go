@@ -519,52 +519,17 @@ func (s *seeker) validateIndexFileDigest(
 type ReusableSeekerResources struct {
 	msgpackDecoder    *msgpack.Decoder
 	xmsgpackDecoder   *xmsgpack.Decoder
-	fileDecoderStream *fileDecoderStream
+	fileDecoderStream *bufio.Reader
 	byteDecoderStream xmsgpack.ByteDecoderStream
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
 func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 	seekReaderSize := opts.SeekReaderBufferSize()
-	fileDecoderBuffReader := bufio.NewReaderSize(nil, seekReaderSize)
-
 	return ReusableSeekerResources{
 		msgpackDecoder:    msgpack.NewDecoder(nil),
 		xmsgpackDecoder:   xmsgpack.NewDecoder(opts.DecodingOptions()),
-		fileDecoderStream: newfileDecoderStream(fileDecoderBuffReader, nil),
+		fileDecoderStream: bufio.NewReaderSize(nil, seekReaderSize),
 		byteDecoderStream: xmsgpack.NewByteDecoderStream(nil),
 	}
-}
-
-func newfileDecoderStream(b *bufio.Reader, fd *os.File) *fileDecoderStream {
-	return &fileDecoderStream{b, fd}
-}
-
-// fileDecoderStream wraps a file descriptor with a buffered reader and some
-// additional methods so that it implements msgpack.DecoderStream.
-type fileDecoderStream struct {
-	*bufio.Reader
-	fd *os.File
-}
-
-// TODO: Don't need these interfaces at all.
-func (w *fileDecoderStream) Skip(n int64) error {
-	_, err := w.Discard(int(n))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (w *fileDecoderStream) Offset() (int, error) {
-	offset, err := w.fd.Seek(0, os.SEEK_CUR)
-	if err != nil {
-		return -1, err
-	}
-
-	return int(offset - int64(w.Buffered())), nil
-}
-
-func (w *fileDecoderStream) setFd(fd *os.File) {
-	w.fd = fd
 }

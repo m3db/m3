@@ -602,7 +602,7 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
 		return nil, -1, -1
 	}
-	if err := dec.reader.Skip(int64(bytesLen)); err != nil {
+	if err := dec.byteReader.Skip(int64(bytesLen)); err != nil {
 		dec.err = err
 		return nil, -1, -1
 	}
