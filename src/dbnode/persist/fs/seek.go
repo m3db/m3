@@ -392,12 +392,12 @@ func (s *seeker) SeekIndexEntry(
 
 	idBytes := id.Bytes()
 	for {
-		// Prevent panics when we're scanning to the end of the buffer.
 		currOffset, err := s.indexFd.Seek(0, os.SEEK_CUR)
 		if err != nil {
 			return IndexEntry{}, err
 		}
 		if currOffset >= s.indexFileSize && resources.fileDecoderStream.Buffered() <= 0 {
+			// Prevent panics when we're scanning to the end of the buffer.
 			return IndexEntry{}, errSeekIDNotFound
 		}
 
