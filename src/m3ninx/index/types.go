@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 	"regexp"
+	"regexp/syntax"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -85,6 +86,7 @@ type Readable interface {
 type CompiledRegex struct {
 	Simple      *regexp.Regexp
 	FST         *vregex.Regexp
+	FSTSyntax   *syntax.Regexp
 	PrefixBegin []byte
 	PrefixEnd   []byte
 }
