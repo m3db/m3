@@ -73,6 +73,10 @@ type ByteStream interface {
 
 	// Reset resets the decoder stream for decoding a new byte slice.
 	Reset(b []byte)
+
+	// OffsetNoError returns the current offset in the byte stream without
+	// the possibility of returning an error.
+	OffsetNoError() int
 }
 
 type decoderStream struct {
@@ -175,4 +179,9 @@ func (s *decoderStream) Remaining() int64 {
 
 func (s *decoderStream) Offset() (int, error) {
 	return s.bytesLen - int(s.Remaining()), nil
+}
+
+func (s *decoderStream) OffsetNoError() int {
+	n, _ := s.Offset()
+	return n
 }
