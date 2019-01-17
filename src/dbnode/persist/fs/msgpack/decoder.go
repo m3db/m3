@@ -623,15 +623,18 @@ func (dec *Decoder) decodeBytesWithPool(bytesPool pool.BytesPool) []byte {
 
 	bytes := bytesPool.Get(bytesLen)[:bytesLen]
 	n, err := io.ReadFull(dec.reader, bytes)
-	if n != bytesLen {
-		dec.err = fmt.Errorf(
-			"tried to decode checked bytes of length: %d, but read: %d",
-			bytesLen, n)
+	if err != nil {
+		dec.err = err
 		bytesPool.Put(bytes)
 		return nil
 	}
-	if err != nil {
-		dec.err = err
+	if n != bytesLen {
+		// This check is redundant because io.ReadFull will return an error if
+		// its not able to read the specified number of bytes, but we keep it
+		// in for posterity.
+		dec.err = fmt.Errorf(
+			"tried to decode checked bytes of length: %d, but read: %d",
+			bytesLen, n)
 		bytesPool.Put(bytes)
 		return nil
 	}
