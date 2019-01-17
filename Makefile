@@ -30,6 +30,7 @@ assets_rules_dir     := generated/assets
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
+NPROC                := 4 # Maximum package concurrency for unit tests.
 cache_policy         ?= recently_read
 
 BUILD                     := $(abspath ./bin)
