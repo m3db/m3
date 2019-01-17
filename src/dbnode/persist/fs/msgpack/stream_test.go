@@ -33,8 +33,8 @@ import (
 	msgpacklib "gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// Call Read to accumulate the text of a file
-func reads(buf DecoderStream, m int) string {
+// Call Read to accumulate the text of a file.
+func reads(buf ByteDecoderStream, m int) string {
 	var b [1000]byte
 	if int(buf.Remaining()) > len(b) {
 		panic(fmt.Errorf("cannot read all"))
