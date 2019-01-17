@@ -293,7 +293,7 @@ func (r *reader) readInfo(size int) error {
 func (r *reader) readIndexAndSortByOffsetAsc() error {
 	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
-		entry, err := r.decoder.DecodeIndexEntry()
+		entry, err := r.decoder.DecodeIndexEntry(nil)
 		if err != nil {
 			return err
 		}

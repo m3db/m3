@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -58,7 +57,6 @@ type Decoder struct {
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
-	checkedBytesPool  pool.CheckedBytesPool
 
 	legacy legacyEncodingOptions
 }
@@ -75,7 +73,6 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 	reader := NewByteDecoderStream(nil)
 	return &Decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
-		checkedBytesPool:  opts.CheckedBytesPool(),
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
@@ -114,12 +111,12 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 }
 
 // DecodeIndexEntry decodes index entry
-func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
+func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexEntry := dec.decodeIndexEntry()
+	indexEntry := dec.decodeIndexEntry(bytesPool)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -321,7 +318,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
+func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
 	if dec.legacy.decodeLegacyV1IndexEntry {
 		// V1 had 5 fields.
@@ -337,10 +334,10 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
 
-	if dec.byteReader != nil {
+	if bytesPool == nil {
 		indexEntry.ID, _, _ = dec.decodeBytes()
 	} else {
-		indexEntry.CheckedID = dec.decodeCheckedBytes()
+		indexEntry.ID = dec.decodeBytesWithPool(bytesPool)
 	}
 
 	indexEntry.Size = dec.decodeVarint()
@@ -355,7 +352,7 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	if dec.byteReader != nil {
 		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
 	} else {
-		indexEntry.CheckedTags = dec.decodeCheckedBytes()
+		indexEntry.EncodedTags = dec.decodeBytesWithPool(bytesPool)
 	}
 
 	dec.skip(numFieldsToSkip)
@@ -611,7 +608,7 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	return value, currPos, bytesLen
 }
 
-func (dec *Decoder) decodeCheckedBytes() checked.Bytes {
+func (dec *Decoder) decodeBytesWithPool(bytesPool pool.BytesPool) []byte {
 	if dec.err != nil {
 		return nil
 	}
@@ -624,26 +621,22 @@ func (dec *Decoder) decodeCheckedBytes() checked.Bytes {
 		return nil
 	}
 
-	checkedBytes := dec.checkedBytesPool.Get(bytesLen)
-	checkedBytes.IncRef()
-	checkedBytes.Resize(bytesLen)
-	n, err := io.ReadFull(dec.reader, checkedBytes.Bytes())
+	bytes := bytesPool.Get(bytesLen)[:bytesLen]
+	n, err := io.ReadFull(dec.reader, bytes)
 	if n != bytesLen {
 		dec.err = fmt.Errorf(
 			"tried to decode checked bytes of length: %d, but read: %d",
 			bytesLen, n)
-		checkedBytes.DecRef()
-		checkedBytes.Finalize()
+		bytesPool.Put(bytes)
 		return nil
 	}
 	if err != nil {
 		dec.err = err
-		checkedBytes.DecRef()
-		checkedBytes.Finalize()
+		bytesPool.Put(bytes)
 		return nil
 	}
 
-	return checkedBytes
+	return bytes
 }
 
 func (dec *Decoder) decodeArrayLen() int {

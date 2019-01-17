@@ -61,6 +61,12 @@ var (
 	errDecodedIndexEntryHadNoID = errors.New("decoded index entry had no ID")
 )
 
+const (
+	maxSimpleBytesPoolSliceSize = 4096
+	// One for the ID and one for the tags.
+	maxSimpleBytesPoolSize = 2
+)
+
 type seeker struct {
 	opts seekerOpts
 
@@ -392,41 +398,44 @@ func (s *seeker) SeekIndexEntry(
 			return IndexEntry{}, errSeekIDNotFound
 		}
 
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry()
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(resources.bytesPool)
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
 			return IndexEntry{}, err
 		}
-		if entry.CheckedID == nil {
+		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
 			return IndexEntry{}, errDecodedIndexEntryHadNoID
 		}
 
-		comparison := bytes.Compare(entry.CheckedID.Bytes(), idBytes)
+		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
+			// If it's a match, we need to copy the tags into a checked bytes
+			// so they can be passed along.
+			checkedBytes := s.opts.bytesPool.Get(len(entry.EncodedTags))
+			checkedBytes.IncRef()
+			checkedBytes.AppendAll(entry.EncodedTags)
+
 			indexEntry := IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
 				Offset:      entry.Offset,
-				EncodedTags: entry.CheckedTags,
+				EncodedTags: checkedBytes,
 			}
 
-			// Not returned in the IndexEntry so we can finalize.
-			entry.CheckedID.DecRef()
-			entry.CheckedID.Finalize()
+			// Safe to return resources to the pool because ID will not be
+			// passed along and tags have been copied.
+			resources.bytesPool.Put(entry.ID)
+			resources.bytesPool.Put(entry.EncodedTags)
 
 			return indexEntry, nil
 		}
 
-		// No longer being used so we can finalize.
-		entry.CheckedID.DecRef()
-		entry.CheckedID.Finalize()
-		if entry.CheckedTags != nil {
-			entry.CheckedTags.DecRef()
-			entry.CheckedTags.Finalize()
-		}
+		// No longer being used so we can return to the pool.
+		resources.bytesPool.Put(entry.ID)
+		resources.bytesPool.Put(entry.EncodedTags)
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
@@ -521,6 +530,7 @@ type ReusableSeekerResources struct {
 	xmsgpackDecoder   *xmsgpack.Decoder
 	fileDecoderStream *bufio.Reader
 	byteDecoderStream xmsgpack.ByteDecoderStream
+	bytesPool         pool.BytesPool
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
@@ -531,5 +541,56 @@ func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 		xmsgpackDecoder:   xmsgpack.NewDecoder(opts.DecodingOptions()),
 		fileDecoderStream: bufio.NewReaderSize(nil, seekReaderSize),
 		byteDecoderStream: xmsgpack.NewByteDecoderStream(nil),
+		bytesPool:         newSimpleBytesPool(),
 	}
+}
+
+type simpleBytesPool struct {
+	pool             [][]byte
+	maxByteSliceSize int
+	maxPoolSize      int
+}
+
+func newSimpleBytesPool() pool.BytesPool {
+	s := &simpleBytesPool{
+		maxByteSliceSize: maxSimpleBytesPoolSliceSize,
+		// One for the ID and one for the tags.
+		maxPoolSize: maxSimpleBytesPoolSize,
+	}
+	s.Init()
+	return s
+}
+
+func (s *simpleBytesPool) Init() {
+	for i := 0; i < s.maxPoolSize; i++ {
+		s.pool = append(s.pool, make([]byte, 0, s.maxByteSliceSize))
+	}
+}
+
+func (s *simpleBytesPool) Get(capacity int) []byte {
+	if len(s.pool) == 0 {
+		return make([]byte, 0, capacity)
+	}
+
+	lastIdx := len(s.pool) - 1
+	b := s.pool[lastIdx]
+
+	if cap(b) >= capacity {
+		// If the slice has enough capacity, remove it from the
+		// pool and return it to the caller.
+		s.pool = s.pool[:lastIdx]
+		return b
+	}
+
+	return make([]byte, 0, capacity)
+}
+
+func (s *simpleBytesPool) Put(b []byte) {
+	if b == nil ||
+		len(s.pool) >= s.maxPoolSize ||
+		cap(b) > s.maxByteSliceSize {
+		return
+	}
+
+	s.pool = append(s.pool, b[:])
 }
