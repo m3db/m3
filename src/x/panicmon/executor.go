@@ -214,7 +214,7 @@ func (ex *executor) close() {
 }
 
 func (ex *executor) closeAndWait() {
-	close(ex.closeC)
+	ex.close()
 	<-ex.closeDone
 }
 
