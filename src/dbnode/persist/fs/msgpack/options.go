@@ -31,12 +31,6 @@ type DecodingOptions interface {
 	// AllocDecodedBytes determines whether we allocate new space when decoding
 	// a byte slice
 	AllocDecodedBytes() bool
-
-	// SetCheckedBytesPool sets the checked bytes pool.
-	SetCheckedBytesPool(value pool.CheckedBytesPool) DecodingOptions
-
-	// CheckedBytesPool returns the checked bytes pool.
-	CheckedBytesPool() pool.CheckedBytesPool
 }
 
 const (
@@ -63,14 +57,4 @@ func (o *decodingOptions) SetAllocDecodedBytes(value bool) DecodingOptions {
 
 func (o *decodingOptions) AllocDecodedBytes() bool {
 	return o.allocDecodedBytes
-}
-
-func (o *decodingOptions) SetCheckedBytesPool(value pool.CheckedBytesPool) DecodingOptions {
-	opts := *o
-	opts.checkedBytesPool = value
-	return &opts
-}
-
-func (o *decodingOptions) CheckedBytesPool() pool.CheckedBytesPool {
-	return o.checkedBytesPool
 }

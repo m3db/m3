@@ -109,7 +109,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
-	assert.Equal(t, errors.New("tried to read: 3 bytes but read: 1"), err)
+	assert.Equal(t, errors.New("unexpected EOF"), err)
 
 	assert.NoError(t, s.Close())
 }
