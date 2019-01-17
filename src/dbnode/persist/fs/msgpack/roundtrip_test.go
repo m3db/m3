@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -236,6 +237,22 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexEntry, res)
+}
+
+func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
+
+	var (
+		pool = pool.NewBytesPool(nil, nil)
+		enc  = NewEncoder()
+		dec  = NewDecoder(nil)
+	)
+	pool.Init()
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(pool)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
 }
