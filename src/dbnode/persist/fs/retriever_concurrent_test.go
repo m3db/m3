@@ -31,6 +31,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
@@ -182,13 +184,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
 
-				tags := []ident.Tag{}
-				for j := 0; j < 5; j++ {
-					tags = append(tags, ident.Tag{
-						Name:  ident.StringID(fmt.Sprintf("food.%d.tag.%d.name", i, j)),
-						Value: ident.StringID(fmt.Sprintf("food.%d.tag.%d.value", i, j)),
-					})
-				}
+				tags := testTagsFromTestID(id.String())
 				err := w.Write(id, ident.NewTags(tags...), data, digest.Checksum(data.Bytes()))
 				require.NoError(t, err)
 			}
@@ -205,6 +201,28 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		seeksPerID       = 24
 		seeksEach        = len(shards) * idsPerShard * seeksPerID
 	)
+
+	// Write a fake onRetrieve function so we can verify the behavior of the callback.
+	var (
+		retrievedIDs      = map[string]ident.Tags{}
+		retrievedIDsMutex = sync.Mutex{}
+		bytesPool         = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		})
+		idPool = ident.NewPool(bytesPool, ident.PoolOptions{})
+	)
+	bytesPool.Init()
+
+	onRetrieve := block.OnRetrieveBlockFn(func(id ident.ID, tagsIter ident.TagIterator, startTime time.Time, segment ts.Segment) {
+		// TagsFromTagsIter requires a series ID to try and share bytes so we just pass
+		// an empty string because we don't care about efficiency.
+		tags, err := convert.TagsFromTagsIter(ident.StringID(""), tagsIter, idPool)
+		require.NoError(t, err)
+
+		retrievedIDsMutex.Lock()
+		retrievedIDs[id.String()] = tags
+		retrievedIDsMutex.Unlock()
+	})
 
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
@@ -229,7 +247,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], nil)
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve)
 					require.NoError(t, err)
 					results = append(results, streamResult{
 						ctx:        ctx,
@@ -260,12 +278,23 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		}()
 	}
 
-	// Wait for all routines to be ready then start
+	// Wait for all routines to be ready then start.
 	readyWg.Wait()
 	startWg.Done()
 
-	// Wait until done
+	// Wait until done.
 	enqueueWg.Wait()
+
+	// Verify the onRetrieve callback was called properly for everything.
+	for _, shard := range shardIDStrings {
+		for _, id := range shard {
+			tags, ok := retrievedIDs[id]
+			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
+
+			expectedTags := ident.NewTags(testTagsFromTestID(id)...)
+			require.True(t, tags.Equal(expectedTags))
+		}
+	}
 }
 
 // TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
@@ -312,4 +341,15 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, nil, segment.Head)
 	assert.Equal(t, nil, segment.Tail)
+}
+
+func testTagsFromTestID(seriesID string) []ident.Tag {
+	tags := []ident.Tag{}
+	for j := 0; j < 5; j++ {
+		tags = append(tags, ident.Tag{
+			Name:  ident.StringID(fmt.Sprintf("%s.tag.%d.name", seriesID, j)),
+			Value: ident.StringID(fmt.Sprintf("%s.tag.%d.value", seriesID, j)),
+		})
+	}
+	return tags
 }

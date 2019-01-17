@@ -238,6 +238,7 @@ type OnReadBlock interface {
 // OnRetrieveBlock interface.
 type OnRetrieveBlockFn func(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 )
@@ -245,10 +246,11 @@ type OnRetrieveBlockFn func(
 // OnRetrieveBlock implements the OnRetrieveBlock interface.
 func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
-	fn(id, startTime, segment)
+	fn(id, tags, startTime, segment)
 }
 
 // RetrievableBlockMetadata describes a retrievable block.
