@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,17 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xio
+package ts
 
 import (
-	"io"
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3x/checked"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -52,49 +50,33 @@ var (
 
 type byteFunc func(d []byte) checked.Bytes
 
-func testSegmentReaderWithPools(
+func testSegmentCloneWithPools(
 	t *testing.T,
 	checkd byteFunc,
 	pool pool.CheckedBytesPool,
 ) {
-	segment := ts.NewSegment(checkd(head), checkd(tail), ts.FinalizeNone)
-	r := NewSegmentReader(segment)
-	var b [100]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
-	require.Equal(t, len(expected), n)
-	require.Equal(t, expected, b[:n])
+	seg := NewSegment(checkd(head), checkd(tail), FinalizeNone)
 
-	n, err = r.Read(b[:])
-	require.Equal(t, io.EOF, err)
-	require.Equal(t, 0, n)
+	assert.Equal(t, len(expected), seg.Len())
+	cloned := seg.Clone(pool)
+	assert.True(t, seg.Equal(&cloned))
 
-	seg, err := r.Segment()
-	require.NoError(t, err)
-	require.Equal(t, head, seg.Head.Bytes())
-	require.Equal(t, tail, seg.Tail.Bytes())
+	seg.Head.Reset(tail)
+	assert.Equal(t, len(tail)*2, seg.Len())
 
-	// Ensure cloned segment reader does not share original head and tail.
-	cloned, err := r.Clone(pool)
-	require.NoError(t, err)
-
-	segment.Head.Reset(tail)
-	segment.Tail.Reset(head)
-
-	seg, err = cloned.Segment()
-	require.NoError(t, err)
-	require.Equal(t, head, seg.Head.Bytes())
-	require.Equal(t, tail, seg.Tail.Bytes())
+	assert.False(t, seg.Equal(&cloned))
+	assert.Equal(t, len(expected), cloned.Len())
 
 	cloned.Finalize()
-	segment.Finalize()
-}
-func TestSegmentReader(t *testing.T) {
-	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	testSegmentReaderWithPools(t, checkd, nil)
+	seg.Finalize()
 }
 
-func TestPooledSegmentReader(t *testing.T) {
+func TestSegmentNoPools(t *testing.T) {
+	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
+	testSegmentCloneWithPools(t, checkd, nil)
+}
+
+func TestPooledSegmentClone(t *testing.T) {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,
@@ -110,5 +92,5 @@ func TestPooledSegmentReader(t *testing.T) {
 		return b
 	}
 
-	testSegmentReaderWithPools(t, checkd, bytesPool)
+	testSegmentCloneWithPools(t, checkd, bytesPool)
 }

@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -200,8 +201,8 @@ type testNoopReader struct {
 	n int // return for "n", also required so that each struct construction has its address
 }
 
-func (r *testNoopReader) Read(p []byte) (int, error)        { return r.n, nil }
-func (r *testNoopReader) Segment() (ts.Segment, error)      { return ts.Segment{}, nil }
-func (r *testNoopReader) Reset(ts.Segment)                  {}
-func (r *testNoopReader) Finalize()                         {}
-func (r *testNoopReader) Clone() (xio.SegmentReader, error) { return r, nil }
+func (r *testNoopReader) Read(p []byte) (int, error)                               { return r.n, nil }
+func (r *testNoopReader) Segment() (ts.Segment, error)                             { return ts.Segment{}, nil }
+func (r *testNoopReader) Reset(ts.Segment)                                         {}
+func (r *testNoopReader) Finalize()                                                {}
+func (r *testNoopReader) Clone(_ pool.CheckedBytesPool) (xio.SegmentReader, error) { return r, nil }
