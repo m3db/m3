@@ -276,7 +276,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.decoder.Reset(msgpack.NewDecoderStream(buf[:n]))
+	r.decoder.Reset(msgpack.NewByteDecoderStream(buf[:n]))
 	info, err := r.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err

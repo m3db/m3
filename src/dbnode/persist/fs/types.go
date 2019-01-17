@@ -192,9 +192,6 @@ type DataFileSetSeeker interface {
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
 
-	// Entries returns the count of entries in the volume
-	Entries() int
-
 	// ConcurrentIDBloomFilter returns a concurrency-safe bloom filter that can
 	// be used to quickly disqualify ID's that definitely do not exist. I.E if the
 	// Test() method returns true, the ID may exist on disk, but if it returns

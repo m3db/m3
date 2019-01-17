@@ -79,7 +79,7 @@ type ByteStream interface {
 	OffsetNoError() int
 }
 
-type decoderStream struct {
+type byteDecoderStream struct {
 	reader *bytes.Reader
 	bytes  []byte
 	// Store so we don't have to keep calling len()
@@ -88,9 +88,9 @@ type decoderStream struct {
 	unreadByte   int
 }
 
-// NewDecoderStream creates a new decoder stream from a bytes ref.
-func NewDecoderStream(b []byte) ByteDecoderStream {
-	return &decoderStream{
+// NewByteDecoderStream creates a new decoder stream from a bytes ref.
+func NewByteDecoderStream(b []byte) ByteDecoderStream {
+	return &byteDecoderStream{
 		reader:       bytes.NewReader(b),
 		bytes:        b,
 		lastReadByte: -1,
@@ -99,7 +99,7 @@ func NewDecoderStream(b []byte) ByteDecoderStream {
 	}
 }
 
-func (s *decoderStream) Reset(b []byte) {
+func (s *byteDecoderStream) Reset(b []byte) {
 	s.reader.Reset(b)
 	s.bytes = b
 	s.lastReadByte = -1
@@ -107,7 +107,7 @@ func (s *decoderStream) Reset(b []byte) {
 	s.bytesLen = len(b)
 }
 
-func (s *decoderStream) Read(p []byte) (int, error) {
+func (s *byteDecoderStream) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -132,7 +132,7 @@ func (s *decoderStream) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (s *decoderStream) ReadByte() (byte, error) {
+func (s *byteDecoderStream) ReadByte() (byte, error) {
 	if s.unreadByte >= 0 {
 		r := byte(s.unreadByte)
 		s.unreadByte = -1
@@ -145,7 +145,7 @@ func (s *decoderStream) ReadByte() (byte, error) {
 	return b, err
 }
 
-func (s *decoderStream) UnreadByte() error {
+func (s *byteDecoderStream) UnreadByte() error {
 	if s.lastReadByte < 0 {
 		return fmt.Errorf("no previous read byte or already unread byte")
 	}
@@ -154,11 +154,11 @@ func (s *decoderStream) UnreadByte() error {
 	return nil
 }
 
-func (s *decoderStream) Bytes() []byte {
+func (s *byteDecoderStream) Bytes() []byte {
 	return s.bytes
 }
 
-func (s *decoderStream) Skip(length int64) error {
+func (s *byteDecoderStream) Skip(length int64) error {
 	defer func() {
 		if length > 0 {
 			s.unreadByte = -1
@@ -169,7 +169,7 @@ func (s *decoderStream) Skip(length int64) error {
 	return err
 }
 
-func (s *decoderStream) Remaining() int64 {
+func (s *byteDecoderStream) Remaining() int64 {
 	var unreadBytes int64
 	if s.unreadByte != -1 {
 		unreadBytes = 1
@@ -177,11 +177,11 @@ func (s *decoderStream) Remaining() int64 {
 	return int64(s.reader.Len()) + unreadBytes
 }
 
-func (s *decoderStream) Offset() (int, error) {
+func (s *byteDecoderStream) Offset() (int, error) {
 	return s.bytesLen - int(s.Remaining()), nil
 }
 
-func (s *decoderStream) OffsetNoError() int {
+func (s *byteDecoderStream) OffsetNoError() int {
 	n, _ := s.Offset()
 	return n
 }
