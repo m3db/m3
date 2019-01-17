@@ -403,7 +403,10 @@ func (s *seeker) SeekIndexEntry(
 
 		// Use the bytesPool on resources here because its designed for this express purpose
 		// and is much faster / cheaper than the checked bytes pool which has a lot of
-		// synchronization and is prone to allocation (due to being shared).
+		// synchronization and is prone to allocation (due to being shared). Basically because
+		// this is a tight loop (scanning linearly through the index file) we want to use a
+		// very cheap pool until we find what we're looking for, and then we can perform a single
+		// copy into checked.Bytes from the more expensive pool.
 		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
 			resources.decodeIndexEntryBytesPool)
 		if err != nil {
