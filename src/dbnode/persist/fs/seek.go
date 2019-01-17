@@ -398,7 +398,11 @@ func (s *seeker) SeekIndexEntry(
 			return IndexEntry{}, errSeekIDNotFound
 		}
 
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(resources.bytesPool)
+		// Use the bytesPool on resources here because its designed for this express purpose
+		// and is much faster / cheaper than the checked bytes pool which has a lot of
+		// synchronization and is prone to allocation (due to being shared).
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
+			resources.decodeIndexEntryBytesPool)
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
@@ -413,7 +417,8 @@ func (s *seeker) SeekIndexEntry(
 		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
 			// If it's a match, we need to copy the tags into a checked bytes
-			// so they can be passed along.
+			// so they can be passed along. We use the "real" bytes pool here
+			// because we're passing ownership of the bytes to the entry / caller.
 			checkedBytes := s.opts.bytesPool.Get(len(entry.EncodedTags))
 			checkedBytes.IncRef()
 			checkedBytes.AppendAll(entry.EncodedTags)
@@ -427,15 +432,15 @@ func (s *seeker) SeekIndexEntry(
 
 			// Safe to return resources to the pool because ID will not be
 			// passed along and tags have been copied.
-			resources.bytesPool.Put(entry.ID)
-			resources.bytesPool.Put(entry.EncodedTags)
+			resources.decodeIndexEntryBytesPool.Put(entry.ID)
+			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 			return indexEntry, nil
 		}
 
 		// No longer being used so we can return to the pool.
-		resources.bytesPool.Put(entry.ID)
-		resources.bytesPool.Put(entry.EncodedTags)
+		resources.decodeIndexEntryBytesPool.Put(entry.ID)
+		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
@@ -535,18 +540,18 @@ type ReusableSeekerResources struct {
 	// well as ref counting that comes with the checked bytes pool. In addition,
 	// since the ReusableSeekerResources is only ever used by a single seeker at
 	// a time, we can size this pool such that it almost never has to allocate.
-	bytesPool pool.BytesPool
+	decodeIndexEntryBytesPool pool.BytesPool
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
 func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 	seekReaderSize := opts.SeekReaderBufferSize()
 	return ReusableSeekerResources{
-		msgpackDecoder:    msgpack.NewDecoder(nil),
-		xmsgpackDecoder:   xmsgpack.NewDecoder(opts.DecodingOptions()),
-		fileDecoderStream: bufio.NewReaderSize(nil, seekReaderSize),
-		byteDecoderStream: xmsgpack.NewByteDecoderStream(nil),
-		bytesPool:         newSimpleBytesPool(),
+		msgpackDecoder:            msgpack.NewDecoder(nil),
+		xmsgpackDecoder:           xmsgpack.NewDecoder(opts.DecodingOptions()),
+		fileDecoderStream:         bufio.NewReaderSize(nil, seekReaderSize),
+		byteDecoderStream:         xmsgpack.NewByteDecoderStream(nil),
+		decodeIndexEntryBytesPool: newSimpleBytesPool(),
 	}
 }
 
