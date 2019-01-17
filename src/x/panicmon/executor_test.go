@@ -287,6 +287,7 @@ func TestExecutorPassSignals(t *testing.T) {
 	procInfo.Signal(syscall.SIGUSR1)
 
 	child.Wait()
+	ex.closeAndWait()
 
 	sig.AssertExpectations(t)
 }

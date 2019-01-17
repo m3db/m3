@@ -52,6 +52,8 @@ type executor struct {
 	sigC chan os.Signal
 	// channel to shut down signal handler
 	closeC chan struct{}
+	// channel that will be closed when the executor has finished closing
+	closeDone chan struct{}
 
 	handler Handler
 	stdout  io.Writer
@@ -116,12 +118,13 @@ func NewExecutor(opts ExecutorOptions) Executor {
 	opts.Validate()
 
 	ex := &executor{
-		sigC:    make(chan os.Signal, 2),
-		closeC:  make(chan struct{}),
-		handler: opts.Handler,
-		stdout:  opts.Stdout,
-		stderr:  opts.Stderr,
-		env:     opts.Env,
+		sigC:      make(chan os.Signal, 2),
+		closeC:    make(chan struct{}),
+		closeDone: make(chan struct{}),
+		handler:   opts.Handler,
+		stdout:    opts.Stdout,
+		stderr:    opts.Stderr,
+		env:       opts.Env,
 	}
 
 	signal.Notify(ex.sigC, opts.Signals...)
@@ -210,6 +213,11 @@ func (ex *executor) close() {
 	close(ex.closeC)
 }
 
+func (ex *executor) closeAndWait() {
+	ex.close()
+	<-ex.closeDone
+}
+
 // passSignals forwards all signals (except SIGCHLD) received on sigC to the
 // process running at proc.
 func (ex *executor) passSignals(proc *os.Process) {
@@ -239,6 +247,7 @@ func (ex *executor) passSignals(proc *os.Process) {
 			})
 
 		case <-ex.closeC:
+			close(ex.closeDone)
 			return
 		}
 	}
