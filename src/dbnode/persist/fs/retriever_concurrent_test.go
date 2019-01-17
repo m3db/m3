@@ -182,7 +182,14 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
 
-				err := w.Write(id, ident.Tags{}, data, digest.Checksum(data.Bytes()))
+				tags := []ident.Tag{}
+				for j := 0; j < 5; j++ {
+					tags = append(tags, ident.Tag{
+						Name:  ident.StringID(fmt.Sprintf("food.%d.tag.%d.name", i, j)),
+						Value: ident.StringID(fmt.Sprintf("food.%d.tag.%d.value", i, j)),
+					})
+				}
+				err := w.Write(id, ident.NewTags(tags...), data, digest.Checksum(data.Bytes()))
 				require.NoError(t, err)
 			}
 			closer()
