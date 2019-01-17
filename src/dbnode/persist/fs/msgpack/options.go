@@ -50,14 +50,8 @@ type decodingOptions struct {
 
 // NewDecodingOptions creates a new set of decoding options
 func NewDecodingOptions() DecodingOptions {
-	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
-	})
-	bytesPool.Init()
-
 	return &decodingOptions{
 		allocDecodedBytes: defaultAllocDecodedBytes,
-		checkedBytesPool:  bytesPool,
 	}
 }
 

@@ -92,6 +92,10 @@ func init() {
 	testTagDecoderPool = serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
 	testTagDecoderPool.Init()
+
+	decodingOpts := testDefaultOpts.DecodingOptions().
+		SetCheckedBytesPool(testBytesPool)
+	testDefaultOpts = testDefaultOpts.SetDecodingOptions(decodingOpts)
 }
 
 func newTestReader(t *testing.T, filePathPrefix string) DataFileSetReader {

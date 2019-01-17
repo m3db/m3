@@ -30,23 +30,15 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestSeeker(filePathPrefix string) DataFileSetSeeker {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
-		Capacity: 1024,
-		Count:    10,
-	}}, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
-	})
-	bytesPool.Init()
 	return NewSeeker(
 		filePathPrefix, testReaderBufferSize, testReaderBufferSize,
-		bytesPool, false, testDefaultOpts)
+		testBytesPool, false, testDefaultOpts)
 }
 
 func TestSeekEmptyIndex(t *testing.T) {
