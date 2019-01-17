@@ -24,10 +24,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3x/checked"
-
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
 	"gopkg.in/vmihailenco/msgpack.v2"

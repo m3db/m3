@@ -123,9 +123,10 @@ func TestIndexLookupWriteRead(t *testing.T) {
 			return false, fmt.Errorf("err reading index lookup from summaries file: %v, ", err)
 		}
 
-		// Make sure it returns the correct index offset for every ID
+		// Make sure it returns the correct index offset for every ID.
+		resources := newTestReusableSeekerResources()
 		for id, expectedOffset := range expectedIndexFileOffsets {
-			foundOffset, err := indexLookup.getNearestIndexFileOffset(ident.StringID(id))
+			foundOffset, err := indexLookup.getNearestIndexFileOffset(ident.StringID(id), resources)
 			if err != nil {
 				return false, fmt.Errorf("err locating index file offset for: %s, err: %v", id, err)
 			}
