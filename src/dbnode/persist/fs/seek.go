@@ -99,20 +99,16 @@ func NewSeeker(
 	filePathPrefix string,
 	dataBufferSize int,
 	infoBufferSize int,
-	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	keepUnreadBuf bool,
-	decodingOpts xmsgpack.DecodingOptions,
 	opts Options,
 ) DataFileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
 		dataBufferSize: dataBufferSize,
 		infoBufferSize: infoBufferSize,
-		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
 		keepUnreadBuf:  keepUnreadBuf,
-		decodingOpts:   decodingOpts,
 		opts:           opts,
 	})
 }
@@ -121,10 +117,8 @@ type seekerOpts struct {
 	filePathPrefix string
 	infoBufferSize int
 	dataBufferSize int
-	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
 	keepUnreadBuf  bool
-	decodingOpts   xmsgpack.DecodingOptions
 	opts           Options
 }
 
@@ -258,8 +252,7 @@ func (s *seeker) Open(
 	s.indexLookup, err = newNearestIndexOffsetLookupFromSummariesFile(
 		summariesFdWithDigest,
 		expectedDigests.summariesDigest,
-		// TODO: Fix me
-		xmsgpack.NewDecoder(s.opts.decodingOpts),
+		resources.xmsgpackDecoder,
 		int(info.Summaries.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
 	)
@@ -528,10 +521,13 @@ type ReusableSeekerResources struct {
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
 func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
+	seekReaderSize := opts.SeekReaderBufferSize()
+	fileDecoderBuffReader := bufio.NewReaderSize(nil, seekReaderSize)
+
 	return ReusableSeekerResources{
 		msgpackDecoder:    msgpack.NewDecoder(nil),
 		xmsgpackDecoder:   xmsgpack.NewDecoder(opts.DecodingOptions()),
-		fileDecoderStream: newfileDecoderStream(bufio.NewReader(nil), nil),
+		fileDecoderStream: newfileDecoderStream(fileDecoderBuffReader, nil),
 		byteDecoderStream: xmsgpack.NewByteDecoderStream(nil),
 	}
 }

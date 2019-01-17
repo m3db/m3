@@ -390,10 +390,8 @@ func (m *seekerManager) newOpenSeeker(
 		m.filePathPrefix,
 		m.opts.DataReaderBufferSize(),
 		m.opts.InfoReaderBufferSize(),
-		m.opts.SeekReaderBufferSize(),
 		m.bytesPool,
 		true,
-		m.opts.DecodingOptions().SetCheckedBytesPool(m.bytesPool),
 		m.opts,
 	)
 	seeker := seekerIface.(*seeker)
