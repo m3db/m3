@@ -547,6 +547,7 @@ type fileDecoderStream struct {
 	fd *os.File
 }
 
+// TODO: Don't need these interfaces at all.
 func (w *fileDecoderStream) Skip(n int64) error {
 	_, err := w.Discard(int(n))
 	if err != nil {
