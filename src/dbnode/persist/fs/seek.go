@@ -570,8 +570,7 @@ type simpleBytesPool struct {
 func newSimpleBytesPool() pool.BytesPool {
 	s := &simpleBytesPool{
 		maxByteSliceSize: maxSimpleBytesPoolSliceSize,
-		// One for the ID and one for the tags.
-		maxPoolSize: maxSimpleBytesPoolSize,
+		maxPoolSize:      maxSimpleBytesPoolSize,
 	}
 	s.Init()
 	return s
