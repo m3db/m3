@@ -530,7 +530,12 @@ type ReusableSeekerResources struct {
 	xmsgpackDecoder   *xmsgpack.Decoder
 	fileDecoderStream *bufio.Reader
 	byteDecoderStream xmsgpack.ByteDecoderStream
-	bytesPool         pool.BytesPool
+	// This pool should only be used for calling DecodeIndexEntry. We use a
+	// special pool here to avoid the overhead of channel synchronization, as
+	// well as ref counting that comes with the checked bytes pool. In addition,
+	// since the ReusableSeekerResources is only ever used by a single seeker at
+	// a time, we can size this pool such that it almost never has to allocate.
+	bytesPool pool.BytesPool
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
