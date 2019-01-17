@@ -30,13 +30,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
+
+	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 var (
@@ -103,7 +105,7 @@ func NewSeeker(
 	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	keepUnreadBuf bool,
-	decodingOpts msgpack.DecodingOptions,
+	decodingOpts xmsgpack.DecodingOptions,
 	opts Options,
 ) DataFileSetSeeker {
 	return newSeeker(seekerOpts{
@@ -125,7 +127,7 @@ type seekerOpts struct {
 	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
 	keepUnreadBuf  bool
-	decodingOpts   msgpack.DecodingOptions
+	decodingOpts   xmsgpack.DecodingOptions
 	opts           Options
 }
 
@@ -256,7 +258,7 @@ func (s *seeker) Open(
 		summariesFdWithDigest,
 		expectedDigests.summariesDigest,
 		// TODO: Fix me
-		msgpack.NewDecoder(s.opts.decodingOpts),
+		xmsgpack.NewDecoder(s.opts.decodingOpts),
 		int(s.summariesInfo.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
 	)
@@ -301,8 +303,8 @@ func (s *seeker) readInfo(
 		return err
 	}
 
-	resources.msgpackDecoder.Reset(msgpack.NewDecoderStream(s.unreadBuf[:n]))
-	info, err := resources.msgpackDecoder.DecodeIndexInfo()
+	resources.xmsgpackDecoder.Reset(xmsgpack.NewDecoderStream(s.unreadBuf[:n]))
+	info, err := resources.xmsgpackDecoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
@@ -378,7 +380,7 @@ func (s *seeker) SeekIndexEntry(
 	id ident.ID,
 	resources ReusableSeekerResources,
 ) (IndexEntry, error) {
-	offset, err := s.indexLookup.getNearestIndexFileOffset(id)
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted
 	if err != nil {
@@ -394,7 +396,7 @@ func (s *seeker) SeekIndexEntry(
 	}
 
 	resources.fileDecoderStream.Reset(s.indexFd)
-	resources.msgpackDecoder.Reset(resources.fileDecoderStream)
+	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
 
 	idBytes := id.Bytes()
 	for {
@@ -407,7 +409,7 @@ func (s *seeker) SeekIndexEntry(
 			return IndexEntry{}, errSeekIDNotFound
 		}
 
-		entry, err := resources.msgpackDecoder.DecodeIndexEntry()
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry()
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
@@ -533,14 +535,18 @@ func (s *seeker) validateIndexFileDigest(
 // being used at a time due to the FetchConcurrency.
 type ReusableSeekerResources struct {
 	msgpackDecoder    *msgpack.Decoder
+	xmsgpackDecoder   *xmsgpack.Decoder
 	fileDecoderStream *fileDecoderStream
+	byteDecoderStream xmsgpack.ByteDecoderStream
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
 func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 	return ReusableSeekerResources{
-		msgpackDecoder:    msgpack.NewDecoder(opts.DecodingOptions()),
+		msgpackDecoder:    msgpack.NewDecoder(nil),
+		xmsgpackDecoder:   xmsgpack.NewDecoder(opts.DecodingOptions()),
 		fileDecoderStream: newfileDecoderStream(bufio.NewReader(nil), nil),
+		byteDecoderStream: xmsgpack.NewDecoderStream(nil),
 	}
 }
 
