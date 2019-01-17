@@ -106,7 +106,7 @@ type reader struct {
 	checkedBytesPool     pool.CheckedBytesPool
 	chunkReader          *chunkReader
 	infoDecoder          *msgpack.Decoder
-	infoDecoderStream    msgpack.DecoderStream
+	infoDecoderStream    msgpack.ByteDecoderStream
 	decoderQueues        []chan decoderArg
 	decoderBufPools      []chan []byte
 	outChan              chan readResponse
@@ -287,7 +287,7 @@ func (r *reader) readLoop() {
 				err:                  err,
 				decodeRemainingToken: decodeRemainingToken,
 				uniqueIndex:          uniqueIndex,
-				offset:               decoderStream.Offset(),
+				offset:               decoderStream.OffsetNoError(),
 				bufPool:              bufPool,
 			}
 		}
@@ -396,7 +396,7 @@ func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- rea
 func (r *reader) decodeAndHandleMetadata(
 	metadataLookup map[uint64]seriesMetadata,
 	metadataDecoder *msgpack.Decoder,
-	metadataDecoderStream msgpack.DecoderStream,
+	metadataDecoderStream msgpack.ByteDecoderStream,
 	tagDecoder serialize.TagDecoder,
 	tagDecoderCheckedBytes checked.Bytes,
 	entry schema.LogEntry,

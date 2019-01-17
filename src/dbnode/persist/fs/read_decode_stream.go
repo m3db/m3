@@ -150,3 +150,8 @@ func (s *readerDecoderStream) Remaining() int64 {
 func (s *readerDecoderStream) Offset() (int, error) {
 	return len(s.backingBytes) - int(s.Remaining()), nil
 }
+
+func (s *readerDecoderStream) OffsetNoError() int {
+	n, _ := s.Offset()
+	return n
+}
