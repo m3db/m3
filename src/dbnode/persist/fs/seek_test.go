@@ -73,7 +73,6 @@ func TestSeekEmptyIndex(t *testing.T) {
 	s := newTestSeeker(filePathPrefix)
 	err = s.Open(testNs1ID, 0, testWriterStart, resources)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, s.Entries())
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
