@@ -25,65 +25,66 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/resource"
 )
 
-// BlockReader represents a block reader backed by a SegmentReader with start time and block size
+// BlockReader represents a block reader backed by a SegmentReader with start time and block size.
 type BlockReader struct {
 	SegmentReader
 	Start     time.Time
 	BlockSize time.Duration
 }
 
-// EmptyBlockReader represents the default block reader
+// EmptyBlockReader represents the default block reader.
 var EmptyBlockReader = BlockReader{}
 
-// SegmentReader implements the io reader interface backed by a segment
+// SegmentReader implements the io reader interface backed by a segment.
 type SegmentReader interface {
 	io.Reader
 	resource.Finalizer
 
-	// Segment gets the segment read by this reader
+	// Segment gets the segment read by this reader.
 	Segment() (ts.Segment, error)
 
-	// Reset resets the reader to read a new segment
+	// Reset resets the reader to read a new segment.
 	Reset(segment ts.Segment)
 
-	// Clone returns a clone of the underlying data reset
-	Clone() (SegmentReader, error)
+	// Clone returns a clone of the underlying data reset, with an optional byte pool.
+	Clone(pool pool.CheckedBytesPool) (SegmentReader, error)
 }
 
-// SegmentReaderPool provides a pool for segment readers
+// SegmentReaderPool provides a pool for segment readers.
 type SegmentReaderPool interface {
-	// Init will initialize the pool
+	// Init will initialize the pool.
 	Init()
 
-	// Get provides a segment reader from the pool
+	// Get provides a segment reader from the pool.
 	Get() SegmentReader
 
-	// Put returns a segment reader to the pool
+	// Put returns a segment reader to the pool.
 	Put(sr SegmentReader)
 }
 
-// ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays
+// ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays.
 type ReaderSliceOfSlicesIterator interface {
-	// Next moves to the next item
+	// Next moves to the next item.
 	Next() bool
 
-	// CurrentReaders returns the current length, start time, and block size
+	// CurrentReaders returns the current length, start time, and block size.
 	CurrentReaders() (length int, start time.Time, blockSize time.Duration)
 
-	// CurrentReaderAt returns the current reader in the slice of readers at an index
+	// CurrentReaderAt returns the current reader in the slice of readers at an index.
 	CurrentReaderAt(idx int) BlockReader
 
-	// Close closes the iterator
+	// Close closes the iterator.
 	Close()
 }
 
-// ReaderSliceOfSlicesFromBlockReadersIterator is an iterator that iterates through an array of reader arrays
+// ReaderSliceOfSlicesFromBlockReadersIterator is an iterator that iterates through an array of reader arrays.
 type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 	ReaderSliceOfSlicesIterator
 
-	// Reset resets the iterator with a new array of block readers arrays
+	// Reset resets the iterator with a new array of block readers arrays.
 	Reset(blocks [][]BlockReader)
 }

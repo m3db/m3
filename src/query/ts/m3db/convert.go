@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -97,12 +98,19 @@ func convertM3DBSegmentedBlockIterators(
 	defer iterators.Close()
 	blockBuilder := newEncodedBlockBuilder(opts.TagOptions(), opts.ConsolidationFunc())
 	var (
-		iterAlloc = opts.IterAlloc()
-		pools     = opts.IteratorPools()
+		iterAlloc    = opts.IterAlloc()
+		pools        = opts.IteratorPools()
+		checkedPools = opts.CheckedBytesPool()
 	)
 
 	for _, seriesIterator := range iterators.Iters() {
-		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc, bounds, pools)
+		blockReplicas, err := blockReplicasFromSeriesIterator(
+			seriesIterator,
+			iterAlloc,
+			bounds,
+			checkedPools,
+		)
+
 		if err != nil {
 			return nil, err
 		}
@@ -120,7 +128,7 @@ func blockReplicasFromSeriesIterator(
 	seriesIterator encoding.SeriesIterator,
 	iterAlloc encoding.ReaderIteratorAllocate,
 	bounds models.Bounds,
-	pools encoding.IteratorPools,
+	checkedPools pool.CheckedBytesPool,
 ) (seriesBlocks, error) {
 	blocks := make(seriesBlocks, 0, bounds.Steps())
 	for _, replica := range seriesIterator.Replicas() {
@@ -132,7 +140,7 @@ func blockReplicasFromSeriesIterator(
 				reader := perBlockSliceReaders.CurrentReaderAt(i)
 				// NB(braskin): important to clone the reader as we need its position reset before
 				// we use the contents of it again
-				clonedReader, err := reader.Clone()
+				clonedReader, err := reader.Clone(checkedPools)
 				if err != nil {
 					return nil, err
 				}

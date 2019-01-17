@@ -574,12 +574,12 @@ func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
 	return req.reader, nil
 }
 
-func (req *retrieveRequest) Clone() (xio.SegmentReader, error) {
+func (req *retrieveRequest) Clone(pool pool.CheckedBytesPool) (xio.SegmentReader, error) {
 	req.resultWg.Wait() // wait until result is ready
 	if req.err != nil {
 		return nil, req.err
 	}
-	return req.reader.Clone()
+	return req.reader.Clone(pool)
 }
 
 func (req *retrieveRequest) Start() time.Time {

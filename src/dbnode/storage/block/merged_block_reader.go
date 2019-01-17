@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3x/pool"
 )
 
 type dbMergedBlockReader struct {
@@ -47,8 +48,8 @@ type mergeableStream struct {
 	finalize bool
 }
 
-func (ms mergeableStream) clone() (mergeableStream, error) {
-	stream, err := ms.stream.Clone()
+func (ms mergeableStream) clone(pool pool.CheckedBytesPool) (mergeableStream, error) {
+	stream, err := ms.stream.Clone(pool)
 	if err != nil {
 		return mergeableStream{}, err
 	}
@@ -137,12 +138,12 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	return r.merged, nil
 }
 
-func (r *dbMergedBlockReader) Clone() (xio.SegmentReader, error) {
-	s0, err := r.streams[0].clone()
+func (r *dbMergedBlockReader) Clone(pool pool.CheckedBytesPool) (xio.SegmentReader, error) {
+	s0, err := r.streams[0].clone(pool)
 	if err != nil {
 		return nil, err
 	}
-	s1, err := r.streams[1].clone()
+	s1, err := r.streams[1].clone(pool)
 	if err != nil {
 		return nil, err
 	}

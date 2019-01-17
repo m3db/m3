@@ -24,6 +24,7 @@ import (
 	"bytes"
 
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/pool"
 )
 
 // Segment represents a binary blob consisting of two byte slices and
@@ -122,4 +123,35 @@ func (s *Segment) Finalize() {
 		}
 	}
 	s.Tail = nil
+}
+
+// Clone will create a copy of this segment with an optional bytes pool.
+func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
+	var (
+		checkedHead, checkedTail checked.Bytes
+	)
+
+	head := s.Head.Bytes()
+	ch := make([]byte, len(head))
+	copy(ch, head)
+	tail := s.Tail.Bytes()
+	ct := make([]byte, len(tail))
+	copy(ct, tail)
+
+	if pool != nil {
+		checkedHead = pool.Get(len(ch))
+		checkedHead.IncRef()
+		checkedHead.Reset(ch)
+		checkedHead.DecRef()
+
+		checkedTail = pool.Get(len(ct))
+		checkedTail.IncRef()
+		checkedTail.Reset(ct)
+		checkedTail.DecRef()
+	} else {
+		checkedHead = checked.NewBytes(ch, nil)
+		checkedTail = checked.NewBytes(ct, nil)
+	}
+
+	return NewSegment(checkedHead, checkedTail, s.Flags)
 }

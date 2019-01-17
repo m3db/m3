@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3x/pool"
 )
 
 // Options describes the options for encoded block converters.
@@ -61,6 +62,10 @@ type Options interface {
 	SetIteratorPools(encoding.IteratorPools) Options
 	// IteratorPools returns the iterator pools for the converter.
 	IteratorPools() encoding.IteratorPools
+	// SetCheckedBytesPool sets the checked bytes pool for the converter.
+	SetCheckedBytesPool(pool.CheckedBytesPool) Options
+	// CheckedBytesPool returns the checked bytes pools for the converter.
+	CheckedBytesPool() pool.CheckedBytesPool
 
 	// Validate ensures that the given block options are valid.
 	Validate() error
