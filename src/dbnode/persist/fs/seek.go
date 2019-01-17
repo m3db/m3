@@ -66,11 +66,8 @@ type seeker struct {
 
 	// Data read from the indexInfo file. Note that we use xtime.UnixNano
 	// instead of time.Time to avoid keeping an extra pointer around.
-	start           xtime.UnixNano
-	blockSize       time.Duration
-	entries         int
-	bloomFilterInfo schema.IndexBloomFilterInfo
-	summariesInfo   schema.IndexSummariesInfo
+	start     xtime.UnixNano
+	blockSize time.Duration
 
 	dataFd        *os.File
 	indexFd       *os.File
@@ -213,12 +210,14 @@ func (s *seeker) Open(
 		s.Close()
 		return err
 	}
-	if err := s.readInfo(
+
+	info, err := s.readInfo(
 		int(infoStat.Size()),
 		infoFdWithDigest,
 		expectedDigests.infoDigest,
 		resources,
-	); err != nil {
+	)
+	if err != nil {
 		s.Close()
 		return err
 	}
@@ -244,8 +243,8 @@ func (s *seeker) Open(
 		bloomFilterFd,
 		bloomFilterFdWithDigest,
 		expectedDigests.bloomFilterDigest,
-		uint(s.bloomFilterInfo.NumElementsM),
-		uint(s.bloomFilterInfo.NumHashesK),
+		uint(info.BloomFilter.NumElementsM),
+		uint(info.BloomFilter.NumHashesK),
 		s.opts.opts.ForceBloomFilterMmapMemory(),
 	)
 	if err != nil {
@@ -259,7 +258,7 @@ func (s *seeker) Open(
 		expectedDigests.summariesDigest,
 		// TODO: Fix me
 		xmsgpack.NewDecoder(s.opts.decodingOpts),
-		int(s.summariesInfo.Summaries),
+		int(info.Summaries.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
 	)
 	if err != nil {
@@ -296,26 +295,15 @@ func (s *seeker) readInfo(
 	infoDigestReader digest.FdWithDigestReader,
 	expectedInfoDigest uint32,
 	resources ReusableSeekerResources,
-) error {
+) (schema.IndexInfo, error) {
 	s.prepareUnreadBuf(size)
 	n, err := infoDigestReader.ReadAllAndValidate(s.unreadBuf[:size], expectedInfoDigest)
 	if err != nil {
-		return err
+		return schema.IndexInfo{}, err
 	}
 
-	resources.xmsgpackDecoder.Reset(xmsgpack.NewDecoderStream(s.unreadBuf[:n]))
-	info, err := resources.xmsgpackDecoder.DecodeIndexInfo()
-	if err != nil {
-		return err
-	}
-
-	s.start = xtime.UnixNano(info.BlockStart)
-	s.blockSize = time.Duration(info.BlockSize)
-	s.entries = int(info.Entries)
-	s.bloomFilterInfo = info.BloomFilter
-	s.summariesInfo = info.Summaries
-
-	return nil
+	resources.xmsgpackDecoder.Reset(xmsgpack.NewByteDecoderStream(s.unreadBuf[:n]))
+	return resources.xmsgpackDecoder.DecodeIndexInfo()
 }
 
 // SeekByID returns the data for the specified ID. An error will be returned if the
@@ -453,10 +441,6 @@ func (s *seeker) Range() xtime.Range {
 	return xtime.Range{Start: s.start.ToTime(), End: s.start.ToTime().Add(s.blockSize)}
 }
 
-func (s *seeker) Entries() int {
-	return s.entries
-}
-
 func (s *seeker) Close() error {
 	// Parent should handle cleaning up shared resources
 	if s.isClone {
@@ -546,7 +530,7 @@ func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 		msgpackDecoder:    msgpack.NewDecoder(nil),
 		xmsgpackDecoder:   xmsgpack.NewDecoder(opts.DecodingOptions()),
 		fileDecoderStream: newfileDecoderStream(bufio.NewReader(nil), nil),
-		byteDecoderStream: xmsgpack.NewDecoderStream(nil),
+		byteDecoderStream: xmsgpack.NewByteDecoderStream(nil),
 	}
 }
 

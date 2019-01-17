@@ -71,7 +71,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
-	reader := NewDecoderStream(nil)
+	reader := NewByteDecoderStream(nil)
 	return &Decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
 		checkedBytesPool:  opts.CheckedBytesPool(),

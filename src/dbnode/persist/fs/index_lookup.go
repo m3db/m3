@@ -167,7 +167,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	// Msgpack decode the entire summaries file (we need to store the offsets
 	// for the entries so we can binary-search it)
 	var (
-		decoderStream = xmsgpack.NewDecoderStream(summariesMmap)
+		decoderStream = xmsgpack.NewByteDecoderStream(summariesMmap)
 		summaryTokens = make([]xmsgpack.IndexSummaryToken, 0, numEntries)
 		lastReadID    []byte
 	)

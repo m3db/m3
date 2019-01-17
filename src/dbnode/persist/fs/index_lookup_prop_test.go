@@ -258,7 +258,7 @@ func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) 
 		return nil, fmt.Errorf("err reading index file: %v, ", err)
 	}
 
-	decoderStream := msgpack.NewDecoderStream(buf)
+	decoderStream := msgpack.NewByteDecoderStream(buf)
 	decoder := msgpack.NewDecoder(testDefaultOpts.DecodingOptions())
 	decoder.Reset(decoderStream)
 
