@@ -30,7 +30,6 @@ assets_rules_dir     := generated/assets
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
-NPROC                := 4 # Maximum package concurrency for unit tests.
 cache_policy         ?= recently_read
 
 BUILD                     := $(abspath ./bin)
@@ -42,6 +41,8 @@ LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
 GO_RELEASER_WORKING_DIR   := /m3
 GOMETALINT_VERSION        := v2.0.5
+
+export NPROC := 4 # Maximum package concurrency for unit tests.
 
 SERVICES :=     \
 	m3dbnode      \
