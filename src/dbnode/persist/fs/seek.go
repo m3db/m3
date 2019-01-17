@@ -221,6 +221,8 @@ func (s *seeker) Open(
 		s.Close()
 		return err
 	}
+	s.start = xtime.UnixNano(info.BlockStart)
+	s.blockSize = time.Duration(info.BlockSize)
 
 	err = s.validateIndexFileDigest(
 		indexFdWithDigest, expectedDigests.indexDigest)
