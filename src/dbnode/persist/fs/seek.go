@@ -423,6 +423,10 @@ func (s *seeker) SeekIndexEntry(
 		// No longer being used so we can finalize.
 		entry.CheckedID.DecRef()
 		entry.CheckedID.Finalize()
+		if entry.CheckedTags != nil {
+			entry.CheckedTags.DecRef()
+			entry.CheckedTags.Finalize()
+		}
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
