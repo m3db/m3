@@ -1097,6 +1097,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 	gomock.InOrder(
 		iter.EXPECT().Duplicate().Return(iter),
 		iter.EXPECT().CurrentIndex().Return(0),
+		iter.EXPECT().Len().Return(0),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
 		iter.EXPECT().Close(),

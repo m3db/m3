@@ -183,11 +183,15 @@ func TagsFromTagsIter(
 	iter ident.TagIterator,
 	idPool ident.Pool,
 ) (ident.Tags, error) {
-	var (
-		seriesIDBytes = ident.BytesID(seriesID.Bytes())
-		tags          = idPool.Tags()
-	)
+	var tags ident.Tags
+	if idPool != nil {
+		tags = idPool.Tags()
+	} else {
+		tagSlice := make([]ident.Tag, 0, iter.Len())
+		tags = ident.NewTags(tagSlice...)
+	}
 
+	seriesIDBytes := ident.BytesID(seriesID.Bytes())
 	for iter.Next() {
 		curr := iter.Current()
 
@@ -200,17 +204,27 @@ func TagsFromTagsIter(
 			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
 			idRef = true
 		} else {
-			tag.Name = idPool.Clone(curr.Name)
+			if idPool != nil {
+				tag.Name = idPool.Clone(curr.Name)
+			} else {
+				copiedBytes := append([]byte(nil), curr.Name.Bytes()...)
+				tag.Name = ident.BytesID(copiedBytes)
+			}
 		}
 		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
 			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
 			idRef = true
 		} else {
-			tag.Value = idPool.Clone(curr.Value)
+			if idPool != nil {
+				tag.Value = idPool.Clone(curr.Value)
+			} else {
+				copiedBytes := append([]byte(nil), curr.Value.Bytes()...)
+				tag.Value = ident.BytesID(copiedBytes)
+			}
 		}
 
 		if idRef {
-			tag.NoFinalize() // Taken ref, cannot finalize this
+			tag.NoFinalize() // Taken ref, cannot finalize this.
 		}
 
 		tags.Append(tag)
