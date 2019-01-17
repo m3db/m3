@@ -84,11 +84,11 @@ type Readable interface {
 // CompiledRegex is a collection of regexp compiled structs to allow
 // amortisation of regexp construction costs.
 type CompiledRegex struct {
-	Simple       *regexp.Regexp
-	FST          *vregex.Regexp
-	VellumSyntax *syntax.Regexp
-	PrefixBegin  []byte
-	PrefixEnd    []byte
+	Simple      *regexp.Regexp
+	FST         *vregex.Regexp
+	FSTSyntax   *syntax.Regexp
+	PrefixBegin []byte
+	PrefixEnd   []byte
 }
 
 // DocRetriever returns the document associated with a postings ID. It returns
