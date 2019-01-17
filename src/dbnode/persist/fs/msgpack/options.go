@@ -20,8 +20,6 @@
 
 package msgpack
 
-import "github.com/m3db/m3x/pool"
-
 // DecodingOptions provide a set of options for decoding data
 type DecodingOptions interface {
 	// SetAllocDecodedBytes sets whether we allocate new space when decoding
@@ -39,7 +37,6 @@ const (
 
 type decodingOptions struct {
 	allocDecodedBytes bool
-	checkedBytesPool  pool.CheckedBytesPool
 }
 
 // NewDecodingOptions creates a new set of decoding options
