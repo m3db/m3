@@ -147,11 +147,6 @@ func (s *readerDecoderStream) Remaining() int64 {
 	return int64(s.bytesReader.Len()) + unreadBytes
 }
 
-func (s *readerDecoderStream) Offset() (int, error) {
-	return len(s.backingBytes) - int(s.Remaining()), nil
-}
-
-func (s *readerDecoderStream) OffsetNoError() int {
-	n, _ := s.Offset()
-	return n
+func (s *readerDecoderStream) Offset() int {
+	return len(s.backingBytes) - int(s.Remaining())
 }

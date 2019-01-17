@@ -186,7 +186,7 @@ func (f *bufioWrapCheckReaderNotImpl) Read(p []byte) (int, error) {
 }
 
 type bufioWrapCheckReader struct {
-	decoderStream
+	byteDecoderStream
 	wasWrappedByBufio bool
 }
 

@@ -287,7 +287,7 @@ func (r *reader) readLoop() {
 				err:                  err,
 				decodeRemainingToken: decodeRemainingToken,
 				uniqueIndex:          uniqueIndex,
-				offset:               decoderStream.OffsetNoError(),
+				offset:               decoderStream.Offset(),
 				bufPool:              bufPool,
 			}
 		}
