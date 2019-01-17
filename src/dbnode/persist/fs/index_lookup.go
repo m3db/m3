@@ -29,8 +29,6 @@ import (
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3x/ident"
-
-	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 var errCloneShouldNotBeCloned = errors.New("clones should not be cloned")
@@ -41,10 +39,7 @@ type nearestIndexOffsetLookup struct {
 	summaryIDsOffsets []xmsgpack.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
 	summariesMmap []byte
-	// reusable decoder stream
-	decoderStream  xmsgpack.ByteDecoderStream
-	msgpackDecoder *msgpack.Decoder
-	isClone        bool
+	isClone       bool
 }
 
 func newNearestIndexOffsetLookup(
@@ -55,8 +50,6 @@ func newNearestIndexOffsetLookup(
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
 		summariesMmap:     summariesMmap,
-		decoderStream:     decoderStream,
-		msgpackDecoder:    msgpack.NewDecoder(decoderStream),
 		isClone:           false,
 	}
 }
@@ -66,12 +59,9 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 		return nil, errCloneShouldNotBeCloned
 	}
 
-	decoderStream := xmsgpack.NewDecoderStream(nil)
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: il.summaryIDsOffsets,
 		summariesMmap:     il.summariesMmap,
-		decoderStream:     decoderStream,
-		msgpackDecoder:    msgpack.NewDecoder(decoderStream),
 		isClone:           true,
 	}, nil
 }
@@ -85,7 +75,10 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 //               we scan the index file sequentially in a forward-moving manner)
 // In other words, the returned offset can always be used as a starting point to
 // begin scanning the index file for the desired series.
-func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ident.ID) (int64, error) {
+func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(
+	id ident.ID,
+	resources ReusableSeekerResources,
+) (int64, error) {
 	idBytes := id.Bytes()
 
 	min := 0
@@ -116,7 +109,7 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ident.ID) (int6
 		// Found it
 		if comparison == 0 {
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
-				il.summariesMmap, il.decoderStream, il.msgpackDecoder)
+				il.summariesMmap, resources.byteDecoderStream, resources.msgpackDecoder)
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted
 			if err != nil {
@@ -135,7 +128,7 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ident.ID) (int6
 		if comparison == 1 {
 			min = idx + 1
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
-				il.summariesMmap, il.decoderStream, il.msgpackDecoder)
+				il.summariesMmap, resources.byteDecoderStream, resources.msgpackDecoder)
 			if err != nil {
 				return -1, err
 			}

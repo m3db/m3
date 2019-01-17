@@ -117,7 +117,7 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 	for _, summary := range indexSummaries {
 		id := ident.StringID(string(summary.ID))
 		require.NoError(t, err)
-		offset, err := clone.getNearestIndexFileOffset(id)
+		offset, err := clone.getNearestIndexFileOffset(id, newTestReusableSeekerResources())
 		require.NoError(t, err)
 		require.Equal(t, summary.IndexEntryOffset, offset)
 		id.Finalize()
@@ -170,7 +170,7 @@ func testParentAndClonesSafeForConcurrentUse(t *testing.T, forceMmapMemory bool)
 		startWg.Wait()
 		for _, summary := range indexSummaries {
 			id := ident.StringID(string(summary.ID))
-			offset, err := clone.getNearestIndexFileOffset(id)
+			offset, err := clone.getNearestIndexFileOffset(id, newTestReusableSeekerResources())
 			require.NoError(t, err)
 			require.Equal(t, summary.IndexEntryOffset, offset)
 			id.Finalize()
