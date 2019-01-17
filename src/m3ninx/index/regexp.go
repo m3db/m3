@@ -62,7 +62,10 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	if err != nil {
 		return CompiledRegex{}, err
 	}
-	compiledRegex := CompiledRegex{Simple: simpleRE}
+	compiledRegex := CompiledRegex{
+		Simple:    simpleRE,
+		FSTSyntax: vellumRe,
+	}
 
 	fstRE, start, end, err := fstregexp.ParsedRegexp(vellumRe.String(), vellumRe)
 	if err != nil {
