@@ -8,30 +8,29 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-auto_gen                      := scripts/auto-gen.sh
-process_coverfile             := scripts/process-cover.sh
-gopath_prefix                 := $(GOPATH)/src
-gopath_bin_path               := $(GOPATH)/bin
-m3db_package                  := github.com/m3db/m3
-m3db_package_path             := $(gopath_prefix)/$(m3db_package)
-mockgen_package               := github.com/golang/mock/mockgen
-retool_bin_path               := $(m3db_package_path)/_tools/bin
-retool_src_prefix             := $(m3db_package_path)/_tools/src
-retool_package                := github.com/twitchtv/retool
-metalint_check                := .ci/metalint.sh
-metalint_config               := .metalinter.json
-metalint_exclude              := .excludemetalint
-mocks_output_dir              := generated/mocks
-mocks_rules_dir               := generated/mocks
-proto_output_dir              := generated/proto
-proto_rules_dir               := generated/proto
-assets_output_dir             := generated/assets
-assets_rules_dir              := generated/assets
-thrift_output_dir             := generated/thrift/rpc
-thrift_rules_dir              := generated/thrift
-vendor_prefix                 := vendor
-unit_test_package_concurrency := 4
-cache_policy                  ?= recently_read
+auto_gen             := scripts/auto-gen.sh
+process_coverfile    := scripts/process-cover.sh
+gopath_prefix        := $(GOPATH)/src
+gopath_bin_path      := $(GOPATH)/bin
+m3db_package         := github.com/m3db/m3
+m3db_package_path    := $(gopath_prefix)/$(m3db_package)
+mockgen_package      := github.com/golang/mock/mockgen
+retool_bin_path      := $(m3db_package_path)/_tools/bin
+retool_src_prefix    := $(m3db_package_path)/_tools/src
+retool_package       := github.com/twitchtv/retool
+metalint_check       := .ci/metalint.sh
+metalint_config      := .metalinter.json
+metalint_exclude     := .excludemetalint
+mocks_output_dir     := generated/mocks
+mocks_rules_dir      := generated/mocks
+proto_output_dir     := generated/proto
+proto_rules_dir      := generated/proto
+assets_output_dir    := generated/assets
+assets_rules_dir     := generated/assets
+thrift_output_dir    := generated/thrift/rpc
+thrift_rules_dir     := generated/thrift
+vendor_prefix        := vendor
+cache_policy         ?= recently_read
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3db_package_path)/$(vendor_prefix)
@@ -216,7 +215,7 @@ SUBDIR_TARGETS :=     \
 	metalint
 
 .PHONY: test-ci-unit
-test-ci-unit: test-base-limit-conc
+test-ci-unit: test-base
 	$(process_coverfile) $(coverfile)
 
 .PHONY: test-ci-big-unit
@@ -225,7 +224,7 @@ test-ci-big-unit: test-big-base
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-limit-conctest-base-ci-integration
+	INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
@@ -275,7 +274,7 @@ all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):
 	@echo testing $(SUBDIR)
-	SRC_ROOT=./src/$(SUBDIR) make test-base-limit-conc
+	SRC_ROOT=./src/$(SUBDIR) make test-base
 	gocov convert $(coverfile) | gocov report
 
 .PHONY: test-xml-$(SUBDIR)
@@ -301,7 +300,7 @@ test-single-integration-$(SUBDIR):
 .PHONY: test-ci-unit-$(SUBDIR)
 test-ci-unit-$(SUBDIR):
 	@echo "--- test-ci-unit $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) make test-base-limit-conc
+	SRC_ROOT=./src/$(SUBDIR) make test-base
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
@@ -368,9 +367,5 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(BUILD)
 	@rm -rf $(VENDOR)
-
-.PHONY: test-base-limit-conc
-test-base-limit-conc:
-	NPROC=$(unit_test_package_concurrency) make test-base
 
 .DEFAULT_GOAL := all
