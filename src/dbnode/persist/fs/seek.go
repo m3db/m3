@@ -353,6 +353,9 @@ func (s *seeker) SeekByIndexEntry(
 		return nil, err
 	}
 	if n != int(entry.Size) {
+		// This check is redundant because io.ReadFull will return an error if
+		// its not able to read the specified number of bytes, but we keep it
+		// in for posterity.
 		return nil, fmt.Errorf("tried to read: %d bytes but read: %d", entry.Size, n)
 	}
 
