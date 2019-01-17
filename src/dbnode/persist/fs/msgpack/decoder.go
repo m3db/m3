@@ -23,6 +23,7 @@ package msgpack
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -626,7 +627,7 @@ func (dec *Decoder) decodeCheckedBytes() checked.Bytes {
 	checkedBytes := dec.checkedBytesPool.Get(bytesLen)
 	checkedBytes.IncRef()
 	checkedBytes.Resize(bytesLen)
-	n, err := dec.reader.Read(checkedBytes.Bytes())
+	n, err := io.ReadFull(dec.reader, checkedBytes.Bytes())
 	if n != bytesLen {
 		dec.err = fmt.Errorf(
 			"tried to decode checked bytes of length: %d, but read: %d",

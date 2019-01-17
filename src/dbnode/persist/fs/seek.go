@@ -327,7 +327,7 @@ func (s *seeker) SeekByIndexEntry(
 		return nil, fmt.Errorf("tried to seek to: %d, but seeked to: %d", entry.Offset, newOffset)
 	}
 
-	// Obtain an appropriately sized buffer
+	// Obtain an appropriately sized buffer.
 	var buffer checked.Bytes
 	if s.opts.bytesPool != nil {
 		buffer = s.opts.bytesPool.Get(int(entry.Size))
@@ -340,9 +340,9 @@ func (s *seeker) SeekByIndexEntry(
 		defer buffer.DecRef()
 	}
 
-	// Copy the actual data into the underlying buffer
+	// Copy the actual data into the underlying buffer.
 	underlyingBuf := buffer.Bytes()
-	n, err := s.dataFd.Read(underlyingBuf)
+	n, err := io.ReadFull(s.dataFd, underlyingBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +365,7 @@ func (s *seeker) SeekIndexEntry(
 ) (IndexEntry, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
-	// the file on disk was corrupted
+	// the file on disk was corrupted.
 	if err != nil {
 		return IndexEntry{}, err
 	}
