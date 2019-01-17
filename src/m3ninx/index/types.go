@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 	"regexp"
+	"regexp/syntax"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -83,10 +84,11 @@ type Readable interface {
 // CompiledRegex is a collection of regexp compiled structs to allow
 // amortisation of regexp construction costs.
 type CompiledRegex struct {
-	Simple      *regexp.Regexp
-	FST         *vregex.Regexp
-	PrefixBegin []byte
-	PrefixEnd   []byte
+	Simple       *regexp.Regexp
+	FST          *vregex.Regexp
+	VellumSyntax *syntax.Regexp
+	PrefixBegin  []byte
+	PrefixEnd    []byte
 }
 
 // DocRetriever returns the document associated with a postings ID. It returns
