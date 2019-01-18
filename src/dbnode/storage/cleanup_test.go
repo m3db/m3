@@ -45,6 +45,8 @@ var (
 	time30             = timeFor(30)
 	time40             = timeFor(40)
 	commitLogBlockSize = 10 * time.Second
+	retentionOptions   = retention.NewOptions()
+	namespaceOptions   = namespace.NewOptions()
 )
 
 func TestCleanupManagerCleanup(t *testing.T) {
@@ -52,10 +54,10 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
-	rOpts := retention.NewOptions().
+	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(7200 * time.Second)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
+	nsOpts := namespaceOptions.SetRetentionOptions(rOpts)
 
 	namespaces := make([]databaseNamespace, 0, 3)
 	for i := 0; i < 3; i++ {
@@ -93,10 +95,10 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
-	rOpts := retention.NewOptions().
+	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(3600 * time.Second)
-	nsOpts := namespace.NewOptions().
+	nsOpts := namespaceOptions.
 		SetRetentionOptions(rOpts).
 		SetCleanupEnabled(true).
 		SetIndexOptions(namespace.NewIndexOptions().
@@ -126,10 +128,10 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)
-	rOpts := retention.NewOptions().
+	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(7200 * time.Second)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts).SetCleanupEnabled(false)
+	nsOpts := namespaceOptions.SetRetentionOptions(rOpts).SetCleanupEnabled(false)
 
 	namespaces := make([]databaseNamespace, 0, 3)
 	for range namespaces {
@@ -159,7 +161,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
-	nsOpts := namespace.NewOptions()
+	nsOpts := namespaceOptions
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 
@@ -190,7 +192,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
-	nsOpts := namespace.NewOptions().
+	nsOpts := namespaceOptions.
 		SetCleanupEnabled(false)
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
@@ -282,7 +284,7 @@ type testRetentionOptions struct {
 }
 
 func (t *testRetentionOptions) newRetentionOptions() retention.Options {
-	return retention.NewOptions().
+	return retentionOptions.
 		SetBufferPast(time.Duration(t.bufferPastSecs) * time.Second).
 		SetBufferFuture(time.Duration(t.bufferFutureSecs) * time.Second).
 		SetBlockSize(time.Duration(t.blockSizeSecs) * time.Second)
@@ -423,7 +425,7 @@ func TestCleanupManagerCommitLogNamespaceBlocks(t *testing.T) {
 // we can delete data for.
 func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) (*MockdatabaseNamespace, *cleanupManager) {
 	var (
-		rOpts = retention.NewOptions().
+		rOpts = retentionOptions.
 			SetRetentionPeriod(30 * time.Second).
 			SetBufferPast(0 * time.Second).
 			SetBufferFuture(0 * time.Second).
@@ -449,7 +451,7 @@ func newCleanupManagerCommitLogTimesTestMultiNS(
 	ctrl *gomock.Controller,
 ) (*MockdatabaseNamespace, *MockdatabaseNamespace, *cleanupManager) {
 	var (
-		rOpts = retention.NewOptions().
+		rOpts = retentionOptions.
 			SetRetentionPeriod(30 * time.Second).
 			SetBufferPast(0 * time.Second).
 			SetBufferFuture(0 * time.Second).

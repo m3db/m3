@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -40,6 +39,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+var namespaceIndexOptions = namespace.NewIndexOptions()
 
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
@@ -88,11 +89,11 @@ func copyBytes(b []byte) []byte {
 }
 
 func testNamespaceMetadata(blockSize, period time.Duration) namespace.Metadata {
-	nopts := namespace.NewOptions().
-		SetRetentionOptions(retention.NewOptions().
+	nopts := namespaceOptions.
+		SetRetentionOptions(namespaceOptions.RetentionOptions().
 			SetRetentionPeriod(period)).
 		SetIndexOptions(
-			namespace.NewIndexOptions().
+			namespaceIndexOptions.
 				SetBlockSize(blockSize))
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	if err != nil {
