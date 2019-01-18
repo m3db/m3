@@ -2,28 +2,10 @@ package storage
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
-
-// FetchOptions provide context to a fetch
-type FetchOptions struct {
-	StartTime time.Time // The start time for the fetch
-	EndTime   time.Time // The end time for the fetch
-	DataOptions
-}
-
-// DataOptions provide data context
-type DataOptions struct {
-	LocalOnly                bool          // Whether to fetch from local dc only
-	UseCache                 bool          // Whether to fetch from data from the cache
-	UseM3DB                  bool          // Whether to fetch from data from M3DB
-	RequestCompressed        bool          // Whether to request compressed data from remote storage
-	RequestCompressedDeduped bool          // Whether to request compressed deduped data from remote storage
-	Timeout                  time.Duration // Whether to use a custom timeout, zero if no or positive if yes
-}
 
 // FetchResult provides a fetch result and meta information
 type FetchResult struct {

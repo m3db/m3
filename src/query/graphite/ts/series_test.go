@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/context"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,7 +96,7 @@ func TestConstantNaNValues(t *testing.T) {
 	assert.False(t, series.IsConsolidationFuncSet())
 	series.SetConsolidationFunc(ConsolidationSum.Func())
 	assert.True(t, series.IsConsolidationFuncSet())
-	assert.Equal(t, ConsolidationSum.Func(), series.consolidationFunc)
+	xtest.Equalish(t, ConsolidationSum.Func(), series.consolidationFunc)
 	agg := series.CalcStatistics()
 	assert.Equal(t, uint(0), agg.Count)
 	assert.True(t, math.IsNaN(agg.Min))
@@ -105,7 +106,6 @@ func TestConstantNaNValues(t *testing.T) {
 }
 
 func TestInvalidConsolidation(t *testing.T) {
-	// Test case to repro issue observed in: https://code.uberinternal.com/T724940
 	var (
 		ctx     = context.New()
 		dummyCF = func(existing, toAdd float64, count int) float64 {
