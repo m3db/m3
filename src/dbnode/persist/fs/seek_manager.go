@@ -400,7 +400,7 @@ func (m *seekerManager) newOpenSeeker(
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
 	resources := m.getSeekerResources()
-	if err := seeker.Open(m.namespace, shard, blockStart, m.getSeekerResources()); err != nil {
+	if err := seeker.Open(m.namespace, shard, blockStart, resources); err != nil {
 		m.putSeekerResources(resources)
 		return nil, err
 	}
