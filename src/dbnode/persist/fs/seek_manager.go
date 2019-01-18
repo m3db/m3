@@ -84,7 +84,7 @@ type seekerManager struct {
 	sleepFn                func(d time.Duration)
 	openCloseLoopDoneCh    chan struct{}
 	// Pool of seeker resources that can be used to open new seekers.
-	reusableSeekerResourcesPool chan ReusableSeekerResources
+	reusableSeekerResourcesPool pool.ObjectPool
 }
 
 type seekerUnreadBuf struct {
@@ -125,11 +125,14 @@ func NewSeekerManager(
 	opts Options,
 	fetchConcurrency int,
 ) DataFileSetSeekerManager {
-	reusableSeekerResourcesPool := make(
-		chan ReusableSeekerResources, reusableSeekerResourcesPoolSize)
-	for i := 0; i < reusableSeekerResourcesPoolSize; i++ {
-		reusableSeekerResourcesPool <- NewReusableSeekerResources(opts)
-	}
+	reusableSeekerResourcesPool := pool.NewObjectPool(
+		pool.NewObjectPoolOptions().
+			SetSize(reusableSeekerResourcesPoolSize).
+			SetRefillHighWatermark(0).
+			SetRefillLowWatermark(0))
+	reusableSeekerResourcesPool.Init(func() interface{} {
+		return NewReusableSeekerResources(opts)
+	})
 
 	m := &seekerManager{
 		bytesPool:                   bytesPool,
@@ -627,19 +630,9 @@ func (m *seekerManager) openCloseLoop() {
 }
 
 func (m *seekerManager) getSeekerResources() ReusableSeekerResources {
-	// Try and use the pool, but allocate if its empty.
-	select {
-	case resources := <-m.reusableSeekerResourcesPool:
-		return resources
-	default:
-		return NewReusableSeekerResources(m.opts)
-	}
+	return m.reusableSeekerResourcesPool.Get().(ReusableSeekerResources)
 }
 
 func (m *seekerManager) putSeekerResources(r ReusableSeekerResources) {
-	// Try and return to pool, but don't block if its full.
-	select {
-	case m.reusableSeekerResourcesPool <- r:
-	default:
-	}
+	m.reusableSeekerResourcesPool.Put(r)
 }
