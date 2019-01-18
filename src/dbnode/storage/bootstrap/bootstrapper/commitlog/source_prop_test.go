@@ -59,6 +59,11 @@ import (
 const maxShards = 8192
 const blockSize = 2 * time.Hour
 
+var (
+	testFsOpts        = fs.NewOptions()
+	testCommitlogOpts = commitlog.NewOptions()
+)
+
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
@@ -123,15 +128,15 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			require.True(t, commitLogBlockSize < blockSize)
 
 			var (
-				fsOpts = fs.NewOptions().
+				fsOpts = testFsOpts.
 					SetFilePathPrefix(dir)
-				commitLogOpts = commitlog.NewOptions().
+				commitLogOpts = testCommitlogOpts.
 						SetBlockSize(blockSize).
 						SetFilesystemOptions(fsOpts).
 						SetBlockSize(commitLogBlockSize).
 						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
-						SetClockOptions(commitlog.NewOptions().ClockOptions().SetNowFn(nowFn))
+						SetClockOptions(testCommitlogOpts.ClockOptions().SetNowFn(nowFn))
 				bootstrapOpts = testDefaultOpts.SetCommitLogOptions(commitLogOpts)
 
 				start = input.currentTime.Truncate(blockSize)

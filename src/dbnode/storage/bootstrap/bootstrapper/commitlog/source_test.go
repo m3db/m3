@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
@@ -36,8 +37,9 @@ import (
 )
 
 var (
-	testDefaultOpts = NewOptions()
-	notSelfID       = "not-self"
+	testDefaultOpts = NewOptions().
+			SetRuntimeOptionsManager(runtime.NewOptionsManager())
+	notSelfID = "not-self"
 )
 
 func TestAvailableData(t *testing.T) {
