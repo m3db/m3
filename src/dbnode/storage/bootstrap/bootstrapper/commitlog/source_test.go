@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	testDefaultOpts = testOptions()
+	testDefaultOpts = NewOptions()
 	notSelfID       = "not-self"
 )
 
@@ -120,7 +120,7 @@ func TestAvailableData(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
 			var (
-				src          = newCommitLogSource(testOptions(), fs.Inspection{})
+				src          = newCommitLogSource(testDefaultOpts, fs.Inspection{})
 				runOpts      = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
 				dataRes, err = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			)
