@@ -349,7 +349,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 		return indexEntry
 	}
 
-	if dec.byteReader != nil {
+	if bytesPool == nil {
 		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
 	} else {
 		indexEntry.EncodedTags = dec.decodeBytesWithPool(bytesPool)
