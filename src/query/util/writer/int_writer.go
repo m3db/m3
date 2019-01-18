@@ -55,3 +55,34 @@ func WriteInteger(dst []byte, value, idx int) int {
 	dst[idx-1] = byte(48 + value)
 	return finalIndex
 }
+
+// IntsLength determines the number of digits in a list of base 10 integers,
+// accounting for separators between each integer.
+func IntsLength(is []int) int {
+	// initialize length accounting for separators.
+	l := len(is) - 1
+	for _, i := range is {
+		l += IntLength(i)
+	}
+
+	return l
+}
+
+// WriteIntegers writes a slice of base 10 integer to a buffer at a given index,
+// separating each value with the given separator, returning the index at which
+// the write ends.
+//
+// NB: Ensure that there is sufficient space in the buffer to hold values and
+// separators.
+func WriteIntegers(dst []byte, values []int, sep byte, idx int) int {
+	l := len(values) - 1
+	for _, v := range values[:l] {
+		idx = WriteInteger(dst, v, idx)
+		dst[idx] = sep
+		idx++
+	}
+
+	idx = WriteInteger(dst, values[l], idx)
+	// Write the last integer.
+	return idx
+}

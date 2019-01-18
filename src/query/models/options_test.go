@@ -59,7 +59,7 @@ func TestBadNameTagOptions(t *testing.T) {
 
 func TestBadSchemeTagOptions(t *testing.T) {
 	msg := "invalid config id schema type 'unknown': should be one of" +
-		" [legacy quoted prependMeta]"
+		" [legacy quoted prepend_meta]"
 	opts := NewTagOptions().
 		SetIDSchemeType(IDSchemeType(4))
 	assert.EqualError(t, opts.Validate(), msg)

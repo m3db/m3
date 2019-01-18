@@ -26,8 +26,9 @@ import (
 
 // Separators for tags.
 const (
-	sep = byte(',')
-	eq  = byte('=')
+	sep    = byte(',')
+	finish = byte('!')
+	eq     = byte('=')
 )
 
 // IDSchemeType determines the scheme for generating

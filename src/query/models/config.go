@@ -31,7 +31,8 @@ var validIDSchemes = []IDSchemeType{
 	TypePrependMeta,
 }
 
-func (t IDSchemeType) validateIDSchemeType() error {
+// Validate validates that the scheme type is valid.
+func (t IDSchemeType) Validate() error {
 	if t == TypeDefault {
 		return errors.New("id scheme type not set")
 	}
@@ -53,7 +54,7 @@ func (t IDSchemeType) String() string {
 	case TypeQuoted:
 		return "quoted"
 	case TypePrependMeta:
-		return "prependMeta"
+		return "prepend_meta"
 	default:
 		// Should never get here.
 		return "unknown"

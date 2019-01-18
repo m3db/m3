@@ -193,29 +193,24 @@ func (t Tags) prependMetaID() []byte {
 }
 
 func writeTagLengthMeta(dst []byte, lengths []int) int {
-	idx := 0
-	for _, l := range lengths {
-		idx = writer.WriteInteger(dst, l, idx)
-	}
-
-	return idx
+	idx := writer.WriteIntegers(dst, lengths, sep, 0)
+	dst[idx] = finish
+	return idx + 1
 }
 
 func (t Tags) prependMetaLen() (int, []int) {
-	idLen := 0
-	tagLengths := make([]int, len(t.Tags))
+	idLen := 1 // account for separator
+	tagLengths := make([]int, len(t.Tags)*2)
 	for i, tag := range t.Tags {
 		tagLen := len(tag.Name)
-		tagLen += len(tag.Value)
-		tagLengths[i] = tagLen
+		tagLengths[2*i] = tagLen
+		idLen += tagLen
+		tagLen = len(tag.Value)
+		tagLengths[2*i+1] = tagLen
 		idLen += tagLen
 	}
 
-	prefixLen := 0
-	for _, l := range tagLengths {
-		prefixLen += writer.IntLength(l)
-	}
-
+	prefixLen := writer.IntsLength(tagLengths)
 	return idLen + prefixLen, tagLengths
 }
 

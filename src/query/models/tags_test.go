@@ -28,6 +28,8 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -96,11 +98,12 @@ func TestQuotedCollisions(t *testing.T) {
 }
 
 func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
-	tags := testLongTagIDOutOfOrder(t, TypePrependMeta)
+	tags := testLongTagIDOutOfOrder(t, TypePrependMeta).
+		AddTag(Tag{Name: []byte("t9"), Value: []byte(`"v1"t2"v2"`)})
 	actual := tags.ID()
 	expectedLength, _ := tags.prependMetaLen()
-	assert.Equal(t, expectedLength, len(actual))
-	assert.Equal(t, []byte("4444t1v1t2v2t3v3t4v4"), actual)
+	require.Equal(t, expectedLength, len(actual))
+	assert.Equal(t, []byte(`2,2,2,2,2,2,2,2,2,10!t1v1t2v2t3v3t4v4t9"v1"t2"v2"`), actual)
 }
 
 func createTags(withName bool) Tags {
@@ -265,17 +268,13 @@ func TestTagAppend(t *testing.T) {
 }
 
 func TestWriteTagLengthMeta(t *testing.T) {
-	lengths := []int{0, 1, 2, 8, 10, 8, 100, 8, 101, 8, 110}
-	l := 0
-	for _, length := range lengths {
-		l += writer.IntLength(length)
-	}
-
-	assert.Equal(t, 18, l)
+	lengths := []int{0, 1, 2, 8, 10, 8, 100, 8, 101, 8, 110, 123456, 12345}
+	l := writer.IntsLength(lengths) + 1 // account for final character
+	require.Equal(t, 41, l)
 	buf := make([]byte, l)
 	count := writeTagLengthMeta(buf, lengths)
-	assert.Equal(t, 18, count)
-	assert.Equal(t, []byte("012810810081018110"), buf)
+	require.Equal(t, 41, count)
+	assert.Equal(t, []byte("0,1,2,8,10,8,100,8,101,8,110,12345,12345!"), buf)
 }
 
 func buildTags(b *testing.B, count, length int, opts TagOptions, escape bool) Tags {

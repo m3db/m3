@@ -30,17 +30,17 @@ import (
 )
 
 func TestIDSchemeValidation(t *testing.T) {
-	err := TypeDefault.validateIDSchemeType()
+	err := TypeDefault.Validate()
 	assert.EqualError(t, err, "id scheme type not set")
-	err = TypeLegacy.validateIDSchemeType()
+	err = TypeLegacy.Validate()
 	assert.NoError(t, err)
-	err = TypePrependMeta.validateIDSchemeType()
+	err = TypePrependMeta.Validate()
 	assert.NoError(t, err)
-	err = TypeQuoted.validateIDSchemeType()
+	err = TypeQuoted.Validate()
 	assert.NoError(t, err)
-	err = IDSchemeType(4).validateIDSchemeType()
+	err = IDSchemeType(4).Validate()
 	assert.EqualError(t, err, "invalid config id schema type 'unknown':"+
-		" should be one of [legacy quoted prependMeta]")
+		" should be one of [legacy quoted prepend_meta]")
 }
 
 func TestMetricsTypeUnmarshalYAML(t *testing.T) {

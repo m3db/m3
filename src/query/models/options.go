@@ -50,7 +50,7 @@ func (o *tagOptions) Validate() error {
 		return errNoName
 	}
 
-	return o.idScheme.validateIDSchemeType()
+	return o.idScheme.Validate()
 }
 
 func (o *tagOptions) SetVersion(version int) TagOptions {
