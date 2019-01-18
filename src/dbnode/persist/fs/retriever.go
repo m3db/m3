@@ -295,15 +295,14 @@ func (r *blockRetriever) fetchBatch(
 	// Seek and execute all requests
 	for _, req := range reqs {
 		var (
-			data               checked.Bytes
-			err                error
-			foundAndHasNoError = !req.notFound && req.err == nil
+			data checked.Bytes
+			err  error
 		)
 
 		// Only try to seek the ID if it exists and there haven't been any errors so
 		// far, otherwise we'll get a checksum mismatch error because the default
 		// offset value for indexEntry is zero.
-		if foundAndHasNoError {
+		if req.foundAndHasNoError() {
 			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
@@ -319,7 +318,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
-		callOnRetrieve := req.onRetrieve != nil && foundAndHasNoError
+		callOnRetrieve := req.onRetrieve != nil && req.foundAndHasNoError()
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
@@ -409,9 +408,9 @@ func (r *blockRetriever) Stream(
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
-	// disk and we can return immediately
+	// disk and we can return immediately.
 	if !bloomFilter.Test(id.Bytes()) {
-		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
+		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
 		req.onRetrieved(ts.Segment{})
 		return req.toBlock(), nil
 	}
@@ -431,6 +430,11 @@ func (r *blockRetriever) Stream(
 		// Loop busy, already ready to consume notification
 	}
 
+	// The request may not have completed yet, but it has an internal
+	// waitgroup which the caller will have to wait for before retrieving
+	// the data. This means that even though we're returning nil for error
+	// here, the caller may still encounter an error when they attempt to
+	// read the data.
 	return req.toBlock(), nil
 }
 
@@ -648,6 +652,10 @@ func (req *retrieveRequest) resetForReuse() {
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
+}
+
+func (req *retrieveRequest) foundAndHasNoError() bool {
+	return !req.notFound && req.err == nil
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest

@@ -23,6 +23,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -32,6 +33,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -343,6 +346,93 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 
 	segment, err := segmentReader.Segment()
 	assert.NoError(t, err)
+	assert.Equal(t, nil, segment.Head)
+	assert.Equal(t, nil, segment.Tail)
+}
+
+// TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method
+// on the retriever in the case where the SeekIndexEntry function returns an
+// error.
+func TestBlockRetrieverHandlesSeekIndexEntryErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
+	mockSeeker.EXPECT().SeekIndexEntry(gomock.Any(), gomock.Any()).Return(IndexEntry{}, errSeekErr)
+
+	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
+}
+
+// TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method
+// on the retriever in the case where the SeekByIndexEntry function returns an
+// error.
+func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
+	mockSeeker.EXPECT().SeekIndexEntry(gomock.Any(), gomock.Any()).Return(IndexEntry{}, nil)
+	mockSeeker.EXPECT().SeekByIndexEntry(gomock.Any(), gomock.Any()).Return(nil, errSeekErr)
+
+	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
+}
+
+var errSeekErr = errors.New("some-error")
+
+func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, mockSeeker ConcurrentDataFileSetSeeker) {
+	// Make sure reader/writer are looking at the same test directory.
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config.
+	var (
+		fsOpts     = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+		rOpts      = testNs1Metadata(t).Options().RetentionOptions()
+		shard      = uint32(0)
+		blockStart = time.Now().Truncate(rOpts.BlockSize())
+
+		// Always true because all the bits in 255 are set.
+		bloomBytes            = []byte{255, 255, 255, 255, 255, 255, 255, 255}
+		alwaysTrueBloomFilter = bloom.NewConcurrentReadOnlyBloomFilter(1, 1, bloomBytes)
+		managedBloomFilter    = newManagedConcurrentBloomFilter(alwaysTrueBloomFilter, bloomBytes)
+	)
+
+	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
+	mockSeekerManager.EXPECT().Open(gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().ConcurrentIDBloomFilter(gomock.Any(), gomock.Any()).Return(managedBloomFilter, nil)
+	mockSeekerManager.EXPECT().Borrow(gomock.Any(), gomock.Any()).Return(mockSeeker, nil)
+	mockSeekerManager.EXPECT().Return(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().Close().Return(nil)
+
+	newSeekerMgr := func(
+		bytesPool pool.CheckedBytesPool,
+		opts Options,
+		fetchConcurrency int,
+	) DataFileSetSeekerManager {
+
+		return mockSeekerManager
+	}
+
+	// Setup the reader.
+	opts := testBlockRetrieverOptions{
+		retrieverOpts:  NewBlockRetrieverOptions(),
+		fsOpts:         fsOpts,
+		newSeekerMgrFn: newSeekerMgr,
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Make sure we return the correct error.
+	ctx := context.NewContext()
+	defer ctx.Close()
+	segmentReader, err := retriever.Stream(ctx, shard,
+		ident.StringID("not-exists"), blockStart, nil)
+	require.NoError(t, err)
+
+	segment, err := segmentReader.Segment()
+	assert.Error(t, errSeekErr)
 	assert.Equal(t, nil, segment.Head)
 	assert.Equal(t, nil, segment.Tail)
 }
