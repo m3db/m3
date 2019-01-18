@@ -32,12 +32,10 @@ import (
 	"time"
 
 	"github.com/m3db/bitset"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
 	mclock "github.com/facebookgo/clock"
@@ -52,6 +50,12 @@ type overrides struct {
 	backlogQueueSize *int
 	strategy         Strategy
 }
+
+var testOpts = NewOptions().
+	SetBlockSize(2 * time.Hour).
+	SetFlushSize(4096).
+	SetFlushInterval(100 * time.Millisecond).
+	SetBacklogQueueSize(1024)
 
 func newTestOptions(
 	t *testing.T,
@@ -72,14 +76,10 @@ func newTestOptions(
 
 	scope := tally.NewTestScope("", nil)
 
-	opts := NewOptions().
-		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
-		SetBlockSize(2 * time.Hour).
-		SetFlushSize(4096).
-		SetFlushInterval(100 * time.Millisecond).
-		SetBacklogQueueSize(1024)
+	opts := testOpts.
+		SetClockOptions(testOpts.ClockOptions().SetNowFn(c.Now)).
+		SetInstrumentOptions(testOpts.InstrumentOptions().SetMetricsScope(scope)).
+		SetFilesystemOptions(testOpts.FilesystemOptions().SetFilePathPrefix(dir))
 
 	if overrides.flushInterval != nil {
 		opts = opts.SetFlushInterval(*overrides.flushInterval)

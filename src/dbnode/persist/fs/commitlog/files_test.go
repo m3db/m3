@@ -46,7 +46,7 @@ func TestFiles(t *testing.T) {
 
 	var (
 		minNumBlocks = 5
-		opts         = NewOptions()
+		opts         = testOpts
 	)
 	opts = opts.SetFilesystemOptions(
 		opts.FilesystemOptions().
@@ -93,10 +93,10 @@ func createTestCommitLogFiles(
 			now = t
 			nowLock.Unlock()
 		}
-		opts = NewOptions().
+		opts = testOpts.
 			SetBlockSize(blockSize).
-			SetClockOptions(NewOptions().ClockOptions().SetNowFn(nowFn)).
-			SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(filePathPrefix))
+			SetClockOptions(testOpts.ClockOptions().SetNowFn(nowFn)).
+			SetFilesystemOptions(testOpts.FilesystemOptions().SetFilePathPrefix(filePathPrefix))
 		commitLogsDir = fs.CommitLogsDirPath(filePathPrefix)
 	)
 
