@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -61,32 +60,6 @@ func testNsMetadata(t *testing.T) namespace.Metadata {
 	md, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
 	require.NoError(t, err)
 	return md
-}
-
-func testOptions() Options {
-	opts := NewOptions()
-	ropts := opts.ResultOptions()
-	rlopts := opts.ResultOptions().DatabaseBlockOptions()
-	eopts := encoding.NewOptions()
-	encoderPool := encoding.NewEncoderPool(nil)
-	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, true, eopts)
-	})
-	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
-	readerIteratorPool.Init(func(reader io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(reader, true, eopts)
-	})
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-	multiReaderIteratorPool.Init(func(reader io.Reader) encoding.ReaderIterator {
-		it := readerIteratorPool.Get()
-		it.Reset(reader)
-		return it
-	})
-	return opts.SetResultOptions(ropts.SetDatabaseBlockOptions(rlopts.
-		SetEncoderPool(encoderPool).
-		SetReaderIteratorPool(readerIteratorPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool))).
-		SetRuntimeOptionsManager(runtime.NewOptionsManager())
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
