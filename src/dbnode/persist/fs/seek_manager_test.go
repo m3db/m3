@@ -36,7 +36,7 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, NewBlockRetrieverOptions().FetchConcurrency()).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
 	var byTimes []*seekersByTime
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
 		byTimes = append(byTimes, byTime)
@@ -75,7 +75,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, NewBlockRetrieverOptions().FetchConcurrency()).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
@@ -83,7 +83,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().ConcurrentClone().Return(mock, nil)
-		for i := 0; i < NewBlockRetrieverOptions().FetchConcurrency(); i++ {
+		for i := 0; i < defaultFetchConcurrency; i++ {
 			mock.EXPECT().Close().Return(nil)
 			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
 		}
@@ -101,7 +101,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
-		require.Equal(t, NewBlockRetrieverOptions().FetchConcurrency(), len(seekers.seekers))
+		require.Equal(t, defaultFetchConcurrency, len(seekers.seekers))
 		byTime.RUnlock()
 		require.NoError(t, m.Return(shard, time.Time{}, seeker))
 	}
@@ -118,7 +118,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, NewBlockRetrieverOptions().FetchConcurrency()).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
 	clockOpts := m.opts.ClockOptions()
 	now := clockOpts.NowFn()()
 	startNano := xtime.ToUnixNano(now)

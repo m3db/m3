@@ -56,7 +56,16 @@ type testEnqueueFn func(idx int, op op)
 
 var (
 	// NB: allocating once to speedup tests.
-	_testSessionOpts = NewOptions()
+	_testSessionOpts = NewOptions().
+		SetCheckedBytesWrapperPoolSize(1).
+		SetFetchBatchOpPoolSize(1).
+		SetHostQueueOpsArrayPoolSize(1).
+		SetSeriesIteratorPoolSize(1).
+		SetTagDecoderPoolSize(1).
+		SetTagEncoderPoolSize(1).
+		SetWriteOpPoolSize(1).
+		SetWriteTaggedOpPoolSize(1).
+		SetSeriesIteratorPoolSize(1)
 )
 
 func newSessionTestOptions() Options {
