@@ -146,8 +146,8 @@ type options struct {
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 	queryIDsWorkerPool             xsync.WorkerPool
 	writeBatchPool                 *ts.WriteBatchPool
-	bufferBucketPool               series.BufferBucketPool
-	bufferBucketVersionsPool       series.BufferBucketVersionsPool
+	bufferBucketPool               *series.BufferBucketPool
+	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -643,22 +643,22 @@ func (o *options) WriteBatchPool() *ts.WriteBatchPool {
 	return o.writeBatchPool
 }
 
-func (o *options) SetBufferBucketPool(value series.BufferBucketPool) Options {
+func (o *options) SetBufferBucketPool(value *series.BufferBucketPool) Options {
 	opts := *o
 	opts.bufferBucketPool = value
 	return &opts
 }
 
-func (o *options) BufferBucketPool() series.BufferBucketPool {
+func (o *options) BufferBucketPool() *series.BufferBucketPool {
 	return o.bufferBucketPool
 }
 
-func (o *options) SetBufferBucketVersionsPool(value series.BufferBucketVersionsPool) Options {
+func (o *options) SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options {
 	opts := *o
 	opts.bufferBucketVersionsPool = value
 	return &opts
 }
 
-func (o *options) BufferBucketVersionsPool() series.BufferBucketVersionsPool {
+func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
 }

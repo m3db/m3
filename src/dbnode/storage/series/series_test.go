@@ -118,7 +118,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
 	require.True(t, exists)
-	blocks, err := buckets.toBlocks(WarmWrite)
+	blocks, err := buckets.toBlocks()
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	stream, err := blocks[0].Stream(ctx)
@@ -236,7 +236,7 @@ func TestSeriesTickEmptySeries(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
-	_, err = series.Tick()
+	_, err = series.Tick(nil)
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -250,9 +250,9 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick().Return(bufferTickResult{})
+	buffer.EXPECT().Tick(nil).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	r, err := series.Tick()
+	r, err := series.Tick(nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
@@ -279,14 +279,24 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	series.cachedBlocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().HasMergeTarget().Return(false)
 	series.cachedBlocks.AddBlock(b)
 	require.Equal(t, blockStart, series.cachedBlocks.MinTime())
 	require.Equal(t, 2, series.cachedBlocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick().Return(bufferTickResult{})
+	buffer.EXPECT().Tick(gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	r, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(blockStart)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	r, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
@@ -324,9 +334,12 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
+	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -339,9 +352,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -351,9 +362,13 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
-	tickResult, err = series.Tick()
+	blockStates = make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -386,9 +401,12 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
+	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -400,9 +418,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -412,7 +428,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
 	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
 	b = block.NewMockDatabaseBlock(ctrl)
@@ -422,7 +437,12 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	_, expiredBlockExists := series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, true, expiredBlockExists)
 
-	tickResult, err = series.Tick()
+	blockStates = make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -454,9 +474,13 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
 
-	tickResult, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
+	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -466,9 +490,13 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
-	tickResult, err = series.Tick()
+	blockStates = make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)

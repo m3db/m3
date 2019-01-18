@@ -49,7 +49,7 @@ type DatabaseSeries interface {
 	Tags() ident.Tags
 
 	// Tick executes async updates
-	Tick() (TickResult, error)
+	Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, error)
 
 	// Write writes a new value
 	Write(
@@ -143,6 +143,21 @@ type QueryableBlockRetriever interface {
 
 	// RetrievableBlockVersion returns the last time a block was marked success
 	RetrievableBlockVersion(blockStart time.Time) int
+
+	// BlockStatesSnapshot returns a snapshot of the whether blocks are
+	// retrievable and their flush versions for each block start. This is used
+	// to reduce lock contention of acquiring flush state.
+	//
+	// Flushes may occur and change the actual block state while iterating
+	// through this snapshot, so any logic using this function should take this
+	// into account.
+	BlockStatesSnapshot() map[xtime.UnixNano]BlockState
+}
+
+// BlockState contains the state of a block
+type BlockState struct {
+	Retrievable bool
+	Version     int
 }
 
 // TickStatus is the status of a series for a given tick

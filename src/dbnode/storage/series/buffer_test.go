@@ -80,7 +80,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 	ctx := context.NewContext()
 	defer ctx.Close()
 	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second,
@@ -97,7 +97,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 	ctx := context.NewContext()
 	defer ctx.Close()
 	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
@@ -114,7 +114,7 @@ func TestBufferWriteRead(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
@@ -146,7 +146,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
@@ -186,7 +186,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr, 1, xtime.Second, nil},
@@ -413,7 +413,7 @@ func TestBufferFetchBlocks(t *testing.T) {
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
@@ -435,7 +435,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	end := b.start.Add(time.Second)
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	expectedSize := int64(b.streamsLen())
@@ -466,11 +466,8 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
-	blockRetriever.EXPECT().IsBlockRetrievable(start).Return(true)
-	blockRetriever.EXPECT().RetrievableBlockVersion(start).Return(1)
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(blockRetriever, opts)
+	buffer.Reset(opts)
 
 	// Perform out of order writes that will create two in order encoders
 	data := []value{
@@ -505,8 +502,13 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	assert.Equal(t, 2, len(encoders))
 
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(start)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
 	// Perform a tick and ensure merged out of order blocks
-	r := buffer.Tick()
+	r := buffer.Tick(blockStates)
 	assert.Equal(t, 1, r.mergedOutOfOrderBlocks)
 
 	// Check values correct
@@ -548,9 +550,8 @@ func TestBufferRemoveBucket(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(blockRetriever, opts)
+	buffer.Reset(opts)
 
 	// Perform out of order writes that will create two in order encoders
 	data := []value{
@@ -576,14 +577,17 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	// Simulate that a flush has fully completed on this bucket so that it will
 	// get removed from the bucket.
-	blockRetriever.EXPECT().IsBlockRetrievable(start).Return(true)
-	blockRetriever.EXPECT().RetrievableBlockVersion(start).Return(1)
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(start)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
 	bucket.version = 1
 
 	// False because we just wrote to it
 	assert.False(t, buffer.IsEmpty())
 	// Perform a tick to remove the bucket which has been flushed
-	buffer.Tick()
+	buffer.Tick(blockStates)
 	// True because we just removed the bucket
 	assert.True(t, buffer.IsEmpty())
 }
@@ -598,7 +602,7 @@ func TestBufferToBlock(t *testing.T) {
 	assert.Len(t, bucket.encoders, 4)
 	assert.Len(t, bucket.blocks, 0)
 
-	blocks, err := b.toBlocks(WarmWrite)
+	blocks, err := b.toBlocks()
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	// Verify that encoders get reset and the resultant block gets put in blocks
@@ -623,7 +627,7 @@ func TestBufferSnapshot(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(nil, opts)
+	buffer.Reset(opts)
 
 	// Create test data to perform out of order writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge

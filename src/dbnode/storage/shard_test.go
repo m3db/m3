@@ -75,7 +75,9 @@ func testDatabaseShardWithIndexFn(
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
-	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions())
+	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
+		SetBufferBucketVersionsPool(series.NewBufferBucketVersionsPool(nil)).
+		SetBufferBucketPool(series.NewBufferBucketPool(nil))
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, idx, true, opts, seriesOpts).(*dbShard)
 }
@@ -633,7 +635,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	closeWg.Add(2)
 
 	// wait to return the other tick has returned error
-	foo.EXPECT().Tick().Do(func() {
+	foo.EXPECT().Tick(gomock.Any()).Do(func(interface{}) {
 		tick1Wg.Done()
 		tick2Wg.Wait()
 	}).Return(series.TickResult{}, nil)
@@ -692,7 +694,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 	orderWg.Add(1)
 	gomock.InOrder(
 		// loop until the shard is marked for Closing
-		foo.EXPECT().Tick().Do(func() {
+		foo.EXPECT().Tick(gomock.Any()).Do(func(interface{}) {
 			orderWg.Done()
 			for {
 				if shard.isClosing() {
@@ -770,7 +772,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	defer shard.Close()
 	id := ident.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
-	s.EXPECT().Tick().Do(func() {
+	s.EXPECT().Tick(gomock.Any()).Do(func(interface{}) {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
@@ -800,7 +802,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	defer shard.Close()
 	id := ident.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
-	s.EXPECT().Tick().Do(func() {
+	s.EXPECT().Tick(gomock.Any()).Do(func(interface{}) {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
 		entry, err = shard.writableSeries(id, ident.EmptyTagIterator)
