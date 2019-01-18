@@ -132,26 +132,28 @@ func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 	)
 
 	head := s.Head.Bytes()
-	ch := make([]byte, len(head))
-	copy(ch, head)
 	tail := s.Tail.Bytes()
-	ct := make([]byte, len(tail))
-	copy(ct, tail)
 
 	if pool != nil {
-		checkedHead = pool.Get(len(ch))
+		checkedHead = pool.Get(len(head))
 		checkedHead.IncRef()
-		checkedHead.Reset(ch)
+		checkedHead.AppendAll(head)
 		checkedHead.DecRef()
 
-		checkedTail = pool.Get(len(ct))
+		checkedTail = pool.Get(len(tail))
 		checkedTail.IncRef()
-		checkedTail.Reset(ct)
+		checkedTail.AppendAll(tail)
 		checkedTail.DecRef()
 	} else {
+		ch := make([]byte, len(head))
+		copy(ch, head)
+		ct := make([]byte, len(tail))
+		copy(ct, tail)
+
 		checkedHead = checked.NewBytes(ch, nil)
 		checkedTail = checked.NewBytes(ct, nil)
 	}
 
-	return NewSegment(checkedHead, checkedTail, s.Flags)
+	// NB: new segment is always finalizeable.
+	return NewSegment(checkedHead, checkedTail, FinalizeHead&FinalizeTail)
 }

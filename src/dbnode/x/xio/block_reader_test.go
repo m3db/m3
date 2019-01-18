@@ -60,7 +60,7 @@ func TestCloneBlock(t *testing.T) {
 	clonedReader := NewMockSegmentReader(ctrl)
 	clonedReader.EXPECT().Read(p).Return(1337, nil).Times(1)
 
-	reader.EXPECT().Clone(nil).Return(clonedReader, nil).Times(1)
+	reader.EXPECT().Clone().Return(clonedReader, nil).Times(1)
 
 	b := BlockReader{
 		SegmentReader: reader,
@@ -103,13 +103,13 @@ func TestBlockReaderStartEnd(t *testing.T) {
 
 func TestBlockReaderClone(t *testing.T) {
 	br, sr := buildBlock(t)
-	sr.EXPECT().Clone(nil).Return(nil, errTest).Times(1)
+	sr.EXPECT().Clone().Return(nil, errTest).Times(1)
 	r, err := br.Clone(nil)
 	require.Nil(t, r)
 	require.Equal(t, err, errTest)
 
-	sr.EXPECT().Clone(nil).Return(sr, nil).Times(1)
-	r, err = br.Clone(nil)
+	sr.EXPECT().Clone().Return(sr, nil).Times(1)
+	r, err = br.Clone()
 	require.NoError(t, err)
 
 	require.Equal(t, r, sr)

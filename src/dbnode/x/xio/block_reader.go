@@ -24,12 +24,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/pool"
 )
 
 // CloneBlock returns a clone of the block with the underlying data reset
-func (b BlockReader) CloneBlock(pool pool.CheckedBytesPool) (BlockReader, error) {
-	sr, err := b.SegmentReader.Clone(pool)
+func (b BlockReader) CloneBlock() (BlockReader, error) {
+	sr, err := b.SegmentReader.Clone()
 	if err != nil {
 		return EmptyBlockReader, err
 	}

@@ -38,7 +38,13 @@ func NewSegmentReader(segment ts.Segment) SegmentReader {
 	return &segmentReader{segment: segment}
 }
 
-func (sr *segmentReader) Clone(pool pool.CheckedBytesPool) (SegmentReader, error) {
+func (sr *segmentReader) Clone() (SegmentReader, error) {
+	return NewSegmentReader(sr.segment), nil
+}
+
+func (sr *segmentReader) DeepClone(
+	pool pool.CheckedBytesPool,
+) (SegmentReader, error) {
 	return NewSegmentReader(sr.segment.Clone(pool)), nil
 }
 

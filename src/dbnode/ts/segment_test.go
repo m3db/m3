@@ -23,9 +23,9 @@ package ts
 import (
 	"testing"
 
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
-	"github.com/m3db/m3x/checked"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,12 +60,15 @@ func testSegmentCloneWithPools(
 	assert.Equal(t, len(expected), seg.Len())
 	cloned := seg.Clone(pool)
 	assert.True(t, seg.Equal(&cloned))
+	assert.True(t, seg.Flags == FinalizeNone)
 
 	seg.Head.Reset(tail)
 	assert.Equal(t, len(tail)*2, seg.Len())
 
 	assert.False(t, seg.Equal(&cloned))
 	assert.Equal(t, len(expected), cloned.Len())
+	assert.True(t, cloned.Flags|FinalizeHead > 0)
+	assert.True(t, cloned.Flags|FinalizeTail > 0)
 
 	cloned.Finalize()
 	seg.Finalize()

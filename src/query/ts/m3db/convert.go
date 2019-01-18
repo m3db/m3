@@ -140,7 +140,7 @@ func blockReplicasFromSeriesIterator(
 				reader := perBlockSliceReaders.CurrentReaderAt(i)
 				// NB(braskin): important to clone the reader as we need its position reset before
 				// we use the contents of it again
-				clonedReader, err := reader.Clone(checkedPools)
+				clonedReader, err := reader.DeepClone(checkedPools)
 				if err != nil {
 					return nil, err
 				}

@@ -31,7 +31,8 @@ func (r nullSegmentReader) Read(_ []byte) (n int, err error) { return 0, nil }
 func (r nullSegmentReader) Segment() (ts.Segment, error)     { return ts.Segment{}, nil }
 func (r nullSegmentReader) Reset(_ ts.Segment)               {}
 func (r nullSegmentReader) Finalize()                        {}
-func (r nullSegmentReader) Clone(
+func (r nullSegmentReader) Clone() (SegmentReader, error)    { return r, nil }
+func (r nullSegmentReader) DeepClone(
 	_ pool.CheckedBytesPool,
 ) (SegmentReader, error) {
 	return r, nil

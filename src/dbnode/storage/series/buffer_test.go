@@ -721,7 +721,7 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 	)
 	for _, encoder := range encoders {
 		stream := encoder.Stream()
-		clone, err := stream.Clone(nil)
+		clone, err := stream.Clone()
 		require.NoError(t, err)
 		streams = append(streams, clone)
 		data, err := ioutil.ReadAll(stream)
