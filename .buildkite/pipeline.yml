@@ -33,7 +33,7 @@ steps:
     command: make clean install-vendor test-ci-unit
     env:
       SPLIT_IDX: 1
-      TOTAL_SPLIT: 1
+      TOTAL_SPLITS: 1
     plugins:
       docker-compose#v2.5.1:
         run: app
