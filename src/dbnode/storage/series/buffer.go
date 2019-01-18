@@ -46,11 +46,6 @@ var (
 
 const (
 	bucketsCacheSize = 2
-	// In the most common case, there would only be one bucket in a
-	// buckets slice, i.e. it gets written to, flushed, and then the buckets
-	// get evicted from the map.
-	defaultBufferBucketPoolSize         = 2
-	defaultBufferBucketVersionsPoolSize = defaultBufferBucketPoolSize
 
 	writableBucketVer = 0
 )
@@ -336,7 +331,6 @@ func (b *dbBuffer) Flush(
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
-	// A call to flush can only be for warm writes.
 	blocks, err := buckets.toBlocks()
 	if err != nil {
 		return FlushOutcomeErr, err

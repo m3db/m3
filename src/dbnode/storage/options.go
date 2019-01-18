@@ -205,6 +205,8 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 		queryIDsWorkerPool:             queryIDsWorkerPool,
 		writeBatchPool:                 writeBatchPool,
+		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
+		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
