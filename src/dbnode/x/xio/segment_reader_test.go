@@ -128,7 +128,7 @@ func testSegmentReaderDeepCloneWithPools(
 }
 func TestSegmentReaderDeepCloneNoPool(t *testing.T) {
 	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	testSegmentReaderWithPools(t, checkd, nil)
+	testSegmentReaderDeepCloneWithPools(t, checkd, nil)
 }
 
 func TestSegmentReaderDeepCloneWithPool(t *testing.T) {
@@ -147,5 +147,5 @@ func TestSegmentReaderDeepCloneWithPool(t *testing.T) {
 		return b
 	}
 
-	testSegmentReaderWithPools(t, checkd, bytesPool)
+	testSegmentReaderDeepCloneWithPools(t, checkd, bytesPool)
 }

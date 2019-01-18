@@ -76,7 +76,7 @@ func TestCloneBlock(t *testing.T) {
 	require.Equal(t, read, 100)
 	require.NoError(t, err)
 
-	b2, err := b.CloneBlock(nil)
+	b2, err := b.CloneBlock()
 	require.NoError(t, err)
 
 	startReset := start.Add(time.Hour)
@@ -104,7 +104,7 @@ func TestBlockReaderStartEnd(t *testing.T) {
 func TestBlockReaderClone(t *testing.T) {
 	br, sr := buildBlock(t)
 	sr.EXPECT().Clone().Return(nil, errTest).Times(1)
-	r, err := br.Clone(nil)
+	r, err := br.Clone()
 	require.Nil(t, r)
 	require.Equal(t, err, errTest)
 
