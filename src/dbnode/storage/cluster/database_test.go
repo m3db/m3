@@ -36,13 +36,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testOpts = storage.NewOptions()
+
 func newTestDatabase(
 	t *testing.T,
 	hostid string,
 	topoInit topology.Initializer,
 ) (Database, error) {
-	opts := storage.NewOptions()
-
 	topo, err := topoInit.Init()
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func newTestDatabase(
 		return nil, err
 	}
 
-	return NewDatabase(hostid, topo, watch, opts)
+	return NewDatabase(hostid, topo, watch, testOpts)
 }
 
 func TestDatabaseOpenClose(t *testing.T) {

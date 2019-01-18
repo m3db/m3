@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
@@ -36,8 +37,9 @@ import (
 )
 
 var (
-	testDefaultOpts = testOptions()
-	notSelfID       = "not-self"
+	testDefaultOpts = NewOptions().
+			SetRuntimeOptionsManager(runtime.NewOptionsManager())
+	notSelfID = "not-self"
 )
 
 func TestAvailableData(t *testing.T) {
@@ -120,7 +122,7 @@ func TestAvailableData(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
 			var (
-				src          = newCommitLogSource(testOptions(), fs.Inspection{})
+				src          = newCommitLogSource(testDefaultOpts, fs.Inspection{})
 				runOpts      = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
 				dataRes, err = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			)

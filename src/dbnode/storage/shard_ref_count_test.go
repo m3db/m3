@@ -98,7 +98,7 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	blockSize := namespace.NewIndexOptions().BlockSize()
+	blockSize := namespaceIndexOptions.BlockSize()
 
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
@@ -271,7 +271,7 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	blockSize := namespace.NewIndexOptions().BlockSize()
+	blockSize := namespaceIndexOptions.BlockSize()
 
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).

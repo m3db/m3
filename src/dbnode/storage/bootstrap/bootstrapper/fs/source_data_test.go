@@ -48,18 +48,24 @@ import (
 )
 
 var (
-	testShard            = uint32(0)
-	testNs1ID            = ident.StringID("testNs")
-	testBlockSize        = 2 * time.Hour
-	testIndexBlockSize   = 4 * time.Hour
-	testStart            = time.Now().Truncate(testBlockSize)
-	testFileMode         = os.FileMode(0666)
-	testDirMode          = os.ModeDir | os.FileMode(0755)
-	testWriterBufferSize = 10
-	testDefaultRunOpts   = bootstrap.NewRunOptions().
-				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+	testShard                 = uint32(0)
+	testNs1ID                 = ident.StringID("testNs")
+	testBlockSize             = 2 * time.Hour
+	testIndexBlockSize        = 4 * time.Hour
+	testStart                 = time.Now().Truncate(testBlockSize)
+	testFileMode              = os.FileMode(0666)
+	testDirMode               = os.ModeDir | os.FileMode(0755)
+	testWriterBufferSize      = 10
+	testNamespaceIndexOptions = namespace.NewIndexOptions()
+	testNamespaceOptions      = namespace.NewOptions()
+	testRetentionOptions      = retention.NewOptions()
+	testDefaultFsOpts         = fs.NewOptions()
+	testDefaultRunOpts        = bootstrap.NewRunOptions().
+					SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
+	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts).
+				SetBoostrapDataNumProcessors(1).
+				SetBoostrapIndexNumProcessors(1)
 )
 
 func newTestOptions(filePathPrefix string) Options {
@@ -75,7 +81,7 @@ func newTestOptionsWithPersistManager(t *testing.T, filePathPrefix string) Optio
 }
 
 func newTestFsOptions(filePathPrefix string) fs.Options {
-	return fs.NewOptions().
+	return testDefaultFsOpts.
 		SetFilePathPrefix(filePathPrefix).
 		SetWriterBufferSize(testWriterBufferSize).
 		SetNewFileMode(testFileMode).
@@ -83,10 +89,10 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 }
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
-	ropts := retention.NewOptions().SetBlockSize(testBlockSize)
-	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+	ropts := testRetentionOptions.SetBlockSize(testBlockSize)
+	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
-		SetIndexOptions(namespace.NewIndexOptions().
+		SetIndexOptions(testNamespaceIndexOptions.
 			SetEnabled(true).
 			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
