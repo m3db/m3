@@ -342,20 +342,41 @@ func (s *dbShard) Stream(
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	switch flushState.Status {
+	return statusIsRetrievable(flushState.Status)
+}
+
+func statusIsRetrievable(status fileOpStatus) bool {
+	switch status {
 	case fileOpNotStarted, fileOpInProgress, fileOpFailed:
 		return false
 	case fileOpSuccess:
 		return true
 	}
 	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
-		flushState.Status))
+		status))
 }
 
 // RetrievableBlockVersion implements series.QueryableBlockRetriever
 func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
 	return flushState.Version
+}
+
+// BlockStatesSnapshot implements series.QueryableBlockRetriever
+func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
+	s.flushState.RLock()
+	defer s.flushState.RUnlock()
+
+	states := s.flushState.statesByTime
+	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
+	for time, state := range states {
+		snapshot[time] = series.BlockState{
+			Retrievable: statusIsRetrievable(state.Status),
+			Version:     state.Version,
+		}
+	}
+
+	return snapshot
 }
 
 func (s *dbShard) OnRetrieveBlock(
@@ -623,6 +644,9 @@ func (s *dbShard) tickAndExpire(
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
+	// Acquire snapshot of block states here to avoid releasing the
+	// RLock and acquiring it right after.
+	blockStates := s.BlockStatesSnapshot()
 	s.RUnlock()
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
@@ -658,7 +682,7 @@ func (s *dbShard) tickAndExpire(
 			)
 			switch policy {
 			case tickPolicyRegular:
-				result, err = entry.Series.Tick()
+				result, err = entry.Series.Tick(blockStates)
 			case tickPolicyCloseShard:
 				err = series.ErrSeriesAllDatapointsExpired
 			}
@@ -1945,12 +1969,12 @@ func (s *dbShard) Snapshot(
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	s.flushState.RLock()
+	defer s.flushState.RUnlock()
+
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		s.flushState.RUnlock()
 		return fileOpState{Status: fileOpNotStarted}
 	}
-	s.flushState.RUnlock()
 	return state
 }
 
