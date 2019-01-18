@@ -116,15 +116,15 @@ func (s *dbSeries) Tags() ident.Tags {
 	return tags
 }
 
-func (s *dbSeries) Tick() (TickResult, error) {
+func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, error) {
 	var r TickResult
 
 	s.Lock()
 
-	bufferResult := s.buffer.Tick()
+	bufferResult := s.buffer.Tick(blockStates)
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
 
-	update, err := s.updateBlocksWithLock()
+	update, err := s.updateBlocksWithLock(blockStates)
 	if err != nil {
 		s.Unlock()
 		return r, err
@@ -147,12 +147,11 @@ type updateBlocksResult struct {
 	madeUnwiredBlocks int
 }
 
-func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
+func (s *dbSeries) updateBlocksWithLock(blockStates map[xtime.UnixNano]BlockState) (updateBlocksResult, error) {
 	var (
 		result       updateBlocksResult
 		now          = s.now()
 		ropts        = s.opts.RetentionOptions()
-		retriever    = s.blockRetriever
 		cachePolicy  = s.opts.CachePolicy()
 		expireCutoff = now.Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
@@ -193,7 +192,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 
 		result.ActiveBlocks++
 
-		if cachePolicy == CacheAll || retriever == nil {
+		if cachePolicy == CacheAll {
 			// Never unwire
 			result.WiredBlocks++
 			continue
@@ -201,10 +200,10 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 
 		// Potentially unwire
 		var unwired, shouldUnwire bool
-		// IsBlockRetrievable makes sure that the block has been flushed. This
+		// Makes sure that the block has been flushed, which
 		// prevents us from unwiring blocks that haven't been flushed yet which
 		// would cause data loss.
-		if retriever.IsBlockRetrievable(start) {
+		if blockState := blockStates[startNano]; blockState.Retrievable {
 			switch cachePolicy {
 			case CacheNone:
 				shouldUnwire = true
@@ -585,7 +584,7 @@ func (s *dbSeries) Close() {
 
 	// Reset (not close) underlying resources because the series will go
 	// back into the pool and be re-used.
-	s.buffer.Reset(s.blockRetriever, s.opts)
+	s.buffer.Reset(s.opts)
 	s.cachedBlocks.Reset()
 
 	if s.pool != nil {
@@ -623,7 +622,7 @@ func (s *dbSeries) Reset(
 	s.tags = tags
 
 	s.cachedBlocks.Reset()
-	s.buffer.Reset(blockRetriever, opts)
+	s.buffer.Reset(opts)
 	s.opts = opts
 	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever

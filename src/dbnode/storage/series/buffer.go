@@ -99,11 +99,11 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	Tick() bufferTickResult
+	Tick(versions map[xtime.UnixNano]BlockState) bufferTickResult
 
 	Bootstrap(bl block.DatabaseBlock)
 
-	Reset(blockRetriever QueryableBlockRetriever, opts Options)
+	Reset(opts Options)
 }
 
 type bufferStats struct {
@@ -115,9 +115,8 @@ type bufferTickResult struct {
 }
 
 type dbBuffer struct {
-	opts           Options
-	nowFn          clock.NowFn
-	blockRetriever QueryableBlockRetriever
+	opts  Options
+	nowFn clock.NowFn
 
 	bucketsMap map[xtime.UnixNano]*BufferBucketVersions
 	// Cache of buckets to avoid map lookup of above.
@@ -142,17 +141,12 @@ func newDatabaseBuffer() databaseBuffer {
 	return b
 }
 
-func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
+func (b *dbBuffer) Reset(opts Options) {
 	b.opts = opts
 	b.nowFn = opts.ClockOptions().NowFn()
 	ropts := opts.RetentionOptions()
-	b.blockRetriever = blockRetriever
 	b.bucketPool = opts.BufferBucketPool()
 	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
-	if b.bucketVersionsPool == nil {
-		b.bucketVersionsPool = NewBufferBucketVersionsPool(
-			pool.NewObjectPoolOptions().SetSize(defaultBufferBucketVersionsPoolSize))
-	}
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
@@ -220,18 +214,23 @@ func (b *dbBuffer) Stats() bufferStats {
 	}
 }
 
-func (b *dbBuffer) Tick() bufferTickResult {
+func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickResult {
 	mergedOutOfOrder := 0
-	retriever := b.blockRetriever
 	for tNano, buckets := range b.bucketsMap {
-		blockStart := tNano.ToTime()
-		if !retriever.IsBlockRetrievable(blockStart) {
+		// The blockStates map is never be written to after creation, so this
+		// read access is safe. Since this version map is a snapshot of the
+		// versions, the real block flush versions may be higher. This is okay
+		// here because it's safe to:
+		// 1) not remove a bucket that's actually retrievable, or
+		// 2) remove a lower versioned bucket.
+		// Retrievable and higher versioned buckets will be left to be
+		// collected in the next tick.
+		blockState := blockStates[tNano]
+		if !blockState.Retrievable {
 			continue
 		}
 
-		// Avoid allocating a new backing array.
-		version := retriever.RetrievableBlockVersion(blockStart)
-		buckets.removeBucketsUpToVersion(version)
+		buckets.removeBucketsUpToVersion(blockState.Version)
 
 		if buckets.streamsLen() == 0 {
 			// All underlying buckets have been flushed successfully, so we can
@@ -247,7 +246,7 @@ func (b *dbBuffer) Tick() bufferTickResult {
 			// therefore invalid. This was fine while the missing data was still
 			// in memory, but once we evict it from the buffer we need to make
 			// sure that we bust the cache as well.
-			b.removeBucketsAt(blockStart)
+			b.removeBucketsAt(tNano.ToTime())
 			continue
 		}
 
@@ -338,7 +337,7 @@ func (b *dbBuffer) Flush(
 	}
 
 	// A call to flush can only be for warm writes.
-	blocks, err := buckets.toBlocks(WarmWrite)
+	blocks, err := buckets.toBlocks()
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -413,11 +412,9 @@ func (b *dbBuffer) forEachBucketAsc(fn func(*BufferBucketVersions)) {
 		return
 	}
 
-	keys := make([]xtime.UnixNano, len(buckets))
-	i := 0
+	keys := make([]xtime.UnixNano, 0, len(buckets))
 	for k := range buckets {
-		keys[i] = k
-		i++
+		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		return keys[i].Before(keys[j])
@@ -636,7 +633,7 @@ func (b *BufferBucketVersions) removeBucketsUpToVersion(version int) {
 			// We no longer need to keep any version which is equal to
 			// or less than the retrievable version, since that means
 			// that the version has successfully persisted to disk.
-			bucket.reset()
+			// Bucket gets reset before use.
 			b.bucketPool.Put(bucket)
 			continue
 		}
@@ -683,7 +680,7 @@ func (b *BufferBucketVersions) writableBucketCreate(wType WriteType) *BufferBuck
 	return newBucket
 }
 
-func (b *BufferBucketVersions) toBlocks(wType WriteType) ([]block.DatabaseBlock, error) {
+func (b *BufferBucketVersions) toBlocks() ([]block.DatabaseBlock, error) {
 	buckets := b.buckets
 	res := make([]block.DatabaseBlock, 0, len(buckets))
 

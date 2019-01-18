@@ -908,16 +908,16 @@ type Options interface {
 	WriteBatchPool() *ts.WriteBatchPool
 
 	// SetBufferBucketPool sets the BufferBucket pool.
-	SetBufferBucketPool(value series.BufferBucketPool) Options
+	SetBufferBucketPool(value *series.BufferBucketPool) Options
 
 	// BufferBucketPool returns the BufferBucket pool.
-	BufferBucketPool() series.BufferBucketPool
+	BufferBucketPool() *series.BufferBucketPool
 
 	// SetBufferBucketVersionsPool sets the BufferBucketVersions pool.
-	SetBufferBucketVersionsPool(value series.BufferBucketVersionsPool) Options
+	SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options
 
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
-	BufferBucketVersionsPool() series.BufferBucketVersionsPool
+	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all
