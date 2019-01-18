@@ -294,12 +294,16 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		var data checked.Bytes
-		var err error
+		var (
+			data               checked.Bytes
+			err                error
+			foundAndHasNoError = !req.notFound && req.err == nil
+		)
 
-		// Only try to seek the ID if it exists, otherwise we'll get a checksum
-		// mismatch error because default offset value for indexEntry is zero.
-		if !req.notFound {
+		// Only try to seek the ID if it exists and there haven't been any errors so
+		// far, otherwise we'll get a checksum mismatch error because the default
+		// offset value for indexEntry is zero.
+		if foundAndHasNoError {
 			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
@@ -315,7 +319,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
-		callOnRetrieve := req.onRetrieve != nil && !req.notFound
+		callOnRetrieve := req.onRetrieve != nil && foundAndHasNoError
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
