@@ -19,7 +19,7 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
-  - name: "Unit"
+  - name: "Unit %n"
     command: make clean install-vendor test-ci-unit
     parallelism: 4
     plugins:
@@ -27,7 +27,7 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Big Unit"
+  - name: "Big Unit %n"
     command: make clean install-vendor test-ci-big-unit
     parallelism: 2
     plugins:
