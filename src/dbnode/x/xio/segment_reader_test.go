@@ -52,44 +52,7 @@ var (
 
 type byteFunc func(d []byte) checked.Bytes
 
-func TestSegmentReader(t *testing.T) {
-	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	segment := ts.NewSegment(checkd(head), checkd(tail), ts.FinalizeNone)
-	r := NewSegmentReader(segment)
-	var b [100]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
-	require.Equal(t, len(expected), n)
-	require.Equal(t, expected, b[:n])
-
-	n, err = r.Read(b[:])
-	require.Equal(t, io.EOF, err)
-	require.Equal(t, 0, n)
-
-	seg, err := r.Segment()
-	require.NoError(t, err)
-	require.Equal(t, head, seg.Head.Bytes())
-	require.Equal(t, tail, seg.Tail.Bytes())
-
-	// Ensure cloned segment shares original head and tail.
-	cloned, err := r.Clone()
-	require.NoError(t, err)
-
-	segment.Head.Reset(tail)
-	segment.Tail.Reset(head)
-	require.Equal(t, head, seg.Tail.Bytes())
-	require.Equal(t, tail, seg.Head.Bytes())
-
-	seg, err = cloned.Segment()
-	require.NoError(t, err)
-	require.Equal(t, head, seg.Tail.Bytes())
-	require.Equal(t, tail, seg.Head.Bytes())
-
-	cloned.Finalize()
-	segment.Finalize()
-}
-
-func testSegmentReaderDeepCloneWithPools(
+func testSegmentReader(
 	t *testing.T,
 	checkd byteFunc,
 	pool pool.CheckedBytesPool,
@@ -112,7 +75,7 @@ func testSegmentReaderDeepCloneWithPools(
 	require.Equal(t, tail, seg.Tail.Bytes())
 
 	// Ensure cloned segment reader does not share original head and tail.
-	cloned, err := r.DeepClone(pool)
+	cloned, err := r.Clone(pool)
 	require.NoError(t, err)
 
 	segment.Head.Reset(tail)
@@ -126,12 +89,12 @@ func testSegmentReaderDeepCloneWithPools(
 	cloned.Finalize()
 	segment.Finalize()
 }
-func TestSegmentReaderDeepCloneNoPool(t *testing.T) {
+func TestSegmentReaderNoPool(t *testing.T) {
 	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	testSegmentReaderDeepCloneWithPools(t, checkd, nil)
+	testSegmentReader(t, checkd, nil)
 }
 
-func TestSegmentReaderDeepCloneWithPool(t *testing.T) {
+func TestSegmentReaderWithPool(t *testing.T) {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,
@@ -147,5 +110,5 @@ func TestSegmentReaderDeepCloneWithPool(t *testing.T) {
 		return b
 	}
 
-	testSegmentReaderDeepCloneWithPools(t, checkd, bytesPool)
+	testSegmentReader(t, checkd, bytesPool)
 }

@@ -50,14 +50,9 @@ type SegmentReader interface {
 	// Reset resets the reader to read a new segment.
 	Reset(segment ts.Segment)
 
-	// Clone returns a clone of the underlying data reset.
-	//
-	// NB: The cloned segment shares underlying bytes with the original.
-	Clone() (SegmentReader, error)
-
-	// DeepClone returns a deep clone of the underlying data reset,
+	// Clone returns a clone of a copy of the underlying data reset,
 	// with an optional byte pool to reduce allocations.
-	DeepClone(pool pool.CheckedBytesPool) (SegmentReader, error)
+	Clone(pool pool.CheckedBytesPool) (SegmentReader, error)
 }
 
 // SegmentReaderPool provides a pool for segment readers.

@@ -57,33 +57,18 @@ func (m *MockSegmentReader) EXPECT() *MockSegmentReaderMockRecorder {
 }
 
 // Clone mocks base method
-func (m *MockSegmentReader) Clone() (SegmentReader, error) {
+func (m *MockSegmentReader) Clone(arg0 pool.CheckedBytesPool) (SegmentReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Clone")
+	ret := m.ctrl.Call(m, "Clone", arg0)
 	ret0, _ := ret[0].(SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Clone indicates an expected call of Clone
-func (mr *MockSegmentReaderMockRecorder) Clone() *gomock.Call {
+func (mr *MockSegmentReaderMockRecorder) Clone(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockSegmentReader)(nil).Clone))
-}
-
-// DeepClone mocks base method
-func (m *MockSegmentReader) DeepClone(arg0 pool.CheckedBytesPool) (SegmentReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeepClone", arg0)
-	ret0, _ := ret[0].(SegmentReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeepClone indicates an expected call of DeepClone
-func (mr *MockSegmentReaderMockRecorder) DeepClone(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeepClone", reflect.TypeOf((*MockSegmentReader)(nil).DeepClone), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockSegmentReader)(nil).Clone), arg0)
 }
 
 // Finalize mocks base method

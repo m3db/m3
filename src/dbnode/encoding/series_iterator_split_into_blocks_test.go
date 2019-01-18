@@ -110,7 +110,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 
 				// import to clone the reader as we need its position reset before
 				// we use the contents of it again
-				clonedReader, err := reader.DeepClone(nil)
+				clonedReader, err := reader.Clone(nil)
 				require.NoError(t, err)
 
 				readers = append(readers, clonedReader)

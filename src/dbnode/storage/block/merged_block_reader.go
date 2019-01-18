@@ -48,19 +48,8 @@ type mergeableStream struct {
 	finalize bool
 }
 
-func (ms mergeableStream) clone() (mergeableStream, error) {
-	stream, err := ms.stream.Clone()
-	if err != nil {
-		return mergeableStream{}, err
-	}
-	return mergeableStream{
-		stream:   stream,
-		finalize: ms.finalize,
-	}, nil
-}
-
-func (ms mergeableStream) deepClone(pool pool.CheckedBytesPool) (mergeableStream, error) {
-	stream, err := ms.stream.DeepClone(pool)
+func (ms mergeableStream) clone(pool pool.CheckedBytesPool) (mergeableStream, error) {
+	stream, err := ms.stream.Clone(pool)
 	if err != nil {
 		return mergeableStream{}, err
 	}
@@ -149,32 +138,14 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	return r.merged, nil
 }
 
-func (r *dbMergedBlockReader) Clone() (xio.SegmentReader, error) {
-	s0, err := r.streams[0].clone()
-	if err != nil {
-		return nil, err
-	}
-	s1, err := r.streams[1].clone()
-	if err != nil {
-		return nil, err
-	}
-	return newDatabaseMergedBlockReader(
-		r.blockStart,
-		r.blockSize,
-		s0,
-		s1,
-		r.opts,
-	), nil
-}
-
-func (r *dbMergedBlockReader) DeepClone(
+func (r *dbMergedBlockReader) Clone(
 	pool pool.CheckedBytesPool,
 ) (xio.SegmentReader, error) {
-	s0, err := r.streams[0].deepClone(pool)
+	s0, err := r.streams[0].clone(pool)
 	if err != nil {
 		return nil, err
 	}
-	s1, err := r.streams[1].deepClone(pool)
+	s1, err := r.streams[1].clone(pool)
 	if err != nil {
 		return nil, err
 	}
