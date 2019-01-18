@@ -19,21 +19,9 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
-  - name: "Unit - Part 1"
+  - name: "Unit"
     command: make clean install-vendor test-ci-unit
-    env:
-      SPLIT_IDX: 0
-      TOTAL_SPLITS: 1
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Unit - Part 2"
-    command: make clean install-vendor test-ci-unit
-    env:
-      SPLIT_IDX: 1
-      TOTAL_SPLITS: 1
+    parallelism: 4
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -41,6 +29,7 @@ steps:
     <<: *common
   - name: "Big Unit"
     command: make clean install-vendor test-ci-big-unit
+    parallelism: 2
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -72,7 +61,7 @@ steps:
         workdir: /go/src/github.com/m3db/m3
     <<: *common
   - label: "Integration (collector, aggregator, m3em, cluster, msg, metrics) %n"
-    parallelism: 2
+    parallelism: 4
     command: make clean install-vendor test-ci-integration-collector test-ci-integration-aggregator test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
     plugins:
       docker-compose#v2.5.1:
