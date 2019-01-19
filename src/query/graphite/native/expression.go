@@ -66,12 +66,8 @@ func (f *fetchExpression) Arguments() []ArgumentASTNode {
 func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	begin := time.Now()
 
-	if ctx.Owner.Source == "grafana" && !ctx.Owner.IsEngineer {
-		ctx.Owner.Logger.WithField("query", f.pathArg.path).Infof("NonEng dashboard query")
-	}
-
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, ctx.StartTime, ctx.EndTime,
-		ctx.LocalOnly, ctx.UseCache, ctx.UseM3DB, ctx.Registry, ctx.Timeout)
+		ctx.LocalOnly, ctx.UseCache, ctx.UseM3DB, ctx.Timeout)
 	if err != nil {
 		return ts.SeriesList{}, err
 	}

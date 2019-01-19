@@ -7,6 +7,7 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
 	"github.com/stretchr/testify/assert"
@@ -87,7 +88,7 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 			if math.IsNaN(e[step]) {
 				assert.True(t, math.IsNaN(v), a.Name()+": invalid value for step %d/%d, should be NaN but is %v", step, a.Len(), v)
 			} else {
-				assert.InDelta(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", step, a.Len())
+				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", step, a.Len())
 			}
 		}
 	}

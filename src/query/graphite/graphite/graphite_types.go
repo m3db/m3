@@ -12,6 +12,10 @@ import (
 	"github.com/hydrogen18/stalecucumber"
 )
 
+const (
+	MIMETypeApplicationPickle = "application/pickle"
+)
+
 // A Timestamp is a time.Time that knows how to marshal and unmarshal
 // itself as Graphite expects (as seconds since Unix epoch)
 type Timestamp time.Time

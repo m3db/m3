@@ -1269,9 +1269,6 @@ func holtWintersAberration(ctx *common.Context, seriesList singlePathSpec, delta
 	// log if we are actually using this function
 	var b bytes.Buffer
 	b.WriteString("holtWintersAberration is used")
-	if ctx != nil && ctx.Owner != nil {
-		b.WriteString(fmt.Sprintf(" by source=%s, user=%s, dashboard=%s", ctx.Owner.Source, ctx.Owner.User, ctx.Owner.Dashboard))
-	}
 	if len(seriesList.Values) > 0 {
 		b.WriteString(fmt.Sprintf(", series[0] name=%s", seriesList.Values[0].Name()))
 	}
@@ -1944,5 +1941,5 @@ func init() {
 	MustRegisterAliasedFunction("time", timeFunction)
 
 	// Anomaly detection - in alpha ordering
-	MustRegisterFunction(fiveSigma)
+	// MustRegisterFunction(fiveSigma)
 }

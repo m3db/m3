@@ -134,7 +134,7 @@ func TestParseInterval(t *testing.T) {
 
 	actual, err := ParseInterval("122222222222222222222222222222s")
 	assert.True(t, errors.IsInvalidParams(err))
-	assert.Equal(t, 0, actual)
+	assert.Equal(t, time.Duration(0), actual)
 }
 
 func TestCount(t *testing.T) {

@@ -67,7 +67,6 @@ type Context struct {
 type ContextOptions struct {
 	Start     time.Time
 	End       time.Time
-	Owner     *context.OwnerInfo
 	Engine    QueryEngine
 	LocalOnly bool
 	UseCache  bool
@@ -88,16 +87,10 @@ type TimeRangeAdjustment struct {
 
 // NewContext creates a new context.
 func NewContext(options ContextOptions) *Context {
-	owner := options.Owner
-	if owner == nil {
-		owner = context.NewEmptyOwnerInfo()
-	}
-
 	return &Context{
 		contextBase: contextBase{
 			StartTime:      options.Start,
 			EndTime:        options.End,
-			Owner:          owner,
 			Engine:         options.Engine,
 			storageContext: context.New(),
 			LocalOnly:      options.LocalOnly,
@@ -107,11 +100,6 @@ func NewContext(options ContextOptions) *Context {
 			Zone:           options.Zone,
 		},
 	}
-}
-
-// OwnerInfo returns the OwnerInfo from the context.
-func (c *Context) OwnerInfo() *context.OwnerInfo {
-	return c.Owner
 }
 
 // Cancel cancels the work for this context

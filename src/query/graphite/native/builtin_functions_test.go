@@ -9,6 +9,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/common"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
 	"github.com/stretchr/testify/assert"
@@ -189,7 +190,7 @@ func TestAbsolute(t *testing.T) {
 
 	for step := 0; step < outputs[0].Len(); step++ {
 		v := outputs[0].ValueAt(step)
-		assert.Equal(t, outputVals[step], v, "invalid value for %d", step)
+		xtest.Equalish(t, outputVals[step], v, "invalid value for %d", step)
 	}
 }
 
@@ -231,7 +232,7 @@ func TestScale(t *testing.T) {
 
 		for step := 0; step < outputs[0].Len(); step++ {
 			v := outputs[0].ValueAt(step)
-			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
+			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
 	}
 }
@@ -445,9 +446,9 @@ func TestPercentileOfSeries(t *testing.T) {
 			v := output[0].ValueAt(step)
 			require.NoError(t, err)
 
-			assert.Equal(t, test.expectedValues[step], v)
+			xtest.Equalish(t, test.expectedValues[step], v)
 		}
-		assert.Equal(t, test.expectedStepPerMillis, output[0].MillisPerStep())
+		xtest.Equalish(t, test.expectedStepPerMillis, output[0].MillisPerStep())
 	}
 }
 
@@ -487,7 +488,7 @@ func TestOffset(t *testing.T) {
 
 		for step := 0; step < outputs[0].Len(); step++ {
 			v := outputs[0].ValueAt(step)
-			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
+			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
 	}
 
@@ -531,7 +532,7 @@ func TestPerSecond(t *testing.T) {
 		assert.Equal(t, "perSecond(foo)", perSec[0].Name())
 		for i := 0; i < perSec[0].Len(); i++ {
 			val := perSec[0].ValueAt(i)
-			assert.Equal(t, test.output[i], val, "invalid value for %d", i)
+			xtest.Equalish(t, test.output[i], val, "invalid value for %d", i)
 		}
 	}
 }
@@ -1526,7 +1527,7 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 
 		for step := 0; step < output[0].Len(); step++ {
 			v := output[0].ValueAt(step)
-			assert.Equal(t, math.Trunc(v), test.output[step])
+			xtest.Equalish(t, math.Trunc(v), test.output[step])
 		}
 	}
 }
@@ -1607,7 +1608,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 			require.Equal(t, expected[i].Len(), results[i].Len())
 			require.Equal(t, expected[i].Name(), results[i].Name())
 			for step := 0; step < results[i].Len(); step++ {
-				require.Equal(t, expected[i].ValueAt(step), results[i].ValueAt(step))
+				xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
 			}
 		}
 	}
@@ -1636,10 +1637,10 @@ func testLogarithm(t *testing.T, base int, indices []int) {
 	assert.Equal(t, fmt.Sprintf("log(hello, %d)", base), output[0].Name())
 	assert.Equal(t, series.StartTime(), output[0].StartTime())
 	require.Equal(t, len(invals), output[0].Len())
-	assert.Equal(t, math.NaN(), output[0].ValueAt(0))
-	assert.Equal(t, 0, output[0].ValueAt(indices[0]))
-	assert.Equal(t, 1, output[0].ValueAt(indices[1]))
-	assert.Equal(t, 2, output[0].ValueAt(indices[2]))
+	xtest.Equalish(t, math.NaN(), output[0].ValueAt(0))
+	xtest.Equalish(t, 0, output[0].ValueAt(indices[0]))
+	xtest.Equalish(t, 1, output[0].ValueAt(indices[1]))
+	xtest.Equalish(t, 2, output[0].ValueAt(indices[2]))
 }
 
 func TestLogarithm(t *testing.T) {
@@ -1676,7 +1677,7 @@ func TestIntegral(t *testing.T) {
 	assert.Equal(t, series.StartTime(), output[0].StartTime())
 	require.Equal(t, len(outvals), output[0].Len())
 	for i, expected := range outvals {
-		assert.Equal(t, expected, output[0].ValueAt(i), "incorrect value at %d", i)
+		xtest.Equalish(t, expected, output[0].ValueAt(i), "incorrect value at %d", i)
 	}
 }
 

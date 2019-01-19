@@ -51,7 +51,7 @@ func (m *mockClient) Close() error {
 func TestContextClose(t *testing.T) {
 	client := &mockClient{}
 	client.On("foo").Return()
-	engine := NewEngine(nil, nil)
+	engine := NewEngine(nil)
 	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now(), Engine: engine})
 	ctx.RegisterCloser(client)
 	ctx.Close()
@@ -61,7 +61,7 @@ func TestContextClose(t *testing.T) {
 func TestChildContextClose(t *testing.T) {
 	client := &mockClient{}
 	client.On("foo").Return()
-	engine := NewEngine(nil, nil)
+	engine := NewEngine(nil)
 	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now(), Engine: engine})
 	childContext := ctx.NewChildContext(NewChildContextOptions())
 	childContext.RegisterCloser(client)

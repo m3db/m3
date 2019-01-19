@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
+
 	"github.com/hydrogen18/stalecucumber"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +45,7 @@ func TestMarshalRenderResults(t *testing.T) {
 
 	timestamp, value = parsedDatapoints.Get(1)
 	assert.Equal(t, tm.Add(10*time.Second), timestamp)
-	assert.Equal(t, math.NaN(), value)
+	xtest.EqualWithNaNs(t, math.NaN(), value)
 
 	timestamp, value = parsedDatapoints.Get(2)
 	assert.Equal(t, tm.Add(20*time.Second), timestamp)
@@ -104,7 +106,7 @@ func TestPickleValueAccess(t *testing.T) {
 
 	assert.Equal(t, 3, r.Len())
 	assert.Equal(t, 1.01, r.ValueAt(0))
-	assert.Equal(t, math.NaN(), r.ValueAt(1))
+	xtest.Equalish(t, math.NaN(), r.ValueAt(1))
 	assert.Equal(t, -2.02, r.ValueAt(2))
 
 	timestamp, n := r.Get(0)
@@ -112,7 +114,7 @@ func TestPickleValueAccess(t *testing.T) {
 	assert.Equal(t, 1.01, n)
 
 	timestamp, n = r.Get(1)
-	assert.Equal(t, now.Add(time.Second*20), timestamp)
+	xtest.Equalish(t, now.Add(time.Second*20), timestamp)
 	assert.Equal(t, math.NaN(), n)
 
 	timestamp, n = r.Get(2)

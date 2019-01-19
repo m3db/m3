@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +48,7 @@ func TestAbsolute(t *testing.T) {
 	for i := 0; i < abs.Len(); i++ {
 		absVals[i] = abs.ValueAt(i)
 	}
-	assert.Equal(t, []float64{2, 0, 42, math.NaN()}, absVals)
+	xtest.Equalish(t, []float64{2, 0, 42, math.NaN()}, absVals)
 }
 
 func TestOffset(t *testing.T) {
@@ -94,7 +95,7 @@ func TestOffset(t *testing.T) {
 
 		for step := 0; step < output[0].Len(); step++ {
 			v := output[0].ValueAt(step)
-			assert.Equal(t, test.output[step], v, "invalid value for %d", step)
+			xtest.EqualWithNaNs(t, float64(test.output[step]), float64(v), "invalid value for %d", step)
 		}
 	}
 
@@ -144,7 +145,7 @@ func TestScale(t *testing.T) {
 
 		for step := 0; step < output[0].Len(); step++ {
 			v := output[0].ValueAt(step)
-			assert.Equal(t, test.output[step], v, "invalid value for %d", step)
+			xtest.EqualWithNaNs(t, float64(test.output[step]), float64(v), "invalid value for %d", step)
 		}
 	}
 }

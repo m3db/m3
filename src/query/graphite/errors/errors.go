@@ -147,41 +147,6 @@ func GetInnerDeprecatedError(err error) error {
 	return nil
 }
 
-// CostLimitError is the error returned when cost limits are exceeded
-type CostLimitError struct {
-	containedError
-}
-
-// NewCostLimitError creates a new cost limit error
-func NewCostLimitError(inner error) error {
-	return CostLimitError{containedError{inner}}
-}
-
-func (e CostLimitError) Error() string {
-	return e.inner.Error()
-}
-
-func (e CostLimitError) innerError() error {
-	return e.inner
-}
-
-// IsCostLimit returns true if this is a cost limit error
-func IsCostLimit(err error) bool {
-	return GetInnerCostLimitError(err) != nil
-}
-
-// GetInnerCostLimitError returns an inner cost limit error
-// if one is contained by this error, nil otherwise
-func GetInnerCostLimitError(err error) error {
-	for err != nil {
-		if _, ok := err.(CostLimitError); ok {
-			return InnerError(err)
-		}
-		err = InnerError(err)
-	}
-	return nil
-}
-
 // EncodingError wraps encoding errors for type checking
 type EncodingError struct {
 	ID    string

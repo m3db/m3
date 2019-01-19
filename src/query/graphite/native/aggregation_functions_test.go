@@ -1,7 +1,6 @@
 package native
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -9,7 +8,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	xctx "github.com/m3db/m3/src/query/graphite/context"
+	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
@@ -116,7 +115,7 @@ func TestSumSeries(t *testing.T) {
 
 type mockEngine struct {
 	fn func(
-		ctx xctx.Context,
+		ctx context.Context,
 		query string,
 		start, end time.Time,
 		localOnly, useCache, useM3DB bool,
@@ -125,17 +124,13 @@ type mockEngine struct {
 }
 
 func (e mockEngine) FetchByQuery(
-	ctx xctx.Context,
+	ctx context.Context,
 	query string,
 	start, end time.Time,
 	localOnly, useCache, useM3DB bool,
 	timeout time.Duration,
 ) (*storage.FetchResult, error) {
 	return e.fn(ctx, query, start, end, localOnly, useCache, useM3DB, timeout)
-}
-
-func (e mockEngine) CostAccounting() common.CostAccounting {
-	return nil
 }
 
 func TestVariadicSumSeries(t *testing.T) {

@@ -39,14 +39,3 @@ func TestDeprecatedError(t *testing.T) {
 	assert.True(t, IsDeprecated(err))
 	assert.Equal(t, innerErr, GetInnerDeprecatedError(err))
 }
-
-func TestCostLimitError(t *testing.T) {
-	var (
-		innerErr = errors.New("inner")
-		err      = NewCostLimitError(innerErr)
-	)
-
-	assert.Error(t, err)
-	assert.True(t, IsCostLimit(err))
-	assert.Equal(t, innerErr, GetInnerCostLimitError(err))
-}
