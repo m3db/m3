@@ -1,0 +1,165 @@
+package common
+
+import (
+	"io"
+
+	"code.uber.internal/infra/statsdex/cost"
+	"code.uber.internal/infra/statsdex/protocols/m3"
+	xcost "code.uber.internal/infra/statsdex/x/cost"
+
+	"github.com/uber-go/tally"
+)
+
+const (
+	// MDReporter is the default reporter type for cost accounting.
+	MDReporter = "statsdex_query"
+
+	queryDatapointsCostName = "quota.query_cost"
+	querySeriesCostName     = "quota.query_series_cost"
+	queryErrorCostName      = "quota.query_error_cost"
+	queryCountName          = "quota.query_count"
+)
+
+// MDConfiguration for CostAccounting.
+type MDConfiguration struct {
+	Backends []string `yaml:"backends"`
+}
+
+// CostAccounting defines an interface that is used for query accounting. It is a reporter
+type CostAccounting interface {
+	io.Closer
+
+	Charge(tags map[string]string, datapoints, series int64)
+	ChargeError(tags map[string]string)
+
+	// ConfigureRegistryReporting configures the given registry to chargeback its costs to this CostAccounting
+	// instance.
+	ConfigureRegistryReporting(r *cost.Registry, ownershipTags map[string]string)
+}
+
+// CostAccountingMD implements CostAccounting with the mdclient
+type CostAccountingMD struct {
+	Client cachedCountReporter
+
+	datapointsReporter *MDEnforcerReporter
+	seriesReporter     *MDEnforcerReporter
+}
+
+// Close closes the underlying md.Client.
+func (md *CostAccountingMD) Close() error {
+	return md.Client.Close()
+}
+
+// ConfigureRegistryReporting configures the given registry to chargeback its costs to this CostAccounting
+// instance.
+func (md *CostAccountingMD) ConfigureRegistryReporting(r *cost.Registry, ownershipTags map[string]string) {
+	r.ConsolidatedDatapoints.AddReporter(md.datapointsReporter.WithTags(ownershipTags))
+	r.Series.AddReporter(md.seriesReporter.WithTags(ownershipTags))
+}
+
+type cachedCountReporter interface {
+	io.Closer
+
+	// AllocateCounter pre allocates a counter data structure with name & tags.
+	AllocateCounter(
+		name string,
+		tags map[string]string,
+	) tally.CachedCount
+}
+
+// NewCostAccounting takes an md configuration, which should include an M3 backend
+// for long term storage and the dc we are running in.
+func NewCostAccounting(mdClient cachedCountReporter) CostAccounting {
+	return &CostAccountingMD{
+		Client:             mdClient,
+		datapointsReporter: NewMDEnforcerReporter(mdClient, queryDatapointsCostName, nil),
+		seriesReporter:     NewMDEnforcerReporter(mdClient, querySeriesCostName, nil),
+	}
+}
+
+// Charge increases the datapoints and series cost for the tags passed in.
+func (md *CostAccountingMD) Charge(tags map[string]string, datapoints, series int64) {
+	chargeSanitized(md.Client, queryDatapointsCostName, tags, datapoints)
+	chargeSanitized(md.Client, querySeriesCostName, tags, series)
+	chargeSanitized(md.Client, queryCountName, tags, 1)
+}
+
+// ChargeError increases the error cost for the tags passed in.
+func (md *CostAccountingMD) ChargeError(tags map[string]string) {
+	chargeSanitized(md.Client, queryErrorCostName, tags, 1)
+}
+
+// chargeSanitized sanitizes tags before charging.
+func chargeSanitized(md cachedCountReporter, chargeName string, tags map[string]string, cost int64) {
+	counters := makeSanitizedCounters(md, chargeName, tags)
+	for _, c := range counters {
+		c.ReportCount(cost)
+	}
+}
+
+func makeSanitizedCounters(md cachedCountReporter, chargeName string, tags map[string]string) []tally.CachedCount {
+	counters := make([]tally.CachedCount, 0, len(tags))
+
+	for key, val := range tags {
+		sanitzedKey, sanitzedVal := m3.InvalidCharsReplacer.Replace(key), m3.InvalidCharsReplacer.Replace(val)
+		// NB(bl): It's faster to run the replacer than to check for invalid chars.
+		counters = append(counters, md.AllocateCounter(chargeName, map[string]string{sanitzedKey: sanitzedVal}))
+	}
+	return counters
+}
+
+// noopCostAccounting is a noop cost accounting client
+type noopCostAccounting struct{}
+
+func (ca *noopCostAccounting) ConfigureRegistryReporting(r *cost.Registry, ownershipTags map[string]string) {
+}
+
+// NewNoopCostAccounting returns a noop cost accounting client.
+func NewNoopCostAccounting() CostAccounting {
+	return &noopCostAccounting{}
+}
+
+func (ca *noopCostAccounting) Charge(tags map[string]string, datapoints, series int64) {}
+func (ca *noopCostAccounting) ChargeError(tags map[string]string)                      {}
+func (ca *noopCostAccounting) Close() error                                            { return nil }
+
+// MDEnforcerReporter is a cost.EnforcerReporter instance which hooks CostAccounting via md.Client into the x/cost
+// framework. This allows us to chargeback costs as soon as they happen.
+type MDEnforcerReporter struct {
+	metricName string
+	mdClient   cachedCountReporter
+
+	costCounters      []tally.CachedCount
+	overLimitCounters []tally.CachedCount
+}
+
+// NewMDEnforcerReporter constructs an EnforcerReporter for the given metric. Typical use will use an md.Client as
+// the first argument.
+func NewMDEnforcerReporter(mdClient cachedCountReporter, metricName string, tags map[string]string) *MDEnforcerReporter {
+	return &MDEnforcerReporter{
+		metricName: metricName,
+		mdClient:   mdClient,
+
+		costCounters: makeSanitizedCounters(mdClient, metricName, tags),
+	}
+}
+
+// WithTags clones this reporter and sets the clones tags to those provided.
+func (mr *MDEnforcerReporter) WithTags(tags map[string]string) *MDEnforcerReporter {
+	clone := *mr
+	clone.costCounters = makeSanitizedCounters(mr.mdClient, mr.metricName, tags)
+
+	return &clone
+}
+
+// ReportCost reports the cost to each of this instance's counters.
+func (mr *MDEnforcerReporter) ReportCost(c xcost.Cost) {
+	for _, counter := range mr.costCounters {
+		counter.ReportCount(int64(c))
+	}
+}
+
+// ReportOverLimit does nothing for this implementation at the moment (back compatibility with previous metrics).
+func (*MDEnforcerReporter) ReportOverLimit(enabled bool) {
+	// do nothing for now.
+}

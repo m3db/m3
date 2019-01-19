@@ -1,0 +1,89 @@
+package common
+
+import (
+	"testing"
+	"time"
+
+	"code.uber.internal/infra/statsdex/context"
+	kvproto "code.uber.internal/infra/statsdex/proto/kv"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestQueryBlacklisting(t *testing.T) {
+	bl := NewQueryBlacklists()
+	source := context.NewEmptyOwnerInfo()
+	source.User = "normal"
+
+	assert.False(t, bl.IsBlacklisted(source))
+
+	bl.UserBlacklist.AddItem("normal")
+	assert.True(t, bl.IsBlacklisted(source))
+}
+
+func TestUpdateBlacklistKV(t *testing.T) {
+	bl := NewQueryBlacklists()
+
+	store := mem.NewStore()
+	err := UpdateBlacklistsKV(store, QuerySourceBlacklist, bl)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, bl.ChargebackBlacklist.Len())
+	assert.Equal(t, 0, bl.UserBlacklist.Len())
+	assert.Equal(t, 0, bl.DashboardBlacklist.Len())
+	assert.Equal(t, 0, bl.SourceBlacklist.Len())
+
+	store.Set(kvproto.QuerySourceBlacklistUser,
+		&commonpb.StringArrayProto{Values: []string{"user1", "user2"}})
+	store.Set(kvproto.QuerySourceBlacklistDashboard,
+		&commonpb.StringArrayProto{Values: []string{"dash1", "dash2"}})
+
+	for i := 0; i < 100; i++ {
+		if bl.DashboardBlacklist.Len() == 2 && bl.UserBlacklist.Len() == 2 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	assert.Equal(t, 0, bl.ChargebackBlacklist.Len())
+	assert.Equal(t, 2, bl.UserBlacklist.Len())
+	assert.Equal(t, 2, bl.DashboardBlacklist.Len())
+	assert.Equal(t, 0, bl.SourceBlacklist.Len())
+
+	source := context.NewEmptyOwnerInfo()
+	source.User = "user1"
+	assert.True(t, bl.IsBlacklisted(source))
+	source.User = "normal"
+	assert.False(t, bl.IsBlacklisted(source))
+	source.Dashboard = "dash2"
+	assert.True(t, bl.IsBlacklisted(source))
+
+	store.Set(kvproto.QuerySourceBlacklistChargebackID,
+		&commonpb.StringArrayProto{Values: []string{"chargebackID"}})
+	store.Set(kvproto.QuerySourceBlacklistSource,
+		&commonpb.StringArrayProto{Values: []string{"source"}})
+
+	for i := 0; i < 100; i++ {
+		if bl.ChargebackBlacklist.Len() == 1 && bl.SourceBlacklist.Len() == 1 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	assert.Equal(t, 1, bl.ChargebackBlacklist.Len())
+	assert.Equal(t, 2, bl.UserBlacklist.Len())
+	assert.Equal(t, 2, bl.DashboardBlacklist.Len())
+	assert.Equal(t, 1, bl.SourceBlacklist.Len())
+
+	source = context.NewEmptyOwnerInfo()
+	assert.False(t, bl.IsBlacklisted(source))
+
+	source.ChargebackID = "chargebackID"
+	assert.True(t, bl.IsBlacklisted(source))
+
+	source = context.NewEmptyOwnerInfo()
+	source.Source = "source"
+	assert.True(t, bl.IsBlacklisted(source))
+
+}

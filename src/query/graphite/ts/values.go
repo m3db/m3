@@ -9,7 +9,6 @@ import (
 	xts "github.com/m3db/m3/src/query/ts"
 
 	xpool "github.com/m3db/m3x/pool"
-	"github.com/uber-go/tally"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -213,7 +212,7 @@ type PoolBucket struct {
 	Count    int
 }
 
-func initPools(valueBuckets, consolidationBuckets []xpool.Bucket, scope tally.Scope) error {
+func initPools(valueBuckets, consolidationBuckets []xpool.Bucket) error {
 	pooledValuesLength = pooledValuesLength[:0]
 	pooledConsolidationsLength = pooledConsolidationsLength[:0]
 
@@ -226,9 +225,9 @@ func initPools(valueBuckets, consolidationBuckets []xpool.Bucket, scope tally.Sc
 
 	poolOpts := xpool.NewObjectPoolOptions()
 	valuesOpts := poolOpts.SetInstrumentOptions(
-		poolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("values")))
+		poolOpts.InstrumentOptions())
 	consolidationOpts := poolOpts.SetInstrumentOptions(
-		poolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("consolidation")))
+		poolOpts.InstrumentOptions())
 	timeSeriesValuesPools = xpool.NewBucketizedObjectPool(valueBuckets, valuesOpts)
 	timeSeriesValuesPools.Init(func(capacity int) interface{} {
 		return make([]float64, capacity)
@@ -244,7 +243,6 @@ var gigabyteBytes = math.Pow(2, 30)
 
 // EnablePooling enables pooling, measuring the impacts at the given scope
 func EnablePooling(
-	scope tally.Scope,
 	valueBuckets, consolidationBuckets []xpool.Bucket,
 ) {
 	totalBytes := 0
@@ -255,7 +253,7 @@ func EnablePooling(
 	}
 	//FIXMElog.Infof("Allocating approx %fGB for pooled values",
 	// float64(totalBytes)/gigabyteBytes)
-	if err := initPools(valueBuckets, consolidationBuckets, scope); err != nil {
+	if err := initPools(valueBuckets, consolidationBuckets); err != nil {
 		// log.Errorf("Could not initialize timeSeriesValuesPool: %v", err)
 	} else {
 		// log.Infof("Done allocating pooled values")

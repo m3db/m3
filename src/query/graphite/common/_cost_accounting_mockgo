@@ -1,0 +1,112 @@
+package common
+
+import (
+	"code.uber.internal/infra/statsdex/cost"
+	proto "code.uber.internal/infra/statsdex/protocols/m3"
+	cost2 "code.uber.internal/infra/statsdex/x/cost"
+
+	"code.uber.internal/go-common.git/x/metrics/metricstest"
+	"code.uber.internal/go-common.git/x/metrics/thrift"
+)
+
+// ensure we meet the CostAccounting interface
+var _ CostAccounting = (*MockCostAccounting)(nil)
+
+// MockCostAccounting holds test data for cost accounting.
+type MockCostAccounting struct {
+	metrics metricstest.TestScope
+}
+
+func (ca *MockCostAccounting) ConfigureRegistryReporting(r *cost.Registry, ownershipTags map[string]string) {
+	r.Series.SetReporters([]cost2.EnforcerReporter{newMockReporter(ca, seriesResource, ownershipTags)})
+	r.ConsolidatedDatapoints.SetReporters([]cost2.EnforcerReporter{newMockReporter(ca, datapointsResource, ownershipTags)})
+}
+
+// NewMockCostAccounting returns a mock CostAccouting type with satisfies the
+// CostAccounting interface and can be used for testing.
+// We should make this work better with Tags in the future.
+func NewMockCostAccounting(m metricstest.TestScope) *MockCostAccounting {
+	if m == nil {
+		m = metricstest.NewTestScope()
+	}
+
+	return &MockCostAccounting{metrics: m}
+}
+
+// Charge increases the datapoints and series cost for the tags passed in.
+func (ca *MockCostAccounting) Charge(tags map[string]string, datapoints, series int64) {
+	ca.chargeDatapoints(tags, datapoints)
+	ca.chargeSeries(tags, series)
+	ca.chargeQuery(tags, 1)
+}
+
+func (ca *MockCostAccounting) chargeResource(metricName string, tags map[string]string, count int64) {
+	for key, value := range tags {
+		ts := map[string]string{key: value}
+		path, _ := proto.GeneratePath(metricName, ts, map[string]string{}, map[*m3.MetricTag]bool{}, true)
+		ca.metrics.Counter(path).Inc(count)
+	}
+}
+
+func (ca *MockCostAccounting) chargeSeries(tags map[string]string, series int64) {
+	ca.chargeResource("quota.query_series_cost", tags, series)
+}
+
+func (ca *MockCostAccounting) chargeDatapoints(tags map[string]string, dps int64) {
+	ca.chargeResource("quota.query_cost", tags, dps)
+}
+
+func (ca *MockCostAccounting) chargeQuery(tags map[string]string, dps int64) {
+	ca.chargeResource(queryCountName, tags, dps)
+}
+
+// ChargeError increases the error cost for the tags passed in.
+func (ca *MockCostAccounting) ChargeError(tags map[string]string) {
+	for key, value := range tags {
+		ts := map[string]string{key: value}
+		path, _ := proto.GeneratePath("quota.query_error_cost", ts, map[string]string{}, map[*m3.MetricTag]bool{}, true)
+		ca.metrics.Counter(path).Inc(1)
+	}
+}
+
+// Close closes the mock.
+func (ca *MockCostAccounting) Close() error {
+	ca.metrics.Stop()
+	return nil
+}
+
+type resourceType int
+
+const (
+	seriesResource resourceType = iota
+	datapointsResource
+)
+
+type mockReporter struct {
+	tags         map[string]string
+	ca           *MockCostAccounting
+	resourceType resourceType
+}
+
+func newMockReporter(ca *MockCostAccounting, rtype resourceType, tags map[string]string) *mockReporter {
+	return &mockReporter{
+		ca:           ca,
+		tags:         tags,
+		resourceType: rtype,
+	}
+}
+
+func (mr mockReporter) ReportCost(c cost2.Cost) {
+	switch mr.resourceType {
+	case seriesResource:
+		mr.ca.chargeSeries(mr.tags, int64(c))
+	case datapointsResource:
+		mr.ca.chargeDatapoints(mr.tags, int64(c))
+	default:
+		panic("Unknown resource type")
+	}
+}
+
+func (mockReporter) ReportOverLimit(enabled bool) {
+
+}

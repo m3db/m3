@@ -1,0 +1,180 @@
+package common
+
+import (
+	"testing"
+	"time"
+
+	"code.uber.internal/infra/statsdex/context"
+	"code.uber.internal/infra/statsdex/cost"
+	"code.uber.internal/infra/statsdex/index"
+	xcost "code.uber.internal/infra/statsdex/x/cost"
+	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/query/graphite/tsdb"
+
+	"github.com/golang/mock/gomock"
+)
+
+func TestCostAccounting_Charge(t *testing.T) {
+
+	tags := map[string]string{
+		"a": "1",
+		"b": "2",
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	expectedCounters := make([]counterData, 0)
+
+	for k, v := range tags {
+		pairTag := map[string]string{k: v}
+		expectedCounters = append(
+			expectedCounters,
+			counterData{Key: tallyKey{
+				Name: queryDatapointsCostName,
+				Tags: pairTag,
+			}, Value: 5},
+			counterData{Key: tallyKey{
+				Name: querySeriesCostName,
+				Tags: pairTag,
+			}, Value: 10},
+			counterData{Key: tallyKey{
+				Name: queryCountName,
+				Tags: pairTag,
+			}, Value: 1},
+		)
+	}
+
+	ca := NewCostAccounting(newMockCachedCountReporterFromMap(ctrl, expectedCounters))
+	ca.Charge(tags, 5, 10)
+}
+
+type tallyKey struct {
+	Name string
+	Tags map[string]string
+}
+
+type counterData struct {
+	Key   tallyKey
+	Value int
+}
+
+func newMockCachedCountReporterFromMap(ctrl *gomock.Controller, data []counterData) *MockcachedCountReporter {
+	cr := NewMockcachedCountReporter(ctrl)
+
+	for _, d := range data {
+		counter := NewMockCachedCount(ctrl)
+		counter.EXPECT().ReportCount(int64(d.Value))
+		cr.EXPECT().AllocateCounter(d.Key.Name, d.Key.Tags).Return(counter)
+	}
+
+	return cr
+}
+
+func TestCostAccounting_ChargeError(t *testing.T) {
+
+}
+
+func TestCostAccounting_ConfigureRegistryReporting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tags := map[string]string{
+		"dashboard": "expensive_dash",
+		"source":    "some_service",
+	}
+	numDatapoints := 2
+	numSeries := 5
+
+	counters := make([]counterData, 0)
+	for k, v := range tags {
+		pairTags := map[string]string{k: v}
+		counters = append(counters,
+			counterData{
+				Key: tallyKey{
+					Name: queryDatapointsCostName,
+					Tags: pairTags,
+				},
+				Value: numDatapoints,
+			},
+			counterData{
+				Key: tallyKey{
+					Name: querySeriesCostName,
+					Tags: pairTags,
+				},
+				Value: numSeries,
+			},
+		)
+	}
+
+	cr := newMockCachedCountReporterFromMap(ctrl, counters)
+
+	ca := NewCostAccounting(cr)
+
+	registry := cost.NewRegistry(
+		index.Enforcer{Enforcer: xcost.NewEnforcerWithStaticLimit(xcost.Limit{Enabled: true, Threshold: 100.0}, nil)},
+		tsdb.ConsolidatedEnforcer{Enforcer: xcost.NewEnforcerWithStaticLimit(xcost.Limit{Enabled: true, Threshold: 100.0}, nil)},
+	)
+
+	ctx := context.New()
+	ca.ConfigureRegistryReporting(&registry, tags)
+
+	registry.ConsolidatedDatapoints.AddSeriesList([]*ts.Series{ts.NewSeries(ctx, "foo", time.Now(), ts.NewZeroValues(ctx, 1, numDatapoints))})
+	registry.Series.AddNumSeries(numSeries)
+
+	// expectations are set on the mocks
+}
+
+func TestMDEnforcerReporter_ReportCost(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	metricName := "mname"
+	tags := map[string]string{"t1": "v"}
+
+	cr := newMockCachedCountReporterFromMap(ctrl, []counterData{{
+		Key: tallyKey{
+			Name: metricName,
+			Tags: tags,
+		},
+		Value: 1,
+	}})
+
+	mr := NewMDEnforcerReporter(cr, metricName, tags)
+	mr.ReportCost(1)
+}
+
+func TestMDEnforcerReporter_WithTags(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	metricName := "mname"
+	origTags := map[string]string{
+		"t1": "v1",
+	}
+
+	newTags := map[string]string{
+		"t1": "v2",
+	}
+
+	cr := newMockCachedCountReporterFromMap(ctrl, []counterData{{
+		Key: tallyKey{
+			Name: metricName,
+			Tags: origTags,
+		},
+		Value: 1,
+	}, {
+		Key: tallyKey{
+			Name: metricName,
+			Tags: newTags,
+		},
+		Value: 5,
+	}})
+
+	mr := NewMDEnforcerReporter(cr, metricName, origTags)
+	clone := mr.WithTags(newTags)
+
+	mr.ReportCost(1)
+	clone.ReportCost(5)
+}

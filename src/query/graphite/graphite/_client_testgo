@@ -1,0 +1,210 @@
+package graphite
+
+import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"code.uber.internal/go-common.git/x/metrics"
+	"code.uber.internal/go-common.git/x/net/xhttp"
+	"code.uber.internal/go-common.git/x/net/xhttp/xhttptest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRenderPickle(t *testing.T) {
+	s := xhttptest.NewRecordingServer()
+	s.Router.AddPatternRoute("/render", xhttp.Wrap(xhttp.ServeFileHandler(fixture("metrics.pickle"))))
+	defer s.Close()
+
+	from, _ := time.Parse(time.RFC1123, "Mon, 22 Jun 2015 16:22:01 GMT")
+	to, _ := time.Parse(time.RFC1123, "Mon, 22 Jun 2015 16:32:01 GMT")
+
+	c, err := NewClient(s.HTTPServer.URL, metrics.None, nil)
+	require.NoError(t, err, "could not create graphite instance")
+
+	tests := []struct {
+		opts        *RenderOptions
+		queryParams map[string]string
+	}{
+		{nil, map[string]string{}},
+		{&RenderOptions{NoCache: true}, map[string]string{"noCache": "1"}},
+		{&RenderOptions{LocalOnly: true}, map[string]string{"local": "1"}},
+	}
+
+	expectedNames := []string{
+		"servers.mcassandra04-sjc1.disk.internal-root.available_bytes",
+		"servers.mcassandra03-sjc1.disk.internal-root.available_bytes",
+		"servers.mcassandra02-sjc1.disk.internal-root.available_bytes",
+	}
+
+	expectedValues := []float64{
+		2214476713984.0,
+		2105751027712.0,
+		2119755890688.0,
+	}
+
+	for _, test := range tests {
+		results, err := c.RenderPickle([]string{"servers.*.disk.internal-root.available_bytes"}, from, to, test.opts)
+		require.NoError(t, err, "could not fetch results")
+		require.Equal(t, len(expectedNames), len(results))
+
+		for i, result := range results {
+			assert.Equal(t, expectedNames[i], result.Name, "wrong name for %d", i)
+			assert.Equal(t, uint32(1434990120), result.Start, "Wrong start for %d", i)
+			assert.Equal(t, uint32(1434990720), result.End, "Wrong end for %d", i)
+			assert.Equal(t, uint32(60), result.Step, "Wrong step for %d", i)
+			assert.Equal(t, expectedValues[i], result.ValueAt(0), "Wrong initial value for %d", i)
+		}
+
+		requests := s.Requests
+		s.Requests = nil
+
+		require.Equal(t, 1, len(requests), "incorrect number of queries sent")
+		request := requests[0]
+
+		qsExpected := url.Values{
+			"target":        []string{"servers.*.disk.internal-root.available_bytes"},
+			"format":        []string{"pickle"},
+			"skipBlacklist": []string{"1"},
+			"from":          []string{"1434990120"},
+			"until":         []string{"1434990720"},
+		}
+
+		for k, v := range test.queryParams {
+			qsExpected.Add(k, v)
+		}
+		assert.Equal(t, qsExpected, request.URL.Query())
+		assert.Equal(t, 0, len(request.Cookies))
+	}
+
+}
+
+func TestRenderJSON(t *testing.T) {
+	s := xhttptest.NewRecordingServer()
+	s.Router.AddPatternRoute("/render", xhttp.Wrap(xhttp.ServeContentHandler("", time.Time{}, strings.NewReader("[{"+
+		"  \"target\": \"entries\", "+
+		"  \"datapoints\": [ "+
+		"    [1.0, 1311836008], "+
+		"    [2.0, 1311836009], "+
+		"    [3.0, 1311836010], "+
+		"    [5.0, 1311836011], "+
+		"    [6.0, 1311836012] "+
+		"  ] "+
+		"}]"))))
+
+	defer s.Close()
+
+	from, _ := time.Parse(time.RFC3339, "2011-06-21T05:29:23Z")
+	to, _ := time.Parse(time.RFC3339, "2011-06-21T21:50:23Z")
+
+	c, err := NewClient(s.HTTPServer.URL, metrics.None, &ClientOptions{
+		OAuthToken: "my-oauth-token",
+	})
+	require.NoError(t, err, "could not create graphite instance")
+
+	tests := []struct {
+		opts        *RenderOptions
+		queryParams map[string]string
+	}{
+		{nil, map[string]string{}},
+		{&RenderOptions{NoCache: true}, map[string]string{"noCache": "1"}},
+		{&RenderOptions{LocalOnly: true}, map[string]string{"local": "1"}},
+	}
+
+	for _, test := range tests {
+		results, err := c.RenderJSON([]string{"foo.example.com", "bar.example.com"}, from, to, test.opts)
+		require.NoError(t, err, "could not fetch results")
+		assert.Equal(t, 1, len(results), "incorrect number of results")
+		assert.Equal(t, 5, len(results["entries"]), "incorrect number of datapoints in target")
+		assert.Equal(t, float64(5.0), results["entries"][3].Value, "incorrect value parsing")
+
+		expectedTime, _ := time.Parse(time.RFC3339, "2011-07-28T06:53:31Z")
+		assert.Equal(t, expectedTime.Unix(), time.Time(results["entries"][3].Timestamp).UTC().Unix(),
+			"incorrect timestamp parsing")
+
+		requests := s.Requests
+		s.Requests = nil
+
+		require.Equal(t, 1, len(requests), "incorrect number of queries sent")
+		request := requests[0]
+
+		qsExpected := url.Values{
+			"target":        []string{"foo.example.com", "bar.example.com"},
+			"format":        []string{"json"},
+			"skipBlacklist": []string{"1"},
+			"from":          []string{"1308634162"},
+			"until":         []string{"1308693022"},
+		}
+
+		for k, v := range test.queryParams {
+			qsExpected.Add(k, v)
+		}
+		assert.Equal(t, qsExpected, request.URL.Query())
+
+		require.Equal(t, 1, len(request.Cookies))
+		assert.Equal(t, "auth-openid", request.Cookies[0].Name)
+	}
+}
+
+func TestFindMetrics(t *testing.T) {
+	s := xhttptest.NewRecordingServer()
+	s.Router.AddPatternRoute("/metrics/find", xhttp.Wrap(xhttp.ServeFileHandler(fixture("find-results.json"))))
+	defer s.Close()
+
+	tests := []struct {
+		opts        *FindOptions
+		queryParams map[string]string
+	}{
+		{nil, map[string]string{}},
+		{&FindOptions{NoCache: true}, map[string]string{"noCache": "1"}},
+		{&FindOptions{LocalOnly: true}, map[string]string{"local": "1"}},
+	}
+
+	expectedResults := &FindResultsCompleterJSON{
+		Metrics: []MetricsPathMetadata{
+			{Path: "servers.mcassandra01-sjc1.cassandra", IsLeaf: 0},
+			{Path: "servers.mcassandra15-sjc1.cassandra", IsLeaf: 0},
+			{Path: "servers.mcassandra02-sjc1.cassandra.cpu.load_1", IsLeaf: 1},
+			{Path: "servers.mcassandra09-sjc1.cassandra", IsLeaf: 0},
+			{Path: "servers.mcassandra24-sjc1.cassandra", IsLeaf: 0},
+		},
+	}
+
+	c, err := NewClient(s.HTTPServer.URL, metrics.None, nil)
+	require.NoError(t, err)
+	for i, test := range tests {
+		results, err := c.FindMetrics("servers.*.cassandra", test.opts)
+		require.NoError(t, err, "error running test %d", i)
+		assert.Equal(t, expectedResults, results)
+
+		requests := s.Requests
+		s.Requests = nil
+
+		require.Equal(t, 1, len(requests), "incorrect number of queries sent")
+		request := requests[0]
+		qsExpected := url.Values{
+			"query":         []string{"servers.*.cassandra"},
+			"skipBlacklist": []string{"1"},
+			"format":        []string{"completer"},
+		}
+		for k, v := range test.queryParams {
+			qsExpected.Add(k, v)
+		}
+
+		assert.Equal(t, qsExpected, request.URL.Query())
+		assert.Equal(t, 0, len(request.Cookies))
+	}
+}
+
+type NilResponseHandler struct{}
+
+func (m *NilResponseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func fixture(s string) string { return fmt.Sprintf("../../test/fixtures/graphite/%s", s) }
