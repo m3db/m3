@@ -31,7 +31,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"code.uber.internal/infra/statsdex/protocols/tools"
+	xstrings "github.com/m3db/m3/src/x/strings"
 )
 
 const (
@@ -144,20 +144,19 @@ func ParseRemainder(name, rest string) (timestamp time.Time, value float64, err 
 	}
 
 	if strings.Contains(rest, "  ") {
-		rest = tools.CondenseDuplicateChars(rest, ' ')
+		rest = xstrings.CondenseDuplicateChars(rest, ' ')
 	}
 
-	firstSecIdx := -1
-
+	secIdx := -1
 	lineLen := len(rest)
 	for i := 0; i < lineLen; i++ {
 		if rest[i] == ' ' && !(i != 0 && rest[i-1] == ' ') {
-			firstSecIdx = i
+			secIdx = i
 			break
 		}
 	}
 
-	if firstSecIdx == -1 {
+	if secIdx == -1 {
 		// Incorrect number of ' ' chars
 		err = errInvalidLine
 		return
@@ -166,17 +165,17 @@ func ParseRemainder(name, rest string) (timestamp time.Time, value float64, err 
 	tsEndIdx := lineLen
 
 	var tsInSecs int64
-	tsInSecs, err = strconv.ParseInt(rest[firstSecIdx+1:tsEndIdx], 10, 64)
+	tsInSecs, err = strconv.ParseInt(rest[secIdx+1:tsEndIdx], 10, 64)
 	if err != nil {
-		err = fmt.Errorf("invalid timestamp %s: %v", rest[firstSecIdx+1:tsEndIdx], err)
+		err = fmt.Errorf("invalid timestamp %s: %v", rest[secIdx+1:tsEndIdx], err)
 		return
 	}
 	timestamp = time.Unix(tsInSecs, 0)
 
-	if val := strings.ToLower(rest[:firstSecIdx]); val == negativeNanStr || val == nanStr {
+	if val := strings.ToLower(rest[:secIdx]); val == negativeNanStr || val == nanStr {
 		value = mathNan
 	} else {
-		value, err = strconv.ParseFloat(rest[:firstSecIdx], 64)
+		value, err = strconv.ParseFloat(rest[:secIdx], 64)
 	}
 
 	return
