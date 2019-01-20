@@ -70,19 +70,19 @@ func TestScannerMetric(t *testing.T) {
 
 	s := NewScanner(&buf)
 	for _, line := range testLines {
-
-		require.True(t, s.Scan(), "could not parse to line %s", line.line)
-
-		name, ts, value := s.Metric()
-		expectedName, expectedTime, expectedValue :=
-			line.path, line.time, line.value
-		assert.Equal(t, expectedName, name)
-		assert.Equal(t, expectedTime, ts)
-		if math.IsNaN(expectedValue) {
-			require.True(t, math.IsNaN(value))
-		} else {
-			assert.Equal(t, expectedValue, value)
-		}
+		t.Run(line.path, func(t *testing.T) {
+			require.True(t, s.Scan(), "could not parse to line %s, err: %v", line.line, s.Err())
+			name, ts, value := s.Metric()
+			expectedName, expectedTime, expectedValue :=
+				line.path, line.time, line.value
+			assert.Equal(t, expectedName, string(name))
+			assert.Equal(t, expectedTime, ts)
+			if math.IsNaN(expectedValue) {
+				require.True(t, math.IsNaN(value))
+			} else {
+				assert.Equal(t, expectedValue, value)
+			}
+		})
 	}
 
 	assert.False(t, s.Scan(), "parsed past end of buffer")
@@ -92,9 +92,9 @@ func TestScannerMetric(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	for i := range testLines {
-		name, ts, value, err := Parse(testLines[i].line)
+		name, ts, value, err := Parse([]byte(testLines[i].line))
 		require.Nil(t, err, "could not parse %s", testLines[i].line)
-		assert.Equal(t, testLines[i].path, name)
+		assert.Equal(t, testLines[i].path, string(name))
 		assert.Equal(t, testLines[i].time, ts)
 
 		if math.IsNaN(testLines[i].value) {
@@ -108,17 +108,17 @@ func TestParse(t *testing.T) {
 
 func TestParseName(t *testing.T) {
 	for _, line := range testLines {
-		name, rest, err := ParseName(line.line)
+		name, rest, err := ParseName([]byte(line.line))
 		_ = rest
-		assert.Equal(t, line.path, name)
+		assert.Equal(t, line.path, string(name))
 		// we expect the returned string to have de-duped spaces after ParseName's
 		// initial pass
 		exp := strings.TrimPrefix(line.line[len(line.path)+1:], " ")
-		assert.Equal(t, exp, rest)
+		assert.Equal(t, exp, string(rest))
 		assert.Nil(t, err)
 	}
 
-	_, _, err := ParseName("thereisnospacehere")
+	_, _, err := ParseName([]byte("thereisnospacehere"))
 	assert.NotNil(t, err)
 }
 
@@ -143,12 +143,12 @@ func TestParseErrors(t *testing.T) {
 }
 
 func TestParsePacket(t *testing.T) {
-	mets, malformed := ParsePacket(`
+	mets, malformed := ParsePacket([]byte(`
 foo.bar.zed 45565.02 1428951394
 foo.bar.zed NaN 1428951394
 foo.bar.invalid invalid 1428951394
 
-foo.bar.invalid 1428951394`)
+foo.bar.invalid 1428951394`))
 	require.Equal(t, 2, len(mets))
 	require.Equal(t, 2, malformed)
 }
@@ -167,7 +167,7 @@ func TestParseValidatesUTF8Encoding(t *testing.T) {
 	b = append(b, []byte{byte(255), byte(253)}...)
 	b = append(b, []byte(end)...)
 
-	_, _, _, err := Parse(string(b))
+	_, _, _, err := Parse(b)
 	if err == nil {
 		t.Fatalf("expected UTF8 error")
 	}
@@ -176,17 +176,17 @@ func TestParseValidatesUTF8Encoding(t *testing.T) {
 }
 
 func validateLine(t *testing.T, line string) {
-	mets, malformed := ParsePacket(line)
+	mets, malformed := ParsePacket([]byte(line))
 	require.Equal(t, 0, malformed)
 	require.Equal(t, line+"\n", mets[0].ToLine())
 }
 
 func validateLineError(t *testing.T, line string) {
-	_, malformed := ParsePacket(line)
+	_, malformed := ParsePacket([]byte(line))
 	require.Equal(t, 1, malformed)
 }
 
 func assertParseError(t *testing.T, metric string) {
-	_, _, _, err := Parse(metric)
+	_, _, _, err := Parse([]byte(metric))
 	assert.NotNil(t, err, "allowed parsing of %s", metric)
 }

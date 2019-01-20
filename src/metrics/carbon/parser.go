@@ -31,7 +31,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	xstrings "github.com/m3db/m3/src/x/strings"
+	"github.com/m3db/m3x/unsafe"
 )
 
 const (
@@ -53,7 +53,7 @@ var (
 
 // Metric represents a carbon metric.
 type Metric struct {
-	Name string
+	Name []byte
 	Time time.Time
 	Val  float64
 	Recv time.Time
@@ -61,12 +61,12 @@ type Metric struct {
 
 // ToLine converts the carbon Metric struct to a line.
 func (m *Metric) ToLine() string {
-	return m.Name + " " + strconv.FormatFloat(m.Val, floatFormatByte, floatPrecision, floatBitSize) +
+	return string(m.Name) + " " + strconv.FormatFloat(m.Val, floatFormatByte, floatPrecision, floatBitSize) +
 		" " + strconv.FormatInt(m.Time.Unix(), intBase) + "\n"
 }
 
 // ParsePacket parses a carbon packet and returns the metrics and number of malformed lines.
-func ParsePacket(packet string) ([]Metric, int) {
+func ParsePacket(packet []byte) ([]Metric, int) {
 	var malformed, prevIdx, i int
 	mets := []Metric{}
 	for i = 0; i < len(packet); i++ {
@@ -105,7 +105,7 @@ func ParsePacket(packet string) ([]Metric, int) {
 
 // ParseName parses out the name portion of a string and returns the
 // name and the remaining portion of the line.
-func ParseName(line string) (name string, rest string, err error) {
+func ParseName(line []byte) (name []byte, rest []byte, err error) {
 	firstSepIdx := -1
 	for i := 0; i < len(line); i++ {
 		if line[i] == ' ' && !(i != 0 && line[i-1] == ' ') {
@@ -137,53 +137,100 @@ func ParseName(line string) (name string, rest string, err error) {
 // ParseRemainder parses a line's components (name and remainder) and returns
 // all but the name and returns the timestamp of the metric, its value, the
 // time it was received and any error encountered.
-func ParseRemainder(name, rest string) (timestamp time.Time, value float64, err error) {
-	if !utf8.ValidString(name) || !utf8.ValidString(rest) {
+func ParseRemainder(name, rest []byte) (timestamp time.Time, value float64, err error) {
+	if !utf8.Valid(name) || !utf8.Valid(rest) {
 		err = errNotUTF8
 		return
 	}
 
-	if strings.Contains(rest, "  ") {
-		rest = xstrings.CondenseDuplicateChars(rest, ' ')
-	}
-
-	secIdx := -1
-	lineLen := len(rest)
-	for i := 0; i < lineLen; i++ {
-		if rest[i] == ' ' && !(i != 0 && rest[i-1] == ' ') {
-			secIdx = i
+	valStart := -1
+	for i := 0; i < len(rest); i++ {
+		charByte := rest[i]
+		if valStart == -1 && charByte != ' ' {
+			valStart = i
 			break
 		}
 	}
 
-	if secIdx == -1 {
-		// Incorrect number of ' ' chars
+	valEnd := -1
+	reachedEnd := true
+	for i := valStart + 1; i < len(rest); i++ {
+		valEnd = i
+
+		charByte := rest[i]
+		if charByte == ' ' {
+			reachedEnd = false
+			break
+		}
+	}
+
+	if valStart == -1 || valEnd == -1 || reachedEnd {
+		err = errInvalidLine
+		return
+	}
+	unsafe.WithString(rest, func(s string) {
+		if val := strings.ToLower(s[valStart:valEnd]); val == negativeNanStr || val == nanStr {
+			value = mathNan
+		} else {
+			value, err = strconv.ParseFloat(s[valStart:valEnd], 64)
+		}
+	})
+	if err != nil {
+		return
+	}
+
+	if valEnd >= len(rest) {
 		err = errInvalidLine
 		return
 	}
 
-	tsEndIdx := lineLen
+	secStart := -1
+	for i := valEnd; i < len(rest); i++ {
+		charByte := rest[i]
+		if secStart == -1 && charByte != ' ' {
+			secStart = i
+			break
+		}
+	}
+
+	secEnd := -1
+	reachedEnd = true
+	for i := secStart; i < len(rest) && i > 0; i++ {
+		secEnd = i
+
+		charByte := rest[i]
+		if charByte == ' ' {
+			reachedEnd = false
+			break
+		}
+	}
+	if reachedEnd {
+		secEnd = secEnd + 1
+	}
+
+	if secStart == -1 || secEnd == -1 || secEnd != len(rest) {
+		err = errInvalidLine
+		return
+	}
 
 	var tsInSecs int64
-	tsInSecs, err = strconv.ParseInt(rest[secIdx+1:tsEndIdx], 10, 64)
+	unsafe.WithString(rest, func(s string) {
+		tsInSecs, err = strconv.ParseInt(s[secStart:secEnd], 10, 64)
+		if err != nil {
+			err = fmt.Errorf("invalid timestamp %s: %v", rest[secStart:secEnd], err)
+		}
+	})
 	if err != nil {
-		err = fmt.Errorf("invalid timestamp %s: %v", rest[secIdx+1:tsEndIdx], err)
 		return
 	}
 	timestamp = time.Unix(tsInSecs, 0)
-
-	if val := strings.ToLower(rest[:secIdx]); val == negativeNanStr || val == nanStr {
-		value = mathNan
-	} else {
-		value, err = strconv.ParseFloat(rest[:secIdx], 64)
-	}
 
 	return
 }
 
 // Parse parses a carbon line into the corresponding parts.
-func Parse(line string) (name string, timestamp time.Time, value float64, err error) {
-	var rest string
+func Parse(line []byte) (name []byte, timestamp time.Time, value float64, err error) {
+	var rest []byte
 	name, rest, err = ParseName(line)
 	if err != nil {
 		return
@@ -197,7 +244,7 @@ func Parse(line string) (name string, timestamp time.Time, value float64, err er
 type Scanner struct {
 	scanner   *bufio.Scanner
 	timestamp time.Time
-	path      string
+	path      []byte
 	value     float64
 	recv      time.Time
 
@@ -220,7 +267,7 @@ func (s *Scanner) Scan() bool {
 		}
 
 		var err error
-		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Text()); err != nil {
+		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Bytes()); err != nil {
 			s.MalformedCount++
 			continue
 		}
@@ -230,14 +277,37 @@ func (s *Scanner) Scan() bool {
 }
 
 // Metric returns the path, timestamp, and value of the last parsed metric.
-func (s *Scanner) Metric() (string, time.Time, float64) {
-	return s.path, s.timestamp, s.value
-}
-
-// MetricAndRecvTime returns the path, timestamp, value and receive time of the last parsed metric.
-func (s *Scanner) MetricAndRecvTime() (string, time.Time, float64) {
+func (s *Scanner) Metric() ([]byte, time.Time, float64) {
 	return s.path, s.timestamp, s.value
 }
 
 // Err returns any errors in the scan.
 func (s *Scanner) Err() error { return s.scanner.Err() }
+
+func parseNumberOffsets(b []byte) (int, int) {
+	valStart := -1
+	for i := 0; i < len(b); i++ {
+		charByte := b[i]
+		if valStart == -1 && charByte != ' ' {
+			valStart = i
+			break
+		}
+	}
+
+	valEnd := -1
+	reachedEnd := true
+	for i := valStart + 1; i < len(b); i++ {
+		valEnd = i
+
+		charByte := b[i]
+		if charByte == ' ' {
+			reachedEnd = false
+			break
+		}
+	}
+	if reachedEnd {
+		valEnd = valEnd + 1
+	}
+
+	return valStart, valEnd
+}

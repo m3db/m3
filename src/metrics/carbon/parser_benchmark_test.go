@@ -30,14 +30,15 @@ import (
 	"time"
 )
 
-const (
-	testCarbonLine       = "statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99 0 1441317285"
-	testCarbonLineSpaces = "statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99    0  1441317285"
+var (
+	testCarbonLine       = []byte("statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99 0 1441317285")
+	testCarbonLineSpaces = []byte("statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99    0  1441317285")
 )
 
 var (
 	reCarbon     = regexp.MustCompile("(?i)^([^\\s]+)\\s+(-?[0-9\\.]+|\\-?nan)\\s+([0-9]+)\\s*$")
-	carbonMetric = &Metric{Name: "statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99",
+	carbonMetric = &Metric{
+		Name: []byte("statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99"),
 		Val:  0,
 		Time: time.Now()}
 )
@@ -56,7 +57,7 @@ func BenchmarkParseSpaces(b *testing.B) {
 
 func BenchmarkRegex(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		regexParse(testCarbonLine)
+		regexParse(string(testCarbonLine))
 	}
 }
 
@@ -69,11 +70,12 @@ func BenchmarkParseName(b *testing.B) {
 func BenchmarkParsePacket(b *testing.B) {
 	var test string
 	for i := 0; i < 10; i++ {
-		test += testCarbonLine + "\n"
+		test += string(testCarbonLine) + "\n"
 	}
+	testBytes := []byte(test)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ParsePacket(test)
+		ParsePacket(testBytes)
 	}
 }
 
