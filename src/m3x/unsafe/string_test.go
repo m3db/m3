@@ -55,6 +55,16 @@ func TestWithBytesAndArgLargeString(t *testing.T) {
 	validateWithBytesAndArg(t, str)
 }
 
+var withBytesBenchSink ImmutableBytes
+
+func BenchmarkWithBytes(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		WithBytes("foobar", func(b ImmutableBytes) {
+			withBytesBenchSink = b
+		})
+	}
+}
+
 func validateWithBytes(t *testing.T, str string) {
 	WithBytes(str, func(b ImmutableBytes) {
 		require.Equal(t, []byte(str), []byte(b))
