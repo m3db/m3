@@ -90,7 +90,15 @@ func InDeltaWithNaNs(
 		return true
 	}
 
-	return assert.InDelta(t, expected, actual, delta)
+	dt := af - bf
+	if dt < -delta || dt > delta {
+		return assert.Fail(t,
+			fmt.Sprintf(
+				"Max difference between %v and %v allowed is %v, but difference was %v",
+				expected, actual, delta, dt), msgAndArgs...)
+	}
+
+	return true
 }
 
 // Equalish asserts that two objects are equal. Looser than assert.Equal since

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/graphite/common"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
 	"github.com/stretchr/testify/assert"
@@ -387,7 +388,7 @@ func assertExprTree(t *testing.T, expected interface{}, actual interface{}, msg 
 	case constFuncArg:
 		a, ok := actual.(constFuncArg)
 		require.True(t, ok, msg)
-		assert.Equal(t, e.value.Interface(), a.value.Interface(), msg)
+		xtest.Equalish(t, e.value.Interface(), a.value.Interface(), msg)
 	default:
 		assert.Equal(t, expected, actual, msg)
 	}

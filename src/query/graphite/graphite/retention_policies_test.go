@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/context"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
 	"github.com/stretchr/testify/assert"
@@ -118,7 +119,7 @@ func TestBeginMetricConsolidation(t *testing.T) {
 			offsetSecs := (output.MillisPerStep() / 1000) * i
 			val := output.ValueAt(i)
 			assert.Equal(t, test.outputOffsetsSec[i], offsetSecs, "wrong offset for %s %d", test.path, i)
-			assert.Equal(t, test.outputValues[i], val, "wrong value for %s %d", test.path, i)
+			xtest.EqualWithNaNs(t, test.outputValues[i], val, "wrong value for %s %d", test.path, i)
 		}
 	}
 }

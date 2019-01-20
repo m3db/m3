@@ -68,7 +68,7 @@ func TestParseDurationErrors(t *testing.T) {
 	for _, test := range tests {
 		parsed, err := ParseDuration(test)
 		assert.Error(t, err)
-		assert.Equal(t, 0, parsed)
+		assert.Equal(t, time.Duration(0), parsed)
 	}
 }
 

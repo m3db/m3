@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/graphite/common"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +53,7 @@ func TestFunctions(t *testing.T) {
 
 		out, err := f.call(ctx, tf.input)
 		require.Nil(t, err, "Could not call function %s", reflect.TypeOf(tf.f).Name())
-		assert.Equal(t, tf.expectedOutput, out)
+		xtest.Equalish(t, tf.expectedOutput, out)
 	}
 }
 

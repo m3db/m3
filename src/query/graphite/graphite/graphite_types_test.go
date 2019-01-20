@@ -53,7 +53,7 @@ func TestMarshalRenderResults(t *testing.T) {
 }
 
 func TestDatapointAccess(t *testing.T) {
-	data, err := ioutil.ReadFile("../../test/fixtures/graphite/no-results.json")
+	data, err := ioutil.ReadFile("testdata/no-results.json")
 	require.Nil(t, err)
 
 	var results RenderResults
@@ -66,7 +66,7 @@ func TestDatapointAccess(t *testing.T) {
 	datapoints := results[0].Datapoints
 	for i := range datapoints {
 		_, value := datapoints.Get(i)
-		assert.Equal(t, math.NaN(), value, "invalid value for %d", i)
+		xtest.EqualWithNaNs(t, math.NaN(), value, "invalid value for %d", i)
 	}
 }
 
@@ -91,7 +91,7 @@ func TestMarshalUnmarshalJSONResults(t *testing.T) {
 
 	var unmarshalled Results
 	require.Nil(t, json.Unmarshal(r, &unmarshalled))
-	assert.Equal(t, results, unmarshalled)
+	xtest.Equalish(t, results, unmarshalled)
 }
 
 func TestPickleValueAccess(t *testing.T) {
@@ -115,7 +115,7 @@ func TestPickleValueAccess(t *testing.T) {
 
 	timestamp, n = r.Get(1)
 	xtest.Equalish(t, now.Add(time.Second*20), timestamp)
-	assert.Equal(t, math.NaN(), n)
+	xtest.EqualWithNaNs(t, math.NaN(), n)
 
 	timestamp, n = r.Get(2)
 	assert.Equal(t, now.Add(time.Second*40), timestamp)
@@ -145,5 +145,5 @@ func TestMarshalUnmarshalPickleResults(t *testing.T) {
 	out, err := ParseRenderResultsPickle(buf.Bytes())
 	assert.Nil(t, err, "Unable to unpickle data")
 
-	assert.Equal(t, in, out)
+	xtest.Equalish(t, in, out)
 }
