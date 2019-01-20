@@ -143,31 +143,18 @@ func ParseRemainder(name, rest []byte) (timestamp time.Time, value float64, err 
 		return
 	}
 
-	valStart := -1
-	for i := 0; i < len(rest); i++ {
-		charByte := rest[i]
-		if valStart == -1 && charByte != ' ' {
-			valStart = i
-			break
-		}
-	}
-
-	valEnd := -1
-	reachedEnd := true
-	for i := valStart + 1; i < len(rest); i++ {
-		valEnd = i
-
-		charByte := rest[i]
-		if charByte == ' ' {
-			reachedEnd = false
-			break
-		}
-	}
-
-	if valStart == -1 || valEnd == -1 || reachedEnd {
+	// Determine the start and end offsets for the value.
+	valStart, valEnd := parseWordOffsets(rest)
+	if valStart == -1 || valEnd == -1 || valEnd >= len(rest) {
+		// If we couldn't determine the offsets, or the end of the value is also
+		// the end of the line, then this is an invalid line.
 		err = errInvalidLine
 		return
 	}
+
+	// Found valid offsets for the value, try and parse it into a float. Note that
+	// we use unsafe.WithString() so that we can use standard library functions
+	// without allocating a string.
 	unsafe.WithString(rest, func(s string) {
 		if val := strings.ToLower(s[valStart:valEnd]); val == negativeNanStr || val == nanStr {
 			value = mathNan
@@ -179,40 +166,21 @@ func ParseRemainder(name, rest []byte) (timestamp time.Time, value float64, err 
 		return
 	}
 
-	if valEnd >= len(rest) {
-		err = errInvalidLine
-		return
-	}
-
-	secStart := -1
-	for i := valEnd; i < len(rest); i++ {
-		charByte := rest[i]
-		if secStart == -1 && charByte != ' ' {
-			secStart = i
-			break
-		}
-	}
-
-	secEnd := -1
-	reachedEnd = true
-	for i := secStart; i < len(rest) && i > 0; i++ {
-		secEnd = i
-
-		charByte := rest[i]
-		if charByte == ' ' {
-			reachedEnd = false
-			break
-		}
-	}
-	if reachedEnd {
-		secEnd = secEnd + 1
-	}
+	// Determine the start and end offsets for the timestamp (seconds).
+	rest = rest[valEnd:]
+	secStart, secEnd := parseWordOffsets(rest)
 
 	if secStart == -1 || secEnd == -1 || secEnd != len(rest) {
+		// If we couldn't determine the offsets, or the end of the the timestamp
+		// is not the end of the line (I.E there are still characters after the end
+		// of the timestamp), then this is an invalid line.
 		err = errInvalidLine
 		return
 	}
 
+	// Found valid offsets for the timestamp, try and parse it into an integer. Note that
+	// we use unsafe.WithString() so that we can use standard library functions without
+	// allocating a string.
 	var tsInSecs int64
 	unsafe.WithString(rest, func(s string) {
 		tsInSecs, err = strconv.ParseInt(s[secStart:secEnd], 10, 64)
@@ -284,7 +252,10 @@ func (s *Scanner) Metric() ([]byte, time.Time, float64) {
 // Err returns any errors in the scan.
 func (s *Scanner) Err() error { return s.scanner.Err() }
 
-func parseNumberOffsets(b []byte) (int, int) {
+// parseWordOffsets scans through b searching for the start and end offsets
+// of the next "word" (ignores whitespace on either side), returning offsets
+// such that b[start:end] will return the complete word with no whitespace.
+func parseWordOffsets(b []byte) (int, int) {
 	valStart := -1
 	for i := 0; i < len(b); i++ {
 		charByte := b[i]
