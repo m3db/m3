@@ -124,6 +124,10 @@ func ParseName(line []byte) (name []byte, rest []byte, err error) {
 		err = errInvalidLine
 		return
 	}
+	if !utf8.Valid(name) {
+		err = errNotUTF8
+		return
+	}
 
 	nonSpaceIdx := firstSepIdx + 1
 	for nonSpaceIdx < len(line) && line[nonSpaceIdx] == ' ' {
@@ -137,8 +141,8 @@ func ParseName(line []byte) (name []byte, rest []byte, err error) {
 // ParseRemainder parses a line's components (name and remainder) and returns
 // all but the name and returns the timestamp of the metric, its value, the
 // time it was received and any error encountered.
-func ParseRemainder(name, rest []byte) (timestamp time.Time, value float64, err error) {
-	if !utf8.Valid(name) || !utf8.Valid(rest) {
+func ParseRemainder(rest []byte) (timestamp time.Time, value float64, err error) {
+	if !utf8.Valid(rest) {
 		err = errNotUTF8
 		return
 	}
@@ -204,7 +208,7 @@ func Parse(line []byte) (name []byte, timestamp time.Time, value float64, err er
 		return
 	}
 
-	timestamp, value, err = ParseRemainder(name, rest)
+	timestamp, value, err = ParseRemainder(rest)
 	return
 }
 

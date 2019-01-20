@@ -171,7 +171,7 @@ func TestParseValidatesUTF8Encoding(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected UTF8 error")
 	}
-	assert.Equal(t, err.Error(), "not valid UTF8 string")
+	assert.Equal(t, "not valid UTF8 string", err.Error())
 	validateLineError(t, string(b))
 }
 
