@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,26 +23,59 @@ package unsafe
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func BenchmarkToBytesSmallString(b *testing.B) {
-	str := "foobarbaz"
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		_ = toBytes(str)
-	}
+func TestWithStringSmallString(t *testing.T) {
+	str := []byte("foobarbaz")
+	validateWithString(t, str)
 }
 
-func BenchmarkToBytesLargeString(b *testing.B) {
+func TestWithStringLargeString(t *testing.T) {
 	var buf bytes.Buffer
 	for i := 0; i < 65536; i++ {
 		buf.WriteByte(byte(i % 256))
 	}
-	str := buf.String()
+	str := buf.Bytes()
+	validateWithString(t, str)
+}
 
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		_ = toBytes(str)
+func TestWithStringAndArgSmallString(t *testing.T) {
+	str := []byte("foobarbaz")
+	validateWithStringAndArg(t, str)
+}
+
+func TestWithStringAndArgLargeString(t *testing.T) {
+	var buf bytes.Buffer
+	for i := 0; i < 65536; i++ {
+		buf.WriteByte(byte(i % 256))
 	}
+	str := buf.Bytes()
+	validateWithStringAndArg(t, str)
+}
+
+var withStringBenchSink string
+
+func BenchmarkWithString(b *testing.B) {
+	str := []byte("foobarbaz")
+	WithString(str, func(s string) {
+		withStringBenchSink = s
+	})
+}
+
+func validateWithString(t *testing.T, b []byte) {
+	WithString(b, func(str string) {
+		require.Equal(t, []byte(str), []byte(b))
+		require.Equal(t, len(str), len(b))
+	})
+}
+
+func validateWithStringAndArg(t *testing.T, b []byte) {
+	WithStringAndArg(b, "cat", func(str string, arg interface{}) {
+		var buf bytes.Buffer
+		buf.WriteString(str)
+		buf.WriteString(arg.(string))
+		require.Equal(t, string(b)+"cat", buf.String())
+	})
 }
