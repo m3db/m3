@@ -257,8 +257,9 @@ func (s *Scanner) Metric() ([]byte, time.Time, float64) {
 func (s *Scanner) Err() error { return s.scanner.Err() }
 
 // parseWordOffsets scans through b searching for the start and end offsets
-// of the next "word" (ignores whitespace on either side), returning offsets
-// such that b[start:end] will return the complete word with no whitespace.
+// of the next "word" (ignores spaces on either side), returning offsets
+// such that b[start:end] will return the complete word with no spaces. Note
+// that the function will tolerate any number of spaces on either side.
 func parseWordOffsets(b []byte) (int, int) {
 	valStart := -1
 	for i := 0; i < len(b); i++ {
