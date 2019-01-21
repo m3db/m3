@@ -25,7 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -127,7 +127,7 @@ type LimitsConfiguration struct {
 // IngestConfiguration is the configuration for ingestion server.
 type IngestConfiguration struct {
 	// Ingester is the configuration for storage based ingester.
-	Ingester ingest.Configuration `yaml:"ingester"`
+	Ingester ingestm3msg.Configuration `yaml:"ingester"`
 
 	// M3Msg is the configuration for m3msg server.
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
