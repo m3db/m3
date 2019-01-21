@@ -39,11 +39,14 @@ import (
 )
 
 var (
+	// Used for parsing carbon names into tags.
 	carbonSeparatorByte  = byte('.')
 	carbonSeparatorBytes = []byte{carbonSeparatorByte}
 
+	// Number of pre-formatted key names to generate in the init() function.
 	numPreFormattedKeyNames = 100
-	preFormattedKeyNames    = [][]byte{}
+	// Should never be modified after init().
+	preFormattedKeyNames = [][]byte{}
 
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 )
