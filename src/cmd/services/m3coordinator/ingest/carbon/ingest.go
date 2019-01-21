@@ -132,6 +132,7 @@ func generateTagsFromName(name []byte) (models.Tags, error) {
 	if len(name) == 0 {
 		return models.Tags{}, errCannotGenerateTagsFromEmptyName
 	}
+
 	var (
 		numTags = bytes.Count(name, carbonSeparatorBytes) + 1
 		tags    = make([]models.Tag, 0, numTags)
