@@ -21,85 +21,91 @@
 package ingestcarbon
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"net"
 	"sync"
-	"time"
 
-	"code.uber.internal/infra/statsdex/protocols"
-	"code.uber.internal/infra/statsdex/services/m3dbingester/ingest"
-	"github.com/apex/log"
 	"github.com/m3db/m3/src/metrics/carbon"
-	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3x/instrument"
+	m3xserver "github.com/m3db/m3x/server"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 
+var (
+	carbonSeparatorByte  = byte('.')
+	carbonSeparatorBytes = []byte{carbonSeparatorByte}
+
+	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
+)
+
+// StorageWriter is the interface that must be provided to the ingester so that it can
+// write the ingested metrics.
+type StorageWriter interface {
+	Write(tags models.Tags, dp ts.Datapoint, unit xtime.Unit) error
+}
+
 // Options configures the ingester.
-type Options struct{}
+type Options struct {
+	InstrumentOptions instrument.Options
+	WorkerPool        xsync.PooledWorkerPool
+}
 
 // NewIngester returns an ingester for carbon metrics.
 func NewIngester(
-	ingester ingest.Ingester,
-	m tally.Scope,
+	storage StorageWriter,
 	opts Options,
 ) m3xserver.Handler {
-	return &carbonHandler{
-		ingester: ingester,
-		metrics:  newCarbonHandlerMetrics(m),
-		opts:     opts,
+	return &ingester{
+		storage: storage,
+		opts:    opts,
 	}
 }
 
-func (h *carbonHandler) Handle(conn net.Conn) {
+type ingester struct {
+	storage StorageWriter
+	opts    Options
+	conn    net.Conn
+}
+
+func (i *ingester) Handle(conn net.Conn) {
+	if i.conn != nil {
+		// TODO: Something
+	}
+	i.conn = conn
+
 	var (
-		wg                sync.WaitGroup
-		beforeNetworkRead time.Time
+		wg = sync.WaitGroup{}
+		s  = carbon.NewScanner(conn)
 	)
 
-	callbackable := xserver.NewCallbackable(nil, func() { wg.Done() })
-	s := carbon.NewScanner(conn)
-	for {
-		rolled := dice.Roll()
-
-		// NB(cw) beforeNetworkRead must be read for every metrics now because it needs to be passed to
-		// writeFn for potential per-dc metric book keeping.
-		beforeNetworkRead = time.Now()
-
-		if !s.Scan() {
-			break
-		}
-
-		name, timestamp, value, recvd := s.MetricAndRecvTime()
-
-		if rolled {
-			h.metrics.readTimeLatency.Record(time.Now().Sub(beforeNetworkRead))
-		}
-		h.metrics.malformedCounter.Inc(int64(s.MalformedCount))
-		s.MalformedCount = 0
-
-		var policy policy.StoragePolicy
-		if h.opts.EnablePolicyResolution {
-			var resolved bool
-			policy, resolved = h.opts.PolicyResolver.Resolve(name)
-			if !resolved {
-				if rolled {
-					log.Warnf("unable to resolve policy for id %s", name)
-				}
-				h.metrics.unresolvedIDs.Inc(1)
-				continue
-			}
-		} else {
-			policy = h.opts.StaticPolicy
-		}
+	for s.Scan() {
+		_, timestamp, value := s.Metric()
 
 		wg.Add(1)
-		h.ingester.Ingest(name, timestamp, recvd, value, policy, protocols.Carbon, callbackable)
+		i.opts.WorkerPool.Go(func() {
+			dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+			i.storage.Write(models.Tags{}, dp, xtime.Second)
+			wg.Done()
+		})
+		// i.metrics.malformedCounter.Inc(int64(s.MalformedCount))
+		s.MalformedCount = 0
 	}
 
 	// Wait for all outstanding writes
 	wg.Wait()
 }
 
-func (h *carbonHandler) Close() {}
+func (i *ingester) Close() {
+	// TODO: Log error
+	i.conn.Close()
+}
 
 func newCarbonHandlerMetrics(m tally.Scope) carbonHandlerMetrics {
 	writesScope := m.SubScope("writes")
@@ -114,4 +120,46 @@ type carbonHandlerMetrics struct {
 	unresolvedIDs    tally.Counter
 	malformedCounter tally.Counter
 	readTimeLatency  tally.Timer
+}
+
+func generateTagsFromName(name []byte) (models.Tags, error) {
+	if len(name) == 0 {
+		return models.Tags{}, errCannotGenerateTagsFromEmptyName
+	}
+	var (
+		numTags   = bytes.Count(name, carbonSeparatorBytes) + 1
+		tagsSlice = make([]models.Tag, 0, numTags)
+		tags      = models.Tags{Tags: tagsSlice}
+	)
+
+	startIdx := 0
+	tagNum := 0
+	for i, charByte := range name {
+		if charByte == carbonSeparatorByte {
+			tags.AddTag(models.Tag{
+				// TODO: Fix me
+				Name:  []byte(fmt.Sprintf("__$%d__", tagNum)),
+				Value: name[startIdx:i],
+			})
+		}
+	}
+
+	// Write out the final tag since the for loop above will miss anything
+	// after the final separator. Note, that we make sure that the final
+	// character in the name is not the separator because in that case there
+	// would be no additional tag to add. I.E if the input was:
+	//      foo.bar.baz
+	// then the for loop would append foo and bar, but we would still need to
+	// append baz, however, if the input was:
+	//      foo.bar.baz.
+	// then the foor loop would have appended foo, bar, and baz already.
+	if name[len(name)-1] != carbonSeparatorByte {
+		// TODO: Fix me
+		tags = tags.AddTag(models.Tag{
+			Name:  []byte(fmt.Sprintf("__$%d__", len(tags.Tags))),
+			Value: name[startIdx:],
+		})
+	}
+
+	return tags, nil
 }
