@@ -147,6 +147,17 @@ foo.bar.invalid 1428951394`))
 	require.Equal(t, 2, malformed)
 }
 
+func TestParseAndAppendPacket(t *testing.T) {
+	mets, malformed := ParseAndAppendPacket([]Metric{}, []byte(`
+foo.bar.zed 45565.02 1428951394
+foo.bar.zed NaN 1428951394
+foo.bar.invalid invalid 1428951394
+
+foo.bar.invalid 1428951394`))
+	require.Equal(t, 2, len(mets))
+	require.Equal(t, 2, malformed)
+}
+
 func TestCarbonToLine(t *testing.T) {
 	validateLine(t, "foo.bar.zed 45565.02 1428951394")
 	validateLine(t, "foo.bar.nan NaN 1428951395")

@@ -65,8 +65,17 @@ func (m *Metric) ToLine() string {
 
 // ParsePacket parses a carbon packet and returns the metrics and number of malformed lines.
 func ParsePacket(packet []byte) ([]Metric, int) {
+	return parsePacket([]Metric{}, packet)
+}
+
+// ParseAndAppendPacket does the same thing as parse packet, but it allows the caller to pass
+// in the []Metric to facilitate pooling.
+func ParseAndAppendPacket(mets []Metric, packet []byte) ([]Metric, int) {
+	return parsePacket(mets, packet)
+}
+
+func parsePacket(mets []Metric, packet []byte) ([]Metric, int) {
 	var malformed, prevIdx, i int
-	mets := []Metric{}
 	for i = 0; i < len(packet); i++ {
 		if packet[i] == '\n' {
 			if (i - prevIdx) > 1 {
