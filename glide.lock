@@ -1,5 +1,5 @@
-hash: dbc8ad7212f59a1a4dd80405aaedb0482730630df847aa2fa97be78a061f40d9
-updated: 2018-12-13T15:36:49.311775-08:00
+hash: 3b9f18246edf191b3b76191c4f5b17dfaab32830c8c6fbac9c8f1699bad13b3f
+updated: 2019-01-20T14:42:37.326427-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -217,7 +217,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: 912d1db087722c924d50a7bfac7ca55cf56a600e
+  version: e98ec326dd7b4d4bc97390c709dacf73d49a0bfc
   vcs: git
   subpackages:
   - checked
@@ -303,7 +303,7 @@ imports:
   - roaring
   - stats
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
