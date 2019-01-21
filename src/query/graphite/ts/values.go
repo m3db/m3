@@ -7,7 +7,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
 	xts "github.com/m3db/m3/src/query/ts"
-
 	xpool "github.com/m3db/m3x/pool"
 )
 
@@ -29,10 +28,6 @@ type Values interface {
 
 	// AllNaN returns true if the values are all NaN
 	AllNaN() bool
-
-	// TODO(mmihic): Calculate quantiles
-
-	// TODO(mmihic): Bulk values interfaces
 }
 
 // MutableValues is the interface for values that can be updated
@@ -241,30 +236,9 @@ func initPools(valueBuckets, consolidationBuckets []xpool.Bucket) error {
 
 var gigabyteBytes = math.Pow(2, 30)
 
-// EnablePooling enables pooling, measuring the impacts at the given scope
+// EnablePooling enables pooling.
 func EnablePooling(
 	valueBuckets, consolidationBuckets []xpool.Bucket,
 ) {
-	totalBytes := 0
-	for _, buckets := range [][]xpool.Bucket{
-		valueBuckets, consolidationBuckets,
-	} {
-		totalBytes += approxPoolValuesBytes(buckets)
-	}
-	//FIXMElog.Infof("Allocating approx %fGB for pooled values",
-	// float64(totalBytes)/gigabyteBytes)
-	if err := initPools(valueBuckets, consolidationBuckets); err != nil {
-		// log.Errorf("Could not initialize timeSeriesValuesPool: %v", err)
-	} else {
-		// log.Infof("Done allocating pooled values")
-	}
-}
-
-func approxPoolValuesBytes(buckets []xpool.Bucket) int {
-	totalBytes := 0
-	sizeValueBytes := 8
-	for _, b := range buckets {
-		totalBytes += b.Capacity * b.Count * sizeValueBytes
-	}
-	return totalBytes
+	initPools(valueBuckets, consolidationBuckets)
 }

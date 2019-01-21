@@ -419,10 +419,6 @@ const (
 	Finalize
 )
 
-var (
-	nan = math.NaN()
-)
-
 // A ConsolidationFunc consolidates values at a given point in time.  It takes the current consolidated
 // value, the new value to add to the consolidation, and a count of the number of values that have
 // already been consolidated.

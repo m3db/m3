@@ -1,6 +1,7 @@
 package common
 
 import (
+	ctx "context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -16,14 +17,14 @@ var (
 // contextBase are the real content of a Context, minus the lock so that we
 // can safely copy a context without violating the rules of go vet.
 type contextBase struct {
+	// TimeRangeAdjusted is a boolean indicating whether the time range has an adjustment.
+	TimeRangeAdjusted bool
+
 	// The start time to query against.
 	StartTime time.Time
 
 	// The end time to query against.
 	EndTime time.Time
-
-	// TimeRangeAdjusted is a boolean indicating whether the time range has an adjustment.
-	TimeRangeAdjusted bool
 
 	// TimeRangeAdjustment is the time range adjustment made to the query.
 	TimeRangeAdjustment TimeRangeAdjustment
@@ -51,6 +52,7 @@ type contextBase struct {
 	Zone string
 
 	parent          *Context
+	reqCtx          ctx.Context
 	storageContext  context.Context
 	state           map[string]interface{}
 	cancelled       uint32
@@ -202,6 +204,23 @@ func (c *Context) Close() error {
 	}
 
 	return c.storageContext.Close()
+}
+
+// SetRequestContext sets the given context as the request context for this
+// execution context. This is used for calls to the m3 storage wrapper.
+func (c *Context) SetRequestContext(reqCtx ctx.Context) {
+	c.Lock()
+	c.reqCtx = reqCtx
+	c.Unlock()
+}
+
+// RequestContext will provide the wrapped request context. Used for calls
+// to m3 storage wrapper.
+func (c *Context) RequestContext() ctx.Context {
+	c.RLock()
+	r := c.reqCtx
+	c.RUnlock()
+	return r
 }
 
 // RegisterCloser registers a new Closer with the context.

@@ -155,7 +155,7 @@ func (s *MovingAverageStorage) fetchByIDs(
 }
 
 // Type returns to the dc scope
-func (s *MovingAverageStorage) Type() storage.Type { return storage.TypeLocalDC }
+// func (s *MovingAverageStorage) Type() storage.Type { return storage.TypeLocalDC }
 
 // Name returns the name of the storage struct
-func (s *MovingAverageStorage) Name() string { return "movingAverageStorage" }
+// func (s *MovingAverageStorage) Name() string { return "movingAverageStorage" }

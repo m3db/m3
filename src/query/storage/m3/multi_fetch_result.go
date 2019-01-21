@@ -83,6 +83,23 @@ func (r *multiResult) Close() error {
 	return nil
 }
 
+func (r *multiResult) FinalResultWithAttrs() (
+	encoding.SeriesIterators, []storage.Attributes, error) {
+	iters, err := r.FinalResult()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	i := 0
+	attrs := make([]storage.Attributes, iters.Len())
+	for _, res := range r.dedupeMap {
+		attrs[i] = res.attrs
+		i++
+	}
+
+	return iters, attrs, nil
+}
+
 func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
 	r.Lock()
 	defer r.Unlock()

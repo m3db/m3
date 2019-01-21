@@ -1,6 +1,7 @@
 package context
 
 import (
+	ctx "context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -18,8 +19,15 @@ type Closer interface {
 // Contexts are safe for use by multiple goroutines, but should not span
 // multiple requests.
 type Context interface {
-	// TODO(mmihic): Integrate this with golang/x/net/context
 	Closer
+
+	// SetRequestContext sets the given context as the request context for this
+	// execution context. This is used for calls to the m3 storage wrapper.
+	SetRequestContext(ctx.Context)
+
+	// RequestContext will provide the wrapped request context. Used for calls
+	// to m3 storage wrapper.
+	RequestContext() ctx.Context
 
 	// Cancel will signal cancellation of the current work for this context. The
 	// cancel is idempotent and can be repeated safely multiple times.
@@ -83,6 +91,7 @@ type context struct {
 	warnings   map[error]int
 	cancelled  uint32
 	confidence float64
+	reqCtx     ctx.Context
 }
 
 // Close closes the context
@@ -112,6 +121,23 @@ func (c *context) Cancel() {
 // IsCancelled returns whether the work for this context has been cancelled
 func (c *context) IsCancelled() bool {
 	return atomic.LoadUint32(&c.cancelled) == 1
+}
+
+// SetRequestContext sets the given context as the request context for this
+// execution context. This is used for calls to the m3 storage wrapper.
+func (c *context) SetRequestContext(reqCtx ctx.Context) {
+	c.Lock()
+	c.reqCtx = reqCtx
+	c.Unlock()
+}
+
+// RequestContext will provide the wrapped request context. Used for calls
+// to m3 storage wrapper.
+func (c *context) RequestContext() ctx.Context {
+	c.RLock()
+	r := c.reqCtx
+	c.RUnlock()
+	return r
 }
 
 // RegisterCloser registers a new Closer with the context

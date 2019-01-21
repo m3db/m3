@@ -42,7 +42,9 @@ import (
 )
 
 var (
-	errNoNamespacesConfigured = goerrors.New("no namespaces configured")
+	errNoNamespacesConfigured  = goerrors.New("no namespaces configured")
+	errMismatchedFetchedLength = goerrors.New("length of fetched attributes and" +
+		" series iterators does not match")
 )
 
 type queryFanoutType uint
@@ -87,18 +89,37 @@ func (s *m3storage) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	raw, cleanup, err := s.FetchCompressed(ctx, query, options)
-	defer cleanup()
+	accumulator, err := s.fetchCompressed(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(
-		raw,
+	iters, attrs, err := accumulator.FinalResultWithAttrs()
+	defer accumulator.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(
+		iters,
 		s.readWorkerPool,
 		false,
 		s.opts.TagOptions(),
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(fetchResult.SeriesList) != len(attrs) {
+		return nil, errMismatchedFetchedLength
+	}
+
+	for i := range fetchResult.SeriesList {
+		fetchResult.SeriesList[i].SetResolutionDuration(attrs[i].Resolution)
+	}
+
+	return fetchResult, nil
 }
 
 func (s *m3storage) FetchBlocks(
@@ -150,16 +171,36 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (encoding.SeriesIterators, Cleanup, error) {
+	accumulator, err := s.fetchCompressed(ctx, query, options)
+	if err != nil {
+		return nil, noop, err
+	}
+
+	iters, err := accumulator.FinalResult()
+	if err != nil {
+		accumulator.Close()
+		return nil, noop, err
+	}
+
+	return iters, accumulator.Close, nil
+}
+
+// fetches compressed series, returning a MultiFetchResult accumulator
+func (s *m3storage) fetchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (MultiFetchResult, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, noop, ctx.Err()
+		return nil, ctx.Err()
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return nil, noop, err
+		return nil, err
 	}
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -168,7 +209,7 @@ func (s *m3storage) FetchCompressed(
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := s.resolveClusterNamespacesForQuery(query.Start, query.End)
 	if err != nil {
-		return nil, noop, err
+		return nil, err
 	}
 
 	var (
@@ -176,12 +217,12 @@ func (s *m3storage) FetchCompressed(
 		wg   sync.WaitGroup
 	)
 	if len(namespaces) == 0 {
-		return nil, noop, errNoNamespacesConfigured
+		return nil, errNoNamespacesConfigured
 	}
 
 	pools, err := namespaces[0].Session().IteratorPools()
 	if err != nil {
-		return nil, noop, fmt.Errorf("unable to retrieve iterator pools: %v", err)
+		return nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
 	result := newMultiFetchResult(fanout, pools)
@@ -205,17 +246,11 @@ func (s *m3storage) FetchCompressed(
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, noop, ctx.Err()
+		return nil, ctx.Err()
 	default:
 	}
 
-	iters, err := result.FinalResult()
-	if err != nil {
-		result.Close()
-		return nil, noop, err
-	}
-
-	return iters, result.Close, nil
+	return result, err
 }
 
 func (s *m3storage) FetchTags(

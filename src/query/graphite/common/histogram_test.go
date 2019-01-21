@@ -424,7 +424,6 @@ func fetchHistogramDurationSeries(t *testing.T, ctx *Context) []histogramDuratio
 			},
 		},
 		{
-			// TODO(observability): Will this ever happen to us?
 			name: "unequal number of elements",
 			inputs: map[string][]float64{
 				"0-100µs":     {10, 10, 20},

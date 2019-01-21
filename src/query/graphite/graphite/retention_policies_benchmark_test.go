@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	applicationCountsRegex = regexp.MustCompile("^stats(\\.[^\\.]+)?\\.counts\\..*")
+	applicationCountsRegex = regexp.MustCompile(`^stats(\.[^\.]+)?\.counts\..*`)
 	benchMixIDs            = []string{
 		"stats.sjc1.counts.donkey.kong.barrels",
 		"stats.sjc1.counts.test",

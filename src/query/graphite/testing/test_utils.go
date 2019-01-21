@@ -33,7 +33,7 @@ func toFloat(x interface{}) (float64, bool) {
 	case float32:
 		xf = float64(xn)
 	case float64:
-		xf = float64(xn)
+		xf = xn
 	default:
 		xok = false
 	}

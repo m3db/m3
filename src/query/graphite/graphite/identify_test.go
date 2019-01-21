@@ -12,14 +12,22 @@ const (
 	dashedString  = "some-other-delimiter"
 )
 
+func TestExtractNthEmptyMetric(t *testing.T) {
+	assert.Equal(t, "", ExtractNthMetricPart("", 0))
+	assert.Equal(t, 0, CountMetricParts(""))
+}
+
 func TestExtractNthMetricPartNoDots(t *testing.T) {
-	assert.Equal(t, "dispatchproductionsan_franciscouberxdrivers", ExtractNthMetricPart(malformedStat, 0))
+	nodots := "dispatchproductionsan_franciscouberxdrivers"
+	assert.Equal(t, nodots, ExtractNthMetricPart(malformedStat, 0))
+	assert.Equal(t, 1, CountMetricParts(malformedStat))
 }
 
 func TestExtractNthMetricPartStandardCase(t *testing.T) {
 	assert.Equal(t, "dispatch", ExtractNthMetricPart(statsdStat, 0))
 	assert.Equal(t, "production", ExtractNthMetricPart(statsdStat, 1))
 	assert.Equal(t, "drivers", ExtractNthMetricPart(statsdStat, 4))
+	assert.Equal(t, 5, CountMetricParts(statsdStat))
 }
 
 func TestExtractNthMetricPartPastEnd(t *testing.T) {
@@ -32,4 +40,5 @@ func TestExtractNthMetricPartNegativeN(t *testing.T) {
 
 func TestExtractNthStringPart(t *testing.T) {
 	assert.Equal(t, "other", ExtractNthStringPart(dashedString, 1, '-'))
+	assert.Equal(t, 3, countMetricPartsWithDelimiter(dashedString, '-'))
 }

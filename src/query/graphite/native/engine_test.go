@@ -4,13 +4,11 @@ import (
 	"testing"
 	"time"
 
-	// "code.uber.internal/infra/statsdex/tsdb/mocktsdb"
-
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/storage"
-
-	"github.com/m3db/m3/src/metrics/policy"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

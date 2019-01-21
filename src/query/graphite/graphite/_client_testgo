@@ -8,23 +8,21 @@ import (
 	"testing"
 	"time"
 
-	"code.uber.internal/go-common.git/x/metrics"
-	"code.uber.internal/go-common.git/x/net/xhttp"
-	"code.uber.internal/go-common.git/x/net/xhttp/xhttptest"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRenderPickle(t *testing.T) {
-	s := xhttptest.NewRecordingServer()
-	s.Router.AddPatternRoute("/render", xhttp.Wrap(xhttp.ServeFileHandler(fixture("metrics.pickle"))))
+	s := xtest.NewRecordingServer()
+	s.Router.AddPatternRoute("/render", xtest.Wrap(xtest.ServeFileHandler(fixture("metrics.pickle"))))
 	defer s.Close()
 
 	from, _ := time.Parse(time.RFC1123, "Mon, 22 Jun 2015 16:22:01 GMT")
 	to, _ := time.Parse(time.RFC1123, "Mon, 22 Jun 2015 16:32:01 GMT")
 
-	c, err := NewClient(s.HTTPServer.URL, metrics.None, nil)
+	c, err := NewClient(s.HTTPServer.URL, nil)
 	require.NoError(t, err, "could not create graphite instance")
 
 	tests := []struct {
@@ -85,8 +83,8 @@ func TestRenderPickle(t *testing.T) {
 }
 
 func TestRenderJSON(t *testing.T) {
-	s := xhttptest.NewRecordingServer()
-	s.Router.AddPatternRoute("/render", xhttp.Wrap(xhttp.ServeContentHandler("", time.Time{}, strings.NewReader("[{"+
+	s := xtest.NewRecordingServer()
+	s.Router.AddPatternRoute("/render", xtest.Wrap(xtest.ServeContentHandler("", time.Time{}, strings.NewReader("[{"+
 		"  \"target\": \"entries\", "+
 		"  \"datapoints\": [ "+
 		"    [1.0, 1311836008], "+
@@ -102,7 +100,7 @@ func TestRenderJSON(t *testing.T) {
 	from, _ := time.Parse(time.RFC3339, "2011-06-21T05:29:23Z")
 	to, _ := time.Parse(time.RFC3339, "2011-06-21T21:50:23Z")
 
-	c, err := NewClient(s.HTTPServer.URL, metrics.None, &ClientOptions{
+	c, err := NewClient(s.HTTPServer.URL, &ClientOptions{
 		OAuthToken: "my-oauth-token",
 	})
 	require.NoError(t, err, "could not create graphite instance")
@@ -152,8 +150,8 @@ func TestRenderJSON(t *testing.T) {
 }
 
 func TestFindMetrics(t *testing.T) {
-	s := xhttptest.NewRecordingServer()
-	s.Router.AddPatternRoute("/metrics/find", xhttp.Wrap(xhttp.ServeFileHandler(fixture("find-results.json"))))
+	s := xtest.NewRecordingServer()
+	s.Router.AddPatternRoute("/metrics/find", xtest.Wrap(xtest.ServeFileHandler(fixture("find-results.json"))))
 	defer s.Close()
 
 	tests := []struct {
@@ -175,7 +173,7 @@ func TestFindMetrics(t *testing.T) {
 		},
 	}
 
-	c, err := NewClient(s.HTTPServer.URL, metrics.None, nil)
+	c, err := NewClient(s.HTTPServer.URL, nil)
 	require.NoError(t, err)
 	for i, test := range tests {
 		results, err := c.FindMetrics("servers.*.cassandra", test.opts)

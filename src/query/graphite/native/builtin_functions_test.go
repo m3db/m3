@@ -935,12 +935,6 @@ func TestSustainedBelowFail(t *testing.T) {
 	require.Equal(t, 0, outputs.Len())
 }
 
-// testSeries is used to create a tsdb.timeSeries
-type testSeries struct {
-	name string
-	data []float64
-}
-
 // nIntParamGoldenData holds test data for functions that take an additional "n" int parameter
 type nIntParamGoldenData struct {
 	inputs  []common.TestSeries
@@ -1949,9 +1943,9 @@ func (*mockStorage) FetchByQuery(
 	return storage.NewFetchResult(ctx, nil), nil
 }
 
-func (*mockStorage) Name() string { return "mock" }
+// func (*mockStorage) Name() string { return "mock" }
 
-func (*mockStorage) Type() storage.Type { return storage.TypeLocalDC }
+// func (*mockStorage) Type() storage.Type { return storage.TypeLocalDC }
 
 func TestHoltWintersForecast(t *testing.T) {
 	ctx := common.NewTestContext()

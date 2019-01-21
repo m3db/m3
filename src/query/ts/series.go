@@ -21,15 +21,18 @@
 package ts
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/query/models"
 )
 
 // Series is the public interface to a block of timeseries values.  Each block has a start time,
 // a logical number of steps, and a step size indicating the number of milliseconds represented by each point.
 type Series struct {
-	name string
-	vals Values
-	Tags models.Tags
+	resolution int
+	name       string
+	vals       Values
+	Tags       models.Tags
 }
 
 // NewSeries creates a new Series at a given start time, backed by the provided values
@@ -47,8 +50,17 @@ func (s *Series) Name() string { return s.name }
 // Len returns the number of values in the time series. Used for aggregation
 func (s *Series) Len() int { return s.vals.Len() }
 
-// Values returns the underlying values interface
+// Values returns the underlying values interface.
 func (s *Series) Values() Values { return s.vals }
+
+// ResolutionMillis retrieves the resolution for this series in millis.
+func (s *Series) ResolutionMillis() int { return s.resolution }
+
+// SetResolutionDuration sets the resolution for this series. Only used for
+// graphite series consolidation logic after the fetch step.
+func (s *Series) SetResolutionDuration(reso time.Duration) {
+	s.resolution = int(reso / time.Millisecond)
+}
 
 // SeriesList represents a slice of series pointers
 type SeriesList []*Series

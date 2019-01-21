@@ -43,7 +43,7 @@ func FetchWithBootstrap(ctx *Context, seriesList ts.SeriesList, duration time.Du
 				return ts.SeriesList{}, err
 			}
 		}
-		ratio := int(bootstrap.MillisPerStep() / original.MillisPerStep())
+		ratio := bootstrap.MillisPerStep() / original.MillisPerStep()
 		numBootstrapValues := bootstrap.Len() * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
 		values := ts.NewValues(ctx, original.MillisPerStep(), numCombinedValues)

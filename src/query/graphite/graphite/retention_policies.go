@@ -5,10 +5,6 @@ import (
 	"strings"
 	"time"
 
-	// "code.uber.internal/infra/statsdex/policy"
-	// "code.uber.internal/infra/statsdex/protocols/tools"
-
-	"code.uber.internal/infra/statsdex/policy"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
 
@@ -37,25 +33,25 @@ type RetentionPolicy struct {
 var (
 	// NB(mmihic): These need to be ordered
 	graphiteRetentionPeriods = []*RetentionPeriod{
-		{regexp.MustCompile("^stats\\.sjc1\\.artemis\\..*\\.storm\\."), []*RetentionPolicy{
+		{regexp.MustCompile(`^stats\.sjc1\.artemis\..*\.storm\.`), []*RetentionPolicy{
 			{time.Hour * 24 * 180, time.Second * 60, ts.ConsolidationAvg, true},
 			{time.Hour * 24 * 365 * 2, time.Second * 600, ts.ConsolidationAvg, true},
 		}},
-		{regexp.MustCompile("^stats(\\.[^\\.]+)?\\.counts\\..*"), []*RetentionPolicy{
+		{regexp.MustCompile(`^stats(\.[^\.]+)?\.counts\..*`), []*RetentionPolicy{
 			{time.Hour * 24 * 2, time.Second * 10, ConsolidationFuncForMetricType(Counts), false},
 			{time.Hour * 24 * 90, time.Second * 60, ConsolidationFuncForMetricType(Counts), false},
 			{time.Hour * 24 * 365, time.Second * 600, ConsolidationFuncForMetricType(Counts), false},
 		}},
-		{regexp.MustCompile("^stats(\\.[^\\.]+)?\\.timers\\..*\\.count$"), []*RetentionPolicy{
+		{regexp.MustCompile(`^stats(\.[^\.]+)?\.timers\..*\.count$`), []*RetentionPolicy{
 			{time.Hour * 24 * 2, time.Second * 10, ts.ConsolidationSum, false},
 			{time.Hour * 24 * 90, time.Second * 60, ts.ConsolidationSum, false},
 		}},
-		{regexp.MustCompile("^stats\\..*"), []*RetentionPolicy{
+		{regexp.MustCompile(`^stats\..*`), []*RetentionPolicy{
 			{time.Hour * 24 * 2, time.Second * 10, ts.ConsolidationAvg, false},
 			{time.Hour * 24 * 90, time.Second * 60, ts.ConsolidationAvg, false},
 			{time.Hour * 24 * 365, time.Second * 600, ts.ConsolidationAvg, false},
 		}},
-		{regexp.MustCompile("^statsdex(\\.[^\\.]+)?\\..*"), []*RetentionPolicy{
+		{regexp.MustCompile(`^statsdex(\.[^\.]+)?\..*`), []*RetentionPolicy{
 			{time.Hour * 24 * 2, time.Second * 10, ts.ConsolidationAvg, false},
 			{time.Hour * 24 * 90, time.Second * 60, ts.ConsolidationAvg, false},
 			{time.Hour * 24 * 365, time.Second * 600, ts.ConsolidationAvg, false},
@@ -75,7 +71,6 @@ var (
 
 // AggregatedMetrics matches metrics going through the aggregation tier
 func AggregatedMetrics(id string) bool {
-	// TODO: is this statsdex specific?
 	return strings.HasPrefix(id, "stats.")
 }
 
@@ -101,11 +96,6 @@ func FindConsolidationApproach(id string) ts.ConsolidationApproach {
 // FindRetentionPolicy finds the retention policy for the given metric id and
 // distance back in time being searched
 func FindRetentionPolicy(id string, age time.Duration) *RetentionPolicy {
-	// Special case m3-style server metrics to avoid regex perf hit
-	if policy.M3SystemMetrics(id) {
-		return m3ServerRetentionPeriod
-	}
-
 	for _, period := range graphiteRetentionPeriods {
 		if period.pattern.MatchString(id) {
 			for _, policy := range period.policies {

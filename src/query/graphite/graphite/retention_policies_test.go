@@ -71,33 +71,6 @@ func TestBeginMetricConsolidation(t *testing.T) {
 			[]int{0, 60, 120},
 			[]float64{25, 60, math.NaN()},
 		},
-
-		// m3 server stats - should be averaged at 60s interval
-		{"stats.sjc1.gauges.m3+servers.rt-disco138-sjc1.nodejs.rt-disco-16.cpu.user+dc=sjc1,domain=rt-pod03,env=production,host=rt-disco138-sjc1,pipe=us1,service=servers,type=gauge,workerid=rt-disco-16",
-			0, time.Minute * 3,
-			[]int{2, 6, 45, 55, 65, 72, 91},
-			[]float64{10, 20, 30, 40, 50, 60, 70},
-			[]int{0, 60, 120},
-			[]float64{25, 60, math.NaN()},
-		},
-
-		// statsd timer p95 - should be summed at 10s intervals
-		{"stats.sjc1.timers.haproxy.bloodhound.backend.bloodhound_10_160_15_16_31638.response_time.p95",
-			0, time.Second * 40,
-			[]int{2, 3, 11, 14, 32},
-			[]float64{1, 4, 7, 9, 4},
-			[]int{0, 10, 20, 30},
-			[]float64{2.5, 8, math.NaN(), 4},
-		},
-
-		// statsd timer counts - should be summed at 10s intervals
-		{"stats.sjc1.timers.haproxy.bloodhound.backend.bloodhound_10_160_15_16_31638.response_time.count",
-			0, time.Second * 40,
-			[]int{2, 3, 11, 14, 32},
-			[]float64{1, 4, 7, 9, 4},
-			[]int{0, 10, 20, 30},
-			[]float64{5, 16, math.NaN(), 4},
-		},
 	}
 
 	for _, test := range tests {

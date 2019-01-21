@@ -47,7 +47,7 @@ func Combine(
 		if cf == nil {
 			if !series.IsConsolidationFuncSet() {
 				cf = graphite.FindRetentionPolicy(series.Name(),
-					time.Now().Sub(series.StartTime())).Consolidation.Func()
+					time.Since(series.StartTime())).Consolidation.Func()
 			} else {
 				cf = series.ConsolidationFunc()
 			}

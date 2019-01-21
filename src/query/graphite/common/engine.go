@@ -5,7 +5,6 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
-	// "github.com/m3db/m3/src/query/storage"
 )
 
 // QueryEngine is the generic engine interface.
@@ -46,10 +45,7 @@ func (e *Engine) FetchByQuery(
 			StartTime: start,
 			EndTime:   end,
 			DataOptions: storage.DataOptions{
-				LocalOnly: localOnly,
-				UseCache:  useCache,
-				UseM3DB:   useM3DB,
-				Timeout:   timeout,
+				Timeout: timeout,
 			},
 		},
 	)

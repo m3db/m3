@@ -1,5 +1,25 @@
 package graphite
 
+// CountMetricParts counts the number of segments in the given metric string.
+func CountMetricParts(metric string) int {
+	return countMetricPartsWithDelimiter(metric, '.')
+}
+
+func countMetricPartsWithDelimiter(metric string, delim byte) int {
+	if len(metric) == 0 {
+		return 0
+	}
+
+	count := 1
+	for i := 0; i < len(metric); i++ {
+		if metric[i] == delim {
+			count++
+		}
+	}
+
+	return count
+}
+
 // ExtractNthMetricPart returns the nth part of the metric string. Index starts from 0
 // and assumes metrics are delimited by '.'. If n is negative or bigger than the number
 // of parts, returns an empty string.

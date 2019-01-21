@@ -17,24 +17,19 @@ type FetchOptions struct {
 
 // DataOptions provide data context
 type DataOptions struct {
-	LocalOnly                bool          // Whether to fetch from local dc only
-	UseCache                 bool          // Whether to fetch from data from the cache
-	UseM3DB                  bool          // Whether to fetch from data from M3DB
-	RequestCompressed        bool          // Whether to request compressed data from remote storage
-	RequestCompressedDeduped bool          // Whether to request compressed deduped data from remote storage
-	Timeout                  time.Duration // Whether to use a custom timeout, zero if no or positive if yes
+	Timeout time.Duration // Whether to use a custom timeout, zero if no or positive if yes
 }
 
 // Type describes the type of storage
-type Type int
+// type Type int
 
 const (
-	// TypeLocalDC is for storages that reside in the local datacenter
-	TypeLocalDC Type = iota
-	// TypeRemoteDC is for storages that reside in a remote datacenter
-	TypeRemoteDC
-	// TypeMultiDC is for storages that will aggregate multiple datacenters
-	TypeMultiDC
+// TypeLocalDC is for storages that reside in the local datacenter
+// TypeLocalDC Type = iota
+// TypeRemoteDC is for storages that reside in a remote datacenter
+// TypeRemoteDC
+// TypeMultiDC is for storages that will aggregate multiple datacenters
+// TypeMultiDC
 )
 
 // Storage provides an interface for retrieving timeseries values or names based upon
@@ -45,26 +40,11 @@ type Storage interface {
 		ctx context.Context, query string, opts FetchOptions,
 	) (*FetchResult, error)
 
-	// // FindByPath finds all metrics matching a given path
-	// FindByPath(
-	// 	ctx context.Context, path string, enforcer index.Enforcer, opts DataOptions,
-	// ) ([]index.PathInfo, error)
-
-	// // FetchIdsByQuery finds all metric ids matching a given query
-	// FetchIdsByQuery(
-	// 	ctx context.Context, query string, enforcer index.Enforcer, opts DataOptions,
-	// ) ([]index.MetricMetadata, error)
-
-	// // FetchIDTagsByQuery tags the ids matching a given query
-	// FetchIDTagsByQuery(
-	// 	ctx context.Context, query string, enforcer index.Enforcer, opts DataOptions,
-	// ) (*index.MetadataTags, error)
-
 	// Name identifies a friendly name for the underlying storage
-	Name() string
+	// Name() string
 
 	// Type identifies the type of the underlying storage
-	Type() Type
+	// Type() Type
 }
 
 // FetchResult provides a fetch result and meta information
