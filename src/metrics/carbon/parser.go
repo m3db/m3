@@ -40,6 +40,7 @@ const (
 
 	floatFormatByte = 'f'
 	floatPrecision  = -1
+	intBitSize      = 64
 	floatBitSize    = 64
 	intBase         = 10
 )
@@ -170,7 +171,7 @@ func ParseRemainder(rest []byte) (timestamp time.Time, value float64, err error)
 		if val := strings.ToLower(s[valStart:valEnd]); val == negativeNanStr || val == nanStr {
 			value = mathNan
 		} else {
-			value, err = strconv.ParseFloat(s[valStart:valEnd], 64)
+			value, err = strconv.ParseFloat(s[valStart:valEnd], floatBitSize)
 		}
 	})
 	if err != nil {
@@ -194,7 +195,7 @@ func ParseRemainder(rest []byte) (timestamp time.Time, value float64, err error)
 	// allocating a string.
 	var tsInSecs int64
 	unsafe.WithString(rest, func(s string) {
-		tsInSecs, err = strconv.ParseInt(s[secStart:secEnd], 10, 64)
+		tsInSecs, err = strconv.ParseInt(s[secStart:secEnd], intBase, intBitSize)
 		if err != nil {
 			err = fmt.Errorf("invalid timestamp %s: %v", rest[secStart:secEnd], err)
 		}
