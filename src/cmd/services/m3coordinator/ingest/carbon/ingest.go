@@ -127,20 +127,22 @@ func generateTagsFromName(name []byte) (models.Tags, error) {
 		return models.Tags{}, errCannotGenerateTagsFromEmptyName
 	}
 	var (
-		numTags   = bytes.Count(name, carbonSeparatorBytes) + 1
-		tagsSlice = make([]models.Tag, 0, numTags)
-		tags      = models.Tags{Tags: tagsSlice}
+		numTags = bytes.Count(name, carbonSeparatorBytes) + 1
+		tags    = make([]models.Tag, 0, numTags)
 	)
 
 	startIdx := 0
 	tagNum := 0
 	for i, charByte := range name {
 		if charByte == carbonSeparatorByte {
-			tags.AddTag(models.Tag{
+			fmt.Println("appending: ", string(name[startIdx:i]))
+			tags = append(tags, models.Tag{
 				// TODO: Fix me
 				Name:  []byte(fmt.Sprintf("__$%d__", tagNum)),
 				Value: name[startIdx:i],
 			})
+			startIdx = i + 1
+			tagNum++
 		}
 	}
 
@@ -155,11 +157,12 @@ func generateTagsFromName(name []byte) (models.Tags, error) {
 	// then the foor loop would have appended foo, bar, and baz already.
 	if name[len(name)-1] != carbonSeparatorByte {
 		// TODO: Fix me
-		tags = tags.AddTag(models.Tag{
-			Name:  []byte(fmt.Sprintf("__$%d__", len(tags.Tags))),
+		fmt.Println("appending: ", string(name[startIdx:]))
+		tags = append(tags, models.Tag{
+			Name:  []byte(fmt.Sprintf("__$%d__", len(tags))),
 			Value: name[startIdx:],
 		})
 	}
 
-	return tags, nil
+	return models.Tags{Tags: tags}, nil
 }

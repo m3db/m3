@@ -38,6 +38,30 @@ func TestGenerateTagsFromName(t *testing.T) {
 				{Name: []byte("__$0__"), Value: []byte("foo")},
 			},
 		},
+		{
+			name: "foo.bar.baz",
+			expectedTags: []models.Tag{
+				{Name: []byte("__$0__"), Value: []byte("foo")},
+				{Name: []byte("__$1__"), Value: []byte("bar")},
+				{Name: []byte("__$2__"), Value: []byte("baz")},
+			},
+		},
+		{
+			name: "foo.bar.baz.",
+			expectedTags: []models.Tag{
+				{Name: []byte("__$0__"), Value: []byte("foo")},
+				{Name: []byte("__$1__"), Value: []byte("bar")},
+				{Name: []byte("__$2__"), Value: []byte("baz")},
+			},
+		},
+		{
+			name: "foo..bar..baz..",
+			expectedTags: []models.Tag{
+				{Name: []byte("__$0__"), Value: []byte("foo")},
+				{Name: []byte("__$1__"), Value: []byte("bar")},
+				{Name: []byte("__$2__"), Value: []byte("baz")},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
