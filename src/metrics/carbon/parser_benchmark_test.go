@@ -31,14 +31,14 @@ import (
 )
 
 var (
-	testCarbonLine       = []byte("statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99 0 1441317285")
-	testCarbonLineSpaces = []byte("statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99    0  1441317285")
+	testCarbonLine       = []byte("foo.bar.baz 0 1441317285")
+	testCarbonLineSpaces = []byte("foo.bar.baz    0  1441317285")
 )
 
 var (
 	reCarbon     = regexp.MustCompile("(?i)^([^\\s]+)\\s+(-?[0-9\\.]+|\\-?nan)\\s+([0-9]+)\\s*$")
 	carbonMetric = &Metric{
-		Name: []byte("statsdex.metrics.collector.localhost.statsd.udp.aggregator.snapshot.time.P99"),
+		Name: []byte("foo.bar.baz"),
 		Val:  0,
 		Time: time.Now()}
 )

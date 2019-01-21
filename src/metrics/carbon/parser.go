@@ -45,10 +45,9 @@ const (
 )
 
 var (
-	errInvalidLine      = errors.New("invalid line")
-	errNotUTF8          = errors.New("not valid UTF8 string")
-	recvValidTimeBuffer = time.Hour
-	mathNan             = math.NaN()
+	errInvalidLine = errors.New("invalid line")
+	errNotUTF8     = errors.New("not valid UTF8 string")
+	mathNan        = math.NaN()
 )
 
 // Metric represents a carbon metric.
@@ -56,7 +55,6 @@ type Metric struct {
 	Name []byte
 	Time time.Time
 	Val  float64
-	Recv time.Time
 }
 
 // ToLine converts the carbon Metric struct to a line.
@@ -218,7 +216,6 @@ type Scanner struct {
 	timestamp time.Time
 	path      []byte
 	value     float64
-	recv      time.Time
 
 	// The number of malformed metrics encountered.
 	MalformedCount int

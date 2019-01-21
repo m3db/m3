@@ -54,12 +54,6 @@ var testLines = []carbonLine{
 		"foo.bar.nan -NaN 1428951394"},
 	{"foo.bar.negative", -18000.00000, time.Unix(1429480924, 0),
 		"foo.bar.negative -18000.000000 1429480924"},
-	{"foo.bar.withrecv", 45565.02, time.Unix(1428951394, 0),
-		"foo.bar.withrecv 45565.02 1428951394"},
-	{"foo.bar.withrecv-seconds", 45565.02, time.Unix(1428951394, 0),
-		"foo.bar.withrecv-seconds 45565.02 1428951394"},
-	{"foo.bar.withrecv-invalid", 45565.02, time.Unix(1428951394, 0),
-		"foo.bar.withrecv-invalid 45565.02 1428951394"},
 }
 
 func TestScannerMetric(t *testing.T) {
@@ -159,8 +153,8 @@ func TestCarbonToLine(t *testing.T) {
 }
 
 func TestParseValidatesUTF8Encoding(t *testing.T) {
-	start := "statsdex.metrics.indexer.statsdex29-sjc1.metrics.service."
-	end := "gairos-a.unique 4394 1428951394"
+	start := "foo.bar.baz"
+	end := "some-other-foo-.bar.baz 4394 1428951394"
 
 	var b []byte
 	b = append(b, []byte(start)...)
