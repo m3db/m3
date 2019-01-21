@@ -3,12 +3,8 @@ package common
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/graphite/ts"
-
 	"github.com/stretchr/testify/assert"
 )
-
-type percentileFunction func(ctx *Context, seriesList []*ts.Series, percentile float64) ([]*ts.Series, error)
 
 type percentileTestParams struct {
 	interpolate bool

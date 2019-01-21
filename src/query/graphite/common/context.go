@@ -2,7 +2,6 @@ package common
 
 import (
 	ctx "context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,15 +9,21 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 )
 
-var (
-	errRenderBreakdownNotSet = errors.New("render breakdown was not set")
-)
-
 // contextBase are the real content of a Context, minus the lock so that we
 // can safely copy a context without violating the rules of go vet.
+// nolint
 type contextBase struct {
 	// TimeRangeAdjusted is a boolean indicating whether the time range has an adjustment.
 	TimeRangeAdjusted bool
+
+	// LocalOnly determines whether the query fetches data from the local dc only
+	LocalOnly bool
+
+	// UseCache indicates whether the query should fetch data from the cache
+	UseCache bool
+
+	// UseM3DB indicates whether the query should fetch data from M3DB
+	UseM3DB bool
 
 	// The start time to query against.
 	StartTime time.Time
@@ -34,15 +39,6 @@ type contextBase struct {
 
 	// Trace records traces.
 	Trace Tracer
-
-	// LocalOnly determines whether the query fetches data from the local dc only
-	LocalOnly bool
-
-	// UseCache indicates whether the query should fetch data from the cache
-	UseCache bool
-
-	// UseM3DB indicates whether the query should fetch data from M3DB
-	UseM3DB bool
 
 	// Timeout indicates whether to use a custom timeout when fetching data,
 	// specify zero to indicate default timeout or a positive value
@@ -112,7 +108,7 @@ func (c *Context) Cancel() {
 // IsCancelled returns whether the work for this context has been cancelled
 func (c *Context) IsCancelled() bool {
 	result := atomic.LoadUint32(&c.cancelled) == 1
-	if result == true {
+	if result {
 		return true
 	}
 	if c.parent != nil {

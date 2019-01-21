@@ -81,7 +81,7 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	if ctx.TracingEnabled() {
 		ctx.Trace(common.Trace{
 			ActivityName: fmt.Sprintf("fetch %s", f.pathArg.path),
-			Duration:     time.Now().Sub(begin),
+			Duration:     time.Since(begin),
 			Outputs:      common.TraceStats{NumSeries: len(result.SeriesList)},
 		})
 	}

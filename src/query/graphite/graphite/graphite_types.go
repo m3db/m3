@@ -21,7 +21,7 @@ type Timestamp time.Time
 
 // MarshalJSON marshals the timestamp as JSON
 func (t Timestamp) MarshalJSON() ([]byte, error) {
-	s := strconv.FormatInt(int64(time.Time(t).Unix()), 10)
+	s := strconv.FormatInt(time.Time(t).Unix(), 10)
 	return []byte(s), nil
 }
 

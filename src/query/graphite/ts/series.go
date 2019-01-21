@@ -130,10 +130,6 @@ func (b *Series) StepAtTime(t time.Time) int {
 	return int(t.UnixNano()/1000000-b.startTime.UnixNano()/1000000) / b.vals.MillisPerStep()
 }
 
-func stepAtTime(t, start time.Time, millisPerStep int) int {
-	return int(t.UnixNano()/1000000-start.UnixNano()/1000000) / millisPerStep
-}
-
 // StartTimeForStep returns the time at which the given step starts
 func (b *Series) StartTimeForStep(n int) time.Time {
 	return b.StartTime().Add(time.Millisecond * time.Duration(n*b.vals.MillisPerStep()))

@@ -2464,6 +2464,7 @@ func TestChanged(t *testing.T) {
 }
 
 // TODO: re-enable
+// nolint
 func testMovingMedian(t *testing.T) {
 	now := time.Now()
 	engine := NewEngine(
@@ -2627,10 +2628,6 @@ func TestConsolidateBy(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func mockSeriesReducer(series *ts.Series) float64 {
-	return series.ValueAt(0)
-}
-
 func TestOffsetToZero(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2699,6 +2696,7 @@ func TestTimeFunction(t *testing.T) {
 }
 
 // TODO arnikola reenable
+// nolint
 func testTimeShift(t *testing.T) {
 	now := time.Now()
 	engine := NewEngine(

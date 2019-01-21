@@ -2,7 +2,6 @@ package ts
 
 import (
 	"math"
-	"sort"
 
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
@@ -116,18 +115,6 @@ var (
 	consolidationPools    xpool.BucketizedObjectPool
 )
 
-func findValuesPoolIndex(numPoints int) int {
-	return sort.Search(len(pooledValuesLength), func(i int) bool {
-		return pooledValuesLength[i] >= numPoints
-	})
-}
-
-func findConsolidationPoolIndex(numPoints int) int {
-	return sort.Search(len(pooledConsolidationsLength), func(i int) bool {
-		return pooledConsolidationsLength[i] >= numPoints
-	})
-}
-
 func newValues(ctx context.Context, millisPerStep, numSteps int, initialValue float64) MutableValues {
 	var values []float64
 	var pooled bool
@@ -233,8 +220,6 @@ func initPools(valueBuckets, consolidationBuckets []xpool.Bucket) error {
 	})
 	return nil
 }
-
-var gigabyteBytes = math.Pow(2, 30)
 
 // EnablePooling enables pooling.
 func EnablePooling(

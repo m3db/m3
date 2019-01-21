@@ -7,12 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type timespecTest struct {
-}
-
 var relativeTo = time.Date(2013, time.April, 3, 4, 5, 0, 0, time.UTC)
-
-var timespecTests = []timespecTest{}
 
 func TestParseTime(t *testing.T) {
 

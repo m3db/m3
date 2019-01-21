@@ -63,10 +63,6 @@ var (
 			{time.Second * 129600, time.Second * 60, ts.ConsolidationAvg, true},
 		},
 	}
-
-	m3ServerRetentionPeriod = &RetentionPolicy{
-		time.Second * 129600, time.Second * 60, ts.ConsolidationAvg, true,
-	}
 )
 
 // AggregatedMetrics matches metrics going through the aggregation tier

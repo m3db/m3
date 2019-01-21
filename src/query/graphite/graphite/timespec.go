@@ -10,7 +10,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/errors"
 )
 
-var reRelativeTime = regexp.MustCompile("(?i)^\\-([0-9]+)(s|min|h|d|w|mon|y)$")
+var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`)
 
 var periods = map[string]time.Duration{
 	"s":   time.Second,

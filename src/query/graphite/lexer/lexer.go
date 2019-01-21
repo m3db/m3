@@ -99,15 +99,13 @@ func (t Token) Value() string {
 }
 
 const (
-	uppercaseLetters       = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	lowercaseLetters       = "abcdefghijklmnopqrstuvwxyz"
-	digits                 = "0123456789"
-	exponentRunes          = "eE"
-	identifierStartRunes   = uppercaseLetters + lowercaseLetters + "_" + "$"
-	identifierRunes        = identifierStartRunes + digits + "-"
-	patternGroupStartRunes = "{["
-	patternGroupEndRunes   = "}]"
-	signs                  = "+-"
+	uppercaseLetters     = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	lowercaseLetters     = "abcdefghijklmnopqrstuvwxyz"
+	digits               = "0123456789"
+	exponentRunes        = "eE"
+	identifierStartRunes = uppercaseLetters + lowercaseLetters + "_" + "$"
+	identifierRunes      = identifierStartRunes + digits + "-"
+	signs                = "+-"
 )
 
 // Lexer breaks an input stream into a group of lexical elements.
@@ -117,7 +115,6 @@ type Lexer struct {
 	start               int
 	pos                 int
 	width               int
-	mark                int
 	reservedIdentifiers map[string]TokenType
 }
 
@@ -286,12 +283,6 @@ func (l *Lexer) identifierOrPattern() bool {
 	return true
 }
 
-func (l *Lexer) identifier() bool {
-	l.acceptRun(identifierRunes)
-	l.emit(Identifier)
-	return true
-}
-
 // NB(jayp): initialized by init().
 var groupingEndsToStarts = map[rune]rune{}
 
@@ -404,22 +395,8 @@ func (l *Lexer) ignore() {
 	l.start = l.pos
 }
 
-func (l *Lexer) markPos() {
-	l.mark = l.start
-}
-
-func (l *Lexer) returnToMark() {
-	l.start = l.mark
-}
-
 func (l *Lexer) backup() {
 	l.pos--
-}
-
-func (l *Lexer) peek() rune {
-	r := l.next()
-	l.backup()
-	return r
 }
 
 func (l *Lexer) accept(valid string) bool {
@@ -448,11 +425,6 @@ func (l *Lexer) acceptRun(valid string) bool {
 	}
 
 	return matched
-}
-
-func (l *Lexer) ignoreRun(valid string) {
-	l.acceptRun(valid)
-	l.ignore()
 }
 
 func (l *Lexer) currentVal() string {

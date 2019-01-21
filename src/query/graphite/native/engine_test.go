@@ -13,11 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint
 type queryTestResult struct {
 	name string
 	max  float64
 }
 
+// nolint
 type queryTest struct {
 	query   string
 	ordered bool
@@ -25,6 +27,7 @@ type queryTest struct {
 }
 
 var (
+	// nolint
 	testValues = map[string]float64{
 		"foo.bar.q.zed":       0,
 		"foo.bar.g.zed":       1,
@@ -35,8 +38,10 @@ var (
 		"los_angeles.uberx":   6,
 	}
 
+	// nolint
 	testPolicy = policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)
 	// testTSDB    = makeTSDB(testPolicy)
+	// nolint
 	testStorage storage.Storage //= nil
 	//  local.NewLocalStorage(local.Options{
 	// 	Database:       testTSDB,
@@ -47,6 +52,7 @@ var (
 )
 
 // TODO arnikola reenable
+// nolint
 func testExecute(t *testing.T) {
 	engine := NewEngine(
 		testStorage,
@@ -86,6 +92,7 @@ func testExecute(t *testing.T) {
 }
 
 // TODO arnikola reenable
+// nolint
 func testTracing(t *testing.T) {
 	engine := NewEngine(
 		testStorage,

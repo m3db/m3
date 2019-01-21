@@ -126,7 +126,7 @@ func TestFindConsolidationApproach(t *testing.T) {
 // newMetricConsolidation creates a new consolidation for rolling up a given
 // metric according to its default window and consolidation function
 func newMetricConsolidation(ctx context.Context, id string, startTime, endTime time.Time) ts.Consolidation {
-	policy := FindRetentionPolicy(id, time.Now().Sub(startTime))
+	policy := FindRetentionPolicy(id, time.Since(startTime))
 	stepInMillis := int(policy.UnitPerStep / time.Millisecond)
 	return ts.NewConsolidation(ctx, startTime, endTime, stepInMillis, policy.Consolidation.Func())
 }

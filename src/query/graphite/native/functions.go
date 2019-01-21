@@ -416,7 +416,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 			ActivityName: f.name,
 			Inputs:       instats,
 			Outputs:      outstats,
-			Duration:     time.Now().Sub(beginCall),
+			Duration:     time.Since(beginCall),
 		})
 	}
 
