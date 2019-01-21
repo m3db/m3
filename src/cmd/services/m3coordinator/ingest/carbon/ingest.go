@@ -42,6 +42,9 @@ var (
 	carbonSeparatorByte  = byte('.')
 	carbonSeparatorBytes = []byte{carbonSeparatorByte}
 
+	numPreFormattedKeyNames = 100
+	preFormattedKeyNames    = [][]byte{}
+
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 )
 
@@ -135,10 +138,12 @@ func generateTagsFromName(name []byte) (models.Tags, error) {
 	tagNum := 0
 	for i, charByte := range name {
 		if charByte == carbonSeparatorByte {
-			fmt.Println("appending: ", string(name[startIdx:i]))
+			if i+1 < len(name) && name[i+1] == carbonSeparatorByte {
+				return models.Tags{}, fmt.Errorf("carbon metric: %s has duplicate separator", string(name))
+			}
+
 			tags = append(tags, models.Tag{
-				// TODO: Fix me
-				Name:  []byte(fmt.Sprintf("__$%d__", tagNum)),
+				Name:  getOrGenerateKeyName(tagNum),
 				Value: name[startIdx:i],
 			})
 			startIdx = i + 1
@@ -156,13 +161,30 @@ func generateTagsFromName(name []byte) (models.Tags, error) {
 	//      foo.bar.baz.
 	// then the foor loop would have appended foo, bar, and baz already.
 	if name[len(name)-1] != carbonSeparatorByte {
-		// TODO: Fix me
-		fmt.Println("appending: ", string(name[startIdx:]))
 		tags = append(tags, models.Tag{
-			Name:  []byte(fmt.Sprintf("__$%d__", len(tags))),
+			Name:  getOrGenerateKeyName(tagNum),
 			Value: name[startIdx:],
 		})
 	}
 
 	return models.Tags{Tags: tags}, nil
+}
+
+func getOrGenerateKeyName(idx int) []byte {
+	if idx < len(preFormattedKeyNames) {
+		return preFormattedKeyNames[idx]
+	}
+
+	return []byte(fmt.Sprintf("__$%d__", idx))
+}
+
+func generateKeyName(idx int) []byte {
+	return []byte(fmt.Sprintf("__$%d__", idx))
+}
+
+func init() {
+	for i := 0; i < numPreFormattedKeyNames; i++ {
+		keyName := generateKeyName(i)
+		preFormattedKeyNames = append(preFormattedKeyNames, keyName)
+	}
 }

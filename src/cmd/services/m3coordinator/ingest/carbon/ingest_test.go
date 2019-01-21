@@ -21,6 +21,7 @@
 package ingestcarbon
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/query/models"
@@ -31,6 +32,7 @@ func TestGenerateTagsFromName(t *testing.T) {
 	testCases := []struct {
 		name         string
 		expectedTags []models.Tag
+		expectedErr  error
 	}{
 		{
 			name: "foo",
@@ -55,18 +57,22 @@ func TestGenerateTagsFromName(t *testing.T) {
 			},
 		},
 		{
-			name: "foo..bar..baz..",
-			expectedTags: []models.Tag{
-				{Name: []byte("__$0__"), Value: []byte("foo")},
-				{Name: []byte("__$1__"), Value: []byte("bar")},
-				{Name: []byte("__$2__"), Value: []byte("baz")},
-			},
+			name:        "foo..bar..baz..",
+			expectedErr: fmt.Errorf("carbon metric: foo..bar..baz.. has duplicate separator"),
+		},
+		{
+			name:        "foo.bar.baz..",
+			expectedErr: fmt.Errorf("carbon metric: foo.bar.baz.. has duplicate separator"),
 		},
 	}
 
 	for _, tc := range testCases {
 		tags, err := generateTagsFromName([]byte(tc.name))
-		require.NoError(t, err)
+		if tc.expectedErr != nil {
+			require.Equal(t, tc.expectedErr, err)
+		} else {
+			require.NoError(t, err)
+		}
 		require.Equal(t, tc.expectedTags, tags.Tags)
 	}
 }
