@@ -288,16 +288,9 @@ func newTestBufferBucketsWithData(t *testing.T) (*BufferBucketVersions, Options,
 func TestBufferBucketMerge(t *testing.T) {
 	b, opts, expected := newTestBufferBucketWithData(t)
 
-	bl, err := b.toBlock()
-	require.NoError(t, err)
-
-	assert.Equal(t, 0, len(b.encoders))
-	assert.Equal(t, 1, len(b.blocks))
-
 	ctx := context.NewContext()
 	defer ctx.Close()
-
-	sr, err := bl.Stream(ctx)
+	sr, err := b.toStream(ctx)
 	require.NoError(t, err)
 
 	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{
@@ -475,16 +468,10 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 
 	assertValuesEqual(t, expected, results, opts)
 
-	// Now assert that ToBlock() returns same expected result
-	block, err := b.toBlock()
+	// Now assert that toStream() returns same expected result
+	stream, err := b.toStream(ctx)
 	require.NoError(t, err)
-
-	stream, err := block.Stream(ctx)
-	require.NoError(t, err)
-
-	results = [][]xio.BlockReader{[]xio.BlockReader{stream}}
-
-	assertValuesEqual(t, expected, results, opts)
+	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
 func TestBufferFetchBlocks(t *testing.T) {
@@ -667,7 +654,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	assert.True(t, buffer.IsEmpty())
 }
 
-func TestBufferToBlock(t *testing.T) {
+func TestBuffertoStream(t *testing.T) {
 	b, opts, expected := newTestBufferBucketsWithData(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
@@ -677,16 +664,9 @@ func TestBufferToBlock(t *testing.T) {
 	assert.Len(t, bucket.encoders, 4)
 	assert.Len(t, bucket.blocks, 0)
 
-	blocks, err := b.toBlocks()
+	stream, err := b.toStreams(ctx)
 	require.NoError(t, err)
-	require.Len(t, blocks, 1)
-	// Verify that encoders get reset and the resultant block gets put in blocks
-	assert.Len(t, bucket.encoders, 0)
-	assert.Len(t, bucket.blocks, 1)
-
-	stream, err := blocks[0].Stream(ctx)
-	require.NoError(t, err)
-	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{stream}}, opts)
+	assertSegmentValuesEqual(t, expected, stream, opts)
 }
 
 func TestBufferSnapshot(t *testing.T) {
