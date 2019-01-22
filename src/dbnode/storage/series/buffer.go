@@ -108,6 +108,7 @@ type bufferStats struct {
 
 type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
+	evictedBuckets         int
 }
 
 type dbBuffer struct {
@@ -212,6 +213,7 @@ func (b *dbBuffer) Stats() bufferStats {
 
 func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickResult {
 	mergedOutOfOrder := 0
+	evictedBuckets := 0
 	for tNano, buckets := range b.bucketsMap {
 		// The blockStates map is never be written to after creation, so this
 		// read access is safe. Since this version map is a snapshot of the
@@ -243,6 +245,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 			// in memory, but once we evict it from the buffer we need to make
 			// sure that we bust the cache as well.
 			b.removeBucketsAt(tNano.ToTime())
+			evictedBuckets++
 			continue
 		}
 
@@ -259,6 +262,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 	}
 	return bufferTickResult{
 		mergedOutOfOrderBlocks: mergedOutOfOrder,
+		evictedBuckets:         evictedBuckets,
 	}
 }
 
