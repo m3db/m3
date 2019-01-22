@@ -123,7 +123,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
+	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
 	require.True(t, exists)
 	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
