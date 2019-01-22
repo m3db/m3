@@ -46,8 +46,8 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/net/http/cors"
 
-	"github.com/coreos/etcd/pkg/cors"
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 )
