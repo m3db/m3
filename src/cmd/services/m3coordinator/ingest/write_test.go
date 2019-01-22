@@ -174,6 +174,20 @@ func TestDownsampleAndWrite(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite.downsampler = nil
+
+	for _, dp := range testDatapoints1 {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	}
+
+	err := downAndWrite.Write(context.Background(), testTags1, testDatapoints1, xtime.Second)
+	require.NoError(t, err)
+}
+
 func TestDownsampleAndWriteBatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
@@ -203,6 +217,25 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 
 	mockMetricsAppender.EXPECT().Reset().Times(2)
 	mockMetricsAppender.EXPECT().Finalize()
+
+	for _, dp := range testDatapoints1 {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	}
+	for _, dp := range testDatapoints2 {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	}
+
+	iter := newTestIter(testEntries)
+	err := downAndWrite.WriteBatch(context.Background(), iter)
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite.downsampler = nil
 
 	for _, dp := range testDatapoints1 {
 		session.EXPECT().WriteTagged(
