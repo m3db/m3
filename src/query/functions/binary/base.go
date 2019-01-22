@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/util/opentracing"
 )
 
 type baseOp struct {
@@ -115,6 +116,10 @@ type baseNode struct {
 	mu         sync.Mutex
 }
 
+func (n *baseNode) Params() parser.Params {
+	return n.op
+}
+
 type processFunc func(*models.QueryContext, block.Block, block.Block, *transform.Controller) (block.Block, error)
 
 // Process processes a block
@@ -133,13 +138,21 @@ func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 
 	n.cleanup()
 
-	nextBlock, err := n.process(queryCtx, lhs, rhs, n.controller)
+	nextBlock, err := n.processWithTracing(queryCtx, lhs, rhs)
 	if err != nil {
 		return err
 	}
 
 	defer nextBlock.Close()
 	return n.controller.Process(queryCtx, nextBlock)
+}
+
+func (n *baseNode) processWithTracing(queryCtx *models.QueryContext, lhs block.Block, rhs block.Block) (block.Block, error) {
+	sp, ctx := opentracingutil.StartSpanFromContext(queryCtx.Ctx, n.op.OpType())
+	defer sp.Finish()
+	queryCtx = queryCtx.WithContext(ctx)
+
+	return n.process(queryCtx, lhs, rhs, n.controller)
 }
 
 // computeOrCache figures out if both lhs and rhs are available, if not then it caches the incoming block

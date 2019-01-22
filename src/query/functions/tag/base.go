@@ -97,22 +97,25 @@ type baseNode struct {
 	controller *transform.Controller
 }
 
+func (n *baseNode) Params() parser.Params {
+	return n.op
+}
+
 // Process the block.
 func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+
 	it, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	meta := it.Meta()
 	seriesMeta := it.SeriesMeta()
 
 	meta, seriesMeta = n.op.tagFn(meta, seriesMeta)
-	bl, err := b.WithMetadata(meta, seriesMeta)
-	if err != nil {
-		return err
-	}
-
-	defer bl.Close()
-	return n.controller.Process(queryCtx, bl)
+	return b.WithMetadata(meta, seriesMeta)
 }

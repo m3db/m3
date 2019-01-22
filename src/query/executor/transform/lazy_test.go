@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
@@ -34,6 +35,10 @@ import (
 type dummyFunc struct {
 	processed  bool
 	controller *Controller
+}
+
+func (f *dummyFunc) Params() parser.Params {
+	return utils.StaticParams("dummy")
 }
 
 func (f *dummyFunc) Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error {

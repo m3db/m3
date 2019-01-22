@@ -30,6 +30,7 @@ import (
 
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -127,7 +128,13 @@ func withResponseTimeLoggingFunc(
 	return func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 		rqCtx := NewContextWithGeneratedID(r.Context())
+		rqID := ReadContextID(rqCtx)
 		logger := WithContext(rqCtx)
+
+		sp := opentracing.SpanFromContext(rqCtx)
+		if sp != nil {
+			sp.SetTag("rqID", rqID)
+		}
 
 		// Propagate the context with the reqId
 		next(w, r.WithContext(rqCtx))

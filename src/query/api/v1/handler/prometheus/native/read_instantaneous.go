@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -69,7 +69,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	logger := logging.WithContext(ctx)
 	params, rErr := parseInstantaneousParams(r, h.timeoutOpts)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		httperrors.ErrorWithReqID(w, r, rErr, rErr.Code())
 		return
 	}
 
@@ -80,7 +80,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	result, err := read(ctx, h.engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		httperrors.ErrorWithReqID(w, r, rErr, http.StatusBadRequest)
 		return
 	}
 

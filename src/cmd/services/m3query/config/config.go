@@ -73,6 +73,9 @@ type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
+	// Tracing configures opentracing. If not provided, tracing is disabled.
+	Tracing instrument.TracingConfiguration `yaml:"tracing"`
+
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
 	Clusters m3.ClustersStaticConfiguration `yaml:"clusters"`
