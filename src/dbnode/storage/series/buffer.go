@@ -337,12 +337,11 @@ func (b *dbBuffer) Flush(
 	}
 
 	// In the majority of cases, there will only be one block to persist here.
-	// Only when a flush fails
+	// Only when a previous flush fails midway through a shard will there be
+	// buckets for previous versions. In this case, we need to try to flush
+	// them again.
+	// All of these blocks will be for the same block start.
 	for _, block := range blocks {
-		if block == nil {
-			return FlushOutcomeBlockDoesNotExist, nil
-		}
-
 		stream, err := block.Stream(ctx)
 		if err != nil {
 			return FlushOutcomeErr, err
