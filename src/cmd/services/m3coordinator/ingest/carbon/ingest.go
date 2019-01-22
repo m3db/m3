@@ -22,11 +22,13 @@ package ingestcarbon
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"sync"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/metrics/carbon"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -51,12 +53,6 @@ var (
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 )
 
-// StorageWriter is the interface that must be provided to the ingester so that it can
-// write the ingested metrics.
-type StorageWriter interface {
-	Write(tags models.Tags, dp ts.Datapoint, unit xtime.Unit) error
-}
-
 // Options configures the ingester.
 type Options struct {
 	InstrumentOptions instrument.Options
@@ -65,19 +61,19 @@ type Options struct {
 
 // NewIngester returns an ingester for carbon metrics.
 func NewIngester(
-	storage StorageWriter,
+	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	opts Options,
 ) m3xserver.Handler {
 	return &ingester{
-		storage: storage,
-		opts:    opts,
+		downsamplerAndWriter: downsamplerAndWriter,
+		opts:                 opts,
 	}
 }
 
 type ingester struct {
-	storage StorageWriter
-	opts    Options
-	conn    net.Conn
+	downsamplerAndWriter ingest.DownsamplerAndWriter
+	opts                 Options
+	conn                 net.Conn
 }
 
 func (i *ingester) Handle(conn net.Conn) {
@@ -96,8 +92,10 @@ func (i *ingester) Handle(conn net.Conn) {
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
-			dp := ts.Datapoint{Timestamp: timestamp, Value: value}
-			i.storage.Write(models.Tags{}, dp, xtime.Second)
+			// TODO: Real context?
+			datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
+			i.downsamplerAndWriter.Write(
+				context.Background(), models.Tags{}, datapoints, xtime.Second)
 			wg.Done()
 		})
 		// i.metrics.malformedCounter.Inc(int64(s.MalformedCount))
@@ -110,6 +108,7 @@ func (i *ingester) Handle(conn net.Conn) {
 
 func (i *ingester) Close() {
 	// TODO: Log error
+	// TODO: Not sure this will do anything?
 	i.conn.Close()
 }
 
