@@ -81,52 +81,12 @@ func (d *downsamplerAndWriter) Write(
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 ) error {
-	appender, err := d.downsampler.NewMetricsAppender()
-	if err != nil {
-		return err
-	}
-
-	for _, tag := range tags.Tags {
-		appender.AddTag(tag.Name, tag.Value)
-	}
-
-	samplesAppender, err := appender.SamplesAppender()
-	if err != nil {
-		return err
-	}
-
-	for _, dp := range datapoints {
-		err := samplesAppender.AppendGaugeSample(dp.Value)
+	if d.downsampler != nil {
+		appender, err := d.downsampler.NewMetricsAppender()
 		if err != nil {
 			return err
 		}
-	}
 
-	appender.Finalize()
-
-	return d.store.Write(ctx, &storage.WriteQuery{
-		Tags:       tags,
-		Datapoints: datapoints,
-		Unit:       unit,
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
-		},
-	})
-}
-
-func (d *downsamplerAndWriter) WriteBatch(
-	ctx context.Context,
-	iter DownsampleAndWriteIter,
-) error {
-	// Write aggregated.
-	appender, err := d.downsampler.NewMetricsAppender()
-	if err != nil {
-		return err
-	}
-
-	for iter.Next() {
-		appender.Reset()
-		tags, datapoints, _ := iter.Current()
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
@@ -142,14 +102,58 @@ func (d *downsamplerAndWriter) WriteBatch(
 				return err
 			}
 		}
-	}
-	appender.Finalize()
 
-	if err := iter.Error(); err != nil {
-		return err
+		appender.Finalize()
 	}
-	if err := iter.Reset(); err != nil {
-		return err
+
+	return d.store.Write(ctx, &storage.WriteQuery{
+		Tags:       tags,
+		Datapoints: datapoints,
+		Unit:       unit,
+		Attributes: storage.Attributes{
+			MetricsType: storage.UnaggregatedMetricsType,
+		},
+	})
+}
+
+func (d *downsamplerAndWriter) WriteBatch(
+	ctx context.Context,
+	iter DownsampleAndWriteIter,
+) error {
+	if d.downsampler != nil {
+		// Write aggregated.
+		appender, err := d.downsampler.NewMetricsAppender()
+		if err != nil {
+			return err
+		}
+
+		for iter.Next() {
+			appender.Reset()
+			tags, datapoints, _ := iter.Current()
+			for _, tag := range tags.Tags {
+				appender.AddTag(tag.Name, tag.Value)
+			}
+
+			samplesAppender, err := appender.SamplesAppender()
+			if err != nil {
+				return err
+			}
+
+			for _, dp := range datapoints {
+				err := samplesAppender.AppendGaugeSample(dp.Value)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		appender.Finalize()
+
+		if err := iter.Error(); err != nil {
+			return err
+		}
+		if err := iter.Reset(); err != nil {
+			return err
+		}
 	}
 
 	// Write unaggregated.
