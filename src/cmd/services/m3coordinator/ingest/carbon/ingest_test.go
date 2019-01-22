@@ -28,6 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIngesterHandleConn(t *testing.T) {
+
+}
+
 func TestGenerateTagsFromName(t *testing.T) {
 	testCases := []struct {
 		name         string
