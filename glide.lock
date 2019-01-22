@@ -1,5 +1,5 @@
-hash: 68f6e58e11ab4f5acc342c013354dc0eca5cd2d17d5573edec766a067f44141a
-updated: 2019-02-14T14:22:29.558454-05:00
+hash: 1142bd7c68492e34422277010dfee8fd45c6810cceaa25194352178a1315f716
+updated: 2019-02-21T12:08:41.672845643-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -15,6 +15,8 @@ imports:
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
+- name: github.com/codahale/hdrhistogram
+  version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
@@ -133,7 +135,7 @@ imports:
 - name: github.com/go-logfmt/logfmt
   version: 432dd90af23366a89a611c020003fc8ba281ae5d
 - name: github.com/gogo/protobuf
-  version: 4cbf7e384e768b4e01799441fdf2a706a5635ae7
+  version: ba06b47c162d49f2af050fb4c75bcbc86a159d5c
   subpackages:
   - gogoproto
   - jsonpb
@@ -202,8 +204,6 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-- name: github.com/jroimartin/gocui
-  version: c055c87ae801372cd74a0839b972db4f7697ae5f
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
@@ -217,7 +217,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: e98ec326dd7b4d4bc97390c709dacf73d49a0bfc
+  version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
   vcs: git
   subpackages:
   - checked
@@ -273,10 +273,6 @@ imports:
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/magiconair/properties
   version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
-- name: github.com/mattn/go-runewidth
-  version: 9e777a8366cce605130a531d2cd6363d07ad7317
-  subpackages:
-  - runewidth.go
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -291,14 +287,18 @@ imports:
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/nightlyone/lockfile
   version: 0ad87eef1443f64d3d8c50da647e2b1552851124
-- name: github.com/nsf/termbox-go
-  version: 02980233997d87bbda048393d47b4d453f7a398d
 - name: github.com/oklog/ulid
   version: 1fe95fa015d44afc8cd427914daadb0317481b71
+- name: github.com/opentracing-contrib/go-stdlib
+  version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+  subpackages:
+  - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 855519783f479520497c6b3445611b05fc42f009
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
   subpackages:
   - ext
+  - log
+  - mocktracer
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pborman/uuid
@@ -403,6 +403,31 @@ imports:
   - m3/thriftudp
   - multi
   - prometheus
+- name: github.com/uber/jaeger-client-go
+  version: 1a782e2da844727691fef1757c72eb190c2909f0
+  subpackages:
+  - config
+  - internal/baggage
+  - internal/baggage/remote
+  - internal/spanlog
+  - internal/throttler
+  - internal/throttler/remote
+  - log
+  - log/zap
+  - rpcmetrics
+  - thrift
+  - thrift-gen/agent
+  - thrift-gen/baggage
+  - thrift-gen/jaeger
+  - thrift-gen/sampling
+  - thrift-gen/zipkincore
+  - transport
+  - utils
+- name: github.com/uber/jaeger-lib
+  version: ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5
+  subpackages:
+  - metrics
+  - metrics/tally
 - name: github.com/uber/tchannel-go
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
