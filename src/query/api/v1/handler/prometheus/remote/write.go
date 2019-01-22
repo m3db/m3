@@ -24,17 +24,17 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sync"
 
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
-	xerrors "github.com/m3db/m3x/errors"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
@@ -55,28 +55,25 @@ var (
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
-	store            storage.Storage
-	downsampler      downsample.Downsampler
-	promWriteMetrics promWriteMetrics
-	tagOptions       models.TagOptions
+	downsamplerAndWriter ingest.DownsamplerAndWriter
+	promWriteMetrics     promWriteMetrics
+	tagOptions           models.TagOptions
 }
 
 // NewPromWriteHandler returns a new instance of handler.
 func NewPromWriteHandler(
-	store storage.Storage,
-	downsampler downsample.Downsampler,
+	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
 	scope tally.Scope,
 ) (http.Handler, error) {
-	if store == nil && downsampler == nil {
+	if downsamplerAndWriter == nil {
 		return nil, errNoStorageOrDownsampler
 	}
 
 	return &PromWriteHandler{
-		store:            store,
-		downsampler:      downsampler,
-		promWriteMetrics: newPromWriteMetrics(scope),
-		tagOptions:       tagOptions,
+		downsamplerAndWriter: downsamplerAndWriter,
+		promWriteMetrics:     newPromWriteMetrics(scope),
+		tagOptions:           tagOptions,
 	}, nil
 }
 
@@ -101,7 +98,9 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
-	if err := h.write(r.Context(), req); err != nil {
+
+	err := h.write(r.Context(), req)
+	if err != nil {
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -126,104 +125,43 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 }
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
-	var (
-		wg            sync.WaitGroup
-		writeUnaggErr error
-		writeAggErr   error
-	)
-	if h.downsampler != nil {
-		// If writing downsampled aggregations, write them async
-		wg.Add(1)
-		go func() {
-			writeAggErr = h.writeAggregated(ctx, r)
-			wg.Done()
-		}()
-	}
-
-	if h.store != nil {
-		// Write the unaggregated points out, don't spawn goroutine
-		// so we reduce number of goroutines just a fraction
-		writeUnaggErr = h.writeUnaggregated(ctx, r)
-	}
-
-	if h.downsampler != nil {
-		// Wait for downsampling to finish if we wrote datapoints
-		// for aggregations
-		wg.Wait()
-	}
-
-	var multiErr xerrors.MultiError
-	multiErr = multiErr.Add(writeUnaggErr)
-	multiErr = multiErr.Add(writeAggErr)
-	return multiErr.FinalError()
+	iter := newPromTSIter(r.Timeseries)
+	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
 }
 
-func (h *PromWriteHandler) writeUnaggregated(
-	ctx context.Context,
-	r *prompb.WriteRequest,
-) error {
-	var (
-		wg       sync.WaitGroup
-		errLock  sync.Mutex
-		multiErr xerrors.MultiError
-	)
-	for _, t := range r.Timeseries {
-		t := t // Capture for goroutine
-
-		// TODO(r): Consider adding a worker pool to limit write
-		// request concurrency, instead of using the batch size
-		// of incoming request to determine concurrency (some level of control).
-		wg.Add(1)
-		go func() {
-			write := storage.PromWriteTSToM3(t, h.tagOptions)
-			write.Attributes = storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
-			}
-
-			if err := h.store.Write(ctx, write); err != nil {
-				errLock.Lock()
-				multiErr = multiErr.Add(err)
-				errLock.Unlock()
-			}
-
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
-	return multiErr.LastError()
+type promTSIter struct {
+	idx        int
+	timeseries []*prompb.TimeSeries
 }
 
-func (h *PromWriteHandler) writeAggregated(
-	_ context.Context,
-	r *prompb.WriteRequest,
-) error {
-	metricsAppender, err := h.downsampler.NewMetricsAppender()
-	if err != nil {
-		return err
+func newPromTSIter(timeseries []*prompb.TimeSeries) *promTSIter {
+	return &promTSIter{idx: -1, timeseries: timeseries}
+}
+
+func (i *promTSIter) Next() bool {
+	i.idx++
+	return i.idx < len(i.timeseries)
+}
+
+func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
+	if len(i.timeseries) == 0 || i.idx < 0 || i.idx >= len(i.timeseries) {
+		return models.Tags{}, nil, 0
 	}
 
-	multiErr := xerrors.NewMultiError()
-	for _, ts := range r.Timeseries {
-		metricsAppender.Reset()
-		for _, label := range ts.Labels {
-			metricsAppender.AddTag(label.Name, label.Value)
-		}
-
-		samplesAppender, err := metricsAppender.SamplesAppender()
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			continue
-		}
-
-		for _, elem := range ts.Samples {
-			err := samplesAppender.AppendGaugeSample(elem.Value)
-			if err != nil {
-				multiErr = multiErr.Add(err)
-			}
-		}
+	curr := i.timeseries[i.idx]
+	// TODO: Add a storage function for this?
+	tags := make([]models.Tag, 0, len(curr.Labels))
+	for _, label := range curr.Labels {
+		tags = append(tags, models.Tag{Name: label.Name, Value: label.Value})
 	}
+	return models.Tags{Tags: tags}, storage.PromSamplesToM3Datapoints(curr.Samples), xtime.Millisecond
+}
 
-	metricsAppender.Finalize()
-	return multiErr.LastError()
+func (i *promTSIter) Reset() error {
+	i.idx = -1
+	return nil
+}
+
+func (i *promTSIter) Error() error {
+	return nil
 }

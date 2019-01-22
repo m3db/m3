@@ -27,23 +27,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
-	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3x/clock"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	promWrite := &PromWriteHandler{store: storage}
+	promWrite := &PromWriteHandler{}
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
@@ -58,10 +56,10 @@ func TestPromWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.EXPECT().WriteBatch(gomock.Any(), gomock.Any())
 
-	promWrite := &PromWriteHandler{store: storage}
+	promWrite := &PromWriteHandler{downsamplerAndWriter: mockDownsamplerAndWriter}
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
@@ -78,15 +76,18 @@ func TestWriteErrorMetricCount(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.EXPECT().WriteBatch(gomock.Any(), gomock.Any())
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 	writeMetrics := newPromWriteMetrics(scope)
 
-	promWrite := &PromWriteHandler{store: storage, promWriteMetrics: writeMetrics}
+	promWrite := &PromWriteHandler{
+		downsamplerAndWriter: mockDownsamplerAndWriter,
+		promWriteMetrics:     writeMetrics,
+	}
 	req, _ := http.NewRequest("POST", PromWriteURL, nil)
 	promWrite.ServeHTTP(httptest.NewRecorder(), req)
 
