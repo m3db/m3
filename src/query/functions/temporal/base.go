@@ -254,10 +254,16 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 	bounds := seriesIter.Meta().Bounds
 
 	seriesMeta := seriesIter.SeriesMeta()
+
+	// rename series to exclude their __name__ tag
+	// TODO: why do we do this?
 	resultSeriesMeta := make([]block.SeriesMeta, len(seriesMeta))
 	for i, m := range seriesMeta {
 		tags := m.Tags.WithoutName()
-		resultSeriesMeta[i].Name = tags.ID()
+		resultSeriesMeta[i] = block.SeriesMeta{
+			Name: tags.ID(),
+			Tags: tags,
+		}
 	}
 
 	builder, err := c.controller.BlockBuilder(seriesIter.Meta(), resultSeriesMeta)
