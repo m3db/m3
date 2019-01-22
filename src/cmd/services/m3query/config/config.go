@@ -123,7 +123,6 @@ type LimitsConfiguration struct {
 
 // GlobalLimitsConfiguration represents limits on resource usage across a query instance. Zero or negative values imply no limit.
 type GlobalLimitsConfiguration struct {
-
 	// MaxFetchedDatapoints limits the total number of datapoints actually fetched by all queries at any given time.
 	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
 }
@@ -135,7 +134,6 @@ func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOpt
 
 // PerQueryLimitsConfiguration represents limits on resource usage within a single query. Zero or negative values imply no limit.
 type PerQueryLimitsConfiguration struct {
-
 	// MaxComputedDatapoints limits the number of datapoints that can be returned by a query. It's determined purely
 	// from the size of the time range and the step size (end - start / step).
 	MaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
