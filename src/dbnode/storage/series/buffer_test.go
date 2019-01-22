@@ -208,7 +208,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		verifyWriteToBuffer(t, buffer, v)
 	}
 
-	buckets, ok := buffer.bucketsAt(start)
+	buckets, ok := buffer.bucketVersionsAt(start)
 	require.True(t, ok)
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
@@ -504,6 +504,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(opts)
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
+	buffer.inOrderBlockStarts = append(buffer.inOrderBlockStarts, b.start)
 
 	expectedSize := int64(b.streamsLen())
 
@@ -515,7 +516,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 		},
 	}
 	res := buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts).Results()
-	assert.Equal(t, 1, len(res))
+	require.Equal(t, 1, len(res))
 	assert.Equal(t, b.start, res[0].Start)
 	assert.Equal(t, expectedSize, res[0].Size)
 	assert.Equal(t, (*uint32)(nil), res[0].Checksum) // checksum is never available for buffer block
@@ -588,7 +589,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	// Count the encoders again
 	encoders = encoders[:0]
-	buckets, ok := buffer.bucketsAt(start)
+	buckets, ok := buffer.bucketVersionsAt(start)
 	require.True(t, ok)
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
@@ -632,7 +633,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 		verifyWriteToBuffer(t, buffer, v)
 	}
 
-	buckets, exists := buffer.bucketsAt(start)
+	buckets, exists := buffer.bucketVersionsAt(start)
 	require.True(t, exists)
 	bucket, exists := buckets.writableBucket(WarmWrite)
 	require.True(t, exists)
@@ -708,7 +709,7 @@ func TestBufferSnapshot(t *testing.T) {
 	// Verify internal state
 	var encoders []encoding.Encoder
 
-	buckets, ok := buffer.bucketsAt(start)
+	buckets, ok := buffer.bucketVersionsAt(start)
 	require.True(t, ok)
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
@@ -742,7 +743,7 @@ func TestBufferSnapshot(t *testing.T) {
 
 	// Check internal state to make sure the merge happened and was persisted
 	encoders = encoders[:0]
-	buckets, ok = buffer.bucketsAt(start)
+	buckets, ok = buffer.bucketVersionsAt(start)
 	require.True(t, ok)
 	bucket, ok = buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
@@ -762,4 +763,45 @@ func mustGetLastEncoded(t *testing.T, entry inOrderEncoder) ts.Datapoint {
 	last, err := entry.encoder.LastEncoded()
 	require.NoError(t, err)
 	return last
+}
+
+func TestInOrderUnixNanosAddRemove(t *testing.T) {
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	assertTimeSlicesEqual(t, []time.Time{}, buffer.inOrderBlockStarts)
+
+	t3 := time.Unix(3, 0)
+	t5 := time.Unix(5, 0)
+	t7 := time.Unix(7, 0)
+	t8 := time.Unix(8, 0)
+
+	buffer.inOrderBlockStartsAdd(t5)
+	assertTimeSlicesEqual(t, []time.Time{t5}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsAdd(t3)
+	assertTimeSlicesEqual(t, []time.Time{t3, t5}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsAdd(t8)
+	assertTimeSlicesEqual(t, []time.Time{t3, t5, t8}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsAdd(t7)
+	assertTimeSlicesEqual(t, []time.Time{t3, t5, t7, t8}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsRemove(t5)
+	assertTimeSlicesEqual(t, []time.Time{t3, t7, t8}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsRemove(t3)
+	assertTimeSlicesEqual(t, []time.Time{t7, t8}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsRemove(t8)
+	assertTimeSlicesEqual(t, []time.Time{t7}, buffer.inOrderBlockStarts)
+
+	buffer.inOrderBlockStartsRemove(t7)
+	assertTimeSlicesEqual(t, []time.Time{}, buffer.inOrderBlockStarts)
+}
+
+func assertTimeSlicesEqual(t *testing.T, t1, t2 []time.Time) {
+	require.Equal(t, len(t1), len(t2))
+	for i := range t1 {
+		assert.Equal(t, t1[i], t2[i])
+	}
 }
