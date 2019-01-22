@@ -1,3 +1,23 @@
+// Copyright (c) 2019 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package graphite
 
 import (
@@ -28,7 +48,7 @@ func TestBeginMetricConsolidation(t *testing.T) {
 		outputValues     []float64
 	}{
 		// statsd counters - should be added at 10s intervals
-		{"stats.sjc1.counts.monkey.bizness",
+		{"stats.bar.counts.monkey.bizness",
 			0, time.Second * 40,
 			[]int{2, 3, 11, 14, 32},
 			[]float64{1, 4, 7, 9, 4},
@@ -37,7 +57,7 @@ func TestBeginMetricConsolidation(t *testing.T) {
 		},
 
 		// statsd counters at 45 days - should be added at 1min intervals
-		{"stats.sjc1.counts.monkey.bizness",
+		{"stats.bar.counts.monkey.bizness",
 			-45 * 24 * time.Hour, time.Minute * 2,
 			[]int{2, 3, 11, 14, 32, 64, 72},
 			[]float64{1, 4, 7, 9, 4, 200, 341},
@@ -46,7 +66,7 @@ func TestBeginMetricConsolidation(t *testing.T) {
 		},
 
 		// statsd gauges - should be averaged at 10s intervals
-		{"stats.sjc1.gauges.donkey.kong.barrels",
+		{"stats.bar.gauges.donkey.kong.barrels",
 			0, time.Second * 40,
 			[]int{2, 3, 11, 14, 32},
 			[]float64{1, 4, 7, 9, 4},
@@ -55,7 +75,7 @@ func TestBeginMetricConsolidation(t *testing.T) {
 		},
 
 		// statsd gauges - should be averaged at 1min intervals intervals
-		{"stats.sjc1.gauges.donkey.kong.barrels",
+		{"stats.bar.gauges.donkey.kong.barrels",
 			-45 * 24 * time.Hour, time.Minute * 2,
 			[]int{2, 3, 11, 14, 32, 64, 72},
 			[]float64{1, 4, 7, 9, 4, 200, 341},
@@ -64,7 +84,7 @@ func TestBeginMetricConsolidation(t *testing.T) {
 		},
 
 		// server stats - should be averaged at 60s intervals
-		{"servers.monkey04-sjc1.cpu.load_0",
+		{"servers.monkey04-bar.cpu.load_0",
 			0, time.Minute * 3,
 			[]int{2, 6, 45, 55, 65, 72, 91},
 			[]float64{10, 20, 30, 40, 50, 60, 70},
@@ -99,10 +119,10 @@ func TestBeginMetricConsolidation(t *testing.T) {
 
 func TestFindConsolidationApproach(t *testing.T) {
 	sumIDs := []string{
-		"stats.sjc1.counts.donkey.kong.barrels",
-		"stats.sjc1.counts.test",
-		"stats.sjc1.timers.donkey.kong.count",
-		"stats.sjc1.timers.m3+service.fetchbatchraw.latency+dc=sjc1,env=production,host=m3-tsdb112-sjc1,pipe=none,service=statsdex_m3dbnode,servicename=node,type=timer.count",
+		"stats.bar.counts.donkey.kong.barrels",
+		"stats.bar.counts.test",
+		"stats.bar.timers.donkey.kong.count",
+		"stats.bar.timers.baz.qux.latency+dc=bar,env=production,host=quz,pipe=none,service=quacks,servicename=node,type=timer.count",
 	}
 
 	for _, id := range sumIDs {
@@ -110,12 +130,12 @@ func TestFindConsolidationApproach(t *testing.T) {
 	}
 
 	avgIDs := []string{
-		"stats.sjc1.gauges.donkey.kong.barrels",
-		"stats.sjc1.timers.test",
-		"fake.sjc1.counts.test",
-		"servers.testabc-sjc1.counts.test",
-		"stats.sjc1.timers.donkey.kong.p95",
-		"stats.sjc1.timers.m3+service.fetchbatchraw.latency+dc=sjc1,env=production,host=m3-tsdb112-sjc1,pipe=none,service=statsdex_m3dbnode,servicename=node,type=timer.p95",
+		"stats.bar.gauges.donkey.kong.barrels",
+		"stats.bar.timers.test",
+		"fake.bar.counts.test",
+		"servers.testabc-bar.counts.test",
+		"stats.bar.timers.donkey.kong.p95",
+		"stats.bar.timers.baz.qux.latency+dc=bar,env=production,host=quz,pipe=none,service=quacks,servicename=node,type=timer.p95",
 	}
 
 	for _, id := range avgIDs {

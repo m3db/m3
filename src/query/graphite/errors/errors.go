@@ -1,8 +1,27 @@
+// Copyright (c) 2019 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package errors
 
 import (
 	errs "errors"
-	"fmt"
 )
 
 // New returns an error that formats as the given text
@@ -18,24 +37,6 @@ type containedErr interface {
 	innerError() error
 }
 
-type renamedError struct {
-	containedError
-	renamed error
-}
-
-// NewRenamedError returns a new error that packages an inner error with a renamed error
-func NewRenamedError(inner, renamed error) error {
-	return renamedError{containedError{inner}, renamed}
-}
-
-func (e renamedError) Error() string {
-	return e.renamed.Error()
-}
-
-func (e renamedError) innerError() error {
-	return e.inner
-}
-
 // InnerError returns the packaged inner error if this is an error that contains another
 func InnerError(err error) error {
 	contained, ok := err.(containedErr)
@@ -43,40 +44,6 @@ func InnerError(err error) error {
 		return nil
 	}
 	return contained.innerError()
-}
-
-type retryableError struct {
-	containedError
-}
-
-func (e retryableError) Error() string {
-	return e.inner.Error()
-}
-
-func (e retryableError) innerError() error {
-	return e.inner
-}
-
-// NewRetryableError creates a new retryable error
-func NewRetryableError(inner error) error {
-	return retryableError{containedError{inner}}
-}
-
-// IsRetryable indicates whether an error is a retryable error
-func IsRetryable(err error) bool {
-	return GetInnerRetryableError(err) != nil
-}
-
-// GetInnerRetryableError returns an inner retryable error
-// if contained by this error, nil otherwise
-func GetInnerRetryableError(err error) error {
-	for err != nil {
-		if _, ok := err.(retryableError); ok {
-			return InnerError(err)
-		}
-		err = InnerError(err)
-	}
-	return nil
 }
 
 type invalidParamsError struct {
@@ -111,64 +78,4 @@ func GetInnerInvalidParamsError(err error) error {
 		err = InnerError(err)
 	}
 	return nil
-}
-
-type deprecatedError struct {
-	containedError
-}
-
-// NewDeprecatedError creates a new deprecated error
-func NewDeprecatedError(inner error) error {
-	return deprecatedError{containedError{inner}}
-}
-
-func (e deprecatedError) Error() string {
-	return e.inner.Error()
-}
-
-func (e deprecatedError) innerError() error {
-	return e.inner
-}
-
-// IsDeprecated returns true if this is a deprecated error
-func IsDeprecated(err error) bool {
-	return GetInnerDeprecatedError(err) != nil
-}
-
-// GetInnerDeprecatedError returns an inner deprecated error
-// if contained by this error, nil otherwise
-func GetInnerDeprecatedError(err error) error {
-	for err != nil {
-		if _, ok := err.(deprecatedError); ok {
-			return InnerError(err)
-		}
-		err = InnerError(err)
-	}
-	return nil
-}
-
-// EncodingError wraps encoding errors for type checking
-type EncodingError struct {
-	ID    string
-	cause error
-}
-
-func (e *EncodingError) Error() string {
-	return fmt.Sprintf("Error encoding: %s [%s]", e.ID, e.cause.Error())
-}
-
-// NewEncodingError creates new EncodingError
-func NewEncodingError(ID string, cause error) *EncodingError {
-	return &EncodingError{
-		ID:    ID,
-		cause: cause,
-	}
-}
-
-// IsEncodingError checks if an error is an encoding error
-func IsEncodingError(err error) bool {
-	if _, ok := err.(*EncodingError); ok {
-		return true
-	}
-	return false
 }

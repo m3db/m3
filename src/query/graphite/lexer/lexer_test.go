@@ -1,3 +1,23 @@
+// Copyright (c) 2019 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package lexer
 
 import (
@@ -21,16 +41,16 @@ func TestLexer(t *testing.T) {
 			{LParenthesis, "("},
 			{Pattern, "foo.bar.zed"},
 			{RParenthesis, ")"}}, nil},
-		{"cities.'china<1001>'.demarsk",
-			[]Token{{Pattern, "cities.'china<1001>'.demarsk"}}, nil},
-		{"a.{b,c,d}.node[0-2].carbon-daemons.*",
-			[]Token{{Pattern, "a.{b,c,d}.node[0-2].carbon-daemons.*"}}, nil},
-		{"optic{0[3-9],1[0-9],20}",
-			[]Token{{Pattern, "optic{0[3-9],1[0-9],20}"}}, nil},
-		{"optic{0[3-9],1[0-9],20}.production",
-			[]Token{{Pattern, "optic{0[3-9],1[0-9],20}.production"}}, nil},
-		{"stats.sjc1.counts.haproxy.products.status_code.?XX",
-			[]Token{{Pattern, "stats.sjc1.counts.haproxy.products.status_code.?XX"}}, nil},
+		{"foo.'bar<1001>'.baz",
+			[]Token{{Pattern, "foo.'bar<1001>'.baz"}}, nil},
+		{"a.{b,c,d}.node[0-2].qux.*",
+			[]Token{{Pattern, "a.{b,c,d}.node[0-2].qux.*"}}, nil},
+		{"qaz{0[3-9],1[0-9],20}",
+			[]Token{{Pattern, "qaz{0[3-9],1[0-9],20}"}}, nil},
+		{"qaz{0[3-9],1[0-9],20}.bar",
+			[]Token{{Pattern, "qaz{0[3-9],1[0-9],20}.bar"}}, nil},
+		{"stats.foo.counts.bar.baz.status_code.?XX",
+			[]Token{{Pattern, "stats.foo.counts.bar.baz.status_code.?XX"}}, nil},
 		{"456.03", []Token{{Number, "456.03"}}, nil},
 		{"foo:bar", []Token{
 			{Identifier, "foo"},
@@ -57,12 +77,12 @@ func TestLexer(t *testing.T) {
 		// no need to escape double quote within single quoted strings (start boundary), but may
 		// do it if so desired (end boundary)
 		{"'Whatever \"man\\\"'", []Token{{String, "Whatever \"man\""}}, nil},
-		{" call09(a.{b,c,d}.node[0-2].carbon-daemons.*, a{e,g}, 4546.abc, 45ahj, " +
+		{" call09(a.{b,c,d}.node[0-2].qux.*, a{e,g}, 4546.abc, 45ahj, " +
 			"\"Hello there \\\"Good \\\\ Sir\\\" \", +20, 39540.459,-349845,.393) ",
 			[]Token{
 				{Identifier, "call09"},
 				{LParenthesis, "("},
-				{Pattern, "a.{b,c,d}.node[0-2].carbon-daemons.*"},
+				{Pattern, "a.{b,c,d}.node[0-2].qux.*"},
 				{Comma, ","},
 				{Pattern, "a{e,g}"},
 				{Comma, ","},
@@ -80,14 +100,14 @@ func TestLexer(t *testing.T) {
 				{Comma, ","},
 				{Number, ".393"},
 				{RParenthesis, ")"}}, nil},
-		{`aliasSub(stats.sjc1.timers.scream.scream.views.record_trip.end_to_end_latency.p95, ` +
-			`'stats.(.*).timers.scream.scream.views.record_trip.(.*)', '\1.\2')`,
+		{`aliasSub(stats.foo.timers.scream.scream.views.quz.end_to_end_latency.p95, ` +
+			`'stats.(.*).timers.scream.scream.views.quz.(.*)', '\1.\2')`,
 			[]Token{
 				{Identifier, "aliasSub"},
 				{LParenthesis, "("},
-				{Pattern, "stats.sjc1.timers.scream.scream.views.record_trip.end_to_end_latency.p95"},
+				{Pattern, "stats.foo.timers.scream.scream.views.quz.end_to_end_latency.p95"},
 				{Comma, ","},
-				{String, "stats.(.*).timers.scream.scream.views.record_trip.(.*)"},
+				{String, "stats.(.*).timers.scream.scream.views.quz.(.*)"},
 				{Comma, ","},
 				{String, `\1.\2`},
 				{RParenthesis, ")"}}, nil},

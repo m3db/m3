@@ -1,3 +1,23 @@
+// Copyright (c) 2019 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package native
 
 import (
@@ -36,8 +56,8 @@ func TestCompile1(t *testing.T) {
 
 	tests := []testCompile{
 		{"", noopExpression{}},
-		{"foo.bar.{a,b,c}.carbon-*.stat[0-9]",
-			newFetchExpression("foo.bar.{a,b,c}.carbon-*.stat[0-9]")},
+		{"foo.bar.{a,b,c}.baz-*.stat[0-9]",
+			newFetchExpression("foo.bar.{a,b,c}.baz-*.stat[0-9]")},
 		{"noArgs()", &funcExpression{&functionCall{f: noArgs}}},
 		{"sortByName(foo.bar.zed)", &funcExpression{
 			&functionCall{
@@ -47,11 +67,11 @@ func TestCompile1(t *testing.T) {
 				},
 			},
 		}},
-		{"aliasByNode(statsdex.cluster4.*.metrics.written, 2, 4)", &funcExpression{
+		{"aliasByNode(foo.bar4.*.metrics.written, 2, 4)", &funcExpression{
 			&functionCall{
 				f: aliasByNode,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster4.*.metrics.written"),
+					newFetchExpression("foo.bar4.*.metrics.written"),
 					newIntConst(2),
 					newIntConst(4),
 				},
@@ -90,14 +110,14 @@ func TestCompile1(t *testing.T) {
 				},
 			},
 		}},
-		{"sortByName(aliasByNode(statsdex.cluster72.*.metrics.written,2,4,6))", &funcExpression{
+		{"sortByName(aliasByNode(foo.bar72.*.metrics.written,2,4,6))", &funcExpression{
 			&functionCall{
 				f: sortByName,
 				in: []funcArg{
 					&functionCall{
 						f: aliasByNode,
 						in: []funcArg{
-							newFetchExpression("statsdex.cluster72.*.metrics.written"),
+							newFetchExpression("foo.bar72.*.metrics.written"),
 							newIntConst(2),
 							newIntConst(4),
 							newIntConst(6),
@@ -106,29 +126,29 @@ func TestCompile1(t *testing.T) {
 				},
 			},
 		}},
-		{"sumSeries(foo.bar.baz.quux, statsdex.cluster72.*.metrics.written)", &funcExpression{
+		{"sumSeries(foo.bar.baz.quux, foo.bar72.*.metrics.written)", &funcExpression{
 			&functionCall{
 				f: sumSeries,
 				in: []funcArg{
 					newFetchExpression("foo.bar.baz.quux"),
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 				},
 			},
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written, foo.bar.baz.quux)", &funcExpression{
+		{"asPercent(foo.bar72.*.metrics.written, foo.bar.baz.quux)", &funcExpression{
 			&functionCall{
 				f: asPercent,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 					newFetchExpression("foo.bar.baz.quux"),
 				},
 			},
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written, sumSeries(foo.bar.baz.quux))", &funcExpression{
+		{"asPercent(foo.bar72.*.metrics.written, sumSeries(foo.bar.baz.quux))", &funcExpression{
 			&functionCall{
 				f: asPercent,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 					&functionCall{
 						f: sumSeries,
 						in: []funcArg{
@@ -138,29 +158,29 @@ func TestCompile1(t *testing.T) {
 				},
 			},
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written, 100)", &funcExpression{
+		{"asPercent(foo.bar72.*.metrics.written, 100)", &funcExpression{
 			&functionCall{
 				f: asPercent,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 					newIntConst(100),
 				},
 			},
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written)", &funcExpression{
+		{"asPercent(foo.bar72.*.metrics.written)", &funcExpression{
 			&functionCall{
 				f: asPercent,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 					newConstArg([]*ts.Series(nil)),
 				},
 			},
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total=sumSeries(foo.bar.baz.quux))", &funcExpression{
+		{"asPercent(foo.bar72.*.metrics.written, total=sumSeries(foo.bar.baz.quux))", &funcExpression{
 			&functionCall{
 				f: asPercent,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 					&functionCall{
 						f: sumSeries,
 						in: []funcArg{
@@ -170,83 +190,83 @@ func TestCompile1(t *testing.T) {
 				},
 			},
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total=100)", &funcExpression{
+		{"asPercent(foo.bar72.*.metrics.written, total=100)", &funcExpression{
 			&functionCall{
 				f: asPercent,
 				in: []funcArg{
-					newFetchExpression("statsdex.cluster72.*.metrics.written"),
+					newFetchExpression("foo.bar72.*.metrics.written"),
 					newIntConst(100),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1e+3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(1000),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1e-3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1e-3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(0.001),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1e3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1e3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(1000),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.1e3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.1e3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(1100),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.1e+3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.1e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(1100),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.2e-3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2e-3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(0.0012),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .1e+3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(100),
 				},
 			},
 		}},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 2.e+3)", &funcExpression{
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 2.e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
 				in: []funcArg{
-					newFetchExpression("servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*"),
+					newFetchExpression("servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*"),
 					newFloat64Const(2000),
 				},
 			},
@@ -309,50 +329,50 @@ func TestCompileErrors(t *testing.T) {
 		{"sumSeries(foo.bar.baz.quux,)",
 			"invalid expression 'sumSeries(foo.bar.baz.quux,)': invalid function call sumSeries, " +
 				"arg 1: invalid expression 'sumSeries(foo.bar.baz.quux,)': ) not valid"},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total",
-			"invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total': " +
+		{"asPercent(foo.bar72.*.metrics.written, total",
+			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total': " +
 				"invalid function call asPercent, " +
-				"arg 1: invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total': " +
+				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total': " +
 				"unexpected eof, total should be followed by = or ("},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total=",
-			"invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total=': " +
+		{"asPercent(foo.bar72.*.metrics.written, total=",
+			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total=': " +
 				"invalid function call asPercent, " +
-				"arg 1: invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total=': " +
+				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total=': " +
 				"unexpected eof, named argument total should be followed by its value"},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total=randomStuff",
-			"invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total=randomStuff': " +
+		{"asPercent(foo.bar72.*.metrics.written, total=randomStuff",
+			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total=randomStuff': " +
 				"invalid function call asPercent, " +
-				"arg 1: invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total=randomStuff': " +
+				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total=randomStuff': " +
 				"unexpected eof, randomStuff should be followed by = or ("},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total=sumSeries(",
-			"invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total=sumSeries(': " +
+		{"asPercent(foo.bar72.*.metrics.written, total=sumSeries(",
+			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total=sumSeries(': " +
 				"invalid function call asPercent, " +
-				"arg 1: invalid expression 'asPercent(statsdex.cluster72.*.metrics.written, total=sumSeries(': " +
+				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total=sumSeries(': " +
 				"unexpected eof while parsing sumSeries"},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.e)",
-			"invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.e)': " +
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)",
+			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.e)': " +
+				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)': " +
 				"expected one of 0123456789, found ) not valid"},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .1e)",
-			"invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .1e)': " +
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)",
+			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .1e)': " +
+				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)': " +
 				"expected one of 0123456789, found ) not valid"},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .e)",
-			"invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .e)': " +
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)",
+			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, .e)': " +
+				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)': " +
 				"expected one of 0123456789, found e not valid"},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, e)",
-			"invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, e)': " +
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)",
+			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, e)': " +
+				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
 				"could not find function named e"},
-		{"scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.2ee)",
-			"invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.2ee)': " +
+		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)",
+			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.appdocker*-sjc1.docker.usi-atmmachine-atmmachine.cpu.*, 1.2ee)': " +
+				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)': " +
 				"expected one of 0123456789, found e not valid"},
 	}
 
@@ -399,14 +419,14 @@ func TestExtractFetchExpressions(t *testing.T) {
 		expr    string
 		targets []string
 	}{
-		{"summarize(groupByNode(nonNegativeDerivative(stats.sjc1.gauges.apollo.production.neko.streamio_schemaless_mezzanine_trips_sjc1_streaming.*.client_trip_base.numMessagesReceived.count), 8, 'sum'), '10min', 'avg', true)", []string{
-			"stats.sjc1.gauges.apollo.production.neko.streamio_schemaless_mezzanine_trips_sjc1_streaming.*.client_trip_base.numMessagesReceived.count",
+		{"summarize(groupByNode(nonNegativeDerivative(foo.qaz.gauges.bar.baz.qux.foobar.*.quz.quail.count), 8, 'sum'), '10min', 'avg', true)", []string{
+			"foo.qaz.gauges.bar.baz.qux.foobar.*.quz.quail.count",
 		}},
-		{"asPercent(statsdex.cluster72.*.metrics.written, total=sumSeries(foo.bar.baz.quux))", []string{
-			"statsdex.cluster72.*.metrics.written", "foo.bar.baz.quux",
+		{"asPercent(foo.bar72.*.metrics.written, total=sumSeries(foo.bar.baz.quux))", []string{
+			"foo.bar72.*.metrics.written", "foo.bar.baz.quux",
 		}},
-		{"foo.bar.{a,b,c}.carbon-*.stat[0-9]", []string{
-			"foo.bar.{a,b,c}.carbon-*.stat[0-9]",
+		{"foo.bar.{a,b,c}.baz-*.stat[0-9]", []string{
+			"foo.bar.{a,b,c}.baz-*.stat[0-9]",
 		}},
 	}
 

@@ -1,5 +1,0 @@
-package common
-
-// N.B.: for some reason, mockgen insists on generating a mock for CostAccounting here, despite us not asking for it. Rename it to avoid collision with a custom mock we have.
-//go:generate sh -c "mockgen -package=common -destination=./cost_accounting_mock_test.go -source=./cost_accounting.go -mock_names=CostAccounting=__mockCostAccounting cachedCountReporter"
-//go:generate sh -c "mockgen -package=common -destination=./cached_count_mock_test.go github.com/uber-go/tally CachedCount"

@@ -1,3 +1,23 @@
+// Copyright (c) 2019 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package native
 
 import (
@@ -42,11 +62,11 @@ func TestAliasSubWithNoBackReference(t *testing.T) {
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
 	series := []*ts.Series{
-		ts.NewSeries(ctx, "stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.dispatch.tcollector.TCollector--submit", now, values),
-		ts.NewSeries(ctx, "stats.sjc1.counts.autobahn.production.hyperbahn15-sjc1.tchannel.inbound.calls.success.dispatch.onedirection.OneDirection--fittedMultiDriver", now, values),
-		ts.NewSeries(ctx, "stats.sjc1.counts.autobahn.production.hyperbahn01-sjc1.tchannel.inbound.calls.success.dispatch.onedirection.OneDirection--fitted", now, values),
-		ts.NewSeries(ctx, "stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.arbiter.tcollector.TCollector--submit", now, values),
-		ts.NewSeries(ctx, "stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.arbiter", now, values), // doesn't match regex
+		ts.NewSeries(ctx, "stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.quux.john.Frank--submit", now, values),
+		ts.NewSeries(ctx, "stats.foo.counts.bar.baz.quail15-foo.qux.qaz.calls.success.quux.bob.BOB--nosub", now, values),
+		ts.NewSeries(ctx, "stats.foo.counts.bar.baz.quail01-foo.qux.qaz.calls.success.quux.bob.BOB--woop", now, values),
+		ts.NewSeries(ctx, "stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.quacks.john.Frank--submit", now, values),
+		ts.NewSeries(ctx, "stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.arbiter", now, values), // doesn't match regex
 	}
 
 	results, err := aliasSub(ctx, singlePathSpec{
@@ -62,20 +82,20 @@ func TestAliasSubWithNoBackReference(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{
-		"stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.dispatch-TCollector--submit",
-		"stats.sjc1.counts.autobahn.production.hyperbahn15-sjc1.tchannel.inbound.calls.dispatch-OneDirection--fittedMultiDriver",
-		"stats.sjc1.counts.autobahn.production.hyperbahn01-sjc1.tchannel.inbound.calls.dispatch-OneDirection--fitted",
-		"stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.arbiter-TCollector--submit",
-		"stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.arbiter", // unchanged
+		"stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.quux-Frank--submit",
+		"stats.foo.counts.bar.baz.quail15-foo.qux.qaz.calls.quux-BOB--nosub",
+		"stats.foo.counts.bar.baz.quail01-foo.qux.qaz.calls.quux-BOB--woop",
+		"stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.quacks-Frank--submit",
+		"stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.arbiter", // unchanged
 	}, names)
 
 	// Path expressions should remain unchanged
 	assert.Equal(t, []string{
-		"stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.dispatch.tcollector.TCollector--submit",
-		"stats.sjc1.counts.autobahn.production.hyperbahn15-sjc1.tchannel.inbound.calls.success.dispatch.onedirection.OneDirection--fittedMultiDriver",
-		"stats.sjc1.counts.autobahn.production.hyperbahn01-sjc1.tchannel.inbound.calls.success.dispatch.onedirection.OneDirection--fitted",
-		"stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.arbiter.tcollector.TCollector--submit",
-		"stats.sjc1.counts.autobahn.production.hyperbahn08-sjc1.tchannel.inbound.calls.success.arbiter",
+		"stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.quux.john.Frank--submit",
+		"stats.foo.counts.bar.baz.quail15-foo.qux.qaz.calls.success.quux.bob.BOB--nosub",
+		"stats.foo.counts.bar.baz.quail01-foo.qux.qaz.calls.success.quux.bob.BOB--woop",
+		"stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.quacks.john.Frank--submit",
+		"stats.foo.counts.bar.baz.quail08-foo.qux.qaz.calls.success.arbiter",
 	}, pathExpr)
 }
 
@@ -92,10 +112,10 @@ func TestAliasSubWithBackReferences(t *testing.T) {
 		replace  string
 		expected string
 	}{
-		"stats.sjc1.timers.scream.scream.views.record_trip.end_to_end_latency.p95",
-		`stats.(.*).timers.\w+.scream.views.record_trip.(.*)`,
+		"stats.foo.timers.qaz.qaz.views.quail.end_to_end_latency.p95",
+		`stats.(.*).timers.\w+.qaz.views.quail.(.*)`,
 		`\1.\2`,
-		"sjc1.end_to_end_latency.p95",
+		"foo.end_to_end_latency.p95",
 	}
 	series := []*ts.Series{ts.NewSeries(ctx, input.name, now, common.NewTestSeriesValues(ctx, 1000, values))}
 	results, err := aliasSub(ctx, singlePathSpec{
@@ -122,10 +142,10 @@ func TestAliasByMetric(t *testing.T) {
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
 
 	series := []*ts.Series{
-		ts.NewSeries(ctx, "statsdex.metrics4.query.statsdex01-sjc1.writes.success", now, values),
-		ts.NewSeries(ctx, "statsdex.metrics4.query.statsdex02-sjc1.writes.success.P99", now, values),
-		ts.NewSeries(ctx, "statsdex.metrics4.query.statsdex03-sjc1.writes.success.P75", now, values),
-		ts.NewSeries(ctx, "scale(stats.dca1.gauges.vertica.latency_minutes.foo, 60.123))", now, values),
+		ts.NewSeries(ctx, "foo.bar.baz.foo01-foo.writes.success", now, values),
+		ts.NewSeries(ctx, "foo.bar.baz.foo02-foo.writes.success.P99", now, values),
+		ts.NewSeries(ctx, "foo.bar.baz.foo03-foo.writes.success.P75", now, values),
+		ts.NewSeries(ctx, "scale(stats.foobar.gauges.quazqux.latency_minutes.foo, 60.123))", now, values),
 	}
 
 	results, err := aliasByMetric(ctx, singlePathSpec{
@@ -148,9 +168,9 @@ func TestAliasByNode(t *testing.T) {
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
 
 	series := []*ts.Series{
-		ts.NewSeries(ctx, "statsdex.metrics4.query.statsdex01-sjc1.writes.success", now, values),
-		ts.NewSeries(ctx, "statsdex.metrics4.query.statsdex02-sjc1.writes.success.P99", now, values),
-		ts.NewSeries(ctx, "statsdex.metrics4.query.statsdex03-sjc1.writes.success.P75", now, values),
+		ts.NewSeries(ctx, "foo.bar.baz.foo01-foo.writes.success", now, values),
+		ts.NewSeries(ctx, "foo.bar.baz.foo02-foo.writes.success.P99", now, values),
+		ts.NewSeries(ctx, "foo.bar.baz.foo03-foo.writes.success.P75", now, values),
 	}
 
 	results, err := aliasByNode(ctx, singlePathSpec{
@@ -159,9 +179,9 @@ func TestAliasByNode(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, results)
 	require.Equal(t, len(series), results.Len())
-	assert.Equal(t, "statsdex01-sjc1.success", results.Values[0].Name())
-	assert.Equal(t, "statsdex02-sjc1.success.P99", results.Values[1].Name())
-	assert.Equal(t, "statsdex03-sjc1.success.P75", results.Values[2].Name())
+	assert.Equal(t, "foo01-foo.success", results.Values[0].Name())
+	assert.Equal(t, "foo02-foo.success.P99", results.Values[1].Name())
+	assert.Equal(t, "foo03-foo.success.P75", results.Values[2].Name())
 
 	results, err = aliasByNode(nil, singlePathSpec{
 		Values: series,
@@ -181,8 +201,8 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
 	series := []*ts.Series{
-		ts.NewSeries(ctx, "derivative(servers.onedirection02-sjc1.cpu.load_5)", now, values),
-		ts.NewSeries(ctx, "derivative(derivative(servers.onedirection02-sjc1.cpu.load_5))", now, values),
+		ts.NewSeries(ctx, "derivative(servers.bob02-foo.cpu.load_5)", now, values),
+		ts.NewSeries(ctx, "derivative(derivative(servers.bob02-foo.cpu.load_5))", now, values),
 		ts.NewSeries(ctx, "~~~", now, values),
 		ts.NewSeries(ctx, "", now, values),
 	}
@@ -192,8 +212,8 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, results)
 	require.Equal(t, len(series), results.Len())
-	assert.Equal(t, "servers.onedirection02-sjc1", results.Values[0].Name())
-	assert.Equal(t, "servers.onedirection02-sjc1", results.Values[1].Name())
+	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
+	assert.Equal(t, "servers.bob02-foo", results.Values[1].Name())
 	assert.Equal(t, "~~~", results.Values[2].Name())
 	assert.Equal(t, "", results.Values[3].Name())
 }

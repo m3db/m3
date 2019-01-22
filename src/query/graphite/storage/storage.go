@@ -1,3 +1,23 @@
+// Copyright (c) 2019 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package storage
 
 import (
@@ -20,18 +40,6 @@ type DataOptions struct {
 	Timeout time.Duration // Whether to use a custom timeout, zero if no or positive if yes
 }
 
-// Type describes the type of storage
-// type Type int
-
-const (
-// TypeLocalDC is for storages that reside in the local datacenter
-// TypeLocalDC Type = iota
-// TypeRemoteDC is for storages that reside in a remote datacenter
-// TypeRemoteDC
-// TypeMultiDC is for storages that will aggregate multiple datacenters
-// TypeMultiDC
-)
-
 // Storage provides an interface for retrieving timeseries values or names based upon
 // a query or path
 type Storage interface {
@@ -39,12 +47,6 @@ type Storage interface {
 	FetchByQuery(
 		ctx context.Context, query string, opts FetchOptions,
 	) (*FetchResult, error)
-
-	// Name identifies a friendly name for the underlying storage
-	// Name() string
-
-	// Type identifies the type of the underlying storage
-	// Type() Type
 }
 
 // FetchResult provides a fetch result and meta information
