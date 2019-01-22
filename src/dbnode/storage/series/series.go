@@ -123,6 +123,7 @@ func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, 
 
 	bufferResult := s.buffer.Tick(blockStates)
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
+	r.EvictedBuckets = bufferResult.evictedBuckets
 
 	update, err := s.updateBlocksWithLock(blockStates)
 	if err != nil {

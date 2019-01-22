@@ -178,6 +178,7 @@ type databaseNamespaceTickMetrics struct {
 	mergedOutOfOrderBlocks tally.Counter
 	errors                 tally.Counter
 	index                  databaseNamespaceIndexTickMetrics
+	evictedBuckets         tally.Counter
 }
 
 type databaseNamespaceIndexTickMetrics struct {
@@ -255,6 +256,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 				numBlocksSealed:  indexTickScope.Counter("num-blocks-sealed"),
 				numBlocksEvicted: indexTickScope.Counter("num-blocks-evicted"),
 			},
+			evictedBuckets: tickScope.Counter("evicted-buckets"),
 		},
 		status: databaseNamespaceStatusMetrics{
 			activeSeries: statusScope.Gauge("active-series"),
@@ -539,6 +541,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
+	n.metrics.tick.evictedBuckets.Inc(int64(r.evictedBuckets))
 	n.metrics.tick.index.numDocs.Update(float64(indexTickResults.NumTotalDocs))
 	n.metrics.tick.index.numBlocks.Update(float64(indexTickResults.NumBlocks))
 	n.metrics.tick.index.numSegments.Update(float64(indexTickResults.NumSegments))

@@ -181,6 +181,8 @@ type TickResult struct {
 	MadeUnwiredBlocks int
 	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams.
 	MergedOutOfOrderBlocks int
+	// EvictedBuckets is count of buckets just evicted from the buffer map.
+	EvictedBuckets int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool.

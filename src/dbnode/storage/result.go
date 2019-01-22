@@ -31,6 +31,7 @@ type tickResult struct {
 	madeUnwiredBlocks      int
 	mergedOutOfOrderBlocks int
 	errors                 int
+	evictedBuckets         int
 }
 
 func (r tickResult) merge(other tickResult) tickResult {
@@ -45,5 +46,6 @@ func (r tickResult) merge(other tickResult) tickResult {
 		madeUnwiredBlocks:      r.madeUnwiredBlocks + other.madeUnwiredBlocks,
 		mergedOutOfOrderBlocks: r.mergedOutOfOrderBlocks + other.mergedOutOfOrderBlocks,
 		errors:                 r.errors + other.errors,
+		evictedBuckets:         r.evictedBuckets + other.evictedBuckets,
 	}
 }
