@@ -571,14 +571,10 @@ func (s *dbSeries) Close() {
 	case CacheLRU:
 		// In the CacheLRU case, blocks that were retrieved from disk are owned
 		// by the WiredList and should not be closed here. They will eventually
-		// be evicted and closed by  the WiredList when it needs to make room
+		// be evicted and closed by the WiredList when it needs to make room
 		// for new blocks.
-		for _, block := range s.cachedBlocks.AllBlocks() {
-			if !block.WasRetrievedFromDisk() {
-				block.Close()
-			}
-		}
 	default:
+		// This call closes the blocks as well.
 		s.cachedBlocks.RemoveAll()
 	}
 

@@ -859,14 +859,11 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 	// Add a block that was retrieved from disk
 	diskBlock := block.NewMockDatabaseBlock(ctrl)
 	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
-	diskBlock.EXPECT().WasRetrievedFromDisk().Return(true)
 	blocks.AddBlock(diskBlock)
 
 	// Add block that was not retrieved from disk
 	nonDiskBlock := block.NewMockDatabaseBlock(ctrl)
 	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
-	nonDiskBlock.EXPECT().WasRetrievedFromDisk().Return(false)
-	nonDiskBlock.EXPECT().Close()
 	blocks.AddBlock(nonDiskBlock)
 
 	series.cachedBlocks = blocks
