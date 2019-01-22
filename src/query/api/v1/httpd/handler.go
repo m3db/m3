@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
+	graphite "github.com/m3db/m3/src/query/api/v1/handler/graphite/native"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
@@ -182,6 +183,11 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.HandleFunc(validator.PromDebugURL,
 		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
+
+	// Graphite endpoints
+	h.router.HandleFunc(graphite.GraphiteReadURL,
+		logged(graphite.NewNativeRenderHandler(h.storage)).ServeHTTP,
+	).Methods(graphite.GraphiteReadHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{

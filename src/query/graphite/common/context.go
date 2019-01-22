@@ -209,6 +209,7 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 			Add(child.TimeRangeAdjustment.ExpandEnd)
 	}
 
+	child.reqCtx = c.reqCtx
 	return child
 }
 

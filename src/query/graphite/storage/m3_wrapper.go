@@ -75,7 +75,7 @@ func (s *m3WrappedStore) FetchByQuery(
 		}
 	}
 
-	m3ctx, cancel := context.WithTimeout(context.TODO(), opts.Timeout)
+	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 
 	m3query := &storage.FetchQuery{
@@ -93,7 +93,6 @@ func (s *m3WrappedStore) FetchByQuery(
 		m3query,
 		storage.NewFetchOptions(),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +100,13 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3list := m3result.SeriesList
 	series := make([]*ts.Series, len(m3list))
 	for i, m3series := range m3list {
-		values := ts.NewValues(ctx, m3series.ResolutionMillis(), m3series.Len())
+		millisPerStep := m3series.ResolutionMillis()
+		// FIXME: bad hack here.
+		if millisPerStep == 0 {
+			millisPerStep = 1000
+		}
+
+		values := ts.NewValues(ctx, millisPerStep, m3series.Len())
 		m3points := m3series.Values().Datapoints()
 		for j, m3point := range m3points {
 			values.SetValueAt(j, m3point.Value)

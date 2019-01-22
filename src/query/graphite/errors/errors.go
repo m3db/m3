@@ -79,3 +79,21 @@ func GetInnerInvalidParamsError(err error) error {
 	}
 	return nil
 }
+
+type renamedError struct {
+	containedError
+	renamed error
+}
+
+// NewRenamedError returns a new error that packages an inner error with a renamed error
+func NewRenamedError(inner, renamed error) error {
+	return renamedError{containedError{inner}, renamed}
+}
+
+func (e renamedError) Error() string {
+	return e.renamed.Error()
+}
+
+func (e renamedError) innerError() error {
+	return e.inner
+}
