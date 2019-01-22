@@ -122,7 +122,7 @@ type dbBuffer struct {
 	bucketVersionsCache [bucketsCacheSize]*BufferBucketVersions
 	// This is an in order slice of the block starts in the bucketsMap.
 	// We maintain this to avoid sorting the map keys adhoc when we want to
-	// perform operations in chronoligical order.
+	// perform operations in chronological order.
 	inOrderBlockStarts []time.Time
 	bucketVersionsPool *BufferBucketVersionsPool
 	bucketPool         *BufferBucketPool
