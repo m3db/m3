@@ -21,7 +21,6 @@
 package series
 
 import (
-	"errors"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -40,9 +39,12 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	errBucketMapCacheNotInSync = "[invariant violated] bucket map keys do not match sorted keys cache"
+)
+
 var (
-	errNoAvailableBuckets = errors.New("[invariant violated] buffer has no available buckets")
-	timeZero              time.Time
+	timeZero time.Time
 )
 
 const (
@@ -117,7 +119,11 @@ type dbBuffer struct {
 
 	bucketsMap map[xtime.UnixNano]*BufferBucketVersions
 	// Cache of buckets to avoid map lookup of above.
-	bucketsCache       [bucketsCacheSize]*BufferBucketVersions
+	bucketVersionsCache [bucketsCacheSize]*BufferBucketVersions
+	// This is an in order slice of the block starts in the bucketsMap.
+	// We maintain this to avoid sorting the map keys adhoc when we want to
+	// perform operations in chronoligical order.
+	inOrderBlockStarts []time.Time
 	bucketVersionsPool *BufferBucketVersionsPool
 	bucketPool         *BufferBucketPool
 
@@ -133,7 +139,8 @@ type dbBuffer struct {
 // object prior to use.
 func newDatabaseBuffer() databaseBuffer {
 	b := &dbBuffer{
-		bucketsMap: make(map[xtime.UnixNano]*BufferBucketVersions),
+		bucketsMap:         make(map[xtime.UnixNano]*BufferBucketVersions),
+		inOrderBlockStarts: make([]time.Time, 0, bucketsCacheSize),
 	}
 	return b
 }
@@ -276,7 +283,7 @@ func (b *dbBuffer) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
 ) (xio.SegmentReader, error) {
-	buckets, exists := b.bucketsAt(blockStart)
+	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
 		return nil, nil
 	}
@@ -331,7 +338,7 @@ func (b *dbBuffer) Flush(
 	persistFn persist.DataFn,
 	version int,
 ) (FlushOutcome, error) {
-	buckets, exists := b.bucketsAt(blockStart)
+	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
@@ -402,9 +409,18 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
 
-	b.forEachBucketAsc(func(bv *BufferBucketVersions) {
-		if !bv.start.Before(end) || !start.Before(bv.start.Add(b.blockSize)) {
-			return
+	for _, blockStart := range b.inOrderBlockStarts {
+		if !blockStart.Before(end) || !start.Before(blockStart.Add(b.blockSize)) {
+			continue
+		}
+
+		bv, exists := b.bucketVersionsAt(blockStart)
+		if !exists {
+			// Invariant violated. This means the keys in the bucket map does
+			// not match the sorted keys cache, which should never happen.
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf(errBucketMapCacheNotInSync)
+			return nil
 		}
 
 		res = append(res, bv.streams(ctx, WarmWrite))
@@ -417,42 +433,16 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		// the storage nodes. This distinction is important as this
 		// data is important for use with understanding access patterns, etc.
 		bv.setLastRead(b.nowFn())
-	})
+	}
 
 	return res
-}
-
-func (b *dbBuffer) forEachBucketAsc(fn func(*BufferBucketVersions)) {
-	buckets := b.bucketsMap
-
-	// Handle these differently to avoid allocating a slice in these cases.
-	if len(buckets) == 0 || len(buckets) == 1 {
-		for key := range buckets {
-			fn(buckets[key])
-		}
-		return
-	}
-
-	keys := make([]xtime.UnixNano, 0, len(buckets))
-	for k := range buckets {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].Before(keys[j])
-	})
-
-	for _, key := range keys {
-		// No need to check for existence since we just got the list of keys.
-		bucket, _ := b.bucketsAt(key.ToTime())
-		fn(bucket)
-	}
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
 	for _, start := range starts {
-		buckets, ok := b.bucketsAt(start)
+		buckets, ok := b.bucketVersionsAt(start)
 		if !ok {
 			continue
 		}
@@ -480,15 +470,24 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
 
-	b.forEachBucketAsc(func(bv *BufferBucketVersions) {
-		if !bv.start.Before(end) || !start.Before(bv.start.Add(blockSize)) {
-			return
+	for _, blockStart := range b.inOrderBlockStarts {
+		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
+			continue
+		}
+
+		bv, exists := b.bucketVersionsAt(blockStart)
+		if !exists {
+			// Invariant violated. This means the keys in the bucket map does
+			// not match the sorted keys cache, which should never happen.
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf(errBucketMapCacheNotInSync)
+			return nil
 		}
 
 		size := int64(bv.streamsLen())
 		// If we have no data in this bucket, skip early without appending it to the result.
 		if size == 0 {
-			return
+			continue
 		}
 		var resultSize int64
 		if opts.IncludeSizes {
@@ -505,16 +504,16 @@ func (b *dbBuffer) FetchBlocksMetadata(
 			Size:     resultSize,
 			LastRead: resultLastRead,
 		})
-	})
+	}
 
 	return res
 }
 
-func (b *dbBuffer) bucketsAt(
+func (b *dbBuffer) bucketVersionsAt(
 	t time.Time,
 ) (*BufferBucketVersions, bool) {
 	// First check LRU cache.
-	for _, buckets := range b.bucketsCache {
+	for _, buckets := range b.bucketVersionsCache {
 		if buckets == nil {
 			continue
 		}
@@ -534,19 +533,21 @@ func (b *dbBuffer) bucketsAt(
 func (b *dbBuffer) bucketsAtCreate(
 	t time.Time,
 ) *BufferBucketVersions {
-	if buckets, exists := b.bucketsAt(t); exists {
+	if buckets, exists := b.bucketVersionsAt(t); exists {
 		return buckets
 	}
 
 	buckets := b.bucketVersionsPool.Get()
 	buckets.resetTo(t, b.opts, b.bucketPool)
 	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
+	b.inOrderBlockStartsAdd(t)
+
 	return buckets
 }
 
 func (b *dbBuffer) putBucketInCache(newBuckets *BufferBucketVersions) {
 	replaceIdx := bucketsCacheSize - 1
-	for i, buckets := range b.bucketsCache {
+	for i, buckets := range b.bucketVersionsCache {
 		// Check if we have the same pointer in cache.
 		if buckets == newBuckets {
 			replaceIdx = i
@@ -554,14 +555,14 @@ func (b *dbBuffer) putBucketInCache(newBuckets *BufferBucketVersions) {
 	}
 
 	for i := replaceIdx; i > 0; i-- {
-		b.bucketsCache[i] = b.bucketsCache[i-1]
+		b.bucketVersionsCache[i] = b.bucketVersionsCache[i-1]
 	}
 
-	b.bucketsCache[0] = newBuckets
+	b.bucketVersionsCache[0] = newBuckets
 }
 
 func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
-	buckets, exists := b.bucketsAt(blockStart)
+	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
 		return
 	}
@@ -569,6 +570,36 @@ func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
 	buckets.resetTo(timeZero, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
 	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
+	b.inOrderBlockStartsRemove(blockStart)
+}
+
+func (b *dbBuffer) inOrderBlockStartsAdd(newTime time.Time) {
+	starts := b.inOrderBlockStarts
+	idx := len(starts)
+	// There shouldn't be that many starts here, so just linear search through.
+	for i, t := range starts {
+		if t.After(newTime) {
+			idx = i
+			break
+		}
+	}
+	// Insert new time without allocating new slice.
+	b.inOrderBlockStarts = append(starts, timeZero)
+	// Update to new slice
+	starts = b.inOrderBlockStarts
+	copy(starts[idx+1:], starts[idx:])
+	starts[idx] = newTime
+}
+
+func (b *dbBuffer) inOrderBlockStartsRemove(removeTime time.Time) {
+	starts := b.inOrderBlockStarts
+	// There shouldn't be that many starts here, so just linear search through.
+	for i, t := range starts {
+		if t.Equal(removeTime) {
+			b.inOrderBlockStarts = append(starts[:i], starts[i+1:]...)
+			return
+		}
+	}
 }
 
 // BufferBucketVersions is a container for different versions (from
