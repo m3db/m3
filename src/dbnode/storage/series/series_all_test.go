@@ -98,3 +98,33 @@ func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader
 		assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
 	}
 }
+
+func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]decodedValue, error) {
+	iter := opts.MultiReaderIteratorPool().Get()
+	iter.Reset(results, time.Time{}, time.Duration(0))
+	defer iter.Close()
+
+	var all []decodedValue
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return all, nil
+}
+
+func assertSegmentValuesEqual(t *testing.T, values []value, results []xio.SegmentReader, opts Options) {
+	decodedValues, err := decodedSegmentValues(results, opts)
+
+	assert.NoError(t, err)
+	assert.Len(t, decodedValues, len(values))
+	for i := 0; i < len(decodedValues); i++ {
+		assert.True(t, values[i].timestamp.Equal(decodedValues[i].timestamp))
+		assert.Equal(t, values[i].value, decodedValues[i].value)
+		assert.Equal(t, values[i].unit, decodedValues[i].unit)
+		assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
+	}
+}
