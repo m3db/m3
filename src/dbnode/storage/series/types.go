@@ -172,15 +172,17 @@ type TickStatus struct {
 	PendingMergeBlocks int
 }
 
-// TickResult is a set of results from a tick
+// TickResult is a set of results from a tick.
 type TickResult struct {
 	TickStatus
-	// MadeExpiredBlocks is count of blocks just expired
+	// MadeExpiredBlocks is count of blocks just expired.
 	MadeExpiredBlocks int
-	// MadeUnwiredBlocks is count of blocks just unwired from memory
+	// MadeUnwiredBlocks is count of blocks just unwired from memory.
 	MadeUnwiredBlocks int
-	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams
+	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams.
 	MergedOutOfOrderBlocks int
+	// EvictedBuckets is count of buckets just evicted from the buffer map.
+	EvictedBuckets int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool
