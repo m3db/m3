@@ -220,7 +220,6 @@ func Transform(ctx *Context, in ts.SeriesList, t Transformer, renamer SeriesRena
 		}
 
 		results[i] = ts.NewSeries(ctx, renamer(series), series.StartTime(), values)
-		results[i].Tags = series.Tags
 	}
 
 	in.Values = results
@@ -275,8 +274,6 @@ func Stdev(ctx *Context, in ts.SeriesList, points int, windowTolerance float64, 
 			}
 		}
 		stdevSeries := ts.NewSeries(ctx, stdevName, series.StartTime(), stdevVals)
-		// Preserve tags
-		stdevSeries.Tags = series.Tags
 		results = append(results, stdevSeries)
 	}
 	in.Values = results
@@ -328,7 +325,6 @@ func PerSecond(ctx *Context, in ts.SeriesList, renamer SeriesRenamer) (ts.Series
 		}
 
 		s := ts.NewSeries(ctx, renamer(series), series.StartTime(), vals)
-		s.Tags = series.Tags
 		results = append(results, s)
 	}
 

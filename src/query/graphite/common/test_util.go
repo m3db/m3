@@ -40,12 +40,6 @@ type TestSeries struct {
 	Data []float64
 }
 
-// TestSeriesWithTags is used to create a tsdb.timeSeries that contains tags
-type TestSeriesWithTags struct {
-	Series TestSeries
-	Tags   map[string]string
-}
-
 // NewTestContext creates a new test context.
 func NewTestContext() *Context {
 	now := time.Now()
@@ -111,20 +105,6 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", step, a.Len())
 			}
 		}
-	}
-}
-
-// CompareOutputsAndExpectedWithTags compares two time series that contain tags
-func CompareOutputsAndExpectedWithTags(t *testing.T, step int, start time.Time, expected []TestSeriesWithTags,
-	actual []*ts.Series) {
-	expectedSeries := make([]TestSeries, 0, len(expected))
-	for _, series := range expected {
-		expectedSeries = append(expectedSeries, series.Series)
-	}
-	CompareOutputsAndExpected(t, step, start, expectedSeries, actual)
-
-	for i := range expected {
-		assert.Equal(t, expected[i].Tags, actual[i].Tags)
 	}
 }
 

@@ -112,9 +112,8 @@ func (dp RenderDatapoints) Get(i int) (time.Time, float64) {
 
 // A RenderTarget is the result of rendering a given target
 type RenderTarget struct {
-	Target     string            `json:"target"`
-	Tags       map[string]string `json:"tags,omitempty"`
-	Datapoints RenderDatapoints  `json:"datapoints"`
+	Target     string           `json:"target"`
+	Datapoints RenderDatapoints `json:"datapoints"`
 }
 
 // RenderResults are the results from a render API call

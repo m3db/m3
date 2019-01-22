@@ -162,7 +162,6 @@ func Normalize(ctx *Context, input ts.SeriesList) (ts.SeriesList, time.Time, tim
 		c := ts.NewConsolidation(ctx, minBegin, maxEnd, lcmMillisPerStep, ts.Avg)
 		c.AddSeries(in, ts.Avg)
 		results[i] = c.BuildSeries(in.Name(), ts.Finalize)
-		results[i].Tags = in.Tags
 	}
 
 	input.Values = results
@@ -279,7 +278,6 @@ func Changed(ctx *Context, seriesList ts.SeriesList, renamer SeriesRenamer) (ts.
 			}
 		}
 		newSeries := ts.NewSeries(ctx, renamer(series), series.StartTime(), vals)
-		newSeries.Tags = series.Tags
 		results = append(results, newSeries)
 	}
 	seriesList.Values = results

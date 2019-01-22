@@ -337,8 +337,6 @@ func TestIntersectAndResize(t *testing.T) {
 		values.SetValueAt(i, float64(i+1))
 	}
 	series := NewSeries(ctx, "foo", seriesStart, values)
-	series.Tags = map[string]string{"foo": "bar", "biz": "baz"}
-
 	tests := []struct {
 		startOffset time.Duration
 		endOffset   time.Duration
@@ -369,7 +367,6 @@ func TestIntersectAndResize(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, start, result.StartTime())
 		require.Equal(t, end, result.EndTime())
-		require.Equal(t, series.Tags, result.Tags)
 		require.Equal(t, series.Specification, result.Specification)
 		require.Equal(t, series.Name(), result.Name())
 		require.Equal(t, test.newStep, result.MillisPerStep())

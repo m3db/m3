@@ -90,11 +90,18 @@ func (r *multiResult) FinalResultWithAttrs() (
 		return nil, nil, err
 	}
 
-	i := 0
 	attrs := make([]storage.Attributes, iters.Len())
-	for _, res := range r.dedupeMap {
-		attrs[i] = res.attrs
-		i++
+	// TODO: add testing around here.
+	if r.dedupeMap == nil {
+		for i := range attrs {
+			attrs[i] = r.seenFirstAttrs
+		}
+	} else {
+		i := 0
+		for _, res := range r.dedupeMap {
+			attrs[i] = res.attrs
+			i++
+		}
 	}
 
 	return iters, attrs, nil

@@ -21,8 +21,6 @@
 package graphite
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -74,49 +72,6 @@ func MetricTypeFromID(id string) metric.Type {
 	default:
 		return metric.UnknownType
 	}
-}
-
-// MetricTypeFromTags returns a MetricType for a series by
-// introspecting the series Tags property for a metric type name.
-// Defaults to Counts
-func MetricTypeFromTags(tags map[string]string) MetricType {
-	v := tags[TypeStr]
-	switch v {
-	case CountsStr, CounterStr:
-		return Counts
-	case TimersStr, TimerStr:
-		return Timers
-	case GaugesStr, GaugeStr:
-		return Gauges
-	case RatiosStr:
-		return Ratios
-	default:
-		return Counts
-	}
-}
-
-// MetricTypeStrFromTags returns a MetricType string to use in the MetricID of a series
-// by introspecting the series Tags property for a metric type name.
-// It will return an error if the metric type is not counter, timer or gauge.
-func MetricTypeStrFromTags(tags map[string]string) (string, error) {
-	mt := MetricTypeFromTags(tags)
-	switch mt {
-	case Counts:
-		return CountsStr, nil
-	case Timers:
-		return TimersStr, nil
-	case Gauges:
-		return GaugesStr, nil
-	default:
-		return "", errors.New("unknown type in the tags")
-	}
-}
-
-// ConsolidationFuncFromTags returns the appropriate consolidation function for
-// the metric type represented in the given series.
-func ConsolidationFuncFromTags(tags map[string]string) ts.ConsolidationApproach {
-	mt := MetricTypeFromTags(tags)
-	return ConsolidationFuncForMetricType(mt)
 }
 
 // ConsolidationFuncForMetricType returns the appropriate consolidation function

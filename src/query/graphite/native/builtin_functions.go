@@ -1793,10 +1793,6 @@ func dashed(_ *common.Context, seriesList singlePathSpec, dashLength float64) (t
 	for idx, s := range seriesList.Values {
 		name := fmt.Sprintf("dashed(%s, "+common.FloatingPointFormat+")", s.Name(), dashLength)
 		renamed := s.RenamedTo(name)
-		if renamed.GraphOptions == nil {
-			renamed.GraphOptions = make(map[string]string)
-		}
-		renamed.GraphOptions["dashed"] = fmt.Sprintf(common.FloatingPointFormat, dashLength)
 		results[idx] = renamed
 	}
 
@@ -1817,12 +1813,6 @@ func threshold(ctx *common.Context, value float64, label string, color string) (
 	series := seriesList.Values[0]
 	if label != "" {
 		series = series.RenamedTo(label)
-	}
-	if color != "" {
-		if series.GraphOptions == nil {
-			series.GraphOptions = make(map[string]string)
-		}
-		series.GraphOptions["color"] = color
 	}
 
 	return ts.SeriesList{Values: []*ts.Series{series}}, nil

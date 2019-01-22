@@ -45,72 +45,6 @@ func Alias(_ *Context, series ts.SeriesList, a string) (ts.SeriesList, error) {
 	return series, nil
 }
 
-// AliasByTagsStrings allows you to alias by strings and tags.
-// Tags are denoted by {{.TagName}} in the argument you pass in.
-// e.g. 'fetch foo:bar | AliasByTagsStrings {{.foo}}-baz' will produce the alias 'bar-baz'
-func AliasByTagsStrings(ctx *Context, series ts.SeriesList, str string) (ts.SeriesList, error) {
-	wordsList, tags, err := getTagsFromString(str)
-	if err != nil {
-		return ts.SeriesList{}, err
-	}
-
-	if len(tags) == 0 {
-		// TODO(r): Test this case, had to add a return here... clearly no tests for this.
-		return Alias(ctx, series, wordsList)
-	}
-
-	renamed := make([]*ts.Series, series.Len())
-
-	for i, s := range series.Values {
-		var values []interface{}
-		for _, t := range tags {
-			if val, ok := s.Tags[t]; ok {
-				values = append(values, val)
-			} else {
-				// If tag specified in the alias function does not exist in the timeseries
-				return ts.SeriesList{}, fmt.Errorf("This tag (%v) does not exist for timeseries: %v", t, s.Name())
-			}
-		}
-		str = fmt.Sprintf(wordsList, values...)
-		renamed[i] = s.RenamedTo(str)
-	}
-
-	series.Values = renamed
-	return series, nil
-}
-
-// getTagsFromString pulls out the tags specified in the argument provided
-// by the user in the alias function and stores them in a 'tags' list. It then
-// replaces the tag with a %s so that the main function can replace those
-// with the tag values. For example, if you give the argument '{{.foo}}-baz',
-// this function pulls out 'foo' (the tag) and you are left with '%s-baz'
-func getTagsFromString(tag string) (string, []string, error) {
-	var tags, text []string
-
-	opening := "{{."
-	closing := "}}"
-
-	for {
-		tagStart := strings.Index(tag, opening)
-		tagEnd := strings.Index(tag, closing)
-		if tagStart == -1 && tagEnd == -1 {
-			text = append(text, tag)
-			break
-		}
-		if tagStart == -1 && tagEnd != -1 {
-			return "", nil, fmt.Errorf("Found unexpected closing bracket ('}') in string: %s", tag)
-		}
-		if tagEnd == -1 || tagEnd < tagStart {
-			return "", nil, fmt.Errorf("Unable to find closing bracket ('}') in string: %s", tag)
-		}
-		text = append(text, tag[:tagStart])
-		text = append(text, "%s")
-		tags = append(tags, tag[tagStart+len(opening):tagEnd])
-		tag = tag[tagEnd+len(closing):]
-	}
-	return strings.Join(text, ""), tags, nil
-}
-
 // AliasByMetric takes a seriesList and applies an alias derived from the base
 // metric name.
 func AliasByMetric(ctx *Context, series ts.SeriesList) (ts.SeriesList, error) {
@@ -193,23 +127,4 @@ func AliasSub(_ *Context, input ts.SeriesList, search, replace string) (ts.Serie
 
 	input.Values = output
 	return input, nil
-}
-
-// AliasByTags takes in multiple tag names and will rename the series
-// based on available tags. if a tag value is not found, it is ignored.
-func AliasByTags(_ *Context, in ts.SeriesList, tags ...string) (ts.SeriesList, error) {
-	values := make([]string, len(tags))
-	renamed := make([]*ts.Series, in.Len())
-	for i, s := range in.Values {
-		for j, t := range tags {
-			if value, exists := s.Tags[t]; exists {
-				values[j] = value
-			} else {
-				values[j] = ""
-			}
-		}
-		renamed[i] = s.RenamedTo(strings.TrimSpace(strings.Join(values, " ")))
-	}
-	in.Values = renamed
-	return in, nil
 }

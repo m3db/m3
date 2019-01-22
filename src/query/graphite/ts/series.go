@@ -51,12 +51,6 @@ type Series struct {
 	// specific results.
 	Specification string
 
-	// Metric tags.
-	Tags map[string]string
-
-	// options for graphing
-	GraphOptions map[string]string
-
 	// consolidationFunc specifies how the series will be consolidated when the
 	// number of data points in the series is more than the maximum number allowed.
 	consolidationFunc ConsolidationFunc
@@ -89,8 +83,6 @@ func NewSeries(ctx context.Context, name string, startTime time.Time, vals Value
 func (b *Series) DerivedSeries(startTime time.Time, vals Values) *Series {
 	series := NewSeries(b.ctx, b.name, startTime, vals)
 	series.Specification = b.Specification
-	series.Tags = b.Tags
-	series.GraphOptions = b.GraphOptions
 	series.consolidationFunc = b.consolidationFunc
 	return series
 }
@@ -106,8 +98,6 @@ func (b *Series) RenamedTo(name string) *Series {
 		vals:              b.vals,
 		ctx:               b.ctx,
 		Specification:     b.Specification,
-		Tags:              b.Tags,
-		GraphOptions:      b.GraphOptions,
 		consolidationFunc: b.consolidationFunc,
 	}
 }
@@ -120,8 +110,6 @@ func (b *Series) Shift(shift time.Duration) *Series {
 		vals:              b.vals,
 		ctx:               b.ctx,
 		Specification:     b.Specification,
-		Tags:              b.Tags,
-		GraphOptions:      b.GraphOptions,
 		consolidationFunc: b.consolidationFunc,
 	}
 }
@@ -167,8 +155,6 @@ func (b *Series) Slice(begin, end int) (*Series, error) {
 	}
 
 	result := NewSeries(b.ctx, b.name, b.StartTimeForStep(begin), b.vals.Slice(begin, end))
-	result.Tags = b.Tags
-	result.GraphOptions = b.GraphOptions
 	result.consolidationFunc = b.consolidationFunc
 
 	return result, nil
@@ -343,7 +329,6 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 			numSteps:      0,
 		})
 		ts.Specification = b.Specification
-		ts.Tags = b.Tags
 		return ts, nil
 	}
 	if b.MillisPerStep() == millisPerStep {
@@ -359,7 +344,6 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 		numSteps:      len(v.values),
 	})
 	ts.Specification = b.Specification
-	ts.Tags = b.Tags
 	return ts, nil
 }
 

@@ -2236,7 +2236,7 @@ func TestRangeOfSeries(t *testing.T) {
 
 type percentileFunction func(ctx *common.Context, seriesList singlePathSpec, percentile float64) (ts.SeriesList, error)
 
-func testPercentileFunction(t *testing.T, f percentileFunction, expected []common.TestSeriesWithTags) {
+func testPercentileFunction(t *testing.T, f percentileFunction, expected []common.TestSeries) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
 
@@ -2248,28 +2248,24 @@ func testPercentileFunction(t *testing.T, f percentileFunction, expected []commo
 		startTime   time.Time
 		stepInMilli int
 		values      []float64
-		tags        map[string]string
 	}{
 		{
 			"foo",
 			startTime,
 			stepSize,
 			[]float64{nan, nan, nan, nan, nan},
-			map[string]string{"city": "Maplewood", "state": "NJ"},
 		},
 		{
 			"bar",
 			startTime,
 			stepSize,
 			[]float64{3.0, 2.0, 4.0, nan, 1.0, 6.0, nan, 5.0},
-			map[string]string{"title": "24", "star": "Jack Bauer", "rating": "5.0"},
 		},
 		{
 			"baz",
 			startTime,
 			stepSize,
 			[]float64{1.0},
-			map[string]string{"name": "Giants", "location": "New York City", "color": "blue"},
 		},
 	}
 
@@ -2281,7 +2277,6 @@ func testPercentileFunction(t *testing.T, f percentileFunction, expected []commo
 			input.startTime,
 			common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
 		)
-		series.Tags = input.tags
 		inputSeries = append(inputSeries, series)
 	}
 	percentile := 40.123
@@ -2289,25 +2284,19 @@ func testPercentileFunction(t *testing.T, f percentileFunction, expected []commo
 		Values: inputSeries,
 	}, percentile)
 	require.Nil(t, err)
-	common.CompareOutputsAndExpectedWithTags(t, stepSize, startTime,
+	common.CompareOutputsAndExpected(t, stepSize, startTime,
 		expected, results.Values)
 }
 
 func TestNPercentile(t *testing.T) {
-	expected := []common.TestSeriesWithTags{
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "nPercentile(bar, 40.123)",
-				Data: []float64{3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
-			},
-			Tags: map[string]string{"title": "24", "star": "Jack Bauer", "rating": "5.0"},
+	expected := []common.TestSeries{
+		common.TestSeries{
+			Name: "nPercentile(bar, 40.123)",
+			Data: []float64{3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
 		},
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "nPercentile(baz, 40.123)",
-				Data: []float64{1.0},
-			},
-			Tags: map[string]string{"name": "Giants", "location": "New York City", "color": "blue"},
+		common.TestSeries{
+			Name: "nPercentile(baz, 40.123)",
+			Data: []float64{1.0},
 		},
 	}
 	testPercentileFunction(t, nPercentile, expected)
@@ -2315,27 +2304,18 @@ func TestNPercentile(t *testing.T) {
 
 func TestRemoveAbovePercentile(t *testing.T) {
 	nan := math.NaN()
-	expected := []common.TestSeriesWithTags{
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "removeAbovePercentile(foo, 40.123)",
-				Data: []float64{nan, nan, nan, nan, nan},
-			},
-			Tags: map[string]string{"city": "Maplewood", "state": "NJ"},
+	expected := []common.TestSeries{
+		common.TestSeries{
+			Name: "removeAbovePercentile(foo, 40.123)",
+			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "removeAbovePercentile(bar, 40.123)",
-				Data: []float64{3.0, 2.0, nan, nan, 1.0, nan, nan, nan},
-			},
-			Tags: map[string]string{"title": "24", "star": "Jack Bauer", "rating": "5.0"},
+		common.TestSeries{
+			Name: "removeAbovePercentile(bar, 40.123)",
+			Data: []float64{3.0, 2.0, nan, nan, 1.0, nan, nan, nan},
 		},
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "removeAbovePercentile(baz, 40.123)",
-				Data: []float64{1.0},
-			},
-			Tags: map[string]string{"name": "Giants", "location": "New York City", "color": "blue"},
+		common.TestSeries{
+			Name: "removeAbovePercentile(baz, 40.123)",
+			Data: []float64{1.0},
 		},
 	}
 
@@ -2345,27 +2325,18 @@ func TestRemoveAbovePercentile(t *testing.T) {
 func TestRemoveBelowPercentile(t *testing.T) {
 	nan := math.NaN()
 
-	expected := []common.TestSeriesWithTags{
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "removeBelowPercentile(foo, 40.123)",
-				Data: []float64{nan, nan, nan, nan, nan},
-			},
-			Tags: map[string]string{"city": "Maplewood", "state": "NJ"},
+	expected := []common.TestSeries{
+		common.TestSeries{
+			Name: "removeBelowPercentile(foo, 40.123)",
+			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "removeBelowPercentile(bar, 40.123)",
-				Data: []float64{3.0, nan, 4.0, nan, nan, 6.0, nan, 5.0},
-			},
-			Tags: map[string]string{"title": "24", "star": "Jack Bauer", "rating": "5.0"},
+		common.TestSeries{
+			Name: "removeBelowPercentile(bar, 40.123)",
+			Data: []float64{3.0, nan, 4.0, nan, nan, 6.0, nan, 5.0},
 		},
-		common.TestSeriesWithTags{
-			Series: common.TestSeries{
-				Name: "removeBelowPercentile(baz, 40.123)",
-				Data: []float64{1.0},
-			},
-			Tags: map[string]string{"name": "Giants", "location": "New York City", "color": "blue"},
+		common.TestSeries{
+			Name: "removeBelowPercentile(baz, 40.123)",
+			Data: []float64{1.0},
 		},
 	}
 
@@ -2777,7 +2748,6 @@ func TestDashed(t *testing.T) {
 		}
 		common.CompareOutputsAndExpected(t, stepSize, startTime,
 			[]common.TestSeries{expected}, results.Values)
-		require.Equal(t, "3.000", results.Values[0].GraphOptions["dashed"])
 	}
 }
 
@@ -2791,7 +2761,6 @@ func TestThreshold(t *testing.T) {
 	results := r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, "bar", results[0].Name())
-	require.Equal(t, "yellow", results[0].GraphOptions["color"])
 
 	r, err = threshold(ctx, 1.0, "", "red")
 	require.NoError(t, err)
@@ -2799,7 +2768,6 @@ func TestThreshold(t *testing.T) {
 	results = r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, "1.000", results[0].Name())
-	require.Equal(t, "red", results[0].GraphOptions["color"])
 
 	r, err = threshold(ctx, 1.0, "", "")
 	require.NoError(t, err)
@@ -2807,7 +2775,6 @@ func TestThreshold(t *testing.T) {
 	results = r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, "1.000", results[0].Name())
-	require.Nil(t, results[0].GraphOptions)
 }
 
 func TestFunctionsRegistered(t *testing.T) {

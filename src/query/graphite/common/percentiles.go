@@ -114,7 +114,6 @@ func NPercentile(ctx *Context, in ts.SeriesList, percentile float64, pn Percenti
 		if !math.IsNaN(percentileVal) {
 			vals := ts.NewConstantValues(ctx, percentileVal, s.Len(), s.MillisPerStep())
 			percentileSeries := ts.NewSeries(ctx, pn(s.Name(), percentile), s.StartTime(), vals)
-			percentileSeries.Tags = s.Tags
 			results = append(results, percentileSeries)
 		}
 	}
@@ -152,7 +151,6 @@ func RemoveByPercentile(
 		}
 		name := pn(series.Name(), percentile)
 		newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
-		newSeries.Tags = series.Tags
 		results = append(results, newSeries)
 	}
 	in.Values = results
