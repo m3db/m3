@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+
+	"github.com/uber-go/tally"
 )
 
 // ConnectionConfiguration configs the connection options.
@@ -148,7 +150,7 @@ func (c *WriterConfiguration) NewOptions(
 		opts = opts.SetCloseCheckInterval(*c.CloseCheckInterval)
 	}
 	if c.AckErrorRetry != nil {
-		opts = opts.SetAckErrorRetryOptions(c.AckErrorRetry.NewOptions(iOpts.MetricsScope()))
+		opts = opts.SetAckErrorRetryOptions(c.AckErrorRetry.NewOptions(tally.NoopScope))
 	}
 	if c.Encoder != nil {
 		opts = opts.SetEncoderOptions(c.Encoder.NewOptions(iOpts))

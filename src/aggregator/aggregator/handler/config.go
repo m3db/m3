@@ -173,7 +173,7 @@ func (c *writerConfiguration) NewWriterOptions(
 		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
 	})
 	if c.BytesPool != nil {
-		iOpts := iOpts.SetMetricsScope(scope.SubScope("buffered-bytes-pool"))
+		iOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"pool": "buffered-bytes-pool"}))
 		bytesPool := pool.NewBytesPool(c.BytesPool.NewBuckets(), c.BytesPool.NewObjectPoolOptions(iOpts))
 		bytesPool.Init()
 		opts = opts.SetBytesPool(bytesPool)
