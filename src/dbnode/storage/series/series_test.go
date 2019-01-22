@@ -125,14 +125,10 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
 	require.True(t, exists)
-	blocks, err := buckets.toBlocks()
+	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
-	require.Len(t, blocks, 1)
-	stream, err := blocks[0].Stream(ctx)
-	require.NoError(t, err)
-	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
-		stream,
-	}}, opts)
+	require.Len(t, streams, 1)
+	assertSegmentValuesEqual(t, data[:2], streams, opts)
 }
 
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
