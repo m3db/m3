@@ -1,5 +1,5 @@
-hash: 3b9f18246edf191b3b76191c4f5b17dfaab32830c8c6fbac9c8f1699bad13b3f
-updated: 2019-01-20T14:42:37.326427-05:00
+hash: 7816459a3b9008d084494669516d5e9898b2a068bb4809fa7f99b0e026d510ef
+updated: 2019-01-22T20:13:11.824931-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -177,7 +177,7 @@ imports:
 - name: github.com/google/uuid
   version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
 - name: github.com/gorilla/context
-  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+  version: 51ce91d2eaddeca0ef29a71d766bb3634dadf729
 - name: github.com/gorilla/mux
   version: e3702bed27f0d39777b0b37b664b6280e8ef8fbf
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
@@ -244,6 +244,7 @@ imports:
   - tcp
   - test
   - time
+  - unsafe
   - watch
 - name: github.com/m3db/prometheus_client_golang
   version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
@@ -293,7 +294,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-buffruneio
-  version: e2f66f8164ca709d4c21e815860afd2024e9b894
+  version: 25c428535bd3f55a16f149a9daebd3fa4c5a562b
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
@@ -453,7 +454,7 @@ imports:
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: e48874b42435b4347fc52bdee0424a52abc974d7
+  version: c200b10b5d5e122be351b67af224adc6128af5bf
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -484,25 +485,39 @@ imports:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
+  version: a02b0774206b209466313a0b525d2c738fe407eb
   subpackages:
   - balancer
+  - balancer/base
+  - balancer/roundrobin
+  - binarylog/grpc_binarylog_v1
   - codes
   - connectivity
   - credentials
-  - grpclb/grpc_lb_v1/messages
+  - credentials/internal
+  - encoding
+  - encoding/proto
   - grpclog
   - health/grpc_health_v1
   - internal
+  - internal/backoff
+  - internal/binarylog
+  - internal/channelz
+  - internal/envconfig
+  - internal/grpcrand
+  - internal/grpcsync
+  - internal/syscall
+  - internal/transport
   - keepalive
   - metadata
   - naming
   - peer
   - resolver
+  - resolver/dns
+  - resolver/passthrough
   - stats
   - status
   - tap
-  - transport
 - name: gopkg.in/alecthomas/kingpin.v2
   version: 947dcec5ba9c011838740e680966fd7087a71d0d
   repo: https://github.com/alecthomas/kingpin.git
@@ -531,12 +546,12 @@ testImports:
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/glycerine/go-unsnap-stream
-  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
+  version: f9677308dec2b35e76737f9713df328ad11b1fea
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
-  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
+  version: ade0ca4ace05af96235d107023ab018ee921309c
   subpackages:
   - msgp
