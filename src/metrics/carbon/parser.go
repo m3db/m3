@@ -247,6 +247,7 @@ func (s *Scanner) Scan() bool {
 
 		var err error
 		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Bytes()); err != nil {
+			// TODO: Log malformed
 			s.MalformedCount++
 			continue
 		}
@@ -277,7 +278,7 @@ func parseWordOffsets(b []byte) (int, int) {
 		}
 	}
 
-	valEnd := -1
+	valEnd := valStart
 	reachedEnd := true
 	for i := valStart + 1; i < len(b); i++ {
 		valEnd = i

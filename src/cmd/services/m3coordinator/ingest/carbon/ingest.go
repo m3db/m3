@@ -87,21 +87,40 @@ func (i *ingester) Handle(conn net.Conn) {
 		s  = carbon.NewScanner(conn)
 	)
 
+	fmt.Println("start scan")
 	for s.Scan() {
 		_, timestamp, value := s.Metric()
 
+		fmt.Println("da fuq")
 		wg.Add(1)
-		i.opts.WorkerPool.Go(func() {
-			// TODO: Real context?
-			datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
-			i.downsamplerAndWriter.Write(
-				context.Background(), models.Tags{}, datapoints, xtime.Second)
-			wg.Done()
-		})
+		if i.opts.WorkerPool != nil {
+			i.opts.WorkerPool.Go(func() {
+				// TODO: Real context?
+				datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
+				i.downsamplerAndWriter.Write(
+					context.Background(), models.Tags{}, datapoints, xtime.Second)
+				wg.Done()
+			})
+		} else {
+			go func() {
+				// TODO: Real context?
+				datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
+				fmt.Println("hmm:", datapoints)
+				i.downsamplerAndWriter.Write(
+					context.Background(), models.Tags{}, datapoints, xtime.Second)
+				fmt.Println("hmm done:", datapoints)
+				wg.Done()
+			}()
+		}
+
 		// i.metrics.malformedCounter.Inc(int64(s.MalformedCount))
 		s.MalformedCount = 0
 	}
+	fmt.Println("end scan")
 
+	if err := s.Err(); err != nil {
+		fmt.Println(err)
+	}
 	// Wait for all outstanding writes
 	wg.Wait()
 }
