@@ -21,33 +21,86 @@
 package storage
 
 import (
-	"time"
+	"fmt"
 
-	"github.com/m3db/m3/src/query/graphite/context"
-	"github.com/m3db/m3/src/query/graphite/ts"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/models"
 )
 
-// ConvertToGraphiteTS converts a
-func ConvertToGraphiteTS(
-	ctx context.Context,
-	start time.Time,
-	fetched *storage.FetchResult,
-) (*FetchResult, error) {
-	list := fetched.SeriesList
-	seriesList := make([]*ts.Series, len(list))
-	for i, series := range list {
-		name := series.Name()
+const (
+	// graphiteFormat is the format for graphite metric tag names, which will be
+	// represented as tag/value pairs in m3db.
+	//
+	// NB: stats.gauges.donkey.kong.barrels would become the following tag set:
+	// {__graphite0__: stats}
+	// {__graphite1__: gauges}
+	// {__graphite2__: donkey}
+	// {__graphite3__: kong}
+	// {__graphite4__: barrels}
+	graphiteFormat          = "__graphite%d__"
+	numPreFormattedKeyNames = 124
+	carbonSeparatorByte     = byte('.')
+	carbonGlobRune          = '*'
+)
 
-		// FIXME: add in the millis per step for this series
-		vals := ts.NewValues(ctx, 0, series.Len())
-		dps := series.Values().Datapoints()
-		for i, dp := range dps {
-			vals.SetValueAt(i, dp.Value)
-		}
+var (
+	// Number of pre-formatted key names to generate in the init() function.
+	preFormattedKeyNames [][]byte
+)
 
-		seriesList[i] = ts.NewSeries(ctx, name, start, vals)
+func init() {
+	preFormattedKeyNames = make([][]byte, numPreFormattedKeyNames)
+	for i := 0; i < numPreFormattedKeyNames; i++ {
+		preFormattedKeyNames[i] = generateKeyName(i)
+	}
+}
+
+func getOrGenerateKeyName(idx int) []byte {
+	if idx < len(preFormattedKeyNames) {
+		return preFormattedKeyNames[idx]
 	}
 
-	return NewFetchResult(ctx, seriesList), nil
+	return []byte(fmt.Sprintf(graphiteFormat, idx))
+}
+
+func generateKeyName(idx int) []byte {
+	return []byte(fmt.Sprintf(graphiteFormat, idx))
+}
+
+func glob(metric string) []byte {
+	globLen := len(metric)
+	for _, c := range metric {
+		if c == carbonGlobRune {
+			globLen++
+		}
+	}
+
+	glob := make([]byte, globLen)
+	i := 0
+	for _, c := range metric {
+		if c == carbonGlobRune {
+			glob[i] = carbonSeparatorByte
+			i++
+		}
+
+		glob[i] = byte(c)
+		i++
+	}
+
+	return glob
+}
+
+func convertMetricPartToMatcher(count int, metric string) models.Matcher {
+	return models.Matcher{
+		Type:  models.MatchRegexp,
+		Name:  getOrGenerateKeyName(count),
+		Value: glob(metric),
+	}
+}
+
+func matcherTerminator(count int) models.Matcher {
+	return models.Matcher{
+		Type:  models.MatchNotRegexp,
+		Name:  getOrGenerateKeyName(count),
+		Value: []byte(".*"),
+	}
 }

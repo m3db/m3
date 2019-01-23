@@ -22,8 +22,6 @@ package ts
 
 import (
 	"fmt"
-
-	"github.com/m3db/m3/src/query/graphite/stats"
 )
 
 // ConsolidationApproach defines an approach to consolidating multiple datapoints
@@ -53,22 +51,6 @@ func (ca ConsolidationApproach) Func() ConsolidationFunc {
 	}
 
 	return f
-}
-
-// FromStatistics retrieves the statistic used for consolidation
-func (ca ConsolidationApproach) FromStatistics(a stats.Statistics) float64 {
-	switch ca {
-	case ConsolidationAvg, ConsolidationAverage:
-		return a.Mean
-	case ConsolidationMin:
-		return a.Min
-	case ConsolidationMax:
-		return a.Max
-	case ConsolidationSum:
-		return a.Sum
-	default:
-		panic(fmt.Sprintf("No aggregation access for %s", ca))
-	}
 }
 
 var (

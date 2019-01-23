@@ -81,8 +81,6 @@ func NewFetchResult(ctx context.Context, seriesList []*ts.Series) *FetchResult {
 	fetchResult.Reset()
 
 	fetchResult.SeriesList = seriesList
-
 	ctx.RegisterCloser(fetchResult)
-
 	return fetchResult
 }
