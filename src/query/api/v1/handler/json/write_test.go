@@ -33,6 +33,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFailingJSONWriteParsing(t *testing.T) {
+	badJSON := `{
+		   "tags": { "t
+			 "timestamp": "1534952005",
+			 "value": 10.0
+					}`
+
+	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(badJSON))
+	jsonWrite := &WriteJSONHandler{store: nil}
+	_, err := jsonWrite.parseRequest(req)
+	require.Error(t, err)
+}
+
 func generateJSONWriteRequest() string {
 	return `{
 		   "tags": { "tag_one": "val_one", "tag_two": "val_two" },

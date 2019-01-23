@@ -124,7 +124,9 @@ func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *xhttp.Pa
 	}
 
 	var writeQuery *WriteQuery
-	json.Unmarshal(js, &writeQuery)
+	if err = json.Unmarshal(js, &writeQuery); err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
 
 	return writeQuery, nil
 }
