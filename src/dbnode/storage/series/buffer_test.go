@@ -321,9 +321,9 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 
 	blopts := opts.DatabaseBlockOptions()
 	newBlock := block.NewDatabaseBlock(curr, 0, encoder.Discard(), blopts)
-	b.blocks = append(b.blocks, newBlock)
+	b.bootstrapped = append(b.bootstrapped, newBlock)
 	ctx := opts.ContextPool().Get()
-	stream, err := b.blocks[0].Stream(ctx)
+	stream, err := b.bootstrapped[0].Stream(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
@@ -331,7 +331,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, mergeRes)
 	assert.Equal(t, 1, len(b.encoders))
-	assert.Equal(t, 0, len(b.blocks))
+	assert.Equal(t, 0, len(b.bootstrapped))
 }
 
 func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
@@ -657,7 +657,7 @@ func TestBuffertoStream(t *testing.T) {
 	bucket, exists := b.writableBucket(WarmWrite)
 	require.True(t, exists)
 	assert.Len(t, bucket.encoders, 4)
-	assert.Len(t, bucket.blocks, 0)
+	assert.Len(t, bucket.bootstrapped, 0)
 
 	stream, err := b.toStreams(ctx)
 	require.NoError(t, err)
