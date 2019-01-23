@@ -371,7 +371,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 
 	for _, values := range data {
 		for _, value := range values {
-			err := b.Write(value.timestamp, value.value,
+			err := b.write(value.timestamp, value.value,
 				value.unit, value.annotation)
 			require.NoError(t, err)
 		}
