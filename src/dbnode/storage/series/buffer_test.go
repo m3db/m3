@@ -376,7 +376,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 
 	for _, values := range data {
 		for _, value := range values {
-			wasWritten, err := b.Write(value.timestamp, value.value,
+			wasWritten, err := b.write(value.timestamp, value.value,
 				value.unit, value.annotation)
 			require.NoError(t, err)
 			require.True(t, wasWritten)
@@ -386,23 +386,17 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	// First assert that streams() call is correct
 	ctx := context.NewContext()
 
-	result := b.Streams(ctx)
+	result := b.streams(ctx)
 	require.NotNil(t, result)
 
 	results := [][]xio.BlockReader{result}
 
 	assertValuesEqual(t, expected, results, opts)
 
-	// Now assert that ToBlock() returns same expected result
-	block, err := b.ToBlock()
+	// Now assert that toStream() returns same expected result
+	stream, err := b.toStream(ctx)
 	require.NoError(t, err)
-
-	stream, err := block.Stream(ctx)
-	require.NoError(t, err)
-
-	results = [][]xio.BlockReader{[]xio.BlockReader{stream}}
-
-	assertValuesEqual(t, expected, results, opts)
+	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
 func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
@@ -410,8 +404,8 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 
-	b := &dbBufferBucket{opts: opts}
-	b.ResetTo(curr, WarmWrite, opts)
+	b := &BufferBucket{opts: opts}
+	b.resetTo(curr, WarmWrite, opts)
 
 	type dataWithShouldWrite struct {
 		v value
@@ -450,7 +444,7 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	for _, valuesWithMeta := range data {
 		for _, valueWithMeta := range valuesWithMeta {
 			value := valueWithMeta.v
-			wasWritten, err := b.Write(value.timestamp, value.value,
+			wasWritten, err := b.write(value.timestamp, value.value,
 				value.unit, value.annotation)
 			require.NoError(t, err)
 			assert.Equal(t, valueWithMeta.w, wasWritten)

@@ -168,10 +168,7 @@ func (b *dbBuffer) Write(
 	wopts WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
-	wType := wopts.WriteType
-	if wType == UndefinedWriteType {
-		wType = b.writeType(timestamp, now)
-	}
+	wType := wopts.ResolveWriteType(timestamp, now, b.bufferPast, b.bufferFuture)
 
 	if wType == ColdWrite {
 		if !b.coldWritesEnabled {
@@ -190,19 +187,7 @@ func (b *dbBuffer) Write(
 	blockStart := timestamp.Truncate(b.blockSize)
 	buckets := b.bucketsAtCreate(blockStart)
 	b.putBucketInCache(buckets)
-	return buckets.Write(timestamp, value, unit, annotation, wType)
-}
-
-func (b *dbBuffer) writeType(timestamp time.Time, now time.Time) WriteType {
-	ropts := b.opts.RetentionOptions()
-	futureLimit := now.Add(ropts.BufferFuture())
-	pastLimit := now.Add(-1 * ropts.BufferPast())
-
-	if pastLimit.Before(timestamp) && futureLimit.After(timestamp) {
-		return WarmWrite
-	}
-
-	return ColdWrite
+	return buckets.write(timestamp, value, unit, annotation, wType)
 }
 
 func (b *dbBuffer) IsEmpty() bool {
@@ -423,8 +408,12 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 			return nil
 		}
 
-		res = append(res, bv.streams(ctx, WarmWrite))
-		res = append(res, bv.streams(ctx, ColdWrite))
+		if streams := bv.streams(ctx, WarmWrite); streams != nil {
+			res = append(res, streams)
+		}
+		if streams := bv.streams(ctx, ColdWrite); streams != nil {
+			res = append(res, streams)
+		}
 
 		// NB(r): Store the last read time, should not set this when
 		// calling FetchBlocks as a read is differentiated from
@@ -647,14 +636,14 @@ func (b *BufferBucketVersions) streamsLen() int {
 	return res
 }
 
-func (b *BufferBucketVersions) Write(
+func (b *BufferBucketVersions) write(
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 	wType WriteType,
 ) (bool, error) {
-	return b.writableBucketCreate(wType).Write(timestamp, value, unit, annotation)
+	return b.writableBucketCreate(wType).write(timestamp, value, unit, annotation)
 }
 
 func (b *BufferBucketVersions) merge(wType WriteType) (int, error) {
@@ -793,7 +782,7 @@ func (b *BufferBucket) addBlock(
 	b.blocks = append(b.blocks, bl)
 }
 
-func (b *BufferBucket) Write(
+func (b *BufferBucket) write(
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,

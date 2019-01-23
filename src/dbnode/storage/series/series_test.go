@@ -154,7 +154,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	for i, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
 			require.True(t, wasWritten)
@@ -164,28 +164,15 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		ctx.Close()
 	}
 
-	assert.Equal(t, true, series.buffer.NeedsDrain())
-
-	// Tick the series which should cause a drain
-	_, err = series.Tick()
-	assert.NoError(t, err)
-
-	assert.Equal(t, false, series.buffer.NeedsDrain())
-
-	blocks := series.blocks.AllBlocks()
-	require.Len(t, blocks, 1)
-
-	block, ok := series.blocks.BlockAt(start)
-	assert.Equal(t, true, ok)
-
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	stream, err := block.Stream(ctx)
+	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
+	require.True(t, exists)
+	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:1], [][]xio.BlockReader{[]xio.BlockReader{
-		stream,
-	}}, opts)
+	require.Len(t, streams, 1)
+	assertSegmentValuesEqual(t, data[:1], streams, opts)
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {

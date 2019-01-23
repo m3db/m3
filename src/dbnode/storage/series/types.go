@@ -330,21 +330,41 @@ func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
 }
 
-// WriteType is an enum for warm/cold write types
+// WriteType is an enum for warm/cold write types.
 type WriteType int
 
 const (
-	// UndefinedWriteType is an undefined write type
+	// UndefinedWriteType is an undefined write type.
 	UndefinedWriteType WriteType = iota
 
-	// WarmWrite represents warm writes (within the buffer past/future window)
+	// WarmWrite represents warm writes (within the buffer past/future window).
 	WarmWrite
 
-	// ColdWrite represents cold writes (outside the buffer past/future window)
+	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
 
-// WriteOptions define different options for a write
+// WriteOptions define different options for a write.
 type WriteOptions struct {
 	WriteType WriteType
+}
+
+// ResolveWriteType returns whether a write is a cold write or warm write.
+func (w *WriteOptions) ResolveWriteType(
+	timestamp time.Time,
+	now time.Time,
+	bufferPast time.Duration,
+	bufferFuture time.Duration,
+) WriteType {
+	if w.WriteType != UndefinedWriteType {
+		return w.WriteType
+	}
+
+	pastLimit := now.Add(-1 * bufferPast)
+	futureLimit := now.Add(bufferFuture)
+	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
+		return ColdWrite
+	}
+
+	return WarmWrite
 }
