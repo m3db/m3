@@ -128,7 +128,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 	iter DownsampleAndWriteIter,
 ) error {
 	var (
-		wg       = &sync.WaitGroup{}
+		wg       = sync.WaitGroup{}
 		multiErr xerrors.MultiError
 		errLock  sync.Mutex
 		addError = func(err error) {
