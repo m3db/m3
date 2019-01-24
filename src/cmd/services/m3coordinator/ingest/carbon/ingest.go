@@ -103,7 +103,6 @@ type ingester struct {
 	metrics              carbonIngesterMetrics
 }
 
-// TODO(rartoul): Emit metrics
 func (i *ingester) Handle(conn net.Conn) {
 	var (
 		wg     = sync.WaitGroup{}
