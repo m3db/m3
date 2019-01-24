@@ -127,7 +127,7 @@ func (i *ingester) Handle(conn net.Conn) {
 			wg.Done()
 		})
 
-		i.metrics.malformed.Inc(s.MalformedCount)
+		i.metrics.malformed.Inc(int64(s.MalformedCount))
 		s.MalformedCount = 0
 	}
 
