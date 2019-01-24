@@ -27,12 +27,14 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/metrics/carbon"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
 	m3xserver "github.com/m3db/m3x/server"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -81,18 +83,20 @@ func NewIngester(
 ) (m3xserver.Handler, error) {
 	err := opts.Validate()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
+		logger:               opts.InstrumentOptions.Logger(),
 	}, nil
 }
 
 type ingester struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	opts                 Options
+	logger               log.Logger
 }
 
 // TODO(rartoul): Emit metrics
@@ -112,23 +116,7 @@ func (i *ingester) Handle(conn net.Conn) {
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
-			datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
-			// TODO(rartoul): Pool.
-			tags, err := GenerateTagsFromName(name)
-			if err != nil {
-				logger.Errorf("err generating tags from carbon name: %s, err: %s",
-					string(name), err)
-				return
-			}
-
-			// TODO(rartoul): Context with timeout?
-			err = i.downsamplerAndWriter.Write(
-				context.Background(), tags, datapoints, xtime.Second)
-			if err != nil {
-				logger.Errorf("err writing carbon metric: %s, err: %s",
-					string(name), err)
-			}
-
+			i.write(name, timestamp, value)
 			wg.Done()
 		})
 	}
@@ -142,6 +130,25 @@ func (i *ingester) Handle(conn net.Conn) {
 	logger.Debugf("all outstanding writes completed, shutting down carbon ingestion handler")
 
 	// Don't close the connection, that is the server's responsibility.
+}
+
+func (i *ingester) write(name []byte, timestamp time.Time, value float64) {
+	datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
+	// TODO(rartoul): Pool.
+	tags, err := GenerateTagsFromName(name)
+	if err != nil {
+		i.logger.Errorf("err generating tags from carbon name: %s, err: %s",
+			string(name), err)
+		return
+	}
+
+	// TODO(rartoul): Context with timeout?
+	err = i.downsamplerAndWriter.Write(
+		context.Background(), tags, datapoints, xtime.Second)
+	if err != nil {
+		i.logger.Errorf("err writing carbon metric: %s, err: %s",
+			string(name), err)
+	}
 }
 
 func (i *ingester) Close() {
