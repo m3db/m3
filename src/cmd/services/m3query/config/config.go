@@ -136,6 +136,7 @@ type IngestConfiguration struct {
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
 }
 
+// TODO(rartoul): Make this enabled by default.
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
 	Enabled        bool   `yaml:"enabled"`
