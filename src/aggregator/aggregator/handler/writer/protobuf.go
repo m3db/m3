@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3x/clock"
 	murmur3 "github.com/m3db/stackmurmur3"
@@ -115,7 +116,7 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 	}
 
 	w.metrics.encodeSuccess.Inc(1)
-	if err := w.p.Produce(newMessage(shard, w.encoder.Buffer())); err != nil {
+	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
 	}
@@ -156,11 +157,12 @@ func (w *protobufWriter) Close() error {
 
 type message struct {
 	shard uint32
+	sp    policy.StoragePolicy
 	data  protobuf.Buffer
 }
 
-func newMessage(shard uint32, data protobuf.Buffer) producer.Message {
-	return message{shard: shard, data: data}
+func newMessage(shard uint32, sp policy.StoragePolicy, data protobuf.Buffer) producer.Message {
+	return message{shard: shard, sp: sp, data: data}
 }
 
 func (d message) Shard() uint32 {
@@ -182,4 +184,26 @@ func (d message) Size() int {
 
 func (d message) Finalize(producer.FinalizeReason) {
 	d.data.Close()
+}
+
+type storagePolicyFilter struct {
+	acceptedStoragePolicies []policy.StoragePolicy
+}
+
+// NewStoragePolicyFilter creates a new storage policy based filter.
+func NewStoragePolicyFilter(acceptedStoragePolicies []policy.StoragePolicy) producer.FilterFunc {
+	return storagePolicyFilter{acceptedStoragePolicies}.Filter
+}
+
+func (f storagePolicyFilter) Filter(m producer.Message) bool {
+	msg, ok := m.(message)
+	if !ok {
+		return true
+	}
+	for _, accepted := range f.acceptedStoragePolicies {
+		if accepted == msg.sp {
+			return true
+		}
+	}
+	return false
 }
