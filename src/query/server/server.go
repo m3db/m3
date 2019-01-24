@@ -75,7 +75,8 @@ var (
 		Retention: 2 * 24 * time.Hour,
 	}
 
-	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
+	defaultCarbonIngesterListenAddress  = "0.0.0.0:7204"
+	defaultCarbonIngesterWorkerPoolSize = 1024
 )
 
 type cleanupFn func() error
@@ -286,8 +287,7 @@ func Run(runOpts RunOptions) {
 			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
 				SetGrowOnDemand(true).
 				SetKillWorkerProbability(0.001)
-			// TODO: Constants?
-			carbonWorkerPoolSize = 1024
+			carbonWorkerPoolSize = defaultCarbonIngesterWorkerPoolSize
 		}
 		workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
 		if err != nil {
