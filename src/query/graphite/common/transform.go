@@ -59,27 +59,6 @@ func (t statelessTransformer) Apply(value float64) float64 {
 
 func (t statelessTransformer) Reset() {}
 
-type statefulTransformer struct {
-	factory TransformFuncFactory
-	fn      TransformFunc
-}
-
-// NewStatefulTransformer creates a new stateful transformer
-func NewStatefulTransformer(factory TransformFuncFactory) Transformer {
-	return &statefulTransformer{factory: factory}
-}
-
-func (t *statefulTransformer) Apply(value float64) float64 {
-	if t.fn == nil {
-		t.fn = t.factory()
-	}
-	return t.fn(value)
-}
-
-func (t *statefulTransformer) Reset() {
-	t.fn = nil
-}
-
 // MaintainNaNTransformer only applies a given ValueTransformer to
 // non-NaN values.
 func MaintainNaNTransformer(f TransformFunc) TransformFunc {
@@ -326,69 +305,6 @@ func PerSecond(ctx *Context, in ts.SeriesList, renamer SeriesRenamer) (ts.Series
 
 		s := ts.NewSeries(ctx, renamer(series), series.StartTime(), vals)
 		results = append(results, s)
-	}
-
-	in.Values = results
-	return in, nil
-}
-
-// DynamicComparator compares values of input series to values of an operand. Values of the input
-// timeseries will get returned if the result of the callback function is true, else a NaN is
-// written to the new time series.
-func DynamicComparator(
-	ctx *Context,
-	in, operand ts.SeriesList,
-	comparator string,
-	fn func(v float64, comp float64) bool,
-) (ts.SeriesList, error) {
-	if operand.Len() != 1 {
-		return ts.SeriesList{}, errors.NewInvalidParamsError(
-			fmt.Errorf(
-				"operand must contain exactly 1 time series, instead it contains: %d time series",
-				operand.Len()))
-	}
-
-	var (
-		operandSeries = operand.Values[0]
-		results       = make([]*ts.Series, 0, in.Len())
-		valueSet      = make([]ts.MutableValues, 0, in.Len())
-	)
-
-	normalized, _, _, _, err := Normalize(ctx, ts.SeriesList{
-		Values: append(in.Values, operandSeries),
-	})
-	if err != nil {
-		return ts.SeriesList{}, fmt.Errorf("issue normalizing input and operand timeseries: %v", err)
-	}
-
-	in.Values = normalized.Values[:len(normalized.Values)-1]
-	operandSeries = normalized.Values[len(normalized.Values)-1]
-
-	for _, series := range in.Values {
-		values := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-		valueSet = append(valueSet, values)
-	}
-
-	for i := 0; i < operandSeries.Len(); i++ {
-		opVal := operandSeries.ValueAt(i)
-		for j, inSeries := range in.Values {
-			inVal := inSeries.ValueAt(i)
-
-			if math.IsNaN(inVal) || math.IsNaN(opVal) {
-				continue
-			}
-
-			if fn(inVal, opVal) {
-				valueSet[j].SetValueAt(i, inVal)
-			}
-		}
-	}
-
-	for i, s := range in.Values {
-		results = append(results, ts.NewSeries(ctx,
-			fmt.Sprintf("%s | %s (%s)", s.Name(), comparator, operandSeries.Name()),
-			s.StartTime(),
-			valueSet[i]))
 	}
 
 	in.Values = results

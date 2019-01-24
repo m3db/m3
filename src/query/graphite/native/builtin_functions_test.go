@@ -1957,9 +1957,6 @@ type mockStorage struct{}
 func (*mockStorage) FetchByQuery(
 	ctx xctx.Context, query string, opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	if query == "add warning" {
-		ctx.AddWarning(fmt.Errorf("warning"))
-	}
 	return storage.NewFetchResult(ctx, nil), nil
 }
 

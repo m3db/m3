@@ -23,7 +23,6 @@ package common
 import (
 	ctx "context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/context"
@@ -35,15 +34,6 @@ import (
 type contextBase struct {
 	// TimeRangeAdjusted is a boolean indicating whether the time range has an adjustment.
 	TimeRangeAdjusted bool
-
-	// LocalOnly determines whether the query fetches data from the local dc only
-	LocalOnly bool
-
-	// UseCache indicates whether the query should fetch data from the cache
-	UseCache bool
-
-	// UseM3DB indicates whether the query should fetch data from M3DB
-	UseM3DB bool
 
 	// The start time to query against.
 	StartTime time.Time
@@ -64,14 +54,10 @@ type contextBase struct {
 	// specify zero to indicate default timeout or a positive value
 	Timeout time.Duration
 
-	// Zone determines whether the query is restricted to a zone
-	Zone string
-
 	parent          *Context
 	reqCtx          ctx.Context
 	storageContext  context.Context
 	state           map[string]interface{}
-	cancelled       uint32
 	fetchBreakdowns []FetchBreakdown
 }
 
@@ -111,30 +97,9 @@ func NewContext(options ContextOptions) *Context {
 			EndTime:        options.End,
 			Engine:         options.Engine,
 			storageContext: context.New(),
-			LocalOnly:      options.LocalOnly,
-			UseCache:       options.UseCache,
-			UseM3DB:        options.UseM3DB,
 			Timeout:        options.Timeout,
-			Zone:           options.Zone,
 		},
 	}
-}
-
-// Cancel cancels the work for this context
-func (c *Context) Cancel() {
-	atomic.StoreUint32(&c.cancelled, 1)
-}
-
-// IsCancelled returns whether the work for this context has been cancelled
-func (c *Context) IsCancelled() bool {
-	result := atomic.LoadUint32(&c.cancelled) == 1
-	if result {
-		return true
-	}
-	if c.parent != nil {
-		return c.parent.IsCancelled()
-	}
-	return false
 }
 
 // TracingEnabled checks whether tracing is enabled for this context.
@@ -278,32 +243,6 @@ func (c *Context) Get(name string) interface{} {
 	val := c.state[name]
 	c.RUnlock()
 	return val
-}
-
-// AddWarning adds a warning error for methods to pass along to
-// clients regarding overall operation.
-func (c *Context) AddWarning(err error) {
-	c.storageContext.AddWarning(err)
-}
-
-// Warnings returns all current warnings for this context
-func (c *Context) Warnings() []error {
-	return c.storageContext.Warnings()
-}
-
-// ClearWarnings clears all warnings stored for this context
-func (c *Context) ClearWarnings() {
-	c.storageContext.ClearWarnings()
-}
-
-// Confidence returns the confidence of the datapoints returned by a query
-func (c *Context) Confidence() float64 {
-	return c.storageContext.Confidence()
-}
-
-// SetConfidence sets the confidence of the datapoints returned by a query
-func (c *Context) SetConfidence(values float64) error {
-	return c.storageContext.SetConfidence(values)
 }
 
 func (c *Context) setOrCreateState() {

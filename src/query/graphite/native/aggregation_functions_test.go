@@ -138,7 +138,6 @@ type mockEngine struct {
 		ctx context.Context,
 		query string,
 		start, end time.Time,
-		localOnly, useCache, useM3DB bool,
 		timeout time.Duration,
 	) (*storage.FetchResult, error)
 }
@@ -147,10 +146,9 @@ func (e mockEngine) FetchByQuery(
 	ctx context.Context,
 	query string,
 	start, end time.Time,
-	localOnly, useCache, useM3DB bool,
 	timeout time.Duration,
 ) (*storage.FetchResult, error) {
-	return e.fn(ctx, query, start, end, localOnly, useCache, useM3DB, timeout)
+	return e.fn(ctx, query, start, end, timeout)
 }
 
 func TestVariadicSumSeries(t *testing.T) {
@@ -162,7 +160,6 @@ func TestVariadicSumSeries(t *testing.T) {
 		ctx context.Context,
 		query string,
 		start, end time.Time,
-		localOnly, useCache, useM3DB bool,
 		timeout time.Duration,
 	) (*storage.FetchResult, error) {
 		switch query {

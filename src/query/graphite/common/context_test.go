@@ -21,7 +21,6 @@
 package common
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -91,30 +90,6 @@ func TestChildContextClose(t *testing.T) {
 	client.AssertCalled(t, "foo")
 }
 
-func TestChildContextIsCancelledDefersToParentIsCancelled(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-	assert.Equal(t, false, ctx.IsCancelled())
-	assert.Equal(t, false, child.IsCancelled())
-
-	ctx.Cancel()
-
-	assert.Equal(t, true, ctx.IsCancelled())
-	assert.Equal(t, true, child.IsCancelled())
-}
-
-func TestChildCancelDoesNotPropagateUp(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-	assert.Equal(t, false, ctx.IsCancelled())
-	assert.Equal(t, false, child.IsCancelled())
-
-	child.Cancel()
-
-	assert.Equal(t, true, child.IsCancelled())
-	assert.Equal(t, false, ctx.IsCancelled())
-}
-
 func TestChildSetsParentStorage(t *testing.T) {
 	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
 	child := ctx.NewChildContext(NewChildContextOptions())
@@ -133,34 +108,6 @@ func TestChildGetsParentStorage(t *testing.T) {
 	ctx.Set(k, v)
 	assert.Equal(t, v, child.Get(k))
 	assert.Equal(t, v, ctx.Get(k))
-}
-
-func TestChildPropagatesWarningsToParent(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-	e := fmt.Errorf("err")
-	child.AddWarning(e)
-
-	assert.Contains(t, ctx.Warnings(), e, "warning not added in context")
-	assert.Contains(t, child.Warnings(), e, "warning not added in child")
-
-	child.ClearWarnings()
-	assert.Equal(t, 0, len(child.Warnings()))
-	assert.Equal(t, 0, len(ctx.Warnings()))
-}
-
-func TestParentPropagatesWarningsToChild(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-	e := fmt.Errorf("err")
-	ctx.AddWarning(e)
-
-	assert.Contains(t, ctx.Warnings(), e, "warning not added in context")
-	assert.Contains(t, child.Warnings(), e, "warning not added in child")
-
-	ctx.ClearWarnings()
-	assert.Equal(t, 0, len(child.Warnings()))
-	assert.Equal(t, 0, len(ctx.Warnings()))
 }
 
 func TestChildPropagatesBreakdownToParent(t *testing.T) {

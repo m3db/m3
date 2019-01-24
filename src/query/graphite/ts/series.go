@@ -300,10 +300,6 @@ func (b *Series) resizeStep(start, end time.Time, millisPerStep int,
 		}
 		return
 	}
-
-	// TODO: Series step is larger than the consolidation - divide the values at each series step
-	// into the corresponding consolidation step.
-	// consolidationValuesPerStep := series.MillisPerStep() / c.millisPerStep.
 }
 
 // resized implements PostConsolidationFunc.
@@ -322,7 +318,6 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 	stepAggregator ConsolidationFunc) (*Series, error) {
 	intersects, start, end := b.intersection(start, end)
 	if !intersects {
-		// TODO(mmihic): Why is this returning an empty (not nil) array, and not a constant
 		ts := NewSeries(b.ctx, b.name, start, &float64Values{
 			millisPerStep: millisPerStep,
 			values:        []float64{},
@@ -335,7 +330,7 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 		return b.Slice(b.StepAtTime(start), b.StepAtTime(end))
 	}
 
-	// TODO(mmihic): This append based model completely screws pooling; need to rewrite to allow for pooling.
+	// TODO: This append based model completely screws pooling; need to rewrite to allow for pooling.
 	v := &resized{}
 	b.resizeStep(start, end, millisPerStep, stepAggregator, v.appender)
 	ts := NewSeries(b.ctx, b.name, start, &float64Values{

@@ -224,7 +224,7 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 			return nil, c.errorf("unexpected eof, %s should be followed by = or (", currentToken)
 		}
 		if nextToken.TokenType() == lexer.Equal {
-			// TODO(xichen): check if currentToken matches the expected parameter name
+			// TODO: check if currentToken matches the expected parameter name
 			tokenAfterNext := <-c.tokens
 			if tokenAfterNext == nil {
 				return nil, c.errorf("unexpected eof, named argument %s should be followed by its value", currentToken)

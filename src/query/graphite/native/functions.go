@@ -351,7 +351,6 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 	}
 
 	// special case handling of multiplePathSpecs
-	// TODO(mmihic): WTF is this code doing?
 	// NB(r): This code sucks, and it would be better if we just removed
 	// multiplePathSpecs altogether and have the functions use real variadic
 	// ts.SeriesList arguments so we don't have to autocollapse when calling here.

@@ -79,9 +79,6 @@ func TestLimitFunctions(t *testing.T) {
 			{Head, 2, testInput, testInput[:2], nil},
 			{Head, 100, testInput, testInput, nil},
 			{Head, -2, testInput, nil, ErrNegativeCount},
-			{Tail, 3, testInput, testInput[1:], nil},
-			{Tail, 666, testInput, testInput, nil},
-			{Tail, -2, testInput, nil, ErrNegativeCount},
 		}
 
 		startTime = time.Now()

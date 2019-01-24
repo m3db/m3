@@ -86,8 +86,8 @@ func (f *fetchExpression) Arguments() []ArgumentASTNode {
 func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	begin := time.Now()
 
-	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, ctx.StartTime, ctx.EndTime,
-		ctx.LocalOnly, ctx.UseCache, ctx.UseM3DB, ctx.Timeout)
+	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, ctx.StartTime,
+		ctx.EndTime, ctx.Timeout)
 	if err != nil {
 		return ts.SeriesList{}, err
 	}

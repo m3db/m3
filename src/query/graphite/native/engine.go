@@ -44,7 +44,6 @@ func (e *Engine) FetchByQuery(
 	ctx context.Context,
 	query string,
 	start, end time.Time,
-	localOnly, useCache, useM3DB bool,
 	timeout time.Duration,
 ) (*storage.FetchResult, error) {
 	return e.storage.FetchByQuery(

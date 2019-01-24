@@ -95,16 +95,6 @@ func Head(series ts.SeriesList, n int) (ts.SeriesList, error) {
 	return series, nil
 }
 
-// Tail returns the last n elements of a series list or the entire list
-func Tail(series ts.SeriesList, n int) (ts.SeriesList, error) {
-	if n < 0 {
-		return ts.SeriesList{}, ErrNegativeCount
-	}
-	r := series.Values[int(math.Max(float64(series.Len()-n), float64(0))):]
-	series.Values = r
-	return series, nil
-}
-
 // Identity returns datapoints where the value equals the timestamp of the datapoint.
 func Identity(ctx *Context, name string) (ts.SeriesList, error) {
 	millisPerStep := int(MillisPerMinute)

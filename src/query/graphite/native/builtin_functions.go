@@ -208,7 +208,7 @@ func timeShift(
 	_ bool,
 ) (*unaryContextShifter, error) {
 
-	// TODO(jayp): implement resetEnd
+	// TODO: implement resetEnd
 	if !(strings.HasPrefix(timeShiftS, "+") || strings.HasPrefix(timeShiftS, "-")) {
 		timeShiftS = "-" + timeShiftS
 	}
@@ -313,7 +313,7 @@ func transform(ctx *common.Context, input singlePathSpec,
 // useful for taking a running total metric and showing how many occurrences
 // per second were handled
 func perSecond(ctx *common.Context, input singlePathSpec, _ float64) (ts.SeriesList, error) {
-	// TODO(jayp):  we are ignoring maxValue; we may need to implement it
+	// TODO:  we are ignoring maxValue; we may need to implement it
 	return common.PerSecond(ctx, ts.SeriesList(input), func(series *ts.Series) string {
 		return fmt.Sprintf("perSecond(%s)", series.Name())
 	})
@@ -638,7 +638,6 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 				// skip if the number of points received is less than the number of points
 				// in the lookback window.
 				if offset < windowPoints {
-					ctx.SetConfidence(0)
 					continue
 				}
 				if i == 0 {
@@ -977,7 +976,7 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 		}
 	}
 
-	// TODO(oibe)  This is wrong when MillisPerStep is different across
+	// TODO: This is wrong when MillisPerStep is different across
 	// the timeseries.
 	min := seriesList.Values[0].Len()
 	for _, series := range seriesList.Values[1:] {

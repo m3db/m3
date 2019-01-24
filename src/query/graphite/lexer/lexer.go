@@ -374,7 +374,7 @@ func (l *Lexer) quotedString(quoteMark rune) bool {
 		}
 
 		if !escaped && r == '\\' {
-			// TODO(mmihic): Want to omit this from the output.
+			// TODO: Want to omit this from the output.
 			escaped = true
 			continue
 		}
