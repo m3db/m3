@@ -125,36 +125,46 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 }
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
-	iter := newPromTSIter(r.Timeseries)
+	iter := newPromTSIter(r.Timeseries, h.tagOptions)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
+}
+
+func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
+	// Construct the tags and datapoints upfront so that if the iterator
+	// is reset, we don't have to generate them twice.
+	var (
+		tags       = make([]models.Tags, 0, len(timeseries))
+		datapoints = make([]ts.Datapoints, 0, len(timeseries))
+	)
+	for _, promTS := range timeseries {
+		tags = append(tags, storage.PromLabelsToM3Tags(promTS.Labels, tagOpts))
+		datapoints = append(datapoints, storage.PromSamplesToM3Datapoints(promTS.Samples))
+	}
+
+	return &promTSIter{
+		idx:        -1,
+		tags:       tags,
+		datapoints: datapoints,
+	}
 }
 
 type promTSIter struct {
 	idx        int
-	timeseries []*prompb.TimeSeries
-}
-
-func newPromTSIter(timeseries []*prompb.TimeSeries) *promTSIter {
-	return &promTSIter{idx: -1, timeseries: timeseries}
+	tags       []models.Tags
+	datapoints []ts.Datapoints
 }
 
 func (i *promTSIter) Next() bool {
 	i.idx++
-	return i.idx < len(i.timeseries)
+	return i.idx < len(i.tags)
 }
 
 func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
-	if len(i.timeseries) == 0 || i.idx < 0 || i.idx >= len(i.timeseries) {
+	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
 		return models.Tags{}, nil, 0
 	}
 
-	curr := i.timeseries[i.idx]
-	// TODO: Add a storage function for this?
-	tags := make([]models.Tag, 0, len(curr.Labels))
-	for _, label := range curr.Labels {
-		tags = append(tags, models.Tag{Name: label.Name, Value: label.Value})
-	}
-	return models.Tags{Tags: tags}, storage.PromSamplesToM3Datapoints(curr.Samples), xtime.Millisecond
+	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond
 }
 
 func (i *promTSIter) Reset() error {
