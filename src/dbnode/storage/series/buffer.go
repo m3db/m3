@@ -774,7 +774,7 @@ func (b *BufferBucket) resetTo(
 
 func (b *BufferBucket) reset() {
 	b.resetEncoders()
-	b.resetBlocks()
+	b.resetBootstrapped()
 }
 
 func (b *BufferBucket) write(
@@ -909,7 +909,7 @@ func (b *BufferBucket) resetEncoders() {
 	b.encoders = b.encoders[:0]
 }
 
-func (b *BufferBucket) resetBlocks() {
+func (b *BufferBucket) resetBootstrapped() {
 	for i := range b.bootstrapped {
 		bl := b.bootstrapped[i]
 		bl.Close()
@@ -992,7 +992,7 @@ func (b *BufferBucket) merge() (int, error) {
 	}
 
 	b.resetEncoders()
-	b.resetBlocks()
+	b.resetBootstrapped()
 
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder:     encoder,
@@ -1004,7 +1004,7 @@ func (b *BufferBucket) merge() (int, error) {
 
 func (b *BufferBucket) toStream(ctx context.Context) (xio.SegmentReader, error) {
 	if b.hasJustSingleEncoder() {
-		b.resetBlocks()
+		b.resetBootstrapped()
 		// Already merged as a single encoder.
 		return b.encoders[0].encoder.Stream(), nil
 	}
@@ -1019,7 +1019,7 @@ func (b *BufferBucket) toStream(ctx context.Context) (xio.SegmentReader, error) 
 	_, err := b.merge()
 	if err != nil {
 		b.resetEncoders()
-		b.resetBlocks()
+		b.resetBootstrapped()
 		return nil, err
 	}
 
