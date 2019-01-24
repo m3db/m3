@@ -200,6 +200,7 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
+	@./scripts/docker-integration-tests/carbon/test.sh
 
 .PHONY: site-build
 site-build:
