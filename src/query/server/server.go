@@ -207,8 +207,8 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
 
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
-	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
+	promDownsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
+	handler, err := httpd.NewHandler(promDownsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
@@ -293,7 +293,10 @@ func Run(runOpts RunOptions) {
 		}
 		workerPool.Init()
 
-		ingester, err := ingestcarbon.NewIngester(downsamplerAndWriter, ingestcarbon.Options{
+		// Create a new downsampler and writer because we don't want the carbon ingester to write
+		// any data unaggregated, so we pass nil for storage.Storage.
+		carbonIngestDownsamplerAndWriter := ingest.NewDownsamplerAndWriter(nil, downsampler)
+		ingester, err := ingestcarbon.NewIngester(carbonIngestDownsamplerAndWriter, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
 		})
