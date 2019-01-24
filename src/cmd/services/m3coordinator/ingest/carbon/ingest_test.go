@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3x/instrument"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +52,11 @@ const (
 var (
 	testMetrics = []testMetric{}
 	testPacket  = []byte{}
+
+	testOptions = Options{
+		InstrumentOptions: instrument.NewOptions(),
+		WorkerPool:        nil, // Set by init().
+	}
 )
 
 func TestIngesterHandleConn(t *testing.T) {
@@ -74,7 +81,8 @@ func TestIngesterHandleConn(t *testing.T) {
 	}).Return(nil).AnyTimes()
 
 	byteConn := &byteConn{b: bytes.NewBuffer(testPacket)}
-	ingester := NewIngester(mockDownsamplerAndWriter, Options{})
+	ingester, err := NewIngester(mockDownsamplerAndWriter, testOptions)
+	require.NoError(t, err)
 	ingester.Handle(byteConn)
 
 	assertTestMetricsAreEqual(t, testMetrics, found)
@@ -89,23 +97,23 @@ func TestGenerateTagsFromName(t *testing.T) {
 		{
 			name: "foo",
 			expectedTags: []models.Tag{
-				{Name: []byte("__$0__"), Value: []byte("foo")},
+				{Name: []byte("__graphite0__"), Value: []byte("foo")},
 			},
 		},
 		{
 			name: "foo.bar.baz",
 			expectedTags: []models.Tag{
-				{Name: []byte("__$0__"), Value: []byte("foo")},
-				{Name: []byte("__$1__"), Value: []byte("bar")},
-				{Name: []byte("__$2__"), Value: []byte("baz")},
+				{Name: []byte("__graphite0__"), Value: []byte("foo")},
+				{Name: []byte("__graphite1__"), Value: []byte("bar")},
+				{Name: []byte("__graphite2__"), Value: []byte("baz")},
 			},
 		},
 		{
 			name: "foo.bar.baz.",
 			expectedTags: []models.Tag{
-				{Name: []byte("__$0__"), Value: []byte("foo")},
-				{Name: []byte("__$1__"), Value: []byte("bar")},
-				{Name: []byte("__$2__"), Value: []byte("baz")},
+				{Name: []byte("__graphite0__"), Value: []byte("foo")},
+				{Name: []byte("__graphite1__"), Value: []byte("bar")},
+				{Name: []byte("__graphite2__"), Value: []byte("baz")},
 			},
 		},
 		{
@@ -212,4 +220,11 @@ func init() {
 		line := []byte(fmt.Sprintf("%s %d %d\n", string(metric), i, i))
 		testPacket = append(testPacket, line...)
 	}
+
+	var err error
+	testOptions.WorkerPool, err = xsync.NewPooledWorkerPool(16, xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		panic(err)
+	}
+	testOptions.WorkerPool.Init()
 }
