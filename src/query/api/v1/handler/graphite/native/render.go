@@ -41,7 +41,7 @@ import (
 
 const (
 	// GraphiteReadURL is the url for native graphite query handler.
-	GraphiteReadURL = handler.RoutePrefixV1 + "/graphite/query"
+	GraphiteReadURL = handler.RoutePrefixGraphiteV1 + "/render"
 
 	// GraphiteReadHTTPMethod is the HTTP method used with this resource.
 	GraphiteReadHTTPMethod = http.MethodGet

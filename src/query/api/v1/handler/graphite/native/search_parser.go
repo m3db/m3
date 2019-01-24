@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package native
 
-// HeaderKeyType is the type for the header key
-type HeaderKeyType int
+import (
+	"net/http"
 
-const (
-	// HeaderKey is the key which headers will be added to in the request context
-	HeaderKey HeaderKeyType = iota
-
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes
-	RoutePrefixV1 = "/api/v1"
-
-	// RoutePrefixGraphiteV1 is the v1 prefix for all coordinator graphite routes
-	RoutePrefixGraphiteV1 = "/graphite/api/v1"
+	"github.com/m3db/m3/src/query/errors"
+	graphite "github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/net/http"
 )
+
+func parseSearchParamsToQuery(
+	r *http.Request,
+) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
+	values := r.URL.Query()
+	query := values.Get("query")
+	if query == "" {
+		return nil, xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
+	}
+
+	filter := graphite.GetQueryTerminatorTagName(query)
+	matchers := graphite.TranslateQueryToMatchers(query)
+	return &storage.CompleteTagsQuery{
+		TagMatchers:      matchers,
+		FilterNameTags:   [][]byte{filter},
+		CompleteNameOnly: false,
+	}, nil
+}

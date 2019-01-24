@@ -189,6 +189,10 @@ func (h *Handler) RegisterRoutes() error {
 		logged(graphite.NewNativeRenderHandler(h.storage)).ServeHTTP,
 	).Methods(graphite.GraphiteReadHTTPMethod)
 
+	h.router.HandleFunc(graphite.GraphiteSearchURL,
+		logged(graphite.NewGraphiteSearchHandler(h.storage)).ServeHTTP,
+	).Methods(graphite.GraphiteSearchHTTPMethod)
+
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
 			ClusterClient:       h.clusterClient,
