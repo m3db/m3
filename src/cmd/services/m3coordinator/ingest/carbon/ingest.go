@@ -142,6 +142,13 @@ type carbonHandlerMetrics struct {
 	readTimeLatency  tally.Timer
 }
 
+// GenerateTagsFromName accepts a carbon metric name and blows it up into a list of
+// key-value pair tags such that an input like:
+//      foo.bar.baz
+// becomes
+//      __graphite0__:foo
+//      __graphite1__:bar
+//      __graphite2__:baz
 func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	if len(name) == 0 {
 		return models.Tags{}, errCannotGenerateTagsFromEmptyName
