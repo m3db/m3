@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"sort"
 	"sync"
@@ -229,12 +230,20 @@ func init() {
 
 		if i%10 == 0 {
 			// Make 1 in 10 lines invalid to test the error paths.
-			line := []byte(fmt.Sprintf("garbage line %d \n", i))
-			testPacket = append(testPacket, line...)
-			continue
+			if rand.Intn(2) == 0 {
+				// Invalid line altogether.
+				line := []byte(fmt.Sprintf("garbage line %d \n", i))
+				testPacket = append(testPacket, line...)
+				continue
+			} else {
+				// Valid line, but invalid name (too many separators).
+				line := []byte(fmt.Sprintf("test..metric..%d %d %d\n", i, i, i))
+				testPacket = append(testPacket, line...)
+				continue
+			}
 		}
 
-		metric = []byte(fmt.Sprintf("test_metric_%d", i))
+		metric = []byte(fmt.Sprintf("test.metric.%d", i))
 
 		tags, err := GenerateTagsFromName(metric)
 		if err != nil {
