@@ -185,7 +185,7 @@ func (s *ExecutionState) createNode(
 }
 
 // Execute the sources in parallel and return the first error
-func (s *ExecutionState) Execute(ctx context.Context, queryCtx *models.QueryContext) error {
+func (s *ExecutionState) Execute(queryCtx *models.QueryContext) error {
 	requests := make([]execution.Request, len(s.sources))
 	for idx, source := range s.sources {
 		requests[idx] = sourceRequest{
@@ -194,7 +194,7 @@ func (s *ExecutionState) Execute(ctx context.Context, queryCtx *models.QueryCont
 		}
 	}
 
-	return execution.ExecuteParallel(ctx, requests)
+	return execution.ExecuteParallel(queryCtx.Ctx, requests)
 }
 
 // String representation of the state
@@ -208,5 +208,6 @@ type sourceRequest struct {
 }
 
 func (s sourceRequest) Process(ctx context.Context) error {
-	return s.source.Execute(ctx, s.queryCtx)
+	// make sure to propagate the new context.Context object down.
+	return s.source.Execute(s.queryCtx.WithContext(ctx))
 }

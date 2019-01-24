@@ -155,7 +155,7 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 	result := state.resultNode
 	results <- Query{Result: result}
 
-	if err := state.Execute(ctx, models.NewQueryContext(e.costScope, perQueryEnforcer)); err != nil {
+	if err := state.Execute(models.NewQueryContext(ctx, e.costScope, perQueryEnforcer)); err != nil {
 		result.abort(err)
 	} else {
 		result.done()

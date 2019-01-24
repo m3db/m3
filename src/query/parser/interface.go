@@ -21,7 +21,6 @@
 package parser
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/m3db/m3/src/query/models"
@@ -79,5 +78,5 @@ func NewTransformFromOperation(Op Params, nextID int) Node {
 
 // Source represents data sources which are handled differently than other transforms as they are always independent and can always be parallelized
 type Source interface {
-	Execute(ctx context.Context, queryCtx *models.QueryContext) error
+	Execute(queryCtx *models.QueryContext) error
 }

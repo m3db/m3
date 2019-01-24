@@ -21,6 +21,8 @@
 package models
 
 import (
+	"context"
+
 	"github.com/m3db/m3/src/query/cost"
 
 	"github.com/uber-go/tally"
@@ -29,13 +31,15 @@ import (
 // QueryContext provides all external state needed to execute and track a query. It acts as a hook back into the
 // execution engine for things like cost accounting.
 type QueryContext struct {
+	Ctx      context.Context
 	Enforcer cost.ChainedEnforcer
 	Scope    tally.Scope
 }
 
 // NewQueryContext constructs a QueryContext using the given Enforcer to enforce per query limits.
-func NewQueryContext(scope tally.Scope, enforcer cost.ChainedEnforcer) *QueryContext {
+func NewQueryContext(ctx context.Context, scope tally.Scope, enforcer cost.ChainedEnforcer) *QueryContext {
 	return &QueryContext{
+		Ctx:      ctx,
 		Scope:    scope,
 		Enforcer: enforcer,
 	}
@@ -43,5 +47,19 @@ func NewQueryContext(scope tally.Scope, enforcer cost.ChainedEnforcer) *QueryCon
 
 // NoopQueryContext returns a query context with no active components.
 func NoopQueryContext() *QueryContext {
-	return NewQueryContext(tally.NoopScope, cost.NoopChainedEnforcer())
+	return NewQueryContext(context.Background(), tally.NoopScope, cost.NoopChainedEnforcer())
+}
+
+// WithContext creates a shallow copy of this QueryContext using the new context. Sample usage:
+// ctx, cancel := context.WithTimeout(qc.Ctx, 5*time.Second)
+// defer cancel()
+// qc = qc.WithContext(ctx)
+func (qc *QueryContext) WithContext(ctx context.Context) *QueryContext {
+	if qc == nil {
+		return nil
+	}
+
+	clone := *qc
+	clone.Ctx = ctx
+	return &clone
 }

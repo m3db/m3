@@ -21,11 +21,9 @@
 package executor
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/models"
@@ -35,7 +33,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestValidState(t *testing.T) {
@@ -59,7 +56,7 @@ func TestValidState(t *testing.T) {
 	state, err := GenerateExecutionState(p, store)
 	require.NoError(t, err)
 	require.Len(t, state.sources, 1)
-	err = state.Execute(context.Background(), models.NewQueryContext(tally.NoopScope, cost.NoopChainedEnforcer()))
+	err = state.Execute(models.NoopQueryContext())
 	assert.NoError(t, err)
 }
 

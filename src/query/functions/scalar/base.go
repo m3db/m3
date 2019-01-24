@@ -21,7 +21,6 @@
 package scalar
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
@@ -87,7 +86,7 @@ type baseNode struct {
 }
 
 // Execute runs the scalar node operation
-func (n *baseNode) Execute(ctx context.Context, queryCtx *models.QueryContext) error {
+func (n *baseNode) Execute(queryCtx *models.QueryContext) error {
 	bounds := n.timespec.Bounds()
 
 	block := block.NewScalar(n.op.fn, bounds)
@@ -95,7 +94,7 @@ func (n *baseNode) Execute(ctx context.Context, queryCtx *models.QueryContext) e
 		// Ignore any errors
 		iter, _ := block.StepIter()
 		if iter != nil {
-			logging.WithContext(ctx).Info("scalar node", zap.Any("meta", iter.Meta()))
+			logging.WithContext(queryCtx.Ctx).Info("scalar node", zap.Any("meta", iter.Meta()))
 		}
 	}
 

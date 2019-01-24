@@ -21,7 +21,6 @@
 package functions
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -88,11 +87,13 @@ func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage,
 }
 
 // Execute runs the fetch node operation
-func (n *FetchNode) Execute(ctx context.Context, queryCtx *models.QueryContext) error {
+func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 	timeSpec := n.timespec
 	// No need to adjust start and ends since physical plan already considers the offset, range
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
+	ctx := queryCtx.Ctx
+
 	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
 		End:         endTime,

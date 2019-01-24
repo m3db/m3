@@ -21,11 +21,9 @@
 package functions
 
 import (
-	"context"
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -44,9 +42,7 @@ func TestFetch(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
-	err := source.Execute(context.TODO(), &models.QueryContext{
-		Enforcer: cost.NoopChainedEnforcer(),
-	})
+	err := source.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
 	expected := values
 	assert.Len(t, sink.Values, 2)
