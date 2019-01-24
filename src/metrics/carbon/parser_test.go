@@ -44,16 +44,16 @@ type carbonLine struct {
 }
 
 var testLines = []carbonLine{
-	// {"foo.bar.zed", 45565.02, time.Unix(1428951394, 0),
-	// 	"foo.bar.zed 45565.02 1428951394"},
-	// {"foo.bar.quad", 10.0, time.Unix(1428951394, 0),
-	// 	"foo.bar.quad  10 1428951394"},
-	// {"foo.bar.nan", math.NaN(), time.Unix(1428951394, 0),
-	// 	"foo.bar.nan nan  1428951394"},
-	// {"foo.bar.nan", math.NaN(), time.Unix(1428951394, 0),
-	// 	"foo.bar.nan -NaN 1428951394"},
-	// {"foo.bar.negative", -18000.00000, time.Unix(1429480924, 0),
-	// 	"foo.bar.negative -18000.000000 1429480924"},
+	{"foo.bar.zed", 45565.02, time.Unix(1428951394, 0),
+		"foo.bar.zed 45565.02 1428951394"},
+	{"foo.bar.quad", 10.0, time.Unix(1428951394, 0),
+		"foo.bar.quad  10 1428951394"},
+	{"foo.bar.nan", math.NaN(), time.Unix(1428951394, 0),
+		"foo.bar.nan nan  1428951394"},
+	{"foo.bar.nan", math.NaN(), time.Unix(1428951394, 0),
+		"foo.bar.nan -NaN 1428951394"},
+	{"foo.bar.negative", -18000.00000, time.Unix(1429480924, 0),
+		"foo.bar.negative -18000.000000 1429480924"},
 	{"short", 1, time.Unix(1, 0),
 		"short 1 1"},
 }
