@@ -108,14 +108,19 @@ func (d *downsamplerAndWriter) Write(
 		appender.Finalize()
 	}
 
-	return d.store.Write(ctx, &storage.WriteQuery{
-		Tags:       tags,
-		Datapoints: datapoints,
-		Unit:       unit,
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
-		},
-	})
+	if d.store != nil {
+		return d.store.Write(ctx, &storage.WriteQuery{
+			Tags:       tags,
+			Datapoints: datapoints,
+			Unit:       unit,
+			Attributes: storage.Attributes{
+				MetricsType: storage.UnaggregatedMetricsType,
+			},
+		})
+
+	}
+
+	return nil
 }
 
 func (d *downsamplerAndWriter) WriteBatch(
@@ -158,35 +163,39 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 	}
 
-	// Write unaggregated.
-	var (
-		wg       = &sync.WaitGroup{}
-		errLock  sync.Mutex
-		multiErr xerrors.MultiError
-	)
-	for iter.Next() {
-		wg.Add(1)
-		tags, datapoints, unit := iter.Current()
-		go func() {
-			err := d.store.Write(ctx, &storage.WriteQuery{
-				Tags:       tags,
-				Datapoints: datapoints,
-				Unit:       unit,
-				Attributes: storage.Attributes{
-					MetricsType: storage.UnaggregatedMetricsType,
-				},
-			})
-			if err != nil {
-				errLock.Lock()
-				multiErr = multiErr.Add(err)
-				errLock.Unlock()
-			}
-			wg.Done()
-		}()
+	if d.store != nil {
+		// Write unaggregated.
+		var (
+			wg       = &sync.WaitGroup{}
+			errLock  sync.Mutex
+			multiErr xerrors.MultiError
+		)
+		for iter.Next() {
+			wg.Add(1)
+			tags, datapoints, unit := iter.Current()
+			go func() {
+				err := d.store.Write(ctx, &storage.WriteQuery{
+					Tags:       tags,
+					Datapoints: datapoints,
+					Unit:       unit,
+					Attributes: storage.Attributes{
+						MetricsType: storage.UnaggregatedMetricsType,
+					},
+				})
+				if err != nil {
+					errLock.Lock()
+					multiErr = multiErr.Add(err)
+					errLock.Unlock()
+				}
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+		return multiErr.LastError()
 	}
 
-	wg.Wait()
-	return multiErr.LastError()
+	return nil
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
