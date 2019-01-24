@@ -64,6 +64,7 @@ func NewIngester(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	opts Options,
 ) (m3xserver.Handler, error) {
+	// TODO(rartoul): Validate options.
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
