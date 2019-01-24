@@ -187,6 +187,7 @@ type testMetric struct {
 	tags      models.Tags
 	timestamp int
 	value     float64
+	isValid   bool
 }
 
 func assertTestMetricsAreEqual(t *testing.T, a, b []testMetric) {
@@ -204,8 +205,24 @@ func assertTestMetricsAreEqual(t *testing.T, a, b []testMetric) {
 }
 
 func init() {
+	var err error
+	testOptions.WorkerPool, err = xsync.NewPooledWorkerPool(16, xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		panic(err)
+	}
+	testOptions.WorkerPool.Init()
+
 	for i := 0; i < numLinesInTestPacket; i++ {
-		metric := []byte(fmt.Sprintf("test_metric_%d", i))
+		var metric []byte
+
+		if i%10 == 0 {
+			// Make 1 in 10 lines invalid to test the error paths.
+			line := []byte(fmt.Sprintf("garbage line %d\n", i))
+			testPacket = append(testPacket, line...)
+			continue
+		}
+
+		metric = []byte(fmt.Sprintf("test_metric_%d", i))
 
 		tags, err := GenerateTagsFromName(metric)
 		if err != nil {
@@ -221,11 +238,4 @@ func init() {
 		line := []byte(fmt.Sprintf("%s %d %d\n", string(metric), i, i))
 		testPacket = append(testPacket, line...)
 	}
-
-	var err error
-	testOptions.WorkerPool, err = xsync.NewPooledWorkerPool(16, xsync.NewPooledWorkerPoolOptions())
-	if err != nil {
-		panic(err)
-	}
-	testOptions.WorkerPool.Init()
 }

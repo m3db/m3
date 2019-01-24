@@ -238,7 +238,7 @@ type Scanner struct {
 func NewScanner(r io.Reader, iOpts instrument.Options) *Scanner {
 	s := bufio.NewScanner(r)
 	s.Split(bufio.ScanLines)
-	return &Scanner{scanner: s}
+	return &Scanner{scanner: s, iOpts: iOpts}
 }
 
 // Scan scans for the next carbon metric. Malformed metrics are skipped but counted.
