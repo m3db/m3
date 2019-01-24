@@ -22,9 +22,12 @@ package ingestcarbon
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,7 +41,9 @@ import (
 )
 
 const (
-	numLinesInTestPacket = 10
+	// Keep this value large enough to catch issues like the ingester
+	// not copying the name.
+	numLinesInTestPacket = 10000
 )
 
 // Created by init().
@@ -51,17 +56,28 @@ func TestIngesterHandleConn(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 
-	for _, metric := range testMetrics {
-		dp := []ts.Datapoint{{Timestamp: time.Unix(int64(metric.timestamp), 0), Value: metric.value}}
-		fmt.Println("expecting: ", dp)
-		mockDownsamplerAndWriter.EXPECT().
-			Write(gomock.Any(), gomock.Any(), dp, xtime.Second).AnyTimes()
-	}
+	var (
+		foundLock = sync.Mutex{}
+		found     = []testMetric{}
+	)
+	mockDownsamplerAndWriter.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second).DoAndReturn(func(
+		_ context.Context,
+		tags models.Tags,
+		dp ts.Datapoints,
+		unit xtime.Unit,
+	) {
+		foundLock.Lock()
+		found = append(found, testMetric{
+			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+		foundLock.Unlock()
+	}).Return(nil).AnyTimes()
 
 	byteConn := &byteConn{b: bytes.NewBuffer(testPacket)}
 	ingester := NewIngester(mockDownsamplerAndWriter, Options{})
 	ingester.Handle(byteConn)
-	panic("hmm")
+
+	assertTestMetricsAreEqual(t, testMetrics, found)
 }
 
 func TestGenerateTagsFromName(t *testing.T) {
@@ -125,12 +141,11 @@ func (b *byteConn) Read(buf []byte) (n int, err error) {
 		return b.b.Read(buf)
 	}
 
-	panic("eof")
 	return 0, io.EOF
 }
 
 func (b *byteConn) Write(buf []byte) (n int, err error) {
-	panic("not_imlpemented")
+	panic("not_implemented")
 }
 
 func (b *byteConn) Close() error {
@@ -139,37 +154,57 @@ func (b *byteConn) Close() error {
 }
 
 func (b *byteConn) LocalAddr() net.Addr {
-	panic("not_imlpemented")
+	panic("not_implemented")
 }
 
 func (b *byteConn) RemoteAddr() net.Addr {
-	panic("not_imlpemented")
+	panic("not_implemented")
 }
 
 func (b *byteConn) SetDeadline(t time.Time) error {
-	panic("not_imlpemented")
+	panic("not_implemented")
 }
 
 func (b *byteConn) SetReadDeadline(t time.Time) error {
-	panic("not_imlpemented")
+	panic("not_implemented")
 }
 
 func (b *byteConn) SetWriteDeadline(t time.Time) error {
-	panic("not_imlpemented")
+	panic("not_implemented")
 }
 
 type testMetric struct {
 	metric    []byte
+	tags      models.Tags
 	timestamp int
 	value     float64
+}
+
+func assertTestMetricsAreEqual(t *testing.T, a, b []testMetric) {
+	require.Equal(t, len(a), len(b))
+
+	sort.Slice(b, func(i, j int) bool {
+		return b[i].timestamp < b[j].timestamp
+	})
+
+	for i, f := range b {
+		require.Equal(t, a[i].tags, f.tags)
+		require.Equal(t, a[i].timestamp, f.timestamp)
+		require.Equal(t, a[i].value, f.value)
+	}
 }
 
 func init() {
 	for i := 0; i < numLinesInTestPacket; i++ {
 		metric := []byte(fmt.Sprintf("test_metric_%d", i))
 
+		tags, err := generateTagsFromName(metric)
+		if err != nil {
+			panic(err)
+		}
 		testMetrics = append(testMetrics, testMetric{
 			metric:    metric,
+			tags:      tags,
 			timestamp: i,
 			value:     float64(i),
 		})

@@ -247,7 +247,8 @@ func (s *Scanner) Scan() bool {
 
 		var err error
 		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Bytes()); err != nil {
-			// TODO: Log malformed
+			// TODO: Convert to log
+			fmt.Printf("malformed: %s, err: %s\n", s.path, err.Error())
 			s.MalformedCount++
 			continue
 		}
