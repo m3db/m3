@@ -73,65 +73,61 @@ func NewIngester(
 type ingester struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	opts                 Options
-	conn                 net.Conn
 }
 
 func (i *ingester) Handle(conn net.Conn) {
-	if i.conn != nil {
-		// TODO: Something
-	}
-	i.conn = conn
-
 	var (
-		wg = sync.WaitGroup{}
-		s  = carbon.NewScanner(conn)
+		wg     = sync.WaitGroup{}
+		s      = carbon.NewScanner(conn)
+		logger = i.opts.InstrumentOptions.Logger()
 	)
 
+	logger.Debug("handling new carbon ingestion connection")
 	for s.Scan() {
 		name, timestamp, value := s.Metric()
-		name = append([]byte(nil), name...) // Copy name.
+		// Copy name since scanner bytes are recycled.
+		// TODO: Pool.
+		name = append([]byte(nil), name...)
 
 		wg.Add(1)
-		if i.opts.WorkerPool != nil {
-			i.opts.WorkerPool.Go(func() {
-				// TODO: Real context?
-				datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
-				i.downsamplerAndWriter.Write(
-					context.Background(), models.Tags{}, datapoints, xtime.Second)
-				wg.Done()
-			})
-		} else {
-			go func() {
-				// TODO: Real context?
-				datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
-				tags, err := generateTagsFromName(name)
-				if err != nil {
-					// TODO: Log error
-					fmt.Println(err)
-					return
-				}
-				i.downsamplerAndWriter.Write(
-					context.Background(), tags, datapoints, xtime.Second)
-				wg.Done()
-			}()
-		}
+		i.opts.WorkerPool.Go(func() {
+			datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
+			// TODO: Pool.
+			tags, err := generateTagsFromName(name)
+			if err != nil {
+				logger.Errorf("err generating tags from carbon name: %s, err: %s",
+					string(name), err)
+				return
+			}
+
+			// TODO: Real context?
+			err = i.downsamplerAndWriter.Write(
+				context.Background(), tags, datapoints, xtime.Second)
+			if err != nil {
+				logger.Errorf("err writing carbon metric: %s, err: %s",
+					string(name), err)
+			}
+
+			wg.Done()
+		})
 
 		// i.metrics.malformedCounter.Inc(int64(s.MalformedCount))
 		s.MalformedCount = 0
 	}
 
 	if err := s.Err(); err != nil {
-		fmt.Println(err)
+		logger.Errorf("encountered error during carbon ingestion when scanning connection: %s", err)
 	}
 
-	// Wait for all outstanding writes
+	logger.Debugf("waiting for outstanding carbon ingestion writes to complete")
 	wg.Wait()
+	logger.Debugf("all outstanding writes completed, shuttin down carbon ingestion handler")
+
+	// Don't close the connection, that is the server's responsibility.
 }
 
 func (i *ingester) Close() {
-	// TODO: Log error
-	// TODO: Not sure this will do anything?
-	i.conn.Close()
+	// We don't maintain any state in-between connections so there is nothing to do here.
 }
 
 func newCarbonHandlerMetrics(m tally.Scope) carbonHandlerMetrics {
@@ -200,11 +196,11 @@ func getOrGenerateKeyName(idx int) []byte {
 		return preFormattedKeyNames[idx]
 	}
 
-	return []byte(fmt.Sprintf("__$%d__", idx))
+	return []byte(fmt.Sprintf("__graphite%d__", idx))
 }
 
 func generateKeyName(idx int) []byte {
-	return []byte(fmt.Sprintf("__$%d__", idx))
+	return []byte(fmt.Sprintf("__graphite%d__", idx))
 }
 
 func init() {

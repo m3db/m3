@@ -291,8 +291,9 @@ func Run(runOpts RunOptions) {
 		if err != nil {
 			logger.Fatal("unable to create worker pool for carbon ingester: %v", zap.Error(err))
 		}
+		workerPool.Init()
 
-		ingester, err := ingestcarbon.NewIngester(nil, ingestcarbon.Options{
+		ingester, err := ingestcarbon.NewIngester(downsamplerAndWriter, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
 		})
