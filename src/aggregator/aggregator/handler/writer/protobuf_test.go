@@ -28,12 +28,27 @@ import (
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3x/clock"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStoragePolicyFilter(t *testing.T) {
+	sp1 := policy.NewStoragePolicy(time.Minute, xtime.Second, time.Hour)
+	sp2 := policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute)
+
+	m2 := producer.NewMockMessage(nil)
+
+	f := NewStoragePolicyFilter([]policy.StoragePolicy{sp2})
+
+	require.True(t, f(m2))
+	require.False(t, f(newMessage(0, sp1, protobuf.Buffer{})))
+	require.True(t, f(newMessage(0, sp2, protobuf.Buffer{})))
+}
 
 func TestProtobufWriterWriteClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
