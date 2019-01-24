@@ -61,6 +61,7 @@ var (
 type Options struct {
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
+	Timeout           time.Duration
 }
 
 // Validate validates the options struct.
@@ -142,12 +143,23 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) {
 		return
 	}
 
-	// TODO(rartoul): Context with timeout?
-	err = i.downsamplerAndWriter.Write(
-		context.Background(), tags, datapoints, xtime.Second)
+	var (
+		ctx     context.Context
+		cleanup func()
+	)
+	context.Background()
+	if i.opts.Timeout > 0 {
+		ctx, cleanup = context.WithTimeout(ctx, i.opts.Timeout)
+	}
+
+	err = i.downsamplerAndWriter.Write(ctx, tags, datapoints, xtime.Second)
 	if err != nil {
 		i.logger.Errorf("err writing carbon metric: %s, err: %s",
 			string(name), err)
+	}
+
+	if cleanup != nil {
+		cleanup()
 	}
 }
 

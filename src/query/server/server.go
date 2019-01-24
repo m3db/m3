@@ -301,6 +301,7 @@ func Run(runOpts RunOptions) {
 		ingester, err := ingestcarbon.NewIngester(carbonIngestDownsamplerAndWriter, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
+			Timeout:           cfg.Carbon.Timeout,
 		})
 		if err != nil {
 			logger.Fatal("unable to create carbon ingester", zap.Error(err))

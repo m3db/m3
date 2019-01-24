@@ -139,9 +139,10 @@ type IngestConfiguration struct {
 // TODO(rartoul): Make this enabled by default.
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
-	Enabled        bool   `yaml:"enabled"`
-	MaxConcurrency int    `yaml:"maxConcurrency"`
-	ListenAddress  string `yaml:"listenAddress"`
+	Enabled        bool          `yaml:"enabled"`
+	MaxConcurrency int           `yaml:"maxConcurrency"`
+	ListenAddress  string        `yaml:"listenAddress"`
+	Timeout        time.Duration `yaml:"timeout"`
 }
 
 // LocalConfiguration is the local embedded configuration if running
