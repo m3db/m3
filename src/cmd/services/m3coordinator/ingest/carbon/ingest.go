@@ -51,6 +51,8 @@ var (
 	preFormattedKeyNames = [][]byte{}
 
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
+	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
+	errWorkerPoolMustBeSet             = errors.New("carbon ingester options: worker pool must be set")
 )
 
 // Options configures the ingester.
@@ -59,12 +61,29 @@ type Options struct {
 	WorkerPool        xsync.PooledWorkerPool
 }
 
+// Validate validates the options struct.
+func (o *Options) Validate() error {
+	if o.InstrumentOptions == nil {
+		return errIOptsMustBeSet
+	}
+
+	if o.WorkerPool == nil {
+		return errWorkerPoolMustBeSet
+	}
+
+	return nil
+}
+
 // NewIngester returns an ingester for carbon metrics.
 func NewIngester(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	opts Options,
 ) (m3xserver.Handler, error) {
-	// TODO(rartoul): Validate options.
+	err := opts.Validate()
+	if err != nil {
+		return err
+	}
+
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
