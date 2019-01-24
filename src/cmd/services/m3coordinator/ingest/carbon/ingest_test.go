@@ -23,6 +23,7 @@ package ingestcarbon
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -65,8 +66,10 @@ func TestIngesterHandleConn(t *testing.T) {
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 
 	var (
-		foundLock = sync.Mutex{}
-		found     = []testMetric{}
+		lock = sync.Mutex{}
+
+		found = []testMetric{}
+		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
 		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second).DoAndReturn(func(
@@ -74,12 +77,21 @@ func TestIngesterHandleConn(t *testing.T) {
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
-	) {
-		foundLock.Lock()
+	) interface{} {
+		lock.Lock()
 		found = append(found, testMetric{
 			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
-		foundLock.Unlock()
-	}).Return(nil).AnyTimes()
+
+		// Make 1 in 10 writes fail to test those paths.
+		returnErr := idx%10 == 0
+		idx++
+		lock.Unlock()
+
+		if returnErr {
+			return errors.New("some_error")
+		}
+		return nil
+	}).AnyTimes()
 
 	byteConn := &byteConn{b: bytes.NewBuffer(testPacket)}
 	ingester, err := NewIngester(mockDownsamplerAndWriter, testOptions)
@@ -217,7 +229,7 @@ func init() {
 
 		if i%10 == 0 {
 			// Make 1 in 10 lines invalid to test the error paths.
-			line := []byte(fmt.Sprintf("garbage line %d\n", i))
+			line := []byte(fmt.Sprintf("garbage line %d \n", i))
 			testPacket = append(testPacket, line...)
 			continue
 		}
