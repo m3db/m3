@@ -140,8 +140,8 @@ type IngestConfiguration struct {
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
 	Enabled        bool   `yaml:"enabled"`
-	MaxConcurrency int    `yaml:"max_concurrency"`
-	ListenAddress  string `yaml:"listen_address"`
+	MaxConcurrency int    `yaml:"maxConcurrency"`
+	ListenAddress  string `yaml:"listenAddress"`
 }
 
 // LocalConfiguration is the local embedded configuration if running
