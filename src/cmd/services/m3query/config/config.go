@@ -94,6 +94,9 @@ type Configuration struct {
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
 
+	// Carbon is the carbon configuration.
+	Carbon *CarbonConfiguration `yaml:"carbon"`
+
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
 }
@@ -131,6 +134,13 @@ type IngestConfiguration struct {
 
 	// M3Msg is the configuration for m3msg server.
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
+}
+
+// CarbonConfiguration is the configuration for the carbon server.
+type CarbonConfiguration struct {
+	Enabled        bool   `yaml:"enabled"`
+	MaxConcurrency int    `yaml:"max_concurrency"`
+	ListenAddress  string `yaml:"listen_address"`
 }
 
 // LocalConfiguration is the local embedded configuration if running

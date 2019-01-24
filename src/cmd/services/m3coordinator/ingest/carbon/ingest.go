@@ -63,11 +63,11 @@ type Options struct {
 func NewIngester(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	opts Options,
-) m3xserver.Handler {
+) (m3xserver.Handler, error) {
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
-	}
+	}, nil
 }
 
 type ingester struct {

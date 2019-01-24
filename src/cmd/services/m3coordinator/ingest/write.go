@@ -55,6 +55,8 @@ type DownsamplerAndWriter interface {
 		ctx context.Context,
 		iter DownsampleAndWriteIter,
 	) error
+
+	Storage() storage.Storage
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -185,4 +187,8 @@ func (d *downsamplerAndWriter) WriteBatch(
 
 	wg.Wait()
 	return multiErr.LastError()
+}
+
+func (d *downsamplerAndWriter) Storage() storage.Storage {
+	return d.store
 }

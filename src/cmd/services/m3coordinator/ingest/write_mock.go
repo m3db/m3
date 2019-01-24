@@ -29,6 +29,7 @@ import (
 	"reflect"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/time"
 
@@ -56,6 +57,20 @@ func NewMockDownsamplerAndWriter(ctrl *gomock.Controller) *MockDownsamplerAndWri
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockDownsamplerAndWriter) EXPECT() *MockDownsamplerAndWriterMockRecorder {
 	return m.recorder
+}
+
+// Storage mocks base method
+func (m *MockDownsamplerAndWriter) Storage() storage.Storage {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Storage")
+	ret0, _ := ret[0].(storage.Storage)
+	return ret0
+}
+
+// Storage indicates an expected call of Storage
+func (mr *MockDownsamplerAndWriterMockRecorder) Storage() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Storage", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).Storage))
 }
 
 // Write mocks base method

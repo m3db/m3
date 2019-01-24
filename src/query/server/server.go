@@ -33,6 +33,8 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -57,6 +59,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xserver "github.com/m3db/m3x/server"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -204,7 +207,8 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
 
-	handler, err := httpd.NewHandler(backendStorage, tagOptions, downsampler, engine,
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
+	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
@@ -236,7 +240,7 @@ func Run(runOpts RunOptions) {
 	}()
 
 	if cfg.Ingest != nil {
-		logger.Info("starting m3msg server ")
+		logger.Info("starting m3msg server")
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
@@ -244,7 +248,7 @@ func Run(runOpts RunOptions) {
 
 		server, err := cfg.Ingest.M3Msg.NewServer(
 			ingester.Ingest,
-			instrumentOptions.SetMetricsScope(scope.SubScope("m3msg")),
+			instrumentOptions.SetMetricsScope(scope.SubScope("ingest-m3msg")),
 		)
 
 		if err != nil {
@@ -259,6 +263,55 @@ func Run(runOpts RunOptions) {
 		defer server.Close()
 	} else {
 		logger.Info("no m3msg server configured")
+	}
+
+	if cfg.Carbon != nil && cfg.Carbon.Enabled {
+		logger.Info("starting carbon server")
+
+		var (
+			carbonIOpts = instrumentOptions.SetMetricsScope(
+				instrumentOptions.MetricsScope().SubScope("ingest-carbon"))
+			carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
+			carbonWorkerPoolSize int
+		)
+		if cfg.Carbon.MaxConcurrency > 0 {
+			// Use a bounded worker pool if they requested a specific maximum concurrency.
+			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
+				SetGrowOnDemand(false).
+				SetInstrumentOptions(carbonIOpts)
+			carbonWorkerPoolSize = cfg.Carbon.MaxConcurrency
+		} else {
+			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
+				SetGrowOnDemand(true).
+				SetKillWorkerProbability(0.001)
+			// TODO: Constants?
+			carbonWorkerPoolSize = 1024
+		}
+		workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
+		if err != nil {
+			logger.Fatal("unable to create worker pool for carbon ingester: %v", zap.Error(err))
+		}
+
+		ingester, err := ingestcarbon.NewIngester(nil, ingestcarbon.Options{
+			InstrumentOptions: carbonIOpts,
+			WorkerPool:        workerPool,
+		})
+		if err != nil {
+			logger.Fatal("unable to create carbon ingester: %v", zap.Error(err))
+		}
+
+		// TODO: Default constants
+		listenAddress := fmt.Sprintf("0.0.0.0:7204")
+		if cfg.Carbon.ListenAddress != "" {
+			listenAddress = cfg.Carbon.ListenAddress
+		}
+		serverOpts := xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+		server := xserver.NewServer(listenAddress, ingester, serverOpts)
+		err = server.ListenAndServe()
+		if err != nil {
+			logger.Fatal("unable to start carbon ingestion server at listen address: %s, err: %v",
+				zap.String("listenAddress", listenAddress), zap.Error(err))
+		}
 	}
 
 	var interruptCh <-chan error = make(chan error)
