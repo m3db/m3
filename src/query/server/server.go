@@ -268,7 +268,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Enabled {
-		logger.Info("starting carbon server")
+		logger.Info("carbon ingestion enabled")
 
 		var (
 			carbonIOpts = instrumentOptions.SetMetricsScope(
@@ -291,7 +291,7 @@ func Run(runOpts RunOptions) {
 		}
 		workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
 		if err != nil {
-			logger.Fatal("unable to create worker pool for carbon ingester: %v", zap.Error(err))
+			logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
 		}
 		workerPool.Init()
 
@@ -303,7 +303,7 @@ func Run(runOpts RunOptions) {
 			WorkerPool:        workerPool,
 		})
 		if err != nil {
-			logger.Fatal("unable to create carbon ingester: %v", zap.Error(err))
+			logger.Fatal("unable to create carbon ingester", zap.Error(err))
 		}
 
 		listenAddress := defaultCarbonIngesterListenAddress
@@ -312,11 +312,14 @@ func Run(runOpts RunOptions) {
 		}
 		serverOpts := xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
 		server := xserver.NewServer(listenAddress, ingester, serverOpts)
+
+		logger.Info("starting carbon ingestion server", zap.String("listenAddress", listenAddress))
 		err = server.ListenAndServe()
 		if err != nil {
-			logger.Fatal("unable to start carbon ingestion server at listen address: %s, err: %v",
+			logger.Fatal("unable to start carbon ingestion server at listen address",
 				zap.String("listenAddress", listenAddress), zap.Error(err))
 		}
+		logger.Info("started carbon ingestion server", zap.String("listenAddress", listenAddress))
 	}
 
 	var interruptCh <-chan error = make(chan error)
