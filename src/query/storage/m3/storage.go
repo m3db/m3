@@ -136,20 +136,22 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	iters := raw.Iters()
-	accountedIters := make([]encoding.SeriesIterator, len(iters))
-
 	enforcer := options.Enforcer
 	if enforcer == nil {
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
+	// TODO: mutating this array breaks the abstraction a bit, but it's the least fussy way I can think of to do this
+	// while maintaining the original pooling.
+	// Alternative would be to fetch a new MutableSeriesIterators() instance from the pool, populate it,
+	// and then return the original to the pool, which feels wasteful.
+	iters := raw.Iters()
 	for i, iter := range iters {
-		accountedIters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
+		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
 	}
 
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		encoding.NewSeriesIterators(accountedIters, raw.Pool()),
+		raw,
 		bounds,
 		opts,
 	)
