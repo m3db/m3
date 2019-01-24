@@ -56,16 +56,16 @@ function wait_for_db_init {
       "snapshotEnabled": true,
       "repairEnabled": false,
       "retentionOptions": {
-        "retentionPeriodNanos": 172800000000000,
-        "blockSizeNanos": 7200000000000,
-        "bufferFutureNanos": 600000000000,
-        "bufferPastNanos": 600000000000,
+        "retentionPeriodDuration": "48h",
+        "blockSizeDuration": "2h",
+        "bufferFutureDuration": "10m",
+        "bufferPastDuration": "10m",
         "blockDataExpiry": true,
-        "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+        "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
       },
       "indexOptions": {
         "enabled": true,
-        "blockSizeNanos": 7200000000000
+        "blockSizeDuration": "2h"
       }
     }
   }'
@@ -84,16 +84,16 @@ function wait_for_db_init {
       "snapshotEnabled": true,
       "repairEnabled": false,
       "retentionOptions": {
-        "retentionPeriodNanos": 172800000000000,
-        "blockSizeNanos": 7200000000000,
-        "bufferFutureNanos": 600000000000,
-        "bufferPastNanos": 600000000000,
+        "retentionPeriodDuration": "48h",
+        "blockSizeDuration": "2h",
+        "bufferFutureDuration": "10m",
+        "bufferPastDuration": "10m",
         "blockDataExpiry": true,
-        "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+        "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
       },
       "indexOptions": {
         "enabled": true,
-        "blockSizeNanos": 7200000000000
+        "blockSizeDuration": "2h"
       }
     }
   }'
