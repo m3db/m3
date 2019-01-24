@@ -284,6 +284,11 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 		p.RegisterFilter(sid, f)
 		logger.Infof("registered filter for consumer service: %s", sid.String())
 	}
+	for _, filter := range c.StoragePolicyFilters {
+		sid, f := filter.NewConsumerServiceFilter()
+		p.RegisterFilter(sid, f)
+		logger.Infof("registered storage policy filter: %s for consumer service: %s", filter.StoragePolicies, sid.String())
+	}
 	wOpts := cfg.NewWriterOptions(instrumentOpts)
 	return NewProtobufHandler(p, wOpts), nil
 }
@@ -309,11 +314,6 @@ func (c *dynamicBackendConfiguration) newSharderRouter(
 		sid, f := filter.NewConsumerServiceFilter()
 		p.RegisterFilter(sid, f)
 		logger.Infof("registered filter for consumer service: %s", sid.String())
-	}
-	for _, filter := range c.StoragePolicyFilters {
-		sid, f := filter.NewConsumerServiceFilter()
-		p.RegisterFilter(sid, f)
-		logger.Infof("registered storage policy filter: %s for consumer service: %s", filter.StoragePolicies, sid.String())
 	}
 	r := router.NewWithAckRouter(p)
 	if c.TrafficControl != nil {
