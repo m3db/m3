@@ -50,7 +50,7 @@ const (
 )
 
 var (
-	errNoStorageOrDownsampler = errors.New("no storage or downsampler set, requires at least one or both")
+	errNoDownsamplerAndWriter = errors.New("no ingest.DownsamplerAndWriter was set")
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
