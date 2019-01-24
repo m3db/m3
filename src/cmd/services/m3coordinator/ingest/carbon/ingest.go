@@ -91,6 +91,8 @@ func NewIngester(
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
 		logger:               opts.InstrumentOptions.Logger(),
+		metrics: newCarbonIngesterMetrics(
+			opts.InstrumentOptions.MetricsScope()),
 	}, nil
 }
 
@@ -98,6 +100,7 @@ type ingester struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	opts                 Options
 	logger               log.Logger
+	metrics              carbonIngesterMetrics
 }
 
 // TODO(rartoul): Emit metrics
@@ -111,15 +114,21 @@ func (i *ingester) Handle(conn net.Conn) {
 	logger.Debug("handling new carbon ingestion connection")
 	for s.Scan() {
 		name, timestamp, value := s.Metric()
-		// Copy name since scanner bytes are recycled.
 		// TODO(rartoul): Pool.
+		// Copy name since scanner bytes are recycled.
 		name = append([]byte(nil), name...)
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
-			i.write(name, timestamp, value)
+			ok := i.write(name, timestamp, value)
+			if ok {
+				i.metrics.success.Inc(1)
+			}
 			wg.Done()
 		})
+
+		i.metrics.malformed.Inc(s.MalformedCount)
+		s.MalformedCount = 0
 	}
 
 	if err := s.Err(); err != nil {
@@ -133,21 +142,21 @@ func (i *ingester) Handle(conn net.Conn) {
 	// Don't close the connection, that is the server's responsibility.
 }
 
-func (i *ingester) write(name []byte, timestamp time.Time, value float64) {
+func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 	datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
 	// TODO(rartoul): Pool.
 	tags, err := GenerateTagsFromName(name)
 	if err != nil {
 		i.logger.Errorf("err generating tags from carbon name: %s, err: %s",
 			string(name), err)
-		return
+		i.metrics.malformed.Inc(1)
+		return false
 	}
 
 	var (
-		ctx     context.Context
+		ctx     = context.Background()
 		cleanup func()
 	)
-	context.Background()
 	if i.opts.Timeout > 0 {
 		ctx, cleanup = context.WithTimeout(ctx, i.opts.Timeout)
 	}
@@ -156,29 +165,32 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) {
 	if err != nil {
 		i.logger.Errorf("err writing carbon metric: %s, err: %s",
 			string(name), err)
+		i.metrics.err.Inc(1)
+		return false
 	}
 
 	if cleanup != nil {
 		cleanup()
 	}
+	return true
 }
 
 func (i *ingester) Close() {
 	// We don't maintain any state in-between connections so there is nothing to do here.
 }
 
-func newCarbonIngesterMetrics(m tally.Scope) carbonHandlerMetrics {
-	writesScope := m.SubScope("writes")
-	return carbonHandlerMetrics{
-		unresolvedIDs:    writesScope.Counter("ids-policy-unresolved"),
-		malformedCounter: writesScope.Counter("malformed"),
+func newCarbonIngesterMetrics(m tally.Scope) carbonIngesterMetrics {
+	return carbonIngesterMetrics{
+		success:   m.Counter("success"),
+		err:       m.Counter("error"),
+		malformed: m.Counter("malformed"),
 	}
 }
 
-type carbonHandlerMetrics struct {
-	unresolvedIDs    tally.Counter
-	malformedCounter tally.Counter
-	readTimeLatency  tally.Timer
+type carbonIngesterMetrics struct {
+	success   tally.Counter
+	err       tally.Counter
+	malformed tally.Counter
 }
 
 // GenerateTagsFromName accepts a carbon metric name and blows it up into a list of
