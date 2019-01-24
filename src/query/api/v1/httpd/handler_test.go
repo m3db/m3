@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -48,7 +49,8 @@ func makeTagOptions() models.TagOptions {
 }
 
 func setupHandler(store storage.Storage) (*Handler, error) {
-	return NewHandler(store, makeTagOptions(), nil, executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil)
+	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 }
 
