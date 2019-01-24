@@ -121,7 +121,7 @@ func (i *ingester) Handle(conn net.Conn) {
 
 	logger.Debugf("waiting for outstanding carbon ingestion writes to complete")
 	wg.Wait()
-	logger.Debugf("all outstanding writes completed, shuttin down carbon ingestion handler")
+	logger.Debugf("all outstanding writes completed, shutting down carbon ingestion handler")
 
 	// Don't close the connection, that is the server's responsibility.
 }
