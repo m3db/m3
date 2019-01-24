@@ -75,7 +75,7 @@ type ingester struct {
 	opts                 Options
 }
 
-// TODO: Emit metrics
+// TODO(rartoul): Emit metrics
 func (i *ingester) Handle(conn net.Conn) {
 	var (
 		wg     = sync.WaitGroup{}
@@ -87,13 +87,13 @@ func (i *ingester) Handle(conn net.Conn) {
 	for s.Scan() {
 		name, timestamp, value := s.Metric()
 		// Copy name since scanner bytes are recycled.
-		// TODO: Pool.
+		// TODO(rartoul): Pool.
 		name = append([]byte(nil), name...)
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
 			datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
-			// TODO: Pool.
+			// TODO(rartoul): Pool.
 			tags, err := GenerateTagsFromName(name)
 			if err != nil {
 				logger.Errorf("err generating tags from carbon name: %s, err: %s",
@@ -101,7 +101,7 @@ func (i *ingester) Handle(conn net.Conn) {
 				return
 			}
 
-			// TODO: Real context?
+			// TODO(rartoul): Context with timeout?
 			err = i.downsamplerAndWriter.Write(
 				context.Background(), tags, datapoints, xtime.Second)
 			if err != nil {

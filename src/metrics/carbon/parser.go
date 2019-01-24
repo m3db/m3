@@ -250,7 +250,6 @@ func (s *Scanner) Scan() bool {
 
 		var err error
 		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Bytes()); err != nil {
-			// TODO: Convert to log
 			s.iOpts.Logger().Errorf(
 				"error trying to scan malformed carbon line: %s, err: %s",
 				string(s.path), err.Error())
