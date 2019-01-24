@@ -35,9 +35,9 @@ dynamicBackend:
   name: test
   storagePolicyFilters:
     - serviceID:
-        name: statsdex_m3dbingester_pb
-        environment: staging
-        zone: dca1
+        name: name1
+        environment: env1
+        zone: zone1
       storagePolicies:
         - 10m:40d
         - 1m:40d
