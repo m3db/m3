@@ -35,7 +35,7 @@ func BenchmarkGenerateTagsFromName(b *testing.B) {
 	)
 
 	for i := 0; i < b.N; i++ {
-		benchmarkGenerateTagsSink, err = generateTagsFromName(testName)
+		benchmarkGenerateTagsSink, err = GenerateTagsFromName(testName)
 		if err != nil {
 			panic(err)
 		}

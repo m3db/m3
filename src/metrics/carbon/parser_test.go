@@ -28,12 +28,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	nullTime time.Time
+
+	testIOpts = instrument.NewOptions()
 )
 
 type carbonLine struct {
@@ -64,7 +67,7 @@ func TestScannerMetric(t *testing.T) {
 		fmt.Fprintf(&buf, "%s\n", line.line)
 	}
 
-	s := NewScanner(&buf)
+	s := NewScanner(&buf, testIOpts)
 	for _, line := range testLines {
 		t.Run(line.path, func(t *testing.T) {
 			require.True(t, s.Scan(), "could not parse to line %s, err: %v", line.line, s.Err())

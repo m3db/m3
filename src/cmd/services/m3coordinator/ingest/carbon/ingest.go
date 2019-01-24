@@ -75,10 +75,11 @@ type ingester struct {
 	opts                 Options
 }
 
+// TODO: Emit metrics
 func (i *ingester) Handle(conn net.Conn) {
 	var (
 		wg     = sync.WaitGroup{}
-		s      = carbon.NewScanner(conn)
+		s      = carbon.NewScanner(conn, i.opts.InstrumentOptions)
 		logger = i.opts.InstrumentOptions.Logger()
 	)
 
@@ -93,7 +94,7 @@ func (i *ingester) Handle(conn net.Conn) {
 		i.opts.WorkerPool.Go(func() {
 			datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
 			// TODO: Pool.
-			tags, err := generateTagsFromName(name)
+			tags, err := GenerateTagsFromName(name)
 			if err != nil {
 				logger.Errorf("err generating tags from carbon name: %s, err: %s",
 					string(name), err)
@@ -110,9 +111,6 @@ func (i *ingester) Handle(conn net.Conn) {
 
 			wg.Done()
 		})
-
-		// i.metrics.malformedCounter.Inc(int64(s.MalformedCount))
-		s.MalformedCount = 0
 	}
 
 	if err := s.Err(); err != nil {
@@ -145,7 +143,7 @@ type carbonHandlerMetrics struct {
 	readTimeLatency  tally.Timer
 }
 
-func generateTagsFromName(name []byte) (models.Tags, error) {
+func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	if len(name) == 0 {
 		return models.Tags{}, errCannotGenerateTagsFromEmptyName
 	}

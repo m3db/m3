@@ -128,7 +128,7 @@ func TestGenerateTagsFromName(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tags, err := generateTagsFromName([]byte(tc.name))
+		tags, err := GenerateTagsFromName([]byte(tc.name))
 		if tc.expectedErr != nil {
 			require.Equal(t, tc.expectedErr, err)
 		} else {
@@ -207,7 +207,7 @@ func init() {
 	for i := 0; i < numLinesInTestPacket; i++ {
 		metric := []byte(fmt.Sprintf("test_metric_%d", i))
 
-		tags, err := generateTagsFromName(metric)
+		tags, err := GenerateTagsFromName(metric)
 		if err != nil {
 			panic(err)
 		}
