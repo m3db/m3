@@ -162,7 +162,14 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 	}
 
-	if d.downsampler != nil {
+	// Iter does not need to be synchronized because even though we use it to spawn
+	// many goroutines above, the iteration is always synchronous.
+	resetErr := iter.Reset()
+	if resetErr != nil {
+		addError(resetErr)
+	}
+
+	if d.downsampler != nil && resetErr == nil {
 		// Write aggregated.
 		appender, err := d.downsampler.NewMetricsAppender()
 		if err != nil {

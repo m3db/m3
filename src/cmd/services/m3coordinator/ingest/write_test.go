@@ -143,6 +143,8 @@ func (i *testIter) Error() error {
 
 func TestDownsampleAndWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
 
 	var (
@@ -176,6 +178,8 @@ func TestDownsampleAndWrite(t *testing.T) {
 
 func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
 	downAndWrite.downsampler = nil
 
@@ -190,6 +194,8 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 
 func TestDownsampleAndWriteBatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
 
 	var (
@@ -234,6 +240,8 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 
 func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
 	downAndWrite.downsampler = nil
 
