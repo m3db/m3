@@ -127,49 +127,21 @@ func (d *downsamplerAndWriter) WriteBatch(
 	ctx context.Context,
 	iter DownsampleAndWriteIter,
 ) error {
-	if d.downsampler != nil {
-		// Write aggregated.
-		appender, err := d.downsampler.NewMetricsAppender()
-		if err != nil {
-			return err
+	var (
+		wg       = &sync.WaitGroup{}
+		multiErr xerrors.MultiError
+		errLock  sync.Mutex
+		addError = func(err error) {
+			errLock.Lock()
+			multiErr = multiErr.Add(err)
+			errLock.Unlock()
 		}
-
-		for iter.Next() {
-			appender.Reset()
-			tags, datapoints, _ := iter.Current()
-			for _, tag := range tags.Tags {
-				appender.AddTag(tag.Name, tag.Value)
-			}
-
-			samplesAppender, err := appender.SamplesAppender()
-			if err != nil {
-				return err
-			}
-
-			for _, dp := range datapoints {
-				err := samplesAppender.AppendGaugeSample(dp.Value)
-				if err != nil {
-					return err
-				}
-			}
-		}
-		appender.Finalize()
-
-		if err := iter.Error(); err != nil {
-			return err
-		}
-		if err := iter.Reset(); err != nil {
-			return err
-		}
-	}
+	)
 
 	if d.store != nil {
-		// Write unaggregated.
-		var (
-			wg       = &sync.WaitGroup{}
-			errLock  sync.Mutex
-			multiErr xerrors.MultiError
-		)
+		// Write unaggregated. Spin up all the background goroutines that make
+		// network requests before we do the synchronous work of writing to the
+		// downsampler.
 		for iter.Next() {
 			wg.Add(1)
 			tags, datapoints, unit := iter.Current()
@@ -183,19 +155,50 @@ func (d *downsamplerAndWriter) WriteBatch(
 					},
 				})
 				if err != nil {
-					errLock.Lock()
-					multiErr = multiErr.Add(err)
-					errLock.Unlock()
+					addError(err)
 				}
 				wg.Done()
 			}()
 		}
-
-		wg.Wait()
-		return multiErr.LastError()
 	}
 
-	return nil
+	if d.downsampler != nil {
+		// Write aggregated.
+		appender, err := d.downsampler.NewMetricsAppender()
+		if err != nil {
+			addError(err)
+		}
+
+		for iter.Next() {
+			appender.Reset()
+			tags, datapoints, _ := iter.Current()
+			for _, tag := range tags.Tags {
+				appender.AddTag(tag.Name, tag.Value)
+			}
+
+			samplesAppender, err := appender.SamplesAppender()
+			if err != nil {
+				addError(err)
+				continue
+			}
+
+			for _, dp := range datapoints {
+				err := samplesAppender.AppendGaugeSample(dp.Value)
+				if err != nil {
+					addError(err)
+					continue
+				}
+			}
+		}
+		appender.Finalize()
+
+		if err := iter.Error(); err != nil {
+			addError(err)
+		}
+	}
+
+	wg.Wait()
+	return multiErr.LastError()
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
