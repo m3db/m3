@@ -128,12 +128,11 @@ func (i *ingester) Close() {
 	// We don't maintain any state in-between connections so there is nothing to do here.
 }
 
-func newCarbonHandlerMetrics(m tally.Scope) carbonHandlerMetrics {
+func newCarbonIngesterMetrics(m tally.Scope) carbonHandlerMetrics {
 	writesScope := m.SubScope("writes")
 	return carbonHandlerMetrics{
 		unresolvedIDs:    writesScope.Counter("ids-policy-unresolved"),
 		malformedCounter: writesScope.Counter("malformed"),
-		readTimeLatency:  writesScope.Timer("read-time-latency"),
 	}
 }
 
