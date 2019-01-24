@@ -74,6 +74,8 @@ var (
 		Namespace: "default",
 		Retention: 2 * 24 * time.Hour,
 	}
+
+	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 )
 
 type cleanupFn func() error
@@ -304,8 +306,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to create carbon ingester: %v", zap.Error(err))
 		}
 
-		// TODO: Default constants
-		listenAddress := fmt.Sprintf("0.0.0.0:7204")
+		listenAddress := defaultCarbonIngesterListenAddress
 		if cfg.Carbon.ListenAddress != "" {
 			listenAddress = cfg.Carbon.ListenAddress
 		}
