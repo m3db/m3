@@ -67,3 +67,6 @@ ingest:
         jitter: true
     handler:
       protobufEnabled: false
+
+carbon:
+  enabled: true
