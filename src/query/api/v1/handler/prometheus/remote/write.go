@@ -67,7 +67,7 @@ func NewPromWriteHandler(
 	scope tally.Scope,
 ) (http.Handler, error) {
 	if downsamplerAndWriter == nil {
-		return nil, errNoStorageOrDownsampler
+		return nil, errNoDownsamplerAndWriter
 	}
 
 	return &PromWriteHandler{
