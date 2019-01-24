@@ -21,6 +21,8 @@
 package m3db
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	xts "github.com/m3db/m3/src/query/ts"
@@ -44,6 +46,7 @@ func (it *encodedSeriesIterUnconsolidated) Err() error {
 }
 
 func (it *encodedSeriesIterUnconsolidated) Next() bool {
+	fmt.Println("Calling next")
 	if it.err != nil {
 		return false
 	}

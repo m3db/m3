@@ -58,12 +58,13 @@ func read(
 	// Results is closed by execute
 	results := make(chan executor.Query)
 	go engine.ExecuteExpr(ctx, parser, opts, params, results)
-
+	fmt.Println("executing")
 	// Block slices are sorted by start time
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
 	var processErr error
 	for result := range results {
+		fmt.Println("got res")
 		if result.Err != nil {
 			processErr = result.Err
 			break
@@ -106,7 +107,7 @@ func read(
 			}
 		}
 	}
-
+	fmt.Println("got all")
 	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
 	defer func() {
 		for _, b := range sortedBlockList {
@@ -116,6 +117,7 @@ func read(
 	}()
 
 	if processErr != nil {
+		fmt.Println("err not nil draining")
 		// Drain anything remaining
 		drainResultChan(results)
 		return nil, processErr
@@ -138,12 +140,15 @@ func drainResultChan(resultsChan chan executor.Query) {
 }
 
 func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
+	fmt.Println("1")
 	if len(blockList) == 0 {
 		return emptySeriesList, nil
 	}
+	fmt.Println("2")
 
 	firstBlock := blockList[0].block
 	firstSeriesIter, err := firstBlock.SeriesIter()
+	fmt.Println("3", firstSeriesIter, err)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +162,7 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	seriesIters := make([]block.SeriesIter, len(blockList))
 	// To create individual series, we iterate over seriesIterators for each block in the block list.
 	// For each iterator, the nth current() will be combined to give the nth series
+	fmt.Println("4")
 	for i, b := range blockList {
 		seriesIter, err := b.block.SeriesIter()
 		if err != nil {
@@ -165,12 +171,14 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 
 		seriesIters[i] = seriesIter
 	}
+	fmt.Println("5")
 
 	numValues := 0
 	for _, block := range blockList {
 		b, _ := block.block.StepIter()
 		numValues += b.StepCount()
 	}
+	fmt.Println("6")
 
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
@@ -178,6 +186,7 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
 				if err = iter.Err(); err != nil {
+					fmt.Println("oops err")
 					return nil, err
 				}
 

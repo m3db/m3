@@ -253,6 +253,7 @@ func (m *columnBlockSeriesIter) SeriesCount() int {
 }
 
 func (m *columnBlockSeriesIter) Err() error {
+	// no-op
 	return nil
 }
 

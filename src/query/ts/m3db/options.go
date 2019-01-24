@@ -69,11 +69,6 @@ func (o *encodedBlockOptions) SetSplitSeriesByBlock(split bool) Options {
 }
 
 func (o *encodedBlockOptions) SplittingSeriesByBlock() bool {
-	// If any lookback duration has been set, cannot split series by block.
-	if o.lookbackDuration > 0 {
-		return false
-	}
-
 	return o.splitSeries
 }
 

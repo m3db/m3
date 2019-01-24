@@ -35,9 +35,6 @@ import (
 type Options interface {
 	// SetSplitSeriesByBlock determines if the converter will split the series
 	// by blocks, or if it will instead treat the entire series as a single block.
-	//
-	// NB: if a lookback duration greater than 0 has been set, the series will
-	// always be treated as a single block.
 	SetSplitSeriesByBlock(bool) Options
 	// SplittingSeriesByBlock returns true iff lookback duration is 0, and the
 	// options has not been forced to return a single block.
