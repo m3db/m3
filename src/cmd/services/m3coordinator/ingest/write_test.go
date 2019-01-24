@@ -25,15 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 var (
