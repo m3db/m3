@@ -21,6 +21,7 @@
 package series
 
 import (
+	"errors"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -44,7 +45,8 @@ const (
 )
 
 var (
-	timeZero time.Time
+	timeZero           time.Time
+	errIncompleteMerge = errors.New("[invariant violated] bucket merge did not result in only one encoder")
 )
 
 const (
@@ -727,11 +729,11 @@ func (b *BufferBucketVersions) toStreams(ctx context.Context) ([]xio.SegmentRead
 	res := make([]xio.SegmentReader, 0, len(buckets))
 
 	for _, bucket := range buckets {
-		block, err := bucket.toStream(ctx)
+		stream, err := bucket.toStream(ctx)
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, block)
+		res = append(res, stream)
 	}
 
 	return res, nil
@@ -1023,7 +1025,13 @@ func (b *BufferBucket) toStream(ctx context.Context) (xio.SegmentReader, error) 
 		return nil, err
 	}
 
-	// A successful merge will reset the blocks.
+	// After a successful merge, encoders and bootstrapped blocks will be
+	// reset, and the merged encoder appended as the only encoder in the
+	// bucket.
+	if !b.hasJustSingleEncoder() {
+		return nil, errIncompleteMerge
+	}
+
 	return b.encoders[0].encoder.Stream(), nil
 }
 
