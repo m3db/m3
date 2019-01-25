@@ -25,7 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -42,13 +42,20 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+
+	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 )
 
-// defaultLimitsConfiguration is applied if `limits` isn't specified.
-var defaultLimitsConfiguration = &LimitsConfiguration{
-	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-	MaxComputedDatapoints: 86400,
-}
+var (
+	defaultCarbonIngesterTimeout = 5 * time.Second
+	defaultCarbonIngesterEnabled = true
+
+	// defaultLimitsConfiguration is applied if `limits` isn't specified.
+	defaultLimitsConfiguration = &LimitsConfiguration{
+		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
+		MaxComputedDatapoints: 86400,
+	}
+)
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
@@ -94,6 +101,9 @@ type Configuration struct {
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
 
+	// Carbon is the carbon configuration.
+	Carbon CarbonConfiguration `yaml:"carbon"`
+
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
 }
@@ -127,10 +137,53 @@ type LimitsConfiguration struct {
 // IngestConfiguration is the configuration for ingestion server.
 type IngestConfiguration struct {
 	// Ingester is the configuration for storage based ingester.
-	Ingester ingest.Configuration `yaml:"ingester"`
+	Ingester ingestm3msg.Configuration `yaml:"ingester"`
 
 	// M3Msg is the configuration for m3msg server.
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
+}
+
+// CarbonConfiguration is the configuration for the carbon server.
+type CarbonConfiguration struct {
+	Ingestion CarbonIngestionConfiguration
+}
+
+// CarbonIngestionConfiguration is the configuration struct for carbon ingestion.
+type CarbonIngestionConfiguration struct {
+	Enabled        *bool          `yaml:"enabled"`
+	MaxConcurrency int            `yaml:"maxConcurrency"`
+	ListenAddress  string         `yaml:"listenAddress"`
+	Timeout        *time.Duration `yaml:"timeout"`
+}
+
+// EnabledOrDefault returns the configured value for Enabled, if set, or the default
+// value otherwise.
+func (c *CarbonIngestionConfiguration) EnabledOrDefault() bool {
+	if c.Enabled != nil {
+		return *c.Enabled
+	}
+
+	return defaultCarbonIngesterEnabled
+}
+
+// TimeoutOrDefault returns the configured value for Timeout, if set, or the default
+// value otherwise.
+func (c *CarbonIngestionConfiguration) TimeoutOrDefault() time.Duration {
+	if c.Timeout != nil {
+		return *c.Timeout
+	}
+
+	return defaultCarbonIngesterTimeout
+}
+
+// ListenAddressOrDefault returns the configured value for ListenAddress, if set, or the default
+// value otherwise.
+func (c *CarbonIngestionConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // LocalConfiguration is the local embedded configuration if running

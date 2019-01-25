@@ -27,6 +27,26 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+func TestStoragePolicyFilter(t *testing.T) {
+	var cfg flushHandlerConfiguration
+
+	str := `
+dynamicBackend:
+  name: test
+  storagePolicyFilters:
+    - serviceID:
+        name: name1
+        environment: env1
+        zone: zone1
+      storagePolicies:
+        - 10m:40d
+        - 1m:40d
+`
+	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+	require.Equal(t, 1, len(cfg.DynamicBackend.StoragePolicyFilters))
+	require.Equal(t, 2, len(cfg.DynamicBackend.StoragePolicyFilters[0].StoragePolicies))
+}
+
 func TestFlushHandlerConfigurationValidate(t *testing.T) {
 	var cfg flushHandlerConfiguration
 

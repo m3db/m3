@@ -14,13 +14,13 @@ metrics:
 
 clusters:
   - namespaces:
-      - namespace: metrics_0_30m
-        type: unaggregated
-        retention: 30m
-      - namespace: metrics_10s_48h
+      - namespace: agg
         type: aggregated
-        retention: 48h
-        resolution: 10s
+        retention: 10h
+        resolution: 15s
+      - namespace: unagg
+        type: unaggregated
+        retention: 10m
     client:
       config:
         service:
@@ -31,7 +31,7 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - m3db_seed:2379
+                - dbnode01:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
       writeTimeout: 10s
@@ -49,24 +49,6 @@ clusters:
         jitter: true
       backgroundHealthCheckFailLimit: 4
       backgroundHealthCheckFailThrottleFactor: 0.5
-
-ingest:
-  ingester:
-    workerPoolSize: 100
-    opPool:
-      size: 100
-    retry:
-      maxRetries: 3
-      jitter: true
-    logSampleRate: 0.01
-  m3msg:
-    server:
-      listenAddress: 0.0.0.0:7507
-      retry:
-        maxBackoff: 10s
-        jitter: true
-    handler:
-      protobufEnabled: false
 
 carbon:
   enabled: true

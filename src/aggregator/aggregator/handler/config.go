@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3x/instrument"
@@ -173,7 +174,7 @@ func (c *writerConfiguration) NewWriterOptions(
 		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
 	})
 	if c.BytesPool != nil {
-		iOpts := iOpts.SetMetricsScope(scope.SubScope("buffered-bytes-pool"))
+		iOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"pool": "buffered-bytes-pool"}))
 		bytesPool := pool.NewBytesPool(c.BytesPool.NewBuckets(), c.BytesPool.NewObjectPoolOptions(iOpts))
 		bytesPool.Init()
 		opts = opts.SetBytesPool(bytesPool)
@@ -214,6 +215,9 @@ type dynamicBackendConfiguration struct {
 
 	// Filters configs the filter for consumer services.
 	Filters []consumerServiceFilterConfiguration `yaml:"filters"`
+
+	// Filters configs the filter for consumer services.
+	StoragePolicyFilters []storagePolicyFilterConfiguration `yaml:"storagePolicyFilters"`
 
 	// TrafficControl configs the traffic controller.
 	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
@@ -280,6 +284,11 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 		p.RegisterFilter(sid, f)
 		logger.Infof("registered filter for consumer service: %s", sid.String())
 	}
+	for _, filter := range c.StoragePolicyFilters {
+		sid, f := filter.NewConsumerServiceFilter()
+		p.RegisterFilter(sid, f)
+		logger.Infof("registered storage policy filter: %s for consumer service: %s", filter.StoragePolicies, sid.String())
+	}
 	wOpts := cfg.NewWriterOptions(instrumentOpts)
 	return NewProtobufHandler(p, wOpts), nil
 }
@@ -321,6 +330,15 @@ func (c *dynamicBackendConfiguration) newSharderRouter(
 		SharderID: sharding.NewSharderID(*c.HashType, *c.TotalShards),
 		Router:    r,
 	}, nil
+}
+
+type storagePolicyFilterConfiguration struct {
+	ServiceID       services.ServiceIDConfiguration `yaml:"serviceID" validate:"nonzero"`
+	StoragePolicies []policy.StoragePolicy          `yaml:"storagePolicies" validate:"nonzero"`
+}
+
+func (c storagePolicyFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
+	return c.ServiceID.NewServiceID(), writer.NewStoragePolicyFilter(c.StoragePolicies)
 }
 
 type consumerServiceFilterConfiguration struct {

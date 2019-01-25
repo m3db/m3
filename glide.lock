@@ -1,3 +1,4 @@
+
 hash: 0e7bf1071dc652e5230ddbd0df98953eb2e29755d3156dba9403e12a43ce080c
 updated: 2019-01-19T12:15:50.786219-05:00
 imports:
@@ -219,7 +220,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: 912d1db087722c924d50a7bfac7ca55cf56a600e
+  version: e98ec326dd7b4d4bc97390c709dacf73d49a0bfc
   vcs: git
   subpackages:
   - checked
