@@ -20,6 +20,10 @@
 
 package downsample
 
+import (
+	"time"
+)
+
 // Downsampler is a downsampler.
 type Downsampler interface {
 	NewMetricsAppender() (MetricsAppender, error)
@@ -29,9 +33,23 @@ type Downsampler interface {
 // appender, only valid to use with a single caller at a time.
 type MetricsAppender interface {
 	AddTag(name, value []byte)
-	SamplesAppender() (SamplesAppender, error)
+	SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error)
 	Reset()
 	Finalize()
+}
+
+// SampleAppenderOptions defines the options being used when constructing
+// the samples appender for a metric.
+type SampleAppenderOptions struct {
+	Override      bool
+	OverrideRules SamplesAppenderOverrideRules
+}
+
+// SamplesAppenderOverrideRules provides override rules to
+// use instead of matching against default and dynamic matched rules
+// for an ID.
+type SamplesAppenderOverrideRules struct {
+	MappingRules []MappingRule
 }
 
 // SamplesAppender is a downsampling samples appender,
@@ -39,6 +57,8 @@ type MetricsAppender interface {
 type SamplesAppender interface {
 	AppendCounterSample(value int64) error
 	AppendGaugeSample(value float64) error
+	AppendCounterTimedSample(value int64, t time.Time) error
+	AppendGaugeTimedSample(value float64, t time.Time) error
 }
 
 type downsampler struct {
@@ -48,7 +68,7 @@ type downsampler struct {
 
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg: d.agg.aggregator,
+		agg:                    d.agg.aggregator,
 		defaultStagedMetadatas: d.agg.defaultStagedMetadatas,
 		clockOpts:              d.agg.clockOpts,
 		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),
@@ -60,7 +80,7 @@ func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
 	return &metricsAppender{
 		metricsAppenderOptions: opts,
-		tags:                 newTags(),
-		multiSamplesAppender: newMultiSamplesAppender(),
+		tags:                   newTags(),
+		multiSamplesAppender:   newMultiSamplesAppender(),
 	}
 }

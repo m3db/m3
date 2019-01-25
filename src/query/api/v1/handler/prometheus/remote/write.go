@@ -203,6 +203,7 @@ func (h *PromWriteHandler) writeAggregated(
 		return err
 	}
 
+	opts := downsample.SampleAppenderOptions{}
 	multiErr := xerrors.NewMultiError()
 	for _, ts := range r.Timeseries {
 		metricsAppender.Reset()
@@ -210,7 +211,7 @@ func (h *PromWriteHandler) writeAggregated(
 			metricsAppender.AddTag(label.Name, label.Value)
 		}
 
-		samplesAppender, err := metricsAppender.SamplesAppender()
+		samplesAppender, err := metricsAppender.SamplesAppender(opts)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
