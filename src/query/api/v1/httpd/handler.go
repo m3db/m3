@@ -45,7 +45,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/coreos/etcd/pkg/cors"
 	"github.com/gorilla/mux"
@@ -59,6 +59,7 @@ const (
 
 var (
 	remoteSource = map[string]string{"source": "remote"}
+	nativeSource = map[string]string{"source": "native"}
 )
 
 // Handler represents an HTTP handler.
@@ -140,7 +141,12 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
-	nativePromReadHandler := native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)
+	nativePromReadHandler := native.NewPromReadHandler(
+		h.engine,
+		h.tagOptions,
+		&h.config.Limits,
+		h.scope.Tagged(nativeSource),
+	)
 
 	h.router.HandleFunc(remote.PromReadURL,
 		logged(promRemoteReadHandler).ServeHTTP,

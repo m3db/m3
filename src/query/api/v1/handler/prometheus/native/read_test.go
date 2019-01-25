@@ -129,6 +129,7 @@ func newTestSetup() *testSetup {
 			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil)),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
+			tally.NewTestScope("", nil),
 		),
 	}
 }
