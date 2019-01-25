@@ -294,6 +294,7 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 			executor.NewEngine(mockStorage, tally.NewTestScope("test_engine", nil)),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
+			tally.NewTestScope("test", nil),
 		), tally.NewTestScope("test", nil),
 	)
 
