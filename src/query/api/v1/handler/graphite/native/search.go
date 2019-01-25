@@ -25,9 +25,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/graphite"
-	xstore "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
@@ -78,7 +78,7 @@ func (h *grahiteSearchHandler) ServeHTTP(
 	}
 
 	partCount := graphite.CountMetricParts(query.Raw)
-	partName := xstore.GetOrGenerateKeyName(partCount - 1)
+	partName := ingestcarbon.GetOrGenerateKeyName(partCount - 1)
 	seenMap := make(map[string]bool, len(result.Metrics))
 	for _, m := range result.Metrics {
 		tags := m.Tags.Tags

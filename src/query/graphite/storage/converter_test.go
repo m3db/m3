@@ -30,13 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetOrGenerateKeyName(t *testing.T) {
-	for i := 0; i < 1024; i++ {
-		expected := []byte("__graphite" + fmt.Sprint(i) + "__")
-		require.Equal(t, expected, getOrGenerateKeyName(i))
-	}
-}
-
 func TestGlob(t *testing.T) {
 	noGlob := "some_sort of-string,with~no=globbing"
 	expected := []byte(noGlob)

@@ -259,3 +259,10 @@ func init() {
 		testPacket = append(testPacket, line...)
 	}
 }
+
+func TestGetOrGenerateKeyName(t *testing.T) {
+	for i := 0; i < 1024; i++ {
+		expected := []byte("__graphite" + fmt.Sprint(i) + "__")
+		require.Equal(t, expected, GetOrGenerateKeyName(i))
+	}
+}

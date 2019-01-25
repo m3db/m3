@@ -23,6 +23,7 @@ package storage
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	"github.com/m3db/m3/src/query/models"
 )
 
@@ -52,15 +53,6 @@ func init() {
 	for i := 0; i < numPreFormattedKeyNames; i++ {
 		preFormattedKeyNames[i] = generateKeyName(i)
 	}
-}
-
-// GetOrGenerateKeyName generates key names
-func GetOrGenerateKeyName(idx int) []byte {
-	if idx < len(preFormattedKeyNames) {
-		return preFormattedKeyNames[idx]
-	}
-
-	return []byte(fmt.Sprintf(graphiteFormat, idx))
 }
 
 func generateKeyName(idx int) []byte {
@@ -93,7 +85,7 @@ func glob(metric string) []byte {
 func convertMetricPartToMatcher(count int, metric string) models.Matcher {
 	return models.Matcher{
 		Type:  models.MatchRegexp,
-		Name:  GetOrGenerateKeyName(count),
+		Name:  ingestcarbon.GetOrGenerateKeyName(count),
 		Value: glob(metric),
 	}
 }
@@ -101,7 +93,7 @@ func convertMetricPartToMatcher(count int, metric string) models.Matcher {
 func matcherTerminator(count int) models.Matcher {
 	return models.Matcher{
 		Type:  models.MatchNotRegexp,
-		Name:  GetOrGenerateKeyName(count),
+		Name:  ingestcarbon.GetOrGenerateKeyName(count),
 		Value: []byte(".*"),
 	}
 }

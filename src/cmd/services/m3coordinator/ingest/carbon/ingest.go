@@ -219,7 +219,7 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 			}
 
 			tags = append(tags, models.Tag{
-				Name:  getOrGenerateKeyName(tagNum),
+				Name:  GetOrGenerateKeyName(tagNum),
 				Value: name[startIdx:i],
 			})
 			startIdx = i + 1
@@ -238,7 +238,7 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	// then the foor loop would have appended foo, bar, and baz already.
 	if name[len(name)-1] != carbonSeparatorByte {
 		tags = append(tags, models.Tag{
-			Name:  getOrGenerateKeyName(tagNum),
+			Name:  GetOrGenerateKeyName(tagNum),
 			Value: name[startIdx:],
 		})
 	}
@@ -246,7 +246,8 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	return models.Tags{Tags: tags}, nil
 }
 
-func getOrGenerateKeyName(idx int) []byte {
+// GetOrGenerateKeyName generates key names for the given index.
+func GetOrGenerateKeyName(idx int) []byte {
 	if idx < len(preFormattedKeyNames) {
 		return preFormattedKeyNames[idx]
 	}
