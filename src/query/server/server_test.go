@@ -234,6 +234,10 @@ listenAddress:
   type: "config"
   value: "127.0.0.1:17201"
 
+carbon:
+  ingestion:
+    listenAddress: "127.0.0.1:17204"
+
 metrics:
   scope:
     prefix: "coordinator"

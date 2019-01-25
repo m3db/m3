@@ -308,15 +308,15 @@ func Run(runOpts RunOptions) {
 		}
 
 		serverOpts := xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		server := xserver.NewServer(carbonConfig.ListenAddress, ingester, serverOpts)
+		carbonServer := xserver.NewServer(carbonConfig.ListenAddress, ingester, serverOpts)
 
-		logger.Info("starting carbon ingestion server", zap.String("listenAddress", listenAddress))
-		err = server.ListenAndServe()
+		logger.Info("starting carbon ingestion server", zap.String("listenAddress", carbonConfig.ListenAddress))
+		err = carbonServer.ListenAndServe()
 		if err != nil {
 			logger.Fatal("unable to start carbon ingestion server at listen address",
 				zap.String("listenAddress", carbonConfig.ListenAddress), zap.Error(err))
 		}
-		logger.Info("started carbon ingestion server", zap.String("listenAddress", listenAddress))
+		logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonConfig.ListenAddress))
 	}
 
 	var interruptCh <-chan error = make(chan error)
