@@ -20,6 +20,18 @@
 
 package graphite
 
+// DropLastMetricPart returns the metric string without the last segment.
+func DropLastMetricPart(metric string) string {
+	// read string in reverse until encountering a delimiter
+	for i := len(metric) - 1; i >= 0; i-- {
+		if metric[i] == '.' {
+			return metric[:i]
+		}
+	}
+
+	return metric[:0]
+}
+
 // CountMetricParts counts the number of segments in the given metric string.
 func CountMetricParts(metric string) int {
 	return countMetricPartsWithDelimiter(metric, '.')

@@ -60,7 +60,7 @@ func TranslateQueryToMatchers(query string) models.Matchers {
 // the given pattern. This is useful for filtering out any additional results.
 func GetQueryTerminatorTagName(query string) []byte {
 	metricLength := graphite.CountMetricParts(query)
-	return getOrGenerateKeyName(metricLength)
+	return GetOrGenerateKeyName(metricLength)
 }
 
 func translateQuery(query string, opts FetchOptions) *storage.FetchQuery {

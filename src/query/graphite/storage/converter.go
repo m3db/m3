@@ -54,7 +54,8 @@ func init() {
 	}
 }
 
-func getOrGenerateKeyName(idx int) []byte {
+// GetOrGenerateKeyName generates key names
+func GetOrGenerateKeyName(idx int) []byte {
 	if idx < len(preFormattedKeyNames) {
 		return preFormattedKeyNames[idx]
 	}
@@ -92,7 +93,7 @@ func glob(metric string) []byte {
 func convertMetricPartToMatcher(count int, metric string) models.Matcher {
 	return models.Matcher{
 		Type:  models.MatchRegexp,
-		Name:  getOrGenerateKeyName(count),
+		Name:  GetOrGenerateKeyName(count),
 		Value: glob(metric),
 	}
 }
@@ -100,7 +101,7 @@ func convertMetricPartToMatcher(count int, metric string) models.Matcher {
 func matcherTerminator(count int) models.Matcher {
 	return models.Matcher{
 		Type:  models.MatchNotRegexp,
-		Name:  getOrGenerateKeyName(count),
+		Name:  GetOrGenerateKeyName(count),
 		Value: []byte(".*"),
 	}
 }

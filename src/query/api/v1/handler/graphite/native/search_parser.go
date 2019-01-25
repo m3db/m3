@@ -21,28 +21,104 @@
 package native
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/errors"
-	graphite "github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/graphite/graphite"
+	graphiteStorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/x/net/http"
 )
 
-func parseSearchParamsToQuery(
-	r *http.Request,
-) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
+func parseSearchParamsToQuery(r *http.Request) (
+	*storage.FetchQuery,
+	*xhttp.ParseError,
+) {
 	values := r.URL.Query()
+	now := time.Now()
+	fromString, untilString := r.FormValue("from"), r.FormValue("until")
+	if len(fromString) == 0 {
+		fromString = "0"
+	}
+
+	if len(untilString) == 0 {
+		untilString = "now"
+	}
+
+	from, err := graphite.ParseTime(
+		fromString,
+		now,
+		tzOffsetForAbsoluteTime,
+	)
+
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf("invalid 'from': %s", fromString),
+			http.StatusBadRequest)
+	}
+
+	until, err := graphite.ParseTime(
+		untilString,
+		now,
+		tzOffsetForAbsoluteTime,
+	)
+
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf("invalid 'until': %s", untilString),
+			http.StatusBadRequest)
+	}
+
 	query := values.Get("query")
 	if query == "" {
 		return nil, xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
 	}
 
-	filter := graphite.GetQueryTerminatorTagName(query)
-	matchers := graphite.TranslateQueryToMatchers(query)
-	return &storage.CompleteTagsQuery{
-		TagMatchers:      matchers,
-		FilterNameTags:   [][]byte{filter},
-		CompleteNameOnly: false,
+	matchers := graphiteStorage.TranslateQueryToMatchers(query)
+	return &storage.FetchQuery{
+		Raw:         query,
+		TagMatchers: matchers,
+		Start:       from,
+		End:         until,
+		Interval:    0,
 	}, nil
+}
+
+func searchResultsJSON(
+	w io.Writer,
+	prefix string,
+	tags map[string]bool,
+) error {
+	jw := json.NewWriter(w)
+	jw.BeginArray()
+
+	for value, hasChildren := range tags {
+		leaf := 1
+		if hasChildren {
+			leaf = 0
+		}
+		jw.BeginObject()
+
+		jw.BeginObjectField("id")
+		jw.WriteString(fmt.Sprintf("%s%s", prefix, value))
+
+		jw.BeginObjectField("text")
+		jw.WriteString(value)
+
+		jw.BeginObjectField("leaf")
+		jw.WriteInt(leaf)
+
+		jw.BeginObjectField("expandable")
+		jw.WriteInt(1 - leaf)
+
+		jw.BeginObjectField("allowChildren")
+		jw.WriteInt(1 - leaf)
+
+		jw.EndObject()
+	}
+
+	jw.EndArray()
+	return jw.Close()
 }

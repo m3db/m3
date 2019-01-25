@@ -21,12 +21,13 @@
 package native
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/graphite/graphite"
+	xstore "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
@@ -55,33 +56,61 @@ func NewGraphiteSearchHandler(
 	}
 }
 
-func (h *grahiteSearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *grahiteSearchHandler) ServeHTTP(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 	w.Header().Set("Content-Type", "application/json")
-
 	query, rErr := parseSearchParamsToQuery(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	fmt.Println("Query!")
-	for i, m := range query.TagMatchers {
-		fmt.Println(i, string(m.Name), m.Type, string(m.Value))
-	}
-	for _, f := range query.FilterNameTags {
-		fmt.Println("filtering", string(f))
-	}
-
 	opts := storage.NewFetchOptions()
-	result, err := h.storage.CompleteTags(ctx, query, opts)
+	result, err := h.storage.FetchTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
+	partCount := graphite.CountMetricParts(query.Raw)
+	partName := xstore.GetOrGenerateKeyName(partCount - 1)
+	seenMap := make(map[string]bool, len(result.Metrics))
+	for _, m := range result.Metrics {
+		tags := m.Tags.Tags
+		index := 0
+		// TODO: make this more performant by computing the index for the tag name.
+		for i, tag := range tags {
+			if bytes.Equal(partName, tag.Name) {
+				index = i
+				break
+			}
+		}
+
+		value := tags[index].Value
+		// If this value has already been encountered, check if
+		if hadExtra, seen := seenMap[string(value)]; seen {
+			if hadExtra {
+				continue
+			}
+		}
+
+		hasExtraParts := len(tags) > partCount
+		seenMap[string(value)] = hasExtraParts
+	}
+
+	prefix := graphite.DropLastMetricPart(query.Raw)
+	if len(prefix) > 0 {
+		prefix += "."
+	}
+
 	// TODO: Support multiple result types
-	prometheus.RenderTagCompletionResultsJSON(w, result)
+	if err = searchResultsJSON(w, prefix, seenMap); err != nil {
+		logger.Error("unable to print search results", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+	}
 }

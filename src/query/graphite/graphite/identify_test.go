@@ -62,3 +62,11 @@ func TestExtractNthStringPart(t *testing.T) {
 	assert.Equal(t, "other", ExtractNthStringPart(dashedString, 1, '-'))
 	assert.Equal(t, 3, countMetricPartsWithDelimiter(dashedString, '-'))
 }
+
+func TestDropLastMetricPart(t *testing.T) {
+	assert.Equal(t, "", DropLastMetricPart(""))
+	assert.Equal(t, "", DropLastMetricPart("abc"))
+	assert.Equal(t, "abc", DropLastMetricPart("abc.def"))
+	assert.Equal(t, "abc.def.ghi", DropLastMetricPart("abc.def.ghi.jkl"))
+	assert.Equal(t, "abc.def.ghi", DropLastMetricPart("abc.def.ghi."))
+}
