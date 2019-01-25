@@ -314,7 +314,7 @@ func Run(runOpts RunOptions) {
 		err = server.ListenAndServe()
 		if err != nil {
 			logger.Fatal("unable to start carbon ingestion server at listen address",
-				zap.String("listenAddress", listenAddress), zap.Error(err))
+				zap.String("listenAddress", carbonConfig.ListenAddress), zap.Error(err))
 		}
 		logger.Info("started carbon ingestion server", zap.String("listenAddress", listenAddress))
 	}
