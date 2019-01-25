@@ -56,7 +56,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const maxShards = 8192
+const maxShards = 1024
 const blockSize = 2 * time.Hour
 
 var (
