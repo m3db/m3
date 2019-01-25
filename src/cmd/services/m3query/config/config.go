@@ -42,13 +42,20 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+
+	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 )
 
-// defaultLimitsConfiguration is applied if `limits` isn't specified.
-var defaultLimitsConfiguration = &LimitsConfiguration{
-	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-	MaxComputedDatapoints: 86400,
-}
+var (
+	defaultCarbonIngesterTimeout = 5 * time.Second
+	defaultCarbonIngesterEnabled = true
+
+	// defaultLimitsConfiguration is applied if `limits` isn't specified.
+	defaultLimitsConfiguration = &LimitsConfiguration{
+		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
+		MaxComputedDatapoints: 86400,
+	}
+)
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
@@ -101,6 +108,40 @@ type Configuration struct {
 	Limits LimitsConfiguration `yaml:"limits"`
 }
 
+// CarbonConfiguration returns the carbon configuration.
+func (c *Configuration) CarbonConfiguration() *CarbonConfiguration {
+	if c.Carbon == nil {
+		// Nothing was specified in the configuration, use defaults.
+		return &CarbonConfiguration{
+			Ingestion: &CarbonIngestionConfiguration{
+				Enabled:       &defaultCarbonIngesterEnabled,
+				ListenAddress: defaultCarbonIngesterListenAddress,
+				Timeout:       &defaultCarbonIngesterTimeout,
+			},
+		}
+	}
+
+	if c.Carbon.Ingestion.Enabled == nil {
+		// If they have set any carbon configuration and haven't explicitly marked
+		// the ingestion as disabled, then assume they want it enabled.
+		c.Carbon.Ingestion.Enabled = &defaultCarbonIngesterEnabled
+	}
+
+	if c.Carbon.Ingestion.ListenAddress == "" {
+		// If they have set any carbon configuration and haven't explicitly set
+		// the listen address, then assume they want to use the default one.
+		c.Carbon.Ingestion.ListenAddress = defaultCarbonIngesterListenAddress
+	}
+
+	if c.Carbon.Ingestion.Timeout == nil {
+		// If they have set any carbon configuration and haven't explicitly set
+		// a timeout, then assume they want the default value.
+		c.Carbon.Ingestion.Timeout = &defaultCarbonIngesterTimeout
+	}
+
+	return c.Carbon
+}
+
 // Filter is a query filter type.
 type Filter string
 
@@ -136,13 +177,17 @@ type IngestConfiguration struct {
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
 }
 
-// TODO(rartoul): Make this enabled by default.
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
-	Enabled        bool          `yaml:"enabled"`
-	MaxConcurrency int           `yaml:"maxConcurrency"`
-	ListenAddress  string        `yaml:"listenAddress"`
-	Timeout        time.Duration `yaml:"timeout"`
+	Ingestion *CarbonIngestionConfiguration
+}
+
+// CarbonIngestionConfiguration is the configuration struct for carbon ingestion.
+type CarbonIngestionConfiguration struct {
+	Enabled        *bool          `yaml:"enabled"`
+	MaxConcurrency int            `yaml:"maxConcurrency"`
+	ListenAddress  string         `yaml:"listenAddress"`
+	Timeout        *time.Duration `yaml:"timeout"`
 }
 
 // LocalConfiguration is the local embedded configuration if running

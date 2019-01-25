@@ -75,7 +75,6 @@ var (
 		Retention: 2 * 24 * time.Hour,
 	}
 
-	defaultCarbonIngesterListenAddress  = "0.0.0.0:7204"
 	defaultCarbonIngesterWorkerPoolSize = 1024
 )
 
@@ -268,7 +267,8 @@ func Run(runOpts RunOptions) {
 		logger.Info("no m3msg server configured")
 	}
 
-	if cfg.Carbon != nil && cfg.Carbon.Enabled {
+	carbonConfig := cfg.CarbonConfiguration().Ingestion
+	if *carbonConfig.Enabled {
 		logger.Info("carbon ingestion enabled")
 
 		var (
