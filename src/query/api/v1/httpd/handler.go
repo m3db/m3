@@ -27,7 +27,7 @@ import (
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -63,18 +63,18 @@ var (
 
 // Handler represents an HTTP handler.
 type Handler struct {
-	router        *mux.Router
-	handler       http.Handler
-	storage       storage.Storage
-	downsampler   downsample.Downsampler
-	engine        *executor.Engine
-	clusters      m3.Clusters
-	clusterClient clusterclient.Client
-	config        config.Configuration
-	embeddedDbCfg *dbconfig.DBConfiguration
-	scope         tally.Scope
-	createdAt     time.Time
-	tagOptions    models.TagOptions
+	router               *mux.Router
+	handler              http.Handler
+	storage              storage.Storage
+	downsamplerAndWriter ingest.DownsamplerAndWriter
+	engine               *executor.Engine
+	clusters             m3.Clusters
+	clusterClient        clusterclient.Client
+	config               config.Configuration
+	embeddedDbCfg        *dbconfig.DBConfiguration
+	scope                tally.Scope
+	createdAt            time.Time
+	tagOptions           models.TagOptions
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -84,9 +84,8 @@ func (h *Handler) Router() http.Handler {
 
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
-	storage storage.Storage,
+	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
-	downsampler downsample.Downsampler,
 	engine *executor.Engine,
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
@@ -105,18 +104,18 @@ func NewHandler(
 	}
 
 	h := &Handler{
-		router:        r,
-		handler:       withMiddleware,
-		storage:       storage,
-		downsampler:   downsampler,
-		engine:        engine,
-		clusters:      m3dbClusters,
-		clusterClient: clusterClient,
-		config:        cfg,
-		embeddedDbCfg: embeddedDbCfg,
-		scope:         scope,
-		createdAt:     time.Now(),
-		tagOptions:    tagOptions,
+		router:               r,
+		handler:              withMiddleware,
+		storage:              downsamplerAndWriter.Storage(),
+		downsamplerAndWriter: downsamplerAndWriter,
+		engine:               engine,
+		clusters:             m3dbClusters,
+		clusterClient:        clusterClient,
+		config:               cfg,
+		embeddedDbCfg:        embeddedDbCfg,
+		scope:                scope,
+		createdAt:            time.Now(),
+		tagOptions:           tagOptions,
 	}
 	return h, nil
 }
@@ -133,8 +132,7 @@ func (h *Handler) RegisterRoutes() error {
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
-		h.storage,
-		h.downsampler,
+		h.downsamplerAndWriter,
 		h.tagOptions,
 		h.scope.Tagged(remoteSource),
 	)

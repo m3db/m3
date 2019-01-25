@@ -340,6 +340,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		FileSetType: persist.FileSetSnapshotType,
 	}).Return(nil).AnyTimes()
 	mockReader.EXPECT().Entries().Return(1).AnyTimes()
+	mockReader.EXPECT().Close().Return(nil).AnyTimes()
 
 	snapshotValues := []testValue{
 		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
