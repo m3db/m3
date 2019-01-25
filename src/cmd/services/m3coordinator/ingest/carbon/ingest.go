@@ -161,6 +161,10 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 	}
 
 	err = i.downsamplerAndWriter.Write(ctx, tags, datapoints, xtime.Second)
+	if cleanup != nil {
+		cleanup()
+	}
+
 	if err != nil {
 		i.logger.Errorf("err writing carbon metric: %s, err: %s",
 			string(name), err)
@@ -168,9 +172,6 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		return false
 	}
 
-	if cleanup != nil {
-		cleanup()
-	}
 	return true
 }
 
