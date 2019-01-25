@@ -1,26 +1,26 @@
-hash: df331704fadd4247c3862fc103bb19d94d1973cbc07abffb0205736827e200cf
-updated: 2018-09-29T12:59:25.532144-04:00
+hash: 589fd2336b7d72728a909bd9a1287cc115a5183fb558abef63820e616ec12be8
+updated: 2019-01-24T13:48:51.428904-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
   subpackages:
   - lib/go/thrift
 - name: github.com/beorn7/perks
-  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+  version: 3a771d992973f24aa725d07868b467d1ddfceafb
   subpackages:
   - quantile
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
   subpackages:
   - spew
 - name: github.com/golang/mock
-  version: c34cdb4725f4c3844d095133c6e40e448b86589b
+  version: 51421b967af1f557f93a59e0057aaf15ca02e29c
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
+  version: e09c5db296004fbe3f74490e84dcd62c3c5ddb1b
   subpackages:
   - proto
 - name: github.com/google/go-cmp
@@ -48,7 +48,7 @@ imports:
 - name: github.com/m3db/prometheus_procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/matttproud/golang_protobuf_extensions
-  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
 - name: github.com/mauricelam/genny
@@ -58,13 +58,13 @@ imports:
 - name: github.com/MichaelTJones/pcg
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/stretchr/testify
-  version: f35b8ab0b5a2cef36673838d662e249dd9c94686
+  version: ffdc059bfe9ce6a4e144ba849dbedead332c6053
   subpackages:
   - assert
   - require
@@ -72,7 +72,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
+  version: ff17f3c43c065c3c2991f571e740eee43ea3a14a
   subpackages:
   - m3
   - m3/customtransports
@@ -87,17 +87,13 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: ff33455a0e382e8a81d14dd7c922020b6b5e7982
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool
   - internal/color
   - internal/exit
   - zapcore
-- name: golang.org/x/net
-  version: 054b33e6527139ad5b1ec2f6232c3b175bd9a30c
-  subpackages:
-  - context
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
   repo: https://github.com/go-validator/validator.git
@@ -106,9 +102,9 @@ imports:
   repo: https://github.com/go-yaml/yaml.git
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
+  version: 9a23578d06a26ec1b47bfc8965bf5e7011df8bd6
 - name: github.com/leanovate/gopter
-  version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+  version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
   - gen
   - prop
