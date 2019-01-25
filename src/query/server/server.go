@@ -277,12 +277,12 @@ func Run(runOpts RunOptions) {
 			carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
 			carbonWorkerPoolSize int
 		)
-		if cfg.Carbon.MaxConcurrency > 0 {
+		if carbonConfig.MaxConcurrency > 0 {
 			// Use a bounded worker pool if they requested a specific maximum concurrency.
 			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
 				SetGrowOnDemand(false).
 				SetInstrumentOptions(carbonIOpts)
-			carbonWorkerPoolSize = cfg.Carbon.MaxConcurrency
+			carbonWorkerPoolSize = carbonConfig.MaxConcurrency
 		} else {
 			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
 				SetGrowOnDemand(true).
@@ -301,18 +301,14 @@ func Run(runOpts RunOptions) {
 		ingester, err := ingestcarbon.NewIngester(carbonIngestDownsamplerAndWriter, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
-			Timeout:           cfg.Carbon.Timeout,
+			Timeout:           *carbonConfig.Timeout,
 		})
 		if err != nil {
 			logger.Fatal("unable to create carbon ingester", zap.Error(err))
 		}
 
-		listenAddress := defaultCarbonIngesterListenAddress
-		if cfg.Carbon.ListenAddress != "" {
-			listenAddress = cfg.Carbon.ListenAddress
-		}
 		serverOpts := xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		server := xserver.NewServer(listenAddress, ingester, serverOpts)
+		server := xserver.NewServer(carbonConfig.ListenAddress, ingester, serverOpts)
 
 		logger.Info("starting carbon ingestion server", zap.String("listenAddress", listenAddress))
 		err = server.ListenAndServe()
