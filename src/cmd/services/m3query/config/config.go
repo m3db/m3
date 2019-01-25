@@ -102,44 +102,10 @@ type Configuration struct {
 	Ingest *IngestConfiguration `yaml:"ingest"`
 
 	// Carbon is the carbon configuration.
-	Carbon *CarbonConfiguration `yaml:"carbon"`
+	Carbon CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
-}
-
-// CarbonConfiguration returns the carbon configuration.
-func (c *Configuration) CarbonConfiguration() *CarbonConfiguration {
-	if c.Carbon == nil {
-		// Nothing was specified in the configuration, use defaults.
-		return &CarbonConfiguration{
-			Ingestion: &CarbonIngestionConfiguration{
-				Enabled:       &defaultCarbonIngesterEnabled,
-				ListenAddress: defaultCarbonIngesterListenAddress,
-				Timeout:       &defaultCarbonIngesterTimeout,
-			},
-		}
-	}
-
-	if c.Carbon.Ingestion.Enabled == nil {
-		// If they have set any carbon configuration and haven't explicitly marked
-		// the ingestion as disabled, then assume they want it enabled.
-		c.Carbon.Ingestion.Enabled = &defaultCarbonIngesterEnabled
-	}
-
-	if c.Carbon.Ingestion.ListenAddress == "" {
-		// If they have set any carbon configuration and haven't explicitly set
-		// the listen address, then assume they want to use the default one.
-		c.Carbon.Ingestion.ListenAddress = defaultCarbonIngesterListenAddress
-	}
-
-	if c.Carbon.Ingestion.Timeout == nil {
-		// If they have set any carbon configuration and haven't explicitly set
-		// a timeout, then assume they want the default value.
-		c.Carbon.Ingestion.Timeout = &defaultCarbonIngesterTimeout
-	}
-
-	return c.Carbon
 }
 
 // Filter is a query filter type.
@@ -179,7 +145,7 @@ type IngestConfiguration struct {
 
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
-	Ingestion *CarbonIngestionConfiguration
+	Ingestion CarbonIngestionConfiguration
 }
 
 // CarbonIngestionConfiguration is the configuration struct for carbon ingestion.
@@ -188,6 +154,36 @@ type CarbonIngestionConfiguration struct {
 	MaxConcurrency int            `yaml:"maxConcurrency"`
 	ListenAddress  string         `yaml:"listenAddress"`
 	Timeout        *time.Duration `yaml:"timeout"`
+}
+
+// EnabledOrDefault returns the configured value for Enabled, if set, or the default
+// value otherwise.
+func (c *CarbonIngestionConfiguration) EnabledOrDefault() bool {
+	if c.Enabled != nil {
+		return *c.Enabled
+	}
+
+	return defaultCarbonIngesterEnabled
+}
+
+// TimeoutOrDefault returns the configured value for Timeout, if set, or the default
+// value otherwise.
+func (c *CarbonIngestionConfiguration) TimeoutOrDefault() time.Duration {
+	if c.Timeout != nil {
+		return *c.Timeout
+	}
+
+	return defaultCarbonIngesterTimeout
+}
+
+// ListenAddressOrDefault returns the configured value for ListenAddress, if set, or the default
+// value otherwise.
+func (c *CarbonIngestionConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // LocalConfiguration is the local embedded configuration if running

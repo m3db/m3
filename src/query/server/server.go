@@ -267,8 +267,8 @@ func Run(runOpts RunOptions) {
 		logger.Info("no m3msg server configured")
 	}
 
-	carbonConfig := cfg.CarbonConfiguration().Ingestion
-	if *carbonConfig.Enabled {
+	carbonIngestConfig := cfg.Carbon.Ingestion
+	if carbonIngestConfig.EnabledOrDefault() {
 		logger.Info("carbon ingestion enabled")
 
 		var (
@@ -277,12 +277,12 @@ func Run(runOpts RunOptions) {
 			carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
 			carbonWorkerPoolSize int
 		)
-		if carbonConfig.MaxConcurrency > 0 {
+		if carbonIngestConfig.MaxConcurrency > 0 {
 			// Use a bounded worker pool if they requested a specific maximum concurrency.
 			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
 				SetGrowOnDemand(false).
 				SetInstrumentOptions(carbonIOpts)
-			carbonWorkerPoolSize = carbonConfig.MaxConcurrency
+			carbonWorkerPoolSize = carbonIngestConfig.MaxConcurrency
 		} else {
 			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
 				SetGrowOnDemand(true).
@@ -301,22 +301,25 @@ func Run(runOpts RunOptions) {
 		ingester, err := ingestcarbon.NewIngester(carbonIngestDownsamplerAndWriter, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
-			Timeout:           *carbonConfig.Timeout,
+			Timeout:           carbonIngestConfig.TimeoutOrDefault(),
 		})
 		if err != nil {
 			logger.Fatal("unable to create carbon ingester", zap.Error(err))
 		}
 
-		serverOpts := xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		carbonServer := xserver.NewServer(carbonConfig.ListenAddress, ingester, serverOpts)
+		var (
+			serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+			carbonListenAddress = carbonIngestConfig.ListenAddressOrDefault()
+			carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
+		)
 
-		logger.Info("starting carbon ingestion server", zap.String("listenAddress", carbonConfig.ListenAddress))
+		logger.Info("starting carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
 		err = carbonServer.ListenAndServe()
 		if err != nil {
 			logger.Fatal("unable to start carbon ingestion server at listen address",
-				zap.String("listenAddress", carbonConfig.ListenAddress), zap.Error(err))
+				zap.String("listenAddress", carbonListenAddress), zap.Error(err))
 		}
-		logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonConfig.ListenAddress))
+		logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
 	}
 
 	var interruptCh <-chan error = make(chan error)
