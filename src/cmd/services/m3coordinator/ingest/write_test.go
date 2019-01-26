@@ -154,7 +154,7 @@ func TestDownsampleAndWrite(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender().
+		SamplesAppender(gomock.Any()).
 		Return(mockSamplesAppender, nil)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
@@ -205,7 +205,7 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender().
+		SamplesAppender(gomock.Any()).
 		Return(mockSamplesAppender, nil).Times(2)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
