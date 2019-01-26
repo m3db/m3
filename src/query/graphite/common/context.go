@@ -54,11 +54,9 @@ type contextBase struct {
 	// specify zero to indicate default timeout or a positive value
 	Timeout time.Duration
 
-	parent          *Context
-	reqCtx          ctx.Context
-	storageContext  context.Context
-	state           map[string]interface{}
-	fetchBreakdowns []FetchBreakdown
+	parent         *Context
+	reqCtx         ctx.Context
+	storageContext context.Context
 }
 
 // Context is the parameters to a query evaluation.
@@ -69,14 +67,10 @@ type Context struct {
 
 // ContextOptions provides the options to create the context with
 type ContextOptions struct {
-	Start     time.Time
-	End       time.Time
-	Engine    QueryEngine
-	LocalOnly bool
-	UseCache  bool
-	UseM3DB   bool
-	Timeout   time.Duration
-	Zone      string
+	Start   time.Time
+	End     time.Time
+	Engine  QueryEngine
+	Timeout time.Duration
 }
 
 // TimeRangeAdjustment is an applied time range adjustment.
@@ -220,75 +214,6 @@ func (c *Context) DoneAsyncTask() {
 	c.storageContext.DoneAsyncTask()
 }
 
-// Set sets a variable for all parent and child contexts
-func (c *Context) Set(name string, value interface{}) {
-	if c.parent != nil {
-		c.parent.Set(name, value)
-		return
-	}
-
-	c.Lock()
-	c.setOrCreateState()
-	c.state[name] = value
-	c.Unlock()
-}
-
-// Get gets a variable from the root parent
-func (c *Context) Get(name string) interface{} {
-	if c.parent != nil {
-		return c.parent.Get(name)
-	}
-	c.RLock()
-	c.setOrCreateState()
-	val := c.state[name]
-	c.RUnlock()
-	return val
-}
-
-func (c *Context) setOrCreateState() {
-	if c.state == nil {
-		c.state = make(map[string]interface{})
-	}
-}
-
-// AddFetchBreakdown adds a fetch breakdown information in the context
-func (c *Context) AddFetchBreakdown(breakdown FetchBreakdown) {
-	// Bubble to parents
-	if c.parent != nil {
-		c.parent.AddFetchBreakdown(breakdown)
-	}
-	c.Lock()
-	// Note: make sure to append only to avoid having to return a copy in the accessor
-	c.fetchBreakdowns = append(c.fetchBreakdowns, breakdown)
-	c.Unlock()
-}
-
-// FetchBreakdowns returns the fetch breakdowns
-func (c *Context) FetchBreakdowns() []FetchBreakdown {
-	var snapshot []FetchBreakdown
-	c.RLock()
-	if length := len(c.fetchBreakdowns); length > 0 {
-		snapshot = c.fetchBreakdowns[:length]
-	}
-	c.RUnlock()
-	return snapshot
-}
-
-// FetchBreakdown is a set of fetch invocation metadata
-type FetchBreakdown struct {
-	NumSeries   int
-	CompletedAt time.Time
-	LocalOnly   bool
-}
-
-// Equal returns true if and only if breakdown has
-// exact same attributes as other breakdown
-func (b FetchBreakdown) Equal(value FetchBreakdown) bool {
-	return b.NumSeries == value.NumSeries &&
-		b.CompletedAt.Equal(value.CompletedAt) &&
-		b.LocalOnly == value.LocalOnly
-}
-
 // A Trace is tracing information about a function or fetch within a query.
 type Trace struct {
 	// ActivityName is the name of the activity being traced.
@@ -305,8 +230,6 @@ type Trace struct {
 }
 
 // TraceStats tracks the number of timeseries used by a trace.
-// NB(mmihic): This is a struct so that we can extend it with more stats down
-// the line, such as the approx. number of datapoints being processed
 type TraceStats struct {
 	NumSeries int // number of timeseries being acted on
 }

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package graphite
 
 import (
 	"context"
@@ -41,10 +41,12 @@ import (
 
 const (
 	// GraphiteReadURL is the url for native graphite query handler.
-	GraphiteReadURL = handler.RoutePrefixGraphiteV1 + "/render"
+	GraphiteReadURL = handler.RoutePrefixV1 + "/graphite/render"
+)
 
-	// GraphiteReadHTTPMethod is the HTTP method used with this resource.
-	GraphiteReadHTTPMethod = http.MethodGet
+var (
+	// GraphiteReadHTTPMethods is the HTTP methods used with this resource.
+	GraphiteReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 // A nativeRenderHandler implements the graphite /render endpoint, including full

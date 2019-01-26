@@ -92,12 +92,6 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 		return ts.SeriesList{}, err
 	}
 
-	ctx.AddFetchBreakdown(common.FetchBreakdown{
-		NumSeries:   len(result.SeriesList),
-		CompletedAt: time.Now(),
-		LocalOnly:   result.LocalOnly,
-	})
-
 	if ctx.TracingEnabled() {
 		ctx.Trace(common.Trace{
 			ActivityName: fmt.Sprintf("fetch %s", f.pathArg.path),

@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
-	graphite "github.com/m3db/m3/src/query/api/v1/handler/graphite/native"
+	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
@@ -185,11 +185,11 @@ func (h *Handler) RegisterRoutes() error {
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.GraphiteReadURL,
 		logged(graphite.NewNativeRenderHandler(h.storage)).ServeHTTP,
-	).Methods(graphite.GraphiteReadHTTPMethod)
+	).Methods(graphite.GraphiteReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.GraphiteSearchURL,
 		logged(graphite.NewGraphiteSearchHandler(h.storage)).ServeHTTP,
-	).Methods(graphite.GraphiteSearchHTTPMethod)
+	).Methods(graphite.GraphiteSearchHTTPMethods...)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{

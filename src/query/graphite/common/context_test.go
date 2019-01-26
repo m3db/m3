@@ -90,26 +90,6 @@ func TestChildContextClose(t *testing.T) {
 	client.AssertCalled(t, "foo")
 }
 
-func TestChildSetsParentStorage(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-
-	k, v := "a", "b"
-	child.Set(k, v)
-	assert.Equal(t, v, child.Get(k))
-	assert.Equal(t, v, ctx.Get(k))
-}
-
-func TestChildGetsParentStorage(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-
-	k, v := "a", "b"
-	ctx.Set(k, v)
-	assert.Equal(t, v, child.Get(k))
-	assert.Equal(t, v, ctx.Get(k))
-}
-
 func TestChildPropagatesBreakdownToParent(t *testing.T) {
 	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
 	child := ctx.NewChildContext(NewChildContextOptions())

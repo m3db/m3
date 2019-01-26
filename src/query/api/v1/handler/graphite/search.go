@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package graphite
 
 import (
 	"bytes"
@@ -37,10 +37,12 @@ import (
 
 const (
 	// GraphiteSearchURL is the url for searching graphite paths.
-	GraphiteSearchURL = handler.RoutePrefixGraphiteV1 + "/search"
+	GraphiteSearchURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
+)
 
-	// GraphiteSearchHTTPMethod is the HTTP method used with this resource.
-	GraphiteSearchHTTPMethod = http.MethodGet
+var (
+	// GraphiteSearchHTTPMethods is the HTTP methods used with this resource.
+	GraphiteSearchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 type grahiteSearchHandler struct {

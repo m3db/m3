@@ -52,7 +52,6 @@ type Storage interface {
 // FetchResult provides a fetch result and meta information
 type FetchResult struct {
 	SeriesList []*ts.Series // The aggregated list of results across all underlying storage calls
-	LocalOnly  bool
 }
 
 // Close will return the fetch result to the pool.
