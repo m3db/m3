@@ -155,13 +155,14 @@ func testDownsamplerAggregation(
 	require.NoError(t, err)
 	defer appender.Finalize()
 
+	var opts SampleAppenderOptions
 	for _, metric := range testCounterMetrics {
 		appender.Reset()
 		for name, value := range metric.tags {
 			appender.AddTag([]byte(name), []byte(value))
 		}
 
-		samplesAppender, err := appender.SamplesAppender()
+		samplesAppender, err := appender.SamplesAppender(opts)
 		require.NoError(t, err)
 
 		for _, sample := range metric.samples {
@@ -175,7 +176,7 @@ func testDownsamplerAggregation(
 			appender.AddTag([]byte(name), []byte(value))
 		}
 
-		samplesAppender, err := appender.SamplesAppender()
+		samplesAppender, err := appender.SamplesAppender(opts)
 		require.NoError(t, err)
 
 		for _, sample := range metric.samples {
