@@ -93,7 +93,8 @@ func (d *downsamplerAndWriter) Write(
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
-		samplesAppender, err := appender.SamplesAppender()
+		var opts downsample.SampleAppenderOptions
+		samplesAppender, err := appender.SamplesAppender(opts)
 		if err != nil {
 			return err
 		}
@@ -188,6 +189,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		return err
 	}
 
+	var opts downsample.SampleAppenderOptions
 	for iter.Next() {
 		appender.Reset()
 		tags, datapoints, _ := iter.Current()
@@ -195,7 +197,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
-		samplesAppender, err := appender.SamplesAppender()
+		samplesAppender, err := appender.SamplesAppender(opts)
 		if err != nil {
 			return err
 		}

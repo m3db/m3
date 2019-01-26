@@ -55,15 +55,21 @@ import (
 )
 
 const (
-	instanceID                     = "downsampler_local"
-	placementKVKey                 = "/placement"
-	replicationFactor              = 1
-	defaultStorageFlushConcurrency = 20000
-	defaultOpenTimeout             = 10 * time.Second
+	instanceID                         = "downsampler_local"
+	placementKVKey                     = "/placement"
+	replicationFactor                  = 1
+	defaultStorageFlushConcurrency     = 20000
+	defaultOpenTimeout                 = 10 * time.Second
+	defaultBufferPastTimedMetricFactor = 1.1
+	defaultBufferFutureTimedMetric     = time.Minute
 )
 
 var (
-	numShards = runtime.NumCPU()
+	numShards                         = runtime.NumCPU()
+	defaultBufferForPastTimedMetricFn = func(r time.Duration) time.Duration {
+		value := defaultBufferPastTimedMetricFactor * float64(r)
+		return time.Duration(value)
+	}
 
 	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
 	errNoRulesStore            = errors.New("dynamic downsampling enabled with rules store not set")
@@ -271,7 +277,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
 		SetFlushManager(flushManager).
-		SetFlushHandler(flushHandler)
+		SetFlushHandler(flushHandler).
+		SetBufferForPastTimedMetricFn(defaultBufferForPastTimedMetricFn).
+		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric)
 
 	if cfg.AggregationTypes != nil {
 		aggTypeOpts, err := cfg.AggregationTypes.NewOptions(instrumentOpts)
