@@ -26,11 +26,16 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/carbon"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -60,6 +65,11 @@ type Options struct {
 	Timeout           time.Duration
 }
 
+// CarbonIngesterRules contains the carbon ingestion rules.
+type CarbonIngesterRules struct {
+	Rules []config.CarbonIngesterRuleConfiguration
+}
+
 // Validate validates the options struct.
 func (o *Options) Validate() error {
 	if o.InstrumentOptions == nil {
@@ -76,6 +86,7 @@ func (o *Options) Validate() error {
 // NewIngester returns an ingester for carbon metrics.
 func NewIngester(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
+	rules CarbonIngesterRules,
 	opts Options,
 ) (m3xserver.Handler, error) {
 	err := opts.Validate()
@@ -89,6 +100,37 @@ func NewIngester(
 		return nil, err
 	}
 
+	// Compile all the carbon ingestion rules into regexp so that we can
+	// perform matching.
+	compiledRules := []ruleAndRegex{}
+	for _, rule := range rules.Rules {
+		compiled, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return nil, err
+		}
+
+		mappingRules := []downsample.MappingRule{}
+		for _, currPolicy := range rule.Policies {
+			mappingRule := downsample.MappingRule{
+				// TODO(rartoul): Is passing second for precision correct here?
+				Policies: policy.StoragePolicies{
+					policy.NewStoragePolicy(currPolicy.Resolution, xtime.Second, currPolicy.Retention),
+				},
+			}
+			if currPolicy.Aggregatation.Enabled {
+				// TODO: Need to parse config string so its not always Mean
+				mappingRule.Aggregations = []aggregation.Type{aggregation.Mean}
+			}
+			mappingRules = append(mappingRules, mappingRule)
+		}
+
+		compiledRules = append(compiledRules, ruleAndRegex{
+			rule:         rule,
+			regexp:       compiled,
+			mappingRules: mappingRules,
+		})
+	}
+
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
@@ -96,6 +138,8 @@ func NewIngester(
 		tagOpts:              tagOpts,
 		metrics: newCarbonIngesterMetrics(
 			opts.InstrumentOptions.MetricsScope()),
+
+		rules: compiledRules,
 	}, nil
 }
 
@@ -105,6 +149,8 @@ type ingester struct {
 	logger               log.Logger
 	metrics              carbonIngesterMetrics
 	tagOpts              models.TagOptions
+
+	rules []ruleAndRegex
 }
 
 func (i *ingester) Handle(conn net.Conn) {
@@ -146,6 +192,13 @@ func (i *ingester) Handle(conn net.Conn) {
 }
 
 func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
+	mappingRules := []downsample.MappingRule{}
+	for _, rule := range i.rules {
+		if rule.regexp.Match(name) {
+			mappingRules = append(mappingRules, rule.mappingRules...)
+		}
+	}
+
 	datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
 	// TODO(rartoul): Pool.
 	tags, err := GenerateTagsFromName(name, i.tagOpts)
@@ -164,6 +217,9 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		ctx, cleanup = context.WithTimeout(ctx, i.opts.Timeout)
 	}
 
+	// TODO(rartoul): Modify interface so I can pass mapping rules. downsamplerAndWriter
+	// will check if any aggregations are specified, and if so, write to the downsampler,
+	// otherwise it will write to the storage.
 	err = i.downsamplerAndWriter.Write(ctx, tags, datapoints, xtime.Second)
 	if cleanup != nil {
 		cleanup()

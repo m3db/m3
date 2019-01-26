@@ -149,9 +149,32 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	ListenAddress  string         `yaml:"listenAddress"`
-	MaxConcurrency int            `yaml:"maxConcurrency"`
-	WriteTimeout   *time.Duration `yaml:"writeTimeout"`
+	ListenAddress  string                            `yaml:"listenAddress"`
+	MaxConcurrency int                               `yaml:"maxConcurrency"`
+	WriteTimeout   *time.Duration                    `yaml:"writeTimeout"`
+	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+}
+
+// CarbonIngesterRuleConfiguration is the configuration struct for a carbon
+// ingestion rule.
+type CarbonIngesterRuleConfiguration struct {
+	Pattern  string                                     `yaml:"pattern"`
+	Policies []CarbonIngesterStoragePolicyConfiguration `yaml:"policies"`
+}
+
+// CarbonIngesterStoragePolicyConfiguration is the configuration struct for
+// a carbon rule's storage policies.
+type CarbonIngesterStoragePolicyConfiguration struct {
+	Resolution    time.Duration                          `yaml:"resolution"`
+	Retention     time.Duration                          `yaml:"retention"`
+	Aggregatation CarbonIngesterAggregationConfiguration `yaml:"aggregation"`
+}
+
+// CarbonIngesterAggregationConfiguration is the configuration struct
+// for the aggregation for a carbon ingest rule's storage policy.
+type CarbonIngesterAggregationConfiguration struct {
+	Enabled bool   `yaml:"enabled"`
+	Type    string `yaml:"type"`
 }
 
 // WriteTimeoutOrDefault returns the configured value for the write timeout,
