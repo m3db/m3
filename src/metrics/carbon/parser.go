@@ -31,6 +31,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/unsafe"
 )
 
@@ -229,13 +230,15 @@ type Scanner struct {
 
 	// The number of malformed metrics encountered.
 	MalformedCount int
+
+	iOpts instrument.Options
 }
 
 // NewScanner creates a new carbon scanner.
-func NewScanner(r io.Reader) *Scanner {
+func NewScanner(r io.Reader, iOpts instrument.Options) *Scanner {
 	s := bufio.NewScanner(r)
 	s.Split(bufio.ScanLines)
-	return &Scanner{scanner: s}
+	return &Scanner{scanner: s, iOpts: iOpts}
 }
 
 // Scan scans for the next carbon metric. Malformed metrics are skipped but counted.
@@ -247,6 +250,9 @@ func (s *Scanner) Scan() bool {
 
 		var err error
 		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Bytes()); err != nil {
+			s.iOpts.Logger().Errorf(
+				"error trying to scan malformed carbon line: %s, err: %s",
+				string(s.path), err.Error())
 			s.MalformedCount++
 			continue
 		}
@@ -277,7 +283,7 @@ func parseWordOffsets(b []byte) (int, int) {
 		}
 	}
 
-	valEnd := -1
+	valEnd := valStart
 	reachedEnd := true
 	for i := valStart + 1; i < len(b); i++ {
 		valEnd = i
