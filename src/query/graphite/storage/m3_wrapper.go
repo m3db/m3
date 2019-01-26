@@ -22,6 +22,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
@@ -31,6 +32,10 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	m3ts "github.com/m3db/m3/src/query/ts"
+)
+
+var (
+	errSeriesNoResolution = errors.New("series has no resolution set")
 )
 
 type m3WrappedStore struct {
@@ -65,7 +70,6 @@ func GetQueryTerminatorTagName(query string) []byte {
 }
 
 func translateQuery(query string, opts FetchOptions) *storage.FetchQuery {
-	start := opts.StartTime
 	metricLength := graphite.CountMetricParts(query)
 	matchers := make(models.Matchers, metricLength+1)
 	for i := 0; i < metricLength; i++ {
@@ -81,7 +85,7 @@ func translateQuery(query string, opts FetchOptions) *storage.FetchQuery {
 	return &storage.FetchQuery{
 		Raw:         query,
 		TagMatchers: matchers,
-		Start:       start,
+		Start:       opts.StartTime,
 		End:         opts.EndTime,
 		// NB: interval is not used for initial consolidation step from the storage
 		// so it's fine to use default here.
@@ -92,26 +96,38 @@ func translateQuery(query string, opts FetchOptions) *storage.FetchQuery {
 func translateTimeseries(
 	ctx xctx.Context,
 	m3list m3ts.SeriesList,
-	start time.Time,
-) []*ts.Series {
+	start, end time.Time,
+) ([]*ts.Series, error) {
 	series := make([]*ts.Series, len(m3list))
 	for i, m3series := range m3list {
-		millisPerStep := m3series.ResolutionMillis()
-		// FIXME: bad hack here.
-		if millisPerStep == 0 {
-			millisPerStep = 1000
+		resolution := m3series.Resolution()
+		if resolution <= 0 {
+			return nil, errSeriesNoResolution
 		}
 
-		values := ts.NewValues(ctx, millisPerStep, m3series.Len())
-		m3points := m3series.Values().Datapoints()
-		for j, m3point := range m3points {
-			values.SetValueAt(j, m3point.Value)
+		length := int(end.Sub(start) / resolution)
+		millisPerStep := int(resolution / time.Millisecond)
+		values := ts.NewValues(ctx, millisPerStep, length)
+		for _, datapoint := range m3series.Values().Datapoints() {
+			indexAt := int(datapoint.Timestamp.Sub(start) / resolution)
+			values.SetValueAt(indexAt, datapoint.Value)
 		}
 
-		series[i] = ts.NewSeries(ctx, m3series.Name(), start, values)
+		name := m3series.Name()
+		if tags := m3series.Tags; tags.Len() > 0 {
+			// Need to flatten the name back into graphite format
+			newName, err := convertTagsToMetricName(tags)
+			if err != nil {
+				return nil, err
+			}
+
+			name = newName
+		}
+
+		series[i] = ts.NewSeries(ctx, name, start, values)
 	}
 
-	return series
+	return series, nil
 }
 
 func (s *m3WrappedStore) FetchByQuery(
@@ -121,15 +137,17 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 
-	m3result, err := s.m3.Fetch(
-		m3ctx,
-		m3query,
-		storage.NewFetchOptions(),
-	)
+	m3result, err := s.m3.Fetch(m3ctx, m3query,
+		storage.NewFetchOptions())
 	if err != nil {
 		return nil, err
 	}
 
-	series := translateTimeseries(ctx, m3result.SeriesList, opts.StartTime)
+	series, err := translateTimeseries(ctx, m3result.SeriesList,
+		opts.StartTime, opts.EndTime)
+	if err != nil {
+		return nil, err
+	}
+
 	return NewFetchResult(ctx, series), nil
 }

@@ -21,7 +21,9 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	"github.com/m3db/m3/src/query/models"
@@ -96,4 +98,37 @@ func matcherTerminator(count int) models.Matcher {
 		Name:  ingestcarbon.GetOrGenerateKeyName(count),
 		Value: []byte(".*"),
 	}
+}
+
+func convertTagsToMetricName(tags models.Tags) (string, error) {
+	var builder strings.Builder
+	for i, tag := range tags.Tags {
+		var expectedKey []byte
+		if i < len(preFormattedKeyNames) {
+			expectedKey = preFormattedKeyNames[i]
+		} else {
+			expectedKey = generateKeyName(i)
+		}
+		if bytes.Compare(tag.Name, expectedKey) != 0 {
+			// If not in order or a completely different named tag
+			// then abort, we can't generate the metric name
+			err := fmt.Errorf("unexpected tag name: expected=%s, actual=%s",
+				expectedKey, tag.Name)
+			return "", err
+		}
+
+		_, err := builder.Write(tag.Value)
+		if err != nil {
+			return "", err
+		}
+
+		if i != len(tags.Tags)-1 {
+			_, err := builder.WriteRune('.')
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+
+	return builder.String(), nil
 }

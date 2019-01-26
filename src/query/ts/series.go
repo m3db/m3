@@ -54,15 +54,15 @@ func (s *Series) Len() int { return s.vals.Len() }
 // Values returns the underlying values interface.
 func (s *Series) Values() Values { return s.vals }
 
-// ResolutionMillis retrieves the resolution for this series in millis.
-func (s *Series) ResolutionMillis() int {
-	return int(s.resolution / time.Millisecond)
+// Resolution retrieves the resolution for this series.
+func (s *Series) Resolution() time.Duration {
+	return s.resolution
 }
 
-// SetResolutionDuration sets the resolution for this series. Only used for
+// SetResolution sets the resolution for this series. Only used for
 // graphite series consolidation logic after the fetch step.
-func (s *Series) SetResolutionDuration(reso time.Duration) {
-	s.resolution = reso
+func (s *Series) SetResolution(resolution time.Duration) {
+	s.resolution = resolution
 }
 
 // SeriesList represents a slice of series pointers.

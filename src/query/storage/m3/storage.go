@@ -116,7 +116,7 @@ func (s *m3storage) Fetch(
 	}
 
 	for i := range fetchResult.SeriesList {
-		fetchResult.SeriesList[i].SetResolutionDuration(attrs[i].Resolution)
+		fetchResult.SeriesList[i].SetResolution(attrs[i].Resolution)
 	}
 
 	return fetchResult, nil
