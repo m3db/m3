@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -60,6 +61,79 @@ var (
 	testOptions = Options{
 		InstrumentOptions: instrument.NewOptions(),
 		WorkerPool:        nil, // Set by init().
+	}
+
+	testRulesMatchAll = CarbonIngestionRules{
+		Rules: []config.CarbonIngestionRuleConfiguration{
+			{
+				Pattern: ".*", // Match all.
+				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+						Aggregation: config.CarbonIngestionAggregationConfiguration{
+							Enabled: true,
+							Type:    "Mean",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Match match-regex1 twice with two patterns, and in one case with two policies
+	// and in the second with one policy. In addition, also match match-regex2 with
+	// a single pattern and policy.
+	testRulesWithRegex = CarbonIngestionRules{
+		Rules: []config.CarbonIngestionRuleConfiguration{
+			{
+				Pattern: ".*match-regex1.*",
+				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+						Aggregation: config.CarbonIngestionAggregationConfiguration{
+							Enabled: true,
+							Type:    "Mean",
+						},
+					},
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+						Aggregation: config.CarbonIngestionAggregationConfiguration{
+							Enabled: true,
+							Type:    "Sum",
+						},
+					},
+				},
+			},
+			{
+				Pattern: ".*match-regex1.*",
+				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+						Aggregation: config.CarbonIngestionAggregationConfiguration{
+							Enabled: true,
+							Type:    "Last",
+						},
+					},
+				},
+			},
+			{
+				Pattern: ".*match-regex2.*",
+				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+						Aggregation: config.CarbonIngestionAggregationConfiguration{
+							Enabled: true,
+							Type:    "Mean",
+						},
+					},
+				},
+			},
+		},
 	}
 )
 
@@ -96,11 +170,63 @@ func TestIngesterHandleConn(t *testing.T) {
 	}).AnyTimes()
 
 	byteConn := &byteConn{b: bytes.NewBuffer(testPacket)}
-	ingester, err := NewIngester(mockDownsamplerAndWriter, testOptions)
+	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesMatchAll, testOptions)
 	require.NoError(t, err)
 	ingester.Handle(byteConn)
 
 	assertTestMetricsAreEqual(t, testMetrics, found)
+}
+
+func TestIngesterHonorsPatterns(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+
+	var (
+		lock  = sync.Mutex{}
+		found = []testMetric{}
+	)
+	mockDownsamplerAndWriter.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second).DoAndReturn(func(
+		_ context.Context,
+		tags models.Tags,
+		dp ts.Datapoints,
+		unit xtime.Unit,
+	) interface{} {
+		lock.Lock()
+		found = append(found, testMetric{
+			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+		lock.Unlock()
+		return nil
+	}).AnyTimes()
+
+	packet := []byte("" +
+		"foo.match-regex1.bar.baz 1 1\n" +
+		"foo.match-regex2.bar.baz 1 1\n" +
+		"foo.match-not-regex.bar.baz 1 1")
+	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
+	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesWithRegex, testOptions)
+	require.NoError(t, err)
+	ingester.Handle(byteConn)
+
+	assertTestMetricsAreEqual(t, []testMetric{
+		// Should have three mapping rules (two from the first pattern and one from the second
+		// pattern) but only be written once.
+		{
+			metric:    []byte("foo.match-regex1.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex1.bar.baz")),
+			timestamp: 1,
+			value:     1,
+			isValid:   true,
+		},
+		// Should only be written once and only have one mapping rule (from the second pattern).
+		{
+			metric:    []byte("foo.match-regex2.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex2.bar.baz")),
+			timestamp: 1,
+			value:     1,
+			isValid:   true,
+		},
+	}, found)
 }
 
 func TestGenerateTagsFromName(t *testing.T) {
@@ -269,4 +395,10 @@ func init() {
 		line := []byte(fmt.Sprintf("%s %d %d\n", string(metric), i, i))
 		testPacket = append(testPacket, line...)
 	}
+}
+
+func mustGenerateTagsFromName(t *testing.T, name []byte) models.Tags {
+	tags, err := GenerateTagsFromName(name)
+	require.NoError(t, err)
+	return tags
 }

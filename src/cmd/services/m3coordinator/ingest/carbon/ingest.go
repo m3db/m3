@@ -117,7 +117,7 @@ func NewIngester(
 					policy.NewStoragePolicy(currPolicy.Resolution, xtime.Second, currPolicy.Retention),
 				},
 			}
-			if currPolicy.Aggregatation.Enabled {
+			if currPolicy.Aggregation.Enabled {
 				// TODO: Need to parse config string so its not always Mean
 				mappingRule.Aggregations = []aggregation.Type{aggregation.Mean}
 			}
@@ -197,6 +197,11 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		if rule.regexp.Match(name) {
 			mappingRules = append(mappingRules, rule.mappingRules...)
 		}
+	}
+
+	if len(mappingRules) == 0 {
+		// Nothing to do if none of the policies matched.
+		return false
 	}
 
 	datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
