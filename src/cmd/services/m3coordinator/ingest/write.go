@@ -179,7 +179,7 @@ func (d *downsamplerAndWriter) Write(
 						// Assume all overriden storage policies are for aggregated namespaces.
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  p.Resolution().Window,
-						Retention:   p.Resolution().Window,
+						Retention:   p.Retention().Duration(),
 					},
 				})
 				if err != nil {
