@@ -200,8 +200,7 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
-	# TODO(rartoul): Re-enable once the query P.R lands and we can fix this test.
-	# @./scripts/docker-integration-tests/carbon/test.sh
+	@./scripts/docker-integration-tests/carbon/test.sh
 
 .PHONY: site-build
 site-build:
