@@ -26,7 +26,7 @@ echo "Attempting to read carbon metric back"
 function read_carbon {
   end=$(date +%s)
   start=$(($end-3000))
-  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/query_range?start=$start&end=$end&step=10&query={__graphite0__='foo',__graphite1__='bar',__graphite2__='baz'}")
+  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/query_range?start=$start&end=$end&step=10&query={__g0__='foo',__g1__='bar',__g2__='baz'}")
   echo "$RESPONSE" | jq '.data.result[0].values[][1]=="1"' | grep -q "true"
   return $?
 }

@@ -20,35 +20,45 @@
 
 package graphite
 
-import (
-	"testing"
+import "fmt"
 
-	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3/src/query/graphite/ts"
+const (
+	// graphiteFormat is the format for graphite metric tag names, which will be
+	// represented as tag/value pairs in M3.
+	// NB: stats.gauges.donkey.kong.barrels would become the following tag set:
+	// {__g0__: stats}
+	// {__g1__: gauges}
+	// {__g2__: donkey}
+	// {__g3__: kong}
+	// {__g4__: barrels}
+	graphiteFormat = "__g%d__"
 
-	"github.com/stretchr/testify/assert"
+	// Number of pre-formatted key names to generate in the init() function.
+	numPreFormattedTagNames = 128
 )
 
-func TestConsolidationFuncForMetricType(t *testing.T) {
-	ca := ConsolidationFuncForMetricType(Counts)
-	assert.Equal(t, ts.ConsolidationSum, ca)
+var (
+	// Should never be modified after init().
+	preFormattedTagNames [][]byte
+)
 
-	ca = ConsolidationFuncForMetricType(Timers)
-	assert.Equal(t, ts.ConsolidationAvg, ca)
-
-	ca = ConsolidationFuncForMetricType(Gauges)
-	assert.Equal(t, ts.ConsolidationAvg, ca)
-
-	ca = ConsolidationFuncForMetricType(Ratios)
-	assert.Equal(t, ts.ConsolidationAvg, ca)
-
-	ca = ConsolidationFuncForMetricType(MetricType(999))
-	assert.Equal(t, ts.ConsolidationAvg, ca)
+func init() {
+	for i := 0; i < numPreFormattedTagNames; i++ {
+		name := generateTagName(i)
+		preFormattedTagNames = append(preFormattedTagNames, name)
+	}
 }
 
-func TestMetricTypeFromID(t *testing.T) {
-	assert.Equal(t, metric.UnknownType, MetricTypeFromID("foo.bar.baz.qux.qaz"))
-	assert.Equal(t, metric.CounterType, MetricTypeFromID("foo.bar.counts.qaz=bar"))
-	assert.Equal(t, metric.GaugeType, MetricTypeFromID("foo.bar.gauges.qux=bar"))
-	assert.Equal(t, metric.TimerType, MetricTypeFromID("foo.bar.timers.baz.p99"))
+// TagName gets a preallocated or generate a tag name for the given graphite
+// path index.
+func TagName(idx int) []byte {
+	if idx < len(preFormattedTagNames) {
+		return preFormattedTagNames[idx]
+	}
+
+	return []byte(fmt.Sprintf(graphiteFormat, idx))
+}
+
+func generateTagName(idx int) []byte {
+	return []byte(fmt.Sprintf(graphiteFormat, idx))
 }

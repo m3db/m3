@@ -183,13 +183,13 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
-	h.router.HandleFunc(graphite.GraphiteReadURL,
-		logged(graphite.NewNativeRenderHandler(h.storage)).ServeHTTP,
-	).Methods(graphite.GraphiteReadHTTPMethods...)
+	h.router.HandleFunc(graphite.ReadURL,
+		logged(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+	).Methods(graphite.ReadHTTPMethods...)
 
-	h.router.HandleFunc(graphite.GraphiteSearchURL,
-		logged(graphite.NewGraphiteSearchHandler(h.storage)).ServeHTTP,
-	).Methods(graphite.GraphiteSearchHTTPMethods...)
+	h.router.HandleFunc(graphite.SearchURL,
+		logged(graphite.NewSearchHandler(h.storage)).ServeHTTP,
+	).Methods(graphite.SearchHTTPMethods...)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{

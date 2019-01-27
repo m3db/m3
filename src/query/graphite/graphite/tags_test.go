@@ -21,44 +21,15 @@
 package graphite
 
 import (
-	"regexp"
+	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	applicationCountsRegex = regexp.MustCompile(`^stats(\.[^\.]+)?\.counts\..*`)
-	benchMixIDs            = []string{
-		"stats.bar.counts.donkey.kong.barrels",
-		"stats.bar.counts.test",
-		"stats.bar.gauges.donkey.kong.barrels",
-		"stats.bar.timers.test",
-		"fake.bar.counts.test",
-		"servers.testabc-bar.counts.test",
+func TestTagName(t *testing.T) {
+	for i := 0; i < 2*numPreFormattedTagNames; i++ {
+		expected := []byte("__g" + fmt.Sprint(i) + "__")
+		require.Equal(t, expected, TagName(i))
 	}
-)
-
-func BenchmarkFindConsolidationApproach(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		for _, id := range benchMixIDs {
-			FindConsolidationApproach(id)
-		}
-	}
-}
-
-func BenchmarkFindConsolidationApproachRegex(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		for _, id := range benchMixIDs {
-			findConsolidationApproachRegex(id)
-		}
-	}
-}
-
-func findConsolidationApproachRegex(id string) ts.ConsolidationApproach {
-	if applicationCountsRegex.MatchString(id) {
-		return ts.ConsolidationSum
-	}
-
-	return ts.ConsolidationAvg
 }

@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -40,18 +39,18 @@ import (
 )
 
 const (
-	// GraphiteReadURL is the url for native graphite query handler.
-	GraphiteReadURL = handler.RoutePrefixV1 + "/graphite/render"
+	// ReadURL is the url for the graphite query handler.
+	ReadURL = handler.RoutePrefixV1 + "/graphite/render"
 )
 
 var (
-	// GraphiteReadHTTPMethods is the HTTP methods used with this resource.
-	GraphiteReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
+	// ReadHTTPMethods is the HTTP methods used with this resource.
+	ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-// A nativeRenderHandler implements the graphite /render endpoint, including full
+// A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
-type nativeRenderHandler struct {
+type renderHandler struct {
 	engine *native.Engine
 }
 
@@ -60,12 +59,12 @@ type respError struct {
 	code int
 }
 
-// NewNativeRenderHandler returns a new native render handler around the given engine
-func NewNativeRenderHandler(
+// NewRenderHandler returns a new render handler around the given storage.
+func NewRenderHandler(
 	storage storage.Storage,
 ) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(storage)
-	return &nativeRenderHandler{
+	return &renderHandler{
 		engine: native.NewEngine(wrappedStore),
 	}
 }
@@ -78,14 +77,14 @@ func sendError(errorCh chan error, err error) {
 }
 
 // ServeHTTP processes the render requests.
-func (h *nativeRenderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *renderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	respErr := h.serveHTTP(w, r)
 	if respErr.err != nil {
 		xhttp.Error(w, respErr.err, respErr.code)
 	}
 }
 
-func (h *nativeRenderHandler) serveHTTP(
+func (h *renderHandler) serveHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) respError {
@@ -152,25 +151,8 @@ func (h *nativeRenderHandler) serveHTTP(
 				var (
 					samplingMultiplier = math.Ceil(float64(s.Len()) / float64(p.MaxDataPoints))
 					newMillisPerStep   = int(samplingMultiplier * float64(s.MillisPerStep()))
-					newStepDuration    = time.Duration(newMillisPerStep) * time.Millisecond
-					consolidationFunc  = s.ConsolidationFunc()
-					shiftedStart       = s.StartTime().Truncate(newStepDuration)
 				)
-
-				if shiftedStart.Before(s.StartTime()) {
-					shiftedStart = shiftedStart.Add(newStepDuration)
-				}
-
-				// TODO: consider LTTB approach here depending on query options
-				series, err := s.IntersectAndResize(shiftedStart, s.EndTime().Add(-time.Nanosecond),
-					newMillisPerStep, consolidationFunc)
-				if err != nil {
-					sendError(errorCh, errors.NewRenamedError(err,
-						fmt.Errorf("error: unable to resize series returned %s", err)))
-					return
-				}
-
-				targetSeries.Values[i] = series
+				targetSeries.Values[i] = ts.LTTB(s, s.StartTime(), s.EndTime(), newMillisPerStep)
 			}
 
 			mu.Lock()

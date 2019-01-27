@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/instrument"
@@ -110,23 +111,23 @@ func TestGenerateTagsFromName(t *testing.T) {
 		{
 			name: "foo",
 			expectedTags: []models.Tag{
-				{Name: []byte("__graphite0__"), Value: []byte("foo")},
+				{Name: graphite.TagName(0), Value: []byte("foo")},
 			},
 		},
 		{
 			name: "foo.bar.baz",
 			expectedTags: []models.Tag{
-				{Name: []byte("__graphite0__"), Value: []byte("foo")},
-				{Name: []byte("__graphite1__"), Value: []byte("bar")},
-				{Name: []byte("__graphite2__"), Value: []byte("baz")},
+				{Name: graphite.TagName(0), Value: []byte("foo")},
+				{Name: graphite.TagName(1), Value: []byte("bar")},
+				{Name: graphite.TagName(2), Value: []byte("baz")},
 			},
 		},
 		{
 			name: "foo.bar.baz.",
 			expectedTags: []models.Tag{
-				{Name: []byte("__graphite0__"), Value: []byte("foo")},
-				{Name: []byte("__graphite1__"), Value: []byte("bar")},
-				{Name: []byte("__graphite2__"), Value: []byte("baz")},
+				{Name: graphite.TagName(0), Value: []byte("foo")},
+				{Name: graphite.TagName(1), Value: []byte("bar")},
+				{Name: graphite.TagName(2), Value: []byte("baz")},
 			},
 		},
 		{
@@ -257,12 +258,5 @@ func init() {
 
 		line := []byte(fmt.Sprintf("%s %d %d\n", string(metric), i, i))
 		testPacket = append(testPacket, line...)
-	}
-}
-
-func TestGetOrGenerateKeyName(t *testing.T) {
-	for i := 0; i < 1024; i++ {
-		expected := []byte("__graphite" + fmt.Sprint(i) + "__")
-		require.Equal(t, expected, GetOrGenerateKeyName(i))
 	}
 }

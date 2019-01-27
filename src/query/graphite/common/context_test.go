@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 type closerFunc func() error
@@ -88,43 +87,4 @@ func TestChildContextClose(t *testing.T) {
 	client.AssertNotCalled(t, "foo")
 	ctx.Close()
 	client.AssertCalled(t, "foo")
-}
-
-func TestChildPropagatesBreakdownToParent(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-
-	require.Equal(t, 0, len(ctx.FetchBreakdowns()))
-	require.Equal(t, 0, len(child.FetchBreakdowns()))
-
-	breakdown := FetchBreakdown{
-		NumSeries:   1,
-		CompletedAt: time.Now(),
-		LocalOnly:   true,
-	}
-	child.AddFetchBreakdown(breakdown)
-
-	require.Equal(t, 1, len(ctx.FetchBreakdowns()))
-	require.Equal(t, 1, len(child.FetchBreakdowns()))
-	assert.True(t, breakdown.Equal(ctx.FetchBreakdowns()[0]))
-	assert.True(t, breakdown.Equal(child.FetchBreakdowns()[0]))
-}
-
-func TestParentDoesNotPropagateBreakdownToChild(t *testing.T) {
-	ctx := NewContext(ContextOptions{Start: time.Now(), End: time.Now()})
-	child := ctx.NewChildContext(NewChildContextOptions())
-
-	require.Equal(t, 0, len(ctx.FetchBreakdowns()))
-	require.Equal(t, 0, len(child.FetchBreakdowns()))
-
-	breakdown := FetchBreakdown{
-		NumSeries:   1,
-		CompletedAt: time.Now(),
-		LocalOnly:   true,
-	}
-	ctx.AddFetchBreakdown(breakdown)
-
-	require.Equal(t, 1, len(ctx.FetchBreakdowns()))
-	require.Equal(t, 0, len(child.FetchBreakdowns()))
-	assert.True(t, breakdown.Equal(ctx.FetchBreakdowns()[0]))
 }

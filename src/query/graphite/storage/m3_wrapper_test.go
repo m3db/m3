@@ -27,6 +27,7 @@ import (
 	"time"
 
 	xctx "github.com/m3db/m3/src/query/graphite/context"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
@@ -36,7 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTralsateQuery(t *testing.T) {
+func TestTranslateQuery(t *testing.T) {
 	query := `foo.ba[rz].q*x.terminator.will.be.back?`
 	end := time.Now()
 	start := end.Add(time.Hour * -2)
@@ -55,14 +56,14 @@ func TestTralsateQuery(t *testing.T) {
 	assert.Equal(t, query, translated.Raw)
 	matchers := translated.TagMatchers
 	expected := models.Matchers{
-		{Type: models.MatchRegexp, Name: []byte("__graphite0__"), Value: []byte("foo")},
-		{Type: models.MatchRegexp, Name: []byte("__graphite1__"), Value: []byte("ba[rz]")},
-		{Type: models.MatchRegexp, Name: []byte("__graphite2__"), Value: []byte("q.*x")},
-		{Type: models.MatchRegexp, Name: []byte("__graphite3__"), Value: []byte("terminator")},
-		{Type: models.MatchRegexp, Name: []byte("__graphite4__"), Value: []byte("will")},
-		{Type: models.MatchRegexp, Name: []byte("__graphite5__"), Value: []byte("be")},
-		{Type: models.MatchRegexp, Name: []byte("__graphite6__"), Value: []byte("back?")},
-		{Type: models.MatchNotRegexp, Name: []byte("__graphite7__"), Value: []byte(".*")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(0), Value: []byte("foo")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(1), Value: []byte("ba[rz]")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(2), Value: []byte("q.*x")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(3), Value: []byte("terminator")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(4), Value: []byte("will")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(5), Value: []byte("be")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(6), Value: []byte("back?")},
+		{Type: models.MatchNotRegexp, Name: graphite.TagName(7), Value: []byte(".*")},
 	}
 
 	assert.Equal(t, expected, matchers)
@@ -70,15 +71,48 @@ func TestTralsateQuery(t *testing.T) {
 
 func TestTranslateTimeseries(t *testing.T) {
 	ctx := xctx.New()
+	resolution := 10 * time.Second
+	steps := 1
 	start := time.Now()
+	end := start.Add(time.Duration(steps) * resolution)
 	expected := 5
 	seriesList := make(m3ts.SeriesList, expected)
 	for i := 0; i < expected; i++ {
-		vals := m3ts.NewFixedStepValues(10*time.Second, 1, float64(i), start)
-		seriesList[i] = m3ts.NewSeries(fmt.Sprint("a", i), vals, models.NewTags(0, nil))
+		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
+		series := m3ts.NewSeries(fmt.Sprint("a", i), vals, models.NewTags(0, nil))
+		series.SetResolution(resolution)
+		seriesList[i] = series
 	}
 
-	translated := translateTimeseries(ctx, seriesList, start)
+	translated, err := translateTimeseries(ctx, seriesList, start, end)
+	require.NoError(t, err)
+
+	require.Equal(t, expected, len(translated))
+	for i, tt := range translated {
+		ex := []float64{float64(i)}
+		assert.Equal(t, ex, tt.SafeValues())
+		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
+	}
+}
+
+func TestTranslateTimeseriesWithTags(t *testing.T) {
+	ctx := xctx.New()
+	resolution := 10 * time.Second
+	steps := 1
+	start := time.Now()
+	end := start.Add(time.Duration(steps) * resolution)
+	expected := 5
+	seriesList := make(m3ts.SeriesList, expected)
+	for i := 0; i < expected; i++ {
+		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
+		series := m3ts.NewSeries(fmt.Sprint("a", i), vals, models.NewTags(0, nil))
+		series.SetResolution(resolution)
+		seriesList[i] = series
+	}
+
+	translated, err := translateTimeseries(ctx, seriesList, start, end)
+	require.NoError(t, err)
+
 	require.Equal(t, expected, len(translated))
 	for i, tt := range translated {
 		ex := []float64{float64(i)}
@@ -90,9 +124,14 @@ func TestTranslateTimeseries(t *testing.T) {
 func TestFetchByQuery(t *testing.T) {
 	store := mock.NewMockStorage()
 	start := time.Now().Add(time.Hour * -1)
-	vals := m3ts.NewFixedStepValues(10*time.Second, 3, 3, start)
+	resolution := 10 * time.Second
+	steps := 3
+	vals := m3ts.NewFixedStepValues(resolution, steps, 3, start)
 	seriesList := m3ts.SeriesList{
 		m3ts.NewSeries("a", vals, models.NewTags(0, nil)),
+	}
+	for _, series := range seriesList {
+		series.SetResolution(resolution)
 	}
 
 	store.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)

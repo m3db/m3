@@ -25,7 +25,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/storage"
@@ -36,21 +35,21 @@ import (
 )
 
 const (
-	// GraphiteSearchURL is the url for searching graphite paths.
-	GraphiteSearchURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
+	// SearchURL is the url for searching graphite metrics.
+	SearchURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
 )
 
 var (
-	// GraphiteSearchHTTPMethods is the HTTP methods used with this resource.
-	GraphiteSearchHTTPMethods = []string{http.MethodGet, http.MethodPost}
+	// SearchHTTPMethods is the HTTP methods used with this resource.
+	SearchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 type grahiteSearchHandler struct {
 	storage storage.Storage
 }
 
-// NewGraphiteSearchHandler returns a new instance of handler.
-func NewGraphiteSearchHandler(
+// NewSearchHandler returns a new instance of handler.
+func NewSearchHandler(
 	storage storage.Storage,
 ) http.Handler {
 	return &grahiteSearchHandler{
@@ -80,7 +79,7 @@ func (h *grahiteSearchHandler) ServeHTTP(
 	}
 
 	partCount := graphite.CountMetricParts(query.Raw)
-	partName := ingestcarbon.GetOrGenerateKeyName(partCount - 1)
+	partName := graphite.TagName(partCount - 1)
 	seenMap := make(map[string]bool, len(result.Metrics))
 	for _, m := range result.Metrics {
 		tags := m.Tags.Tags
@@ -95,10 +94,8 @@ func (h *grahiteSearchHandler) ServeHTTP(
 
 		value := tags[index].Value
 		// If this value has already been encountered, check if
-		if hadExtra, seen := seenMap[string(value)]; seen {
-			if hadExtra {
-				continue
-			}
+		if hadExtra, seen := seenMap[string(value)]; seen && hadExtra {
+			continue
 		}
 
 		hasExtraParts := len(tags) > partCount

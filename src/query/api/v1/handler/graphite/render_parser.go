@@ -90,7 +90,6 @@ func ParseRenderRequest(r *http.Request) (RenderRequest, error) {
 	}
 
 	fromString, untilString := r.FormValue("from"), r.FormValue("until")
-
 	if len(fromString) == 0 {
 		fromString = "-30min"
 	}

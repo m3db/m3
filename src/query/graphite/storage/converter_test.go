@@ -21,9 +21,9 @@
 package storage
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
@@ -52,7 +52,7 @@ func TestConvertMetricPartToMatcher(t *testing.T) {
 		globAndRegex := "foo*bar[rz]*(qux|quail)"
 		expected := models.Matcher{
 			Type:  models.MatchRegexp,
-			Name:  []byte("__graphite" + fmt.Sprint(i) + "__"),
+			Name:  graphite.TagName(i),
 			Value: []byte("foo.*bar[rz].*(qux|quail)"),
 		}
 
@@ -65,7 +65,7 @@ func TestGetMatcherTerminator(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		expected := models.Matcher{
 			Type:  models.MatchNotRegexp,
-			Name:  []byte("__graphite" + fmt.Sprint(i) + "__"),
+			Name:  graphite.TagName(i),
 			Value: []byte(".*"),
 		}
 

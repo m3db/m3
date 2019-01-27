@@ -25,7 +25,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -66,7 +65,7 @@ func TranslateQueryToMatchers(query string) models.Matchers {
 // the given pattern. This is useful for filtering out any additional results.
 func GetQueryTerminatorTagName(query string) []byte {
 	metricLength := graphite.CountMetricParts(query)
-	return ingestcarbon.GetOrGenerateKeyName(metricLength)
+	return graphite.TagName(metricLength)
 }
 
 func translateQuery(query string, opts FetchOptions) *storage.FetchQuery {
@@ -109,8 +108,12 @@ func translateTimeseries(
 		millisPerStep := int(resolution / time.Millisecond)
 		values := ts.NewValues(ctx, millisPerStep, length)
 		for _, datapoint := range m3series.Values().Datapoints() {
-			indexAt := int(datapoint.Timestamp.Sub(start) / resolution)
-			values.SetValueAt(indexAt, datapoint.Value)
+			index := int(datapoint.Timestamp.Sub(start) / resolution)
+			if index < 0 || index >= length {
+				// Outside of range requested
+				continue
+			}
+			values.SetValueAt(index, datapoint.Value)
 		}
 
 		name := m3series.Name()
