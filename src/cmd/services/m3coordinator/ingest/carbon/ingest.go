@@ -314,3 +314,9 @@ func GenerateTagsFromName(
 
 	return models.NewTags(numTags, opts).AddTags(tags), nil
 }
+
+type ruleAndRegex struct {
+	rule         config.CarbonIngestionRuleConfiguration
+	regexp       *regexp.Regexp
+	mappingRules []downsample.MappingRule
+}
