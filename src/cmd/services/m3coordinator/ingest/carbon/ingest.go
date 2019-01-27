@@ -102,6 +102,10 @@ func NewIngester(
 
 	// Compile all the carbon ingestion rules into regexp so that we can
 	// perform matching.
+	//
+	// Note that only one rule will be applied per metric and rules are applied
+	// based on the first one that matches so we need to make sure to retain
+	// the order of the rules when we generate the compiled ones.
 	compiledRules := []ruleAndRegex{}
 	for _, rule := range rules.Rules {
 		compiled, err := regexp.Compile(rule.Pattern)
@@ -208,10 +212,11 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		if rule.regexp.Match(name) {
 			// Each rule should only have either mapping rules or storage policies so
 			// one of these should be a no-op.
-			downsampleAndStoragePolicies.MappingRules = append(
-				downsampleAndStoragePolicies.MappingRules, rule.mappingRules...)
-			downsampleAndStoragePolicies.StoragePolicies = append(
-				downsampleAndStoragePolicies.StoragePolicies, rule.storagePolicies...)
+			downsampleAndStoragePolicies.MappingRules = rule.mappingRules
+			downsampleAndStoragePolicies.StoragePolicies = rule.storagePolicies
+			// Break because we only want to apply one rule per metric based on which
+			// ever one matches first.
+			break
 		}
 	}
 
