@@ -49,8 +49,10 @@ type DownsamplerAndWriter interface {
 		tags models.Tags,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
+		downsamplingRules []downsample.MappingRule,
 	) error
 
+	// TODO(rartoul): Batch interface should also support downsampling rules.
 	WriteBatch(
 		ctx context.Context,
 		iter DownsampleAndWriteIter,
@@ -82,6 +84,7 @@ func (d *downsamplerAndWriter) Write(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
+	downsamplingRules []downsample.MappingRule,
 ) error {
 	if d.downsampler != nil {
 		appender, err := d.downsampler.NewMetricsAppender()
@@ -93,8 +96,13 @@ func (d *downsamplerAndWriter) Write(
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
-		var opts downsample.SampleAppenderOptions
-		samplesAppender, err := appender.SamplesAppender(opts)
+		appenderOpts := downsample.SampleAppenderOptions{
+			Override: true,
+			OverrideRules: downsample.SamplesAppenderOverrideRules{
+				MappingRules: downsamplingRules,
+			},
+		}
+		samplesAppender, err := appender.SamplesAppender(appenderOpts)
 		if err != nil {
 			return err
 		}

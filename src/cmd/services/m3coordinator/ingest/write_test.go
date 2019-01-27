@@ -103,6 +103,8 @@ var (
 		{tags: testTags1, datapoints: testDatapoints1},
 		{tags: testTags2, datapoints: testDatapoints2},
 	}
+
+	defaultDownsamplingRules = []downsample.MappingRule{}
 )
 
 type testIter struct {
@@ -176,7 +178,8 @@ func TestDownsampleAndWrite(t *testing.T) {
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
 	}
 
-	err := downAndWrite.Write(context.Background(), testTags1, testDatapoints1, xtime.Second)
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultDownsamplingRules)
 	require.NoError(t, err)
 }
 
@@ -192,7 +195,8 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
 	}
 
-	err := downAndWrite.Write(context.Background(), testTags1, testDatapoints1, xtime.Second)
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultDownsamplingRules)
 	require.NoError(t, err)
 }
 
