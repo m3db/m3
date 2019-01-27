@@ -117,6 +117,7 @@ func NewIngester(
 
 			if currPolicy.Aggregation.Enabled {
 				mappingRules = append(mappingRules, downsample.MappingRule{
+					// TODO: Actually parse the aggregation type from config.
 					Aggregations: []aggregation.Type{aggregation.Mean},
 					Policies:     policy.StoragePolicies{storagePolicy},
 				})
