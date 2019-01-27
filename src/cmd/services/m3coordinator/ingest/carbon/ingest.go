@@ -110,24 +110,27 @@ func NewIngester(
 		}
 
 		mappingRules := []downsample.MappingRule{}
+		storagePolicies := []policy.StoragePolicy{}
 		for _, currPolicy := range rule.Policies {
-			mappingRule := downsample.MappingRule{
-				// TODO(rartoul): Is passing second for precision correct here?
-				Policies: policy.StoragePolicies{
-					policy.NewStoragePolicy(currPolicy.Resolution, xtime.Second, currPolicy.Retention),
-				},
-			}
+			storagePolicy := policy.NewStoragePolicy(
+				currPolicy.Resolution, xtime.Second, currPolicy.Retention)
+
 			if currPolicy.Aggregation.Enabled {
-				// TODO: Need to parse config string so its not always Mean
-				mappingRule.Aggregations = []aggregation.Type{aggregation.Mean}
+				mappingRules = append(mappingRules, downsample.MappingRule{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies:     policy.StoragePolicies{storagePolicy},
+				})
+			} else {
+				storagePolicies = append(storagePolicies, storagePolicy)
 			}
-			mappingRules = append(mappingRules, mappingRule)
+
 		}
 
 		compiledRules = append(compiledRules, ruleAndRegex{
-			rule:         rule,
-			regexp:       compiled,
-			mappingRules: mappingRules,
+			rule:            rule,
+			regexp:          compiled,
+			mappingRules:    mappingRules,
+			storagePolicies: storagePolicies,
 		})
 	}
 
@@ -192,14 +195,20 @@ func (i *ingester) Handle(conn net.Conn) {
 }
 
 func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
-	mappingRules := []downsample.MappingRule{}
+	downsampleAndStoragePolicies := ingest.MappingAndStoragePoliciesOverrides{}
 	for _, rule := range i.rules {
 		if rule.regexp.Match(name) {
-			mappingRules = append(mappingRules, rule.mappingRules...)
+			// Each rule should only have either mapping rules or storage policies so
+			// one of these should be a no-op.
+			downsampleAndStoragePolicies.MappingRules = append(
+				downsampleAndStoragePolicies.MappingRules, rule.mappingRules...)
+			downsampleAndStoragePolicies.StoragePolicies = append(
+				downsampleAndStoragePolicies.StoragePolicies, rule.storagePolicies...)
 		}
 	}
 
-	if len(mappingRules) == 0 {
+	if len(downsampleAndStoragePolicies.MappingRules) == 0 &&
+		len(downsampleAndStoragePolicies.StoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
 		return false
 	}
@@ -225,7 +234,8 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 	// TODO(rartoul): Modify interface so I can pass mapping rules. downsamplerAndWriter
 	// will check if any aggregations are specified, and if so, write to the downsampler,
 	// otherwise it will write to the storage.
-	err = i.downsamplerAndWriter.Write(ctx, tags, datapoints, xtime.Second)
+	err = i.downsamplerAndWriter.Write(
+		ctx, tags, datapoints, xtime.Second, downsampleAndStoragePolicies)
 	if cleanup != nil {
 		cleanup()
 	}
@@ -316,7 +326,8 @@ func GenerateTagsFromName(
 }
 
 type ruleAndRegex struct {
-	rule         config.CarbonIngestionRuleConfiguration
-	regexp       *regexp.Regexp
-	mappingRules []downsample.MappingRule
+	rule            config.CarbonIngestionRuleConfiguration
+	regexp          *regexp.Regexp
+	mappingRules    []downsample.MappingRule
+	storagePolicies []policy.StoragePolicy
 }

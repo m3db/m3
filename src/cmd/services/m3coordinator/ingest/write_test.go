@@ -104,7 +104,7 @@ var (
 		{tags: testTags2, datapoints: testDatapoints2},
 	}
 
-	defaultDownsamplingRules = []downsample.MappingRule{}
+	defaultOverride = MappingAndStoragePoliciesOverrides{}
 )
 
 type testIter struct {
@@ -179,7 +179,7 @@ func TestDownsampleAndWrite(t *testing.T) {
 	}
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultDownsamplingRules)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
 	require.NoError(t, err)
 }
 
@@ -196,7 +196,7 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	}
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultDownsamplingRules)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
 	require.NoError(t, err)
 }
 

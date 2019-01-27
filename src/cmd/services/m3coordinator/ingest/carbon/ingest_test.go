@@ -47,6 +47,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO(rartoul): Assert on the overrides.
 const (
 	// Keep this value large enough to catch issues like the ingester
 	// not copying the name.
@@ -148,11 +149,12 @@ func TestIngesterHandleConn(t *testing.T) {
 		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		overrides ingest.MappingAndStoragePoliciesOverrides,
 	) interface{} {
 		lock.Lock()
 		found = append(found, testMetric{
@@ -186,11 +188,12 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		found = []testMetric{}
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		overrides ingest.MappingAndStoragePoliciesOverrides,
 	) interface{} {
 		lock.Lock()
 		found = append(found, testMetric{

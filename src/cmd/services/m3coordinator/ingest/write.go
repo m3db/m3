@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -49,7 +50,7 @@ type DownsamplerAndWriter interface {
 		tags models.Tags,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
-		downsamplingRules []downsample.MappingRule,
+		overrides MappingAndStoragePoliciesOverrides,
 	) error
 
 	// TODO(rartoul): Batch interface should also support downsampling rules.
@@ -59,6 +60,13 @@ type DownsamplerAndWriter interface {
 	) error
 
 	Storage() storage.Storage
+}
+
+// MappingAndStoragePoliciesOverrides contains overrides for the downsampling mapping
+// rules and storage policies for a given write.
+type MappingAndStoragePoliciesOverrides struct {
+	MappingRules    []downsample.MappingRule
+	StoragePolicies []policy.StoragePolicy
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -84,7 +92,7 @@ func (d *downsamplerAndWriter) Write(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
-	downsamplingRules []downsample.MappingRule,
+	overrides MappingAndStoragePoliciesOverrides,
 ) error {
 	if d.downsampler != nil {
 		appender, err := d.downsampler.NewMetricsAppender()
@@ -99,7 +107,7 @@ func (d *downsamplerAndWriter) Write(
 		appenderOpts := downsample.SampleAppenderOptions{
 			Override: true,
 			OverrideRules: downsample.SamplesAppenderOverrideRules{
-				MappingRules: downsamplingRules,
+				MappingRules: overrides.MappingRules,
 			},
 		}
 		samplesAppender, err := appender.SamplesAppender(appenderOpts)
