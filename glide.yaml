@@ -159,6 +159,9 @@ import:
     subpackages:
       - cmp
 
+  - package: github.com/hydrogen18/stalecucumber
+    version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
+
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
     version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
