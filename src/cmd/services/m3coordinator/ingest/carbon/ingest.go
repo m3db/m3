@@ -195,7 +195,14 @@ func (i *ingester) Handle(conn net.Conn) {
 }
 
 func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
-	downsampleAndStoragePolicies := ingest.MappingAndStoragePoliciesOverrides{}
+	downsampleAndStoragePolicies := ingest.MappingAndStoragePoliciesOverrides{
+		// Set both of these overrides to true to indicate that only the exact mapping
+		// rules and storage policies that we provide should be used and that all
+		// default behavior (like performing all possible downsamplings and writing
+		// all data to the unaggregated namespace in storage) should be ignored.
+		OverrideMappingRules:    true,
+		OverrideStoragePolicies: true,
+	}
 	for _, rule := range i.rules {
 		if rule.regexp.Match(name) {
 			// Each rule should only have either mapping rules or storage policies so

@@ -65,8 +65,11 @@ type DownsamplerAndWriter interface {
 // MappingAndStoragePoliciesOverrides contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
 type MappingAndStoragePoliciesOverrides struct {
-	MappingRules    []downsample.MappingRule
-	StoragePolicies []policy.StoragePolicy
+	OverrideMappingRules bool
+	MappingRules         []downsample.MappingRule
+
+	OverrideStoragePolicies bool
+	StoragePolicies         []policy.StoragePolicy
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -94,7 +97,19 @@ func (d *downsamplerAndWriter) Write(
 	unit xtime.Unit,
 	overrides MappingAndStoragePoliciesOverrides,
 ) error {
-	if d.downsampler != nil {
+	var (
+		downsamplerExists = d.downsampler != nil
+		// If they didn't request the mapping rules to be overriden, then assume they want the default
+		// ones.
+		useDefaultMappingRules = !overrides.OverrideMappingRules
+		// If they did try and override the mapping rules, make sure they've provided at least one.
+		overrideMappingRules = overrides.OverrideMappingRules && len(overrides.MappingRules) > 0
+		// Only downsample if the downsampler exists, and they either want to use the default mapping
+		// rules, or they're trying to override the mapping rules and they've provided at least one
+		// override to do so.
+		shouldDownsample = downsamplerExists && (useDefaultMappingRules || overrideMappingRules)
+	)
+	if shouldDownsample {
 		appender, err := d.downsampler.NewMetricsAppender()
 		if err != nil {
 			return err
@@ -104,12 +119,16 @@ func (d *downsamplerAndWriter) Write(
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
-		appenderOpts := downsample.SampleAppenderOptions{
-			Override: true,
-			OverrideRules: downsample.SamplesAppenderOverrideRules{
-				MappingRules: overrides.MappingRules,
-			},
+		var appenderOpts downsample.SampleAppenderOptions
+		if overrideMappingRules {
+			appenderOpts = downsample.SampleAppenderOptions{
+				Override: true,
+				OverrideRules: downsample.SamplesAppenderOverrideRules{
+					MappingRules: overrides.MappingRules,
+				},
+			}
 		}
+
 		samplesAppender, err := appender.SamplesAppender(appenderOpts)
 		if err != nil {
 			return err
@@ -125,7 +144,11 @@ func (d *downsamplerAndWriter) Write(
 		appender.Finalize()
 	}
 
-	if d.store != nil {
+	var (
+		storageExists             = d.store != nil
+		useDefaultStoragePolicies = !overrides.OverrideStoragePolicies
+	)
+	if storageExists && useDefaultStoragePolicies {
 		return d.store.Write(ctx, &storage.WriteQuery{
 			Tags:       tags,
 			Datapoints: datapoints,
@@ -134,7 +157,41 @@ func (d *downsamplerAndWriter) Write(
 				MetricsType: storage.UnaggregatedMetricsType,
 			},
 		})
+	}
 
+	if storageExists {
+		var (
+			wg       sync.WaitGroup
+			multiErr xerrors.MultiError
+			errLock  sync.Mutex
+		)
+
+		for _, p := range overrides.StoragePolicies {
+			wg.Add(1)
+			// TODO(rartoul): Benchmark using a pooled worker pool here.
+			go func(p policy.StoragePolicy) {
+				err := d.store.Write(ctx, &storage.WriteQuery{
+					Tags:       tags,
+					Datapoints: datapoints,
+					Unit:       unit,
+					Attributes: storage.Attributes{
+						// TODO(rartoul): Is this a good assumption?
+						// Assume all overriden storage policies are for aggregated namespaces.
+						MetricsType: storage.AggregatedMetricsType,
+						Resolution:  p.Resolution().Window,
+						Retention:   p.Resolution().Window,
+					},
+				})
+				if err != nil {
+					errLock.Lock()
+					multiErr = multiErr.Add(err)
+					errLock.Unlock()
+				}
+				wg.Done()
+			}(p)
+		}
+
+		return nil
 	}
 
 	return nil
