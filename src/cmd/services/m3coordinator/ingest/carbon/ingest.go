@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/metrics/carbon"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/instrument"
@@ -46,11 +47,6 @@ var (
 	// Used for parsing carbon names into tags.
 	carbonSeparatorByte  = byte('.')
 	carbonSeparatorBytes = []byte{carbonSeparatorByte}
-
-	// Number of pre-formatted key names to generate in the init() function.
-	numPreFormattedKeyNames = 100
-	// Should never be modified after init().
-	preFormattedKeyNames = [][]byte{}
 
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
@@ -197,9 +193,9 @@ type carbonIngesterMetrics struct {
 // key-value pair tags such that an input like:
 //      foo.bar.baz
 // becomes
-//      __graphite0__:foo
-//      __graphite1__:bar
-//      __graphite2__:baz
+//      __g0__:foo
+//      __g1__:bar
+//      __g2__:baz
 func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	if len(name) == 0 {
 		return models.Tags{}, errCannotGenerateTagsFromEmptyName
@@ -219,7 +215,7 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 			}
 
 			tags = append(tags, models.Tag{
-				Name:  getOrGenerateKeyName(tagNum),
+				Name:  graphite.TagName(tagNum),
 				Value: name[startIdx:i],
 			})
 			startIdx = i + 1
@@ -238,29 +234,10 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	// then the foor loop would have appended foo, bar, and baz already.
 	if name[len(name)-1] != carbonSeparatorByte {
 		tags = append(tags, models.Tag{
-			Name:  getOrGenerateKeyName(tagNum),
+			Name:  graphite.TagName(tagNum),
 			Value: name[startIdx:],
 		})
 	}
 
 	return models.Tags{Tags: tags}, nil
-}
-
-func getOrGenerateKeyName(idx int) []byte {
-	if idx < len(preFormattedKeyNames) {
-		return preFormattedKeyNames[idx]
-	}
-
-	return []byte(fmt.Sprintf("__graphite%d__", idx))
-}
-
-func generateKeyName(idx int) []byte {
-	return []byte(fmt.Sprintf("__graphite%d__", idx))
-}
-
-func init() {
-	for i := 0; i < numPreFormattedKeyNames; i++ {
-		keyName := generateKeyName(i)
-		preFormattedKeyNames = append(preFormattedKeyNames, keyName)
-	}
 }

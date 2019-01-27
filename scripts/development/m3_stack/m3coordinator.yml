@@ -68,5 +68,3 @@ ingest:
     handler:
       protobufEnabled: true
 
-carbon:
-  enabled: true
