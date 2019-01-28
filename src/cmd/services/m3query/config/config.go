@@ -25,10 +25,12 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
@@ -154,6 +156,46 @@ type CarbonIngesterConfiguration struct {
 	MaxConcurrency int                               `yaml:"maxConcurrency"`
 	WriteTimeout   *time.Duration                    `yaml:"writeTimeout"`
 	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+}
+
+// RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable
+// defaults using the provided aggregated namespaces if not.
+func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamespaces) []CarbonIngesterRuleConfiguration {
+	if len(c.Rules) > 0 {
+		return c.Rules
+	}
+
+	if namespaces.NumAggregatedClusterNamespaces() == 0 {
+		return nil
+	}
+
+	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
+	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	for _, ns := range namespaces {
+		if ns.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
+			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
+				Resolution: ns.Options().Attributes().Resolution,
+				Retention:  ns.Options().Attributes().Retention,
+				Aggregation: CarbonIngesterAggregationConfiguration{
+					Enabled: true,
+					Type:    aggregation.Mean,
+				},
+			})
+		}
+	}
+
+	if len(policies) == 0 {
+		return nil
+	}
+
+	// Create a single catch-all rule with a policy for each of the aggregated namespaces we
+	// enumerated above.
+	return []CarbonIngesterRuleConfiguration{
+		{
+			Pattern:  ingestcarbon.MatchAllPattern,
+			Policies: policies,
+		},
+	}
 }
 
 // CarbonIngesterRuleConfiguration is the configuration struct for a carbon

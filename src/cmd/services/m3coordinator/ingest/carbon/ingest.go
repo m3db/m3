@@ -53,6 +53,9 @@ var (
 	carbonSeparatorByte  = byte('.')
 	carbonSeparatorBytes = []byte{carbonSeparatorByte}
 
+	// MatchAllPattern that is used to match all metrics.
+	MatchAllPattern = ".*"
+
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
 	errWorkerPoolMustBeSet             = errors.New("carbon ingester options: worker pool must be set")
