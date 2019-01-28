@@ -100,42 +100,9 @@ func NewIngester(
 		return nil, err
 	}
 
-	// Compile all the carbon ingestion rules into regexp so that we can
-	// perform matching.
-	//
-	// Note that only one rule will be applied per metric and rules are applied
-	// based on the first one that matches so we need to make sure to retain
-	// the order of the rules when we generate the compiled ones.
-	compiledRules := []ruleAndRegex{}
-	for _, rule := range rules.Rules {
-		compiled, err := regexp.Compile(rule.Pattern)
-		if err != nil {
-			return nil, err
-		}
-
-		mappingRules := []downsample.MappingRule{}
-		storagePolicies := []policy.StoragePolicy{}
-		for _, currPolicy := range rule.Policies {
-			storagePolicy := policy.NewStoragePolicy(
-				currPolicy.Resolution, xtime.Second, currPolicy.Retention)
-
-			if currPolicy.Aggregation.EnabledOrDefault() {
-				mappingRules = append(mappingRules, downsample.MappingRule{
-					Aggregations: []aggregation.Type{currPolicy.Aggregation.TypeOrDefault()},
-					Policies:     policy.StoragePolicies{storagePolicy},
-				})
-			} else {
-				storagePolicies = append(storagePolicies, storagePolicy)
-			}
-
-		}
-
-		compiledRules = append(compiledRules, ruleAndRegex{
-			rule:            rule,
-			regexp:          compiled,
-			mappingRules:    mappingRules,
-			storagePolicies: storagePolicies,
-		})
+	compiledRules, err := compileRules(rules)
+	if err != nil {
+		return nil, err
 	}
 
 	return &ingester{
@@ -332,6 +299,50 @@ func GenerateTagsFromName(
 	}
 
 	return models.NewTags(numTags, opts).AddTags(tags), nil
+}
+
+// Compile all the carbon ingestion rules into regexp so that we can
+// perform matching. Also, generate all the mapping rules and storage
+// policies that we will need to pass to the DownsamplerAndWriter upfront
+// so that we don't need to create them each time.
+//
+// Note that only one rule will be applied per metric and rules are applied
+// such that the first one that matches takes precedence. As a result we need
+// to make sure to maintain the order of the rules when we generate the compiled ones.
+func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
+	compiledRules := []ruleAndRegex{}
+	for _, rule := range rules.Rules {
+		compiled, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return nil, err
+		}
+
+		mappingRules := []downsample.MappingRule{}
+		storagePolicies := []policy.StoragePolicy{}
+		for _, currPolicy := range rule.Policies {
+			storagePolicy := policy.NewStoragePolicy(
+				currPolicy.Resolution, xtime.Second, currPolicy.Retention)
+
+			if currPolicy.Aggregation.EnabledOrDefault() {
+				mappingRules = append(mappingRules, downsample.MappingRule{
+					Aggregations: []aggregation.Type{currPolicy.Aggregation.TypeOrDefault()},
+					Policies:     policy.StoragePolicies{storagePolicy},
+				})
+			} else {
+				storagePolicies = append(storagePolicies, storagePolicy)
+			}
+
+		}
+
+		compiledRules = append(compiledRules, ruleAndRegex{
+			rule:            rule,
+			regexp:          compiled,
+			mappingRules:    mappingRules,
+			storagePolicies: storagePolicies,
+		})
+	}
+
+	return compiledRules, nil
 }
 
 type ruleAndRegex struct {
