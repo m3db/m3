@@ -17,24 +17,10 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-// COPIED FROM https://github.com/etcd-io/etcd/tree/v3.2.10/pkg/cors under
+//
+// Derived from https://github.com/etcd-io/etcd/tree/v3.2.10/pkg/cors under
 // http://www.apache.org/licenses/LICENSE-2.0#redistribution .
-// Original copyright follows:
-
-// Copyright 2015 The etcd Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// See https://github.com/m3db/m3/blob/master/NOTICES.txt for the original copyright.
 
 package cors
 
@@ -48,23 +34,23 @@ import (
 func TestCORSInfo(t *testing.T) {
 	tests := []struct {
 		s     string
-		winfo CORSInfo
+		winfo Info
 		ws    string
 	}{
-		{"", CORSInfo{}, ""},
-		{"http://127.0.0.1", CORSInfo{"http://127.0.0.1": true}, "http://127.0.0.1"},
-		{"*", CORSInfo{"*": true}, "*"},
+		{"", Info{}, ""},
+		{"http://127.0.0.1", Info{"http://127.0.0.1": true}, "http://127.0.0.1"},
+		{"*", Info{"*": true}, "*"},
 		// with space around
-		{" http://127.0.0.1 ", CORSInfo{"http://127.0.0.1": true}, "http://127.0.0.1"},
+		{" http://127.0.0.1 ", Info{"http://127.0.0.1": true}, "http://127.0.0.1"},
 		// multiple addrs
 		{
 			"http://127.0.0.1,http://127.0.0.2",
-			CORSInfo{"http://127.0.0.1": true, "http://127.0.0.2": true},
+			Info{"http://127.0.0.1": true, "http://127.0.0.2": true},
 			"http://127.0.0.1,http://127.0.0.2",
 		},
 	}
 	for i, tt := range tests {
-		info := CORSInfo{}
+		info := Info{}
 		if err := info.Set(tt.s); err != nil {
 			t.Errorf("#%d: set error = %v, want nil", i, err)
 		}
@@ -91,7 +77,7 @@ func TestCORSInfoOriginAllowed(t *testing.T) {
 		{"*", "http://127.0.0.1", true},
 	}
 	for i, tt := range tests {
-		info := CORSInfo{}
+		info := Info{}
 		if err := info.Set(tt.set); err != nil {
 			t.Errorf("#%d: set error = %v, want nil", i, err)
 		}
@@ -102,11 +88,11 @@ func TestCORSInfoOriginAllowed(t *testing.T) {
 }
 
 func TestCORSHandler(t *testing.T) {
-	info := &CORSInfo{}
+	info := &Info{}
 	if err := info.Set("http://127.0.0.1,http://127.0.0.2"); err != nil {
 		t.Fatalf("unexpected set error: %v", err)
 	}
-	h := &CORSHandler{
+	h := &Handler{
 		Handler: http.NotFoundHandler(),
 		Info:    info,
 	}
