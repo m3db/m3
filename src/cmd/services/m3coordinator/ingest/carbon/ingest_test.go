@@ -85,7 +85,7 @@ var (
 	// Match match-regex1 twice with two patterns, and in one case with two policies
 	// and in the second with one policy. In addition, also match match-regex2 with
 	// a single pattern and policy.
-	testRulesWithRegex = CarbonIngesterRules{
+	testRulesWithPatterns = CarbonIngesterRules{
 		Rules: []config.CarbonIngesterRuleConfiguration{
 			{
 				Pattern: ".*match-regex1.*",
@@ -207,7 +207,7 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		"foo.match-regex2.bar.baz 1 1\n" +
 		"foo.match-not-regex.bar.baz 1 1")
 	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
-	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesWithRegex, testOptions)
+	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesWithPatterns, testOptions)
 	require.NoError(t, err)
 	ingester.Handle(byteConn)
 

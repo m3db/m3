@@ -244,9 +244,6 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		ctx, cleanup = context.WithTimeout(ctx, i.opts.Timeout)
 	}
 
-	// TODO(rartoul): Modify interface so I can pass mapping rules. downsamplerAndWriter
-	// will check if any aggregations are specified, and if so, write to the downsampler,
-	// otherwise it will write to the storage.
 	err = i.downsamplerAndWriter.Write(
 		ctx, tags, datapoints, xtime.Second, downsampleAndStoragePolicies)
 	if cleanup != nil {
