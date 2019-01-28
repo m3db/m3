@@ -159,25 +159,7 @@ func TestDownsampleAndWrite(t *testing.T) {
 
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
 
-	var (
-		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
-		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
-	)
-
-	mockMetricsAppender.
-		EXPECT().
-		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(mockSamplesAppender, nil)
-	for _, tag := range testTags1.Tags {
-		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
-	}
-
-	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
-	}
-	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
-
-	mockMetricsAppender.EXPECT().Finalize()
+	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	for _, dp := range testDatapoints1 {
 		session.EXPECT().WriteTagged(
@@ -234,31 +216,14 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 		DownsampleMappingRules: mappingRules,
 	}
 
-	var (
-		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
-		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
-	)
-
 	expectedSamplesAppenderOptions := downsample.SampleAppenderOptions{
 		Override: true,
 		OverrideRules: downsample.SamplesAppenderOverrideRules{
 			MappingRules: mappingRules,
 		},
 	}
-	mockMetricsAppender.
-		EXPECT().
-		SamplesAppender(expectedSamplesAppenderOptions).
-		Return(mockSamplesAppender, nil)
-	for _, tag := range testTags1.Tags {
-		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
-	}
 
-	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
-	}
-	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
-
-	mockMetricsAppender.EXPECT().Finalize()
+	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, expectedSamplesAppenderOptions)
 
 	for _, dp := range testDatapoints1 {
 		session.EXPECT().WriteTagged(
@@ -283,25 +248,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 		WriteStoragePolicies: nil,
 	}
 
-	var (
-		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
-		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
-	)
-
-	mockMetricsAppender.
-		EXPECT().
-		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(mockSamplesAppender, nil)
-	for _, tag := range testTags1.Tags {
-		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
-	}
-
-	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
-	}
-	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
-
-	mockMetricsAppender.EXPECT().Finalize()
+	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
@@ -340,25 +287,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
 		},
 	}
 
-	var (
-		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
-		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
-	)
-
-	mockMetricsAppender.
-		EXPECT().
-		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(mockSamplesAppender, nil)
-	for _, tag := range testTags1.Tags {
-		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
-	}
-
-	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
-	}
-	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
-
-	mockMetricsAppender.EXPECT().Finalize()
+	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	// All the datapoints will get written for each of the namespaces.
 	for range aggregatedNamespaces {
@@ -455,6 +384,30 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	iter := newTestIter(testEntries)
 	err := downAndWrite.WriteBatch(context.Background(), iter)
 	require.NoError(t, err)
+}
+
+func expectDefaultDownsampling(
+	t *testing.T, ctrl *gomock.Controller, datapoints []ts.Datapoint,
+	downsampler *downsample.MockDownsampler, downsampleOpts downsample.SampleAppenderOptions) {
+	var (
+		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
+	)
+
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(downsampleOpts).
+		Return(mockSamplesAppender, nil)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().Finalize()
 }
 
 func newTestDownsamplerAndWriter(
