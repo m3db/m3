@@ -23,6 +23,7 @@
 package instrument
 
 import (
+	"github.com/opentracing/opentracing-go"
 	"time"
 
 	"github.com/m3db/m3x/log"
@@ -58,6 +59,12 @@ type Options interface {
 
 	// MetricsScope returns the metrics scope.
 	MetricsScope() tally.Scope
+
+	// Tracer returns the tracer.
+	Tracer() opentracing.Tracer
+
+	// SetTracer sets the tracer.
+	SetTracer(tracer opentracing.Tracer) Options
 
 	// SetMetricsSamplingRate sets the metrics sampling rate.
 	SetMetricsSamplingRate(value float64) Options

@@ -21,6 +21,7 @@
 package instrument
 
 import (
+	"github.com/opentracing/opentracing-go"
 	"time"
 
 	"github.com/m3db/m3x/log"
@@ -38,6 +39,7 @@ type options struct {
 	logger         log.Logger
 	zap            *zap.Logger
 	scope          tally.Scope
+	tracer         opentracing.Tracer
 	samplingRate   float64
 	reportInterval time.Duration
 }
@@ -82,6 +84,16 @@ func (o *options) SetMetricsScope(value tally.Scope) Options {
 
 func (o *options) MetricsScope() tally.Scope {
 	return o.scope
+}
+
+func (o *options) Tracer() opentracing.Tracer {
+	return o.tracer
+}
+
+func (o *options) SetTracer(tracer opentracing.Tracer) Options {
+	opts := *o
+	opts.tracer = tracer
+	return &opts
 }
 
 func (o *options) SetMetricsSamplingRate(value float64) Options {
