@@ -750,7 +750,7 @@ func startCarbonIngestion(
 			// Disallow storage policies that don't match any known M3DB clusters.
 			if !ok {
 				logger.Fatal(
-					"cannot enable carbon ingestion without a corresponding M3DB namespace",
+					"cannot enable carbon ingestion without a corresponding aggregated M3DB namespace",
 					zap.String("resolution", policy.Resolution.String()), zap.String("retention", policy.Retention.String()))
 			}
 		}
