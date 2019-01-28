@@ -28,13 +28,17 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"reflect"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -108,12 +112,13 @@ var (
 					},
 				},
 			},
+			// Should never match as the previous one takes precedence.
 			{
 				Pattern: ".*match-regex1.*",
 				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
-						Resolution: 10 * time.Second,
-						Retention:  48 * time.Hour,
+						Resolution: time.Minute,
+						Retention:  24 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Last",
@@ -130,6 +135,18 @@ var (
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Mean",
+						},
+					},
+				},
+			},
+			{
+				Pattern: ".*match-regex3.*",
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 1 * time.Hour,
+						Retention:  7 * 24 * time.Hour,
+						Aggregation: config.CarbonIngesterAggregationConfiguration{
+							Enabled: false,
 						},
 					},
 				},
@@ -186,6 +203,43 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 	var (
 		lock  = sync.Mutex{}
 		found = []testMetric{}
+
+		expectedWriteOptsByTag = map[string]ingest.WriteOptions{
+			"match-regex1": ingest.WriteOptions{
+				DownsampleOverride: true,
+				DownsampleMappingRules: []downsample.MappingRule{
+					{
+						Aggregations: []aggregation.Type{aggregation.Mean},
+						Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+					},
+					{
+						Aggregations: []aggregation.Type{aggregation.Mean},
+						Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+					},
+				},
+				WriteOverride:        true,
+				WriteStoragePolicies: []policy.StoragePolicy{},
+			},
+			"match-regex2": ingest.WriteOptions{
+				DownsampleOverride: true,
+				DownsampleMappingRules: []downsample.MappingRule{
+					{
+						Aggregations: []aggregation.Type{aggregation.Mean},
+						Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+					},
+				},
+				WriteOverride:        true,
+				WriteStoragePolicies: []policy.StoragePolicy{},
+			},
+			"match-regex3": ingest.WriteOptions{
+				DownsampleOverride:     true,
+				DownsampleMappingRules: []downsample.MappingRule{},
+				WriteOverride:          true,
+				WriteStoragePolicies: []policy.StoragePolicy{
+					policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
+				},
+			},
+		}
 	)
 	mockDownsamplerAndWriter.EXPECT().
 		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
@@ -193,27 +247,40 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
-		overrides ingest.WriteOptions,
+		writeOpts ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
 		found = append(found, testMetric{
 			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
 		lock.Unlock()
+
+		// Use panic's instead of require/assert because those don't behave properly when the assertion
+		// is run in a background goroutine. Also we match on the second tag val just due to the nature
+		// of how the patterns were written.
+		secondTagVal := string(tags.Tags[1].Value)
+		expectedWriteOpts, ok := expectedWriteOptsByTag[secondTagVal]
+		if !ok {
+			panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
+		}
+
+		if !reflect.DeepEqual(expectedWriteOpts, writeOpts) {
+			panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
+				expectedWriteOpts, writeOpts, secondTagVal))
+		}
 		return nil
 	}).AnyTimes()
 
 	packet := []byte("" +
 		"foo.match-regex1.bar.baz 1 1\n" +
-		"foo.match-regex2.bar.baz 1 1\n" +
-		"foo.match-not-regex.bar.baz 1 1")
+		"foo.match-regex2.bar.baz 2 2\n" +
+		"foo.match-regex3.bar.baz 3 3\n" +
+		"foo.match-not-regex.bar.baz 4 4")
 	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
 	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesWithPatterns, testOptions)
 	require.NoError(t, err)
 	ingester.Handle(byteConn)
 
 	assertTestMetricsAreEqual(t, []testMetric{
-		// Should have three mapping rules (two from the first pattern and one from the second
-		// pattern) but only be written once.
 		{
 			metric:    []byte("foo.match-regex1.bar.baz"),
 			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex1.bar.baz")),
@@ -221,12 +288,18 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 			value:     1,
 			isValid:   true,
 		},
-		// Should only be written once and only have one mapping rule (from the second pattern).
 		{
 			metric:    []byte("foo.match-regex2.bar.baz"),
 			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex2.bar.baz")),
-			timestamp: 1,
-			value:     1,
+			timestamp: 2,
+			value:     2,
+			isValid:   true,
+		},
+		{
+			metric:    []byte("foo.match-regex3.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex3.bar.baz")),
+			timestamp: 3,
+			value:     3,
 			isValid:   true,
 		},
 	}, found)
