@@ -59,6 +59,8 @@ func (t Tags) ID() []byte {
 		return t.quotedID()
 	case TypePrependMeta:
 		return t.prependMetaID()
+	case TypeGraphite:
+		return t.graphiteID()
 	default:
 		// Default to prepending meta
 		return t.prependMetaID()
@@ -114,17 +116,26 @@ func (t Tags) quotedID() []byte {
 		}
 	}
 
+	tagLength := 2 * len(t.Tags)
+	idLen += tagLength - 1 // account for separators
 	if needEscaping == nil {
 		return t.quoteIDSimple(idLen)
 	}
 
 	// TODO: pool these bytes
+	lastIndex := len(t.Tags) - 1
 	id := make([]byte, idLen)
 	idx := 0
-	for i, tt := range t.Tags {
+	for i, tt := range t.Tags[:lastIndex] {
 		idx = tt.writeAtIndex(id, needEscaping[i], idx)
+		id[idx] = sep
+		fmt.Println(string(id))
+		idx++
 	}
+	fmt.Println(string(id))
 
+	t.Tags[lastIndex].writeAtIndex(id, needEscaping[lastIndex], idx)
+	fmt.Println(string(id))
 	return id
 }
 
@@ -133,10 +144,21 @@ func (t Tags) quoteIDSimple(length int) []byte {
 	// TODO: pool these bytes.
 	id := make([]byte, length)
 	idx := 0
-	for _, tag := range t.Tags {
+	lastIndex := len(t.Tags) - 1
+	for _, tag := range t.Tags[:lastIndex] {
 		idx += copy(id[idx:], tag.Name)
+		id[idx] = eq
+		idx++
 		idx = strconv.QuoteSimple(id, tag.Value, idx)
+		id[idx] = sep
+		idx++
 	}
+
+	tag := t.Tags[lastIndex]
+	idx += copy(id[idx:], tag.Name)
+	id[idx] = eq
+	idx++
+	strconv.QuoteSimple(id, tag.Value, idx)
 
 	return id
 }
@@ -147,6 +169,10 @@ func (t Tag) writeAtIndex(id []byte, escape tagEscaping, idx int) int {
 	} else {
 		idx += copy(id[idx:], t.Name)
 	}
+
+	// add = character
+	id[idx] = eq
+	idx++
 
 	if escape.escapeValue {
 		idx = strconv.Quote(id, t.Value, idx)
@@ -212,6 +238,30 @@ func (t Tags) prependMetaLen() (int, []int) {
 
 	prefixLen := writer.IntsLength(tagLengths)
 	return idLen + prefixLen, tagLengths
+}
+
+func (t Tags) graphiteID() []byte {
+	// TODO: pool these bytes.
+	id := make([]byte, t.idLenGraphite())
+	idx := 0
+	lastIndex := len(t.Tags) - 1
+	for _, tag := range t.Tags[:lastIndex] {
+		idx += copy(id[idx:], tag.Value)
+		id[idx] = graphiteSep
+		idx++
+	}
+
+	copy(id[idx:], t.Tags[lastIndex].Value)
+	return id
+}
+
+func (t Tags) idLenGraphite() int {
+	idLen := t.Len() - 1 // account for separators
+	for _, tag := range t.Tags {
+		idLen += len(tag.Value)
+	}
+
+	return idLen
 }
 
 func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
@@ -321,10 +371,36 @@ func (t Tags) Less(i, j int) bool {
 	return bytes.Compare(t.Tags[i].Name, t.Tags[j].Name) == -1
 }
 
+type sortableTagsNumericallyAsc Tags
+
+func (t sortableTagsNumericallyAsc) Len() int { return len(t.Tags) }
+func (t sortableTagsNumericallyAsc) Swap(i, j int) {
+	t.Tags[i], t.Tags[j] = t.Tags[j], t.Tags[i]
+}
+func (t sortableTagsNumericallyAsc) Less(i, j int) bool {
+	iName, jName := t.Tags[i].Name, t.Tags[j].Name
+	lenDiff := len(iName) - len(jName)
+	if lenDiff < 0 {
+		return true
+	}
+
+	if lenDiff > 0 {
+		return false
+	}
+
+	return bytes.Compare(iName, jName) == -1
+}
+
 // Normalize normalizes the tags by sorting them in place.
 // In the future, it might also ensure other things like uniqueness.
 func (t Tags) Normalize() Tags {
-	sort.Sort(t)
+	// Graphite tags are sorted numerically rather than lexically.
+	if t.Opts.IDSchemeType() == TypeGraphite {
+		sort.Sort(sortableTagsNumericallyAsc(t))
+	} else {
+		sort.Sort(t)
+	}
+
 	return t
 }
 

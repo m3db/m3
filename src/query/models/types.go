@@ -26,9 +26,10 @@ import (
 
 // Separators for tags.
 const (
-	sep    = byte(',')
-	finish = byte('!')
-	eq     = byte('=')
+	graphiteSep = byte('.')
+	sep         = byte(',')
+	finish      = byte('!')
+	eq          = byte('=')
 )
 
 // IDSchemeType determines the scheme for generating
@@ -60,6 +61,15 @@ const (
 	// {t1:v1},{t2:v2} -> 44t1v1t2v2
 	// {t1:v1,t2:v2}   -> 10t1v1,t2:v2
 	TypePrependMeta
+	// TypeGraphite describes a scheme where IDs are generated to match graphite
+	// representation of the tags. This scheme should only be used on the graphite
+	// ingestion path, as it ignores tag names and is very prone to collisions if
+	// used on non-graphite data.
+	// {__g0__:v1},{__g1__:v2} -> v1.v2
+	//
+	// NB: when TypeGraphite is specified, tags are ordered numerically rather
+	// than lexically.
+	TypeGraphite
 )
 
 // TagOptions describes additional options for tags.

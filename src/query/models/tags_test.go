@@ -58,7 +58,29 @@ func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
 func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
 	actual := tags.ID()
-	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"`), actual)
+	assert.Equal(t, []byte(`t1="v1",t2="v2",t3="v3",t4="v4"`), actual)
+}
+
+func TestLongTagNewIDOutOfOrderGraphite(t *testing.T) {
+	opts := NewTagOptions().SetIDSchemeType(TypeGraphite)
+	tags := NewTags(3, opts).AddTags([]Tag{
+		{Name: []byte("__g0__"), Value: []byte("v0")},
+		{Name: []byte("__g10__"), Value: []byte("v10")},
+		{Name: []byte("__g9__"), Value: []byte("v9")},
+		{Name: []byte("__g3__"), Value: []byte("v3")},
+		{Name: []byte("__g6__"), Value: []byte("v6")},
+		{Name: []byte("__g11__"), Value: []byte("v11")},
+		{Name: []byte("__g8__"), Value: []byte("v8")},
+		{Name: []byte("__g5__"), Value: []byte("v5")},
+		{Name: []byte("__g1__"), Value: []byte("v1")},
+		{Name: []byte("__g7__"), Value: []byte("v7")},
+		{Name: []byte("__g2__"), Value: []byte("v2")},
+		{Name: []byte("__g4__"), Value: []byte("v4")},
+		{Name: []byte("__g12__"), Value: []byte("v12")},
+	})
+
+	actual := tags.ID()
+	assert.Equal(t, []byte("v0.v1.v2.v3.v4.v5.v6.v7.v8.v9.v10.v11.v12"), actual)
 }
 
 func TestHashedID(t *testing.T) {
@@ -76,7 +98,7 @@ func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
 	tags = tags.AddTag(Tag{Name: []byte(`t5""`), Value: []byte(`v"5`)})
 	actual := tags.ID()
-	assert.Equal(t, []byte(`t1"v1"t2"v2"t3"v3"t4"v4"t5\"\""v\"5"`), actual)
+	assert.Equal(t, []byte(`t1="v1",t2="v2",t3="v3",t4="v4",t5\"\"="v\"5"`), actual)
 }
 
 func TestQuotedCollisions(t *testing.T) {
@@ -270,11 +292,11 @@ func TestTagAppend(t *testing.T) {
 func TestWriteTagLengthMeta(t *testing.T) {
 	lengths := []int{0, 1, 2, 8, 10, 8, 100, 8, 101, 8, 110, 123456, 12345}
 	l := writer.IntsLength(lengths) + 1 // account for final character
-	require.Equal(t, 41, l)
+	require.Equal(t, 42, l)
 	buf := make([]byte, l)
 	count := writeTagLengthMeta(buf, lengths)
-	require.Equal(t, 41, count)
-	assert.Equal(t, []byte("0,1,2,8,10,8,100,8,101,8,110,12345,12345!"), buf)
+	require.Equal(t, 42, count)
+	assert.Equal(t, []byte("0,1,2,8,10,8,100,8,101,8,110,123456,12345!"), buf)
 }
 
 func buildTags(b *testing.B, count, length int, opts TagOptions, escape bool) Tags {

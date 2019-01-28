@@ -90,14 +90,14 @@ func TestWriteIntegersSingleAtIndex(t *testing.T) {
 	buf := make([]byte, 2)
 	buf[0] = byte('?')
 	idx := WriteIntegers(buf, ints, sep, 1)
-	assert.Equal(t, 3, idx)
+	assert.Equal(t, 2, idx)
 	expected := []byte("?1")
 	assert.Equal(t, expected, buf)
 
 	idx = 0
 	idx = WriteIntegers(buf, ints, sep, idx)
 	idx = WriteIntegers(buf, ints, sep, idx)
-	assert.Equal(t, 3, idx)
+	assert.Equal(t, 2, idx)
 	expected = []byte("11")
 	assert.Equal(t, expected, buf)
 }

@@ -79,7 +79,8 @@ func TestTranslateTimeseries(t *testing.T) {
 	seriesList := make(m3ts.SeriesList, expected)
 	for i := 0; i < expected; i++ {
 		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		series := m3ts.NewSeries(fmt.Sprint("a", i), vals, models.NewTags(0, nil))
+		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)),
+			vals, models.NewTags(0, nil))
 		series.SetResolution(resolution)
 		seriesList[i] = series
 	}
@@ -105,7 +106,8 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 	seriesList := make(m3ts.SeriesList, expected)
 	for i := 0; i < expected; i++ {
 		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		series := m3ts.NewSeries(fmt.Sprint("a", i), vals, models.NewTags(0, nil))
+		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)), vals,
+			models.NewTags(0, nil))
 		series.SetResolution(resolution)
 		seriesList[i] = series
 	}
@@ -128,7 +130,7 @@ func TestFetchByQuery(t *testing.T) {
 	steps := 3
 	vals := m3ts.NewFixedStepValues(resolution, steps, 3, start)
 	seriesList := m3ts.SeriesList{
-		m3ts.NewSeries("a", vals, models.NewTags(0, nil)),
+		m3ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
 	for _, series := range seriesList {
 		series.SetResolution(resolution)

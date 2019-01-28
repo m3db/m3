@@ -34,8 +34,9 @@ func BenchmarkGenerateTagsFromName(b *testing.B) {
 		err      error
 	)
 
+	opts := models.NewTagOptions().SetIDSchemeType(models.TypeGraphite)
 	for i := 0; i < b.N; i++ {
-		benchmarkGenerateTagsSink, err = GenerateTagsFromName(testName)
+		benchmarkGenerateTagsSink, err = GenerateTagsFromName(testName, opts)
 		if err != nil {
 			panic(err)
 		}
