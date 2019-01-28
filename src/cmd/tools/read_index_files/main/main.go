@@ -116,7 +116,7 @@ func main() {
 			}()
 		}
 
-		fields, err := seg.Fields()
+		fields, err := seg.FieldsIterable().Fields()
 		if err != nil {
 			log.Fatalf("unable to retrieve segment fields: %v", err)
 		}
@@ -132,7 +132,7 @@ func main() {
 			numFields++
 
 			f := fields.Current()
-			terms, err := seg.Terms(f)
+			terms, err := seg.TermsIterable().Terms(f)
 			if err != nil {
 				log.Fatalf("unable to retrieve segment term: %v", err)
 			}
