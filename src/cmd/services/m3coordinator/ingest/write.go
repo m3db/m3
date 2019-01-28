@@ -102,7 +102,7 @@ func (d *downsamplerAndWriter) Write(
 		return err
 	}
 
-	return nil
+	return d.maybeWriteStorage(ctx, tags, datapoints, unit, overrides)
 }
 
 func (d *downsamplerAndWriter) maybeWriteDownsampler(
