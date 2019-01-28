@@ -32,8 +32,6 @@ genny-map-all:                          \
 	genny-map-segment-builder-fieldsmap   \
 	genny-map-segment-builder-idsmap      \
 	genny-map-segment-mem-fieldsmap       \
-	genny-map-segment-fst-postings-offset \
-	genny-map-segment-fst-terms-offset
 
 # NB: We use (genny)[1] to combat the lack of generics in Go. It allows us
 # to declare templat-ized versions of code, and specialize using code
