@@ -2,13 +2,22 @@
 
 ## Introduction
 
-m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](../integrations/prometheus.md), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine. Furthermore, since m3query provides a Prometheus compatible API, you use 3rd party graphing and alerting solutions like Grafana.
-
-<!-- TODO: link to m3query docs -->
+m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](../integrations/prometheus.md), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as [block processing](http://m3db.github.io/m3/query_engine/architecture/blocks/). Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
 
 ## Configuration
 
-Before setting up m3query, make sure that you have at least [one M3DB node running](single_node.md). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster.
+Before setting up m3query, make sure that you have at least [one M3DB node running](single_node.md). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster within M3DB.
+
+### Running
+
+You can run m3query by either building and running the binary yourself:
+
+```
+make m3query
+./bin/m3query -f ./src/query/config/m3query-local-etcd.yml
+```
+
+Or you can run it with Docker using the Docker file located at `$GOPATH/src/github.com/m3db/m3/docker/m3query/Dockerfile`.
 
 ### Namespaces
 
