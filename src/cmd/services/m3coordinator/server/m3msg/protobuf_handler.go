@@ -26,8 +26,40 @@ import (
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
+
+	"github.com/uber-go/tally"
 )
+
+// Options for the ingest handler.
+type Options struct {
+	InstrumentOptions          instrument.Options
+	WriteFn                    WriteFn
+	ProtobufDecoderPoolOptions pool.ObjectPoolOptions
+}
+
+type handlerMetrics struct {
+	messageReadError             tally.Counter
+	metricAccepted               tally.Counter
+	droppedMetricDecodeError     tally.Counter
+	droppedMetricDecodeMalformed tally.Counter
+}
+
+func newHandlerMetrics(scope tally.Scope) handlerMetrics {
+	messageScope := scope.SubScope("metric")
+	return handlerMetrics{
+		messageReadError: scope.Counter("message-read-error"),
+		metricAccepted:   messageScope.Counter("accepted"),
+		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
+			"reason": "decode-error",
+		}).Counter("dropped"),
+		droppedMetricDecodeMalformed: messageScope.Tagged(map[string]string{
+			"reason": "decode-malformed",
+		}).Counter("dropped"),
+	}
+}
 
 type pbHandler struct {
 	ctx     context.Context
