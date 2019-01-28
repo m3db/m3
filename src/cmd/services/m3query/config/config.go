@@ -50,7 +50,8 @@ const (
 )
 
 var (
-	defaultCarbonIngesterWriteTimeout = 15 * time.Second
+	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
+	defaultCarbonIngesterAggregationType = aggregation.Mean
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
 	defaultLimitsConfiguration = &LimitsConfiguration{
@@ -178,7 +179,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 				Retention:  ns.Options().Attributes().Retention,
 				Aggregation: CarbonIngesterAggregationConfiguration{
 					Enabled: true,
-					Type:    aggregation.Mean,
+					Type:    defaultCarbonIngesterAggregationType,
 				},
 			})
 		}
