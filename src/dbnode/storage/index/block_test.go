@@ -379,7 +379,7 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	require.True(t, ok)
 
 	seg := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg)}
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg, testOpts)}
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
@@ -403,7 +403,7 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	b.shardRangesSegments = []blockShardRangesSegments{
 		blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}}}
 
@@ -826,7 +826,7 @@ func TestBlockTickSingleSegment(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	result, err := blk.Tick(nil, start)
@@ -848,7 +848,7 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
@@ -877,7 +877,7 @@ func TestBlockTickAfterSeal(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	result, err := blk.Tick(nil, start)

@@ -224,11 +224,12 @@ func (mr *MockBlockMockRecorder) EndTime() *gomock.Call {
 }
 
 // EvictMutableSegments mocks base method
-func (m *MockBlock) EvictMutableSegments() error {
+func (m *MockBlock) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EvictMutableSegments")
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(EvictMutableSegmentResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // EvictMutableSegments indicates an expected call of EvictMutableSegments
@@ -306,20 +307,6 @@ func (m *MockBlock) StartTime() time.Time {
 func (mr *MockBlockMockRecorder) StartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTime", reflect.TypeOf((*MockBlock)(nil).StartTime))
-}
-
-// Stats mocks base method
-func (m *MockBlock) Stats(arg0 BlockStatsReporter) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stats", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Stats indicates an expected call of Stats
-func (mr *MockBlockMockRecorder) Stats(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockBlock)(nil).Stats), arg0)
 }
 
 // Tick mocks base method

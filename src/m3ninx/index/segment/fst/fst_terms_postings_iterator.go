@@ -31,8 +31,8 @@ import (
 // any containers in the roaring bitmap, since these roaring bitmaps are backed
 // by mmaps and don't have any native containers themselves.
 var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
-	AllocateArray:                   false,
-	AllocateRuns:                    false,
+	MaxArraySize:                    0,
+	MaxRunsSize:                     0,
 	AllocateBitmap:                  false,
 	MaxCapacity:                     128,
 	MaxKeysAndContainersSliceLength: 128 * 10,

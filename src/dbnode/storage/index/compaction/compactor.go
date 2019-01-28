@@ -54,6 +54,13 @@ type Compactor struct {
 	closed       bool
 }
 
+// CompactorOptions is a set of compactor options.
+type CompactorOptions struct {
+	// FSTWriterOptions if not nil are the options used to
+	// construct the FST writer.
+	FSTWriterOptions *fst.WriterOptions
+}
+
 // NewCompactor returns a new compactor which reuses buffers
 // to avoid allocating intermediate buffers when compacting.
 func NewCompactor(
@@ -61,19 +68,20 @@ func NewCompactor(
 	docsMaxBatch int,
 	builderOpts builder.Options,
 	fstOpts fst.Options,
-) (*Compactor, error) {
-	builder, err := builder.NewBuilderFromSegments(builderOpts)
-	if err != nil {
-		return nil, err
+	opts CompactorOptions,
+) *Compactor {
+	var fstWriterOpts fst.WriterOptions
+	if v := opts.FSTWriterOptions; v != nil {
+		fstWriterOpts = *v
 	}
 	return &Compactor{
-		writer:       fst.NewWriter(),
+		writer:       fst.NewWriter(fstWriterOpts),
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
-		builder:      builder,
+		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
 		buff:         bytes.NewBuffer(nil),
-	}, nil
+	}
 }
 
 // Compact will take a set of segments and compact them into an immutable
@@ -81,7 +89,8 @@ func NewCompactor(
 // converted into an FST segment, otherwise an intermediary mutable segment
 // (reused by the compactor between runs) is used to combine all the segments
 // together first before compacting into an FST segment.
-// Note: This is thread safe and only a single compaction may happen at a time.
+// Note: This is not thread safe and only a single compaction may happen at a
+// time.
 func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 	c.Lock()
 	defer c.Unlock()

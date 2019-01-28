@@ -34,6 +34,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
@@ -102,8 +103,8 @@ type block struct {
 	shardRangesSegments []blockShardRangesSegments
 
 	newExecutorFn newExecutorFn
-	startTime     time.Time
-	endTime       time.Time
+	blockStart    time.Time
+	blockEnd      time.Time
 	blockSize     time.Duration
 	opts          Options
 	iopts         instrument.Options
@@ -158,27 +159,30 @@ type blockShardRangesSegments struct {
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
-	startTime time.Time,
+	blockStart time.Time,
 	md namespace.Metadata,
 	opts Options,
 ) (Block, error) {
 	docsPool := opts.DocumentArrayPool()
 
-	foregroundCompactor, err := compaction.NewCompactor(docsPool,
+	foregroundCompactor := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
-		opts.FSTSegmentOptions())
-	if err != nil {
-		return nil, err
-	}
+		opts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
 
-	backgroundCompactor, err := compaction.NewCompactor(docsPool,
+	backgroundCompactor := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
-		opts.FSTSegmentOptions())
-	if err != nil {
-		return nil, err
-	}
+		opts.FSTSegmentOptions(),
+		compaction.CompactorOptions{})
 
 	segmentBuilder, err := builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
 	if err != nil {
@@ -190,8 +194,8 @@ func NewBlock(
 	b := &block{
 		state:               blockStateOpen,
 		segmentBuilder:      segmentBuilder,
-		startTime:           startTime,
-		endTime:             startTime.Add(blockSize),
+		blockStart:          blockStart,
+		blockEnd:            blockStart.Add(blockSize),
 		blockSize:           blockSize,
 		opts:                opts,
 		iopts:               iopts,
@@ -208,11 +212,11 @@ func NewBlock(
 }
 
 func (b *block) StartTime() time.Time {
-	return b.startTime
+	return b.blockStart
 }
 
 func (b *block) EndTime() time.Time {
-	return b.endTime
+	return b.blockEnd
 }
 
 func (b *block) maybeBackgroundCompactWithLock() {
@@ -313,7 +317,7 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	b.compactionsBackground++
 
 	logger := b.logger.WithFields(
-		xlog.NewField("block", b.startTime.String()),
+		xlog.NewField("block", b.blockStart.String()),
 		xlog.NewField("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
@@ -411,8 +415,8 @@ func (b *block) addCompactedSegmentFromSegments(
 		}
 	}
 
-	// Return all the ones we kept plus the new compacted segment.
-	return append(result, newReadableSeg(compacted))
+	// Return all the ones we kept plus the new compacted segment
+	return append(result, newReadableSeg(compacted, b.opts))
 }
 
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
@@ -500,9 +504,10 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 
 	segs := make([]compaction.Segment, 0, len(foregroundSegments)+1)
 	segs = append(segs, compaction.Segment{
-		Age:  0,
-		Size: int64(len(builder.Docs())),
-		Type: segments.MutableType,
+		Age:     0,
+		Size:    int64(len(builder.Docs())),
+		Type:    segments.MutableType,
+		Builder: builder,
 	})
 	for _, seg := range foregroundSegments {
 		segs = append(segs, compaction.Segment{
@@ -518,6 +523,7 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		return err
 	}
 
+<<<<<<< HEAD
 	// Check plan.
 	var planErr error
 	switch {
@@ -534,6 +540,17 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	}
 	if planErr != nil {
 		return planErr
+=======
+	// Check plan
+	if len(plan.Tasks) == 0 {
+		// Should always generate a task when a mutable builder is passed to planner
+		return errForegroundCompactorNoPlan
+	}
+	if taskNumBuilders(plan.Tasks[0]) != 1 {
+		// First task of plan must include the builder, so we can avoid resetting it
+		// for the first task, but then safely reset it in consequent tasks
+		return errForegroundCompactorBadPlanFirstTask
+>>>>>>> Address feedback
 	}
 
 	// Move any unused segments to the background.
@@ -545,7 +562,7 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	b.compactionsForeground++
 
 	logger := b.logger.WithFields(
-		xlog.NewField("block", b.startTime.String()),
+		xlog.NewField("block", b.blockStart.String()),
 		xlog.NewField("numForegroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
@@ -579,7 +596,12 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	// task.
 	for i := 1; i < len(plan.Tasks); i++ {
 		task := plan.Tasks[i]
+<<<<<<< HEAD
 		if taskHasNilSegment(task) { // Only the first task should have the nil segment.
+=======
+		if taskNumBuilders(task) > 0 {
+			// Only the first task should compact the builder
+>>>>>>> Address feedback
 			return errForegroundCompactorBadPlanSecondaryTask
 		}
 		// Now use the builder after resetting it.
@@ -680,7 +702,7 @@ func (b *block) foregroundCompactWithTask(
 }
 
 func (b *block) cleanupForegroundCompactWithLock() {
-	// Check if need to close all the compacted segments due to
+	// Check if we need to close all the compacted segments due to
 	// having evicted mutable segments or the block being closed.
 	if !b.shouldEvictCompactedSegmentsWithLock() {
 		return
@@ -828,8 +850,8 @@ func (b *block) AddResults(
 
 	// First check fulfilled is correct
 	min, max := results.Fulfilled().MinMax()
-	if min.Before(b.startTime) || max.After(b.endTime) {
-		blockRange := xtime.Range{Start: b.startTime, End: b.endTime}
+	if min.Before(b.blockStart) || max.After(b.blockEnd) {
+		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
 		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
 			results.Fulfilled().SummaryString(), blockRange.String())
 	}
@@ -1114,13 +1136,15 @@ func (c *safeCloser) Close() error {
 	return c.closable.Close()
 }
 
-func taskHasNilSegment(task compaction.Task) bool {
+func taskNumBuilders(task compaction.Task) int {
+	builders := 0
 	for _, seg := range task.Segments {
-		if seg.Segment == nil {
-			return true
+		if seg.Builder != nil {
+			builders++
+			continue
 		}
 	}
-	return false
+	return builders
 }
 
 func addReadersFromReadableSegments(

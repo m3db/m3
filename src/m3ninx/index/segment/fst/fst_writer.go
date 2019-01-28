@@ -29,15 +29,12 @@ import (
 
 var (
 	errFSTWriterBuildUnset = errors.New("fst writer builer has not been Reset() before use")
-)
 
-var (
-	// TODO(prateek): tweak builderopts for vellum
 	// NB(r): The registry cache used by vellum is: table size * mru size * cell size
 	// where cell size = 16 bytes (since its an addr and a ptr)
 	// basically MRU size is the size of each bucket for each combination of
 	// a builder node
-	vellumBuilderOpts = &vellum.BuilderOpts{
+	defaultVellumBuilderOpts = vellum.BuilderOpts{
 		Encoder:                  1,
 		RegistryTableSize:        10000, // 10k
 		RegistryMRUSize:          2,     // 4
@@ -53,11 +50,18 @@ var (
 type fstWriter struct {
 	bytesWritten uint64
 	writer       io.Writer
+	builderOpts  *vellum.BuilderOpts
 	builder      *vellum.Builder
 }
 
-func newFSTWriter() *fstWriter {
-	return &fstWriter{}
+func newFSTWriter(opts WriterOptions) *fstWriter {
+	builderOpts := new(vellum.BuilderOpts)
+	*builderOpts = defaultVellumBuilderOpts
+	if opts.DisableRegistry {
+		builderOpts.RegistryTableSize = 0
+		builderOpts.RegistryMRUSize = 0
+	}
+	return &fstWriter{builderOpts: builderOpts}
 }
 
 func (f *fstWriter) Write(p []byte) (int, error) {
@@ -76,7 +80,7 @@ func (f *fstWriter) Reset(w io.Writer) error {
 	f.bytesWritten = 0
 	f.writer = w
 	if f.builder == nil {
-		builder, err := vellum.New(f, vellumBuilderOpts)
+		builder, err := vellum.New(f, f.builderOpts)
 		if err != nil {
 			return err
 		}

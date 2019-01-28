@@ -63,12 +63,22 @@ type writer struct {
 	docOffsets          []docOffset
 }
 
+// WriterOptions is a set of options used when writing an FST.
+type WriterOptions struct {
+	// DisableRegistry disables the FST builder node registry cache which can
+	// de-duplicate transitions that are an exact match of each other during
+	// a final compilation phase, this helps compress the FST by a significant
+	// amount (e.g. 2x). You can disable this to speed up high fixed cost
+	// lookups to during building of the FST however.
+	DisableRegistry bool
+}
+
 // NewWriter returns a new writer.
-func NewWriter() Writer {
+func NewWriter(opts WriterOptions) Writer {
 	return &writer{
 		intEncoder:      encoding.NewEncoder(defaultInitialIntEncoderSize),
 		postingsEncoder: pilosa.NewEncoder(),
-		fstWriter:       newFSTWriter(),
+		fstWriter:       newFSTWriter(opts),
 		docDataWriter:   docs.NewDataWriter(nil),
 		docIndexWriter:  docs.NewIndexWriter(nil),
 		postingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),

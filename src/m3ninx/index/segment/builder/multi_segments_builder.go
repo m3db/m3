@@ -43,7 +43,7 @@ type builderFromSegments struct {
 type segmentMetadata struct {
 	segment segment.Segment
 	offset  postings.ID
-	// duplicates is a lookup of document IDs are duplicates
+	// duplicatesAsc is a lookup of document IDs are duplicates
 	// in this segment, that is documents that are already
 	// contained by other segments and hence should not be
 	// returned when looking up documents.
@@ -51,13 +51,13 @@ type segmentMetadata struct {
 }
 
 // NewBuilderFromSegments returns a new builder from segments.
-func NewBuilderFromSegments(opts Options) (segment.SegmentsBuilder, error) {
+func NewBuilderFromSegments(opts Options) segment.SegmentsBuilder {
 	return &builderFromSegments{
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
 		termsIter: newTermsIterFromSegments(),
-	}, nil
+	}
 }
 
 func (b *builderFromSegments) Reset(offset postings.ID) {

@@ -23,17 +23,21 @@ package index
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 )
 
 type readableSeg struct {
+	nowFn     clock.NowFn
 	createdAt time.Time
 	segment   segment.Segment
 }
 
-func newReadableSeg(seg segment.Segment) *readableSeg {
+func newReadableSeg(seg segment.Segment, opts Options) *readableSeg {
+	nowFn := opts.ClockOptions().NowFn()
 	return &readableSeg{
-		createdAt: time.Now(),
+		nowFn:     nowFn,
+		createdAt: nowFn(),
 		segment:   seg,
 	}
 }
@@ -43,5 +47,5 @@ func (s *readableSeg) Segment() segment.Segment {
 }
 
 func (s *readableSeg) Age() time.Duration {
-	return time.Since(s.createdAt)
+	return s.nowFn().Sub(s.createdAt)
 }

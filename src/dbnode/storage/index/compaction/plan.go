@@ -59,35 +59,6 @@ var (
 	}
 )
 
-// Compactable returns whether the current segment meets the requirements to be
-// compacted in steady-state.
-// NB: Steady-state here refers to the usual operating mode for M3DB, where the
-// database is constantly receiving new writes. In these situations, we don't
-// compact as soon as we receive a write to allow segments to buffer incoming
-// writes to reduce the number of total compactions required by the process.
-// However, in times where the process isn't already compacting, mutable segments
-// that don't meet the requirements laid herein may still be considered compactable.
-func (s Segment) Compactable(opts PlannerOptions) bool {
-	// In steady state, i.e. when we are constantly getting writes w/ new IDs, any
-	// of following conditions holding true indicates we will compact a segment:
-	//  - a mutable segment is sufficiently old, i.e, has Age > MutableCompactionAgeThreshold
-	//  - a mutable segment is sufficiently large, i.e, has Size > MutableCompactionSizeThreshold
-	//  - a FST segment fits within within any of the given opts.Levels
-	if s.Type == segments.MutableType {
-		return s.Age >= opts.MutableCompactionAgeThreshold || s.Size >= opts.MutableSegmentSizeThreshold
-	}
-	if s.Type == segments.FSTType {
-		for _, l := range opts.Levels {
-			if l.MinSizeInclusive <= s.Size && s.Size < l.MaxSizeExclusive {
-				return true
-			}
-		}
-		return false
-	}
-	// we don't know how to compact anything that isn't FST/Mutable.
-	return false
-}
-
 // NewPlan returns a new compaction.Plan per the rules above and the knobs provided.
 func NewPlan(compactableSegments []Segment, opts PlannerOptions) (*Plan, error) {
 	if err := opts.Validate(); err != nil {

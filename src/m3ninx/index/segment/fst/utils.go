@@ -38,7 +38,7 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segme
 	err := s.Seal()
 	require.NoError(t, err)
 
-	w := NewWriter()
+	w := NewWriter(WriterOptions{})
 	require.NoError(t, w.Reset(s))
 
 	var (

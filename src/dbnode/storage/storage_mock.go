@@ -1764,20 +1764,6 @@ func (mr *MocknamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MocknamespaceIndex)(nil).Bootstrap), bootstrapResults)
 }
 
-// BootstrapsDone mocks base method
-func (m *MocknamespaceIndex) BootstrapsDone() uint {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapsDone")
-	ret0, _ := ret[0].(uint)
-	return ret0
-}
-
-// BootstrapsDone indicates an expected call of BootstrapsDone
-func (mr *MocknamespaceIndexMockRecorder) BootstrapsDone() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapsDone", reflect.TypeOf((*MocknamespaceIndex)(nil).BootstrapsDone))
-}
-
 // CleanupExpiredFileSets mocks base method
 func (m *MocknamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
 	m.ctrl.T.Helper()
