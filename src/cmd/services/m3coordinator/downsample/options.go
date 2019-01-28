@@ -62,7 +62,7 @@ const (
 	defaultOpenTimeout                 = 10 * time.Second
 	minBufferPast                      = 5 * time.Second
 	maxBufferPast                      = 10 * time.Minute
-	defaultBufferPastTimedMetricFactor = 1.0
+	defaultBufferPastTimedMetricFactor = 0.1
 	defaultBufferFutureTimedMetric     = time.Minute
 )
 

@@ -32,8 +32,6 @@ function read_carbon {
 echo "Writing out a carbon metric that should use a min aggregation"
 t=$(date +%s)
 # 41 should win out here because min(42,41) == 41.
-# TODO(rartoul): Note that we want to set the bufferPast/bufferFuture values for the
-# downsampler to a reasonably large value to ensure this test is acting correctly.
 echo "foo.min.aggregate.baz 41 $t" | nc 0.0.0.0 7204
 echo "foo.min.aggregate.baz 42 $t" | nc 0.0.0.0 7204
 echo "Attempting to read min aggregated carbon metric"
@@ -53,8 +51,6 @@ ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.already-aggregated.
 echo "Writing out a carbon metric that should should use the default mean aggregation"
 t=$(date +%s)
 # Mean of 10 and 20 is 15.
-# TODO(rartoul): Note that we want to set the bufferPast/bufferFuture values for the
-# downsampler to a reasonably large value to ensure this test is acting correctly.
 echo "foo.min.catch-all.baz 10 $t" | nc 0.0.0.0 7204
 echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
