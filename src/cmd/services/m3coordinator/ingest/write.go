@@ -97,6 +97,20 @@ func (d *downsamplerAndWriter) Write(
 	unit xtime.Unit,
 	overrides MappingAndStoragePoliciesOverrides,
 ) error {
+	err := d.maybeWriteDownsampler(tags, datapoints, unit, overrides)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *downsamplerAndWriter) maybeWriteDownsampler(
+	tags models.Tags,
+	datapoints ts.Datapoints,
+	unit xtime.Unit,
+	overrides MappingAndStoragePoliciesOverrides,
+) error {
 	var (
 		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overriden, then assume they want the default
@@ -144,10 +158,25 @@ func (d *downsamplerAndWriter) Write(
 		appender.Finalize()
 	}
 
+	return nil
+}
+
+func (d *downsamplerAndWriter) maybeWriteStorage(
+	ctx context.Context,
+	tags models.Tags,
+	datapoints ts.Datapoints,
+	unit xtime.Unit,
+	overrides MappingAndStoragePoliciesOverrides,
+) error {
 	var (
 		storageExists             = d.store != nil
 		useDefaultStoragePolicies = !overrides.OverrideStoragePolicies
 	)
+
+	if !storageExists {
+		return nil
+	}
+
 	if storageExists && useDefaultStoragePolicies {
 		return d.store.Write(ctx, &storage.WriteQuery{
 			Tags:       tags,
@@ -159,42 +188,39 @@ func (d *downsamplerAndWriter) Write(
 		})
 	}
 
-	if storageExists {
-		var (
-			wg       sync.WaitGroup
-			multiErr xerrors.MultiError
-			errLock  sync.Mutex
-		)
+	var (
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		errLock  sync.Mutex
+	)
 
-		for _, p := range overrides.StoragePolicies {
-			wg.Add(1)
-			// TODO(rartoul): Benchmark using a pooled worker pool here.
-			go func(p policy.StoragePolicy) {
-				err := d.store.Write(ctx, &storage.WriteQuery{
-					Tags:       tags,
-					Datapoints: datapoints,
-					Unit:       unit,
-					Attributes: storage.Attributes{
-						// TODO(rartoul): Is this a good assumption?
-						// Assume all overriden storage policies are for aggregated namespaces.
-						MetricsType: storage.AggregatedMetricsType,
-						Resolution:  p.Resolution().Window,
-						Retention:   p.Retention().Duration(),
-					},
-				})
-				if err != nil {
-					errLock.Lock()
-					multiErr = multiErr.Add(err)
-					errLock.Unlock()
-				}
-				wg.Done()
-			}(p)
-		}
-
-		return nil
+	for _, p := range overrides.StoragePolicies {
+		wg.Add(1)
+		// TODO(rartoul): Benchmark using a pooled worker pool here.
+		go func(p policy.StoragePolicy) {
+			err := d.store.Write(ctx, &storage.WriteQuery{
+				Tags:       tags,
+				Datapoints: datapoints,
+				Unit:       unit,
+				Attributes: storage.Attributes{
+					// TODO(rartoul): Is this a good assumption?
+					// Assume all overriden storage policies are for aggregated namespaces.
+					MetricsType: storage.AggregatedMetricsType,
+					Resolution:  p.Resolution().Window,
+					Retention:   p.Retention().Duration(),
+				},
+			})
+			if err != nil {
+				errLock.Lock()
+				multiErr = multiErr.Add(err)
+				errLock.Unlock()
+			}
+			wg.Done()
+		}(p)
 	}
 
-	return nil
+	wg.Wait()
+	return multiErr.FinalError()
 }
 
 func (d *downsamplerAndWriter) WriteBatch(
