@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/test/m3"
+	"github.com/m3db/m3/src/query/storage/m3"
+	testm3 "github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -304,6 +306,71 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 	require.NoError(t, err)
 }
 
+func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	aggregatedNamespaces := []m3.AggregatedClusterNamespaceDefinition{
+		{
+			NamespaceID: ident.StringID("1m:48h"),
+			Resolution:  time.Minute,
+			Retention:   48 * time.Hour,
+		},
+		{
+			NamespaceID: ident.StringID("10:24h"),
+			Resolution:  10 * time.Second,
+			Retention:   24 * time.Hour,
+		},
+	}
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriterWithAggregatedNamespace(
+		t, ctrl, aggregatedNamespaces)
+
+	// We're overriding the write with storage policies, so we expact data to be sent to the
+	// storage with the specified policies, but everything to be written to the downsampler
+	// with the default settings.
+	overrides := WriteOptions{
+		WriteOverride: true,
+		WriteStoragePolicies: []policy.StoragePolicy{
+			policy.NewStoragePolicy(
+				time.Minute, xtime.Second, 48*time.Hour),
+			policy.NewStoragePolicy(
+				10*time.Second, xtime.Second, 24*time.Hour),
+		},
+	}
+
+	var (
+		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
+	)
+
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(gomock.Any()).
+		Return(mockSamplesAppender, nil)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().Finalize()
+
+	// All the datapoints will get written for each of the namespaces.
+	for range aggregatedNamespaces {
+		for _, dp := range testDatapoints1 {
+			session.EXPECT().WriteTagged(
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+		}
+	}
+
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+	require.NoError(t, err)
+}
+
 func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -392,7 +459,18 @@ func newTestDownsamplerAndWriter(
 	t *testing.T,
 	ctrl *gomock.Controller,
 ) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
-	storage, session := m3.NewStorageAndSession(t, ctrl)
+	storage, session := testm3.NewStorageAndSession(t, ctrl)
+	downsampler := downsample.NewMockDownsampler(ctrl)
+	return NewDownsamplerAndWriter(storage, downsampler).(*downsamplerAndWriter), downsampler, session
+}
+
+func newTestDownsamplerAndWriterWithAggregatedNamespace(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	aggregatedNamespaces []m3.AggregatedClusterNamespaceDefinition,
+) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
+	storage, session := testm3.NewStorageAndSessionWithAggregatedNamespaces(
+		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
 	return NewDownsamplerAndWriter(storage, downsampler).(*downsamplerAndWriter), downsampler, session
 }
