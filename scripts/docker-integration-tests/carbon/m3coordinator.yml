@@ -17,7 +17,7 @@ clusters:
       - namespace: agg
         type: aggregated
         retention: 10h
-        resolution: 15s
+        resolution: 5s
       - namespace: unagg
         type: unaggregated
         retention: 10m
@@ -56,17 +56,17 @@ carbon:
     rules:
       - pattern: .*min.aggregate.*
         policies:
-          - resolution: 15s
+          - resolution: 5s
             retention: 10h
             aggregation:
               type: min
       - pattern: .*already-aggregated.*
         policies:
-          - resolution: 15s
+          - resolution: 5s
             retention: 10h
             aggregation:
               enabled: false
       - pattern: .*
         policies:
-          - resolution: 15s
+          - resolution: 5s
             retention: 10h
