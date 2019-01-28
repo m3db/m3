@@ -296,7 +296,13 @@ func Run(runOpts RunOptions) {
 		}
 		workerPool.Init()
 
-		rules := ingesterCfg.RulesOrDefault(namespaces)
+		if m3dbClusters == nil {
+			logger.Fatal("carbon ingestion is only supported when connecting to M3DB clusters directly")
+		}
+
+		rules := ingestcarbon.CarbonIngesterRules{
+			Rules: ingesterCfg.RulesOrDefault(m3dbClusters.ClusterNamespaces()),
+		}
 		ingester, err := ingestcarbon.NewIngester(
 			downsamplerAndWriter, rules, ingestcarbon.Options{
 				InstrumentOptions: carbonIOpts,

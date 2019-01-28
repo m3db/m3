@@ -53,3 +53,20 @@ clusters:
 carbon:
   ingester:
     listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*min.aggregate.*
+        policies:
+          - resolution: 15s
+            retention: 10h
+            aggregation:
+              type: min
+      - pattern: .*already-aggregated.*
+        policies:
+          - resolution: 15s
+            retention: 10h
+            aggregation:
+              enabled: false
+      - pattern: .*
+        policies:
+          - resolution: 15s
+            retention: 10h
