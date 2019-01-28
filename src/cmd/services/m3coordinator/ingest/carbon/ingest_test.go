@@ -153,6 +153,44 @@ var (
 			},
 		},
 	}
+
+	// Maps the patterns above to their expected write options.
+	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
+		"match-regex1": ingest.WriteOptions{
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.MappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+				},
+				{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+				},
+			},
+			WriteOverride:        true,
+			WriteStoragePolicies: []policy.StoragePolicy{},
+		},
+		"match-regex2": ingest.WriteOptions{
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.MappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+				},
+			},
+			WriteOverride:        true,
+			WriteStoragePolicies: []policy.StoragePolicy{},
+		},
+		"match-regex3": ingest.WriteOptions{
+			DownsampleOverride:     true,
+			DownsampleMappingRules: []downsample.MappingRule{},
+			WriteOverride:          true,
+			WriteStoragePolicies: []policy.StoragePolicy{
+				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
+			},
+		},
+	}
 )
 
 func TestIngesterHandleConn(t *testing.T) {
@@ -203,43 +241,6 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 	var (
 		lock  = sync.Mutex{}
 		found = []testMetric{}
-
-		expectedWriteOptsByTag = map[string]ingest.WriteOptions{
-			"match-regex1": ingest.WriteOptions{
-				DownsampleOverride: true,
-				DownsampleMappingRules: []downsample.MappingRule{
-					{
-						Aggregations: []aggregation.Type{aggregation.Mean},
-						Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
-					},
-					{
-						Aggregations: []aggregation.Type{aggregation.Mean},
-						Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
-					},
-				},
-				WriteOverride:        true,
-				WriteStoragePolicies: []policy.StoragePolicy{},
-			},
-			"match-regex2": ingest.WriteOptions{
-				DownsampleOverride: true,
-				DownsampleMappingRules: []downsample.MappingRule{
-					{
-						Aggregations: []aggregation.Type{aggregation.Mean},
-						Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
-					},
-				},
-				WriteOverride:        true,
-				WriteStoragePolicies: []policy.StoragePolicy{},
-			},
-			"match-regex3": ingest.WriteOptions{
-				DownsampleOverride:     true,
-				DownsampleMappingRules: []downsample.MappingRule{},
-				WriteOverride:          true,
-				WriteStoragePolicies: []policy.StoragePolicy{
-					policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
-				},
-			},
-		}
 	)
 	mockDownsamplerAndWriter.EXPECT().
 		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
@@ -258,7 +259,7 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		// is run in a background goroutine. Also we match on the second tag val just due to the nature
 		// of how the patterns were written.
 		secondTagVal := string(tags.Tags[1].Value)
-		expectedWriteOpts, ok := expectedWriteOptsByTag[secondTagVal]
+		expectedWriteOpts, ok := expectedWriteOptsByPattern[secondTagVal]
 		if !ok {
 			panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
 		}
@@ -267,6 +268,7 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 			panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
 				expectedWriteOpts, writeOpts, secondTagVal))
 		}
+
 		return nil
 	}).AnyTimes()
 
