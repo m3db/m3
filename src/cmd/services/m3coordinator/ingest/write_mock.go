@@ -74,7 +74,7 @@ func (mr *MockDownsamplerAndWriterMockRecorder) Storage() *gomock.Call {
 }
 
 // Write mocks base method
-func (m *MockDownsamplerAndWriter) Write(arg0 context.Context, arg1 models.Tags, arg2 ts.Datapoints, arg3 time.Unit, arg4 MappingAndStoragePoliciesOverrides) error {
+func (m *MockDownsamplerAndWriter) Write(arg0 context.Context, arg1 models.Tags, arg2 ts.Datapoints, arg3 time.Unit, arg4 WriteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)

@@ -50,7 +50,7 @@ type DownsamplerAndWriter interface {
 		tags models.Tags,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
-		overrides MappingAndStoragePoliciesOverrides,
+		overrides WriteOptions,
 	) error
 
 	// TODO(rartoul): Batch interface should also support downsampling rules.
@@ -62,14 +62,14 @@ type DownsamplerAndWriter interface {
 	Storage() storage.Storage
 }
 
-// MappingAndStoragePoliciesOverrides contains overrides for the downsampling mapping
+// WriteOptions contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
-type MappingAndStoragePoliciesOverrides struct {
-	OverrideMappingRules bool
-	MappingRules         []downsample.MappingRule
+type WriteOptions struct {
+	DownsampleOverride     bool
+	DownsampleMappingRules []downsample.MappingRule
 
-	OverrideStoragePolicies bool
-	StoragePolicies         []policy.StoragePolicy
+	WriteOverride        bool
+	WriteStoragePolicies []policy.StoragePolicy
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -95,7 +95,7 @@ func (d *downsamplerAndWriter) Write(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
-	overrides MappingAndStoragePoliciesOverrides,
+	overrides WriteOptions,
 ) error {
 	err := d.maybeWriteDownsampler(tags, datapoints, unit, overrides)
 	if err != nil {
@@ -109,19 +109,19 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
-	overrides MappingAndStoragePoliciesOverrides,
+	overrides WriteOptions,
 ) error {
 	var (
 		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overriden, then assume they want the default
 		// ones.
-		useDefaultMappingRules = !overrides.OverrideMappingRules
+		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
-		overrideMappingRules = overrides.OverrideMappingRules && len(overrides.MappingRules) > 0
+		DownsampleOverride = overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
 		// Only downsample if the downsampler exists, and they either want to use the default mapping
 		// rules, or they're trying to override the mapping rules and they've provided at least one
 		// override to do so.
-		shouldDownsample = downsamplerExists && (useDefaultMappingRules || overrideMappingRules)
+		shouldDownsample = downsamplerExists && (useDefaultMappingRules || DownsampleOverride)
 	)
 	if shouldDownsample {
 		appender, err := d.downsampler.NewMetricsAppender()
@@ -134,11 +134,11 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 		}
 
 		var appenderOpts downsample.SampleAppenderOptions
-		if overrideMappingRules {
+		if DownsampleOverride {
 			appenderOpts = downsample.SampleAppenderOptions{
 				Override: true,
 				OverrideRules: downsample.SamplesAppenderOverrideRules{
-					MappingRules: overrides.MappingRules,
+					MappingRules: overrides.DownsampleMappingRules,
 				},
 			}
 		}
@@ -166,11 +166,11 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
-	overrides MappingAndStoragePoliciesOverrides,
+	overrides WriteOptions,
 ) error {
 	var (
 		storageExists             = d.store != nil
-		useDefaultStoragePolicies = !overrides.OverrideStoragePolicies
+		useDefaultStoragePolicies = !overrides.WriteOverride
 	)
 
 	if !storageExists {
@@ -194,7 +194,7 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 		errLock  sync.Mutex
 	)
 
-	for _, p := range overrides.StoragePolicies {
+	for _, p := range overrides.WriteStoragePolicies {
 		wg.Add(1)
 		// TODO(rartoul): Benchmark using a pooled worker pool here.
 		go func(p policy.StoragePolicy) {

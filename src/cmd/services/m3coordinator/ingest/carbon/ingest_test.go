@@ -154,7 +154,7 @@ func TestIngesterHandleConn(t *testing.T) {
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
-		overrides ingest.MappingAndStoragePoliciesOverrides,
+		overrides ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
 		found = append(found, testMetric{
@@ -193,7 +193,7 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
-		overrides ingest.MappingAndStoragePoliciesOverrides,
+		overrides ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
 		found = append(found, testMetric{

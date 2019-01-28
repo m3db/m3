@@ -104,7 +104,7 @@ var (
 		{tags: testTags2, datapoints: testDatapoints2},
 	}
 
-	defaultOverride = MappingAndStoragePoliciesOverrides{}
+	defaultOverride = WriteOptions{}
 )
 
 type testIter struct {

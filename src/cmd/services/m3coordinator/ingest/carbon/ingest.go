@@ -200,28 +200,28 @@ func (i *ingester) Handle(conn net.Conn) {
 }
 
 func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
-	downsampleAndStoragePolicies := ingest.MappingAndStoragePoliciesOverrides{
+	downsampleAndStoragePolicies := ingest.WriteOptions{
 		// Set both of these overrides to true to indicate that only the exact mapping
 		// rules and storage policies that we provide should be used and that all
 		// default behavior (like performing all possible downsamplings and writing
 		// all data to the unaggregated namespace in storage) should be ignored.
-		OverrideMappingRules:    true,
-		OverrideStoragePolicies: true,
+		DownsampleOverride: true,
+		WriteOverride:      true,
 	}
 	for _, rule := range i.rules {
 		if rule.regexp.Match(name) {
 			// Each rule should only have either mapping rules or storage policies so
 			// one of these should be a no-op.
-			downsampleAndStoragePolicies.MappingRules = rule.mappingRules
-			downsampleAndStoragePolicies.StoragePolicies = rule.storagePolicies
+			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
+			downsampleAndStoragePolicies.WriteStoragePolicies = rule.storagePolicies
 			// Break because we only want to apply one rule per metric based on which
 			// ever one matches first.
 			break
 		}
 	}
 
-	if len(downsampleAndStoragePolicies.MappingRules) == 0 &&
-		len(downsampleAndStoragePolicies.StoragePolicies) == 0 {
+	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
+		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
 		return false
 	}
