@@ -47,8 +47,7 @@ const (
 )
 
 var (
-	defaultCarbonIngesterTimeout = 5 * time.Second
-	defaultCarbonIngesterEnabled = true
+	defaultCarbonIngesterWriteTimeout = 15 * time.Second
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
 	defaultLimitsConfiguration = &LimitsConfiguration{
@@ -102,7 +101,7 @@ type Configuration struct {
 	Ingest *IngestConfiguration `yaml:"ingest"`
 
 	// Carbon is the carbon configuration.
-	Carbon CarbonConfiguration `yaml:"carbon"`
+	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
@@ -145,45 +144,24 @@ type IngestConfiguration struct {
 
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
-	Ingestion CarbonIngestionConfiguration
+	Ingester *CarbonIngesterConfiguration `yaml:"ingester"`
 }
 
-// CarbonIngestionConfiguration is the configuration struct for carbon ingestion.
-type CarbonIngestionConfiguration struct {
-	Enabled        *bool          `yaml:"enabled"`
-	MaxConcurrency int            `yaml:"maxConcurrency"`
+// CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
+type CarbonIngesterConfiguration struct {
 	ListenAddress  string         `yaml:"listenAddress"`
-	Timeout        *time.Duration `yaml:"timeout"`
+	MaxConcurrency int            `yaml:"maxConcurrency"`
+	WriteTimeout   *time.Duration `yaml:"writeTimeout"`
 }
 
-// EnabledOrDefault returns the configured value for Enabled, if set, or the default
-// value otherwise.
-func (c *CarbonIngestionConfiguration) EnabledOrDefault() bool {
-	if c.Enabled != nil {
-		return *c.Enabled
+// WriteTimeoutOrDefault returns the configured value for the write timeout,
+// if set, or the default value otherwise.
+func (c *CarbonIngesterConfiguration) WriteTimeoutOrDefault() time.Duration {
+	if c.WriteTimeout != nil {
+		return *c.WriteTimeout
 	}
 
-	return defaultCarbonIngesterEnabled
-}
-
-// TimeoutOrDefault returns the configured value for Timeout, if set, or the default
-// value otherwise.
-func (c *CarbonIngestionConfiguration) TimeoutOrDefault() time.Duration {
-	if c.Timeout != nil {
-		return *c.Timeout
-	}
-
-	return defaultCarbonIngesterTimeout
-}
-
-// ListenAddressOrDefault returns the configured value for ListenAddress, if set, or the default
-// value otherwise.
-func (c *CarbonIngestionConfiguration) ListenAddressOrDefault() string {
-	if c.ListenAddress != "" {
-		return c.ListenAddress
-	}
-
-	return defaultCarbonIngesterListenAddress
+	return defaultCarbonIngesterWriteTimeout
 }
 
 // LocalConfiguration is the local embedded configuration if running

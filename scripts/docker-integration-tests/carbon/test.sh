@@ -20,14 +20,14 @@ trap defer EXIT
 setup_single_m3db_node
 
 echo "Writing out a carbon metric"
-echo "foo.bar.baz 1 `date +%s`" | nc 0.0.0.0 7204
+echo "foo.bar.baz 42 `date +%s`" | nc 0.0.0.0 7204
 
 echo "Attempting to read carbon metric back"
 function read_carbon {
   end=$(date +%s)
-  start=$(($end-3000))
-  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/query_range?start=$start&end=$end&step=10&query={__g0__='foo',__g1__='bar',__g2__='baz'}")
-  echo "$RESPONSE" | jq '.data.result[0].values[][1]=="1"' | grep -q "true"
+  start=$(($end-1000))
+  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=foo.bar.*&from=$start&until=$end")
+  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | tail -n 1)" = "42"
   return $?
 }
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon
