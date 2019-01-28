@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -113,6 +115,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		Return(errs[0])
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, true, errs[0]).AnyTimes()
 
 	session2.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -195,7 +199,7 @@ func TestFanoutWriteSuccess(t *testing.T) {
 }
 
 func TestCompleteTagsFailure(t *testing.T) {
-	store := setupFanoutWrite(t, true, nil)
+	store := setupFanoutWrite(t, true, fmt.Errorf("err"))
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	_, err := store.CompleteTags(

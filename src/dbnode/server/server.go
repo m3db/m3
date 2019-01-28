@@ -312,7 +312,9 @@ func Run(runOpts RunOptions) {
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr).
 		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool)
+		SetTagDecoderPool(tagDecoderPool).
+		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemory).
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size

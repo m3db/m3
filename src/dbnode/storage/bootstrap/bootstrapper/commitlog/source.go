@@ -630,6 +630,14 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	if err != nil {
 		return shardResult, err
 	}
+	defer func() {
+		err := reader.Close()
+		if err != nil {
+			s.log.Errorf(
+				"error closing reader for shard: %d and blockstart: %s and volume: %d, err: %s",
+				shard, blockStart.String(), mostRecentCompleteSnapshot.ID.VolumeIndex, err.Error())
+		}
+	}()
 
 	s.log.Debugf(
 		"reading snapshot for shard: %d and blockStart: %s and volume: %d",

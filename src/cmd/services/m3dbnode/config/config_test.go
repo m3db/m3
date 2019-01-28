@@ -110,6 +110,8 @@ db:
         seekReadBufferSize: 4096
         throughputLimitMbps: 100.0
         throughputCheckEvery: 128
+        force_index_summaries_mmap_memory: true
+        force_bloom_filter_mmap_memory: true
 
     repair:
         enabled: false
@@ -391,6 +393,8 @@ db:
     newFileMode: null
     newDirectoryMode: null
     mmap: null
+    force_index_summaries_mmap_memory: true
+    force_bloom_filter_mmap_memory: true
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s

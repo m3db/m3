@@ -25,7 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -42,13 +42,19 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+
+	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 )
 
-// defaultLimitsConfiguration is applied if `limits` isn't specified.
-var defaultLimitsConfiguration = &LimitsConfiguration{
-	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-	MaxComputedDatapoints: 86400,
-}
+var (
+	defaultCarbonIngesterWriteTimeout = 15 * time.Second
+
+	// defaultLimitsConfiguration is applied if `limits` isn't specified.
+	defaultLimitsConfiguration = &LimitsConfiguration{
+		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
+		MaxComputedDatapoints: 86400,
+	}
+)
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
@@ -69,6 +75,9 @@ type Configuration struct {
 
 	// ListenAddress is the server listen address.
 	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
+
+	// Filter is the read/write/complete tags filter configuration.
+	Filter FilterConfiguration `yaml:"filter"`
 
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
@@ -91,8 +100,32 @@ type Configuration struct {
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
 
+	// Carbon is the carbon configuration.
+	Carbon *CarbonConfiguration `yaml:"carbon"`
+
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
+}
+
+// Filter is a query filter type.
+type Filter string
+
+const (
+	// FilterLocalOnly is a filter that specifies local only storage should be used.
+	FilterLocalOnly Filter = "local_only"
+	// FilterRemoteOnly is a filter that specifies remote only storage should be used.
+	FilterRemoteOnly Filter = "remote_only"
+	// FilterAllowAll is a filter that specifies all storages should be used.
+	FilterAllowAll Filter = "allow_all"
+	// FilterAllowNone is a filter that specifies no storages should be used.
+	FilterAllowNone Filter = "allow_none"
+)
+
+// FilterConfiguration is the filters for write/read/complete tags storage filters.
+type FilterConfiguration struct {
+	Read         Filter `yaml:"read"`
+	Write        Filter `yaml:"write"`
+	CompleteTags Filter `yaml:"completeTags"`
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
@@ -103,10 +136,32 @@ type LimitsConfiguration struct {
 // IngestConfiguration is the configuration for ingestion server.
 type IngestConfiguration struct {
 	// Ingester is the configuration for storage based ingester.
-	Ingester ingest.Configuration `yaml:"ingester"`
+	Ingester ingestm3msg.Configuration `yaml:"ingester"`
 
 	// M3Msg is the configuration for m3msg server.
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
+}
+
+// CarbonConfiguration is the configuration for the carbon server.
+type CarbonConfiguration struct {
+	Ingester *CarbonIngesterConfiguration `yaml:"ingester"`
+}
+
+// CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
+type CarbonIngesterConfiguration struct {
+	ListenAddress  string         `yaml:"listenAddress"`
+	MaxConcurrency int            `yaml:"maxConcurrency"`
+	WriteTimeout   *time.Duration `yaml:"writeTimeout"`
+}
+
+// WriteTimeoutOrDefault returns the configured value for the write timeout,
+// if set, or the default value otherwise.
+func (c *CarbonIngesterConfiguration) WriteTimeoutOrDefault() time.Duration {
+	if c.WriteTimeout != nil {
+		return *c.WriteTimeout
+	}
+
+	return defaultCarbonIngesterWriteTimeout
 }
 
 // LocalConfiguration is the local embedded configuration if running

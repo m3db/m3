@@ -143,6 +143,21 @@ func TestTagsFromTagsIter(t *testing.T) {
 	require.True(t, true, expectedTags.Equal(tags))
 }
 
+func TestTagsFromTagsIterNoPool(t *testing.T) {
+	var (
+		id           = ident.StringID("foo")
+		expectedTags = ident.NewTags(
+			ident.StringTag("bar", "baz"),
+			ident.StringTag("foo", "m3"),
+		)
+		tagsIter = ident.NewTagsIterator(expectedTags)
+	)
+
+	tags, err := convert.TagsFromTagsIter(id, tagsIter, nil)
+	require.NoError(t, err)
+	require.True(t, true, expectedTags.Equal(tags))
+}
+
 func TestToMetricInvalidID(t *testing.T) {
 	d := doc.Document{
 		Fields: []doc.Field{

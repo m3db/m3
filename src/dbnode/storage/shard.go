@@ -1013,8 +1013,11 @@ func (s *dbShard) newShardEntry(
 		if tagsIter.CurrentIndex() != 0 {
 			return nil, errNewShardEntryTagsIterNotAtIndexZero
 		}
-		seriesTags, err = convert.TagsFromTagsIter(
-			seriesID, tagsIter, s.identifierPool)
+
+		// Pass nil for the identifier pool because the pool will force us to use an array
+		// with a large capacity to store the tags. Since these tags are long-lived, it's
+		// better to allocate an array of the exact size to save memory.
+		seriesTags, err = convert.TagsFromTagsIter(seriesID, tagsIter, nil)
 		tagsIter.Close()
 		if err != nil {
 			return nil, err

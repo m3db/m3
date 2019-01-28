@@ -61,7 +61,13 @@ ingest:
     logSampleRate: 0.01
   m3msg:
     server:
-      listenAddress: 0.0.0.0:7507
+      listenAddress: "0.0.0.0:7507"
       retry:
         maxBackoff: 10s
         jitter: true
+    handler:
+      protobufEnabled: true
+
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"

@@ -27,12 +27,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -57,6 +60,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xserver "github.com/m3db/m3x/server"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -71,6 +75,8 @@ var (
 		Namespace: "default",
 		Retention: 2 * 24 * time.Hour,
 	}
+
+	defaultCarbonIngesterWorkerPoolSize = 1024
 )
 
 type cleanupFn func() error
@@ -204,7 +210,8 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
 
-	handler, err := httpd.NewHandler(backendStorage, tagOptions, downsampler, engine,
+	promDownsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
+	handler, err := httpd.NewHandler(promDownsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
@@ -236,7 +243,7 @@ func Run(runOpts RunOptions) {
 	}()
 
 	if cfg.Ingest != nil {
-		logger.Info("starting m3msg server ")
+		logger.Info("starting m3msg server")
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
@@ -244,7 +251,7 @@ func Run(runOpts RunOptions) {
 
 		server, err := cfg.Ingest.M3Msg.NewServer(
 			ingester.Ingest,
-			instrumentOptions.SetMetricsScope(scope.SubScope("m3msg")),
+			instrumentOptions.SetMetricsScope(scope.SubScope("ingest-m3msg")),
 		)
 
 		if err != nil {
@@ -259,6 +266,64 @@ func Run(runOpts RunOptions) {
 		defer server.Close()
 	} else {
 		logger.Info("no m3msg server configured")
+	}
+
+	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
+		ingesterCfg := cfg.Carbon.Ingester
+		logger.Info("carbon ingestion enabled")
+
+		var (
+			carbonIOpts = instrumentOptions.SetMetricsScope(
+				instrumentOptions.MetricsScope().SubScope("ingest-carbon"))
+			carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
+			carbonWorkerPoolSize int
+		)
+		if ingesterCfg.MaxConcurrency > 0 {
+			// Use a bounded worker pool if they requested a specific maximum concurrency.
+			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
+				SetGrowOnDemand(false).
+				SetInstrumentOptions(carbonIOpts)
+			carbonWorkerPoolSize = ingesterCfg.MaxConcurrency
+		} else {
+			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
+				SetGrowOnDemand(true).
+				SetKillWorkerProbability(0.001)
+			carbonWorkerPoolSize = defaultCarbonIngesterWorkerPoolSize
+		}
+		workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
+		if err != nil {
+			logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
+		}
+		workerPool.Init()
+
+		// Create a new downsampler and writer because we don't want the carbon ingester to write
+		// any data unaggregated, so we pass nil for storage.Storage.
+		carbonIngestDownsamplerAndWriter := ingest.NewDownsamplerAndWriter(nil, downsampler)
+		ingester, err := ingestcarbon.NewIngester(carbonIngestDownsamplerAndWriter, ingestcarbon.Options{
+			InstrumentOptions: carbonIOpts,
+			WorkerPool:        workerPool,
+			Timeout:           ingesterCfg.WriteTimeoutOrDefault(),
+		})
+		if err != nil {
+			logger.Fatal("unable to create carbon ingester", zap.Error(err))
+		}
+
+		var (
+			serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+			carbonListenAddress = ingesterCfg.ListenAddress
+			carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
+		)
+		if strings.TrimSpace(carbonListenAddress) == "" {
+			logger.Fatal("no listen address specified for carbon ingester")
+		}
+
+		logger.Info("starting carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
+		err = carbonServer.ListenAndServe()
+		if err != nil {
+			logger.Fatal("unable to start carbon ingestion server at listen address",
+				zap.String("listenAddress", carbonListenAddress), zap.Error(err))
+		}
+		logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
 	}
 
 	var interruptCh <-chan error = make(chan error)
@@ -586,11 +651,49 @@ func newStorages(
 	}
 
 	readFilter := filter.LocalOnly
+	writeFilter := filter.LocalOnly
+	completeTagsFilter := filter.CompleteTagsLocalOnly
 	if remoteEnabled {
+		// If remote enabled, allow all for read and complete tags
+		// but continue to only send writes locally
 		readFilter = filter.AllowAll
+		completeTagsFilter = filter.CompleteTagsAllowAll
 	}
 
-	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly, filter.RemoteOnly)
+	switch cfg.Filter.Read {
+	case config.FilterLocalOnly:
+		readFilter = filter.LocalOnly
+	case config.FilterRemoteOnly:
+		readFilter = filter.RemoteOnly
+	case config.FilterAllowAll:
+		readFilter = filter.AllowAll
+	case config.FilterAllowNone:
+		readFilter = filter.AllowNone
+	}
+
+	switch cfg.Filter.Write {
+	case config.FilterLocalOnly:
+		writeFilter = filter.LocalOnly
+	case config.FilterRemoteOnly:
+		writeFilter = filter.RemoteOnly
+	case config.FilterAllowAll:
+		writeFilter = filter.AllowAll
+	case config.FilterAllowNone:
+		writeFilter = filter.AllowNone
+	}
+
+	switch cfg.Filter.CompleteTags {
+	case config.FilterLocalOnly:
+		completeTagsFilter = filter.CompleteTagsLocalOnly
+	case config.FilterRemoteOnly:
+		completeTagsFilter = filter.CompleteTagsRemoteOnly
+	case config.FilterAllowAll:
+		completeTagsFilter = filter.CompleteTagsAllowAll
+	case config.FilterAllowNone:
+		completeTagsFilter = filter.CompleteTagsAllowNone
+	}
+
+	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter, completeTagsFilter)
 	return fanoutStorage, cleanup, nil
 }
 

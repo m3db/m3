@@ -1,5 +1,5 @@
-hash: dbc8ad7212f59a1a4dd80405aaedb0482730630df847aa2fa97be78a061f40d9
-updated: 2018-12-13T15:36:49.311775-08:00
+hash: 1436a6b7e82df04aa1504b672fa149052f24bf2ec588d6fac40231d512745074
+updated: 2019-01-25T17:12:33.864742-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -200,6 +200,8 @@ imports:
   - json/parser
   - json/scanner
   - json/token
+- name: github.com/hydrogen18/stalecucumber
+  version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
@@ -217,7 +219,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: 912d1db087722c924d50a7bfac7ca55cf56a600e
+  version: e98ec326dd7b4d4bc97390c709dacf73d49a0bfc
   vcs: git
   subpackages:
   - checked
@@ -244,6 +246,7 @@ imports:
   - tcp
   - test
   - time
+  - unsafe
   - watch
 - name: github.com/m3db/prometheus_client_golang
   version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
@@ -293,7 +296,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-buffruneio
-  version: e2f66f8164ca709d4c21e815860afd2024e9b894
+  version: de1592c34d9c6055a32fc9ebe2b3ee50ca468ebe
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
@@ -303,7 +306,7 @@ imports:
   - roaring
   - stats
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -537,6 +540,6 @@ testImports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
-  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
+  version: f65876d3ea05943d6613bca6b8ed391843044bd4
   subpackages:
   - msgp

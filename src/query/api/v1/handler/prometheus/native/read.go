@@ -32,8 +32,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -56,9 +57,28 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine    *executor.Engine
-	tagOpts   models.TagOptions
-	limitsCfg *config.LimitsConfiguration
+	engine          *executor.Engine
+	tagOpts         models.TagOptions
+	limitsCfg       *config.LimitsConfiguration
+	promReadMetrics promReadMetrics
+}
+
+type promReadMetrics struct {
+	fetchSuccess      tally.Counter
+	fetchErrorsServer tally.Counter
+	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
+	maxDatapoints     tally.Gauge
+}
+
+func newPromReadMetrics(scope tally.Scope) promReadMetrics {
+	return promReadMetrics{
+		fetchSuccess:      scope.Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		maxDatapoints:     scope.Gauge("max_datapoints"),
+	}
 }
 
 // ReadResponse is the response that gets returned to the user
@@ -82,15 +102,22 @@ func NewPromReadHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
+	scope tally.Scope,
 ) *PromReadHandler {
-	return &PromReadHandler{
-		engine:    engine,
-		tagOpts:   tagOpts,
-		limitsCfg: limitsCfg,
+	h := &PromReadHandler{
+		engine:          engine,
+		tagOpts:         tagOpts,
+		limitsCfg:       limitsCfg,
+		promReadMetrics: newPromReadMetrics(scope),
 	}
+
+	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints))
+	return h
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
+
 	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
 	if respErr != nil {
 		xhttp.Error(w, respErr.Err, respErr.Code)
@@ -100,9 +127,13 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if params.FormatType == models.FormatM3QL {
 		renderM3QLResultsJSON(w, result, params)
+		h.promReadMetrics.fetchSuccess.Inc(1)
+		timer.Stop()
 		return
 	}
 
+	h.promReadMetrics.fetchSuccess.Inc(1)
+	timer.Stop()
 	// TODO: Support multiple result types
 	renderResultsJSON(w, result, params)
 }
@@ -114,6 +145,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Req
 
 	params, rErr := parseParams(r)
 	if rErr != nil {
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
 	}
 
@@ -122,12 +154,14 @@ func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := h.validateRequest(&params); err != nil {
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
 	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
 

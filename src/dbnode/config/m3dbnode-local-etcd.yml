@@ -13,6 +13,9 @@ coordinator:
     samplingRate: 1.0
     extended: none
 
+  limits:
+    maxComputedDatapoints: 10000
+
 db:
   logging:
     level: info

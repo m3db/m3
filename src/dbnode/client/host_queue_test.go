@@ -20,7 +20,10 @@
 
 package client
 
+import "github.com/m3db/m3x/pool"
+
 var (
+	smallPoolOptions            = pool.NewObjectPoolOptions().SetSize(1)
 	testWriteBatchRawPool       writeBatchRawRequestPool
 	testWriteArrayPool          writeBatchRawRequestElementArrayPool
 	testWriteTaggedBatchRawPool writeTaggedBatchRawRequestPool
@@ -28,13 +31,13 @@ var (
 )
 
 func init() {
-	testWriteBatchRawPool = newWriteBatchRawRequestPool(nil)
+	testWriteBatchRawPool = newWriteBatchRawRequestPool(smallPoolOptions)
 	testWriteBatchRawPool.Init()
-	testWriteArrayPool = newWriteBatchRawRequestElementArrayPool(nil, 0)
+	testWriteArrayPool = newWriteBatchRawRequestElementArrayPool(smallPoolOptions, 0)
 	testWriteArrayPool.Init()
-	testWriteTaggedBatchRawPool = newWriteTaggedBatchRawRequestPool(nil)
+	testWriteTaggedBatchRawPool = newWriteTaggedBatchRawRequestPool(smallPoolOptions)
 	testWriteTaggedBatchRawPool.Init()
-	testWriteTaggedArrayPool = newWriteTaggedBatchRawRequestElementArrayPool(nil, 0)
+	testWriteTaggedArrayPool = newWriteTaggedBatchRawRequestElementArrayPool(smallPoolOptions, 0)
 	testWriteTaggedArrayPool.Init()
 }
 

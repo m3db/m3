@@ -37,7 +37,7 @@ type PhysicalPlan struct {
 	ResultStep ResultOp
 	TimeSpec   transform.TimeSpec
 	Debug      bool
-	UseLegacy  bool
+	BlockType  models.FetchedBlockType
 }
 
 // ResultOp is resonsible for delivering results to the clients
@@ -61,7 +61,7 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 			Step:  params.Step,
 		},
 		Debug:     params.Debug,
-		UseLegacy: params.UseLegacy,
+		BlockType: params.BlockType,
 	}
 
 	pl, err := p.createResultNode()

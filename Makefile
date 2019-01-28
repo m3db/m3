@@ -42,6 +42,8 @@ GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
 GO_RELEASER_WORKING_DIR   := /m3
 GOMETALINT_VERSION        := v2.0.5
 
+export NPROC := 2 # Maximum package concurrency for unit tests.
+
 SERVICES :=     \
 	m3dbnode      \
 	m3coordinator \
@@ -198,6 +200,7 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
+	@./scripts/docker-integration-tests/carbon/test.sh
 
 .PHONY: site-build
 site-build:

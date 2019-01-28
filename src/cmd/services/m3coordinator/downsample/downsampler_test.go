@@ -117,11 +117,59 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithTimedSamples(t *testing.T) {
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		timedSamples: true,
+		autoMappingRules: []MappingRule{
+			{
+				Aggregations: []aggregation.Type{testAggregationType},
+				Policies:     testAggregationStoragePolicies,
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		sampleAppenderOpts: &SampleAppenderOptions{
+			Override: true,
+			OverrideRules: SamplesAppenderOverrideRules{
+				MappingRules: []MappingRule{
+					{
+						Aggregations: []aggregation.Type{aggregation.Mean},
+						Policies: []policy.StoragePolicy{
+							policy.MustParseStoragePolicy("4s:1d"),
+						},
+					},
+				},
+			},
+		},
+		expectedAdjusted: map[string]float64{
+			"gauge0":   5.0,
+			"counter0": 2.0,
+		},
+		autoMappingRules: []MappingRule{
+			{
+				Aggregations: []aggregation.Type{testAggregationType},
+				Policies:     testAggregationStoragePolicies,
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func testDownsamplerAggregation(
 	t *testing.T,
 	testDownsampler testDownsampler,
 ) {
 	downsampler := testDownsampler.downsampler
+
+	testOpts := testDownsampler.testOpts
 
 	logger := testDownsampler.instrumentOpts.Logger().
 		WithFields(xlog.NewField("test", t.Name()))
@@ -155,17 +203,25 @@ func testDownsamplerAggregation(
 	require.NoError(t, err)
 	defer appender.Finalize()
 
+	var opts SampleAppenderOptions
+	if testOpts.sampleAppenderOpts != nil {
+		opts = *testOpts.sampleAppenderOpts
+	}
 	for _, metric := range testCounterMetrics {
 		appender.Reset()
 		for name, value := range metric.tags {
 			appender.AddTag([]byte(name), []byte(value))
 		}
 
-		samplesAppender, err := appender.SamplesAppender()
+		samplesAppender, err := appender.SamplesAppender(opts)
 		require.NoError(t, err)
 
 		for _, sample := range metric.samples {
-			err := samplesAppender.AppendCounterSample(sample)
+			if testOpts.timedSamples {
+				err = samplesAppender.AppendCounterTimedSample(time.Now(), sample)
+			} else {
+				err = samplesAppender.AppendCounterSample(sample)
+			}
 			require.NoError(t, err)
 		}
 	}
@@ -175,11 +231,15 @@ func testDownsamplerAggregation(
 			appender.AddTag([]byte(name), []byte(value))
 		}
 
-		samplesAppender, err := appender.SamplesAppender()
+		samplesAppender, err := appender.SamplesAppender(opts)
 		require.NoError(t, err)
 
 		for _, sample := range metric.samples {
-			err := samplesAppender.AppendGaugeSample(sample)
+			if testOpts.timedSamples {
+				err = samplesAppender.AppendGaugeTimedSample(time.Now(), sample)
+			} else {
+				err = samplesAppender.AppendGaugeSample(sample)
+			}
 			require.NoError(t, err)
 		}
 	}
@@ -198,16 +258,28 @@ func testDownsamplerAggregation(
 	logger.Infof("verify test metrics")
 	writes := testDownsampler.storage.Writes()
 	for _, metric := range testCounterMetrics {
-		write := mustFindWrite(t, writes, metric.tags["__name__"])
+		name := metric.tags["__name__"]
+		expected := metric.expected
+		if v, ok := testOpts.expectedAdjusted[name]; ok {
+			expected = int64(v)
+		}
+
+		write := mustFindWrite(t, writes, name)
 		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
 		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(metric.expected), write.Datapoints[0].Value)
+		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
 	}
 	for _, metric := range testGaugeMetrics {
-		write := mustFindWrite(t, writes, metric.tags["__name__"])
+		name := metric.tags["__name__"]
+		expected := metric.expected
+		if v, ok := testOpts.expectedAdjusted[name]; ok {
+			expected = v
+		}
+
+		write := mustFindWrite(t, writes, name)
 		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
 		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(metric.expected), write.Datapoints[0].Value)
+		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
 	}
 }
 
@@ -222,6 +294,7 @@ func tagsToStringMap(tags models.Tags) map[string]string {
 
 type testDownsampler struct {
 	opts           DownsamplerOptions
+	testOpts       testDownsamplerOptions
 	downsampler    Downsampler
 	matcher        matcher.Matcher
 	storage        mock.Storage
@@ -230,9 +303,16 @@ type testDownsampler struct {
 }
 
 type testDownsamplerOptions struct {
-	autoMappingRules []MappingRule
-	clockOpts        clock.Options
-	instrumentOpts   instrument.Options
+	clockOpts      clock.Options
+	instrumentOpts instrument.Options
+
+	// Options for the test
+	autoMappingRules   []MappingRule
+	timedSamples       bool
+	sampleAppenderOpts *SampleAppenderOptions
+
+	// Expected values overrides
+	expectedAdjusted map[string]float64
 }
 
 func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
@@ -290,6 +370,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 
 	return testDownsampler{
 		opts:           downcast.opts,
+		testOpts:       opts,
 		downsampler:    instance,
 		matcher:        downcast.agg.matcher,
 		storage:        storage,

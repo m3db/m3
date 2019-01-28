@@ -212,8 +212,13 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	health := s.health
 	s.RUnlock()
 
-	// Update bootstrapped field if not up to date
-	bootstrapped := s.db.IsBootstrapped()
+	// Update bootstrapped field if not up to date. Note that we use
+	// IsBootstrappedAndDurable instead of IsBootstrapped to make sure
+	// that in the scenario where a topology change has occurred, none of
+	// our automated tooling will assume a node is healthy until it has
+	// marked all its shards as available and is able to bootstrap all the
+	// shards it owns from its own local disk.
+	bootstrapped := s.db.IsBootstrappedAndDurable()
 
 	if health.Bootstrapped != bootstrapped {
 		newHealth := &rpc.NodeHealthResult_{}
@@ -236,7 +241,11 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 // endpoint because while the Health endpoint provides the same information, this endpoint does not
 // require parsing the response to determine if the node is bootstrapped or not.
 func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
-	if bootstrapped := s.db.IsBootstrapped(); !bootstrapped {
+	// Note that we use IsBootstrappedAndDurable instead of IsBootstrapped to make sure
+	// that in the scenario where a topology change has occurred, none of our automated
+	// tooling will assume a node is healthy until it has marked all its shards as available
+	// and is able to bootstrap all the shards it owns from its own local disk.
+	if bootstrapped := s.db.IsBootstrappedAndDurable(); !bootstrapped {
 		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
 	}
 

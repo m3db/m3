@@ -95,7 +95,6 @@ func convertM3DBSegmentedBlockIterators(
 	opts Options,
 ) ([]block.Block, error) {
 	defer iterators.Close()
-	// TODO bounds here should be bounds for this block only not for everything!
 	blockBuilder := newEncodedBlockBuilder(opts.TagOptions(), opts.ConsolidationFunc())
 	var (
 		iterAlloc = opts.IterAlloc()
@@ -114,7 +113,7 @@ func convertM3DBSegmentedBlockIterators(
 		}
 	}
 
-	return blockBuilder.build(), nil
+	return blockBuilder.build()
 }
 
 func blockReplicasFromSeriesIterator(

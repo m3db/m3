@@ -59,18 +59,23 @@ type Querier interface {
 }
 
 // MultiFetchResult is a deduping accumalator for series iterators
-// that allows merging using a given strategy
+// that allows merging using a given strategy.
 type MultiFetchResult interface {
-	// Add adds series iterators with corresponding attributes to the accumulator
+	// Add adds series iterators with corresponding attributes to the accumulator.
 	Add(
 		attrs genericstorage.Attributes,
 		iterators encoding.SeriesIterators,
 		err error,
 	)
 	// FinalResult returns a series iterators object containing
-	// deduplciated series values
+	// deduplicated series values.
 	FinalResult() (encoding.SeriesIterators, error)
-	// Close releases all resources held by this accumulator
+	// FinalResultWithAttrs returns a series iterators object containing
+	// deduplicated series values, attributes corresponding to these iterators,
+	// and any errors encountered.
+	FinalResultWithAttrs() (
+		encoding.SeriesIterators, []genericstorage.Attributes, error)
+	// Close releases all resources held by this accumulator.
 	Close() error
 }
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ingest
+package ingestm3msg
 
 import (
 	"github.com/m3db/m3/src/query/storage"
