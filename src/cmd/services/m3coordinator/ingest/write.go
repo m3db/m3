@@ -113,7 +113,7 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 ) error {
 	var (
 		downsamplerExists = d.downsampler != nil
-		// If they didn't request the mapping rules to be overriden, then assume they want the default
+		// If they didn't request the mapping rules to be overridden, then assume they want the default
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
@@ -203,8 +203,7 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 				Datapoints: datapoints,
 				Unit:       unit,
 				Attributes: storage.Attributes{
-					// TODO(rartoul): Is this a good assumption?
-					// Assume all overriden storage policies are for aggregated namespaces.
+					// Assume all overridden storage policies are for aggregated namespaces.
 					MetricsType: storage.AggregatedMetricsType,
 					Resolution:  p.Resolution().Window,
 					Retention:   p.Retention().Duration(),
