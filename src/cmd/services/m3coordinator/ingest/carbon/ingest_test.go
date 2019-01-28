@@ -77,7 +77,7 @@ var (
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
-							Type:    "Mean",
+							Type:    aggregation.Mean,
 						},
 					},
 				},
@@ -98,7 +98,7 @@ var (
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
-							Type:    "Mean",
+							Type:    aggregation.Mean,
 						},
 					},
 					{
@@ -106,7 +106,7 @@ var (
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
-							Type:    "Sum",
+							Type:    aggregation.Sum,
 						},
 					},
 				},
@@ -120,7 +120,7 @@ var (
 						Retention:  24 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
-							Type:    "Last",
+							Type:    aggregation.Mean,
 						},
 					},
 				},
@@ -133,7 +133,7 @@ var (
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
-							Type:    "Mean",
+							Type:    aggregation.Last,
 						},
 					},
 				},
@@ -163,7 +163,7 @@ var (
 					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
 				},
 				{
-					Aggregations: []aggregation.Type{aggregation.Mean},
+					Aggregations: []aggregation.Type{aggregation.Sum},
 					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
 				},
 			},
@@ -174,7 +174,7 @@ var (
 			DownsampleOverride: true,
 			DownsampleMappingRules: []downsample.MappingRule{
 				{
-					Aggregations: []aggregation.Type{aggregation.Mean},
+					Aggregations: []aggregation.Type{aggregation.Last},
 					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
 				},
 			},

@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3x/config"
@@ -173,8 +174,8 @@ type CarbonIngesterStoragePolicyConfiguration struct {
 // CarbonIngesterAggregationConfiguration is the configuration struct
 // for the aggregation for a carbon ingest rule's storage policy.
 type CarbonIngesterAggregationConfiguration struct {
-	Enabled bool   `yaml:"enabled"`
-	Type    string `yaml:"type"`
+	Enabled bool             `yaml:"enabled"`
+	Type    aggregation.Type `yaml:"type"`
 }
 
 // WriteTimeoutOrDefault returns the configured value for the write timeout,
