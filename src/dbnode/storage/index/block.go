@@ -523,24 +523,6 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		return err
 	}
 
-<<<<<<< HEAD
-	// Check plan.
-	var planErr error
-	switch {
-	case len(builder.Docs()) == 0:
-		// Must be compacting with a builder that has some inserted documents.
-		planErr = errForegroundCompactorNoBuilderDocs
-	case len(plan.Tasks) == 0:
-		// Must generate a plan since we gave it a mutable segment type to compact.
-		planErr = errForegroundCompactorNoPlan
-	case !taskHasNilSegment(plan.Tasks[0]):
-		// First task of plan must include the builder, so we can avoid resetting it
-		// for the first task, but then safely reset it in consequent tasks.
-		planErr = errForegroundCompactorBadPlanFirstTask
-	}
-	if planErr != nil {
-		return planErr
-=======
 	// Check plan
 	if len(plan.Tasks) == 0 {
 		// Should always generate a task when a mutable builder is passed to planner
@@ -550,7 +532,6 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		// First task of plan must include the builder, so we can avoid resetting it
 		// for the first task, but then safely reset it in consequent tasks
 		return errForegroundCompactorBadPlanFirstTask
->>>>>>> Address feedback
 	}
 
 	// Move any unused segments to the background.
@@ -596,12 +577,8 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	// task.
 	for i := 1; i < len(plan.Tasks); i++ {
 		task := plan.Tasks[i]
-<<<<<<< HEAD
-		if taskHasNilSegment(task) { // Only the first task should have the nil segment.
-=======
 		if taskNumBuilders(task) > 0 {
 			// Only the first task should compact the builder
->>>>>>> Address feedback
 			return errForegroundCompactorBadPlanSecondaryTask
 		}
 		// Now use the builder after resetting it.
