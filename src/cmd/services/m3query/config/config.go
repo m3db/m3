@@ -25,10 +25,10 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -172,14 +172,15 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
 	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	aggregationEnabled := true
 	for _, ns := range namespaces {
 		if ns.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
 				Resolution: ns.Options().Attributes().Resolution,
 				Retention:  ns.Options().Attributes().Retention,
 				Aggregation: CarbonIngesterAggregationConfiguration{
-					Enabled: true,
-					Type:    defaultCarbonIngesterAggregationType,
+					Enabled: &aggregationEnabled,
+					Type:    &defaultCarbonIngesterAggregationType,
 				},
 			})
 		}
@@ -193,7 +194,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	// enumerated above.
 	return []CarbonIngesterRuleConfiguration{
 		{
-			Pattern:  ingestcarbon.MatchAllPattern,
+			Pattern:  graphite.MatchAllPattern,
 			Policies: policies,
 		},
 	}
@@ -209,16 +210,36 @@ type CarbonIngesterRuleConfiguration struct {
 // CarbonIngesterStoragePolicyConfiguration is the configuration struct for
 // a carbon rule's storage policies.
 type CarbonIngesterStoragePolicyConfiguration struct {
-	Resolution  time.Duration                          `yaml:"resolution"`
-	Retention   time.Duration                          `yaml:"retention"`
+	Resolution  time.Duration                          `yaml:"resolution" validate:"nonzero"`
+	Retention   time.Duration                          `yaml:"retention" validate:"nonzero"`
 	Aggregation CarbonIngesterAggregationConfiguration `yaml:"aggregation"`
 }
 
 // CarbonIngesterAggregationConfiguration is the configuration struct
 // for the aggregation for a carbon ingest rule's storage policy.
 type CarbonIngesterAggregationConfiguration struct {
-	Enabled bool             `yaml:"enabled"`
-	Type    aggregation.Type `yaml:"type"`
+	Enabled *bool             `yaml:"enabled"`
+	Type    *aggregation.Type `yaml:"type"`
+}
+
+// EnabledOrDefault returns whether aggregation should be enabled based on the provided configuration,
+// or a default value otherwise.
+func (c *CarbonIngesterAggregationConfiguration) EnabledOrDefault() bool {
+	if c.Enabled != nil {
+		return *c.Enabled
+	}
+
+	return true
+}
+
+// TypeOrDefault returns the aggregation type that should be used based on the provided configuration,
+// or a default value otherwise.
+func (c *CarbonIngesterAggregationConfiguration) TypeOrDefault() aggregation.Type {
+	if c.Type != nil {
+		return *c.Type
+	}
+
+	return defaultCarbonIngesterAggregationType
 }
 
 // WriteTimeoutOrDefault returns the configured value for the write timeout,

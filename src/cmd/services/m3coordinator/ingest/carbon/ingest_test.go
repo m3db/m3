@@ -57,8 +57,8 @@ const (
 	numLinesInTestPacket = 10000
 )
 
-// Created by init().
 var (
+	// Created by init().
 	testMetrics = []testMetric{}
 	testPacket  = []byte{}
 
@@ -76,8 +76,8 @@ var (
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: true,
-							Type:    aggregation.Mean,
+							Enabled: truePtr,
+							Type:    aggregateMeanPtr,
 						},
 					},
 				},
@@ -97,16 +97,16 @@ var (
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: true,
-							Type:    aggregation.Mean,
+							Enabled: truePtr,
+							Type:    aggregateMeanPtr,
 						},
 					},
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: true,
-							Type:    aggregation.Sum,
+							Enabled: truePtr,
+							Type:    aggregateSumPtr,
 						},
 					},
 				},
@@ -119,8 +119,8 @@ var (
 						Resolution: time.Minute,
 						Retention:  24 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: true,
-							Type:    aggregation.Mean,
+							Enabled: truePtr,
+							Type:    aggregateMeanPtr,
 						},
 					},
 				},
@@ -132,8 +132,8 @@ var (
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: true,
-							Type:    aggregation.Last,
+							Enabled: truePtr,
+							Type:    aggregateLastPtr,
 						},
 					},
 				},
@@ -145,7 +145,7 @@ var (
 						Resolution: 1 * time.Hour,
 						Retention:  7 * 24 * time.Hour,
 						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: false,
+							Enabled: falsePtr,
 						},
 					},
 				},
@@ -479,3 +479,17 @@ func mustGenerateTagsFromName(t *testing.T, name []byte) models.Tags {
 	require.NoError(t, err)
 	return tags
 }
+
+var (
+	// Boilerplate to deal with optional config value nonsense.
+	trueVar          = true
+	truePtr          = &trueVar
+	falseVar         = false
+	falsePtr         = &falseVar
+	aggregateMean    = aggregation.Mean
+	aggregateSum     = aggregation.Sum
+	aggregateLast    = aggregation.Last
+	aggregateMeanPtr = &aggregateMean
+	aggregateSumPtr  = &aggregateSum
+	aggregateLastPtr = &aggregateLast
+)

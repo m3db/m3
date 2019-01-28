@@ -53,9 +53,6 @@ var (
 	carbonSeparatorByte  = byte('.')
 	carbonSeparatorBytes = []byte{carbonSeparatorByte}
 
-	// MatchAllPattern that is used to match all metrics.
-	MatchAllPattern = ".*"
-
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
 	errWorkerPoolMustBeSet             = errors.New("carbon ingester options: worker pool must be set")
@@ -122,9 +119,9 @@ func NewIngester(
 			storagePolicy := policy.NewStoragePolicy(
 				currPolicy.Resolution, xtime.Second, currPolicy.Retention)
 
-			if currPolicy.Aggregation.Enabled {
+			if currPolicy.Aggregation.EnabledOrDefault() {
 				mappingRules = append(mappingRules, downsample.MappingRule{
-					Aggregations: []aggregation.Type{currPolicy.Aggregation.Type},
+					Aggregations: []aggregation.Type{currPolicy.Aggregation.TypeOrDefault()},
 					Policies:     policy.StoragePolicies{storagePolicy},
 				})
 			} else {
@@ -211,7 +208,7 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		WriteOverride:      true,
 	}
 	for _, rule := range i.rules {
-		if rule.rule.Pattern == MatchAllPattern || rule.regexp.Match(name) {
+		if rule.rule.Pattern == graphite.MatchAllPattern || rule.regexp.Match(name) {
 			// Each rule should only have either mapping rules or storage policies so
 			// one of these should be a no-op.
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
