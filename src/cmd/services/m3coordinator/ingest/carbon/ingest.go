@@ -211,7 +211,7 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		WriteOverride:      true,
 	}
 	for _, rule := range i.rules {
-		if rule.regexp.Match(name) {
+		if rule.rule.Pattern == MatchAllPattern || rule.regexp.Match(name) {
 			// Each rule should only have either mapping rules or storage policies so
 			// one of these should be a no-op.
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
