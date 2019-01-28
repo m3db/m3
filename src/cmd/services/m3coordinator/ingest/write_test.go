@@ -266,6 +266,44 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 	require.NoError(t, err)
 }
 
+func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, downsampler, _ := newTestDownsamplerAndWriter(t, ctrl)
+
+	// We're overriding the write with zero storage policies, so we expact no data to be sent
+	// to the storage, but everything to be written to the downsampler with the default settings.
+	overrides := WriteOptions{
+		WriteOverride:        true,
+		WriteStoragePolicies: nil,
+	}
+
+	var (
+		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
+	)
+
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(gomock.Any()).
+		Return(mockSamplesAppender, nil)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().Finalize()
+
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+	require.NoError(t, err)
+}
+
 func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
