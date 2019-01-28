@@ -27,6 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
@@ -180,6 +182,87 @@ func TestDownsampleAndWrite(t *testing.T) {
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
+
+	// We're overriding the downsampling with zero mapping rules, so we expact no data to be sent
+	// to the downsampler, but everything to be written to storage.
+	overrides := WriteOptions{
+		DownsampleOverride:     true,
+		DownsampleMappingRules: nil,
+	}
+
+	for _, dp := range testDatapoints1 {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	}
+
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
+
+	// We're overriding the downsampling with mapping rules, so we expact data to be
+	// sent to the downsampler, as well as everything being written to storage.
+	mappingRules := []downsample.MappingRule{
+		{
+			Aggregations: []aggregation.Type{aggregation.Mean},
+			Policies: []policy.StoragePolicy{
+				policy.NewStoragePolicy(
+					time.Minute, xtime.Second, 48*time.Hour),
+			},
+		},
+	}
+	overrides := WriteOptions{
+		DownsampleOverride:     true,
+		DownsampleMappingRules: mappingRules,
+	}
+
+	var (
+		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
+	)
+
+	expectedSamplesAppenderOptions := downsample.SampleAppenderOptions{
+		Override: true,
+		OverrideRules: downsample.SamplesAppenderOverrideRules{
+			MappingRules: mappingRules,
+		},
+	}
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(expectedSamplesAppenderOptions).
+		Return(mockSamplesAppender, nil)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().Finalize()
+
+	for _, dp := range testDatapoints1 {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	}
+
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
 	require.NoError(t, err)
 }
 
