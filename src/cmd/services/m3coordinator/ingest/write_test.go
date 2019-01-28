@@ -159,12 +159,8 @@ func TestDownsampleAndWrite(t *testing.T) {
 
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
 
-	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
-
-	for _, dp := range testDatapoints1 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
-	}
+	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
+	expectDefaultStorageWrites(session, testDatapoints1)
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
@@ -184,10 +180,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 		DownsampleMappingRules: nil,
 	}
 
-	for _, dp := range testDatapoints1 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
-	}
+	expectDefaultStorageWrites(session, testDatapoints1)
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
@@ -223,12 +216,8 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 		},
 	}
 
-	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, expectedSamplesAppenderOptions)
-
-	for _, dp := range testDatapoints1 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
-	}
+	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, expectedSamplesAppenderOptions)
+	expectDefaultStorageWrites(session, testDatapoints1)
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
@@ -248,7 +237,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 		WriteStoragePolicies: nil,
 	}
 
-	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
+	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
@@ -287,7 +276,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
 		},
 	}
 
-	expectDefaultDownsampling(t, ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
+	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	// All the datapoints will get written for each of the namespaces.
 	for range aggregatedNamespaces {
@@ -309,10 +298,7 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
 	downAndWrite.downsampler = nil
 
-	for _, dp := range testDatapoints1 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
-	}
+	expectDefaultStorageWrites(session, testDatapoints1)
 
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
@@ -387,7 +373,7 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 }
 
 func expectDefaultDownsampling(
-	t *testing.T, ctrl *gomock.Controller, datapoints []ts.Datapoint,
+	ctrl *gomock.Controller, datapoints []ts.Datapoint,
 	downsampler *downsample.MockDownsampler, downsampleOpts downsample.SampleAppenderOptions) {
 	var (
 		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
@@ -402,12 +388,19 @@ func expectDefaultDownsampling(
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 
-	for _, dp := range testDatapoints1 {
+	for _, dp := range datapoints {
 		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Finalize()
+}
+
+func expectDefaultStorageWrites(session *client.MockSession, datapoints []ts.Datapoint) {
+	for _, dp := range datapoints {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	}
 }
 
 func newTestDownsamplerAndWriter(
