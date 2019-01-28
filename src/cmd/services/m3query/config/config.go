@@ -165,9 +165,9 @@ type CarbonIngesterRuleConfiguration struct {
 // CarbonIngesterStoragePolicyConfiguration is the configuration struct for
 // a carbon rule's storage policies.
 type CarbonIngesterStoragePolicyConfiguration struct {
-	Resolution    time.Duration                          `yaml:"resolution"`
-	Retention     time.Duration                          `yaml:"retention"`
-	Aggregatation CarbonIngesterAggregationConfiguration `yaml:"aggregation"`
+	Resolution  time.Duration                          `yaml:"resolution"`
+	Retention   time.Duration                          `yaml:"retention"`
+	Aggregation CarbonIngesterAggregationConfiguration `yaml:"aggregation"`
 }
 
 // CarbonIngesterAggregationConfiguration is the configuration struct

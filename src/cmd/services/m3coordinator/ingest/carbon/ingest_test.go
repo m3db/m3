@@ -64,15 +64,15 @@ var (
 		WorkerPool:        nil, // Set by init().
 	}
 
-	testRulesMatchAll = CarbonIngestionRules{
-		Rules: []config.CarbonIngestionRuleConfiguration{
+	testRulesMatchAll = CarbonIngesterRules{
+		Rules: []config.CarbonIngesterRuleConfiguration{
 			{
 				Pattern: ".*", // Match all.
-				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngestionAggregationConfiguration{
+						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Mean",
 						},
@@ -85,15 +85,15 @@ var (
 	// Match match-regex1 twice with two patterns, and in one case with two policies
 	// and in the second with one policy. In addition, also match match-regex2 with
 	// a single pattern and policy.
-	testRulesWithRegex = CarbonIngestionRules{
-		Rules: []config.CarbonIngestionRuleConfiguration{
+	testRulesWithRegex = CarbonIngesterRules{
+		Rules: []config.CarbonIngesterRuleConfiguration{
 			{
 				Pattern: ".*match-regex1.*",
-				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngestionAggregationConfiguration{
+						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Mean",
 						},
@@ -101,7 +101,7 @@ var (
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngestionAggregationConfiguration{
+						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Sum",
 						},
@@ -110,11 +110,11 @@ var (
 			},
 			{
 				Pattern: ".*match-regex1.*",
-				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngestionAggregationConfiguration{
+						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Last",
 						},
@@ -123,11 +123,11 @@ var (
 			},
 			{
 				Pattern: ".*match-regex2.*",
-				Policies: []config.CarbonIngestionStoragePolicyConfiguration{
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngestionAggregationConfiguration{
+						Aggregation: config.CarbonIngesterAggregationConfiguration{
 							Enabled: true,
 							Type:    "Mean",
 						},

@@ -339,7 +339,7 @@ func GenerateTagsFromName(
 }
 
 type ruleAndRegex struct {
-	rule            config.CarbonIngestionRuleConfiguration
+	rule            config.CarbonIngesterRuleConfiguration
 	regexp          *regexp.Regexp
 	mappingRules    []downsample.MappingRule
 	storagePolicies []policy.StoragePolicy
