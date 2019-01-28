@@ -173,7 +173,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 
 	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
 
-	// We're overriding the downsampling with zero mapping rules, so we expact no data to be sent
+	// We're overriding the downsampling with zero mapping rules, so we expect no data to be sent
 	// to the downsampler, but everything to be written to storage.
 	overrides := WriteOptions{
 		DownsampleOverride:     true,
@@ -193,7 +193,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
 
-	// We're overriding the downsampling with mapping rules, so we expact data to be
+	// We're overriding the downsampling with mapping rules, so we expect data to be
 	// sent to the downsampler, as well as everything being written to storage.
 	mappingRules := []downsample.MappingRule{
 		{
@@ -230,7 +230,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 
 	downAndWrite, downsampler, _ := newTestDownsamplerAndWriter(t, ctrl)
 
-	// We're overriding the write with zero storage policies, so we expact no data to be sent
+	// We're overriding the write with zero storage policies, so we expect no data to be sent
 	// to the storage, but everything to be written to the downsampler with the default settings.
 	overrides := WriteOptions{
 		WriteOverride:        true,
@@ -263,7 +263,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
 	downAndWrite, downsampler, session := newTestDownsamplerAndWriterWithAggregatedNamespace(
 		t, ctrl, aggregatedNamespaces)
 
-	// We're overriding the write with storage policies, so we expact data to be sent to the
+	// We're overriding the write with storage policies, so we expect data to be sent to the
 	// storage with the specified policies, but everything to be written to the downsampler
 	// with the default settings.
 	overrides := WriteOptions{
