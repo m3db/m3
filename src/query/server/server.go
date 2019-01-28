@@ -697,7 +697,7 @@ func startGrpcServer(
 func startCarbonIngestion(
 	cfg *config.CarbonConfiguration,
 	iOpts instrument.Options,
-	logger zap.Logger,
+	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 ) {
