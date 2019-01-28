@@ -51,7 +51,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO(rartoul): Assert on the overrides.
 const (
 	// Keep this value large enough to catch issues like the ingester
 	// not copying the name.
