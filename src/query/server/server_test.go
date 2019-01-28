@@ -235,7 +235,7 @@ listenAddress:
   value: "127.0.0.1:17201"
 
 carbon:
-  ingestion:
+  ingester:
     listenAddress: "127.0.0.1:17204"
 
 metrics:

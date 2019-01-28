@@ -51,4 +51,5 @@ clusters:
       backgroundHealthCheckFailThrottleFactor: 0.5
 
 carbon:
-  enabled: true
+  ingester:
+    listenAddress: "0.0.0.0:7204"
