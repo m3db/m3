@@ -33,8 +33,9 @@ import (
 
 // Engine executes a Query.
 type Engine struct {
-	metrics *engineMetrics
-	store   storage.Storage
+	metrics          *engineMetrics
+	store            storage.Storage
+	lookbackDuration time.Duration
 }
 
 // EngineOptions can be used to pass custom flags to engine
@@ -48,10 +49,11 @@ type Query struct {
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage, scope tally.Scope) *Engine {
+func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration) *Engine {
 	return &Engine{
-		metrics: newEngineMetrics(scope),
-		store:   store,
+		metrics:          newEngineMetrics(scope),
+		store:            store,
+		lookbackDuration: lookbackDuration,
 	}
 }
 

@@ -47,7 +47,7 @@ type Values interface {
 	Datapoints() []Datapoint
 
 	// AlignToBounds returns values aligned to the start time and duration
-	AlignToBounds(bounds models.Bounds) []Datapoints
+	AlignToBounds(bounds models.Bounds, lookbackDuration time.Duration) []Datapoints
 }
 
 // A Datapoint is a single data value reported at a given time
@@ -82,7 +82,7 @@ func (d Datapoints) Values() []float64 {
 }
 
 // AlignToBounds returns values aligned to given bounds. To belong to a step, values should be <= stepTime and not stale
-func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
+func (d Datapoints) AlignToBounds(bounds models.Bounds, lookbackDuration time.Duration) []Datapoints {
 	numDatapoints := d.Len()
 	steps := bounds.Steps()
 	stepValues := make([]Datapoints, steps)
@@ -96,7 +96,7 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 			point := d[dpIdx]
 			dpIdx++
 			// Skip stale values
-			if t.Sub(point.Timestamp) > models.LookbackDelta {
+			if t.Sub(point.Timestamp) > lookbackDuration {
 				continue
 			}
 
@@ -106,7 +106,7 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 		// If no point found for this interval, reuse the last point as long as its not stale
 		if len(singleStepValues) == 0 && dpIdx > 0 {
 			prevPoint := d[dpIdx-1]
-			if t.Sub(prevPoint.Timestamp) <= models.LookbackDelta {
+			if t.Sub(prevPoint.Timestamp) <= lookbackDuration {
 				singleStepValues = Datapoints{prevPoint}
 			}
 		}

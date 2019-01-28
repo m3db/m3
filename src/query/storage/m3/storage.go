@@ -69,10 +69,11 @@ func NewStorage(
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	lookbackDuration time.Duration,
 ) Storage {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
-		SetLookbackDuration(time.Minute).
+		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
 
 	return &m3storage{

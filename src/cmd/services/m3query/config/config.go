@@ -109,6 +109,9 @@ type Configuration struct {
 
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
+
+	// LookbackDuration determines the lookback duration for queries
+	LookbackDuration time.Duration `yaml:"lookbackDuration" validate:"nonzero"`
 }
 
 // Filter is a query filter type.
