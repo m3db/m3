@@ -99,7 +99,7 @@ func (h *pbHandler) Process(msg consumer.Message) {
 	h.m.metricAccepted.Inc(1)
 
 	h.wg.Add(1)
-	r := newProtobufCallback(msg, dec, h.wg)
+	r := NewProtobufCallback(msg, dec, h.wg)
 	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
 }
 
@@ -111,11 +111,12 @@ type protobufCallback struct {
 	wg  *sync.WaitGroup
 }
 
-func newProtobufCallback(
+// NewProtobufCallback creates a callbackable.
+func NewProtobufCallback(
 	msg consumer.Message,
 	dec *protobuf.AggregatedDecoder,
 	wg *sync.WaitGroup,
-) *protobufCallback {
+) Callbackable {
 	return &protobufCallback{
 		msg: msg,
 		dec: dec,
