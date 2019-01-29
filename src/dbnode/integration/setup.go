@@ -155,16 +155,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts = storageOpts.SetSeriesCachePolicy(value)
 	}
 
-	// Use specified series cache policy from environment if set.
-	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
-	if seriesCachePolicy != "" {
-		value, err := series.ParseCachePolicy(seriesCachePolicy)
-		if err != nil {
-			return nil, err
-		}
-		storageOpts = storageOpts.SetSeriesCachePolicy(value)
-	}
-
 	fields := []xlog.Field{
 		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
 	}
