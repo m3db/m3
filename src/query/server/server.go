@@ -752,10 +752,16 @@ func startCarbonIngestion(
 		})
 
 		var lastPolicy config.CarbonIngesterStoragePolicyConfiguration
-		for _, policy := range rule.Policies {
-			if policy == lastPolicy {
+		for i, policy := range rule.Policies {
+			if i > 0 && policy == lastPolicy {
 				logger.Fatal(
 					"cannot include the same storage policy multiple times for a single carbon ingestion rule",
+					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
+			}
+
+			if i > 0 && !rule.Aggregation.EnabledOrDefault() && policy.Resolution != lastPolicy.Resolution {
+				logger.Fatal(
+					"cannot include multiple storage policies with different resolutions if aggregation is disabled",
 					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
 			}
 
