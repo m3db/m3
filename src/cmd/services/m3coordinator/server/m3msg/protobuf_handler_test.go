@@ -21,12 +21,16 @@
 package m3msg
 
 import (
+	"context"
+	"fmt"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -36,7 +40,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testID = "stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"
+var (
+	testID             = "stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"
+	validStoragePolicy = policy.MustParseStoragePolicy("1m:40d")
+)
 
 func TestM3msgServerWithProtobufHandler(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -118,4 +125,52 @@ func TestM3msgServerWithProtobufHandler(t *testing.T) {
 	require.Equal(t, 3000, int(payload.encodeNanos))
 	require.Equal(t, m2.Value, payload.value)
 	require.Equal(t, m2.StoragePolicy, payload.sp)
+}
+
+type mockWriter struct {
+	sync.Mutex
+
+	m map[string]payload
+	n int
+}
+
+func (m *mockWriter) write(
+	ctx context.Context,
+	name []byte,
+	metricNanos, encodeNanos int64,
+	value float64,
+	sp policy.StoragePolicy,
+	callbackable Callbackable,
+) {
+	m.Lock()
+	m.n++
+	payload := payload{
+		id:          string(name),
+		metricNanos: metricNanos,
+		encodeNanos: encodeNanos,
+		value:       value,
+		sp:          sp,
+	}
+	m.m[key(payload.id, encodeNanos)] = payload
+	m.Unlock()
+	callbackable.Callback(OnSuccess)
+}
+
+func (m *mockWriter) ingested() int {
+	m.Lock()
+	defer m.Unlock()
+
+	return m.n
+}
+
+func key(id string, encodeTime int64) string {
+	return fmt.Sprintf("%s%d", id, encodeTime)
+}
+
+type payload struct {
+	id          string
+	metricNanos int64
+	encodeNanos int64
+	value       float64
+	sp          policy.StoragePolicy
 }

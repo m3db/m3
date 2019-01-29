@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -91,7 +92,7 @@ func TestProtobufWriterWrite(t *testing.T) {
 		})
 		return nil
 	}).AnyTimes()
-	writer.shardFn = func(id []byte) uint32 {
+	writer.shardFn = func(id []byte, s uint32) uint32 {
 		if bytes.Equal(id, testRawID) {
 			return 1
 		}
@@ -154,5 +155,5 @@ func TestProtobufWriterWrite(t *testing.T) {
 func testProtobufWriter(t *testing.T, ctrl *gomock.Controller, opts Options) *protobufWriter {
 	p := producer.NewMockProducer(ctrl)
 	p.EXPECT().NumShards().Return(uint32(1024))
-	return NewProtobufWriter(p, opts).(*protobufWriter)
+	return NewProtobufWriter(p, sharding.Murmur32Hash.MustShardFn(), opts).(*protobufWriter)
 }

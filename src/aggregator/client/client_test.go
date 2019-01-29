@@ -734,7 +734,7 @@ func testOptions() Options {
 		SetClockOptions(clock.NewOptions()).
 		SetConnectionOptions(testConnectionOptions()).
 		SetInstrumentOptions(instrument.NewOptions()).
-		SetShardFn(func([]byte, int) uint32 { return 1 }).
+		SetShardFn(func([]byte, uint32) uint32 { return 1 }).
 		SetInstanceQueueSize(10).
 		SetMaxTimerBatchSize(140).
 		SetShardCutoverWarmupDuration(time.Minute).

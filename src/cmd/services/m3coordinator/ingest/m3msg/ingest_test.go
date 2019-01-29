@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/query/models"
@@ -61,8 +62,9 @@ func TestIngest(t *testing.T) {
 	val := float64(1)
 	sp := policy.MustParseStoragePolicy("1m:40d")
 	m := consumer.NewMockMessage(ctrl)
-	callback := m3msg.NewRefCountedCallback(m)
-	callback.IncRef()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
 	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)

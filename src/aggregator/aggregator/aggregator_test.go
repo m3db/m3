@@ -267,7 +267,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	}
 
 	// Instance is now in the placement.
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	require.NoError(t, agg.AddUntimed(testUntimedMetric, testStagedMetadatas))
 	require.Equal(t, testShardSetID, agg.shardSetID)
 	require.True(t, agg.shardSetOpen)
@@ -325,7 +325,7 @@ func TestAggregatorAddUntimedNotResponsibleForShard(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
-	agg.shardFn = func([]byte, int) uint32 { return testNumShards }
+	agg.shardFn = func([]byte, uint32) uint32 { return testNumShards }
 	require.Equal(t, errShardNotOwned, agg.AddUntimed(testUntimedMetric, testStagedMetadatas))
 }
 
@@ -335,7 +335,7 @@ func TestAggregatorAddUntimedSuccessNoPlacementUpdate(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	err := agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
@@ -352,7 +352,7 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 		SetClockOptions(agg.opts.ClockOptions().SetNowFn(nowFn)).
 		SetBufferDurationBeforeShardCutover(time.Duration(500)).
 		SetBufferDurationAfterShardCutoff(time.Duration(1000))
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	require.NoError(t, agg.Open())
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
@@ -431,7 +431,7 @@ func TestAggregatorAddTimedNotResponsibleForShard(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
-	agg.shardFn = func([]byte, int) uint32 { return testNumShards }
+	agg.shardFn = func([]byte, uint32) uint32 { return testNumShards }
 	require.Equal(t, errShardNotOwned, agg.AddTimed(testTimedMetric, testTimedMetadata))
 }
 
@@ -445,7 +445,7 @@ func TestAggregatorAddTimedSuccessNoPlacementUpdate(t *testing.T) {
 	agg.nowFn = nowFn
 
 	require.NoError(t, agg.Open())
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	err := agg.AddTimed(testTimedMetric, testTimedMetadata)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
@@ -462,7 +462,7 @@ func TestAggregatorAddTimedSuccessWithPlacementUpdate(t *testing.T) {
 		SetClockOptions(agg.opts.ClockOptions().SetNowFn(nowFn)).
 		SetBufferDurationBeforeShardCutover(time.Duration(500)).
 		SetBufferDurationAfterShardCutoff(time.Duration(1000))
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	require.NoError(t, agg.Open())
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
@@ -541,7 +541,7 @@ func TestAggregatorAddForwardedNotResponsibleForShard(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
-	agg.shardFn = func([]byte, int) uint32 { return testNumShards }
+	agg.shardFn = func([]byte, uint32) uint32 { return testNumShards }
 	require.Equal(t, errShardNotOwned, agg.AddForwarded(testForwardedMetric, testForwardMetadata))
 }
 
@@ -555,7 +555,7 @@ func TestAggregatorAddForwardedSuccessNoPlacementUpdate(t *testing.T) {
 	agg.nowFn = nowFn
 
 	require.NoError(t, agg.Open())
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	err := agg.AddForwarded(testForwardedMetric, testForwardMetadata)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
@@ -572,7 +572,7 @@ func TestAggregatorAddForwardedSuccessWithPlacementUpdate(t *testing.T) {
 		SetClockOptions(agg.opts.ClockOptions().SetNowFn(nowFn)).
 		SetBufferDurationBeforeShardCutover(time.Duration(500)).
 		SetBufferDurationAfterShardCutoff(time.Duration(1000))
-	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	require.NoError(t, agg.Open())
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
