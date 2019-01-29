@@ -316,6 +316,9 @@ func (i *nsIndex) reportStats() error {
 	backgroundLevels := i.metrics.BlockMetrics.BackgroundSegments.Levels
 	backgroundLevelStats := make([]nsIndexCompactionLevelStats, len(backgroundLevels))
 
+	flushedLevels := i.metrics.BlockMetrics.FlushedSegments.Levels
+	flushedLevelStats := make([]nsIndexCompactionLevelStats, len(flushedLevels))
+
 	// iterate known blocks in a defined order of time (newest first)
 	// for debug log ordering
 	for _, start := range i.state.blockStartsDescOrder {
@@ -337,6 +340,9 @@ func (i *nsIndex) reportStats() error {
 				case index.ActiveBackgroundSegment:
 					levels = backgroundLevels
 					levelStats = backgroundLevelStats
+				case index.FlushedSegment:
+					levels = flushedLevels
+					levelStats = flushedLevelStats
 				}
 
 				for i, l := range levels {
@@ -795,18 +801,7 @@ func (i *nsIndex) flushBlockSegment(
 	// Reset the builder
 	builder.Reset(0)
 
-	var (
-		ctx        = context.NewContext()
-		allResults []block.FetchBlocksMetadataResults
-	)
-	defer func() {
-		// At completion finalize/return resources to pools.
-		for _, result := range allResults {
-			result.Close()
-		}
-		ctx.BlockingClose()
-	}()
-
+	ctx := context.NewContext()
 	for _, shard := range shards {
 		var (
 			first     = true
@@ -821,6 +816,7 @@ func (i *nsIndex) flushBlockSegment(
 				results block.FetchBlocksMetadataResults
 				err     error
 			)
+			ctx.Reset()
 			results, pageToken, err = shard.FetchBlocksMetadataV2(ctx,
 				indexBlock.StartTime(), indexBlock.EndTime(),
 				limit, pageToken, opts)
@@ -828,23 +824,20 @@ func (i *nsIndex) flushBlockSegment(
 				return err
 			}
 
-			allResults = append(allResults, results)
-
 			for _, result := range results.Results() {
-				doc, err := convert.FromMetricIterNoClone(result.ID, result.Tags)
+				doc, err := convert.FromMetricIter(result.ID, result.Tags)
 				if err != nil {
 					return err
 				}
 
 				_, err = builder.Insert(doc)
-				if err == m3ninxindex.ErrDuplicateID {
-					// Continue if duplicate ID was attempted to be indexed
-					continue
-				}
-				if err != nil {
+				if err != nil && err != m3ninxindex.ErrDuplicateID {
 					return err
 				}
 			}
+
+			results.Close()
+			ctx.BlockingClose()
 		}
 	}
 
@@ -1369,6 +1362,7 @@ func newNamespaceIndexMetrics(
 type nsIndexBlocksMetrics struct {
 	ForegroundSegments nsIndexBlocksSegmentsMetrics
 	BackgroundSegments nsIndexBlocksSegmentsMetrics
+	FlushedSegments    nsIndexBlocksSegmentsMetrics
 }
 
 func newNamespaceIndexBlocksMetrics(
@@ -1385,6 +1379,11 @@ func newNamespaceIndexBlocksMetrics(
 			opts.BackgroundCompactionPlannerOptions(),
 			scope.Tagged(map[string]string{
 				"segment-type": "background",
+			})),
+		FlushedSegments: newNamespaceIndexBlocksSegmentsMetrics(
+			opts.BackgroundCompactionPlannerOptions(),
+			scope.Tagged(map[string]string{
+				"segment-type": "flushed",
 			})),
 	}
 }

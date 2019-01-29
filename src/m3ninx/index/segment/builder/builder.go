@@ -53,9 +53,12 @@ type builder struct {
 // final build step when documents are indexed.
 func NewBuilderFromDocuments(opts Options) (segment.DocumentsBuilder, error) {
 	return &builder{
-		opts:         opts,
-		newUUIDFn:    opts.NewUUIDFn(),
-		batchSizeOne: index.Batch{Docs: make([]doc.Document, 1)},
+		opts:      opts,
+		newUUIDFn: opts.NewUUIDFn(),
+		batchSizeOne: index.Batch{
+			Docs:                make([]doc.Document, 1),
+			AllowPartialUpdates: false,
+		},
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
