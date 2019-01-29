@@ -141,6 +141,14 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
+	buildInfoOpts := instrumentOptions.SetMetricsScope(
+		instrumentOptions.MetricsScope().SubScope("build_info"))
+	buildReporter := instrument.NewBuildReporter(buildInfoOpts)
+	if err := buildReporter.Start(); err != nil {
+		logger.Fatal("could not start build reporter", zap.Error(err))
+	}
+
+	defer buildReporter.Stop()
 	var (
 		backendStorage storage.Storage
 		clusterClient  clusterclient.Client
