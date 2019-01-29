@@ -355,7 +355,7 @@ func generateTagsFromName(
 		})
 	}
 
-	return models.NewTags(numTags, opts).AddTags(tags), nil
+	return models.Tags{Opts: opts, Tags: tags}, nil
 }
 
 // Compile all the carbon ingestion rules into regexp so that we can
