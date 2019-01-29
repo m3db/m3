@@ -67,6 +67,9 @@ var (
 		WorkerPool:        nil, // Set by init().
 	}
 
+	testTagOpts = models.NewTagOptions().
+			SetIDSchemeType(models.TypeGraphite)
+
 	testRulesMatchAll = CarbonIngesterRules{
 		Rules: []config.CarbonIngesterRuleConfiguration{
 			{
@@ -467,7 +470,7 @@ func init() {
 }
 
 func mustGenerateTagsFromName(t *testing.T, name []byte) models.Tags {
-	tags, err := GenerateTagsFromName(name)
+	tags, err := GenerateTagsFromName(name, testTagOpts)
 	require.NoError(t, err)
 	return tags
 }
