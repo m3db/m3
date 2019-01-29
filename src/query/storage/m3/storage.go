@@ -508,9 +508,15 @@ func (s *m3storage) writeSingle(
 func (s *m3storage) resolveClusterNamespacesForQuery(
 	start time.Time,
 	end time.Time,
+	opts *storage.FetchOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	now := s.nowFn()
 
+	// !!!!TODO:
+	// !!!!TODO: if opts.FanoutUnaggregated == FanoutForceDisable ... then set
+	// !!!!TODO: unaggregated to nil here? and perhaps avoid appending it anywhere
+	// !!!!TODO: below too, and/or strip nils at a layer above this function possibly
+	// !!!!TODO:
 	unaggregated := s.clusters.UnaggregatedClusterNamespace()
 	unaggregatedRetention := unaggregated.Options().Attributes().Retention
 	unaggregatedStart := now.Add(-1 * unaggregatedRetention)
@@ -524,11 +530,13 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 	// that can and fan out to any partial aggregated namespaces that may holder
 	// even more granular resolutions
 	var r reusedAggregatedNamespaceSlices
-	r = s.aggregatedNamespaces(r, func(namespace ClusterNamespace) bool {
-		// Include only if can fulfill the entire time range of the query
-		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
-		return clusterStart.Before(start) || clusterStart.Equal(start)
-	})
+	r = s.aggregatedNamespaces(r,
+		func(namespace ClusterNamespace) bool {
+			// Include only if can fulfill the entire time range of the query
+			clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
+			return clusterStart.Before(start) || clusterStart.Equal(start)
+		},
+		opts)
 
 	if len(r.completeAggregated) > 0 {
 		// Return the most granular completed aggregated namespace and
@@ -557,13 +565,30 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 	// as much data as possible, along with any partially aggregated namespaces
 	// that have either same retention and lower resolution or longer retention
 	// than the complete aggregated namespace
-	r = s.aggregatedNamespaces(r, nil)
+	r = s.aggregatedNamespaces(r, nil, opts)
 
 	if len(r.completeAggregated) == 0 {
 		// Absolutely no complete aggregated namespaces, need to fanout to all
 		// partial aggregated namespaces as well as the unaggregated cluster
 		// as we have no idea who has the longest retention
 		result := append(r.partialAggregated, unaggregated)
+
+		// Need to change namespaceCoversAllQueryRange if all these namespaces
+		// cover the entire query range, since if that is the case we just
+		// want to choose the namespace with the best resolution.
+		allFulfillsRange := true
+		for _, n := range result {
+			clusterStart := now.Add(-1 * n.Options().Attributes().Retention)
+			fulfillsRange := clusterStart.Before(start) || clusterStart.Equal(start)
+			if !fulfillsRange {
+				allFulfillsRange = false
+				break
+			}
+		}
+		if allFulfillsRange {
+			return namespaceCoversAllQueryRange, result, nil
+		}
+
 		return namespaceCoversPartialQueryRange, result, nil
 	}
 
@@ -612,6 +637,7 @@ type reusedAggregatedNamespaceSlices struct {
 func (s *m3storage) aggregatedNamespaces(
 	slices reusedAggregatedNamespaceSlices,
 	filter func(ClusterNamespace) bool,
+	opts *storage.FetchOptions,
 ) reusedAggregatedNamespaceSlices {
 	all := s.clusters.ClusterNamespaces()
 
@@ -625,6 +651,14 @@ func (s *m3storage) aggregatedNamespaces(
 	}
 	slices.partialAggregated = slices.partialAggregated[:0]
 
+	if opts.FanoutAggregatedOption == storage.FanoutForceDisable {
+		// Force disable fanning out to any aggregated namespaces.
+		return slices
+	}
+
+	// Otherwise the default and force enable is to fanout and treat
+	// the aggregated namespaces differently (depending on whether they
+	// have all the data).
 	for _, namespace := range all {
 		opts := namespace.Options()
 		if opts.Attributes().MetricsType != storage.AggregatedMetricsType {
@@ -637,7 +671,19 @@ func (s *m3storage) aggregatedNamespaces(
 		}
 
 		downsampleOpts, err := opts.DownsampleOptions()
-		if err != nil || !downsampleOpts.All {
+		if err != nil {
+			continue
+		}
+
+		if opts.FanoutAggregatedOptimized == storage.FanoutForceDisable {
+			// If we disable the optimization of sometimes knowing we can eclipse
+			// the partially aggregated namespaces, then we treat all namespaces
+			// as potentially not having the complete set of data.
+			slices.partialAggregated = append(slices.partialAggregated, namespace)
+			continue
+		}
+
+		if !downsampleOpts.All {
 			// Cluster does not contain all data, include as part of fan out
 			// but separate from
 			slices.partialAggregated = append(slices.partialAggregated, namespace)

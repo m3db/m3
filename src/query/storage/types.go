@@ -81,9 +81,24 @@ func (q *FetchQuery) String() string {
 // FetchOptions represents the options for fetch query.
 type FetchOptions struct {
 	// Limit is the maximum number of series to return.
-	Limit     int
-	BlockType models.FetchedBlockType
+	Limit                     int
+	BlockType                 models.FetchedBlockType
+	FanoutUnaggregated        FanoutOption
+	FanoutAggregated          FanoutOption
+	FanoutAggregatedOptimized FanoutOption
 }
+
+// FanoutOption describes the fanout option.
+type FanoutOption uint
+
+const (
+	// FanoutDefault defaults to the fanout option.
+	FanoutDefault FanoutOption = iota
+	// FanoutForceDisable forces disabling fanout.
+	FanoutForceDisable
+	// FanoutForceEnable forces enabling fanout.
+	FanoutForceEnable
+)
 
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
