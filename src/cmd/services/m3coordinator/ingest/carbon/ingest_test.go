@@ -71,14 +71,14 @@ var (
 		Rules: []config.CarbonIngesterRuleConfiguration{
 			{
 				Pattern: ".*", // Match all.
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
 				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: truePtr,
-							Type:    aggregateMeanPtr,
-						},
 					},
 				},
 			},
@@ -92,61 +92,57 @@ var (
 		Rules: []config.CarbonIngesterRuleConfiguration{
 			{
 				Pattern: ".*match-regex1.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
 				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: truePtr,
-							Type:    aggregateMeanPtr,
-						},
 					},
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: truePtr,
-							Type:    aggregateSumPtr,
-						},
 					},
 				},
 			},
 			// Should never match as the previous one takes precedence.
 			{
 				Pattern: ".*match-regex1.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
 				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: time.Minute,
 						Retention:  24 * time.Hour,
-						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: truePtr,
-							Type:    aggregateMeanPtr,
-						},
 					},
 				},
 			},
 			{
 				Pattern: ".*match-regex2.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateLastPtr,
+				},
 				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 10 * time.Second,
 						Retention:  48 * time.Hour,
-						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: truePtr,
-							Type:    aggregateLastPtr,
-						},
 					},
 				},
 			},
 			{
 				Pattern: ".*match-regex3.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: falsePtr,
+				},
 				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
 					{
 						Resolution: 1 * time.Hour,
 						Retention:  7 * 24 * time.Hour,
-						Aggregation: config.CarbonIngesterAggregationConfiguration{
-							Enabled: falsePtr,
-						},
 					},
 				},
 			},
@@ -160,15 +156,13 @@ var (
 			DownsampleMappingRules: []downsample.MappingRule{
 				{
 					Aggregations: []aggregation.Type{aggregation.Mean},
-					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
-				},
-				{
-					Aggregations: []aggregation.Type{aggregation.Sum},
-					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+					Policies: []policy.StoragePolicy{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
+					},
 				},
 			},
-			WriteOverride:        true,
-			WriteStoragePolicies: []policy.StoragePolicy{},
+			WriteOverride: true,
 		},
 		"match-regex2": ingest.WriteOptions{
 			DownsampleOverride: true,
@@ -178,13 +172,11 @@ var (
 					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
 				},
 			},
-			WriteOverride:        true,
-			WriteStoragePolicies: []policy.StoragePolicy{},
+			WriteOverride: true,
 		},
 		"match-regex3": ingest.WriteOptions{
-			DownsampleOverride:     true,
-			DownsampleMappingRules: []downsample.MappingRule{},
-			WriteOverride:          true,
+			DownsampleOverride: true,
+			WriteOverride:      true,
 			WriteStoragePolicies: []policy.StoragePolicy{
 				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
 			},

@@ -317,29 +317,27 @@ func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
 			return nil, err
 		}
 
-		mappingRules := []downsample.MappingRule{}
 		storagePolicies := []policy.StoragePolicy{}
 		for _, currPolicy := range rule.Policies {
 			storagePolicy := policy.NewStoragePolicy(
 				currPolicy.Resolution, xtime.Second, currPolicy.Retention)
-
-			if currPolicy.Aggregation.EnabledOrDefault() {
-				mappingRules = append(mappingRules, downsample.MappingRule{
-					Aggregations: []aggregation.Type{currPolicy.Aggregation.TypeOrDefault()},
-					Policies:     policy.StoragePolicies{storagePolicy},
-				})
-			} else {
-				storagePolicies = append(storagePolicies, storagePolicy)
-			}
-
+			storagePolicies = append(storagePolicies, storagePolicy)
 		}
 
-		compiledRules = append(compiledRules, ruleAndRegex{
-			rule:            rule,
-			regexp:          compiled,
-			mappingRules:    mappingRules,
-			storagePolicies: storagePolicies,
-		})
+		compiledRule := ruleAndRegex{
+			rule:   rule,
+			regexp: compiled,
+		}
+
+		if rule.Aggregation.EnabledOrDefault() {
+			compiledRule.mappingRules = []downsample.MappingRule{downsample.MappingRule{
+				Aggregations: []aggregation.Type{rule.Aggregation.TypeOrDefault()},
+				Policies:     storagePolicies,
+			}}
+		} else {
+			compiledRule.storagePolicies = storagePolicies
+		}
+		compiledRules = append(compiledRules, compiledRule)
 	}
 
 	return compiledRules, nil
