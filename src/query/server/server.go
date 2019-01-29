@@ -212,7 +212,11 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
 
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
+	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
+	if err != nil {
+		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
+	}
+
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
