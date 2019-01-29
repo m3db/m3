@@ -26,11 +26,16 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/carbon"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -55,9 +60,15 @@ var (
 
 // Options configures the ingester.
 type Options struct {
+	Debug             bool
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
 	Timeout           time.Duration
+}
+
+// CarbonIngesterRules contains the carbon ingestion rules.
+type CarbonIngesterRules struct {
+	Rules []config.CarbonIngesterRuleConfiguration
 }
 
 // Validate validates the options struct.
@@ -76,6 +87,7 @@ func (o *Options) Validate() error {
 // NewIngester returns an ingester for carbon metrics.
 func NewIngester(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
+	rules CarbonIngesterRules,
 	opts Options,
 ) (m3xserver.Handler, error) {
 	err := opts.Validate()
@@ -89,6 +101,11 @@ func NewIngester(
 		return nil, err
 	}
 
+	compiledRules, err := compileRules(rules)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
@@ -96,6 +113,8 @@ func NewIngester(
 		tagOpts:              tagOpts,
 		metrics: newCarbonIngesterMetrics(
 			opts.InstrumentOptions.MetricsScope()),
+
+		rules: compiledRules,
 	}, nil
 }
 
@@ -105,6 +124,8 @@ type ingester struct {
 	logger               log.Logger
 	metrics              carbonIngesterMetrics
 	tagOpts              models.TagOptions
+
+	rules []ruleAndRegex
 }
 
 func (i *ingester) Handle(conn net.Conn) {
@@ -146,6 +167,41 @@ func (i *ingester) Handle(conn net.Conn) {
 }
 
 func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
+	downsampleAndStoragePolicies := ingest.WriteOptions{
+		// Set both of these overrides to true to indicate that only the exact mapping
+		// rules and storage policies that we provide should be used and that all
+		// default behavior (like performing all possible downsamplings and writing
+		// all data to the unaggregated namespace in storage) should be ignored.
+		DownsampleOverride: true,
+		WriteOverride:      true,
+	}
+	for _, rule := range i.rules {
+		if rule.rule.Pattern == graphite.MatchAllPattern || rule.regexp.Match(name) {
+			// Each rule should only have either mapping rules or storage policies so
+			// one of these should be a no-op.
+			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
+			downsampleAndStoragePolicies.WriteStoragePolicies = rule.storagePolicies
+
+			if i.opts.Debug {
+				i.logger.Infof(
+					"carbon metric: %s matched by pattern: %s with mapping rules: %#v and storage policies: %#v",
+					string(name), string(rule.rule.Pattern), rule.mappingRules, rule.storagePolicies)
+			}
+			// Break because we only want to apply one rule per metric based on which
+			// ever one matches first.
+			break
+		}
+	}
+
+	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
+		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
+		// Nothing to do if none of the policies matched.
+		if i.opts.Debug {
+			i.logger.Infof("no rules matched carbon metric: %s, skipping", string(name))
+		}
+		return false
+	}
+
 	datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
 	// TODO(rartoul): Pool.
 	tags, err := GenerateTagsFromName(name, i.tagOpts)
@@ -164,7 +220,8 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		ctx, cleanup = context.WithTimeout(ctx, i.opts.Timeout)
 	}
 
-	err = i.downsamplerAndWriter.Write(ctx, tags, datapoints, xtime.Second)
+	err = i.downsamplerAndWriter.Write(
+		ctx, tags, datapoints, xtime.Second, downsampleAndStoragePolicies)
 	if cleanup != nil {
 		cleanup()
 	}
@@ -176,6 +233,9 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		return false
 	}
 
+	if i.opts.Debug {
+		i.logger.Infof("successfully wrote carbon metric: %s", string(name))
+	}
 	return true
 }
 
@@ -252,4 +312,53 @@ func GenerateTagsFromName(
 	}
 
 	return models.NewTags(numTags, opts).AddTags(tags), nil
+}
+
+// Compile all the carbon ingestion rules into regexp so that we can
+// perform matching. Also, generate all the mapping rules and storage
+// policies that we will need to pass to the DownsamplerAndWriter upfront
+// so that we don't need to create them each time.
+//
+// Note that only one rule will be applied per metric and rules are applied
+// such that the first one that matches takes precedence. As a result we need
+// to make sure to maintain the order of the rules when we generate the compiled ones.
+func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
+	compiledRules := []ruleAndRegex{}
+	for _, rule := range rules.Rules {
+		compiled, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return nil, err
+		}
+
+		storagePolicies := []policy.StoragePolicy{}
+		for _, currPolicy := range rule.Policies {
+			storagePolicy := policy.NewStoragePolicy(
+				currPolicy.Resolution, xtime.Second, currPolicy.Retention)
+			storagePolicies = append(storagePolicies, storagePolicy)
+		}
+
+		compiledRule := ruleAndRegex{
+			rule:   rule,
+			regexp: compiled,
+		}
+
+		if rule.Aggregation.EnabledOrDefault() {
+			compiledRule.mappingRules = []downsample.MappingRule{downsample.MappingRule{
+				Aggregations: []aggregation.Type{rule.Aggregation.TypeOrDefault()},
+				Policies:     storagePolicies,
+			}}
+		} else {
+			compiledRule.storagePolicies = storagePolicies
+		}
+		compiledRules = append(compiledRules, compiledRule)
+	}
+
+	return compiledRules, nil
+}
+
+type ruleAndRegex struct {
+	rule            config.CarbonIngesterRuleConfiguration
+	regexp          *regexp.Regexp
+	mappingRules    []downsample.MappingRule
+	storagePolicies []policy.StoragePolicy
 }

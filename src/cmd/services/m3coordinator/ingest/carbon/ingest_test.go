@@ -28,12 +28,17 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"reflect"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -52,14 +57,133 @@ const (
 	numLinesInTestPacket = 10000
 )
 
-// Created by init().
 var (
+	// Created by init().
 	testMetrics = []testMetric{}
 	testPacket  = []byte{}
 
 	testOptions = Options{
 		InstrumentOptions: instrument.NewOptions(),
 		WorkerPool:        nil, // Set by init().
+	}
+
+	testTagOpts = models.NewTagOptions().
+			SetIDSchemeType(models.TypeGraphite)
+
+	testRulesMatchAll = CarbonIngesterRules{
+		Rules: []config.CarbonIngesterRuleConfiguration{
+			{
+				Pattern: ".*", // Match all.
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+				},
+			},
+		},
+	}
+
+	// Match match-regex1 twice with two patterns, and in one case with two policies
+	// and in the second with one policy. In addition, also match match-regex2 with
+	// a single pattern and policy.
+	testRulesWithPatterns = CarbonIngesterRules{
+		Rules: []config.CarbonIngesterRuleConfiguration{
+			{
+				Pattern: ".*match-regex1.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+				},
+			},
+			// Should never match as the previous one takes precedence.
+			{
+				Pattern: ".*match-regex1.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: time.Minute,
+						Retention:  24 * time.Hour,
+					},
+				},
+			},
+			{
+				Pattern: ".*match-regex2.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateLastPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+				},
+			},
+			{
+				Pattern: ".*match-regex3.*",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: falsePtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 1 * time.Hour,
+						Retention:  7 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	}
+
+	// Maps the patterns above to their expected write options.
+	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
+		"match-regex1": ingest.WriteOptions{
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.MappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies: []policy.StoragePolicy{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
+					},
+				},
+			},
+			WriteOverride: true,
+		},
+		"match-regex2": ingest.WriteOptions{
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.MappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Last},
+					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+				},
+			},
+			WriteOverride: true,
+		},
+		"match-regex3": ingest.WriteOptions{
+			DownsampleOverride: true,
+			WriteOverride:      true,
+			WriteStoragePolicies: []policy.StoragePolicy{
+				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
+			},
+		},
 	}
 )
 
@@ -74,11 +198,12 @@ func TestIngesterHandleConn(t *testing.T) {
 		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		overrides ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
 		found = append(found, testMetric{
@@ -96,11 +221,84 @@ func TestIngesterHandleConn(t *testing.T) {
 	}).AnyTimes()
 
 	byteConn := &byteConn{b: bytes.NewBuffer(testPacket)}
-	ingester, err := NewIngester(mockDownsamplerAndWriter, testOptions)
+	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesMatchAll, testOptions)
 	require.NoError(t, err)
 	ingester.Handle(byteConn)
 
 	assertTestMetricsAreEqual(t, testMetrics, found)
+}
+
+func TestIngesterHonorsPatterns(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+
+	var (
+		lock  = sync.Mutex{}
+		found = []testMetric{}
+	)
+	mockDownsamplerAndWriter.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
+		_ context.Context,
+		tags models.Tags,
+		dp ts.Datapoints,
+		unit xtime.Unit,
+		writeOpts ingest.WriteOptions,
+	) interface{} {
+		lock.Lock()
+		found = append(found, testMetric{
+			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+		lock.Unlock()
+
+		// Use panic's instead of require/assert because those don't behave properly when the assertion
+		// is run in a background goroutine. Also we match on the second tag val just due to the nature
+		// of how the patterns were written.
+		secondTagVal := string(tags.Tags[1].Value)
+		expectedWriteOpts, ok := expectedWriteOptsByPattern[secondTagVal]
+		if !ok {
+			panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
+		}
+
+		if !reflect.DeepEqual(expectedWriteOpts, writeOpts) {
+			panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
+				expectedWriteOpts, writeOpts, secondTagVal))
+		}
+
+		return nil
+	}).AnyTimes()
+
+	packet := []byte("" +
+		"foo.match-regex1.bar.baz 1 1\n" +
+		"foo.match-regex2.bar.baz 2 2\n" +
+		"foo.match-regex3.bar.baz 3 3\n" +
+		"foo.match-not-regex.bar.baz 4 4")
+	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
+	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesWithPatterns, testOptions)
+	require.NoError(t, err)
+	ingester.Handle(byteConn)
+
+	assertTestMetricsAreEqual(t, []testMetric{
+		{
+			metric:    []byte("foo.match-regex1.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex1.bar.baz")),
+			timestamp: 1,
+			value:     1,
+			isValid:   true,
+		},
+		{
+			metric:    []byte("foo.match-regex2.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex2.bar.baz")),
+			timestamp: 2,
+			value:     2,
+			isValid:   true,
+		},
+		{
+			metric:    []byte("foo.match-regex3.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex3.bar.baz")),
+			timestamp: 3,
+			value:     3,
+			isValid:   true,
+		},
+	}, found)
 }
 
 func TestGenerateTagsFromName(t *testing.T) {
@@ -270,3 +468,23 @@ func init() {
 		testPacket = append(testPacket, line...)
 	}
 }
+
+func mustGenerateTagsFromName(t *testing.T, name []byte) models.Tags {
+	tags, err := GenerateTagsFromName(name, testTagOpts)
+	require.NoError(t, err)
+	return tags
+}
+
+var (
+	// Boilerplate to deal with optional config value nonsense.
+	trueVar          = true
+	truePtr          = &trueVar
+	falseVar         = false
+	falsePtr         = &falseVar
+	aggregateMean    = aggregation.Mean
+	aggregateSum     = aggregation.Sum
+	aggregateLast    = aggregation.Last
+	aggregateMeanPtr = &aggregateMean
+	aggregateSumPtr  = &aggregateSum
+	aggregateLastPtr = &aggregateLast
+)

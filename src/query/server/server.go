@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -210,8 +211,8 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
 
-	promDownsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
-	handler, err := httpd.NewHandler(promDownsamplerAndWriter, tagOptions, engine,
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(backendStorage, downsampler)
+	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
@@ -269,61 +270,8 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		ingesterCfg := cfg.Carbon.Ingester
-		logger.Info("carbon ingestion enabled")
-
-		var (
-			carbonIOpts = instrumentOptions.SetMetricsScope(
-				instrumentOptions.MetricsScope().SubScope("ingest-carbon"))
-			carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
-			carbonWorkerPoolSize int
-		)
-		if ingesterCfg.MaxConcurrency > 0 {
-			// Use a bounded worker pool if they requested a specific maximum concurrency.
-			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
-				SetGrowOnDemand(false).
-				SetInstrumentOptions(carbonIOpts)
-			carbonWorkerPoolSize = ingesterCfg.MaxConcurrency
-		} else {
-			carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
-				SetGrowOnDemand(true).
-				SetKillWorkerProbability(0.001)
-			carbonWorkerPoolSize = defaultCarbonIngesterWorkerPoolSize
-		}
-		workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
-		if err != nil {
-			logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
-		}
-		workerPool.Init()
-
-		// Create a new downsampler and writer because we don't want the carbon ingester to write
-		// any data unaggregated, so we pass nil for storage.Storage.
-		carbonIngestDownsamplerAndWriter := ingest.NewDownsamplerAndWriter(nil, downsampler)
-		ingester, err := ingestcarbon.NewIngester(carbonIngestDownsamplerAndWriter, ingestcarbon.Options{
-			InstrumentOptions: carbonIOpts,
-			WorkerPool:        workerPool,
-			Timeout:           ingesterCfg.WriteTimeoutOrDefault(),
-		})
-		if err != nil {
-			logger.Fatal("unable to create carbon ingester", zap.Error(err))
-		}
-
-		var (
-			serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-			carbonListenAddress = ingesterCfg.ListenAddress
-			carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
-		)
-		if strings.TrimSpace(carbonListenAddress) == "" {
-			logger.Fatal("no listen address specified for carbon ingester")
-		}
-
-		logger.Info("starting carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
-		err = carbonServer.ListenAndServe()
-		if err != nil {
-			logger.Fatal("unable to start carbon ingestion server at listen address",
-				zap.String("listenAddress", carbonListenAddress), zap.Error(err))
-		}
-		logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
+		startCarbonIngestion(
+			cfg.Carbon, instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
 	}
 
 	var interruptCh <-chan error = make(chan error)
@@ -745,4 +693,128 @@ func startGrpcServer(
 	}()
 	<-waitForStart
 	return server, startErr
+}
+
+func startCarbonIngestion(
+	cfg *config.CarbonConfiguration,
+	iOpts instrument.Options,
+	logger *zap.Logger,
+	m3dbClusters m3.Clusters,
+	downsamplerAndWriter ingest.DownsamplerAndWriter,
+) {
+	ingesterCfg := cfg.Ingester
+	logger.Info("carbon ingestion enabled, configuring ingester")
+
+	// Setup worker pool.
+	var (
+		carbonIOpts = iOpts.SetMetricsScope(
+			iOpts.MetricsScope().SubScope("ingest-carbon"))
+		carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
+		carbonWorkerPoolSize int
+	)
+	if ingesterCfg.MaxConcurrency > 0 {
+		// Use a bounded worker pool if they requested a specific maximum concurrency.
+		carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(false).
+			SetInstrumentOptions(carbonIOpts)
+		carbonWorkerPoolSize = ingesterCfg.MaxConcurrency
+	} else {
+		carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true).
+			SetKillWorkerProbability(0.001)
+		carbonWorkerPoolSize = defaultCarbonIngesterWorkerPoolSize
+	}
+	workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
+	if err != nil {
+		logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
+	}
+	workerPool.Init()
+
+	if m3dbClusters == nil {
+		logger.Fatal("carbon ingestion is only supported when connecting to M3DB clusters directly")
+	}
+
+	// Validate provided rules.
+	var (
+		clusterNamespaces = m3dbClusters.ClusterNamespaces()
+		rules             = ingestcarbon.CarbonIngesterRules{
+			Rules: ingesterCfg.RulesOrDefault(clusterNamespaces),
+		}
+	)
+	for _, rule := range rules.Rules {
+		// Sort so we can detect duplicates.
+		sort.Slice(rule.Policies, func(i, j int) bool {
+			if rule.Policies[i].Resolution == rule.Policies[j].Resolution {
+				return rule.Policies[i].Retention < rule.Policies[j].Retention
+			}
+
+			return rule.Policies[i].Resolution < rule.Policies[j].Resolution
+		})
+
+		var lastPolicy config.CarbonIngesterStoragePolicyConfiguration
+		for i, policy := range rule.Policies {
+			if i > 0 && policy == lastPolicy {
+				logger.Fatal(
+					"cannot include the same storage policy multiple times for a single carbon ingestion rule",
+					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
+			}
+
+			if i > 0 && !rule.Aggregation.EnabledOrDefault() && policy.Resolution != lastPolicy.Resolution {
+				logger.Fatal(
+					"cannot include multiple storage policies with different resolutions if aggregation is disabled",
+					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
+			}
+
+			_, ok := m3dbClusters.AggregatedClusterNamespace(m3.RetentionResolution{
+				Resolution: policy.Resolution,
+				Retention:  policy.Retention,
+			})
+
+			// Disallow storage policies that don't match any known M3DB clusters.
+			if !ok {
+				logger.Fatal(
+					"cannot enable carbon ingestion without a corresponding aggregated M3DB namespace",
+					zap.String("resolution", policy.Resolution.String()), zap.String("retention", policy.Retention.String()))
+			}
+		}
+	}
+
+	if len(rules.Rules) == 0 {
+		logger.Warn("no carbon ingestion rules were provided and no aggregated M3DB namespaces exist, carbon metrics will not be ingested")
+		return
+	}
+
+	if len(ingesterCfg.Rules) == 0 {
+		logger.Info("no carbon ingestion rules were provided, all carbon metrics will be written to all aggregated M3DB namespaces")
+	}
+
+	// Create ingester.
+	ingester, err := ingestcarbon.NewIngester(
+		downsamplerAndWriter, rules, ingestcarbon.Options{
+			Debug:             ingesterCfg.Debug,
+			InstrumentOptions: carbonIOpts,
+			WorkerPool:        workerPool,
+			Timeout:           ingesterCfg.WriteTimeoutOrDefault(),
+		})
+	if err != nil {
+		logger.Fatal("unable to create carbon ingester", zap.Error(err))
+	}
+
+	// Start server.
+	var (
+		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+		carbonListenAddress = ingesterCfg.ListenAddress
+		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
+	)
+	if strings.TrimSpace(carbonListenAddress) == "" {
+		logger.Fatal("no listen address specified for carbon ingester")
+	}
+
+	logger.Info("starting carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
+	err = carbonServer.ListenAndServe()
+	if err != nil {
+		logger.Fatal("unable to start carbon ingestion server at listen address",
+			zap.String("listenAddress", carbonListenAddress), zap.Error(err))
+	}
+	logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
 }
