@@ -330,6 +330,12 @@ func (t Tags) AddTag(tag Tag) Tags {
 	return t.Normalize()
 }
 
+// AddTagWithoutNormalizing is used to add a single tag.
+func (t Tags) AddTagWithoutNormalizing(tag Tag) Tags {
+	t.Tags = append(t.Tags, tag)
+	return t
+}
+
 // SetName sets the metric name.
 func (t Tags) SetName(value []byte) Tags {
 	return t.AddOrUpdateTag(Tag{Name: t.Opts.MetricName(), Value: value})

@@ -129,7 +129,7 @@ func (i *testIter) Next() bool {
 
 func (i *testIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
 	if len(i.entries) == 0 || i.idx < 0 || i.idx >= len(i.entries) {
-		return models.Tags{}, nil, 0
+		return models.EmptyTags(), nil, 0
 	}
 
 	curr := i.entries[i.idx]

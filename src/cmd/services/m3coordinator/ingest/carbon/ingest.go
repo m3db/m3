@@ -209,7 +209,7 @@ func GenerateTagsFromName(
 	opts models.TagOptions,
 ) (models.Tags, error) {
 	if len(name) == 0 {
-		return models.Tags{}, errCannotGenerateTagsFromEmptyName
+		return models.EmptyTags(), errCannotGenerateTagsFromEmptyName
 	}
 
 	var (
@@ -222,7 +222,8 @@ func GenerateTagsFromName(
 	for i, charByte := range name {
 		if charByte == carbonSeparatorByte {
 			if i+1 < len(name) && name[i+1] == carbonSeparatorByte {
-				return models.Tags{}, fmt.Errorf("carbon metric: %s has duplicate separator", string(name))
+				return models.EmptyTags(),
+					fmt.Errorf("carbon metric: %s has duplicate separator", string(name))
 			}
 
 			tags = append(tags, models.Tag{

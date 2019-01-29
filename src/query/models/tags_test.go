@@ -198,6 +198,28 @@ func TestAddTags(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
+func TestAddTagWithoutNormalizing(t *testing.T) {
+	tags := NewTags(4, nil)
+
+	tagToAdd := Tag{Name: []byte("x"), Value: []byte("3")}
+	tags = tags.AddTagWithoutNormalizing(tagToAdd)
+	assert.Equal(t, []Tag{tagToAdd}, tags.Tags)
+
+	tags = tags.AddTagWithoutNormalizing(
+		Tag{Name: []byte("a"), Value: []byte("1")},
+	)
+	expected := []Tag{
+		{Name: []byte("x"), Value: []byte("3")},
+		{Name: []byte("a"), Value: []byte("1")},
+	}
+
+	assert.Equal(t, expected, tags.Tags)
+	// Normalization should sort.
+	tags.Normalize()
+	expected[0], expected[1] = expected[1], expected[0]
+	assert.Equal(t, expected, tags.Tags)
+}
+
 func TestUpdateName(t *testing.T) {
 	name := []byte("!")
 	tags := NewTags(1, NewTagOptions().SetMetricName(name))

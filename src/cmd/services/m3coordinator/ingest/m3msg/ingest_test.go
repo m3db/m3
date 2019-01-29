@@ -85,18 +85,18 @@ func TestIngest(t *testing.T) {
 					Value:     val,
 				},
 			},
-			Tags: models.Tags{
-				Tags: []models.Tag{
+			Tags: models.NewTags(2, nil).AddTags(
+				[]models.Tag{
 					models.Tag{
 						Name:  []byte("__name__"),
 						Value: []byte("foo"),
 					},
-					models.Tag{
+					{
 						Name:  []byte("app"),
 						Value: []byte("bar"),
 					},
 				},
-			},
+			),
 			Unit: xtime.Second,
 		},
 		*appender.received[0],
