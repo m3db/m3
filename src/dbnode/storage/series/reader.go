@@ -117,6 +117,18 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 
 	first, last := alignedStart, alignedEnd
 	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
+		// resultsBlock holds the results from one block. The flow is:
+		// 1) Look in the cache for metrics for a block.
+		// 2) If there is nothing in the cache, try getting metrics from disk.
+		// 3) Regardless of (1) or (2), look for metrics in the series buffer.
+		//
+		// It is important to look for data in the series buffer one block at
+		// a time within this loop so that the returned results contain data
+		// from blocks in chronological order. Failure to do this will result
+		// in an out of order error in the MultiReaderIterator on query.
+		resultsBlock := []xio.BlockReader{}
+
+		retrievedFromCache := false
 		if seriesBlocks != nil {
 			if block, ok := seriesBlocks.BlockAt(blockAt); ok {
 				// Block served from in-memory or in-memory metadata
@@ -126,39 +138,45 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					return nil, err
 				}
 				if streamedBlock.IsNotEmpty() {
-					results = append(results, []xio.BlockReader{streamedBlock})
+					resultsBlock = append(resultsBlock, streamedBlock)
 					// NB(r): Mark this block as read now
 					block.SetLastReadTime(now)
 					if r.onRead != nil {
 						r.onRead.OnReadBlock(block)
 					}
 				}
-				continue
+				retrievedFromCache = true
 			}
 		}
 
-		switch {
-		case cachePolicy == CacheAll:
-			// No-op, block metadata should have been in-memory
-		case r.retriever != nil:
-			// Try to stream from disk
-			if r.retriever.IsBlockRetrievable(blockAt) {
-				streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve)
-				if err != nil {
-					return nil, err
-				}
-				if streamedBlock.IsNotEmpty() {
-					results = append(results, []xio.BlockReader{streamedBlock})
+		if !retrievedFromCache {
+			switch {
+			case cachePolicy == CacheAll:
+				// No-op, block metadata should have been in-memory
+			case r.retriever != nil:
+				// Try to stream from disk
+				if r.retriever.IsBlockRetrievable(blockAt) {
+					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve)
+					if err != nil {
+						return nil, err
+					}
+					if streamedBlock.IsNotEmpty() {
+						resultsBlock = append(resultsBlock, streamedBlock)
+					}
 				}
 			}
 		}
-	}
 
-	if seriesBuffer != nil {
-		bufferResults := seriesBuffer.ReadEncoded(ctx, start, end)
-		if len(bufferResults) > 0 {
-			results = append(results, bufferResults...)
+		if seriesBuffer != nil {
+			bufferResults := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size))
+			// Multiple block results may be returned here (for the same block
+			// start) - one for warm writes and another for cold writes.
+			for _, bufferRes := range bufferResults {
+				resultsBlock = append(resultsBlock, bufferRes...)
+			}
 		}
+
+		results = append(results, resultsBlock)
 	}
 
 	return results, nil
