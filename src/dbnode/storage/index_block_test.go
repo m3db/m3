@@ -121,14 +121,13 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	index, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
 
-	indexState := index.(*nsIndex).state
-	blocksSlice := indexState.blockStartsDescOrder
+	blocksSlice := index.(*nsIndex).state.blockStartsDescOrder
 	require.Equal(t, 1, len(blocksSlice))
 	require.Equal(t, xtime.ToUnixNano(now.Truncate(blockSize)), blocksSlice[0])
 
-	require.Equal(t, mockBlock, indexState.latestBlock)
+	require.Equal(t, mockBlock, index.(*nsIndex).state.latestBlock)
 
-	blocksMap := indexState.blocksByTime
+	blocksMap := index.(*nsIndex).state.blocksByTime
 	require.Equal(t, 1, len(blocksMap))
 	blk, ok := blocksMap[xtime.ToUnixNano(now.Truncate(blockSize))]
 	require.True(t, ok)

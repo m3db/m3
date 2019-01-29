@@ -256,7 +256,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	test := newTestIndex(t, ctrl)
 
 	now := time.Now().Truncate(test.indexBlockSize)
-	query := index.Query{query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
+	query := index.Query{Query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
 	idx := test.index.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)
