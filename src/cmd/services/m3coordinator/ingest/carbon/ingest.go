@@ -60,6 +60,7 @@ var (
 
 // Options configures the ingester.
 type Options struct {
+	Debug             bool
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
 	Timeout           time.Duration
@@ -180,6 +181,12 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 			// one of these should be a no-op.
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
 			downsampleAndStoragePolicies.WriteStoragePolicies = rule.storagePolicies
+
+			if i.opts.Debug {
+				i.logger.Infof(
+					"carbon metric: %s matched by pattern: %s with mapping rules: %#v and storage policies: %#v",
+					string(name), string(rule.rule.Pattern), rule.mappingRules, rule.storagePolicies)
+			}
 			// Break because we only want to apply one rule per metric based on which
 			// ever one matches first.
 			break
@@ -189,6 +196,9 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
 		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
+		if i.opts.Debug {
+			i.logger.Infof("no rules matched carbon metric: %s, skipping", string(name))
+		}
 		return false
 	}
 
@@ -223,6 +233,9 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		return false
 	}
 
+	if i.opts.Debug {
+		i.logger.Infof("successfully wrote carbon metric: %s", string(name))
+	}
 	return true
 }
 

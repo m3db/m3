@@ -785,6 +785,7 @@ func startCarbonIngestion(
 	// Create ingester.
 	ingester, err := ingestcarbon.NewIngester(
 		downsamplerAndWriter, rules, ingestcarbon.Options{
+			Debug:             ingesterCfg.Debug,
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
 			Timeout:           ingesterCfg.WriteTimeoutOrDefault(),
