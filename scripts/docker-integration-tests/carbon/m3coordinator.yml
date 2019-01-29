@@ -55,17 +55,17 @@ carbon:
     listenAddress: "0.0.0.0:7204"
     rules:
       - pattern: .*min.aggregate.*
+        aggregation:
+          type: min
         policies:
           - resolution: 5s
             retention: 10h
-            aggregation:
-              type: min
       - pattern: .*already-aggregated.*
+        aggregation:
+          enabled: false
         policies:
           - resolution: 5s
             retention: 10h
-            aggregation:
-              enabled: false
       - pattern: .*
         policies:
           - resolution: 5s
