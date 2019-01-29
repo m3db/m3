@@ -140,11 +140,11 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	iopts := instrumentOptions.SetMetricsScope(
+	buildInfoOpts := instrumentOptions.SetMetricsScope(
 		instrumentOptions.MetricsScope().SubScope("build_info"))
-	buildReporter := instrument.NewBuildReporter(iopts)
+	buildReporter := instrument.NewBuildReporter(buildInfoOpts)
 	if err := buildReporter.Start(); err != nil {
-		logger.Fatal("could not connect to metrics", zap.Error(err))
+		logger.Fatal("could not start build reporter", zap.Error(err))
 	}
 
 	defer buildReporter.Stop()
