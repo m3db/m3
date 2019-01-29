@@ -756,6 +756,11 @@ func startCarbonIngestion(
 		}
 	}
 
+	if len(rules.Rules) == 0 {
+		logger.Warn("no carbon ingestion rules were provided and no aggregated M3DB namespaces exist, carbon metrics will not be ingested")
+		return
+	}
+
 	// Create ingester.
 	ingester, err := ingestcarbon.NewIngester(
 		downsamplerAndWriter, rules, ingestcarbon.Options{
