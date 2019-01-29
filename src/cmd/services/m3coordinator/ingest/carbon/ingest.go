@@ -176,6 +176,8 @@ func (i *ingester) Handle(conn net.Conn) {
 			if ok {
 				i.metrics.success.Inc(1)
 			}
+			// The contract is that after the DownsamplerAndWriter returns, any resources
+			// that it needed to hold onto have already been copied.
 			i.putLineResources(resources)
 			wg.Done()
 		})
