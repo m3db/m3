@@ -41,11 +41,17 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	m3xserver "github.com/m3db/m3x/server"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
+)
+
+const (
+	maxResourcePoolNameSize = 200
+	maxPooledTagsSize       = 16
 )
 
 var (
@@ -63,7 +69,6 @@ type Options struct {
 	Debug             bool
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
-	Timeout           time.Duration
 }
 
 // CarbonIngesterRules contains the carbon ingestion rules.
@@ -107,6 +112,7 @@ func NewIngester(
 	}
 
 	return &ingester{
+		ctx:                  context.Background(),
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
 		logger:               opts.InstrumentOptions.Logger(),
@@ -119,6 +125,7 @@ func NewIngester(
 }
 
 type ingester struct {
+	ctx                  context.Context
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	opts                 Options
 	logger               log.Logger
@@ -126,6 +133,8 @@ type ingester struct {
 	tagOpts              models.TagOptions
 
 	rules []ruleAndRegex
+
+	lineResourcesPool pool.ObjectPool
 }
 
 func (i *ingester) Handle(conn net.Conn) {
@@ -175,6 +184,7 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		DownsampleOverride: true,
 		WriteOverride:      true,
 	}
+
 	for _, rule := range i.rules {
 		if rule.rule.Pattern == graphite.MatchAllPattern || rule.regexp.Match(name) {
 			// Each rule should only have either mapping rules or storage policies so
@@ -212,19 +222,11 @@ func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 		return false
 	}
 
-	var (
-		ctx     = context.Background()
-		cleanup func()
-	)
-	if i.opts.Timeout > 0 {
-		ctx, cleanup = context.WithTimeout(ctx, i.opts.Timeout)
-	}
-
+	// Interfaces require a context be passed, but M3DB client already has timeouts
+	// built in and allocating a new context each time is expensive so we just pass
+	// the same context always and rely on M3DB client timeouts.
 	err = i.downsamplerAndWriter.Write(
-		ctx, tags, datapoints, xtime.Second, downsampleAndStoragePolicies)
-	if cleanup != nil {
-		cleanup()
-	}
+		i.ctx, tags, datapoints, xtime.Second, downsampleAndStoragePolicies)
 
 	if err != nil {
 		i.logger.Errorf("err writing carbon metric: %s, err: %s",
@@ -354,6 +356,29 @@ func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
 	}
 
 	return compiledRules, nil
+}
+
+func (i *ingester) getLineResources() lineResources {
+	return i.lineResourcesPool.Get().(lineResources)
+}
+
+func (i *ingester) putLineResources(l lineResources) {
+	tooLargeForPool := cap(l.name) > maxResourcePoolNameSize ||
+		len(l.datapoints) > 1 || // We always write one datapoint at a time.
+		cap(l.datapoints) > 1 ||
+		cap(l.tags.Tags) > maxPooledTagsSize
+
+	if tooLargeForPool {
+		return
+	}
+
+	i.lineResourcesPool.Put(l)
+}
+
+type lineResources struct {
+	name       []byte
+	datapoints []ts.Datapoint
+	tags       models.Tags
 }
 
 type ruleAndRegex struct {

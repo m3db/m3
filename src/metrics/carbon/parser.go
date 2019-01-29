@@ -237,6 +237,7 @@ type Scanner struct {
 // NewScanner creates a new carbon scanner.
 func NewScanner(r io.Reader, iOpts instrument.Options) *Scanner {
 	s := bufio.NewScanner(r)
+	s.Buffer(make([]byte, 0, 2<<17), 2<<19)
 	s.Split(bufio.ScanLines)
 	return &Scanner{scanner: s, iOpts: iOpts}
 }

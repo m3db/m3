@@ -77,7 +77,8 @@ var (
 		Retention: 2 * 24 * time.Hour,
 	}
 
-	defaultCarbonIngesterWorkerPoolSize = 1024
+	defaultDownsamplerAndWriterWorkerPoolSize = 1024
+	defaultCarbonIngesterWorkerPoolSize       = 1024
 )
 
 type cleanupFn func() error
@@ -794,7 +795,6 @@ func startCarbonIngestion(
 			Debug:             ingesterCfg.Debug,
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
-			Timeout:           ingesterCfg.WriteTimeoutOrDefault(),
 		})
 	if err != nil {
 		logger.Fatal("unable to create carbon ingester", zap.Error(err))
@@ -817,4 +817,20 @@ func startCarbonIngestion(
 			zap.String("listenAddress", carbonListenAddress), zap.Error(err))
 	}
 	logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
+}
+
+func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Downsampler) (ingest.DownsamplerAndWriter, error) {
+	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
+	// codepaths because PooledWorkerPools can deadlock if used recursively.
+	downAndWriterWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+		SetGrowOnDemand(true).
+		SetKillWorkerProbability(0.001)
+	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(
+		defaultDownsamplerAndWriterWorkerPoolSize, downAndWriterWorkerPoolOpts)
+	if err != nil {
+		return nil, err
+	}
+	downAndWriteWorkerPool.Init()
+
+	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool), nil
 }
