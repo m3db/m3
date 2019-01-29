@@ -200,8 +200,11 @@ type RPCConfiguration struct {
 // relevant options.
 type TagOptionsConfiguration struct {
 	// MetricName specifies the tag name that corresponds to the metric's name tag
-	// If not provided, defaults to `__name__`
+	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
+
+	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
+	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
 
 // TagOptionsFromConfig translates tag option configuration into tag options.
@@ -212,6 +215,11 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		opts = opts.SetMetricName([]byte(name))
 	}
 
+	if cfg.Scheme == models.TypeDefault {
+		cfg.Scheme = models.TypeLegacy
+	}
+
+	opts = opts.SetIDSchemeType(cfg.Scheme)
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}

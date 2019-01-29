@@ -42,6 +42,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,17 +106,20 @@ func TestIngesterHandleConn(t *testing.T) {
 func TestGenerateTagsFromName(t *testing.T) {
 	testCases := []struct {
 		name         string
+		id           string
 		expectedTags []models.Tag
 		expectedErr  error
 	}{
 		{
 			name: "foo",
+			id:   "foo",
 			expectedTags: []models.Tag{
 				{Name: graphite.TagName(0), Value: []byte("foo")},
 			},
 		},
 		{
 			name: "foo.bar.baz",
+			id:   "foo.bar.baz",
 			expectedTags: []models.Tag{
 				{Name: graphite.TagName(0), Value: []byte("foo")},
 				{Name: graphite.TagName(1), Value: []byte("bar")},
@@ -124,6 +128,7 @@ func TestGenerateTagsFromName(t *testing.T) {
 		},
 		{
 			name: "foo.bar.baz.",
+			id:   "foo.bar.baz",
 			expectedTags: []models.Tag{
 				{Name: graphite.TagName(0), Value: []byte("foo")},
 				{Name: graphite.TagName(1), Value: []byte("bar")},
@@ -131,21 +136,25 @@ func TestGenerateTagsFromName(t *testing.T) {
 			},
 		},
 		{
-			name:        "foo..bar..baz..",
-			expectedErr: fmt.Errorf("carbon metric: foo..bar..baz.. has duplicate separator"),
+			name:         "foo..bar..baz..",
+			expectedErr:  fmt.Errorf("carbon metric: foo..bar..baz.. has duplicate separator"),
+			expectedTags: []models.Tag{},
 		},
 		{
-			name:        "foo.bar.baz..",
-			expectedErr: fmt.Errorf("carbon metric: foo.bar.baz.. has duplicate separator"),
+			name:         "foo.bar.baz..",
+			expectedErr:  fmt.Errorf("carbon metric: foo.bar.baz.. has duplicate separator"),
+			expectedTags: []models.Tag{},
 		},
 	}
 
+	opts := models.NewTagOptions().SetIDSchemeType(models.TypeGraphite)
 	for _, tc := range testCases {
-		tags, err := GenerateTagsFromName([]byte(tc.name))
+		tags, err := GenerateTagsFromName([]byte(tc.name), opts)
 		if tc.expectedErr != nil {
 			require.Equal(t, tc.expectedErr, err)
 		} else {
 			require.NoError(t, err)
+			assert.Equal(t, []byte(tc.id), tags.ID())
 		}
 		require.Equal(t, tc.expectedTags, tags.Tags)
 	}
@@ -245,7 +254,8 @@ func init() {
 
 		metric = []byte(fmt.Sprintf("test.metric.%d", i))
 
-		tags, err := GenerateTagsFromName(metric)
+		opts := models.NewTagOptions().SetIDSchemeType(models.TypeGraphite)
+		tags, err := GenerateTagsFromName(metric, opts)
 		if err != nil {
 			panic(err)
 		}

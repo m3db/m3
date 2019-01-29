@@ -83,10 +83,17 @@ func NewIngester(
 		return nil, err
 	}
 
+	tagOpts := models.NewTagOptions().SetIDSchemeType(models.TypeGraphite)
+	err = tagOpts.Validate()
+	if err != nil {
+		return nil, err
+	}
+
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
 		logger:               opts.InstrumentOptions.Logger(),
+		tagOpts:              tagOpts,
 		metrics: newCarbonIngesterMetrics(
 			opts.InstrumentOptions.MetricsScope()),
 	}, nil
@@ -97,6 +104,7 @@ type ingester struct {
 	opts                 Options
 	logger               log.Logger
 	metrics              carbonIngesterMetrics
+	tagOpts              models.TagOptions
 }
 
 func (i *ingester) Handle(conn net.Conn) {
@@ -140,7 +148,7 @@ func (i *ingester) Handle(conn net.Conn) {
 func (i *ingester) write(name []byte, timestamp time.Time, value float64) bool {
 	datapoints := []ts.Datapoint{{Timestamp: timestamp, Value: value}}
 	// TODO(rartoul): Pool.
-	tags, err := GenerateTagsFromName(name)
+	tags, err := GenerateTagsFromName(name, i.tagOpts)
 	if err != nil {
 		i.logger.Errorf("err generating tags from carbon name: %s, err: %s",
 			string(name), err)
@@ -196,9 +204,12 @@ type carbonIngesterMetrics struct {
 //      __g0__:foo
 //      __g1__:bar
 //      __g2__:baz
-func GenerateTagsFromName(name []byte) (models.Tags, error) {
+func GenerateTagsFromName(
+	name []byte,
+	opts models.TagOptions,
+) (models.Tags, error) {
 	if len(name) == 0 {
-		return models.Tags{}, errCannotGenerateTagsFromEmptyName
+		return models.EmptyTags(), errCannotGenerateTagsFromEmptyName
 	}
 
 	var (
@@ -211,7 +222,8 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 	for i, charByte := range name {
 		if charByte == carbonSeparatorByte {
 			if i+1 < len(name) && name[i+1] == carbonSeparatorByte {
-				return models.Tags{}, fmt.Errorf("carbon metric: %s has duplicate separator", string(name))
+				return models.EmptyTags(),
+					fmt.Errorf("carbon metric: %s has duplicate separator", string(name))
 			}
 
 			tags = append(tags, models.Tag{
@@ -239,5 +251,5 @@ func GenerateTagsFromName(name []byte) (models.Tags, error) {
 		})
 	}
 
-	return models.Tags{Tags: tags}, nil
+	return models.NewTags(numTags, opts).AddTags(tags), nil
 }

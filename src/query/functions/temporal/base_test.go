@@ -357,12 +357,12 @@ func TestSingleProcessRequest(t *testing.T) {
 	boundStart := bounds.Start
 
 	seriesMetas := []block.SeriesMeta{{
-		Name: "s1",
+		Name: []byte("s1"),
 		Tags: models.EmptyTags().AddTags([]models.Tag{{
 			Name:  []byte("t1"),
 			Value: []byte("v1"),
 		}})}, {
-		Name: "s2",
+		Name: []byte("s2"),
 		Tags: models.EmptyTags().AddTags([]models.Tag{{
 			Name:  []byte("t1"),
 			Value: []byte("v2"),
@@ -404,14 +404,16 @@ func TestSingleProcessRequest(t *testing.T) {
 	// Previous Block:   10 11 12 13 14 15
 	// i = 0; prev values [11, 12, 13, 14, 15], current values [0], sum = 50
 	// i = 1; prev values [12, 13, 14, 15], current values [0, 1], sum = 40
-	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10}, "first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
-	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35}, "second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
+	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10},
+		"first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
+	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35},
+		"second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
 
 	// processSingleRequest renames the series to use their ids; reflect this in our expectation.
 	expectedSeriesMetas := make([]block.SeriesMeta, len(seriesMetas))
 	require.Equal(t, len(expectedSeriesMetas), copy(expectedSeriesMetas, seriesMetas))
-	expectedSeriesMetas[0].Name = "t1=v1,"
-	expectedSeriesMetas[1].Name = "t1=v2,"
+	expectedSeriesMetas[0].Name = []byte("t1=v1,")
+	expectedSeriesMetas[1].Name = []byte("t1=v2,")
 
 	assert.Equal(t, expectedSeriesMetas, sink.Metas, "Process should pass along series meta, renaming to the ID")
 }

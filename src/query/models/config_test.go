@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,49 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package validator
+package models
 
 import (
+	"fmt"
 	"testing"
-
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-func TestConverter(t *testing.T) {
-	promResult := prometheus.PromResp{
-		Status: "success",
+func TestIDSchemeValidation(t *testing.T) {
+	err := TypeDefault.Validate()
+	assert.EqualError(t, err, "id scheme type not set")
+	err = TypeLegacy.Validate()
+	assert.NoError(t, err)
+	err = TypePrependMeta.Validate()
+	assert.NoError(t, err)
+	err = TypeQuoted.Validate()
+	assert.NoError(t, err)
+	err = TypeGraphite.Validate()
+	assert.NoError(t, err)
+	err = IDSchemeType(5).Validate()
+	assert.EqualError(t, err, "invalid config id schema type 'unknown':"+
+		" should be one of [legacy quoted prepend_meta graphite]")
+}
+
+func TestMetricsTypeUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Type IDSchemeType `yaml:"type"`
 	}
 
-	vals := [][]interface{}{
-		{1543434975.200, "10"},
-		{1543434985.200, "12"},
-		{1543434995.200, "14"},
+	for _, value := range validIDSchemes {
+		str := fmt.Sprintf("type: %s\n", value.String())
+
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+
+		assert.Equal(t, value, cfg.Type)
 	}
 
-	metrics := map[string]string{
-		"__name__": "test_name",
-		"tag_one":  "val_one",
-	}
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
 
-	promResult.Data.ResultType = "matrix"
-	promResult.Data.Result = append(promResult.Data.Result,
-		struct {
-			Metric map[string]string `json:"metric"`
-			Values [][]interface{}   `json:"values"`
-		}{
-			Values: vals,
-			Metric: metrics,
-		},
-	)
-
-	tsList, err := PromResultToSeriesList(promResult, models.NewTagOptions())
-	require.NoError(t, err)
-
-	assert.Equal(t, 3, tsList[0].Len())
-	assert.Equal(t, 10.0, tsList[0].Values().Datapoints()[0].Value)
-	assert.Equal(t, []byte("test_name"), tsList[0].Name())
+	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
+	assert.Equal(t, TypeDefault, cfg.Type)
 }

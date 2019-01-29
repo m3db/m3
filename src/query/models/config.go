@@ -18,53 +18,66 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package models
 
 import (
-	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/models"
+	"errors"
+	"fmt"
 )
 
-const (
-	carbonSeparatorByte = byte('.')
-	carbonGlobRune      = '*'
-)
+var validIDSchemes = []IDSchemeType{
+	TypeLegacy,
+	TypeQuoted,
+	TypePrependMeta,
+	TypeGraphite,
+}
 
-func glob(metric string) []byte {
-	globLen := len(metric)
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			globLen++
+// Validate validates that the scheme type is valid.
+func (t IDSchemeType) Validate() error {
+	if t == TypeDefault {
+		return errors.New("id scheme type not set")
+	}
+
+	if t >= TypeLegacy && t <= TypeGraphite {
+		return nil
+	}
+
+	return fmt.Errorf("invalid config id schema type '%v': should be one of %v",
+		t, validIDSchemes)
+}
+
+func (t IDSchemeType) String() string {
+	switch t {
+	case TypeDefault:
+		return ""
+	case TypeLegacy:
+		return "legacy"
+	case TypeQuoted:
+		return "quoted"
+	case TypePrependMeta:
+		return "prepend_meta"
+	case TypeGraphite:
+		return "graphite"
+	default:
+		// Should never get here.
+		return "unknown"
+	}
+}
+
+// UnmarshalYAML unmarshals a stored merics type.
+func (t *IDSchemeType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	for _, valid := range validIDSchemes {
+		if str == valid.String() {
+			*t = valid
+			return nil
 		}
 	}
 
-	glob := make([]byte, globLen)
-	i := 0
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			glob[i] = carbonSeparatorByte
-			i++
-		}
-
-		glob[i] = byte(c)
-		i++
-	}
-
-	return glob
-}
-
-func convertMetricPartToMatcher(count int, metric string) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchRegexp,
-		Name:  graphite.TagName(count),
-		Value: glob(metric),
-	}
-}
-
-func matcherTerminator(count int) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: []byte(".*"),
-	}
+	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
+		str, validIDSchemes)
 }

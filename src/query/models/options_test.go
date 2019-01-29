@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,54 +21,43 @@
 package models
 
 import (
-	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	defaultMetricName = []byte("__name__")
-
-	errNoName = errors.New("metric name is missing or empty")
-)
-
-type tagOptions struct {
-	version    int
-	idScheme   IDSchemeType
-	metricName []byte
+func TestDefaultTagOptions(t *testing.T) {
+	opts := NewTagOptions()
+	assert.NoError(t, opts.Validate())
+	assert.Equal(t, defaultMetricName, opts.MetricName())
+	assert.Equal(t, TypeLegacy, opts.IDSchemeType())
 }
 
-// NewTagOptions builds a new tag options with default values.
-func NewTagOptions() TagOptions {
-	return &tagOptions{
-		version:    0,
-		metricName: defaultMetricName,
-		idScheme:   TypeLegacy,
-	}
+func TestValidTagOptions(t *testing.T) {
+	opts := NewTagOptions().
+		SetIDSchemeType(TypePrependMeta).
+		SetMetricName([]byte("name"))
+
+	assert.NoError(t, opts.Validate())
+	assert.Equal(t, []byte("name"), opts.MetricName())
+	assert.Equal(t, TypePrependMeta, opts.IDSchemeType())
 }
 
-func (o *tagOptions) Validate() error {
-	if o.metricName == nil || len(o.metricName) == 0 {
-		return errNoName
-	}
+func TestBadNameTagOptions(t *testing.T) {
+	msg := errNoName.Error()
+	opts := NewTagOptions().
+		SetMetricName(nil)
+	assert.EqualError(t, opts.Validate(), msg)
 
-	return o.idScheme.Validate()
+	opts = NewTagOptions().
+		SetMetricName([]byte{})
+	assert.EqualError(t, opts.Validate(), msg)
 }
 
-func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
-	opts := *o
-	opts.metricName = metricName
-	return &opts
-}
-
-func (o *tagOptions) MetricName() []byte {
-	return o.metricName
-}
-
-func (o *tagOptions) SetIDSchemeType(scheme IDSchemeType) TagOptions {
-	opts := *o
-	opts.idScheme = scheme
-	return &opts
-}
-
-func (o *tagOptions) IDSchemeType() IDSchemeType {
-	return o.idScheme
+func TestBadSchemeTagOptions(t *testing.T) {
+	msg := "invalid config id schema type 'unknown': should be one of" +
+		" [legacy quoted prepend_meta graphite]"
+	opts := NewTagOptions().
+		SetIDSchemeType(IDSchemeType(6))
+	assert.EqualError(t, opts.Validate(), msg)
 }

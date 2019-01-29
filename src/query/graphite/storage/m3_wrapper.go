@@ -116,17 +116,7 @@ func translateTimeseries(
 			values.SetValueAt(index, datapoint.Value)
 		}
 
-		name := m3series.Name()
-		if tags := m3series.Tags; tags.Len() > 0 {
-			// Need to flatten the name back into graphite format
-			newName, err := convertTagsToMetricName(tags)
-			if err != nil {
-				return nil, err
-			}
-
-			name = newName
-		}
-
+		name := string(m3series.Name())
 		series[i] = ts.NewSeries(ctx, name, start, values)
 	}
 

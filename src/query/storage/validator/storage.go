@@ -127,7 +127,7 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 		}
 
 		seriesList[i] = ts.NewSeries(
-			string(name),
+			name,
 			dps,
 			tags,
 		)
