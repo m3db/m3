@@ -176,6 +176,7 @@ func (i *ingester) Handle(conn net.Conn) {
 			if ok {
 				i.metrics.success.Inc(1)
 			}
+			i.putLineResources(resources)
 			wg.Done()
 		})
 
@@ -232,8 +233,7 @@ func (i *ingester) write(resources lineResources, timestamp time.Time, value flo
 	}
 
 	resources.datapoints[0] = ts.Datapoint{Timestamp: timestamp, Value: value}
-	// TODO(rartoul): Pool.
-	tags, err := GenerateTagsFromName(resources.name, i.tagOpts)
+	tags, err := GenerateTagsFromNameIntoSlice(resources.name, i.tagOpts, resources.tags)
 	if err != nil {
 		i.logger.Errorf("err generating tags from carbon name: %s, err: %s",
 			string(resources.name), err)
