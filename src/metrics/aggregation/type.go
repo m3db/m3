@@ -261,6 +261,7 @@ func ParseType(str string) (Type, error) {
 			if strings.ToLower(key) == strings.ToLower(str) {
 				looseMatch = true
 				aggType = val
+				break
 			}
 		}
 	}

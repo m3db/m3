@@ -112,3 +112,27 @@ carbon:
 
 This will make the carbon ingestion emit logs for every step that is taking. *Note*: If your coordinator is ingesting a lot of data, enabling this mode could bring the proccess to a halt due to the I/O overhead, so use this feature cautiously in production environments.
 
+### Supported Aggregation Functions
+
+- last
+- min
+- max
+- mean
+- median
+- count
+- sum
+- sumsq
+- stdev
+- p10
+- p20
+- p30
+- p40
+- p50
+- p60
+- p70
+- p80
+- p90
+- p95
+- p99
+- p999
+- p9999

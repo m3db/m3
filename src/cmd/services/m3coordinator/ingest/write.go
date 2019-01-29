@@ -117,11 +117,11 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
-		DownsampleOverride = overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
+		downsampleOverride = overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
 		// Only downsample if the downsampler exists, and they either want to use the default mapping
 		// rules, or they're trying to override the mapping rules and they've provided at least one
 		// override to do so.
-		shouldDownsample = downsamplerExists && (useDefaultMappingRules || DownsampleOverride)
+		shouldDownsample = downsamplerExists && (useDefaultMappingRules || downsampleOverride)
 	)
 	if shouldDownsample {
 		appender, err := d.downsampler.NewMetricsAppender()
@@ -134,7 +134,7 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 		}
 
 		var appenderOpts downsample.SampleAppenderOptions
-		if DownsampleOverride {
+		if downsampleOverride {
 			appenderOpts = downsample.SampleAppenderOptions{
 				Override: true,
 				OverrideRules: downsample.SamplesAppenderOverrideRules{
