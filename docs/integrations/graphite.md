@@ -4,7 +4,7 @@ This document is a getting started guide to integrating the M3 stack with Graphi
 
 ## Overview
 
-M3 supports ingesting Graphite metrics using the [Carbon plaintext protocol](https://graphite.readthedocs.io/en/latest/feeding-carbon.html#the-plaintext-protocol). We also support a variety of aggregation and storage policies for the ingestion pathway (similar to [storage-schemas.conf](https://graphite.readthedocs.io/en/latest/config-carbon.html#storage-schemas-conf)) that are documented below. Finally, on the query side, we support the full suite of [graphite query functions](https://graphite.readthedocs.io/en/latest/functions.html).
+M3 supports ingesting Graphite metrics using the [Carbon plaintext protocol](https://graphite.readthedocs.io/en/latest/feeding-carbon.html#the-plaintext-protocol). We also support a variety of aggregation and storage policies for the ingestion pathway (similar to [storage-schemas.conf](https://graphite.readthedocs.io/en/latest/config-carbon.html#storage-schemas-conf) when using Graphite Carbon) that are documented below. Finally, on the query side, we support the majority of [graphite query functions](https://graphite.readthedocs.io/en/latest/functions.html).
 
 ## Ingestion
 
@@ -28,11 +28,11 @@ carbon:
     listenAddress: "0.0.0.0:7204"
     rules:
       - pattern: .*
+        aggregation:
+          enabled: false
         policies:
           - resolution: 1m
             retention: 48h
-            aggregation:
-              enabled: false
 ```
 
 This replaces M3's default behavior with a single rule which states that all metrics (since `.*` will match any string) should be written to whichever aggregated M3DB namespace has been configured with a resolution of `1 minute` and a retention of `48 hours`, bypassing aggregation / downsampling altogether. Note that there *must* be a configured M3DB namespace with the specified resolution/retention or the coordinator will fail to start.
