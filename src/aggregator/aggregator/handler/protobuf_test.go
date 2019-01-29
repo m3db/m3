@@ -23,6 +23,8 @@ package handler
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/aggregator/sharding"
+
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/msg/producer"
 
@@ -34,7 +36,7 @@ func TestProtobufHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	p := producer.NewMockProducer(ctrl)
-	h := NewProtobufHandler(p, writer.NewOptions())
+	h := NewProtobufHandler(p, sharding.DefaultHash, writer.NewOptions())
 	p.EXPECT().Close(producer.WaitForConsumption)
 	h.Close()
 }
