@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -741,7 +742,23 @@ func startCarbonIngestion(
 		}
 	)
 	for _, rule := range rules.Rules {
+		// Sort so we can detect duplicates.
+		sort.Slice(rule.Policies, func(i, j int) bool {
+			if rule.Policies[i].Resolution == rule.Policies[j].Resolution {
+				return rule.Policies[i].Retention < rule.Policies[j].Retention
+			}
+
+			return rule.Policies[i].Resolution < rule.Policies[j].Resolution
+		})
+
+		var lastPolicy config.CarbonIngesterStoragePolicyConfiguration
 		for _, policy := range rule.Policies {
+			if policy == lastPolicy {
+				logger.Fatal(
+					"cannot include the same storage policy multiple times for a single carbon ingestion rule",
+					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
+			}
+
 			_, ok := m3dbClusters.AggregatedClusterNamespace(m3.RetentionResolution{
 				Resolution: policy.Resolution,
 				Retention:  policy.Retention,
