@@ -296,6 +296,7 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("test", nil),
 		), tally.NewTestScope("test", nil),
+		time.Minute,
 	)
 
 	return httptest.NewServer(debugHandler), debugHandler

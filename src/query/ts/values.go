@@ -161,7 +161,7 @@ func (b *fixedResolutionValues) Datapoints() []Datapoint {
 
 // AlignToBounds returns values aligned to given bounds.
 // TODO: Consider bounds as well
-func (b *fixedResolutionValues) AlignToBounds(_ models.Bounds) []Datapoints {
+func (b *fixedResolutionValues) AlignToBounds(_ models.Bounds, _ time.Duration) []Datapoints {
 	values := make([]Datapoints, len(b.values))
 	for i := 0; i < b.Len(); i++ {
 		values[i] = Datapoints{b.DatapointAt(i)}

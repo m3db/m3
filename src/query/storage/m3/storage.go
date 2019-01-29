@@ -136,7 +136,7 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query)
+		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration())
 	}
 
 	// If using multiblock, update options to reflect this.

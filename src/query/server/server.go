@@ -36,7 +36,7 @@ import (
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
+	ingestcarbon "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -79,6 +79,7 @@ var (
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
 	defaultCarbonIngesterWorkerPoolSize       = 1024
+	defaultLookbackDuration                   = 5 * time.Minute
 )
 
 type cleanupFn func() error
@@ -172,6 +173,10 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create tag options", zap.Error(err))
 	}
 
+	if cfg.LookbackDuration == nil {
+		cfg.LookbackDuration = &defaultLookbackDuration
+	}
+
 	var (
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
@@ -218,7 +223,7 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), cfg.LookbackDuration)
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration)
 
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
@@ -580,7 +585,7 @@ func newStorages(
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
-		cfg.LookbackDuration,
+		*cfg.LookbackDuration,
 	)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
@@ -675,6 +680,7 @@ func remoteClient(
 			poolWrapper,
 			readWorkerPool,
 			tagOptions,
+			*cfg.LookbackDuration,
 		)
 		if err != nil {
 			return nil, false, err
