@@ -136,12 +136,14 @@ func TestGenerateTagsFromName(t *testing.T) {
 			},
 		},
 		{
-			name:        "foo..bar..baz..",
-			expectedErr: fmt.Errorf("carbon metric: foo..bar..baz.. has duplicate separator"),
+			name:         "foo..bar..baz..",
+			expectedErr:  fmt.Errorf("carbon metric: foo..bar..baz.. has duplicate separator"),
+			expectedTags: []models.Tag{},
 		},
 		{
-			name:        "foo.bar.baz..",
-			expectedErr: fmt.Errorf("carbon metric: foo.bar.baz.. has duplicate separator"),
+			name:         "foo.bar.baz..",
+			expectedErr:  fmt.Errorf("carbon metric: foo.bar.baz.. has duplicate separator"),
+			expectedTags: []models.Tag{},
 		},
 	}
 
