@@ -201,6 +201,9 @@ type dynamicBackendConfiguration struct {
 	// Name of the backend.
 	Name string `yaml:"name"`
 
+	// Hashing function type.
+	HashType sharding.HashType `yaml:"hashType"`
+
 	// Producer configs the m3msg producer.
 	Producer config.ProducerConfiguration `yaml:"producer"`
 
@@ -244,7 +247,7 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 	}
 	wOpts := cfg.NewWriterOptions(instrumentOpts)
 	instrumentOpts.Logger().Infof("created flush handler %s with protobuf encoding", c.Name)
-	return NewProtobufHandler(p, wOpts), nil
+	return NewProtobufHandler(p, c.HashType, wOpts), nil
 }
 
 type storagePolicyFilterConfiguration struct {

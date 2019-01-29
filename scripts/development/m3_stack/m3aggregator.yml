@@ -238,6 +238,7 @@ aggregator:
     handlers:
       - dynamicBackend:
           name: m3msg
+          hashType: murmur32
           producer:
             buffer:
               maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.
