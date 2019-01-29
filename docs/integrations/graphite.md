@@ -4,6 +4,7 @@ This document is a getting started guide to integrating the M3 stack with Graphi
 
 ## Overview
 
+M3 supports ingesting Graphite metrics using the [Carbon plaintext protocol](https://graphite.readthedocs.io/en/latest/feeding-carbon.html#the-plaintext-protocol). We also support a variety of aggregation and storage policies for the ingestion pathway (similar to [storage-schemas.conf](https://graphite.readthedocs.io/en/latest/config-carbon.html#storage-schemas-conf)) that are documented below. Finally, on the query side, we support the full suite of [graphite query functions](https://graphite.readthedocs.io/en/latest/functions.html).
 
 ## Ingestion
 
