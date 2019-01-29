@@ -37,34 +37,38 @@ import (
 )
 
 var (
-	testTags1 = models.Tags{Tags: []models.Tag{
-		{
-			Name:  []byte("test_1_key_1"),
-			Value: []byte("test_1_value_1"),
+	testTags1 = models.NewTags(3, nil).AddTags(
+		[]models.Tag{
+			{
+				Name:  []byte("test_1_key_1"),
+				Value: []byte("test_1_value_1"),
+			},
+			{
+				Name:  []byte("test_1_key_2"),
+				Value: []byte("test_1_value_2"),
+			},
+			{
+				Name:  []byte("test_1_key_3"),
+				Value: []byte("test_1_value_3"),
+			},
 		},
-		{
-			Name:  []byte("test_1_key_2"),
-			Value: []byte("test_1_value_2"),
+	)
+	testTags2 = models.NewTags(3, nil).AddTags(
+		[]models.Tag{
+			{
+				Name:  []byte("test_2_key_1"),
+				Value: []byte("test_2_value_1"),
+			},
+			{
+				Name:  []byte("test_2_key_2"),
+				Value: []byte("test_2_value_2"),
+			},
+			{
+				Name:  []byte("test_2_key_3"),
+				Value: []byte("test_2_value_3"),
+			},
 		},
-		{
-			Name:  []byte("test_1_key_3"),
-			Value: []byte("test_1_value_3"),
-		},
-	}}
-	testTags2 = models.Tags{Tags: []models.Tag{
-		{
-			Name:  []byte("test_2_key_1"),
-			Value: []byte("test_2_value_1"),
-		},
-		{
-			Name:  []byte("test_2_key_2"),
-			Value: []byte("test_2_value_2"),
-		},
-		{
-			Name:  []byte("test_2_key_3"),
-			Value: []byte("test_2_value_3"),
-		},
-	}}
+	)
 
 	testDatapoints1 = []ts.Datapoint{
 		{

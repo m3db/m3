@@ -119,7 +119,7 @@ func TestDefaultTagOptionsConfigVersion1(t *testing.T) {
 
 func TestTagOptionsConfig(t *testing.T) {
 	var cfg TagOptionsConfiguration
-	config := "version: 0\nmetricName: abcdefg\nidScheme: prependMeta"
+	config := "version: 0\nmetricName: abcdefg\nidScheme: prepend_meta"
 	require.NoError(t, yaml.Unmarshal([]byte(config), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)

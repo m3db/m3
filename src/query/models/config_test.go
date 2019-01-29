@@ -38,9 +38,11 @@ func TestIDSchemeValidation(t *testing.T) {
 	assert.NoError(t, err)
 	err = TypeQuoted.Validate()
 	assert.NoError(t, err)
-	err = IDSchemeType(4).Validate()
+	err = TypeGraphite.Validate()
+	assert.NoError(t, err)
+	err = IDSchemeType(5).Validate()
 	assert.EqualError(t, err, "invalid config id schema type 'unknown':"+
-		" should be one of [legacy quoted prepend_meta]")
+		" should be one of [legacy quoted prepend_meta graphite]")
 }
 
 func TestMetricsTypeUnmarshalYAML(t *testing.T) {
