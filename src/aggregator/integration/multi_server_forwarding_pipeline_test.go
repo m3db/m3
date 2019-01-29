@@ -146,9 +146,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// Sharding function maps all metrics to shard 0 except for the rollup metric,
 	// which gets mapped to the last shard.
 	pipelineRollupID := "pipelineRollup"
-	shardFn := func(id []byte, numShards int) uint32 {
+	shardFn := func(id []byte, numShards uint32) uint32 {
 		if pipelineRollupID == string(id) {
-			return uint32(numShards - 1)
+			return numShards - 1
 		}
 		return 0
 	}
