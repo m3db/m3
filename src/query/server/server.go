@@ -140,6 +140,14 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
+	iopts := instrumentOptions.SetMetricsScope(
+		instrumentOptions.MetricsScope().SubScope("build_info"))
+	buildReporter := instrument.NewBuildReporter(iopts)
+	if err := buildReporter.Start(); err != nil {
+		logger.Fatal("could not connect to metrics", zap.Error(err))
+	}
+
+	defer buildReporter.Stop()
 	var (
 		backendStorage storage.Storage
 		clusterClient  clusterclient.Client
