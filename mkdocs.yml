@@ -64,6 +64,7 @@ pages:
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
+    - "M3Query": "how_to/query.md"
   - "Operational Guides":
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"

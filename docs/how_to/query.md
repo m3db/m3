@@ -40,9 +40,9 @@ You will notice that in the setup linked above, M3DB has just one unaggregated n
   resolution: 10s
 ```
 
- If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to false. Otherwise, you will be aggregating metrics that have already been aggregated.
+ If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated.
 
- ```json
+```json
 - namespace: metrics_10s_48h
   type: aggregated
   retention: 48h
