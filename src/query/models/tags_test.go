@@ -57,7 +57,7 @@ func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
 func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
 	actual := tags.ID()
-	assert.Equal(t, []byte(`t1="v1",t2="v2",t3="v3",t4="v4"`), actual)
+	assert.Equal(t, []byte(`{t1="v1",t2="v2",t3="v3",t4="v4"}`), actual)
 }
 
 func TestLongTagNewIDOutOfOrderGraphite(t *testing.T) {
@@ -97,7 +97,7 @@ func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeQuoted)
 	tags = tags.AddTag(Tag{Name: []byte(`t5""`), Value: []byte(`v"5`)})
 	actual := tags.ID()
-	assert.Equal(t, []byte(`t1="v1",t2="v2",t3="v3",t4="v4",t5\"\"="v\"5"`), actual)
+	assert.Equal(t, []byte(`{t1="v1",t2="v2",t3="v3",t4="v4",t5\"\"="v\"5"}`), actual)
 }
 
 func TestQuotedCollisions(t *testing.T) {
@@ -333,36 +333,41 @@ var tagIDSchemes = []struct {
 	name   string
 	scheme IDSchemeType
 }{
-	{"__legacy", TypeLegacy},
-	{"_prepend", TypePrependMeta},
+	{"___legacy", TypeLegacy},
+	{"_graphite", TypeGraphite},
+	{"__prepend", TypePrependMeta},
 	// only simple quotable tag values.
-	{"__quoted", TypeQuoted},
+	{"___quoted", TypeQuoted},
 	// only escaped tag values.
-	{"_esc_qtd", typeQuotedEscaped},
+	{"__esc_qtd", typeQuotedEscaped},
 }
 
 /*
 Benchmark results:
 
-10__Tags_10__Length__legacy-8 	10000000     242 ns/op	144 B/op
-10__Tags_10__Length_prepend-8 	 5000000     388 ns/op	224 B/op
-10__Tags_10__Length__quoted-8 	 5000000     385 ns/op	144 B/op
-10__Tags_10__Length_esc_qtd-8 	 1000000    1385 ns/op	272 B/op
+10__Tags_10__Length___legacy  5000000    236 ns/op   144 B/op  1 allocs/op
+10__Tags_10__Length_graphite 10000000    174 ns/op   112 B/op  1 allocs/op
+10__Tags_10__Length__prepend  3000000    537 ns/op   336 B/op  2 allocs/op
+10__Tags_10__Length___quoted  3000000    404 ns/op   176 B/op  1 allocs/op
+10__Tags_10__Length__esc_qtd  1000000   1324 ns/op   320 B/op  2 allocs/op
 
-100_Tags_10__Length__legacy-8 	 1000000    2000 ns/op	1536 B/op
-100_Tags_10__Length_prepend-8 	  500000    3372 ns/op	2432 B/op
-100_Tags_10__Length__quoted-8 	  500000    3679 ns/op	1536 B/op
-100_Tags_10__Length_esc_qtd-8 	  100000   12622 ns/op	2896 B/op
+100_Tags_10__Length___legacy  1000000   2026 ns/op  1536 B/op  1 allocs/op
+100_Tags_10__Length_graphite  1000000   1444 ns/op  1152 B/op  1 allocs/op
+100_Tags_10__Length__prepend   300000   4601 ns/op  3584 B/op  2 allocs/op
+100_Tags_10__Length___quoted   500000   3791 ns/op  1792 B/op  1 allocs/op
+100_Tags_10__Length__esc_qtd   100000  12620 ns/op  3280 B/op  2 allocs/op
 
-10__Tags_100_Length__legacy-8 	 3000000     451 ns/op	1152 B/op
-10__Tags_100_Length_prepend-8 	 2000000     636 ns/op	1232 B/op
-10__Tags_100_Length__quoted-8 	 1000000    1101 ns/op	1152 B/op
-10__Tags_100_Length_esc_qtd-8 	  200000    9006 ns/op	2080 B/op
+10__Tags_100_Length___legacy  3000000    412 ns/op  1152 B/op  1 allocs/op
+10__Tags_100_Length_graphite  5000000    396 ns/op  1024 B/op  1 allocs/op
+10__Tags_100_Length__prepend  2000000    803 ns/op  1312 B/op  2 allocs/op
+10__Tags_100_Length___quoted  1000000   1132 ns/op  1152 B/op  1 allocs/op
+10__Tags_100_Length__esc_qtd   200000  11400 ns/op  2336 B/op  2 allocs/op
 
-100_Tags_100_Length__legacy-8 	  300000    3731 ns/op	10880 B/op
-100_Tags_100_Length_prepend-8 	  200000    5617 ns/op	11776 B/op
-100_Tags_100_Length__quoted-8 	  200000   11163 ns/op	10880 B/op
-100_Tags_100_Length_esc_qtd-8 	   20000  107747 ns/op	21969 B/op
+100_Tags_100_Length___legacy   500000   3582 ns/op 10880 B/op  1 allocs/op
+100_Tags_100_Length_graphite   500000   3183 ns/op 10240 B/op  1 allocs/op
+100_Tags_100_Length__prepend   200000   6866 ns/op 14080 B/op  2 allocs/op
+100_Tags_100_Length___quoted   200000  10604 ns/op 10880 B/op  1 allocs/op
+100_Tags_100_Length__esc_qtd    20000  90575 ns/op 21969 B/op  2 allocs/op
 */
 
 func BenchmarkIDs(b *testing.B) {

@@ -117,7 +117,7 @@ func (t Tags) quotedID() []byte {
 	}
 
 	tagLength := 2 * len(t.Tags)
-	idLen += tagLength - 1 // account for separators
+	idLen += tagLength + 1 // account for separators and brackets
 	if needEscaping == nil {
 		return t.quoteIDSimple(idLen)
 	}
@@ -125,17 +125,16 @@ func (t Tags) quotedID() []byte {
 	// TODO: pool these bytes
 	lastIndex := len(t.Tags) - 1
 	id := make([]byte, idLen)
-	idx := 0
+	id[0] = leftBracket
+	idx := 1
 	for i, tt := range t.Tags[:lastIndex] {
 		idx = tt.writeAtIndex(id, needEscaping[i], idx)
 		id[idx] = sep
-		fmt.Println(string(id))
 		idx++
 	}
-	fmt.Println(string(id))
 
-	t.Tags[lastIndex].writeAtIndex(id, needEscaping[lastIndex], idx)
-	fmt.Println(string(id))
+	idx = t.Tags[lastIndex].writeAtIndex(id, needEscaping[lastIndex], idx)
+	id[idx] = rightBracket
 	return id
 }
 
@@ -143,7 +142,8 @@ func (t Tags) quotedID() []byte {
 func (t Tags) quoteIDSimple(length int) []byte {
 	// TODO: pool these bytes.
 	id := make([]byte, length)
-	idx := 0
+	id[0] = leftBracket
+	idx := 1
 	lastIndex := len(t.Tags) - 1
 	for _, tag := range t.Tags[:lastIndex] {
 		idx += copy(id[idx:], tag.Name)
@@ -158,7 +158,8 @@ func (t Tags) quoteIDSimple(length int) []byte {
 	idx += copy(id[idx:], tag.Name)
 	id[idx] = eq
 	idx++
-	strconv.QuoteSimple(id, tag.Value, idx)
+	idx = strconv.QuoteSimple(id, tag.Value, idx)
+	id[idx] = rightBracket
 
 	return id
 }

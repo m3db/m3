@@ -102,28 +102,16 @@ func TestDefaultTagOptionsConfig(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
-	assert.Equal(t, 0, opts.Version())
 	assert.Equal(t, []byte("__name__"), opts.MetricName())
 	assert.Equal(t, models.TypeLegacy, opts.IDSchemeType())
 }
 
-func TestDefaultTagOptionsConfigVersion1(t *testing.T) {
-	var cfg TagOptionsConfiguration
-	require.NoError(t, yaml.Unmarshal([]byte("version: 1"), &cfg))
-	opts, err := TagOptionsFromConfig(cfg)
-	require.NoError(t, err)
-	assert.Equal(t, 1, opts.Version())
-	assert.Equal(t, []byte("__name__"), opts.MetricName())
-	assert.Equal(t, models.TypeQuoted, opts.IDSchemeType())
-}
-
 func TestTagOptionsConfig(t *testing.T) {
 	var cfg TagOptionsConfiguration
-	config := "version: 0\nmetricName: abcdefg\nidScheme: prepend_meta"
+	config := "metricName: abcdefg\nidScheme: prepend_meta"
 	require.NoError(t, yaml.Unmarshal([]byte(config), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
-	assert.Equal(t, 0, opts.Version())
 	assert.Equal(t, []byte("abcdefg"), opts.MetricName())
 	assert.Equal(t, models.TypePrependMeta, opts.IDSchemeType())
 }

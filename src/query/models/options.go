@@ -53,16 +53,6 @@ func (o *tagOptions) Validate() error {
 	return o.idScheme.Validate()
 }
 
-func (o *tagOptions) SetVersion(version int) TagOptions {
-	opts := *o
-	opts.version = version
-	return &opts
-}
-
-func (o *tagOptions) Version() int {
-	return o.version
-}
-
 func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
 	opts := *o
 	opts.metricName = metricName

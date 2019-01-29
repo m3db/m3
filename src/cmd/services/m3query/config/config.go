@@ -199,15 +199,11 @@ type RPCConfiguration struct {
 // Currently only name, but can expand to cover deduplication settings, or other
 // relevant options.
 type TagOptionsConfiguration struct {
-	// Version specifies the version number of tag options. Defaults to 0.
-	Version int `yaml:"version"`
-
 	// MetricName specifies the tag name that corresponds to the metric's name tag
 	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 
-	// Scheme deterimnes the default ID generation scheme.
-	// If version is 0, defaults to TypeLegacy; otherwise, defaults to TypeQuoted.
+	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
 
@@ -219,15 +215,8 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		opts = opts.SetMetricName([]byte(name))
 	}
 
-	version := cfg.Version
-	opts = opts.SetVersion(version)
-
 	if cfg.Scheme == models.TypeDefault {
-		if version == 0 {
-			cfg.Scheme = models.TypeLegacy
-		} else {
-			cfg.Scheme = models.TypeQuoted
-		}
+		cfg.Scheme = models.TypeLegacy
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)

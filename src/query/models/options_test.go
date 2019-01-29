@@ -31,19 +31,16 @@ func TestDefaultTagOptions(t *testing.T) {
 	assert.NoError(t, opts.Validate())
 	assert.Equal(t, defaultMetricName, opts.MetricName())
 	assert.Equal(t, TypeLegacy, opts.IDSchemeType())
-	assert.Equal(t, 0, opts.Version())
 }
 
 func TestValidTagOptions(t *testing.T) {
 	opts := NewTagOptions().
 		SetIDSchemeType(TypePrependMeta).
-		SetMetricName([]byte("name")).
-		SetVersion(1)
+		SetMetricName([]byte("name"))
 
 	assert.NoError(t, opts.Validate())
 	assert.Equal(t, []byte("name"), opts.MetricName())
 	assert.Equal(t, TypePrependMeta, opts.IDSchemeType())
-	assert.Equal(t, 1, opts.Version())
 }
 
 func TestBadNameTagOptions(t *testing.T) {
@@ -59,8 +56,8 @@ func TestBadNameTagOptions(t *testing.T) {
 
 func TestBadSchemeTagOptions(t *testing.T) {
 	msg := "invalid config id schema type 'unknown': should be one of" +
-		" [legacy quoted prepend_meta]"
+		" [legacy quoted prepend_meta graphite]"
 	opts := NewTagOptions().
-		SetIDSchemeType(IDSchemeType(4))
+		SetIDSchemeType(IDSchemeType(6))
 	assert.EqualError(t, opts.Validate(), msg)
 }

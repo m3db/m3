@@ -26,10 +26,12 @@ import (
 
 // Separators for tags.
 const (
-	graphiteSep = byte('.')
-	sep         = byte(',')
-	finish      = byte('!')
-	eq          = byte('=')
+	graphiteSep  = byte('.')
+	sep          = byte(',')
+	finish       = byte('!')
+	eq           = byte('=')
+	leftBracket  = byte('{')
+	rightBracket = byte('}')
 )
 
 // IDSchemeType determines the scheme for generating
@@ -76,10 +78,6 @@ const (
 type TagOptions interface {
 	// Validate validates these tag options.
 	Validate() error
-	// SetVersion sets the version for the tag options.
-	SetVersion(version int) TagOptions
-	// Version gets the version for the tag options.
-	Version() int
 	// SetMetricName sets the name for the `metric name` metric.
 	SetMetricName(metricName []byte) TagOptions
 	// MetricName gets the name for the metric name `metric`.
