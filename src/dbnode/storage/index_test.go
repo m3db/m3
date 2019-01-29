@@ -65,7 +65,7 @@ func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 }
 
 func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
@@ -87,7 +87,7 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 }
 
 func TestNamespaceIndexFlushSuccess(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
@@ -148,7 +148,7 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 }
 
 func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
@@ -177,7 +177,7 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 }
 
 func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
@@ -250,13 +250,13 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
 
 	now := time.Now().Truncate(test.indexBlockSize)
-	query := index.Query{idx.NewTermQuery([]byte("foo"), []byte("bar"))}
+	query := index.Query{query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
 	idx := test.index.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)

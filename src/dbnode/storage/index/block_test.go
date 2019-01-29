@@ -309,7 +309,7 @@ func TestBlockWriteMockSegmentPartialFailure(t *testing.T) {
 	testErr := fmt.Errorf("random-err")
 
 	berr := index.NewBatchPartialError()
-	berr.Add(index.BatchError{testErr, 1})
+	berr.Add(index.BatchError{Err: testErr, Idx: 1})
 	seg.EXPECT().InsertBatch(index.NewBatchMatcher(
 		index.Batch{
 			Docs:                []doc.Document{testDoc1(), testDoc1DupeID()},

@@ -91,7 +91,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 }
 
 func TestCleanupManagerNamespaceCleanup(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
