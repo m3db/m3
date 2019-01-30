@@ -22,11 +22,13 @@ package m3
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFanoutAggregatedDisabledGivesNoClustersOnAggregation(t *testing.T) {
@@ -63,63 +65,66 @@ func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testin
 	assert.Equal(t, 4, len(r.partialAggregated))
 }
 
-// func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	s, _ := setup(t, ctrl)
-// 	store, ok := s.(*m3storage)
-// 	assert.True(t, ok)
-// 	opts := &storage.FanoutOptions{
-// 		FanoutUnaggregated: storage.FanoutForceDisable,
-// 	}
+func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated: storage.FanoutForceDisable,
+	}
 
-// 	start := time.Now()
-// 	end := start.Add(time.Hour * 24 * -90)
-// 	_, clusters, err := store.resolveClusterNamespacesForQuery(start, end, opts)
-// 	require.NoError(t, err)
-// 	require.Equal(t, 1, len(clusters))
-// 	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
-// }
+	start := time.Now()
+	end := start.Add(time.Hour * 24 * -90)
+	_, clusters, err := resolveClusterNamespacesForQuery(start,
+		store.clusters, start, end, opts)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(clusters))
+	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
+}
 
-// func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	s, _ := setup(t, ctrl)
-// 	store, ok := s.(*m3storage)
-// 	assert.True(t, ok)
-// 	opts := &storage.FanoutOptions{
-// 		FanoutUnaggregated: storage.FanoutForceEnable,
-// 	}
+func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated: storage.FanoutForceEnable,
+	}
 
-// 	start := time.Now()
-// 	end := start.Add(time.Hour * 24 * -90)
-// 	_, clusters, err := store.resolveClusterNamespacesForQuery(start, end, opts)
-// 	require.NoError(t, err)
-// 	require.Equal(t, 1, len(clusters))
-// 	assert.Equal(t, "metrics_unaggregated", clusters[0].NamespaceID().String())
-// }
+	start := time.Now()
+	end := start.Add(time.Hour * 24 * -90)
+	_, clusters, err := resolveClusterNamespacesForQuery(start,
+		store.clusters, start, end, opts)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(clusters))
+	assert.Equal(t, "metrics_unaggregated", clusters[0].NamespaceID().String())
+}
 
-// func TestGraphitePath(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	s, _ := setup(t, ctrl)
-// 	store, ok := s.(*m3storage)
-// 	assert.True(t, ok)
-// 	opts := &storage.FanoutOptions{
-// 		FanoutUnaggregated:        storage.FanoutForceDisable,
-// 		FanoutAggregated:          storage.FanoutForceEnable,
-// 		FanoutAggregatedOptimized: storage.FanoutForceDisable,
-// 	}
+func TestGraphitePath(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated:        storage.FanoutForceDisable,
+		FanoutAggregated:          storage.FanoutForceEnable,
+		FanoutAggregatedOptimized: storage.FanoutForceDisable,
+	}
 
-// 	start := time.Now()
-// 	end := start.Add(time.Second * -30)
-// 	format, clusters, err := store.resolveClusterNamespacesForQuery(start, end, opts)
-// 	require.NoError(t, err)
-// 	fmt.Println()
-// 	fmt.Println(format)
-// 	for _, c := range clusters {
-// 		fmt.Println(c.NamespaceID().String())
-// 	}
-// 	// require.Equal(t, 1, len(clusters))
-// 	// assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
-// }
+	start := time.Now()
+	end := start.Add(time.Second * -30)
+	_, clusters, err := resolveClusterNamespacesForQuery(start,
+		store.clusters, start, end, opts)
+	require.NoError(t, err)
+	require.Equal(t, 4, len(clusters))
+	expected := []string{"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
+		"metrics_aggregated_partial_1m:180d", "metrics_aggregated_10m:365d"}
+
+	for i, cluster := range clusters {
+		assert.Equal(t, expected[i], cluster.NamespaceID().String())
+	}
+}

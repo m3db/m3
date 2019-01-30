@@ -23,7 +23,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	xctx "github.com/m3db/m3/src/query/graphite/context"
@@ -130,7 +129,6 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3query := translateQuery(query, opts)
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
-	fmt.Println("dsiabled")
 	fetchOptions := storage.NewFetchOptions()
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,

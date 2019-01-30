@@ -21,7 +21,6 @@
 package m3
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
@@ -102,17 +101,8 @@ func resolveClusterNamespacesForQuery(
 	}
 
 	// Filter aggregated namespaces by filter function and options.
-	fmt.Println("Before aggregating namespaces")
 	var r reusedAggregatedNamespaceSlices
 	r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, filterFunc, opts)
-
-	fmt.Println("After aggregating namespaces")
-	for _, c := range r.completeAggregated {
-		fmt.Println("Complete:", c.NamespaceID().String())
-	}
-	for _, c := range r.partialAggregated {
-		fmt.Println("Partial:", c.NamespaceID().String())
-	}
 
 	// If any of the aggregated clusters have a complete set of metrics, use
 	// those that have the smallest resolutions, supplemented by lower resolution
@@ -127,10 +117,7 @@ func resolveClusterNamespacesForQuery(
 		for _, n := range r.partialAggregated {
 			if n.Options().Attributes().Resolution < completedAttrs.Resolution {
 				// More granular resolution.
-				fmt.Println("adding", n.NamespaceID().String(), "because of gran")
 				result = append(result, n)
-			} else {
-				fmt.Println("dropping", n.NamespaceID().String(), "because of gran")
 			}
 		}
 
@@ -146,12 +133,6 @@ func resolveClusterNamespacesForQuery(
 		// that have either same retention and lower resolution or longer retention
 		// than the complete aggregated namespace
 		r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, nil, opts)
-	}
-	for _, c := range r.completeAggregated {
-		fmt.Println("2Complete:", c.NamespaceID().String())
-	}
-	for _, c := range r.partialAggregated {
-		fmt.Println("2Partial:", c.NamespaceID().String())
 	}
 
 	if len(r.completeAggregated) == 0 {
@@ -259,12 +240,10 @@ func aggregatedNamespaces(
 	opts *storage.FanoutOptions,
 ) reusedAggregatedNamespaceSlices {
 	// Reset reused slices.
-	fmt.Println("GOT ALL")
 	slices = slices.reset(len(all))
 
 	// Force disable fanout to any aggregated namespaces.
 	if opts.FanoutAggregated == storage.FanoutForceDisable {
-		fmt.Println("IM OUT")
 		return slices
 	}
 
@@ -272,7 +251,6 @@ func aggregatedNamespaces(
 	// the aggregated namespaces differently (depending on whether they
 	// have all the data).
 	for _, namespace := range all {
-		fmt.Println("Checking ns", namespace.NamespaceID().String())
 		nsOpts := namespace.Options()
 		if nsOpts.Attributes().MetricsType != storage.AggregatedMetricsType {
 			// Not an aggregated cluster.
@@ -282,7 +260,6 @@ func aggregatedNamespaces(
 		// If fanout is forced, ignore the filter.
 		if opts.FanoutAggregated != storage.FanoutForceEnable {
 			if filter != nil && !filter(namespace) {
-				fmt.Println("#no filter")
 				// Fails to satisfy filter.
 				continue
 			}
@@ -292,7 +269,6 @@ func aggregatedNamespaces(
 		// namespaces satisfying the filter as partially aggregated, as all metrics
 		// do not necessarily appear in all namespaces, depending on configuration.
 		if opts.FanoutAggregatedOptimized == storage.FanoutForceDisable {
-			fmt.Println("adding to partial")
 			slices.partialAggregated = append(slices.partialAggregated, namespace)
 			continue
 		}
@@ -301,7 +277,6 @@ func aggregatedNamespaces(
 		// this namespace is set as containing all metrics.
 		downsampleOpts, err := nsOpts.DownsampleOptions()
 		if err != nil {
-			fmt.Println("err", err)
 			continue
 		}
 
@@ -311,13 +286,11 @@ func aggregatedNamespaces(
 			// to cover the entire range and should be considered a partial result.
 			if opts.FanoutAggregated != storage.FanoutForceEnable ||
 				filter == nil || filter(namespace) {
-				fmt.Println("complete")
 				slices.completeAggregated = append(slices.completeAggregated, namespace)
 				continue
 			}
 		}
 
-		fmt.Println("not downsampling all")
 		// This namespace does not necessarily have a complete set of metrics.
 		slices.partialAggregated = append(slices.partialAggregated, namespace)
 	}
