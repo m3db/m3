@@ -77,7 +77,6 @@ func (c FlushHandlerConfiguration) NewHandler(
 		handlers       = make([]Handler, 0, len(c.Handlers))
 		sharderRouters = make([]SharderRouter, 0, len(c.Handlers))
 		store          kv.Store
-		err            error
 	)
 	if c.TrafficControlKVOverride != nil {
 		kvOpts, err := c.TrafficControlKVOverride.NewOverrideOptions()
@@ -94,17 +93,15 @@ func (c FlushHandlerConfiguration) NewHandler(
 			return nil, err
 		}
 		if hc.DynamicBackend != nil {
-			handlers, sharderRouters, err = hc.DynamicBackend.constructDynamicBackend(
-				handlers,
-				sharderRouters,
+			handler, err := hc.DynamicBackend.newProtobufHandler(
 				cs,
-				store,
 				c.Writer,
 				instrumentOpts,
 			)
 			if err != nil {
 				return nil, err
 			}
+			handlers = append(handlers, handler)
 			continue
 		}
 		switch hc.StaticBackend.Type {
@@ -205,10 +202,7 @@ type dynamicBackendConfiguration struct {
 	Name string `yaml:"name"`
 
 	// Hashing function type.
-	HashType *sharding.HashType `yaml:"hashType"`
-
-	// Total number of shards.
-	TotalShards *int `yaml:"totalShards" validate:"nonzero"`
+	HashType sharding.HashType `yaml:"hashType"`
 
 	// Producer configs the m3msg producer.
 	Producer config.ProducerConfiguration `yaml:"producer"`
@@ -221,44 +215,6 @@ type dynamicBackendConfiguration struct {
 
 	// TrafficControl configs the traffic controller.
 	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
-
-	// ProtobufEnabled enables the protobuf handler.
-	ProtobufEnabled *bool `yaml:"protobufEnabled"`
-}
-
-func (c *dynamicBackendConfiguration) constructDynamicBackend(
-	handlers []Handler,
-	sharderRouters []SharderRouter,
-	cs client.Client,
-	store kv.Store,
-	cfg *writerConfiguration,
-	instrumentOpts instrument.Options,
-) ([]Handler, []SharderRouter, error) {
-	if c.ProtobufEnabled != nil && *c.ProtobufEnabled {
-		h, err := c.newProtobufHandler(
-			cs,
-			cfg,
-			instrumentOpts,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-		handlers = append(handlers, h)
-		instrumentOpts.Logger().Infof("created flush handler %s with protobuf encoding", c.Name)
-		return handlers, sharderRouters, nil
-	}
-
-	sharderRouter, err := c.newSharderRouter(
-		cs,
-		store,
-		instrumentOpts,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	sharderRouters = append(sharderRouters, sharderRouter)
-	instrumentOpts.Logger().Infof("created flush handler %s with msgpack encoding", c.Name)
-	return handlers, sharderRouters, nil
 }
 
 func (c *dynamicBackendConfiguration) newProtobufHandler(
@@ -290,46 +246,8 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 		logger.Infof("registered storage policy filter: %s for consumer service: %s", filter.StoragePolicies, sid.String())
 	}
 	wOpts := cfg.NewWriterOptions(instrumentOpts)
-	return NewProtobufHandler(p, wOpts), nil
-}
-
-func (c *dynamicBackendConfiguration) newSharderRouter(
-	cs client.Client,
-	store kv.Store,
-	instrumentOpts instrument.Options,
-) (SharderRouter, error) {
-	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
-		"backend":   c.Name,
-		"component": "producer",
-	})
-	p, err := c.Producer.NewProducer(cs, instrumentOpts.SetMetricsScope(scope))
-	if err != nil {
-		return SharderRouter{}, err
-	}
-	if err := p.Init(); err != nil {
-		return SharderRouter{}, err
-	}
-	logger := instrumentOpts.Logger()
-	for _, filter := range c.Filters {
-		sid, f := filter.NewConsumerServiceFilter()
-		p.RegisterFilter(sid, f)
-		logger.Infof("registered filter for consumer service: %s", sid.String())
-	}
-	r := router.NewWithAckRouter(p)
-	if c.TrafficControl != nil {
-		tc, err := c.TrafficControl.NewTrafficController(store, instrumentOpts)
-		if err != nil {
-			return SharderRouter{}, err
-		}
-		r = trafficcontrol.NewRouter(tc, r, scope)
-	}
-	if c.HashType == nil || c.TotalShards == nil {
-		return SharderRouter{}, errInvalidShardingConfiguration
-	}
-	return SharderRouter{
-		SharderID: sharding.NewSharderID(*c.HashType, *c.TotalShards),
-		Router:    r,
-	}, nil
+	instrumentOpts.Logger().Infof("created flush handler %s with protobuf encoding", c.Name)
+	return NewProtobufHandler(p, c.HashType, wOpts), nil
 }
 
 type storagePolicyFilterConfiguration struct {

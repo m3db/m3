@@ -152,7 +152,7 @@ func tsListToMap(tsList []*ts.Series) map[string]*ts.Series {
 	for _, series := range tsList {
 		series.Tags = series.Tags.Normalize()
 		id := series.Tags.ID()
-		tsMap[id] = series
+		tsMap[string(id)] = series
 	}
 
 	return tsMap

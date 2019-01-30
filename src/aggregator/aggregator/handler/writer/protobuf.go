@@ -24,12 +24,12 @@ import (
 	"errors"
 	"math/rand"
 
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3x/clock"
-	murmur3 "github.com/m3db/stackmurmur3"
 
 	"github.com/uber-go/tally"
 )
@@ -58,8 +58,6 @@ func newProtobufWriterMetrics(scope tally.Scope) protobufWriterMetrics {
 	}
 }
 
-type idShardFn func([]byte) uint32
-
 // protobufWriter encodes data and routes them to the backend.
 // protobufWriter is not thread safe.
 type protobufWriter struct {
@@ -75,12 +73,13 @@ type protobufWriter struct {
 
 	nowFn   clock.NowFn
 	randFn  randFn
-	shardFn idShardFn
+	shardFn sharding.ShardFn
 }
 
 // NewProtobufWriter creates a writer that encodes metric in protobuf.
 func NewProtobufWriter(
 	producer producer.Producer,
+	shardFn sharding.ShardFn,
 	opts Options,
 ) Writer {
 	nowFn := opts.ClockOptions().NowFn()
@@ -94,9 +93,9 @@ func NewProtobufWriter(
 		rand:                     rand.New(rand.NewSource(nowFn().UnixNano())),
 		metrics:                  newProtobufWriterMetrics(instrumentOpts.MetricsScope()),
 		nowFn:                    nowFn,
+		shardFn:                  shardFn,
 	}
 	w.randFn = w.rand.Float64
-	w.shardFn = w.shard
 	return w
 }
 
@@ -124,10 +123,6 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 	return nil
 }
 
-func (w *protobufWriter) shard(b []byte) uint32 {
-	return murmur3.Sum32(b) % w.numShards
-}
-
 func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (aggregated.MetricWithStoragePolicy, uint32) {
 	// TODO(cw) Chunked metric has no 'type' field, consider adding one.
 	w.m.ID = w.m.ID[:0]
@@ -137,7 +132,7 @@ func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (
 	w.m.Metric.TimeNanos = mp.TimeNanos
 	w.m.Metric.Value = mp.Value
 	w.m.StoragePolicy = mp.StoragePolicy
-	shard := w.shardFn(w.m.ID)
+	shard := w.shardFn(w.m.ID, w.numShards)
 	return w.m, shard
 }
 

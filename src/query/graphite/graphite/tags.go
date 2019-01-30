@@ -35,6 +35,9 @@ const (
 
 	// Number of pre-formatted key names to generate in the init() function.
 	numPreFormattedTagNames = 128
+
+	// MatchAllPattern that is used to match all metrics.
+	MatchAllPattern = ".*"
 )
 
 var (

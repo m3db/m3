@@ -161,7 +161,7 @@ func (i *promTSIter) Next() bool {
 
 func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.Tags{}, nil, 0
+		return models.EmptyTags(), nil, 0
 	}
 
 	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond

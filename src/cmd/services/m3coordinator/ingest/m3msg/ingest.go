@@ -92,6 +92,9 @@ func NewIngester(
 				m:       m,
 				logger:  opts.InstrumentOptions.Logger(),
 				sampler: opts.Sampler,
+				q: storage.WriteQuery{
+					Tags: models.NewTags(0, nil),
+				},
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -199,11 +202,12 @@ func (op *ingestOp) resetTags() error {
 	op.q.Tags.Tags = op.q.Tags.Tags[:0]
 	for op.it.Next() {
 		name, value := op.it.Current()
-		op.q.Tags = op.q.Tags.AddTag(models.Tag{
+		op.q.Tags = op.q.Tags.AddTagWithoutNormalizing(models.Tag{
 			Name:  name,
 			Value: value,
 		}.Clone())
 	}
+	op.q.Tags.Normalize()
 	return op.it.Err()
 }
 

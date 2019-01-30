@@ -21,10 +21,6 @@
 package storage
 
 import (
-	"bytes"
-	"fmt"
-	"strings"
-
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 )
@@ -71,31 +67,4 @@ func matcherTerminator(count int) models.Matcher {
 		Name:  graphite.TagName(count),
 		Value: []byte(".*"),
 	}
-}
-
-func convertTagsToMetricName(tags models.Tags) (string, error) {
-	var builder strings.Builder
-	for i, tag := range tags.Tags {
-		if !bytes.Equal(tag.Name, graphite.TagName(i)) {
-			// If not in order or a completely different named tag
-			// then abort, we can't generate the metric name.
-			err := fmt.Errorf("unexpected tag name: expected=%s, actual=%s",
-				graphite.TagName(i), tag.Name)
-			return "", err
-		}
-
-		_, err := builder.Write(tag.Value)
-		if err != nil {
-			return "", err
-		}
-
-		if i != len(tags.Tags)-1 {
-			_, err := builder.WriteRune('.')
-			if err != nil {
-				return "", err
-			}
-		}
-	}
-
-	return builder.String(), nil
 }
