@@ -33,7 +33,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -47,6 +46,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -432,7 +432,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	require.NoError(t, err)
 
 	segment, err := segmentReader.Segment()
-	assert.Error(t, errSeekErr)
+	assert.Equal(t, errSeekErr, err)
 	assert.Equal(t, nil, segment.Head)
 	assert.Equal(t, nil, segment.Tail)
 }
