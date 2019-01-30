@@ -128,7 +128,6 @@ func NewIngester(
 	})
 
 	return &ingester{
-		ctx:                  context.Background(),
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
 		logger:               opts.InstrumentOptions.Logger(),
@@ -143,7 +142,6 @@ func NewIngester(
 }
 
 type ingester struct {
-	ctx                  context.Context
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	opts                 Options
 	logger               log.Logger
@@ -157,6 +155,10 @@ type ingester struct {
 
 func (i *ingester) Handle(conn net.Conn) {
 	var (
+		// Interfaces require a context be passed, but M3DB client already has timeouts
+		// built in and allocating a new context each time is expensive so we just pass
+		// the same context always and rely on M3DB client timeouts.
+		ctx    = context.Background()
 		wg     = sync.WaitGroup{}
 		s      = carbon.NewScanner(conn, i.opts.InstrumentOptions)
 		logger = i.opts.InstrumentOptions.Logger()
@@ -172,7 +174,7 @@ func (i *ingester) Handle(conn net.Conn) {
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
-			ok := i.write(resources, timestamp, value)
+			ok := i.write(ctx, resources, timestamp, value)
 			if ok {
 				i.metrics.success.Inc(1)
 			}
@@ -197,7 +199,12 @@ func (i *ingester) Handle(conn net.Conn) {
 	// Don't close the connection, that is the server's responsibility.
 }
 
-func (i *ingester) write(resources lineResources, timestamp time.Time, value float64) bool {
+func (i *ingester) write(
+	ctx context.Context,
+	resources lineResources,
+	timestamp time.Time,
+	value float64,
+) bool {
 	downsampleAndStoragePolicies := ingest.WriteOptions{
 		// Set both of these overrides to true to indicate that only the exact mapping
 		// rules and storage policies that we provide should be used and that all
@@ -243,11 +250,8 @@ func (i *ingester) write(resources lineResources, timestamp time.Time, value flo
 		return false
 	}
 
-	// Interfaces require a context be passed, but M3DB client already has timeouts
-	// built in and allocating a new context each time is expensive so we just pass
-	// the same context always and rely on M3DB client timeouts.
 	err = i.downsamplerAndWriter.Write(
-		i.ctx, tags, resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
+		ctx, tags, resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
 
 	if err != nil {
 		i.logger.Errorf("err writing carbon metric: %s, err: %s",
