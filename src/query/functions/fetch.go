@@ -93,14 +93,14 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 	// No need to adjust start and ends since physical plan already considers the offset, range
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
+	opts := storage.NewFetchOptions()
+	opts.BlockType = n.blockType
 	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
 		End:         endTime,
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
-	}, &storage.FetchOptions{
-		BlockType: n.blockType,
-	})
+	}, opts)
 	if err != nil {
 		return err
 	}

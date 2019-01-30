@@ -153,7 +153,7 @@ func TestFanoutReadSuccess(t *testing.T) {
 	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{
 		Start: time.Now().Add(-time.Hour),
 		End:   time.Now(),
-	}, &storage.FetchOptions{})
+	}, storage.NewFetchOptions())
 	require.NoError(t, err, "no error on read")
 	assert.NotNil(t, res)
 	assert.NoError(t, store.Close())

@@ -206,12 +206,6 @@ func (s *m3storage) fetchCompressed(
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
-	// fanout, namespaces, err := s.resolveClusterNamespacesForQuery(
-	// 	query.Start,
-	// 	query.End,
-	// 	options.FanoutOptions,
-	// )
-
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
 		s.nowFn(),
 		s.clusters,
