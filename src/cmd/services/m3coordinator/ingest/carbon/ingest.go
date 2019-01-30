@@ -421,6 +421,10 @@ func (i *ingester) putLineResources(l *lineResources) {
 	// Reset.
 	l.name = l.name[:0]
 	l.datapoints[0] = ts.Datapoint{}
+	for i := range l.tags {
+		// Free pointers.
+		l.tags[i] = models.Tag{}
+	}
 	l.tags = l.tags[:0]
 
 	i.lineResourcesPool.Put(l)

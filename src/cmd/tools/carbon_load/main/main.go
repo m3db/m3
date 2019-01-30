@@ -135,12 +135,12 @@ func main() {
 	go func() {
 		time.Sleep(*duration)
 
-		fmt.Println("Beginning shutdown...")
+		fmt.Println("beginning shutdown...")
 		close(closeCh)
 	}()
 
 	wg.Wait()
 
 	durationOfBench := time.Now().Sub(start).Seconds()
-	fmt.Println("Average QPS: ", float64(numSuccess)/durationOfBench)
+	fmt.Println("average QPS: ", float64(numSuccess)/durationOfBench)
 }
