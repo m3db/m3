@@ -120,7 +120,7 @@ func NewIngester(
 
 	resourcePool := pool.NewObjectPool(poolOpts)
 	resourcePool.Init(func() interface{} {
-		return lineResources{
+		return &lineResources{
 			name:       make([]byte, 0, maxResourcePoolNameSize),
 			datapoints: make([]ts.Datapoint, 1, 1),
 			tags:       make([]models.Tag, 0, maxPooledTagsSize),
@@ -201,7 +201,7 @@ func (i *ingester) Handle(conn net.Conn) {
 
 func (i *ingester) write(
 	ctx context.Context,
-	resources lineResources,
+	resources *lineResources,
 	timestamp time.Time,
 	value float64,
 ) bool {
@@ -404,11 +404,11 @@ func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
 	return compiledRules, nil
 }
 
-func (i *ingester) getLineResources() lineResources {
-	return i.lineResourcesPool.Get().(lineResources)
+func (i *ingester) getLineResources() *lineResources {
+	return i.lineResourcesPool.Get().(*lineResources)
 }
 
-func (i *ingester) putLineResources(l lineResources) {
+func (i *ingester) putLineResources(l *lineResources) {
 	tooLargeForPool := cap(l.name) > maxResourcePoolNameSize ||
 		len(l.datapoints) > 1 || // We always write one datapoint at a time.
 		cap(l.datapoints) > 1 ||
