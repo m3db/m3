@@ -76,9 +76,9 @@ func matcherTerminator(count int) models.Matcher {
 func convertTagsToMetricName(tags models.Tags) (string, error) {
 	var builder strings.Builder
 	for i, tag := range tags.Tags {
-		if bytes.Compare(tag.Name, graphite.TagName(i)) != 0 {
+		if !bytes.Equal(tag.Name, graphite.TagName(i)) {
 			// If not in order or a completely different named tag
-			// then abort, we can't generate the metric name
+			// then abort, we can't generate the metric name.
 			err := fmt.Errorf("unexpected tag name: expected=%s, actual=%s",
 				graphite.TagName(i), tag.Name)
 			return "", err
