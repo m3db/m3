@@ -1,5 +1,5 @@
-hash: 4283e396acab15acf58589c070c48899d4f695643d7b7cfc4fd9d896481eef8a
-updated: 2019-01-27T22:15:23.073069-05:00
+hash: 6b3bc7cfbeb7028b3282365a6ad4cf84f44054d7a955886311c1855a480df7fc
+updated: 2019-01-30T09:06:46.152462-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -216,8 +216,6 @@ imports:
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
-- name: github.com/m3db/fast-skiplist
-  version: c6ebc6ea8c6585b5a3a41d46bb97b8b65cb880be
 - name: github.com/m3db/m3x
   version: e98ec326dd7b4d4bc97390c709dacf73d49a0bfc
   vcs: git

@@ -21,72 +21,66 @@
 package mem
 
 import (
-	"errors"
+	"bytes"
+	"sort"
 
-	"github.com/m3db/fast-skiplist"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	errSkipListValueNotPostingsList = errors.New("skip list element value is not a postings list")
-)
+type bytesSliceIter struct {
+	err  error
+	done bool
 
-type skipListTermsIter struct {
-	sorted   *skiplist.SkipList
-	curr     *skiplist.Element
-	postings postings.List
-	done     bool
-	err      error
+	currentIdx   int
+	current      []byte
+	backingSlice [][]byte
+	opts         Options
 }
 
-var _ sgmt.TermsIterator = &skipListTermsIter{}
+var _ sgmt.FieldsIterator = &bytesSliceIter{}
 
-func newSkipListTermsIter(sorted *skiplist.SkipList) *skipListTermsIter {
-	return &skipListTermsIter{
-		sorted: sorted,
+func newBytesSliceIter(slice [][]byte, opts Options) *bytesSliceIter {
+	sortSliceOfByteSlices(slice)
+	return &bytesSliceIter{
+		currentIdx:   -1,
+		backingSlice: slice,
+		opts:         opts,
 	}
 }
 
-func (b *skipListTermsIter) Next() bool {
+func (b *bytesSliceIter) Next() bool {
 	if b.done || b.err != nil {
 		return false
 	}
-
-	var next *skiplist.Element
-	if b.curr == nil {
-		next = b.sorted.Front()
-	} else {
-		next = b.curr.Next()
-	}
-
-	if next == nil {
+	b.currentIdx++
+	if b.currentIdx >= len(b.backingSlice) {
 		b.done = true
 		return false
 	}
-
-	b.curr = next
-
-	var ok bool
-	b.postings, ok = b.curr.Value().(postings.List)
-	if !ok {
-		b.err = errSkipListValueNotPostingsList
-		return false
-	}
-
+	b.current = b.backingSlice[b.currentIdx]
 	return true
 }
 
-func (b *skipListTermsIter) Current() ([]byte, postings.List) {
-	return b.curr.Key(), b.postings
+func (b *bytesSliceIter) Current() []byte {
+	return b.current
 }
 
-func (b *skipListTermsIter) Err() error {
-	return b.err
-}
-
-func (b *skipListTermsIter) Close() error {
-	b.done = true
-	b.sorted = nil
+func (b *bytesSliceIter) Err() error {
 	return nil
+}
+
+func (b *bytesSliceIter) Len() int {
+	return len(b.backingSlice)
+}
+
+func (b *bytesSliceIter) Close() error {
+	b.current = nil
+	b.opts.BytesSliceArrayPool().Put(b.backingSlice)
+	return nil
+}
+
+func sortSliceOfByteSlices(b [][]byte) {
+	sort.Slice(b, func(i, j int) bool {
+		return bytes.Compare(b[i], b[j]) < 0
+	})
 }

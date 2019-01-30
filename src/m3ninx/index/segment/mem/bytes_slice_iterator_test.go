@@ -21,55 +21,25 @@
 package mem
 
 import (
-	"github.com/m3db/fast-skiplist"
-	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-type skipListIter struct {
-	sorted *skiplist.SkipList
-	curr   *skiplist.Element
-	done   bool
-}
-
-var _ sgmt.FieldsIterator = &skipListIter{}
-
-func newSkipListIter(sorted *skiplist.SkipList) *skipListIter {
-	return &skipListIter{
-		sorted: sorted,
+func TestBytesSliceIteratorSortedOrder(t *testing.T) {
+	input := [][]byte{
+		[]byte("def"),
+		[]byte("abc"),
+		[]byte("ghi"),
 	}
-}
-
-func (b *skipListIter) Next() bool {
-	if b.done {
-		return false
-	}
-
-	var next *skiplist.Element
-	if b.curr == nil {
-		next = b.sorted.Front()
-	} else {
-		next = b.curr.Next()
-	}
-
-	if next == nil {
-		b.done = true
-		return false
-	}
-
-	b.curr = next
-	return true
-}
-
-func (b *skipListIter) Current() []byte {
-	return b.curr.Key()
-}
-
-func (b *skipListIter) Err() error {
-	return nil
-}
-
-func (b *skipListIter) Close() error {
-	b.done = true
-	b.sorted = nil
-	return nil
+	iter := newBytesSliceIter(input, testOptions)
+	require.True(t, iter.Next())
+	require.Equal(t, []byte("abc"), iter.Current())
+	require.True(t, iter.Next())
+	require.Equal(t, []byte("def"), iter.Current())
+	require.True(t, iter.Next())
+	require.Equal(t, []byte("ghi"), iter.Current())
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
 }

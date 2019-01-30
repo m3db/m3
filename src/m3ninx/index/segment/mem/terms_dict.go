@@ -24,7 +24,6 @@ import (
 	re "regexp"
 	"sync"
 
-	"github.com/m3db/fast-skiplist"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -37,7 +36,6 @@ type termsDict struct {
 	fields struct {
 		sync.RWMutex
 		*fieldsMap
-		sorted *skiplist.SkipList
 	}
 }
 
@@ -48,7 +46,6 @@ func newTermsDict(opts Options) termsDictionary {
 	dict.fields.fieldsMap = newFieldsMap(fieldsMapOptions{
 		InitialSize: opts.InitialCapacity(),
 	})
-	dict.fields.sorted = skiplist.New()
 	return dict
 }
 
@@ -71,8 +68,13 @@ func (d *termsDict) MatchTerm(field, term []byte) postings.List {
 }
 
 func (d *termsDict) Fields() sgmt.FieldsIterator {
-	// NB(r): Skip list is thread safe, no need to grab any locks
-	return newSkipListIter(d.fields.sorted)
+	d.fields.RLock()
+	defer d.fields.RUnlock()
+	fields := d.opts.BytesSliceArrayPool().Get()
+	for _, entry := range d.fields.Iter() {
+		fields = append(fields, entry.Key())
+	}
+	return newBytesSliceIter(fields, d.opts)
 }
 
 func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {
@@ -151,7 +153,6 @@ func (d *termsDict) getOrAddName(name []byte) *concurrentPostingsMap {
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
-	d.fields.sorted.Set(name, postingsMap)
 	d.fields.Unlock()
 	return postingsMap
 }
