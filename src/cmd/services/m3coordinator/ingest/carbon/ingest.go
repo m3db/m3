@@ -50,7 +50,7 @@ import (
 )
 
 const (
-	maxResourcePoolNameSize = 256
+	maxResourcePoolNameSize = 1024
 	maxPooledTagsSize       = 16
 	defaultResourcePoolSize = 4096
 )
