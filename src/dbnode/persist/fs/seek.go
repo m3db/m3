@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
@@ -58,7 +59,7 @@ var (
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 
 	// errDecodedIndexEntryHadNoID is returned when the decoded index entry has no idea.
-	errDecodedIndexEntryHadNoID = errors.New("decoded index entry had no ID")
+	errDecodedIndexEntryHadNoID = instrument.InvariantErrorf("decoded index entry had no ID")
 )
 
 const (
@@ -392,7 +393,8 @@ func (s *seeker) SeekIndexEntry(
 		return IndexEntry{}, err
 	}
 	if seekedOffset != offset {
-		return IndexEntry{}, fmt.Errorf("tried to seek to offset: %d, but seeked to: %d", seekedOffset, offset)
+		return IndexEntry{}, instrument.InvariantErrorf(
+			"tried to seek to offset: %d, but seeked to: %d", seekedOffset, offset)
 	}
 
 	resources.fileDecoderStream.Reset(s.indexFd)
@@ -420,7 +422,7 @@ func (s *seeker) SeekIndexEntry(
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return IndexEntry{}, err
+			return IndexEntry{}, instrument.InvariantErrorf(err.Error())
 		}
 		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
