@@ -81,6 +81,7 @@ func (w *DataWriter) Reset(wr io.Writer) {
 // DataReader is a reader for the data file for documents.
 type DataReader struct {
 	data []byte
+	dec  *encoding.Decoder
 }
 
 // NewDataReader returns a new DataReader.

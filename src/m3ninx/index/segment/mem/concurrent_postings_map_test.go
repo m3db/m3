@@ -21,7 +21,6 @@
 package mem
 
 import (
-	"bytes"
 	"regexp"
 	"sort"
 	"testing"
@@ -65,7 +64,7 @@ func TestConcurrentPostingsMapKeys(t *testing.T) {
 	opts := NewOptions()
 	pm := newConcurrentPostingsMap(opts)
 
-	keys := toSlice(t, pm.Keys())
+	keys := toTermPostings(t, pm.Keys())
 	require.Empty(t, keys)
 
 	var (
@@ -75,35 +74,45 @@ func TestConcurrentPostingsMapKeys(t *testing.T) {
 	)
 
 	pm.Add(foo, 1)
-	keys = toSlice(t, pm.Keys())
-	require.Equal(t, [][]byte{foo}, sortKeys(keys))
+
+	keys = toTermPostings(t, pm.Keys())
+	require.Equal(t, termPostings{"foo": []int{1}}, keys)
 
 	pm.Add(bar, 2)
-	keys = toSlice(t, pm.Keys())
-	require.Equal(t, [][]byte{bar, foo}, sortKeys(keys))
+	keys = toTermPostings(t, pm.Keys())
+	require.Equal(t, termPostings{"bar": []int{2}, "foo": []int{1}}, keys)
 
 	pm.Add(foo, 3)
-	keys = toSlice(t, pm.Keys())
-	require.Equal(t, [][]byte{bar, foo}, sortKeys(keys))
+	keys = toTermPostings(t, pm.Keys())
+	require.Equal(t, termPostings{"bar": []int{2}, "foo": []int{1, 3}}, keys)
 
 	pm.Add(baz, 4)
-	keys = toSlice(t, pm.Keys())
-	require.Equal(t, [][]byte{bar, baz, foo}, sortKeys(keys))
+	keys = toTermPostings(t, pm.Keys())
+	require.Equal(t, termPostings{"bar": []int{2}, "foo": []int{1, 3}, "baz": []int{4}}, keys)
 }
 
-func toSlice(t *testing.T, iter sgmt.OrderedBytesIterator) [][]byte {
-	elems := [][]byte{}
+type termPostings map[string][]int
+
+func toTermPostings(t *testing.T, iter sgmt.TermsIterator) termPostings {
+	elems := make(termPostings)
 	for iter.Next() {
-		elems = append(elems, iter.Current())
+		term, postings := iter.Current()
+		_, exists := elems[string(term)]
+		require.False(t, exists)
+
+		values := []int{}
+		it := postings.Iterator()
+		for it.Next() {
+			values = append(values, int(it.Current()))
+		}
+		sort.Sort(sort.IntSlice(values))
+
+		require.NoError(t, it.Err())
+		require.NoError(t, it.Close())
+
+		elems[string(term)] = values
 	}
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
 	return elems
-}
-
-func sortKeys(keys [][]byte) [][]byte {
-	sort.Slice(keys, func(i, j int) bool {
-		return bytes.Compare(keys[i], keys[j]) < 0
-	})
-	return keys
 }

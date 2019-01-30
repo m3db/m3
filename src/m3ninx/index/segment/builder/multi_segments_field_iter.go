@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fst
+package builder
 
 import (
-	"bytes"
-
-	"github.com/cespare/xxhash"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
-// newFSTTermsOffsetsMap returns a new fstTermsOffsetsMap with default ctor parameters.
-func newFSTTermsOffsetsMap(initialSize int) *fstTermsOffsetsMap {
-	return _fstTermsOffsetsMapAlloc(_fstTermsOffsetsMapOptions{
-		hash: func(k []byte) fstTermsOffsetsMapHash {
-			return fstTermsOffsetsMapHash(xxhash.Sum64(k))
-		},
-		equals: func(f, g []byte) bool {
-			return bytes.Equal(f, g)
-		},
-		copy:        undefinedFSTTermsOffsetsMapCopyFn,
-		finalize:    undefinedFSTTermsOffsetsMapFinalizeFn,
-		initialSize: initialSize,
-	})
-}
+// Ensure for our use case that the multi key iterator we return
+// matches the signature for the fields iterator.
+var _ segment.FieldsIterator = &multiKeyIterator{}
 
-var undefinedFSTTermsOffsetsMapCopyFn fstTermsOffsetsMapCopyFn = func([]byte) []byte {
-	// NB: intentionally not defined to force users of the map to not
-	// allocate extra copies.
-	panic("not implemented")
-}
+func newFieldIterFromSegments(
+	segments []segmentMetadata,
+) (segment.FieldsIterator, error) {
+	multiIter := newMultiKeyIterator()
+	for _, seg := range segments {
+		iter, err := seg.segment.FieldsIterable().Fields()
+		if err != nil {
+			return nil, err
+		}
+		if !iter.Next() {
+			// Don't consume this iterator if no results.
+			if err := xerrors.FirstError(iter.Err(), iter.Close()); err != nil {
+				return nil, err
+			}
+			continue
+		}
 
-var undefinedFSTTermsOffsetsMapFinalizeFn fstTermsOffsetsMapFinalizeFn = func([]byte) {
-	// NB: intentionally not defined to force users of the map to not
-	// allocate extra copies.
-	panic("not implemented")
+		multiIter.add(iter)
+	}
+
+	return multiIter, nil
 }

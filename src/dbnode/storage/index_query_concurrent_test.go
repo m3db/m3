@@ -212,6 +212,10 @@ func testNamespaceIndexHighConcurrentQueries(
 				}).
 				AnyTimes()
 			mockBlock.EXPECT().
+				Stats(gomock.Any()).
+				Return(nil).
+				AnyTimes()
+			mockBlock.EXPECT().
 				Close().
 				DoAndReturn(func() error {
 					return block.Close()

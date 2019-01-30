@@ -1,5 +1,5 @@
-hash: 1436a6b7e82df04aa1504b672fa149052f24bf2ec588d6fac40231d512745074
-updated: 2019-01-25T17:12:33.864742-05:00
+hash: 6b3bc7cfbeb7028b3282365a6ad4cf84f44054d7a955886311c1855a480df7fc
+updated: 2019-01-30T09:06:46.152462-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -108,7 +108,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: 51c732079c882f52f8e6af889d99ac2a1611d5e4
+  version: e766292d14de216c324bb60b17320af72dee59c6
   repo: https://github.com/m3db/vellum
   subpackages:
   - regexp
@@ -176,10 +176,8 @@ imports:
   - cmp/internal/value
 - name: github.com/google/uuid
   version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
-- name: github.com/gorilla/context
-  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: e3702bed27f0d39777b0b37b664b6280e8ef8fbf
+  version: a7962380ca08b5a188038c69871b8d3fbdf31e89
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -300,7 +298,8 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
-  version: 8fe32d764fd7e29ec4c24aa0ca02c4174e4a6aed
+  version: ac8920c6e1abe06e2b0a3deba79a9910c39700e6
+  repo: https://github.com/m3db/pilosa
   subpackages:
   - logger
   - roaring

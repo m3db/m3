@@ -127,8 +127,8 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 
 func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 10*time.Second)()
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
@@ -296,8 +296,8 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 10*time.Second)()
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}

@@ -86,8 +86,8 @@ func NewPostingsListFromBitmap(bitmap *roaring.Bitmap) postings.MutableList {
 }
 
 func (d *postingsList) Insert(i postings.ID) error {
-	_, err := d.bitmap.Add(uint64(i))
-	return err
+	_ = d.bitmap.DirectAdd(uint64(i))
+	return nil
 }
 
 func (d *postingsList) Intersect(other postings.List) error {
@@ -135,7 +135,7 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 	defer safeIter.Close()
 
 	for iter.Next() {
-		if _, err := d.bitmap.Add(uint64(iter.Current())); err != nil {
+		if err := d.Insert(iter.Current()); err != nil {
 			return err
 		}
 	}
@@ -158,9 +158,7 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 }
 
 func (d *postingsList) Reset() {
-	// TODO(rartoul): Call Reset() or equivalent here once we add it to the underlying
-	// library.
-	d.bitmap = roaring.NewBitmap()
+	d.bitmap.Reset()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {
@@ -233,8 +231,8 @@ func (it *roaringIterator) Next() bool {
 	if it.closed {
 		return false
 	}
-	v, ok := it.iter.Next()
-	if ok {
+	v, eof := it.iter.Next()
+	if eof {
 		return false
 	}
 	it.current = postings.ID(v)

@@ -602,6 +602,13 @@ func (n *dbNamespace) QueryIDs(
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		return index.QueryResults{}, errNamespaceIndexingDisabled
 	}
+
+	if n.reverseIndex.BootstrapsDone() < 1 {
+		// Similar to reading shard data, return not bootstrapped
+		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		return index.QueryResults{}, xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+	}
+
 	res, err := n.reverseIndex.Query(ctx, query, opts)
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
