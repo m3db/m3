@@ -45,7 +45,6 @@ type nearestIndexOffsetLookup struct {
 func newNearestIndexOffsetLookup(
 	summaryIDsOffsets []xmsgpack.IndexSummaryToken,
 	summariesMmap []byte,
-	decoderStream xmsgpack.ByteDecoderStream,
 ) *nearestIndexOffsetLookup {
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
@@ -156,6 +155,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	summariesFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
 	decoder *xmsgpack.Decoder,
+	decoderStream xmsgpack.ByteDecoderStream,
 	numEntries int,
 	forceMmapMemory bool,
 ) (*nearestIndexOffsetLookup, error) {
@@ -167,10 +167,10 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	// Msgpack decode the entire summaries file (we need to store the offsets
 	// for the entries so we can binary-search it)
 	var (
-		decoderStream = xmsgpack.NewByteDecoderStream(summariesMmap)
 		summaryTokens = make([]xmsgpack.IndexSummaryToken, 0, numEntries)
 		lastReadID    []byte
 	)
+	decoderStream.Reset(summariesMmap)
 	decoder.Reset(decoderStream)
 
 	for read := 0; read < numEntries; read++ {
@@ -191,5 +191,5 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 		lastReadID = entry.ID
 	}
 
-	return newNearestIndexOffsetLookup(summaryTokens, summariesMmap, decoderStream), nil
+	return newNearestIndexOffsetLookup(summaryTokens, summariesMmap), nil
 }

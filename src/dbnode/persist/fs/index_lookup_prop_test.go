@@ -117,8 +117,10 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		summariesFdWithDigest.Reset(summariesFile)
 		expectedSummariesDigest := calculateExpectedChecksum(t, summariesFilePath)
 		decoder := msgpack.NewDecoder(options.DecodingOptions())
+		decoderStream := msgpack.NewByteDecoderStream(nil)
 		indexLookup, err := newNearestIndexOffsetLookupFromSummariesFile(
-			summariesFdWithDigest, expectedSummariesDigest, decoder, len(writes), input.forceMmapMemory)
+			summariesFdWithDigest, expectedSummariesDigest,
+			decoder, decoderStream, len(writes), input.forceMmapMemory)
 		if err != nil {
 			return false, fmt.Errorf("err reading index lookup from summaries file: %v, ", err)
 		}

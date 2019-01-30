@@ -78,6 +78,7 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 		summariesFdWithDigest,
 		expectedDigest,
 		msgpack.NewDecoder(nil),
+		msgpack.NewByteDecoderStream(nil),
 		len(outOfOrderSummaries),
 		false,
 	)
@@ -86,7 +87,7 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 }
 
 func TestCloneCannotBeCloned(t *testing.T) {
-	indexLookup := newNearestIndexOffsetLookup(nil, nil, nil)
+	indexLookup := newNearestIndexOffsetLookup(nil, nil)
 	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 
@@ -220,6 +221,7 @@ func newIndexLookupWithSummaries(
 		summariesFdWithDigest,
 		expectedDigest,
 		msgpack.NewDecoder(nil),
+		msgpack.NewByteDecoderStream(nil),
 		len(indexSummaries),
 		forceMmapMemory,
 	)
