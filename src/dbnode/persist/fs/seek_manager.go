@@ -403,11 +403,11 @@ func (m *seekerManager) newOpenSeeker(
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
 	resources := m.getSeekerResources()
-	if err := seeker.Open(m.namespace, shard, blockStart, resources); err != nil {
-		m.putSeekerResources(resources)
+	err = seeker.Open(m.namespace, shard, blockStart, resources)
+	m.putSeekerResources(resources)
+	if err != nil {
 		return nil, err
 	}
-	m.putSeekerResources(resources)
 
 	// Retrieve the buffer, it may have changed due to
 	// growing. Also release reference to the unread buffer.
