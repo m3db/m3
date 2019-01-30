@@ -141,7 +141,8 @@ func TestFanoutReadEmpty(t *testing.T) {
 
 func TestFanoutReadError(t *testing.T) {
 	store := setupFanoutRead(t, true)
-	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	opts := storage.NewFetchOptions()
+	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 
@@ -166,7 +167,8 @@ func TestFanoutSearchEmpty(t *testing.T) {
 
 func TestFanoutSearchError(t *testing.T) {
 	store := setupFanoutRead(t, true)
-	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	opts := storage.NewFetchOptions()
+	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 

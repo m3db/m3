@@ -81,10 +81,24 @@ func (q *FetchQuery) String() string {
 // FetchOptions represents the options for fetch query.
 type FetchOptions struct {
 	// Limit is the maximum number of series to return.
-	Limit                     int
-	BlockType                 models.FetchedBlockType
-	FanoutUnaggregated        FanoutOption
-	FanoutAggregated          FanoutOption
+	Limit int
+	// BlockType is the block type that the fetch function returns.
+	BlockType models.FetchedBlockType
+	// FanoutOptions are the options for the fetch namespace fanout.
+	FanoutOptions *FanoutOptions
+}
+
+// FanoutOptions describes which namespaces should be fanned out to for
+// the query.
+type FanoutOptions struct {
+	// FanoutUnaggregated descrbies the fanout options for
+	// unaggregated namespaces.
+	FanoutUnaggregated FanoutOption
+	// FanoutAggregated descrbies the fanout options for
+	// aggregated namespaces.
+	FanoutAggregated FanoutOption
+	// FanoutAggregatedOptimized descrbies the fanout options for the
+	// aggregated namespace optimization.
 	FanoutAggregatedOptimized FanoutOption
 }
 
@@ -103,7 +117,13 @@ const (
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
 	return &FetchOptions{
-		Limit: 0,
+		Limit:     0,
+		BlockType: models.TypeSingleBlock,
+		FanoutOptions: &FanoutOptions{
+			FanoutUnaggregated:        FanoutDefault,
+			FanoutAggregated:          FanoutDefault,
+			FanoutAggregatedOptimized: FanoutDefault,
+		},
 	}
 }
 

@@ -260,7 +260,8 @@ func TestLocalRead(t *testing.T) {
 		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	opts := storage.NewFetchOptions()
+	results, err := store.Fetch(context.TODO(), searchReq, opts)
 	assert.NoError(t, err)
 	tags := []models.Tag{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	require.NotNil(t, results)
@@ -285,9 +286,16 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	opts := storage.NewFetchOptions()
+	results, err := store.Fetch(context.TODO(), searchReq, opts)
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
+}
+
+func buildFetchOpts() *storage.FetchOptions {
+	opts := storage.NewFetchOptions()
+	opts.Limit = 100
+	return opts
 }
 
 func TestLocalReadExceedsUnaggregatedRetentionWithinAggregatedRetention(t *testing.T) {
@@ -311,7 +319,7 @@ func TestLocalReadExceedsUnaggregatedRetentionWithinAggregatedRetention(t *testi
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * test1MonthRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -355,7 +363,7 @@ func TestLocalReadExceedsAggregatedButNotUnaggregatedAndPartialAggregated(t *tes
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * test1MonthRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -404,7 +412,7 @@ func TestLocalReadExceedsAggregatedAndPartialAggregated(t *testing.T) {
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * test6MonthRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -434,7 +442,7 @@ func TestLocalSearchError(t *testing.T) {
 	})
 
 	searchReq := newFetchReq()
-	_, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	_, err := store.FetchTags(context.TODO(), searchReq, buildFetchOpts())
 	assert.Error(t, err)
 }
 
@@ -526,7 +534,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 			Return(nil, nil).AnyTimes()
 	})
 	searchReq := newFetchReq()
-	result, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	result, err := store.FetchTags(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 
 	require.Equal(t, len(fetches), len(result.Metrics))
@@ -674,7 +682,7 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	})
 
 	req := newCompleteTagsReq()
-	result, err := store.CompleteTags(context.TODO(), req, &storage.FetchOptions{Limit: 100})
+	result, err := store.CompleteTags(context.TODO(), req, buildFetchOpts())
 	require.NoError(t, err)
 
 	require.False(t, result.CompleteNameOnly)
