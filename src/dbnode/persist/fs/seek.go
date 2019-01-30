@@ -367,6 +367,15 @@ func (s *seeker) SeekByIndexEntry(
 	return buffer, nil
 }
 
+// SeekIndexEntry performs the following steps:
+//
+//     1. Go to the indexLookup and it will give us an offset that is a good starting
+//        point for scanning the index file.
+//     2. Seek to the position that the indexLookup gave us.
+//     3. Reset a decoder with fileDecoderStream (fd wrapped in a bufio.Reader).
+//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//        file internally) until we've either found the entry we're looking for or gone so
+//        far we know it does not exist.
 func (s *seeker) SeekIndexEntry(
 	id ident.ID,
 	resources ReusableSeekerResources,
