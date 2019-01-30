@@ -48,7 +48,8 @@ import (
 
 var (
 	// Created by init().
-	testWorkerPool xsync.PooledWorkerPool
+	testWorkerPool          xsync.PooledWorkerPool
+	defaultLookbackDuration = time.Minute
 )
 
 func makeTagOptions() models.TagOptions {
@@ -58,7 +59,7 @@ func makeTagOptions() models.TagOptions {
 func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
 	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute), nil, nil,
-		config.Configuration{}, nil, tally.NewTestScope("", nil))
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, tally.NewTestScope("", nil))
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
