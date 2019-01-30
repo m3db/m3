@@ -22,13 +22,13 @@ package writer
 
 import (
 	"bytes"
-	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3x/clock"
@@ -36,6 +36,53 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testChunkedID = id.ChunkedID{
+		Prefix: []byte("testPrefix."),
+		Data:   []byte("testData"),
+		Suffix: []byte(".testSuffix"),
+	}
+	testRawID      = []byte("testPrefix.testData.testSuffix")
+	testChunkedID2 = id.ChunkedID{
+		Prefix: []byte("testPrefix2."),
+		Data:   []byte("testData2"),
+		Suffix: []byte(".testSuffix2"),
+	}
+	testRawID2                         = []byte("testPrefix2.testData2.testSuffix2")
+	testChunkedMetricWithStoragePolicy = aggregated.ChunkedMetricWithStoragePolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: testChunkedID,
+			TimeNanos: 123456,
+			Value:     3.14,
+		},
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+	}
+	testMetricWithStoragePolicy = aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        testRawID,
+			TimeNanos: 123456,
+			Value:     3.14,
+		},
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+	}
+	testChunkedMetricWithStoragePolicy2 = aggregated.ChunkedMetricWithStoragePolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: testChunkedID2,
+			TimeNanos: 1000,
+			Value:     987,
+		},
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+	testMetricWithStoragePolicy2 = aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        testRawID2,
+			TimeNanos: 1000,
+			Value:     987,
+		},
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
 )
 
 func TestStoragePolicyFilter(t *testing.T) {
@@ -65,7 +112,6 @@ func TestProtobufWriterWrite(t *testing.T) {
 	nowFn := func() time.Time { return now }
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(nowFn)).
-		SetMaxBufferSize(math.MaxInt64).
 		SetEncodingTimeSamplingRate(0.5)
 
 	ctrl := gomock.NewController(t)
@@ -156,4 +202,16 @@ func testProtobufWriter(t *testing.T, ctrl *gomock.Controller, opts Options) *pr
 	p := producer.NewMockProducer(ctrl)
 	p.EXPECT().NumShards().Return(uint32(1024))
 	return NewProtobufWriter(p, sharding.Murmur32Hash.MustShardFn(), opts).(*protobufWriter)
+}
+
+type encodeData struct {
+	aggregated.ChunkedMetricWithStoragePolicy
+
+	encodedAtNanos int64
+}
+
+type decodeData struct {
+	aggregated.MetricWithStoragePolicy
+
+	encodedAtNanos int64
 }

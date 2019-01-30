@@ -38,6 +38,8 @@ var (
 	errWriterClosed = errors.New("writer is closed")
 )
 
+type randFn func() float64
+
 type protobufWriterMetrics struct {
 	writerClosed  tally.Counter
 	encodeSuccess tally.Counter
