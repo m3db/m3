@@ -2,6 +2,7 @@ coordinator:
   listenAddress:
     type: "config"
     value: "0.0.0.0:7201"
+
   clusters:
     - namespaces:
         - namespace: default
@@ -39,7 +40,6 @@ coordinator:
             jitter: true
         backgroundHealthCheckFailLimit: 4
         backgroundHealthCheckFailThrottleFactor: 0.5
-
 
   metrics:
     scope:
