@@ -204,7 +204,6 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 		p := p // Capture for goroutine.
 
 		wg.Add(1)
-		// TODO(rartoul): Benchmark using a pooled worker pool here.
 		d.workerPool.Go(func() {
 			err := d.store.Write(ctx, &storage.WriteQuery{
 				Tags:       tags,
