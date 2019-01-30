@@ -175,6 +175,8 @@ func Run(runOpts RunOptions) {
 
 	if cfg.LookbackDuration == nil {
 		cfg.LookbackDuration = &defaultLookbackDuration
+	} else if *cfg.LookbackDuration < 0 {
+		logger.Fatal("lookbackDuration must be > 0")
 	}
 
 	var (
