@@ -16,8 +16,10 @@ directory on your host for durability:
 
 ```
 docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $GOPATH/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml quay.io/m3/m3dbnode:latest
 ```
+
+**Note:** This setup runs `M3DB` and `m3coordinator` as one application and should only be used for testing/development purposes. If you want to run a clustered `M3DB` with a separate `m3coordinator`, please [see here](cluster_hard_way.md).
 
 <!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
 placements, etc. are -->
@@ -35,6 +37,16 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "namespaceName": "default",
   "retentionTime": "48h"
 }'
+```
+
+**Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `cluster` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above. For example:
+
+```json
+clusters:
+  - namespaces:
+      - namespace: new_namespace
+        type: aggregated
+        retention: 6h
 ```
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
