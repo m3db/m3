@@ -77,7 +77,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 
 	d2 := doc.Document{ID: []byte("abc"),
 		Fields: doc.Fields{
-			doc.Field{[]byte("foo"), []byte("bar")},
+			doc.Field{Name: []byte("foo"), Value: []byte("bar")},
 		}}
 	added, size, err = res.AddDocument(d2)
 	require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestResultsIDAndTagsFirstInsertWins(t *testing.T) {
 
 	d2 := doc.Document{ID: []byte("abc"),
 		Fields: doc.Fields{
-			doc.Field{[]byte("foo"), []byte("bar")},
+			doc.Field{Name: []byte("foo"), Value: []byte("bar")},
 		}}
 	added, size, err = res.AddIDAndTags(ident.BytesID(d2.ID), tagsFromFields(d2.Fields))
 	require.NoError(t, err)

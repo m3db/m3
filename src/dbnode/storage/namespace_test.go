@@ -269,7 +269,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 }
 
 func TestNamespaceBootstrapAllShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)

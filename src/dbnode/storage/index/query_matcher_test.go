@@ -31,6 +31,6 @@ import (
 
 func TestQueryMatcherTermQuery(t *testing.T) {
 	tq := idx.NewTermQuery([]byte("abc"), []byte("def"))
-	q := index.Query{tq}
+	q := index.Query{Query: tq}
 	require.True(t, index.NewQueryMatcher(q).Matches(q))
 }
