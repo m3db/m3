@@ -44,6 +44,9 @@ const (
 	intBitSize      = 64
 	floatBitSize    = 64
 	intBase         = 10
+
+	initScannerBufferSize = 2 << 15 // ~ 65KiB
+	maxScannerBufferSize  = 2 << 17 // ~ 0.25iB
 )
 
 var (
@@ -237,7 +240,13 @@ type Scanner struct {
 // NewScanner creates a new carbon scanner.
 func NewScanner(r io.Reader, iOpts instrument.Options) *Scanner {
 	s := bufio.NewScanner(r)
-	s.Buffer(make([]byte, 0, 2<<17), 2<<19)
+
+	// Force the scanner to use a large buffer upfront to reduce the number of
+	// syscalls that occur if the io.Reader is backed by something that requires
+	// I/O (like a TCP connection).
+	// TODO(rartoul): Make this configurable.
+	s.Buffer(make([]byte, 0, initScannerBufferSize), maxScannerBufferSize)
+
 	s.Split(bufio.ScanLines)
 	return &Scanner{scanner: s, iOpts: iOpts}
 }
