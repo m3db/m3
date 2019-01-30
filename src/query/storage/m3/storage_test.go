@@ -260,8 +260,7 @@ func TestLocalRead(t *testing.T) {
 		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
-	opts := storage.NewFetchOptions()
-	results, err := store.Fetch(context.TODO(), searchReq, opts)
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	assert.NoError(t, err)
 	tags := []models.Tag{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	require.NotNil(t, results)
@@ -286,8 +285,7 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)
 	searchReq.End = time.Now()
-	opts := storage.NewFetchOptions()
-	results, err := store.Fetch(context.TODO(), searchReq, opts)
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -696,4 +694,72 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, result.CompletedTags)
+}
+
+func TestFanoutAggregatedDisabledGivesNoClustersOnAggregation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	var r reusedAggregatedNamespaceSlices
+	opts := &storage.FanoutOptions{
+		FanoutAggregated: storage.FanoutForceDisable,
+	}
+
+	r = store.aggregatedNamespaces(r, nil, opts)
+	assert.Equal(t, 0, len(r.completeAggregated))
+	assert.Equal(t, 0, len(r.partialAggregated))
+}
+
+func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	var r reusedAggregatedNamespaceSlices
+	opts := &storage.FanoutOptions{
+		FanoutAggregatedOptimized: storage.FanoutForceDisable,
+	}
+
+	r = store.aggregatedNamespaces(r, nil, opts)
+	assert.Equal(t, 0, len(r.completeAggregated))
+	assert.Equal(t, 4, len(r.partialAggregated))
+}
+
+func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated: storage.FanoutForceDisable,
+	}
+
+	start := time.Now()
+	end := start.Add(time.Hour * 24 * -90)
+	_, clusters, err := store.resolveClusterNamespacesForQuery(start, end, opts)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(clusters))
+	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
+}
+
+func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated: storage.FanoutForceEnable,
+	}
+
+	start := time.Now()
+	end := start.Add(time.Hour * 24 * -90)
+	_, clusters, err := store.resolveClusterNamespacesForQuery(start, end, opts)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(clusters))
+	assert.Equal(t, "metrics_unaggregated", clusters[0].NamespaceID().String())
 }
