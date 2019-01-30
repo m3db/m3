@@ -34,7 +34,6 @@ func TestTypeUnmarshalYAML(t *testing.T) {
 	}{
 		{str: "blackhole", expected: blackholeType},
 		{str: "logging", expected: loggingType},
-		{str: "forward", expected: forwardType},
 	}
 	for _, input := range inputs {
 		var typ Type

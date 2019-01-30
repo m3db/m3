@@ -23,27 +23,17 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"sort"
-	"time"
 
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/filter"
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/router"
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/router/trafficcontrol"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
-
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -60,9 +50,7 @@ var (
 
 // FlushHandlerConfiguration configures flush handlers.
 type FlushHandlerConfiguration struct {
-	Handlers                 []flushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
-	Writer                   *writerConfiguration        `yaml:"writer"`
-	TrafficControlKVOverride *kv.OverrideConfiguration   `yaml:"trafficControlKVOverride"`
+	Handlers []flushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
 }
 
 // NewHandler creates a new flush handler based on the configuration.
@@ -74,58 +62,14 @@ func (c FlushHandlerConfiguration) NewHandler(
 		return nil, errNoHandlerConfiguration
 	}
 	var (
-		handlers       = make([]Handler, 0, len(c.Handlers))
-		sharderRouters = make([]SharderRouter, 0, len(c.Handlers))
-		store          kv.Store
+		handlers = make([]Handler, 0, len(c.Handlers))
 	)
-	if c.TrafficControlKVOverride != nil {
-		kvOpts, err := c.TrafficControlKVOverride.NewOverrideOptions()
-		if err != nil {
-			return nil, err
-		}
-		store, err = cs.Store(kvOpts)
-		if err != nil {
-			return nil, err
-		}
-	}
 	for _, hc := range c.Handlers {
-		if err := hc.Validate(); err != nil {
+		handler, err := hc.newHandler(cs, instrumentOpts)
+		if err != nil {
 			return nil, err
 		}
-		if hc.DynamicBackend != nil {
-			handler, err := hc.DynamicBackend.newProtobufHandler(
-				cs,
-				c.Writer,
-				instrumentOpts,
-			)
-			if err != nil {
-				return nil, err
-			}
-			handlers = append(handlers, handler)
-			continue
-		}
-		switch hc.StaticBackend.Type {
-		case blackholeType:
-			handlers = append(handlers, NewBlackholeHandler())
-		case loggingType:
-			handlers = append(handlers, NewLoggingHandler(instrumentOpts.Logger()))
-		case forwardType:
-			sharderRouter, err := hc.StaticBackend.NewSharderRouter(store, instrumentOpts)
-			if err != nil {
-				return nil, err
-			}
-			sharderRouters = append(sharderRouters, sharderRouter)
-		default:
-			return nil, fmt.Errorf("unknown backend type %v", hc.StaticBackend.Type)
-		}
-	}
-	if len(sharderRouters) > 0 {
-		if c.Writer == nil {
-			return nil, errNoWriterConfiguration
-		}
-		writerOpts := c.Writer.NewWriterOptions(instrumentOpts)
-		shardedHandler := NewShardedHandler(sharderRouters, writerOpts)
-		handlers = append(handlers, shardedHandler)
+		handlers = append(handlers, handler)
 	}
 	if len(handlers) == 1 {
 		return handlers[0], nil
@@ -134,12 +78,6 @@ func (c FlushHandlerConfiguration) NewHandler(
 }
 
 type writerConfiguration struct {
-	// Maximum Buffer size in bytes before a buffer is flushed to backend.
-	MaxBufferSize int `yaml:"maxBufferSize"`
-
-	// Pool of buffered encoders.
-	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
-
 	// Pool of buffered bytes.
 	BytesPool *pool.BucketizedPoolConfiguration `yaml:"bytesPool"`
 
@@ -147,29 +85,15 @@ type writerConfiguration struct {
 	EncodingTimeSamplingRate float64 `yaml:"encodingTimeSamplingRate" validate:"min=0.0,max=1.0"`
 }
 
-func (c *writerConfiguration) NewWriterOptions(
+func (c writerConfiguration) NewWriterOptions(
 	instrumentOpts instrument.Options,
 ) writer.Options {
 	opts := writer.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetEncodingTimeSamplingRate(c.EncodingTimeSamplingRate)
-	if c.MaxBufferSize > 0 {
-		opts = opts.SetMaxBufferSize(c.MaxBufferSize)
-	}
 
-	// Set buffered encoder pool.
-	// NB(xichen): we preallocate a bit over the maximum buffer size as a safety measure
-	// because we might write past the max buffer size and rewind it during writing.
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
-	bufferedEncoderPoolOpts := msgpack.NewBufferedEncoderPoolOptions().
-		SetObjectPoolOptions(c.BufferedEncoderPool.NewObjectPoolOptions(iOpts))
-	bufferedEncoderPool := msgpack.NewBufferedEncoderPool(bufferedEncoderPoolOpts)
-	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
-	initialBufferSize := c.MaxBufferSize * initialBufferSizeGrowthFactor
-	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
-		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
-	})
 	if c.BytesPool != nil {
 		iOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"pool": "buffered-bytes-pool"}))
 		bytesPool := pool.NewBytesPool(c.BytesPool.NewBuckets(), c.BytesPool.NewObjectPoolOptions(iOpts))
@@ -185,6 +109,29 @@ type flushHandlerConfiguration struct {
 
 	// DynamicBackend configures the dynamic backend.
 	DynamicBackend *dynamicBackendConfiguration `yaml:"dynamicBackend"`
+}
+
+func (c flushHandlerConfiguration) newHandler(
+	cs client.Client,
+	instrumentOpts instrument.Options,
+) (Handler, error) {
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if c.DynamicBackend != nil {
+		return c.DynamicBackend.newProtobufHandler(
+			cs,
+			instrumentOpts,
+		)
+	}
+	switch c.StaticBackend.Type {
+	case blackholeType:
+		return NewBlackholeHandler(), nil
+	case loggingType:
+		return NewLoggingHandler(instrumentOpts.Logger()), nil
+	default:
+		return nil, fmt.Errorf("unknown backend type %v", c.StaticBackend.Type)
+	}
 }
 
 func (c flushHandlerConfiguration) Validate() error {
@@ -213,13 +160,12 @@ type dynamicBackendConfiguration struct {
 	// Filters configs the filter for consumer services.
 	StoragePolicyFilters []storagePolicyFilterConfiguration `yaml:"storagePolicyFilters"`
 
-	// TrafficControl configs the traffic controller.
-	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
+	// Writer configs the writer options.
+	Writer writerConfiguration `yaml:"writer"`
 }
 
 func (c *dynamicBackendConfiguration) newProtobufHandler(
 	cs client.Client,
-	cfg *writerConfiguration,
 	instrumentOpts instrument.Options,
 ) (Handler, error) {
 	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
@@ -245,7 +191,7 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 		p.RegisterFilter(sid, f)
 		logger.Infof("registered storage policy filter: %s for consumer service: %s", filter.StoragePolicies, sid.String())
 	}
-	wOpts := cfg.NewWriterOptions(instrumentOpts)
+	wOpts := c.Writer.NewWriterOptions(instrumentOpts)
 	instrumentOpts.Logger().Infof("created flush handler %s with protobuf encoding", c.Name)
 	return NewProtobufHandler(p, c.HashType, wOpts), nil
 }
@@ -274,228 +220,4 @@ type staticBackendConfiguration struct {
 
 	// Name of the backend.
 	Name string `yaml:"name"`
-
-	// Servers for non-sharded backend.
-	Servers []string `yaml:"servers"`
-
-	// Configuration for sharded backend.
-	Sharded *shardedConfiguration `yaml:"sharded"`
-
-	// Queue size reserved for the backend.
-	QueueSize int `yaml:"queueSize"`
-
-	// Connection configuration.
-	Connection connectionConfiguration `yaml:"connection"`
-
-	// Disable validation (dangerous but useful for testing and staging environments).
-	DisableValidation bool `yaml:"disableValidation"`
-
-	// TrafficControl configs the traffic controller.
-	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
-}
-
-func (c *staticBackendConfiguration) Validate() error {
-	if c.DisableValidation {
-		return nil
-	}
-	hasServers := len(c.Servers) > 0
-	hasShards := c.Sharded != nil
-	if hasServers && hasShards {
-		return fmt.Errorf("backend %s configuration has both servers and shards", c.Name)
-	}
-	if !hasServers && !hasShards {
-		return fmt.Errorf("backend %s configuration has neither servers no shards", c.Name)
-	}
-	if hasServers {
-		return c.validateNonSharded()
-	}
-	return c.Sharded.Validate()
-}
-
-func (c *staticBackendConfiguration) validateNonSharded() error {
-	// Make sure we haven't declared the same server more than once.
-	serversAssigned := make(map[string]struct{}, len(c.Servers))
-	for _, server := range c.Servers {
-		if _, alreadyAssigned := serversAssigned[server]; alreadyAssigned {
-			return fmt.Errorf("server %s specified more than once", server)
-		}
-		serversAssigned[server] = struct{}{}
-	}
-	return nil
-}
-
-func (c *staticBackendConfiguration) NewSharderRouter(
-	store kv.Store,
-	instrumentOpts instrument.Options,
-) (SharderRouter, error) {
-	if err := c.Validate(); err != nil {
-		return SharderRouter{}, err
-	}
-	backendScope := instrumentOpts.MetricsScope().SubScope(c.Name)
-
-	// Set up queue options.
-	queueScope := backendScope.SubScope("queue")
-	connectionOpts := c.Connection.NewConnectionOptions(queueScope)
-	queueOpts := common.NewQueueOptions().
-		SetInstrumentOptions(instrumentOpts.SetMetricsScope(queueScope)).
-		SetConnectionOptions(connectionOpts)
-	if c.QueueSize > 0 {
-		queueOpts = queueOpts.SetQueueSize(c.QueueSize)
-	}
-	var (
-		tc  trafficcontrol.Controller
-		err error
-	)
-	if c.TrafficControl != nil {
-		if tc, err = c.TrafficControl.NewTrafficController(
-			store,
-			instrumentOpts.SetMetricsScope(backendScope),
-		); err != nil {
-			return SharderRouter{}, err
-		}
-	}
-	if len(c.Servers) > 0 {
-		// This is a non-sharded backend.
-		queue, err := common.NewQueue(c.Servers, queueOpts)
-		if err != nil {
-			return SharderRouter{}, err
-		}
-		r := router.NewAllowAllRouter(queue)
-		if tc != nil {
-			r = trafficcontrol.NewRouter(tc, r, backendScope)
-		}
-		return SharderRouter{SharderID: sharding.NoShardingSharderID, Router: r}, nil
-	}
-
-	// Sharded backend.
-	routerScope := backendScope.SubScope("router")
-	sr, err := c.Sharded.NewSharderRouter(routerScope, queueOpts)
-	if err != nil {
-		return SharderRouter{}, err
-	}
-	if tc != nil {
-		sr.Router = trafficcontrol.NewRouter(tc, sr.Router, backendScope)
-	}
-	return sr, nil
-}
-
-type shardedConfiguration struct {
-	// Hashing function type.
-	HashType sharding.HashType `yaml:"hashType"`
-
-	// Total number of shards.
-	TotalShards int `yaml:"totalShards" validate:"nonzero"`
-
-	// Backend server shard sets.
-	Shards []backendServerShardSet `yaml:"shards" validate:"nonzero"`
-}
-
-func (c *shardedConfiguration) Validate() error {
-	var (
-		serversAssigned = make(map[string]struct{}, len(c.Shards))
-		shardsAssigned  = make(map[int]struct{}, c.TotalShards)
-	)
-	for _, shards := range c.Shards {
-		// Make sure we have a deterministic ordering.
-		sortedShards := make([]int, 0, len(shards.ShardSet))
-		for shard := range shards.ShardSet {
-			sortedShards = append(sortedShards, int(shard))
-		}
-		sort.Ints(sortedShards)
-
-		for _, shard := range sortedShards {
-			if shard >= c.TotalShards {
-				return fmt.Errorf("shard %d exceeds total available shards %d", shard, c.TotalShards)
-			}
-			if _, shardAlreadyAssigned := shardsAssigned[shard]; shardAlreadyAssigned {
-				return fmt.Errorf("shard %d is present in multiple ranges", shard)
-			}
-			shardsAssigned[shard] = struct{}{}
-		}
-
-		for _, server := range shards.Servers {
-			if _, serverAlreadyAssigned := serversAssigned[server]; serverAlreadyAssigned {
-				return fmt.Errorf("server %s is present in multiple ranges", server)
-			}
-			serversAssigned[server] = struct{}{}
-		}
-	}
-	if len(shardsAssigned) != c.TotalShards {
-		return fmt.Errorf("missing shards; expected %d total received %d",
-			c.TotalShards, len(shardsAssigned))
-	}
-	return nil
-}
-
-func (c *shardedConfiguration) NewSharderRouter(
-	routerScope tally.Scope,
-	queueOpts common.QueueOptions,
-) (SharderRouter, error) {
-	shardQueueSize := queueOpts.QueueSize() / len(c.Shards)
-	shardQueueOpts := queueOpts.SetQueueSize(shardQueueSize)
-	sharderID := sharding.NewSharderID(c.HashType, c.TotalShards)
-	shardedQueues := make([]router.ShardedQueue, 0, len(c.Shards))
-	for _, shard := range c.Shards {
-		sq, err := shard.NewShardedQueue(shardQueueOpts)
-		if err != nil {
-			return SharderRouter{}, err
-		}
-		shardedQueues = append(shardedQueues, sq)
-	}
-	router := router.NewShardedRouter(shardedQueues, c.TotalShards, routerScope)
-	return SharderRouter{SharderID: sharderID, Router: router}, nil
-}
-
-type backendServerShardSet struct {
-	Name     string            `yaml:"name"`
-	ShardSet sharding.ShardSet `yaml:"shardSet" validate:"nonzero"`
-	Servers  []string          `yaml:"servers" validate:"nonzero"`
-}
-
-func (s *backendServerShardSet) NewShardedQueue(
-	queueOpts common.QueueOptions,
-) (router.ShardedQueue, error) {
-	instrumentOpts := queueOpts.InstrumentOptions()
-	connectionOpts := queueOpts.ConnectionOptions()
-	queueScope := instrumentOpts.MetricsScope().Tagged(map[string]string{"shard-set": s.Name})
-	reconnectRetryOpts := connectionOpts.ReconnectRetryOptions().SetMetricsScope(queueScope)
-	queueOpts = queueOpts.
-		SetInstrumentOptions(instrumentOpts.SetMetricsScope(queueScope)).
-		SetConnectionOptions(connectionOpts.SetReconnectRetryOptions(reconnectRetryOpts))
-	queue, err := common.NewQueue(s.Servers, queueOpts)
-	if err != nil {
-		return router.ShardedQueue{}, err
-	}
-	return router.ShardedQueue{ShardSet: s.ShardSet, Queue: queue}, nil
-}
-
-type connectionConfiguration struct {
-	// Connection timeout.
-	ConnectTimeout time.Duration `yaml:"connectTimeout"`
-
-	// Connection keep alive.
-	ConnectionKeepAlive *bool `yaml:"connectionKeepAlive"`
-
-	// Connection write timeout.
-	ConnectionWriteTimeout time.Duration `yaml:"connectionWriteTimeout"`
-
-	// Reconnect retry options.
-	ReconnectRetrier retry.Configuration `yaml:"reconnect"`
-}
-
-func (c *connectionConfiguration) NewConnectionOptions(scope tally.Scope) common.ConnectionOptions {
-	opts := common.NewConnectionOptions()
-	if c.ConnectTimeout != 0 {
-		opts = opts.SetConnectTimeout(c.ConnectTimeout)
-	}
-	if c.ConnectionKeepAlive != nil {
-		opts = opts.SetConnectionKeepAlive(*c.ConnectionKeepAlive)
-	}
-	if c.ConnectionWriteTimeout != 0 {
-		opts = opts.SetConnectionWriteTimeout(c.ConnectionWriteTimeout)
-	}
-	reconnectScope := scope.SubScope("reconnect")
-	retryOpts := c.ReconnectRetrier.NewOptions(reconnectScope)
-	opts = opts.SetReconnectRetryOptions(retryOpts)
-	return opts
 }
