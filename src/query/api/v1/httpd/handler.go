@@ -47,8 +47,8 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/net/http/cors"
 
-	"github.com/coreos/etcd/pkg/cors"
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 )
@@ -98,9 +98,9 @@ func NewHandler(
 	r := mux.NewRouter()
 
 	// apply middleware. Just CORS for now, but we could add more here as needed.
-	withMiddleware := &cors.CORSHandler{
+	withMiddleware := &cors.Handler{
 		Handler: r,
-		Info: &cors.CORSInfo{
+		Info: &cors.Info{
 			"*": true,
 		},
 	}
