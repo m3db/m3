@@ -168,7 +168,7 @@ func (i *ingester) Handle(conn net.Conn) {
 
 		resources := i.getLineResources()
 		// Copy name since scanner bytes are recycled.
-		resources.name = append(resources.name, name...)
+		resources.name = append(resources.name[:0], name...)
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
