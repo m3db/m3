@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -147,7 +146,10 @@ func TestFanoutReadError(t *testing.T) {
 }
 
 func TestFanoutReadSuccess(t *testing.T) {
-	store := setupFanoutRead(t, true, &fetchResponse{result: fakeIterator(t)}, &fetchResponse{result: fakeIterator(t)})
+	store := setupFanoutRead(t, true, &fetchResponse{
+		result: fakeIterator(t)},
+		&fetchResponse{result: fakeIterator(t)},
+	)
 	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{
 		Start: time.Now().Add(-time.Hour),
 		End:   time.Now(),

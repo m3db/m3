@@ -18,6 +18,10 @@ clusters:
         type: aggregated
         retention: 10h
         resolution: 5s
+      - namespace: agglong
+        type: aggregated
+        retention: 24h
+        resolution: 10s
       - namespace: unagg
         type: unaggregated
         retention: 10m
@@ -66,6 +70,10 @@ carbon:
         policies:
           - resolution: 5s
             retention: 10h
+      - pattern: .*long
+        policies:
+          - resolution: 10s
+            retention: 24h
       - pattern: .*
         policies:
           - resolution: 5s
