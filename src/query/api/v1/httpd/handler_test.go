@@ -22,6 +22,7 @@ package httpd
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -44,12 +46,17 @@ import (
 	"github.com/uber-go/tally"
 )
 
+var (
+	// Created by init().
+	testWorkerPool xsync.PooledWorkerPool
+)
+
 func makeTagOptions() models.TagOptions {
 	return models.NewTagOptions().SetMetricName([]byte("some_name"))
 }
 
 func setupHandler(store storage.Storage) (*Handler, error) {
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
 	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 }
@@ -212,4 +219,19 @@ func TestCORSMiddleware(t *testing.T) {
 
 	assert.Equal(t, "hello!", res.Body.String())
 	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func init() {
+	var err error
+	testWorkerPool, err = xsync.NewPooledWorkerPool(
+		16,
+		xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true),
+	)
+
+	if err != nil {
+		panic(fmt.Sprintf("unable to create pooled worker pool: %v", err))
+	}
+
+	testWorkerPool.Init()
 }

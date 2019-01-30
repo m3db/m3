@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3x/errors"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -77,16 +78,19 @@ type WriteOptions struct {
 type downsamplerAndWriter struct {
 	store       storage.Storage
 	downsampler downsample.Downsampler
+	workerPool  xsync.PooledWorkerPool
 }
 
 // NewDownsamplerAndWriter creates a new downsampler and writer.
 func NewDownsamplerAndWriter(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
+	workerPool xsync.PooledWorkerPool,
 ) DownsamplerAndWriter {
 	return &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
+		workerPool:  workerPool,
 	}
 }
 
@@ -124,6 +128,8 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 		shouldDownsample = downsamplerExists && (useDefaultMappingRules || downsampleOverride)
 	)
 	if shouldDownsample {
+		// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
+		// resources. If we can pool this properly we can get a nice speedup.
 		appender, err := d.downsampler.NewMetricsAppender()
 		if err != nil {
 			return err
@@ -195,9 +201,10 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 	)
 
 	for _, p := range overrides.WriteStoragePolicies {
+		p := p // Capture for goroutine.
+
 		wg.Add(1)
-		// TODO(rartoul): Benchmark using a pooled worker pool here.
-		go func(p policy.StoragePolicy) {
+		d.workerPool.Go(func() {
 			err := d.store.Write(ctx, &storage.WriteQuery{
 				Tags:       tags,
 				Datapoints: datapoints,
@@ -215,7 +222,7 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 				errLock.Unlock()
 			}
 			wg.Done()
-		}(p)
+		})
 	}
 
 	wg.Wait()
@@ -244,7 +251,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 		for iter.Next() {
 			wg.Add(1)
 			tags, datapoints, unit := iter.Current()
-			go func() {
+			d.workerPool.Go(func() {
 				err := d.store.Write(ctx, &storage.WriteQuery{
 					Tags:       tags,
 					Datapoints: datapoints,
@@ -257,7 +264,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 					addError(err)
 				}
 				wg.Done()
-			}()
+			})
 		}
 	}
 

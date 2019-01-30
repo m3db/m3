@@ -156,7 +156,6 @@ type CarbonIngesterConfiguration struct {
 	Debug          bool                              `yaml:"debug"`
 	ListenAddress  string                            `yaml:"listenAddress"`
 	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	WriteTimeout   *time.Duration                    `yaml:"writeTimeout"`
 	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
@@ -241,16 +240,6 @@ func (c *CarbonIngesterAggregationConfiguration) TypeOrDefault() aggregation.Typ
 type CarbonIngesterStoragePolicyConfiguration struct {
 	Resolution time.Duration `yaml:"resolution" validate:"nonzero"`
 	Retention  time.Duration `yaml:"retention" validate:"nonzero"`
-}
-
-// WriteTimeoutOrDefault returns the configured value for the write timeout,
-// if set, or the default value otherwise.
-func (c *CarbonIngesterConfiguration) WriteTimeoutOrDefault() time.Duration {
-	if c.WriteTimeout != nil {
-		return *c.WriteTimeout
-	}
-
-	return defaultCarbonIngesterWriteTimeout
 }
 
 // LocalConfiguration is the local embedded configuration if running

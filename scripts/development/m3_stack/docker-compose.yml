@@ -11,6 +11,14 @@ services:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
       - M3DB_HOST_ID=m3db_seed
+    expose:
+      - "9002"
+      - "9003"
+      - "9004"
+    ports:
+      - "0.0.0.0:9002:9002"
+      - "0.0.0.0:9003:9003"
+      - "0.0.0.0:9004:9004"
   m3db_data01:
     networks:
       - backend

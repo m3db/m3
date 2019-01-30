@@ -22,6 +22,7 @@ package ingest
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	testm3 "github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/ident"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -41,6 +43,9 @@ import (
 )
 
 var (
+	// Created by init().
+	testWorkerPool xsync.PooledWorkerPool
+
 	testTags1 = models.NewTags(3, nil).AddTags(
 		[]models.Tag{
 			{
@@ -409,7 +414,7 @@ func newTestDownsamplerAndWriter(
 ) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
 	storage, session := testm3.NewStorageAndSession(t, ctrl)
 	downsampler := downsample.NewMockDownsampler(ctrl)
-	return NewDownsamplerAndWriter(storage, downsampler).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
 }
 
 func newTestDownsamplerAndWriterWithAggregatedNamespace(
@@ -420,5 +425,20 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 	storage, session := testm3.NewStorageAndSessionWithAggregatedNamespaces(
 		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
-	return NewDownsamplerAndWriter(storage, downsampler).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
+}
+
+func init() {
+	var err error
+	testWorkerPool, err = xsync.NewPooledWorkerPool(
+		16,
+		xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true),
+	)
+
+	if err != nil {
+		panic(fmt.Sprintf("unable to create pooled worker pool: %v", err))
+	}
+
+	testWorkerPool.Init()
 }

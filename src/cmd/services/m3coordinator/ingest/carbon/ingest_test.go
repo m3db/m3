@@ -206,8 +206,9 @@ func TestIngesterHandleConn(t *testing.T) {
 		overrides ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
+		// Clone tags because they (and their underlying bytes) are pooled.
 		found = append(found, testMetric{
-			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
 
 		// Make 1 in 10 writes fail to test those paths.
 		returnErr := idx%10 == 0
@@ -245,8 +246,9 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		writeOpts ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
+		// Clone tags because they (and their underlying bytes) are pooled.
 		found = append(found, testMetric{
-			tags: tags, timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
 		lock.Unlock()
 
 		// Use panic's instead of require/assert because those don't behave properly when the assertion
