@@ -128,6 +128,8 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 		shouldDownsample = downsamplerExists && (useDefaultMappingRules || downsampleOverride)
 	)
 	if shouldDownsample {
+		// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
+		// resources. If we can pool this properly we can get a nice speedup.
 		appender, err := d.downsampler.NewMetricsAppender()
 		if err != nil {
 			return err
