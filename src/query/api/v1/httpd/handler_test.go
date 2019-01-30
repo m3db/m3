@@ -57,7 +57,7 @@ func makeTagOptions() models.TagOptions {
 
 func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
-	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
+	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute), nil, nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 }
 

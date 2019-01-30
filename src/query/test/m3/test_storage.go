@@ -60,7 +60,7 @@ func NewStorageAndSession(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage := m3.NewStorage(clusters, nil, writePool, tagOptions)
+	storage := m3.NewStorage(clusters, nil, writePool, tagOptions, time.Minute)
 	return storage, session
 }
 

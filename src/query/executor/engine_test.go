@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
@@ -43,7 +44,7 @@ func TestExecute(t *testing.T) {
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	engine := NewEngine(store, tally.NewTestScope("test", nil))
+	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute)
 	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
 	res := <-results
 	assert.NotNil(t, res.Err)
