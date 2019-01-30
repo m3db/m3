@@ -259,6 +259,7 @@ func (s *seeker) Open(
 		summariesFdWithDigest,
 		expectedDigests.summariesDigest,
 		resources.xmsgpackDecoder,
+		resources.byteDecoderStream,
 		int(info.Summaries.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
 	)
