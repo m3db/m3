@@ -63,3 +63,30 @@ func NewStorageAndSession(
 	storage := m3.NewStorage(clusters, nil, writePool, tagOptions)
 	return storage, session
 }
+
+// NewStorageAndSessionWithAggregatedNamespaces generates a new m3 storage and mock session
+// with the specified aggregated cluster namespace definitions.
+func NewStorageAndSessionWithAggregatedNamespaces(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	aggregatedNamespaces []m3.AggregatedClusterNamespaceDefinition,
+) (storage.Storage, *client.MockSession) {
+	session := client.NewMockSession(ctrl)
+	for i := range aggregatedNamespaces {
+		aggregatedNamespaces[i].Session = session
+	}
+
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID(TestNamespaceID),
+		Session:     session,
+		Retention:   TestRetention,
+	}, aggregatedNamespaces...)
+	require.NoError(t, err)
+
+	writePool, err := sync.NewPooledWorkerPool(10, sync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	writePool.Init()
+	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
+	storage := m3.NewStorage(clusters, nil, writePool, tagOptions)
+	return storage, session
+}

@@ -60,14 +60,25 @@ const (
 	replicationFactor                  = 1
 	defaultStorageFlushConcurrency     = 20000
 	defaultOpenTimeout                 = 10 * time.Second
-	defaultBufferPastTimedMetricFactor = 1.1
+	minBufferPast                      = 5 * time.Second
+	maxBufferPast                      = 10 * time.Minute
+	defaultBufferPastTimedMetricFactor = 0.1
 	defaultBufferFutureTimedMetric     = time.Minute
 )
 
 var (
 	numShards                         = runtime.NumCPU()
 	defaultBufferForPastTimedMetricFn = func(r time.Duration) time.Duration {
-		value := defaultBufferPastTimedMetricFactor * float64(r)
+		value := time.Duration(defaultBufferPastTimedMetricFactor * float64(r))
+
+		// Clamp minBufferPast <= value <= maxBufferPast.
+		if value < minBufferPast {
+			return minBufferPast
+		}
+		if value > maxBufferPast {
+			return maxBufferPast
+		}
+
 		return time.Duration(value)
 	}
 

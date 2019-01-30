@@ -205,8 +205,8 @@ func defaultMatcherOptions(
 		SetRuleSetOptions(ruleSetOpts)
 }
 
-func defaultShardFn(id []byte, numShards int) uint32 {
-	return adler32.Checksum(id) % uint32(numShards)
+func defaultShardFn(id []byte, numShards uint32) uint32 {
+	return adler32.Checksum(id) % numShards
 }
 
 func defaultBytesPool() pool.BytesPool {

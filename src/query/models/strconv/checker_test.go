@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,25 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package router
+package strconv
 
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
-	"github.com/m3db/m3/src/msg/producer"
-
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestWithAckRouterDecRefBuffer(t *testing.T) {
-	buf := common.NewRefCountedBuffer(msgpack.NewPooledBufferedEncoderSize(nil, 1024))
-	msg := newMessage(2, buf)
-	require.Equal(t, uint32(2), msg.Shard())
-	require.Equal(t, 1024, msg.Size())
-	require.Empty(t, msg.Bytes())
+func generateUnescapedSlice() []byte {
+	bottomBound := int(' ')
+	upperBound := int('~')
+	unescaped := make([]byte, upperBound-bottomBound)
+	ignore := int('"')
+	idx := 0
+	for i := bottomBound; i <= upperBound; i++ {
+		if i != ignore {
+			unescaped[idx] = byte(i)
+			idx++
+		}
+	}
 
-	msg.Finalize(producer.Consumed)
-	require.Panics(t, buf.DecRef)
+	return unescaped
+}
+
+func TestUnescapedSliceDoesNotNeedToEscape(t *testing.T) {
+	unescaped := generateUnescapedSlice()
+	assert.False(t, NeedToEscape(unescaped))
+}
+
+func TestSliceWithQuoteNeedsToEscape(t *testing.T) {
+	unescaped := generateUnescapedSlice()
+	unescaped = append(unescaped, '"')
+	assert.True(t, NeedToEscape(unescaped))
+}
+
+func TestSliceWithControlCharactersNeedsToEscape(t *testing.T) {
+	unescaped := generateUnescapedSlice()
+	lowByte := byte(int(' ') - 1)
+	unescapedWithLowByte := append(unescaped, lowByte)
+	assert.True(t, NeedToEscape(unescapedWithLowByte))
+
+	highByte := byte(int('~') + 1)
+	unescaped = append(unescaped, highByte)
+	assert.True(t, NeedToEscape(unescaped))
 }

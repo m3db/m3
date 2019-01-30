@@ -65,8 +65,6 @@ ingest:
       retry:
         maxBackoff: 10s
         jitter: true
-    handler:
-      protobufEnabled: true
 
 carbon:
   ingester:

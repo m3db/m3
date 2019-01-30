@@ -231,6 +231,10 @@ func TestParseTypes(t *testing.T) {
 			str:      "Min,Max",
 			expected: Types{Min, Max},
 		},
+		{
+			str:      "min,max",
+			expected: Types{Min, Max},
+		},
 	}
 	for _, input := range inputs {
 		res, err := ParseTypes(input.str)

@@ -75,7 +75,7 @@ func TestParseQueryResults(t *testing.T) {
 	tags = tags.AddTag(models.Tag{Name: graphite.TagName(0), Value: []byte("foo")})
 	tags = tags.AddTag(models.Tag{Name: graphite.TagName(1), Value: []byte("bar")})
 	seriesList := ts.SeriesList{
-		ts.NewSeries("irrelevant_name", vals, tags),
+		ts.NewSeries([]byte("series_name"), vals, tags),
 	}
 	for _, series := range seriesList {
 		series.SetResolution(resolution)
@@ -96,7 +96,7 @@ func TestParseQueryResults(t *testing.T) {
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
 	expected := fmt.Sprintf(
-		`[{"target":"foo.bar","datapoints":[[3.000000,%d],`+
+		`[{"target":"series_name","datapoints":[[3.000000,%d],`+
 			`[3.000000,%d],[3.000000,%d]],"step_size_ms":%d}]`,
 		start.Unix(), start.Unix()+10, start.Unix()+20, resolution/time.Millisecond)
 
@@ -116,7 +116,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	resolution := 10 * time.Second
 	vals := ts.NewFixedStepValues(resolution, 4, 4, start)
 	seriesList := ts.SeriesList{
-		ts.NewSeries("a", vals, models.NewTags(0, nil)),
+		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
 	for _, series := range seriesList {
 		series.SetResolution(resolution)
@@ -151,7 +151,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	resolution := 10 * time.Second
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	seriesList := ts.SeriesList{
-		ts.NewSeries("a", vals, models.NewTags(0, nil)),
+		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
 	for _, series := range seriesList {
 		series.SetResolution(resolution)

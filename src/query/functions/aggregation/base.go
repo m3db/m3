@@ -121,7 +121,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opType,
+		[]byte(n.op.opType),
 		seriesMetas,
 	)
 	meta.Tags, metas = utils.DedupeMetadata(metas)

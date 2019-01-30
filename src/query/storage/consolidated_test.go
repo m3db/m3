@@ -152,7 +152,7 @@ func TestConsolidation(t *testing.T) {
 	seriesList := make(ts.SeriesList, len(datapoints))
 	for i, dp := range datapoints {
 		seriesList[i] = ts.NewSeries(
-			fmt.Sprintf("name_%d", i),
+			[]byte(fmt.Sprintf("name_%d", i)),
 			dp,
 			models.Tags{
 				Opts: models.NewTagOptions(),

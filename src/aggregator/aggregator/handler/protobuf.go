@@ -22,28 +22,41 @@ package handler
 
 import (
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/msg/producer"
 
 	"github.com/uber-go/tally"
 )
 
 type protobufHandler struct {
-	p    producer.Producer
-	opts writer.Options
+	p        producer.Producer
+	hashType sharding.HashType
+	opts     writer.Options
 }
 
 // NewProtobufHandler creates a new protobuf handler.
-func NewProtobufHandler(p producer.Producer, opts writer.Options) Handler {
+func NewProtobufHandler(
+	p producer.Producer,
+	hashType sharding.HashType,
+	opts writer.Options,
+) Handler {
 	return protobufHandler{
-		p:    p,
-		opts: opts,
+		p:        p,
+		hashType: hashType,
+		opts:     opts,
 	}
 }
 
 func (h protobufHandler) NewWriter(scope tally.Scope) (writer.Writer, error) {
 	iOpts := h.opts.InstrumentOptions()
+	shardFn, err := h.hashType.ShardFn()
+	if err != nil {
+		return nil, err
+	}
 	return writer.NewProtobufWriter(
-		h.p, h.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)),
+		h.p,
+		shardFn,
+		h.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)),
 	), nil
 }
 
