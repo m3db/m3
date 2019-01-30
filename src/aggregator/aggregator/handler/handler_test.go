@@ -46,5 +46,5 @@ func TestTypeUnmarshalYAMLErrors(t *testing.T) {
 	var typ Type
 	err := yaml.Unmarshal([]byte("huh"), &typ)
 	require.Error(t, err)
-	require.Equal(t, "invalid handler type 'huh' valid types are: blackhole, logging, forward", err.Error())
+	require.Equal(t, "invalid handler type 'huh' valid types are: blackhole, logging", err.Error())
 }
