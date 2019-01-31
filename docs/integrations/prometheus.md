@@ -111,3 +111,8 @@ Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of j
   static_configs:
     - targets: ['<HOST_NAME>:7203']
 ```
+## Querying With Grafana
+
+When using the Prometheus integration with Grafana, there are two different ways you can query for your metrics. The first option is to configure Grafana to query Prometheus directly by following [these instructions.](http://docs.grafana.org/features/datasources/prometheus/)
+
+Alternatively, you can configure Grafana to read metrics directly from `M3Coordinator` in which case you will bypass Prometheus entirely and use M3's `PromQL` engine instead. To set this up, follow the same instructions from the previous step, but set the `url` to: `http://<M3_COORDINATOR_HOST_NAME>:7201`.

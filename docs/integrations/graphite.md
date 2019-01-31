@@ -136,3 +136,23 @@ This will make the carbon ingestion emit logs for every step that is taking. *No
 - p99
 - p999
 - p9999
+
+## Querying
+
+M3 supports the the majority of [graphite query functions](https://graphite.readthedocs.io/en/latest/functions.html) and can be used to query metrics that were ingested via the ingestion pathway described above.
+
+### Grafana
+
+`M3Coordinator` implements the Graphite source interface, so you can add it as a `graphite` source in Grafana by following [these instructions.](http://docs.grafana.org/features/datasources/graphite/)
+
+Note that you'll need to set the URL to: `http://<M3_COORDINATOR_HOST_NAME>:7201/api/v1/graphite`
+
+### Direct
+
+You can query for metrics directly by issuing HTTP GET requests directly against the `M3Coordinator` `/api/v1/graphite/render` endpoint which runs on port `7201` by default. For example:
+
+```bash
+(export now=$(date +%s) && curl "localhost:7201/api/v1/graphite/render?target=transformNull(foo.*.baz)&from=$(($now-300))" | jq .)
+```
+
+will query for all metrics matching the `foo.*.baz` pattern, applying the `transformNull` function, and returning all datapoints for the last 5 minutes.
