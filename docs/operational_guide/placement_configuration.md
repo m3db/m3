@@ -136,6 +136,8 @@ After sending the delete command you will need to wait for the M3DB cluster to r
 
 #### Replacing a Node
 
+**NOTE**: If using embedded etcd and replacing a seed node, please read the section below.
+
 Send a POST request to the `/api/v1/services/m3db/placement/replace` endpoint containing hosts to replace and candidates to replace it with.
 
 ```bash
@@ -154,3 +156,70 @@ curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/
     ]
 }'
 ```
+
+#### Replacing a Seed Node
+
+If you are using the embedded etcd mode (which is only recommended for test purposes) and replacing a seed node then
+there are a few more steps to be done, as you are essentially doing two replace operations at once (replacing an etcd
+node *and* and M3DB node). To perform these steps you will need the `etcdctl` binary (version 3.2 or later), which can
+be downloaded from the [etcd releases](https://github.com/etcd-io/etcd/releases) page.
+
+Many of the instructions here are mentioned in the [etcd operational
+guide](https://github.com/etcd-io/etcd/blob/v3.3.11/Documentation/op-guide/runtime-configuration.md), which we recommend
+reading for more context.
+
+To provide some context for the commands below, let's assume your cluster was created with the below configuration, and
+that you'd like to replace `host3` with a new host `host4`, which has IP address `1.1.1.4`:
+
+```
+initialCluster:
+  - hostID: host1
+    endpoint: http://1.1.1.1:2380
+  - hostID: host2
+    endpoint: http://1.1.1.2:2380
+  - hostID: host3
+    endpoint: http://1.1.1.3:2380
+```
+
+1. On an existing node in the cluster that is **not** the one you're removing, use `etcdctl` to remove `host3` from the
+   cluster:
+
+```
+$ ETCDCTL_API=3 etcdctl member list
+9d29673cf1328d1, started, host1, http://1.1.1.1:2380, http://1.1.1.1:2379
+f14613b6c8a336b, started, host2, http://1.1.1.2:2380, http://1.1.1.2:2379
+2fd477713daf243, started, host3, http://1.1.1.3:2380, http://1.1.1.3:2379  # <<< INSTANCE WE WANT TO REMOVE
+
+$ ETCDCTL_API=3 etcdctl member remove 2fd477713daf243
+Removed member 2fd477713daf243 from cluster
+```
+
+2. From the same host, use `etcdctl` to add `host4` to the cluster:
+
+```
+$ ETCDCTL_API=3 etcdctl member add host4 --peer-urls http://1.1.1.4:2380
+```
+
+3. **Before** starting M3DB on `host4`, modify the initial cluster list to indicate `host4` has a cluster state of
+   `existing`. Note: if you had previously started M3DB on this host, you'll have to remove the `member` subdirectory in
+   `$M3DB_DATA_DIR/etcd/`.
+
+```
+initialCluster:
+  - hostID: host1
+    endpoint: http://1.1.1.1:2380
+  - hostID: host2
+    endpoint: http://1.1.1.2:2380
+  - hostID: host4
+    clusterState: existing
+    endpoint: http://1.1.1.4:2380
+```
+
+4. Start M3DB on `host4`.
+
+5. On all other seed nodes, update their `initialCluster` list to be exactly equal to the list on `host4` from step 3.
+
+6. Follow the steps from `Replacing a Seed Node` to replace `host3` with `host4` in the M3DB placement.
+
+Once the M3DB replace finishes, you may want to rolling restart the other seed nodes to ensure they have an up-to-date
+config loaded.
