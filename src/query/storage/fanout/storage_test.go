@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -141,16 +140,20 @@ func TestFanoutReadEmpty(t *testing.T) {
 
 func TestFanoutReadError(t *testing.T) {
 	store := setupFanoutRead(t, true)
-	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	opts := storage.NewFetchOptions()
+	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 
 func TestFanoutReadSuccess(t *testing.T) {
-	store := setupFanoutRead(t, true, &fetchResponse{result: fakeIterator(t)}, &fetchResponse{result: fakeIterator(t)})
+	store := setupFanoutRead(t, true, &fetchResponse{
+		result: fakeIterator(t)},
+		&fetchResponse{result: fakeIterator(t)},
+	)
 	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{
 		Start: time.Now().Add(-time.Hour),
 		End:   time.Now(),
-	}, &storage.FetchOptions{})
+	}, storage.NewFetchOptions())
 	require.NoError(t, err, "no error on read")
 	assert.NotNil(t, res)
 	assert.NoError(t, store.Close())
@@ -166,7 +169,8 @@ func TestFanoutSearchEmpty(t *testing.T) {
 
 func TestFanoutSearchError(t *testing.T) {
 	store := setupFanoutRead(t, true)
-	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	opts := storage.NewFetchOptions()
+	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 

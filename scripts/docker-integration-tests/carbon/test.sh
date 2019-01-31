@@ -58,4 +58,3 @@ echo "foo.min.catch-all.baz 10 $t" | nc 0.0.0.0 7204
 echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
-

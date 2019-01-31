@@ -35,36 +35,36 @@ import (
 )
 
 const (
-	// SearchURL is the url for searching graphite metrics.
-	SearchURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
+	// FindURL is the url for finding graphite metrics.
+	FindURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
 )
 
 var (
-	// SearchHTTPMethods is the HTTP methods used with this resource.
-	SearchHTTPMethods = []string{http.MethodGet, http.MethodPost}
+	// FindHTTPMethods is the HTTP methods used with this resource.
+	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-type grahiteSearchHandler struct {
+type grahiteFindHandler struct {
 	storage storage.Storage
 }
 
-// NewSearchHandler returns a new instance of handler.
-func NewSearchHandler(
+// NewFindHandler returns a new instance of handler.
+func NewFindHandler(
 	storage storage.Storage,
 ) http.Handler {
-	return &grahiteSearchHandler{
+	return &grahiteFindHandler{
 		storage: storage,
 	}
 }
 
-func (h *grahiteSearchHandler) ServeHTTP(
+func (h *grahiteFindHandler) ServeHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 	w.Header().Set("Content-Type", "application/json")
-	query, rErr := parseSearchParamsToQuery(r)
+	query, rErr := parseFindParamsToQuery(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -108,8 +108,8 @@ func (h *grahiteSearchHandler) ServeHTTP(
 	}
 
 	// TODO: Support multiple result types
-	if err = searchResultsJSON(w, prefix, seenMap); err != nil {
-		logger.Error("unable to print search results", zap.Error(err))
+	if err = findResultsJSON(w, prefix, seenMap); err != nil {
+		logger.Error("unable to print find results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 	}
 }

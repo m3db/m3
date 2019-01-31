@@ -102,9 +102,16 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 }
 
 // Execute runs the query and closes the results channel once done
-func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *EngineOptions, results chan *storage.QueryResult) {
+func (e *Engine) Execute(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *EngineOptions,
+	results chan *storage.QueryResult,
+) {
 	defer close(results)
-	result, err := e.store.Fetch(ctx, query, &storage.FetchOptions{})
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = 0
+	result, err := e.store.Fetch(ctx, query, fetchOpts)
 	if err != nil {
 		results <- &storage.QueryResult{Err: err}
 		return
@@ -115,7 +122,13 @@ func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *E
 
 // ExecuteExpr runs the query DAG and closes the results channel once done
 // nolint: unparam
-func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, params models.RequestParams, results chan Query) {
+func (e *Engine) ExecuteExpr(
+	ctx context.Context,
+	parser parser.Parser,
+	opts *EngineOptions,
+	params models.RequestParams,
+	results chan Query,
+) {
 	defer close(results)
 
 	req := newRequest(e, params)

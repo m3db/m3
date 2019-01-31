@@ -129,9 +129,14 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3query := translateQuery(query, opts)
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
+	fetchOptions := storage.NewFetchOptions()
+	fetchOptions.FanoutOptions = &storage.FanoutOptions{
+		FanoutUnaggregated:        storage.FanoutForceDisable,
+		FanoutAggregated:          storage.FanoutDefault,
+		FanoutAggregatedOptimized: storage.FanoutForceDisable,
+	}
 
-	m3result, err := s.m3.Fetch(m3ctx, m3query,
-		storage.NewFetchOptions())
+	m3result, err := s.m3.Fetch(m3ctx, m3query, fetchOptions)
 	if err != nil {
 		return nil, err
 	}

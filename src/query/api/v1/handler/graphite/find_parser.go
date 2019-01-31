@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/net/http"
 )
 
-func parseSearchParamsToQuery(r *http.Request) (
+func parseFindParamsToQuery(r *http.Request) (
 	*storage.FetchQuery,
 	*xhttp.ParseError,
 ) {
@@ -86,7 +86,7 @@ func parseSearchParamsToQuery(r *http.Request) (
 	}, nil
 }
 
-func searchResultsJSON(
+func findResultsJSON(
 	w io.Writer,
 	prefix string,
 	tags map[string]bool,

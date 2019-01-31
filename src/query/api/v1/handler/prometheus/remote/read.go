@@ -128,7 +128,9 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
-func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
+func (h *PromReadHandler) parseRequest(
+	r *http.Request,
+) (*prompb.ReadRequest, *xhttp.ParseError) {
 	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -142,7 +144,12 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *x
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, timeout time.Duration) ([]*prompb.QueryResult, error) {
+func (h *PromReadHandler) read(
+	reqCtx context.Context,
+	w http.ResponseWriter,
+	r *prompb.ReadRequest,
+	timeout time.Duration,
+) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
 		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
