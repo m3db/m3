@@ -92,7 +92,7 @@ func resolveClusterNamespacesForQuery(
 
 	if opts.FanoutAggregated == storage.FanoutForceDisable {
 		if unaggregated.satisfies == partiallySatisfiesRange {
-			return namespaceCoversAllQueryRange,
+			return namespaceCoversPartialQueryRange,
 				ClusterNamespaces{unaggregated.clusterNamespace}, nil
 		}
 
@@ -154,8 +154,7 @@ func resolveClusterNamespacesForQuery(
 		// If any namespace currently in contention does not cover the entire query
 		// range, set query fanout type to namespaceCoversPartialQueryRange.
 		for _, n := range result {
-			clusterStart := now.Add(-1 * n.Options().Attributes().Retention)
-			if !clusterStart.After(start) {
+			if !coversRangeFilter(n) {
 				return namespaceCoversPartialQueryRange, result, nil
 			}
 		}

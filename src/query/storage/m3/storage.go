@@ -51,9 +51,9 @@ var (
 type queryFanoutType uint
 
 const (
-	namespaceCoversAllQueryRange queryFanoutType = iota
+	namespaceInvalid queryFanoutType = iota
+	namespaceCoversAllQueryRange
 	namespaceCoversPartialQueryRange
-	namespaceInvalid
 )
 
 type m3storage struct {
