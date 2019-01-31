@@ -13,3 +13,5 @@ All M3 applications expose Prometheus metrics on port `7201` by default as descr
 [M3DB Prometheus / Grafana dashboard](https://grafana.com/dashboards/8126)
 
 M3Coordinator Prometheus / Grafana dashboard: TODO
+
+Alternatively, you can obtain JSON for our most up-to-date dashboards from our [git repo](https://github.com/m3db/m3/blob/master/integrations/grafana) directly.
