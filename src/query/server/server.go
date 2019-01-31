@@ -58,7 +58,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xserver "github.com/m3db/m3x/server"
@@ -73,8 +72,13 @@ import (
 
 var (
 	defaultLocalConfiguration = &config.LocalConfiguration{
-		Namespace: "default",
-		Retention: 2 * 24 * time.Hour,
+		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+			{
+				Namespace: "default",
+				Type:      storage.UnaggregatedMetricsType,
+				Retention: 2 * 24 * time.Hour,
+			},
+		},
 	}
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
@@ -517,10 +521,9 @@ func initClusters(
 	)
 
 	if len(cfg.Clusters) > 0 {
-		opts := m3.ClustersStaticConfigurationOptions{
+		clusters, err = cfg.Clusters.NewClusters(m3.ClustersStaticConfigurationOptions{
 			AsyncSessions: true,
-		}
-		clusters, err = cfg.Clusters.NewClusters(opts)
+		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -539,12 +542,15 @@ func initClusters(
 			return <-dbClientCh, nil
 		}, sessionInitChan)
 
-		clusters, err = m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-			NamespaceID: ident.StringID(localCfg.Namespace),
-			Session:     session,
-			Retention:   localCfg.Retention,
-		})
+		clustersCfg := m3.ClustersStaticConfiguration{
+			m3.ClusterStaticConfiguration{
+				Namespaces: localCfg.Namespaces,
+			},
+		}
 
+		clusters, err = clustersCfg.NewClusters(m3.ClustersStaticConfigurationOptions{
+			ProvidedSession: session,
+		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
