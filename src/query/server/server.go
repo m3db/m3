@@ -176,6 +176,12 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create tag options", zap.Error(err))
 	}
 
+	lookbackDuration, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		logger.Fatal("error validating LookbackDuration", zap.Error(err))
+	}
+	cfg.LookbackDuration = &lookbackDuration
+
 	var (
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
@@ -222,7 +228,7 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration)
 
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
@@ -586,6 +592,7 @@ func newStorages(
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
+		*cfg.LookbackDuration,
 	)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
@@ -680,6 +687,7 @@ func remoteClient(
 			poolWrapper,
 			readWorkerPool,
 			tagOptions,
+			*cfg.LookbackDuration,
 		)
 		if err != nil {
 			return nil, false, err

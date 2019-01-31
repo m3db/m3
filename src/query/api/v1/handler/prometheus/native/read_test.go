@@ -126,7 +126,7 @@ func newTestSetup() *testSetup {
 	return &testSetup{
 		Storage: mockStorage,
 		Handler: NewPromReadHandler(
-			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil)),
+			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil), time.Minute),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("", nil),

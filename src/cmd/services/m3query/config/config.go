@@ -21,6 +21,7 @@
 package config
 
 import (
+	"errors"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -50,6 +51,9 @@ const (
 )
 
 var (
+	// 5m is the default lookback in Prometheus
+	defaultLookbackDuration = 5 * time.Minute
+
 	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
@@ -109,6 +113,9 @@ type Configuration struct {
 
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
+
+	// LookbackDuration determines the lookback duration for queries
+	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
 }
 
 // Filter is a query filter type.
@@ -157,6 +164,20 @@ type CarbonIngesterConfiguration struct {
 	ListenAddress  string                            `yaml:"listenAddress"`
 	MaxConcurrency int                               `yaml:"maxConcurrency"`
 	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+}
+
+// LookbackDurationOrDefault validates the LookbackDuration
+func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
+	if c.LookbackDuration == nil {
+		return defaultLookbackDuration, nil
+	}
+
+	v := *c.LookbackDuration
+	if v < 0 {
+		return 0, errors.New("lookbackDuration must be > 0")
+	}
+
+	return v, nil
 }
 
 // RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable

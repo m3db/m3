@@ -72,9 +72,11 @@ type Request struct {
 
 func newRequest(engine *Engine, params models.RequestParams) *Request {
 	parentSpan := startSpan(engine.metrics.activeHist, engine.metrics.all)
-	r := &Request{engine: engine, params: params, parentSpan: parentSpan}
-	return r
-
+	return &Request{
+		engine:     engine,
+		params:     params,
+		parentSpan: parentSpan,
+	}
 }
 
 func (r *Request) compile(ctx context.Context, parser parser.Parser) (parser.Nodes, parser.Edges, error) {
@@ -106,7 +108,7 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 		logging.WithContext(ctx).Info("logical plan", zap.String("plan", lp.String()))
 	}
 
-	pp, err := plan.NewPhysicalPlan(lp, r.engine.store, r.params)
+	pp, err := plan.NewPhysicalPlan(lp, r.engine.store, r.params, r.engine.lookbackDuration)
 	if err != nil {
 		sp.finish(err)
 		return plan.PhysicalPlan{}, err

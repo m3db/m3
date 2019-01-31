@@ -171,7 +171,7 @@ func TestConsolidation(t *testing.T) {
 			Interval: tt.stepSize,
 		}
 
-		unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery)
+		unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery, time.Minute)
 		assert.NoError(t, err)
 
 		block, err := unconsolidated.Consolidate()

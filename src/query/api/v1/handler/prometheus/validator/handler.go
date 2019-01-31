@@ -40,7 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	qjson "github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -59,18 +59,21 @@ const (
 // PromDebugHandler represents a handler for prometheus debug endpoint, which allows users
 // to compare Prometheus results vs m3 query results.
 type PromDebugHandler struct {
-	scope       tally.Scope
-	readHandler *native.PromReadHandler
+	scope            tally.Scope
+	readHandler      *native.PromReadHandler
+	lookbackDuration time.Duration
 }
 
 // NewPromDebugHandler returns a new instance of handler.
 func NewPromDebugHandler(
 	h *native.PromReadHandler,
 	scope tally.Scope,
+	lookbackDuration time.Duration,
 ) *PromDebugHandler {
 	return &PromDebugHandler{
-		scope:       scope,
-		readHandler: h,
+		scope:            scope,
+		readHandler:      h,
+		lookbackDuration: lookbackDuration,
 	}
 }
 
@@ -99,14 +102,14 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, err := validator.NewStorage(promDebug.Input)
+	s, err := validator.NewStorage(promDebug.Input, h.lookbackDuration)
 	if err != nil {
 		logger.Error("unable to create storage", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	engine := executor.NewEngine(s, h.scope.SubScope("debug_engine"))
+	engine := executor.NewEngine(s, h.scope.SubScope("debug_engine"), h.lookbackDuration)
 	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine)
 	if respErr != nil {
 		logger.Error("unable to read data", zap.Error(respErr.Err))

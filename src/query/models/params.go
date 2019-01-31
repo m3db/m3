@@ -34,11 +34,6 @@ const (
 	FormatM3QL
 )
 
-// LookbackDelta determines the time since the last sample after which a time
-// series is considered stale (inclusive).
-// TODO: Make this configurable
-var LookbackDelta = time.Minute
-
 // FetchedBlockType determines the type for fetched blocks, and how they are
 // transformed from storage type.
 type FetchedBlockType uint8

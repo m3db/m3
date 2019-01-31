@@ -21,6 +21,8 @@
 package m3db
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -87,9 +89,10 @@ func (b *encodedBlockUnconsolidated) SeriesIter() (
 	error,
 ) {
 	return &encodedSeriesIterUnconsolidated{
-		idx:         -1,
-		meta:        b.meta,
-		seriesMeta:  b.seriesMetas,
-		seriesIters: b.seriesBlockIterators,
+		idx:              -1,
+		meta:             b.meta,
+		seriesMeta:       b.seriesMetas,
+		seriesIters:      b.seriesBlockIterators,
+		lookbackDuration: time.Minute,
 	}, nil
 }

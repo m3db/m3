@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -38,6 +39,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+)
+
+var (
+	defaultLookbackDuration = time.Minute
 )
 
 func newBodyWithMismatch() io.Reader {
@@ -291,11 +296,12 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 	mockStorage := mock.NewMockStorage()
 	debugHandler := NewPromDebugHandler(
 		native.NewPromReadHandler(
-			executor.NewEngine(mockStorage, tally.NewTestScope("test_engine", nil)),
+			executor.NewEngine(mockStorage, tally.NewTestScope("test_engine", nil), defaultLookbackDuration),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("test", nil),
 		), tally.NewTestScope("test", nil),
+		defaultLookbackDuration,
 	)
 
 	return httptest.NewServer(debugHandler), debugHandler
