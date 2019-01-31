@@ -143,7 +143,7 @@ M3 supports the the majority of [graphite query functions](https://graphite.read
 
 ### Grafana
 
-`M3Coordinator` implements the Graphite source interface, so you can add them as sources in Grafana by following [these instructions.](http://docs.grafana.org/features/datasources/graphite/)
+`M3Coordinator` implements the Graphite source interface, so you can add it as a `graphite` source in Grafana by following [these instructions.](http://docs.grafana.org/features/datasources/graphite/)
 
 Note that you'll need to set the URL to: `http://<M3_COORDINATOR_HOST_NAME>:7201/api/v1/graphite`
 
