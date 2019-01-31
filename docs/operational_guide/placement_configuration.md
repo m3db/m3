@@ -134,6 +134,16 @@ curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/ap
 
 After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the `Available` state.
 
+#### Adding / Removing Seed Nodes
+
+If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an external etcd cluster, as
+the overhead of operating two stateful systems at once is non-trivial. As this is not a recommended production setup,
+this section is intentionally brief.
+
+To add or remove nodes to the etcd cluster, use `etcdctl member add` and `etcdctl member remove` as found in `Replacing
+a Seed Node` below. A general rule to keep in mind is that any time the M3DB process starts on a seed node, the list of
+cluster members in `etcdctl member list` must match *exactly* the list in config.
+
 #### Replacing a Node
 
 **NOTE**: If using embedded etcd and replacing a seed node, please read the section below.
@@ -218,8 +228,7 @@ initialCluster:
 4. Start M3DB on `host4`.
 
 5. On all other seed nodes, update their `initialCluster` list to be exactly equal to the list on `host4` from step 3.
+   Rolling restart the hosts one at a time, waiting until they indicate they are bootstrapped (indicated in the
+   `/health`) endpoint before continuing to the next.
 
 6. Follow the steps from `Replacing a Seed Node` to replace `host3` with `host4` in the M3DB placement.
-
-Once the M3DB replace finishes, you may want to rolling restart the other seed nodes to ensure they have an up-to-date
-config loaded.
