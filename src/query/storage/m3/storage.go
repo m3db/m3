@@ -41,6 +41,8 @@ import (
 )
 
 var (
+	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both " +
+		"aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured  = goerrors.New("no namespaces configured")
 	errMismatchedFetchedLength = goerrors.New("length of fetched attributes and" +
 		" series iterators does not match")
@@ -51,6 +53,7 @@ type queryFanoutType uint
 const (
 	namespaceCoversAllQueryRange queryFanoutType = iota
 	namespaceCoversPartialQueryRange
+	namespaceInvalid
 )
 
 type m3storage struct {

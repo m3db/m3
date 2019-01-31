@@ -31,23 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFanoutAggregatedDisabledGivesNoClustersOnAggregation(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	s, _ := setup(t, ctrl)
-	store, ok := s.(*m3storage)
-	assert.True(t, ok)
-	var r reusedAggregatedNamespaceSlices
-	opts := &storage.FanoutOptions{
-		FanoutAggregated: storage.FanoutForceDisable,
-	}
-
-	clusters := store.clusters.ClusterNamespaces()
-	r = aggregatedNamespaces(clusters, r, nil, opts)
-	assert.Equal(t, 0, len(r.completeAggregated))
-	assert.Equal(t, 0, len(r.partialAggregated))
-}
-
 func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

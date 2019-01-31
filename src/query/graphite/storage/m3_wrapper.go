@@ -132,7 +132,7 @@ func (s *m3WrappedStore) FetchByQuery(
 	fetchOptions := storage.NewFetchOptions()
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,
-		FanoutAggregated:          storage.FanoutForceEnable,
+		FanoutAggregated:          storage.FanoutDefault,
 		FanoutAggregatedOptimized: storage.FanoutForceDisable,
 	}
 

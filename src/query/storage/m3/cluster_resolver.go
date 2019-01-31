@@ -58,6 +58,7 @@ func resolveUnaggregatedNamespaceForQuery(
 	if unaggregatedStart.Before(start) || unaggregatedStart.Equal(start) {
 		return unaggregatedNamespaceDetails{
 			clusterNamespace: unaggregated,
+			retention:        retention,
 			satisfies:        fullySatisfiesRange,
 		}
 	}
@@ -89,12 +90,21 @@ func resolveClusterNamespacesForQuery(
 			nil
 	}
 
+	if opts.FanoutAggregated == storage.FanoutForceDisable {
+		if unaggregated.satisfies == partiallySatisfiesRange {
+			return namespaceCoversAllQueryRange,
+				ClusterNamespaces{unaggregated.clusterNamespace}, nil
+		}
+
+		return namespaceInvalid, nil, errUnaggregatedAndAggregatedDisabled
+	}
+
 	// The filter function will drop namespaces which do not cover the entire
 	// query range from contention.
 	//
 	// NB: if fanout aggregation is forced on, the filter instead forces clusters
 	// that do not cover the range to be set as partially aggregated.
-	filterFunc := func(namespace ClusterNamespace) bool {
+	coversRangeFilter := func(namespace ClusterNamespace) bool {
 		// Include only if can fulfill the entire time range of the query
 		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
 		return !clusterStart.After(start)
@@ -102,7 +112,7 @@ func resolveClusterNamespacesForQuery(
 
 	// Filter aggregated namespaces by filter function and options.
 	var r reusedAggregatedNamespaceSlices
-	r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, filterFunc, opts)
+	r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, coversRangeFilter, opts)
 
 	// If any of the aggregated clusters have a complete set of metrics, use
 	// those that have the smallest resolutions, supplemented by lower resolution
@@ -124,17 +134,12 @@ func resolveClusterNamespacesForQuery(
 		return namespaceCoversAllQueryRange, result, nil
 	}
 
-	// No need to regenerate aggregated namespace without a filter if aggregated
-	// fanout is force enabled.
-	if opts.FanoutAggregated != storage.FanoutForceEnable {
-		// No complete aggregated namespaces can definitely fulfill the query,
-		// so take the longest retention completed aggregated namespace to return
-		// as much data as possible, along with any partially aggregated namespaces
-		// that have either same retention and lower resolution or longer retention
-		// than the complete aggregated namespace
-		r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, nil, opts)
-	}
-
+	// No complete aggregated namespaces can definitely fulfill the query,
+	// so take the longest retention completed aggregated namespace to return
+	// as much data as possible, along with any partially aggregated namespaces
+	// that have either same retention and lower resolution or longer retention
+	// than the complete aggregated namespace.
+	r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, nil, opts)
 	if len(r.completeAggregated) == 0 {
 		// Absolutely no complete aggregated namespaces, need to fanout to all
 		// partial aggregated namespaces as well as the unaggregated cluster
@@ -150,7 +155,7 @@ func resolveClusterNamespacesForQuery(
 		// range, set query fanout type to namespaceCoversPartialQueryRange.
 		for _, n := range result {
 			clusterStart := now.Add(-1 * n.Options().Attributes().Retention)
-			if clusterStart.After(start) {
+			if !clusterStart.After(start) {
 				return namespaceCoversPartialQueryRange, result, nil
 			}
 		}
@@ -242,11 +247,6 @@ func aggregatedNamespaces(
 	// Reset reused slices.
 	slices = slices.reset(len(all))
 
-	// Force disable fanout to any aggregated namespaces.
-	if opts.FanoutAggregated == storage.FanoutForceDisable {
-		return slices
-	}
-
 	// Otherwise the default and force enable is to fanout and treat
 	// the aggregated namespaces differently (depending on whether they
 	// have all the data).
@@ -257,12 +257,9 @@ func aggregatedNamespaces(
 			continue
 		}
 
-		// If fanout is forced, ignore the filter.
-		if opts.FanoutAggregated != storage.FanoutForceEnable {
-			if filter != nil && !filter(namespace) {
-				// Fails to satisfy filter.
-				continue
-			}
+		if filter != nil && !filter(namespace) {
+			// Fails to satisfy filter.
+			continue
 		}
 
 		// If not optimizing fanout to aggregated namespaces, set all aggregated
@@ -284,11 +281,8 @@ func aggregatedNamespaces(
 			// This namespace has a complete set of metrics. Ensure that it passes
 			// the filter if it was a forced addition, otherwise it may be too short
 			// to cover the entire range and should be considered a partial result.
-			if opts.FanoutAggregated != storage.FanoutForceEnable ||
-				filter == nil || filter(namespace) {
-				slices.completeAggregated = append(slices.completeAggregated, namespace)
-				continue
-			}
+			slices.completeAggregated = append(slices.completeAggregated, namespace)
+			continue
 		}
 
 		// This namespace does not necessarily have a complete set of metrics.
