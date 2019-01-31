@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
 	"github.com/gorilla/mux"
@@ -47,14 +47,19 @@ const (
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 
-	// TODO: get timeouts from configs
-	maxTimeout     = time.Minute
-	defaultTimeout = time.Second * 15
+	maxTimeout = 5 * time.Minute
+	// DefaultTimeout is the default timeout for fetch requests
+	DefaultTimeout = 15 * time.Second
 )
 
 var (
 	matchValues = []byte(".*")
 )
+
+// TimeoutOpts stores options related to various timeout configurations
+type TimeoutOpts struct {
+	FetchTimeout time.Duration
+}
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
 func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
@@ -83,10 +88,10 @@ func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
 }
 
 // ParseRequestTimeout parses the input request timeout with a default
-func ParseRequestTimeout(r *http.Request) (time.Duration, error) {
+func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
 	if timeout == "" {
-		return defaultTimeout, nil
+		return configFetchTimeout, nil
 	}
 
 	duration, err := time.ParseDuration(timeout)

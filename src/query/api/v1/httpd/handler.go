@@ -22,6 +22,7 @@ package httpd
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
@@ -77,6 +79,7 @@ type Handler struct {
 	scope                tally.Scope
 	createdAt            time.Time
 	tagOptions           models.TagOptions
+	timeoutOpts          *prometheus.TimeoutOpts
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -105,6 +108,17 @@ func NewHandler(
 		},
 	}
 
+	var timeoutOpts = &prometheus.TimeoutOpts{}
+	if embeddedDbCfg == nil {
+		timeoutOpts.FetchTimeout = prometheus.DefaultTimeout
+	} else {
+		if embeddedDbCfg.Client.FetchTimeout < 0 {
+			return nil, errors.New("m3db client fetch timeout should be > 0")
+		}
+
+		timeoutOpts.FetchTimeout = embeddedDbCfg.Client.FetchTimeout
+	}
+
 	h := &Handler{
 		router:               r,
 		handler:              withMiddleware,
@@ -118,6 +132,7 @@ func NewHandler(
 		scope:                scope,
 		createdAt:            time.Now(),
 		tagOptions:           tagOptions,
+		timeoutOpts:          timeoutOpts,
 	}
 	return h, nil
 }
@@ -132,7 +147,7 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
-	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
+	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource), h.timeoutOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
 		h.downsamplerAndWriter,
 		h.tagOptions,
@@ -147,6 +162,7 @@ func (h *Handler) RegisterRoutes() error {
 		h.tagOptions,
 		&h.config.Limits,
 		h.scope.Tagged(nativeSource),
+		h.timeoutOpts,
 	)
 
 	h.router.HandleFunc(remote.PromReadURL,
@@ -159,7 +175,7 @@ func (h *Handler) RegisterRoutes() error {
 		logged(nativePromReadHandler).ServeHTTP,
 	).Methods(native.PromReadHTTPMethod)
 	h.router.HandleFunc(native.PromReadInstantURL,
-		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions)).ServeHTTP,
+		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions, h.timeoutOpts)).ServeHTTP,
 	).Methods(native.PromReadInstantHTTPMethod)
 
 	// Native M3 search and write endpoints

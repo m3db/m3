@@ -57,7 +57,7 @@ func TestPromReadHandler_Read(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, parseErr := parseParams(req)
+	r, parseErr := parseParams(req, timeoutOpts)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
 	seriesList, err := read(context.TODO(), promRead.engine, promRead.tagOpts, httptest.NewRecorder(), r)
@@ -130,6 +130,7 @@ func newTestSetup() *testSetup {
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("", nil),
+			timeoutOpts,
 		),
 	}
 }
