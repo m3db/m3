@@ -79,7 +79,6 @@ var (
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
 	defaultCarbonIngesterWorkerPoolSize       = 1024
-	defaultLookbackDuration                   = 5 * time.Minute
 )
 
 type cleanupFn func() error
@@ -173,11 +172,11 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create tag options", zap.Error(err))
 	}
 
-	if cfg.LookbackDuration == nil {
-		cfg.LookbackDuration = &defaultLookbackDuration
-	} else if *cfg.LookbackDuration < 0 {
-		logger.Fatal("lookbackDuration must be > 0")
+	lookbackDuration, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		logger.Fatal("error validating LookbackDuration", zap.Error(err))
 	}
+	cfg.LookbackDuration = &lookbackDuration
 
 	var (
 		m3dbClusters    m3.Clusters
