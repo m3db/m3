@@ -19,7 +19,7 @@ docker pull quay.io/m3/m3dbnode:latest
 docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $GOPATH/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml:/etc/m3dbnode/m3dbnode.yml quay.io/m3/m3dbnode:latest
 ```
 
-**Note:** This setup runs `M3DB` and `m3coordinator` as one application and should only be used for testing/development purposes. If you want to run a clustered `M3DB` with a separate `m3coordinator`, please [see here](cluster_hard_way.md).
+**Note:** This setup runs `M3DB` and `M3Coordinator` as one application and should only be used for testing/development purposes. If you want to run a clustered `M3DB` with a separate `M3Coordinator`, please [see here](cluster_hard_way.md).
 
 <!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
 placements, etc. are -->
