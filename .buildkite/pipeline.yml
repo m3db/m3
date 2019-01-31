@@ -10,6 +10,15 @@ common: &common
     manual: true
 
 steps:
+  - name: "Check for :docker: build"
+    command: ".buildkite/scripts/check_do_docker.sh"
+    agents:
+      queue: init
+    timeout_in_minutes: 10
+    retry:
+      automatic:
+        limit: 1
+      manual: true
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
     env:
