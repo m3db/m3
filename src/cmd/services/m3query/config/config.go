@@ -25,7 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
+	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/graphite/graphite"

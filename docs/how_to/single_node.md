@@ -39,14 +39,18 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
-**Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `clusters` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above. For example:
+**Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `local` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above with the appropriate aggregation options specified. For example:
 
 ```json
-clusters:
-  - namespaces:
-      - namespace: new_namespace
-        type: aggregated
-        retention: 6h
+local:
+  namespaces:
+    - namespace: default
+      type: unaggregated
+      retention: 48h
+    - namespace: <new_namespace>
+      type: aggregated
+      retention: <new_retention>
+      resolution: <new_resolution>
 ```
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or

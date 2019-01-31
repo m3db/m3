@@ -3,6 +3,12 @@ coordinator:
     type: "config"
     value: "0.0.0.0:7201"
 
+local:
+  namespaces:
+    - namespace: default
+      type: unaggregated
+      retention: 48h
+
   metrics:
     scope:
       prefix: "coordinator"

@@ -36,7 +36,7 @@ import (
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
+	ingestcarbon "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"

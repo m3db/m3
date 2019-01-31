@@ -184,6 +184,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 			client client.Client
 			err    error
 		)
+
 		if opts.ProvidedSession == nil {
 			// NB(r): If session is already provided, do not create a client
 			client, err = clusterCfg.newClient(defaultNewClientConfigurationParams)
