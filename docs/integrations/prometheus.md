@@ -92,3 +92,22 @@ remote_read:
 remote_write:
   - url: "http://localhost:7201/api/v1/prom/remote/write"
 ```
+
+Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of jobs under `scrape_configs` so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
+
+```json
+- job_name: 'm3db'
+  static_configs:
+    - targets: ['<M3DB_HOST_NAME_1>:7203', '<M3DB_HOST_NAME_2>:7203', '<M3DB_HOST_NAME_3>:7203']
+- job_name: 'm3coordinator'
+  static_configs:
+    - targets: ['<M3COORDINATOR_HOST_NAME_1>:7203']
+```
+
+**NOTE:** If you are running `M3DB` with embedded `M3Coordinator`, you should only have one job. We recommend just calling this job `m3`. For example:
+
+```json
+- job_name: 'm3'
+  static_configs:
+    - targets: ['<HOST_NAME>:7203']
+```
