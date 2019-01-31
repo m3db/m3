@@ -51,6 +51,7 @@ const (
 )
 
 var (
+	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
