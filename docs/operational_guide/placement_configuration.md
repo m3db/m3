@@ -56,6 +56,9 @@ This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the p
 
 ### Placement Operations
 
+**NOTE**: If you find yourself performing operations on seed nodes, please refer to the seed node-specific sections
+below before making changes.
+
 The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
