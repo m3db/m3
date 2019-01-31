@@ -149,7 +149,7 @@ Note that you'll need to set the URL to: `http://<M3_COORDINATOR_HOST_NAME>:7201
 
 ### Direct
 
-You can query for metrics issuing HTTP requests directly against the `M3Coordinator` `/api/v1/graphite/render` endpoint which runs on port `7201` by default. For example:
+You can query for metrics directly by issuing HTTP GET requests directly against the `M3Coordinator` `/api/v1/graphite/render` endpoint which runs on port `7201` by default. For example:
 
 ```bash
 (export now=$(date +%s) && curl "localhost:7201/api/v1/graphite/render?target=transformNull(foo.*.baz)&from=$(($now-300))" | jq .)
