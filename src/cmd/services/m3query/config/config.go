@@ -245,11 +245,8 @@ type CarbonIngesterStoragePolicyConfiguration struct {
 // LocalConfiguration is the local embedded configuration if running
 // coordinator embedded in the DB.
 type LocalConfiguration struct {
-	// Namespace is the name of the local namespace to write/read from.
-	Namespace string `yaml:"namespace" validate:"nonzero"`
-
-	// Retention is the retention of the local namespace to write/read from.
-	Retention time.Duration `yaml:"retention" validate:"nonzero"`
+	// Namespaces is the list of namespaces that the local embedded DB has.
+	Namespaces []m3.ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
 // ClusterManagementConfiguration is configuration for the placemement,

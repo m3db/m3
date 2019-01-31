@@ -163,7 +163,8 @@ type clusterConnectResult struct {
 // ClustersStaticConfigurationOptions are options to use when
 // constructing clusters from config.
 type ClustersStaticConfigurationOptions struct {
-	AsyncSessions bool
+	AsyncSessions   bool
+	ProvidedSession client.Session
 }
 
 // NewClusters instantiates a new Clusters instance.
@@ -179,9 +180,16 @@ func (c ClustersStaticConfiguration) NewClusters(
 		aggregatedClusterNamespaces      []AggregatedClusterNamespaceDefinition
 	)
 	for _, clusterCfg := range c {
-		client, err := clusterCfg.newClient(defaultNewClientConfigurationParams)
-		if err != nil {
-			return nil, err
+		var (
+			client client.Client
+			err    error
+		)
+		if opts.ProvidedSession == nil {
+			// NB(r): If session is already provided, do not create a client
+			client, err = clusterCfg.newClient(defaultNewClientConfigurationParams)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		aggregatedClusterNamespacesCfg := &aggregatedClusterNamespacesConfiguration{
@@ -233,7 +241,9 @@ func (c ClustersStaticConfiguration) NewClusters(
 	go func() {
 		defer wg.Done()
 		cfg := unaggregatedClusterNamespaceCfg
-		if !opts.AsyncSessions {
+		if opts.ProvidedSession != nil {
+			cfg.result.session = opts.ProvidedSession
+		} else if !opts.AsyncSessions {
 			cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
 		} else {
 			cfg.result.session = m3db.NewAsyncSession(func() (client.Client, error) {
@@ -246,7 +256,9 @@ func (c ClustersStaticConfiguration) NewClusters(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if !opts.AsyncSessions {
+			if opts.ProvidedSession != nil {
+				cfg.result.session = opts.ProvidedSession
+			} else if !opts.AsyncSessions {
 				cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
 			} else {
 				cfg.result.session = m3db.NewAsyncSession(func() (client.Client, error) {
