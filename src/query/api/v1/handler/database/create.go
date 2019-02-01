@@ -246,8 +246,9 @@ func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*a
 		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
+	requestedDBType := dbType(dbCreateReq.Type)
 	if requirePlacement &&
-		dbType(dbCreateReq.Type) == dbTypeCluster &&
+		requestedDBType == dbTypeCluster &&
 		len(dbCreateReq.Hosts) == 0 {
 		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
@@ -258,7 +259,8 @@ func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*a
 	}
 
 	var placementInitRequest *admin.PlacementInitRequest
-	if len(dbCreateReq.Hosts) > 0 {
+	if (requestedDBType == dbTypeCluster && len(dbCreateReq.Hosts) > 0) ||
+		requestedDBType == dbTypeLocal {
 		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
 		if err != nil {
 			return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)

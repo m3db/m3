@@ -111,6 +111,7 @@ func TestLocalType(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -215,6 +216,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 51, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -318,6 +320,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -425,6 +428,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -539,6 +543,7 @@ func TestClusterTypeHosts(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -663,6 +668,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -744,7 +750,9 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -771,7 +779,9 @@ func TestBadType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
 	w := httptest.NewRecorder()
 
