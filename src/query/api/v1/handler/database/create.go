@@ -26,14 +26,12 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -464,108 +462,6 @@ func defaultedPlacementInitRequest(
 		ReplicationFactor: replicationFactor,
 		Instances:         instances,
 	}, nil
-}
-
-func comparePlacements(requested *admin.PlacementInitRequest, existing clusterplacement.Placement) error {
-	if requested.NumShards != 0 && int(requested.NumShards) != existing.NumShards() {
-		return fmt.Errorf(
-			"requested num shards: %d does not match existing: %d",
-			requested.NumShards, existing.NumShards())
-	}
-
-	if requested.ReplicationFactor != 0 && int(requested.ReplicationFactor) != existing.ReplicaFactor() {
-		return fmt.Errorf(
-			"requested replication factor: %d does not matching existing:  %d",
-			requested.ReplicationFactor, existing.ReplicaFactor())
-	}
-
-	if len(requested.Instances) > 0 && len(requested.Instances) != existing.NumInstances() {
-		return fmt.Errorf(
-			"requested num hosts: %d does not matching existing:  %d",
-			len(requested.Instances), existing.NumInstances())
-	}
-
-	var (
-		requestedInstances = requested.Instances
-		existingInstances  = existing.Instances()
-	)
-	sort.Slice(requestedInstances, func(i, j int) bool {
-		var (
-			leftID  = requestedInstances[i].Id
-			rightID = requestedInstances[j].Id
-		)
-		return strings.Compare(leftID, rightID) == -1
-	})
-	sort.Slice(existingInstances, func(i, j int) bool {
-		var (
-			leftID  = existingInstances[i].ID()
-			rightID = existingInstances[j].ID()
-		)
-		return strings.Compare(leftID, rightID) == -1
-	})
-
-	for i := 0; i < len(requestedInstances); i++ {
-		var (
-			requested = requestedInstances[i]
-			existing  = existingInstances[i]
-		)
-
-		if requested.Id != existing.ID() {
-			return fmt.Errorf(
-				"requested ID: %s does not match existing: %s",
-				requested.Id, existing.ID())
-		}
-
-		if requested.IsolationGroup != existing.IsolationGroup() {
-			return fmt.Errorf(
-				"requested isolation group: %s does not match existing: %s for host: %s",
-				requested.IsolationGroup, existing.IsolationGroup(), requested.Id)
-		}
-
-		if requested.Endpoint != existing.Endpoint() {
-			return fmt.Errorf(
-				"requested endpoint: %s does not match existing: %s for host: %s",
-				requested.Endpoint, existing.Endpoint(), requested.Id)
-		}
-
-		if requested.Port != existing.Port() {
-			return fmt.Errorf(
-				"requested port: %d does not match existing: %d for host: %s",
-				requested.Port, existing.Port(), requested.Id)
-		}
-
-		if requested.Weight != existing.Weight() {
-			return fmt.Errorf(
-				"requested weight: %d does not match existing: %d for host: %s",
-				requested.Weight, existing.Weight(), requested.Id)
-		}
-
-		if requested.Zone != "" && requested.Zone != existing.Zone() {
-			return fmt.Errorf(
-				"requested zone: %s does not match existing: %s for host: %s",
-				requested.Zone, existing.Zone(), requested.Id)
-		}
-
-		if requested.Hostname != "" && requested.Hostname != existing.Hostname() {
-			return fmt.Errorf(
-				"requested weight: %s does not match existing: %s for host: %s",
-				requested.Hostname, existing.Hostname(), requested.Id)
-		}
-
-		if len(requested.Shards) > 0 {
-			// Not supposed to provide shards in this API anyways.
-			return fmt.Errorf(
-				"cannot override number of shards on host: %s using database create API", requested.Id)
-		}
-
-		if requested.ShardSetId != 0 {
-			// Not supposed to provide shard set ID in this API anyways.
-			return fmt.Errorf(
-				"cannot override shard set ID on host: %s using database create API", requested.Id)
-		}
-	}
-
-	return nil
 }
 
 func portFromEmbeddedDBConfigListenAddress(address string) (int, error) {
