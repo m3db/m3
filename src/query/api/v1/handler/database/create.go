@@ -49,11 +49,17 @@ import (
 )
 
 const (
-	// CreateURL is the url for the database create handler.
+	// CreateURL is the URL for the database create handler.
 	CreateURL = handler.RoutePrefixV1 + "/database/create"
 
-	// CreateHTTPMethod is the HTTP method used with this resource.
+	// CreateNamespaceURL is the URL for the database namespace create  handler.
+	CreateNamespaceURL = handler.RoutePrefixV1 + "/database/namespace/create"
+
+	// CreateHTTPMethod is the HTTP method used with the create database resource.
 	CreateHTTPMethod = http.MethodPost
+
+	// CreateNamespaceHTTPMethod is the HTTP method used with the create database namespace resource.
+	CreateNamespaceHTTPMethod = http.MethodPost
 
 	// DefaultLocalHostID is the default local host ID when creating a database.
 	DefaultLocalHostID = "m3db_local"
