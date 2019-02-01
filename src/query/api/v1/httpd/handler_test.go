@@ -77,6 +77,20 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestHandlerFetchTimeout(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: 4 * time.Minute}}
+	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
+}
+
 func TestPromRemoteReadGet(t *testing.T) {
 	logging.InitWithCores(nil)
 
@@ -87,6 +101,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
+	assert.Equal(t, 30*time.Second, h.timeoutOpts.FetchTimeout)
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
