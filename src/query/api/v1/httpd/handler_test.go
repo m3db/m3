@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
@@ -60,6 +62,19 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
 	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute), nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, tally.NewTestScope("", nil))
+}
+
+func TestHandlerTimeoutError(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: -1 * time.Second}}
+	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	require.Error(t, err)
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
