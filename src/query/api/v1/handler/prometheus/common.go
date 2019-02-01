@@ -48,8 +48,6 @@ const (
 	errFormatStr        = "error parsing param: %s, error: %v"
 
 	maxTimeout = 5 * time.Minute
-	// DefaultTimeout is the default timeout for fetch requests
-	DefaultTimeout = 15 * time.Second
 )
 
 var (

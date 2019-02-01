@@ -63,6 +63,8 @@ const (
 var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
+
+	defaultTimeout = 30 * time.Second
 )
 
 // Handler represents an HTTP handler.
@@ -110,7 +112,7 @@ func NewHandler(
 
 	var timeoutOpts = &prometheus.TimeoutOpts{}
 	if embeddedDbCfg == nil {
-		timeoutOpts.FetchTimeout = prometheus.DefaultTimeout
+		timeoutOpts.FetchTimeout = defaultTimeout
 	} else {
 		if embeddedDbCfg.Client.FetchTimeout < 0 {
 			return nil, errors.New("m3db client fetch timeout should be > 0")
