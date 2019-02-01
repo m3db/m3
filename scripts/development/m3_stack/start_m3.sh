@@ -2,7 +2,7 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$(pwd)/../../docker-integration-tests/common.sh"
 
 DOCKER_ARGS="-d --renew-anon-volumes"
 if [[ "$FORCE_BUILD" = true ]] ; then

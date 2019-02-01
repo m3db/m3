@@ -78,9 +78,10 @@ func (b *encodedBlockUnconsolidated) SeriesIter() (
 	error,
 ) {
 	return &encodedSeriesIterUnconsolidated{
-		idx:         -1,
-		meta:        b.meta,
-		seriesMeta:  b.seriesMetas,
-		seriesIters: b.seriesBlockIterators,
+		idx:              -1,
+		meta:             b.meta,
+		seriesMeta:       b.seriesMetas,
+		seriesIters:      b.seriesBlockIterators,
+		lookbackDuration: b.lookback,
 	}, nil
 }

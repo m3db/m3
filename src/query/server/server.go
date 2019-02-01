@@ -36,7 +36,7 @@ import (
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
+	ingestcarbon "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -58,7 +58,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xserver "github.com/m3db/m3x/server"
@@ -73,8 +72,13 @@ import (
 
 var (
 	defaultLocalConfiguration = &config.LocalConfiguration{
-		Namespace: "default",
-		Retention: 2 * 24 * time.Hour,
+		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+			{
+				Namespace: "default",
+				Type:      storage.UnaggregatedMetricsType,
+				Retention: 2 * 24 * time.Hour,
+			},
+		},
 	}
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
@@ -172,6 +176,12 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create tag options", zap.Error(err))
 	}
 
+	lookbackDuration, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		logger.Fatal("error validating LookbackDuration", zap.Error(err))
+	}
+	cfg.LookbackDuration = &lookbackDuration
+
 	var (
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
@@ -218,7 +228,7 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration)
 
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
@@ -517,10 +527,9 @@ func initClusters(
 	)
 
 	if len(cfg.Clusters) > 0 {
-		opts := m3.ClustersStaticConfigurationOptions{
+		clusters, err = cfg.Clusters.NewClusters(m3.ClustersStaticConfigurationOptions{
 			AsyncSessions: true,
-		}
-		clusters, err = cfg.Clusters.NewClusters(opts)
+		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -539,12 +548,15 @@ func initClusters(
 			return <-dbClientCh, nil
 		}, sessionInitChan)
 
-		clusters, err = m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-			NamespaceID: ident.StringID(localCfg.Namespace),
-			Session:     session,
-			Retention:   localCfg.Retention,
-		})
+		clustersCfg := m3.ClustersStaticConfiguration{
+			m3.ClusterStaticConfiguration{
+				Namespaces: localCfg.Namespaces,
+			},
+		}
 
+		clusters, err = clustersCfg.NewClusters(m3.ClustersStaticConfigurationOptions{
+			ProvidedSession: session,
+		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -580,6 +592,7 @@ func newStorages(
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
+		*cfg.LookbackDuration,
 	)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
@@ -674,6 +687,7 @@ func remoteClient(
 			poolWrapper,
 			readWorkerPool,
 			tagOptions,
+			*cfg.LookbackDuration,
 		)
 		if err != nil {
 			return nil, false, err

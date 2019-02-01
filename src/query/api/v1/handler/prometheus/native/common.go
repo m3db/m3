@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -83,12 +83,12 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 }
 
 // parseParams parses all params from the GET request
-func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
 
-	t, err := prometheus.ParseRequestTimeout(r)
+	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -179,14 +179,14 @@ func parseBlockType(r *http.Request) models.FetchedBlockType {
 }
 
 // parseInstantaneousParams parses all params from the GET request
-func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func parseInstantaneousParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now:        time.Now(),
 		Step:       time.Second,
 		IncludeEnd: true,
 	}
 
-	t, err := prometheus.ParseRequestTimeout(r)
+	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}

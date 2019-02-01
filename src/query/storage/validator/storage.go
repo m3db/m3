@@ -36,18 +36,20 @@ import (
 )
 
 type debugStorage struct {
-	seriesList []*ts.Series
+	seriesList       []*ts.Series
+	lookbackDuration time.Duration
 }
 
 // NewStorage creates a new debug storage instance.
-func NewStorage(promReadResp prometheus.PromResp) (storage.Storage, error) {
+func NewStorage(promReadResp prometheus.PromResp, lookbackDuration time.Duration) (storage.Storage, error) {
 	seriesList, err := PromResultToSeriesList(promReadResp, models.NewTagOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	return &debugStorage{
-		seriesList: seriesList,
+		seriesList:       seriesList,
+		lookbackDuration: lookbackDuration,
 	}, nil
 }
 
@@ -71,7 +73,7 @@ func (s *debugStorage) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	return storage.FetchResultToBlockResult(fetchResult, query)
+	return storage.FetchResultToBlockResult(fetchResult, query, s.lookbackDuration)
 }
 
 // PromResultToSeriesList converts a prom result to a series list

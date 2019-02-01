@@ -29,7 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/x/metrics"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -45,7 +46,12 @@ import (
 )
 
 var (
-	promReadTestMetrics = newPromReadMetrics(tally.NewTestScope("", nil))
+	promReadTestMetrics     = newPromReadMetrics(tally.NewTestScope("", nil))
+	defaultLookbackDuration = time.Minute
+
+	timeoutOpts = &prometheus.TimeoutOpts{
+		FetchTimeout: 15 * time.Second,
+	}
 )
 
 func setupServer(t *testing.T) *httptest.Server {
@@ -57,20 +63,23 @@ func setupServer(t *testing.T) *httptest.Server {
 		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, false, fmt.Errorf("not initialized"))
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
-	promRead := readHandler(storage)
+	promRead := readHandler(storage, timeoutOpts)
 	server := httptest.NewServer(test.NewSlowHandler(promRead, 10*time.Millisecond))
 	return server
 }
 
-func readHandler(store storage.Storage) *PromReadHandler {
-	return &PromReadHandler{engine: executor.NewEngine(store, tally.NewTestScope("test", nil)), promReadMetrics: promReadTestMetrics}
+func readHandler(store storage.Storage, timeoutOpts *prometheus.TimeoutOpts) *PromReadHandler {
+	return &PromReadHandler{engine: executor.NewEngine(store, tally.NewTestScope("test", nil), defaultLookbackDuration),
+		promReadMetrics: promReadTestMetrics,
+		timeoutOpts:     timeoutOpts,
+	}
 }
 
 func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage, tally.NewTestScope("test", nil)), promReadMetrics: promReadTestMetrics}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage, tally.NewTestScope("test", nil), defaultLookbackDuration), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
@@ -78,11 +87,29 @@ func TestPromReadParsing(t *testing.T) {
 	require.Equal(t, len(r.Queries), 1)
 }
 
+func TestPromFetchTimeoutParsing(t *testing.T) {
+	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	promRead := &PromReadHandler{
+		engine:          executor.NewEngine(storage, tally.NewTestScope("test", nil), defaultLookbackDuration),
+		promReadMetrics: promReadTestMetrics,
+		timeoutOpts: &prometheus.TimeoutOpts{
+			FetchTimeout: 2 * time.Minute,
+		},
+	}
+
+	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
+	dur, err := prometheus.ParseRequestTimeout(req, promRead.timeoutOpts.FetchTimeout)
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, dur)
+}
+
 func TestPromReadParsingBad(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	promRead := readHandler(storage)
+	promRead := readHandler(storage, timeoutOpts)
 	req, _ := http.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
 	_, err := promRead.parseRequest(req)
 	require.NotNil(t, err, "unable to parse request")
@@ -96,7 +123,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 		Return(nil, true, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
 		Return(nil, nil)
-	promRead := readHandler(storage)
+	promRead := readHandler(storage, timeoutOpts)
 	req := test.GeneratePromReadRequest()
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, time.Hour)
 	require.NotNil(t, err, "unable to read from storage")
@@ -153,7 +180,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage, scope), promReadMetrics: readMetrics}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage, scope, defaultLookbackDuration), promReadMetrics: readMetrics, timeoutOpts: timeoutOpts}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	promRead.ServeHTTP(httptest.NewRecorder(), req)
 

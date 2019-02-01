@@ -71,10 +71,11 @@ func NewStorage(
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	lookbackDuration time.Duration,
 ) Storage {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
-		SetLookbackDuration(time.Minute).
+		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
 
 	return &m3storage{
@@ -137,7 +138,7 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query)
+		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration())
 	}
 
 	// If using multiblock, update options to reflect this.

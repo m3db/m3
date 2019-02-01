@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
@@ -48,7 +50,8 @@ import (
 
 var (
 	// Created by init().
-	testWorkerPool xsync.PooledWorkerPool
+	testWorkerPool          xsync.PooledWorkerPool
+	defaultLookbackDuration = time.Minute
 )
 
 func makeTagOptions() models.TagOptions {
@@ -57,8 +60,35 @@ func makeTagOptions() models.TagOptions {
 
 func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
-	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
-		config.Configuration{}, nil, tally.NewTestScope("", nil))
+	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, tally.NewTestScope("", nil))
+}
+
+func TestHandlerFetchTimeoutError(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: -1 * time.Second}}
+	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	require.Error(t, err)
+}
+
+func TestHandlerFetchTimeout(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: 4 * time.Minute}}
+	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -71,6 +101,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
+	assert.Equal(t, 30*time.Second, h.timeoutOpts.FetchTimeout)
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)

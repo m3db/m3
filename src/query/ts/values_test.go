@@ -121,7 +121,7 @@ var samples = []struct {
 
 func TestDPAlign(t *testing.T) {
 	for _, sample := range samples {
-		dpSlice := sample.input.AlignToBounds(sample.bounds)
+		dpSlice := sample.input.AlignToBounds(sample.bounds, time.Minute)
 		require.Len(t, dpSlice, len(sample.expected), sample.description)
 		for i, dps := range dpSlice {
 			assert.Equal(t, sample.expected[i], dps.Values())
