@@ -28,7 +28,7 @@ Finally, you can spin up the two containers using `docker-compose` within the `d
 
 > Note: The default local ports for Prometheus and m3coordinator are `9090` and `7201`, respectively, and the default `prometheus.yml` file is `docker/prometheus.yml`
 >
->If you want to override these, you can pass in the following environment variables to the `docker-compose` command:
+> If you want to override these, you can pass in the following environment variables to the `docker-compose` command:
 >
 > `LOCAL_PROM_PORT`
 >
@@ -89,6 +89,7 @@ Users can validate m3query's Prometheus results for a given query against input 
 Query: `go_gc_duration_seconds{quantile="1"} * 2`
 
 Input JSON:
+
 ```
 {
   "input": {
@@ -145,7 +146,8 @@ Input JSON:
   }
 }
 ```
-Full request: `curl -X POST 'localhost:7201/api/v1/debug/validate_query?start=1543431465&end=1543435045&step=14s&query=go_gc_duration_seconds%7Bquantile%3D%221%22%7D*2' -d @<input_json_file> --header "Content-Type: application/json"`
+
+Full request: `curl -X POST 'http://localhost:7201/api/v1/debug/validate_query?query=sum_over_time(process_cpu_seconds_total%7Binstance%3D~%22m3db_seed%3A7203%22%7D%5B60s%5D)&start=1549035092&end=1549035177&step=1' -d @lol.json --header "Content-Type: application/json"`
 
 [doc-img]: https://godoc.org/github.com/m3db/m3/src/query?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3/src/query

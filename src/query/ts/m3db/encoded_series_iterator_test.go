@@ -141,7 +141,7 @@ var consolidatedSeriesIteratorTestsSplitByBlock = []struct {
 			},
 			{
 				{7, nan, nan, nan, nan, 8},
-				{nan, 30, nan, nan, nan, nan},
+				{nan, nan, nan, nan, nan, nan},
 				{nan, nan, nan, 300, nan, nan},
 			},
 			{

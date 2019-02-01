@@ -56,14 +56,14 @@ func TestAccumulator(t *testing.T) {
 	expected[1] = xts.Datapoints{xts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10}}
 	assert.Equal(t, expected, actual)
 
-	// NB: lookback limit: start+1, point 1 is outside of the lookback period
+	// NB: lookback limit: start+1, should be reset
 	actual = acc.AccumulateAndMoveToNext()
+	expected[1] = xts.Datapoints{}
 	expected[0] = xts.Datapoints{}
 	assert.Equal(t, expected, actual)
 
-	// NB: lookback limit: start+2 both points outside of the lookback period
+	// NB: lookback limit: start+2, should be reset
 	actual = acc.AccumulateAndMoveToNext()
-	expected[1] = xts.Datapoints{}
 	assert.Equal(t, expected, actual)
 
 	acc.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2}, 0)

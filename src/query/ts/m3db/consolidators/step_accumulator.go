@@ -27,19 +27,6 @@ import (
 	xts "github.com/m3db/m3/src/query/ts"
 )
 
-func removeStaleAccumulated(
-	earliestLookback time.Time,
-	dps []xts.Datapoint,
-) []xts.Datapoint {
-	for i, dp := range dps {
-		if !dp.Timestamp.Before(earliestLookback) {
-			return dps[i:]
-		}
-	}
-
-	return dps[:0]
-}
-
 // StepLookbackAccumulator is a helper for accumulating series in a step-wise
 // fashion. It takes a 'step' of values, which represents a vertical
 // slice of time across a list of series, and accumulates them when a
@@ -49,7 +36,6 @@ type StepLookbackAccumulator struct {
 	stepSize         time.Duration
 	earliestLookback time.Time
 	datapoints       [][]xts.Datapoint
-	reset            []bool
 }
 
 // NewStepLookbackAccumulator creates an accumulator used for
@@ -64,13 +50,11 @@ func NewStepLookbackAccumulator(
 		datapoints[i] = make([]xts.Datapoint, 0, initLength)
 	}
 
-	reset := make([]bool, resultSize)
 	return &StepLookbackAccumulator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
-		reset:            reset,
 	}
 }
 
@@ -85,16 +69,6 @@ func (c *StepLookbackAccumulator) AddPointForIterator(
 		return
 	}
 
-	// TODO: the existing version of the step accumulator in Values.AlignToBounds
-	// resets incoming data points after accumulation; i.e. it will only keep
-	// points in the accumulation buffer if no other point comes in. This may not
-	// be the correct behaviour; investigate if it should be converted to keep
-	// the values instead.
-	if c.reset[i] {
-		c.datapoints[i] = c.datapoints[i][:0]
-	}
-
-	c.reset[i] = false
 	c.datapoints[i] = append(c.datapoints[i], xts.Datapoint{
 		Timestamp: dp.Timestamp,
 		Value:     dp.Value,
@@ -111,8 +85,7 @@ func (c *StepLookbackAccumulator) AccumulateAndMoveToNext() []xts.Datapoints {
 	for i, dps := range c.datapoints {
 		accumulated[i] = make(xts.Datapoints, len(dps))
 		copy(accumulated[i], dps)
-		c.datapoints[i] = removeStaleAccumulated(c.earliestLookback, dps)
-		c.reset[i] = true
+		c.datapoints[i] = c.datapoints[i][:0]
 	}
 
 	return accumulated

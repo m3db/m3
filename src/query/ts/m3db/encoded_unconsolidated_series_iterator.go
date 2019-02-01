@@ -21,8 +21,6 @@
 package m3db
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	xts "github.com/m3db/m3/src/query/ts"
@@ -46,7 +44,6 @@ func (it *encodedSeriesIterUnconsolidated) Err() error {
 }
 
 func (it *encodedSeriesIterUnconsolidated) Next() bool {
-	fmt.Println("Calling next")
 	if it.err != nil {
 		return false
 	}
@@ -72,7 +69,7 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		return false
 	}
 
-	alignedValues := values.AlignToBounds(it.meta.Bounds)
+	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds)
 	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
 
 	return next

@@ -161,7 +161,7 @@ var consolidatedStepIteratorTestsSplitByBlock = []struct {
 			},
 			{
 				{7, nan, nan},
-				{nan, 30, nan},
+				{nan, nan, nan},
 				{nan, nan, nan},
 				{nan, nan, 300},
 				{nan, nan, nan},

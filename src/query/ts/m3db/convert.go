@@ -105,7 +105,7 @@ func convertM3DBSegmentedBlockIterators(
 	bounds models.Bounds,
 	opts Options,
 ) ([]block.Block, error) {
-	// defer iterators.Close()
+	defer iterators.Close()
 	blockBuilder := newEncodedBlockBuilder(opts)
 	var (
 		iterAlloc = opts.IterAlloc()
@@ -217,7 +217,11 @@ func updateSeriesBlockStarts(
 	firstStart := blocks[0].blockStart
 	if iterStart.Before(firstStart) {
 		fillSize := firstStart.Sub(iterStart)
-		numberToFill := int(fillSize/stepSize) + 1
+		numberToFill := int(fillSize / stepSize)
+		if fillSize%stepSize != 0 {
+			numberToFill++
+		}
+
 		iterStart = iterStart.Add(stepSize * time.Duration(numberToFill))
 	}
 
@@ -225,7 +229,11 @@ func updateSeriesBlockStarts(
 	for i, bl := range blocks {
 		blocks[i].readStart = iterStart
 		fillSize := bl.blockStart.Add(bl.blockSize).Sub(iterStart)
-		numberToFill := int(fillSize/stepSize) + 1
+		numberToFill := int(fillSize / stepSize)
+		if fillSize%stepSize != 0 {
+			numberToFill++
+		}
+
 		iterStart = iterStart.Add(stepSize * time.Duration(numberToFill))
 	}
 

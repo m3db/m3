@@ -81,6 +81,7 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 	}
 
 	results := promReadResp.Data.Result
+
 	seriesList := make([]*ts.Series, len(results))
 
 	for i, result := range results {
@@ -113,17 +114,23 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 			}
 		}
 
+		metricName := string(tagOptions.MetricName())
 		tags := models.NewTags(len(result.Metric), tagOptions)
 		for name, val := range result.Metric {
-			tags = tags.AddTag(models.Tag{
-				Name:  []byte(name),
-				Value: []byte(val),
-			})
+			if name == metricName {
+				tags = tags.SetName([]byte(val))
+			} else {
+				tags = tags.AddTag(models.Tag{
+					Name:  []byte(name),
+					Value: []byte(val),
+				})
+			}
 		}
 
 		name, exists := tags.Name()
 		if !exists {
-			return nil, errors.New("metric name does not exist")
+			// return nil, errors.New("metric name does not exist at all ever")
+			name = []byte("")
 		}
 
 		seriesList[i] = ts.NewSeries(

@@ -137,8 +137,9 @@ func (m *multiBlockWrapper) Close() error {
 }
 
 type multiSeriesBlock struct {
-	seriesList ts.SeriesList
-	meta       block.Metadata
+	seriesList   ts.SeriesList
+	meta         block.Metadata
+	consolidated bool
 }
 
 // NewMultiSeriesBlock returns a new unconsolidated block
@@ -202,6 +203,7 @@ func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 }
 
 func (m multiSeriesBlock) Consolidate() (block.Block, error) {
+	m.consolidated = true
 	return &consolidatedBlock{
 		unconsolidated:    m,
 		consolidationFunc: block.TakeLast,
@@ -240,8 +242,12 @@ type multiSeriesBlockStepIter struct {
 func newMultiSeriesBlockStepIter(block multiSeriesBlock) block.UnconsolidatedStepIter {
 	values := make([][]ts.Datapoints, len(block.seriesList))
 	bounds := block.meta.Bounds
-	for i, series := range block.seriesList {
-		values[i] = series.Values().AlignToBounds(bounds)
+	for i, s := range block.seriesList {
+		if block.consolidated {
+			values[i] = s.Values().AlignToBounds(bounds)
+		} else {
+			values[i] = s.Values().AlignToBoundsNoWriteForward(bounds)
+		}
 	}
 
 	return &multiSeriesBlockStepIter{
@@ -293,8 +299,9 @@ func (m *multiSeriesBlockStepIter) Close() {
 }
 
 type multiSeriesBlockSeriesIter struct {
-	block multiSeriesBlock
-	index int
+	block        multiSeriesBlock
+	index        int
+	consolidated bool
 }
 
 func (m *multiSeriesBlockSeriesIter) Meta() block.Metadata {
@@ -308,7 +315,11 @@ func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
 func newMultiSeriesBlockSeriesIter(
 	block multiSeriesBlock,
 ) block.UnconsolidatedSeriesIter {
-	return &multiSeriesBlockSeriesIter{block: block, index: -1}
+	return &multiSeriesBlockSeriesIter{
+		block:        block,
+		index:        -1,
+		consolidated: block.consolidated,
+	}
 }
 
 func (m *multiSeriesBlockSeriesIter) SeriesCount() int {
@@ -323,7 +334,13 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
 	s := m.block.seriesList[m.index]
 	values := make([]ts.Datapoints, m.block.StepCount())
-	seriesValues := s.Values().AlignToBounds(m.block.meta.Bounds)
+	var seriesValues []ts.Datapoints
+	if m.consolidated {
+		seriesValues = s.Values().AlignToBounds(m.block.meta.Bounds)
+	} else {
+		seriesValues = s.Values().AlignToBoundsNoWriteForward(m.block.meta.Bounds)
+	}
+
 	seriesLen := len(seriesValues)
 	for i := 0; i < m.block.StepCount(); i++ {
 		if i < seriesLen {

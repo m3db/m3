@@ -46,8 +46,15 @@ type Values interface {
 	// Datapoints returns all the datapoints
 	Datapoints() []Datapoint
 
-	// AlignToBounds returns values aligned to the start time and duration
+	// AlignToBounds returns values aligned to given bounds. To belong to a step,
+	// values should be <= stepTime and not stale.
 	AlignToBounds(bounds models.Bounds) []Datapoints
+
+	// AlignToBoundsNoWriteForward returns values aligned to the start time
+	// and duration, but does not write points forward after aligning them. This
+	// differs from AlignToBounds which will write points forwards if no additional
+	// values are found in the values, adding an empty point instead.
+	AlignToBoundsNoWriteForward(bounds models.Bounds) []Datapoints
 }
 
 // A Datapoint is a single data value reported at a given time
@@ -81,8 +88,10 @@ func (d Datapoints) Values() []float64 {
 	return values
 }
 
-// AlignToBounds returns values aligned to given bounds. To belong to a step, values should be <= stepTime and not stale
-func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
+func (d Datapoints) alignToBounds(
+	bounds models.Bounds,
+	writeForward bool,
+) []Datapoints {
 	numDatapoints := d.Len()
 	steps := bounds.Steps()
 	stepValues := make([]Datapoints, steps)
@@ -103,11 +112,14 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 			singleStepValues = append(singleStepValues, point)
 		}
 
-		// If no point found for this interval, reuse the last point as long as its not stale
-		if len(singleStepValues) == 0 && dpIdx > 0 {
-			prevPoint := d[dpIdx-1]
-			if t.Sub(prevPoint.Timestamp) <= models.LookbackDelta {
-				singleStepValues = Datapoints{prevPoint}
+		if writeForward {
+			// If writeForward is enabled and there is no point found for this
+			// interval, reuse the last point as long as its not stale
+			if len(singleStepValues) == 0 && dpIdx > 0 {
+				prevPoint := d[dpIdx-1]
+				if t.Sub(prevPoint.Timestamp) <= models.LookbackDelta {
+					singleStepValues = Datapoints{prevPoint}
+				}
 			}
 		}
 
@@ -116,6 +128,22 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 	}
 
 	return stepValues
+}
+
+// AlignToBoundsNoWriteForward returns values aligned to the start time
+// and duration, but does not write points forward after aligning them. This
+// differs from AlignToBounds which will write points forwards if no additional
+// values are found in the values, adding an empty point instead.
+func (d Datapoints) AlignToBoundsNoWriteForward(
+	bounds models.Bounds,
+) []Datapoints {
+	return d.alignToBounds(bounds, false)
+}
+
+// AlignToBounds returns values aligned to given bounds. To belong to a step,
+// values should be <= stepTime and not stale.
+func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
+	return d.alignToBounds(bounds, true)
 }
 
 // MutableValues is the interface for values that can be updated
@@ -159,8 +187,6 @@ func (b *fixedResolutionValues) Datapoints() []Datapoint {
 	return datapoints
 }
 
-// AlignToBounds returns values aligned to given bounds.
-// TODO: Consider bounds as well
 func (b *fixedResolutionValues) AlignToBounds(_ models.Bounds) []Datapoints {
 	values := make([]Datapoints, len(b.values))
 	for i := 0; i < b.Len(); i++ {
@@ -168,6 +194,12 @@ func (b *fixedResolutionValues) AlignToBounds(_ models.Bounds) []Datapoints {
 	}
 
 	return values
+}
+
+func (b *fixedResolutionValues) AlignToBoundsNoWriteForward(
+	bb models.Bounds,
+) []Datapoints {
+	return b.AlignToBounds(bb)
 }
 
 // StartTime returns the time the values start
@@ -196,11 +228,21 @@ func (b *fixedResolutionValues) SetValueAt(n int, v float64) {
 }
 
 // NewFixedStepValues returns mutable values with fixed resolution
-func NewFixedStepValues(resolution time.Duration, numSteps int, initialValue float64, startTime time.Time) FixedResolutionMutableValues {
+func NewFixedStepValues(
+	resolution time.Duration,
+	numSteps int,
+	initialValue float64,
+	startTime time.Time,
+) FixedResolutionMutableValues {
 	return newFixedStepValues(resolution, numSteps, initialValue, startTime)
 }
 
-func newFixedStepValues(resolution time.Duration, numSteps int, initialValue float64, startTime time.Time) *fixedResolutionValues {
+func newFixedStepValues(
+	resolution time.Duration,
+	numSteps int,
+	initialValue float64,
+	startTime time.Time,
+) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
 	Memset(values, initialValue)

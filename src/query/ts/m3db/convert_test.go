@@ -140,7 +140,6 @@ func verifyBoundsAndGetBlockIndex(t *testing.T, bounds, sub models.Bounds) int {
 	require.Equal(t, bounds.StepSize, sub.StepSize)
 	require.Equal(t, blockSize, sub.Duration)
 	diff := sub.Start.Sub(bounds.Start)
-	fmt.Println(diff, blockSize)
 	require.Equal(t, 0, int(diff%blockSize))
 	return int(diff / blockSize)
 }

@@ -94,7 +94,7 @@ func (it *encodedSeriesIter) Next() bool {
 			continue
 		}
 
-		for {
+		for i < len(values) {
 			values[i] = it.consolidator.ConsolidateAndMoveToNext()
 			i++
 			currentTime = currentTime.Add(it.bounds.StepSize)

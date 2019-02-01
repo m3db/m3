@@ -53,14 +53,6 @@ func (b Bounds) Steps() int {
 		return 0
 	}
 
-	// NB: If the duration is larger than step size, there should still be a
-	// point in this block. This describes a case where the start of a series is
-	// at a block boundary; there is an assumption that step size is smaller than
-	// duration in general.
-	if b.StepSize > b.Duration {
-		return 1
-	}
-
 	return int(b.Duration / b.StepSize)
 }
 
