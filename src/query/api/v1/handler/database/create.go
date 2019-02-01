@@ -113,6 +113,7 @@ type dbType string
 
 type createHandler struct {
 	placementInitHandler   *placement.InitHandler
+	placementGetHandler    *placement.GetHandler
 	namespaceAddHandler    *namespace.AddHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
 	embeddedDbCfg          *dbconfig.DBConfiguration
@@ -124,9 +125,13 @@ func NewCreateHandler(
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
 ) http.Handler {
+	placementHandlerOptions := placement.HandlerOptions{
+		ClusterClient: client,
+		Config:        cfg,
+	}
 	return &createHandler{
-		placementInitHandler: placement.NewInitHandler(
-			placement.HandlerOptions{ClusterClient: client, Config: cfg}),
+		placementInitHandler:   placement.NewInitHandler(placementHandlerOptions),
+		placementGetHandler:    placement.NewGetHandler(placementHandlerOptions),
 		namespaceAddHandler:    namespace.NewAddHandler(client),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
 		embeddedDbCfg:          embeddedDbCfg,
