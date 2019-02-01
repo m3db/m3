@@ -26,12 +26,14 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -107,6 +109,8 @@ var (
 	errMissingEmbeddedDBPort   = errors.New("unable to get port from embedded database listen address")
 	errMissingEmbeddedDBConfig = errors.New("unable to find local embedded database config")
 	errMissingHostID           = errors.New("missing host ID")
+
+	errClusteredPlacementAlreadyExists = errors.New("cannot use database create API to modify clustered placements are they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement")
 )
 
 type dbType string
@@ -139,42 +143,74 @@ func NewCreateHandler(
 }
 
 func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	var (
+		ctx    = r.Context()
+		logger = logging.WithContext(ctx)
+	)
 
-	namespaceRequest, placementRequest, rErr := h.parseRequest(r)
+	currPlacement, _, err := h.placementGetHandler.Get(placement.M3DBServiceName, r)
+	if err != nil {
+		logger.Error("unable to get  placement", zap.Error(err))
+		xhttp.Error(w, err, http.StatusInternalServerError)
+	}
+
+	requirePlacementRequest := currPlacement == nil
+	parsedReq, namespaceRequest, placementRequest, rErr := h.parseRequest(r, requirePlacementRequest)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	nsRegistry, err := h.namespaceAddHandler.Add(namespaceRequest)
-	if err != nil {
-		logger.Error("unable to add namespace", zap.Any("error", err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
-	}
-
-	initPlacement, err := h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
-	if err != nil {
-		// Attempt to delete the namespace that was just created to maintain idempotency.
-		nsDeleteErr := h.namespaceDeleteHandler.Delete(namespaceRequest.Name)
-		if nsDeleteErr != nil {
-			logger.Error(
-				"unable to delete namespace we just added",
-				zap.Any("originalError", err),
-				zap.Any("namespaceDeleteError", nsDeleteErr))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+	if currPlacement != nil &&
+		dbType(parsedReq.Type) == dbTypeCluster &&
+		placementRequest != nil {
+		// If an existing clustered placement exists AND the caller has provided a desired
+		// placement, then we need to compare the requested placement and the existing one.
+		err := comparePlacements(placementRequest, currPlacement)
+		if err != nil {
+			// If the requested placement differs from the existing one for
+			// a clustered placement throw an error so the callers knows they
+			// can't use this API to make clustered placement changes.
+			wrappedErr := fmt.Errorf(
+				"%s, specific error: %s", errClusteredPlacementAlreadyExists, err.Error())
+			logger.Error("unable to create database", zap.Error(wrappedErr))
+			xhttp.Error(w, wrappedErr, http.StatusBadRequest)
 			return
 		}
 
-		logger.Error("unable to initialize placement", zap.Any("error", err))
+		// If the requested placement is the same as the existing one, let it slide.
+	}
+
+	// If we've made it this far than we're in one of the following situations, all of which
+	// are valid:
+	//
+	//     1. Clustered placement requested and no placement exists.
+	//     2. Clustered placement request and placement requested, but requested placement is
+	//        exactly the same as the existing placement so no changes are required.
+	//     3. Local placement requested and no placement exists.
+	//     4. Local placement requested and placement exists, but it doesn't matter because all
+	//        local placements are the same  so we just won't make any changes.
+	if currPlacement == nil {
+		// Create the requested placement if we don't have one already. This is safe because in the case
+		// where a placement did not already exist, the parse function above validated that we have all
+		// the required information to create a placement.
+		currPlacement, err = h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
+		if err != nil {
+			logger.Error("unable to initialize placement", zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	nsRegistry, err := h.namespaceAddHandler.Add(namespaceRequest)
+	if err != nil {
+		logger.Error("unable to add namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	placementProto, err := initPlacement.Proto()
+	placementProto, err := currPlacement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -193,37 +229,43 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
+func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*admin.DatabaseCreateRequest, *admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	dbCreateReq := new(admin.DatabaseCreateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), dbCreateReq); err != nil {
-		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	// Required fields
 	if util.HasEmptyString(dbCreateReq.NamespaceName, dbCreateReq.Type) {
-		return nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
-	if dbType(dbCreateReq.Type) == dbTypeCluster && len(dbCreateReq.Hosts) == 0 {
-		return nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+	if requirePlacement &&
+		dbType(dbCreateReq.Type) == dbTypeCluster &&
+		len(dbCreateReq.Hosts) == 0 {
+		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
 	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
 	if err != nil {
-		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-	placementInitRequest, err := defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
-	if err != nil {
-		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return namespaceAddRequest, placementInitRequest, nil
+	var placementInitRequest *admin.PlacementInitRequest
+	if len(dbCreateReq.Hosts) > 0 {
+		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
+		if err != nil {
+			return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
+
+	return dbCreateReq, namespaceAddRequest, placementInitRequest, nil
 }
 
 func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.NamespaceAddRequest, error) {
@@ -399,6 +441,108 @@ func defaultedPlacementInitRequest(
 		ReplicationFactor: replicationFactor,
 		Instances:         instances,
 	}, nil
+}
+
+func comparePlacements(requested *admin.PlacementInitRequest, existing clusterplacement.Placement) error {
+	if requested.NumShards != 0 && int(requested.NumShards) != existing.NumShards() {
+		return fmt.Errorf(
+			"requested num shards: %d does not match existing: %d",
+			requested.NumShards, existing.NumShards())
+	}
+
+	if requested.ReplicationFactor != 0 && int(requested.ReplicationFactor) != existing.ReplicaFactor() {
+		return fmt.Errorf(
+			"requested replication factor: %d does not matching existing:  %d",
+			requested.ReplicationFactor, existing.ReplicaFactor())
+	}
+
+	if len(requested.Instances) > 0 && len(requested.Instances) != existing.NumInstances() {
+		return fmt.Errorf(
+			"requested num hosts: %d does not matching existing:  %d",
+			len(requested.Instances), existing.NumInstances())
+	}
+
+	var (
+		requestedInstances = requested.Instances
+		existingInstances  = existing.Instances()
+	)
+	sort.Slice(requestedInstances, func(i, j int) bool {
+		var (
+			leftID  = requestedInstances[i].Id
+			rightID = requestedInstances[j].Id
+		)
+		return strings.Compare(leftID, rightID) == -1
+	})
+	sort.Slice(existingInstances, func(i, j int) bool {
+		var (
+			leftID  = existingInstances[i].ID()
+			rightID = existingInstances[j].ID()
+		)
+		return strings.Compare(leftID, rightID) == -1
+	})
+
+	for i := 0; i < len(requestedInstances); i++ {
+		var (
+			requested = requestedInstances[i]
+			existing  = existingInstances[i]
+		)
+
+		if requested.Id != existing.ID() {
+			return fmt.Errorf(
+				"requested ID: %s does not match existing: %s",
+				requested.Id, existing.ID())
+		}
+
+		if requested.IsolationGroup != existing.IsolationGroup() {
+			return fmt.Errorf(
+				"requested isolation group: %s does not match existing: %s for host: %s",
+				requested.IsolationGroup, existing.IsolationGroup(), requested.Id)
+		}
+
+		if requested.Endpoint != existing.Endpoint() {
+			return fmt.Errorf(
+				"requested endpoint: %s does not match existing: %s for host: %s",
+				requested.Endpoint, existing.Endpoint(), requested.Id)
+		}
+
+		if requested.Port != existing.Port() {
+			return fmt.Errorf(
+				"requested port: %d does not match existing: %d for host: %s",
+				requested.Port, existing.Port(), requested.Id)
+		}
+
+		if requested.Weight != existing.Weight() {
+			return fmt.Errorf(
+				"requested weight: %d does not match existing: %d for host: %s",
+				requested.Weight, existing.Weight(), requested.Id)
+		}
+
+		if requested.Zone != "" && requested.Zone != existing.Zone() {
+			return fmt.Errorf(
+				"requested zone: %s does not match existing: %s for host: %s",
+				requested.Zone, existing.Zone(), requested.Id)
+		}
+
+		if requested.Hostname != "" && requested.Hostname != existing.Hostname() {
+			return fmt.Errorf(
+				"requested weight: %s does not match existing: %s for host: %s",
+				requested.Hostname, existing.Hostname(), requested.Id)
+		}
+
+		if len(requested.Shards) > 0 {
+			// Not supposed to provide shards in this API anyways.
+			return fmt.Errorf(
+				"cannot override number of shards on host: %s using database create API", requested.Id)
+		}
+
+		if requested.ShardSetId != 0 {
+			// Not supposed to provide shard set ID in this API anyways.
+			return fmt.Errorf(
+				"cannot override shard set ID on host: %s using database create API", requested.Id)
+		}
+	}
+
+	return nil
 }
 
 func portFromEmbeddedDBConfigListenAddress(address string) (int, error) {

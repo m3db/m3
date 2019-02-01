@@ -130,6 +130,8 @@ func (h *GetHandler) Get(
 	}
 
 	if err == kv.ErrNotFound {
+		// TODO(rartoul): This should probably be handled at the service
+		// level but that would be a large refactor.
 		return nil, false, nil
 	}
 
