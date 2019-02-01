@@ -241,7 +241,7 @@ type multiSeriesBlockStepIter struct {
 }
 
 func newMultiSeriesBlockStepIter(b multiSeriesBlock) block.UnconsolidatedStepIter {
-	values := make([][]ts.Datapoints, len(block.seriesList))
+	values := make([][]ts.Datapoints, len(b.seriesList))
 	bounds := b.meta.Bounds
 	for i, s := range b.seriesList {
 		if b.consolidated {

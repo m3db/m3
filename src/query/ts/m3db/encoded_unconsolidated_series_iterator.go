@@ -21,7 +21,6 @@
 package m3db
 
 import (
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -30,13 +29,13 @@ import (
 )
 
 type encodedSeriesIterUnconsolidated struct {
-	idx         int
+	idx              int
 	lookbackDuration time.Duration
-	err         error
-	meta        block.Metadata
-	series      block.UnconsolidatedSeries
-	seriesMeta  []block.SeriesMeta
-	seriesIters []encoding.SeriesIterator
+	err              error
+	meta             block.Metadata
+	series           block.UnconsolidatedSeries
+	seriesMeta       []block.SeriesMeta
+	seriesIters      []encoding.SeriesIterator
 }
 
 func (it *encodedSeriesIterUnconsolidated) Current() block.UnconsolidatedSeries {
@@ -75,9 +74,6 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 
 	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
 	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
-	it.mu.RUnlock()
-	return series, nil
-}
 
 	return next
 }

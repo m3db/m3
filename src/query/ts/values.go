@@ -121,10 +121,12 @@ func (d Datapoints) alignToBounds(
 
 		// If writeForward is enabled and there is no point found for this
 		// interval, reuse the last point as long as its not stale
-		if len(singleStepValues) == 0 && dpIdx > 0 {
-			prevPoint := d[dpIdx-1]
-			if t.Sub(prevPoint.Timestamp) <= lookbackDuration {
-				singleStepValues = Datapoints{prevPoint}
+		if writeForward {
+			if len(singleStepValues) == 0 && dpIdx > 0 {
+				prevPoint := d[dpIdx-1]
+				if t.Sub(prevPoint.Timestamp) <= lookbackDuration {
+					singleStepValues = Datapoints{prevPoint}
+				}
 			}
 		}
 
