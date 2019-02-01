@@ -32,6 +32,7 @@ import (
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -56,6 +57,13 @@ const (
 
 	// DefaultLocalHostID is the default local host ID when creating a database.
 	DefaultLocalHostID = "m3db_local"
+
+	// DefaultLocalIsolationGroup is the default isolation group when creating a
+	// local database.
+	DefaultLocalIsolationGroup = "local"
+
+	// DefaultLocalZone is the default zone when creating a local database.
+	DefaultLocalZone = "embedded"
 
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
@@ -108,7 +116,8 @@ var (
 	errMissingEmbeddedDBConfig = errors.New("unable to find local embedded database config")
 	errMissingHostID           = errors.New("missing host ID")
 
-	errClusteredPlacementAlreadyExists = errors.New("cannot use database create API to modify clustered placements after they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement")
+	errClusteredPlacementAlreadyExists        = errors.New("cannot use database create API to modify clustered placements after they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement")
+	errCantReplaceLocalPlacementWithClustered = errors.New("cannot replace existing local placement with a clustered placement. Use the placement APIs directly to make placement changes, or remove the `type` field from the  request to add a namespace without modifying the existing local placement")
 )
 
 type dbType string
@@ -162,37 +171,64 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if currPlacement != nil &&
-		dbType(parsedReq.Type) == dbTypeCluster &&
-		placementRequest != nil {
-		// // If an existing clustered placement exists AND the caller has provided a desired
-		// // placement, then we need to compare the requested placement and the existing one.
-		// err := comparePlacements(placementRequest, currPlacement)
-		// if err != nil {
-		// 	// If the requested placement differs from the existing one for
-		// 	// a clustered placement throw an error so the callers knows they
-		// 	// can't use this API to make clustered placement changes.
-		// 	wrappedErr := fmt.Errorf(
-		// 		"%s, specific error: %s", errClusteredPlacementAlreadyExists, err.Error())
-		// 	logger.Error("unable to create database", zap.Error(wrappedErr))
-		// 	xhttp.Error(w, wrappedErr, http.StatusBadRequest)
-		// 	return
-		// }
+	if currPlacement != nil {
+		// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through.
 
-		// // If the requested placement is the same as the existing one, let it slide.
-		logger.Error("unable to create database", zap.Error(errClusteredPlacementAlreadyExists))
-		xhttp.Error(w, errClusteredPlacementAlreadyExists, http.StatusBadRequest)
-		return
+		if dbType(parsedReq.Type) == dbTypeCluster {
+			if placementRequest != nil {
+				// If the caller has specified a desired clustered placement and a placement already exists,
+				// throw an error because the create database API should not be used for modifying clustered
+				// placements. Instead, they should use the placement APIs.
+				logger.Error("unable to create database", zap.Error(errClusteredPlacementAlreadyExists))
+				xhttp.Error(w, errClusteredPlacementAlreadyExists, http.StatusBadRequest)
+				return
+			}
+
+			if placementIsLocal(currPlacement) {
+				// If the caller has specified that they desire a clustered placement and a local placement
+				// already exists then throw an error because we can't ignore their request and we also can't
+				// convert a local placement to a clustered one.
+				logger.Error("unable to create database", zap.Error(errCantReplaceLocalPlacementWithClustered))
+				xhttp.Error(w, errCantReplaceLocalPlacementWithClustered, http.StatusBadRequest)
+				return
+			}
+
+			// This is fine because we'll just assume they want to keep the same clustered placement
+			// that they already have.
+
+		} else if dbType(parsedReq.Type) == dbTypeLocal {
+			if !placementIsLocal(currPlacement) {
+				// If the caller has specified that they desire a local placement and a clustered placement
+				// already exists then throw an error because we can't ignore their request and we also can't
+				// convert a clustered placement to a local one.
+				logger.Error("unable to create database", zap.Error(errCantReplaceLocalPlacementWithClustered))
+				xhttp.Error(w, errCantReplaceLocalPlacementWithClustered, http.StatusBadRequest)
+				return
+			}
+
+			// This is fine because we'll just assume they want to keep the same local placement
+			// that they already have.
+
+		} else if parsedReq.Type == "" {
+			// This is fine because we'll just assume they want to keep the same placement that they already
+			// have.
+
+		} else {
+
+			// Invalid dbType.
+			err := fmt.Errorf("unknown database type: %s", parsedReq.Type)
+			logger.Error("unable to create database", zap.Error(err))
+			xhttp.Error(w, err, http.StatusBadRequest)
+			return
+		}
 	}
 
-	// If we've made it this far than we're in one of the following situations, all of which
+	// If we've made it this far then we're in one of the following situations, all of which
 	// are valid:
 	//
 	//     1. Clustered placement requested and no placement exists.
-	//     2. Clustered placement request and placement requested, but requested placement is
-	//        exactly the same as the existing placement so no changes are required.
-	//     3. Local placement requested and no placement exists.
-	//     4. Local placement requested and placement exists, but it doesn't matter because all
+	//     2. Local placement requested and no placement exists.
+	//     3. Local placement requested and placement exists, but it doesn't matter because all
 	//        local placements are the same  so we just won't make any changes.
 	if currPlacement == nil {
 		// Create the requested placement if we don't have one already. This is safe because in the case
@@ -260,8 +296,11 @@ func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*a
 		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	// Required fields
-	if util.HasEmptyString(dbCreateReq.NamespaceName, dbCreateReq.Type) {
+	requiredFields := []string{dbCreateReq.NamespaceName}
+	if requirePlacement {
+		requiredFields = append(requiredFields, dbCreateReq.Type)
+	}
+	if util.HasEmptyString(requiredFields...) {
 		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
@@ -398,8 +437,8 @@ func defaultedPlacementInitRequest(
 		instances = []*placementpb.Instance{
 			&placementpb.Instance{
 				Id:             DefaultLocalHostID,
-				IsolationGroup: "local",
-				Zone:           "embedded",
+				IsolationGroup: DefaultLocalIsolationGroup,
+				Zone:           DefaultLocalZone,
 				Weight:         1,
 				Endpoint:       fmt.Sprintf("127.0.0.1:%d", port),
 				Hostname:       "localhost",
@@ -462,6 +501,14 @@ func defaultedPlacementInitRequest(
 		ReplicationFactor: replicationFactor,
 		Instances:         instances,
 	}, nil
+}
+
+func placementIsLocal(p clusterplacement.Placement) bool {
+	existingInstances := p.Instances()
+	return len(existingInstances) == 1 &&
+		existingInstances[0].ID() == DefaultLocalHostID &&
+		existingInstances[0].IsolationGroup() == DefaultLocalIsolationGroup &&
+		existingInstances[0].Zone() == DefaultLocalZone
 }
 
 func portFromEmbeddedDBConfigListenAddress(address string) (int, error) {
