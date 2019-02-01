@@ -110,7 +110,7 @@ var (
 	errMissingEmbeddedDBConfig = errors.New("unable to find local embedded database config")
 	errMissingHostID           = errors.New("missing host ID")
 
-	errClusteredPlacementAlreadyExists = errors.New("cannot use database create API to modify clustered placements are they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement")
+	errClusteredPlacementAlreadyExists = errors.New("cannot use database create API to modify clustered placements after they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement")
 )
 
 type dbType string
@@ -167,21 +167,24 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if currPlacement != nil &&
 		dbType(parsedReq.Type) == dbTypeCluster &&
 		placementRequest != nil {
-		// If an existing clustered placement exists AND the caller has provided a desired
-		// placement, then we need to compare the requested placement and the existing one.
-		err := comparePlacements(placementRequest, currPlacement)
-		if err != nil {
-			// If the requested placement differs from the existing one for
-			// a clustered placement throw an error so the callers knows they
-			// can't use this API to make clustered placement changes.
-			wrappedErr := fmt.Errorf(
-				"%s, specific error: %s", errClusteredPlacementAlreadyExists, err.Error())
-			logger.Error("unable to create database", zap.Error(wrappedErr))
-			xhttp.Error(w, wrappedErr, http.StatusBadRequest)
-			return
-		}
+		// // If an existing clustered placement exists AND the caller has provided a desired
+		// // placement, then we need to compare the requested placement and the existing one.
+		// err := comparePlacements(placementRequest, currPlacement)
+		// if err != nil {
+		// 	// If the requested placement differs from the existing one for
+		// 	// a clustered placement throw an error so the callers knows they
+		// 	// can't use this API to make clustered placement changes.
+		// 	wrappedErr := fmt.Errorf(
+		// 		"%s, specific error: %s", errClusteredPlacementAlreadyExists, err.Error())
+		// 	logger.Error("unable to create database", zap.Error(wrappedErr))
+		// 	xhttp.Error(w, wrappedErr, http.StatusBadRequest)
+		// 	return
+		// }
 
-		// If the requested placement is the same as the existing one, let it slide.
+		// // If the requested placement is the same as the existing one, let it slide.
+		logger.Error("unable to create database", zap.Error(errClusteredPlacementAlreadyExists))
+		xhttp.Error(w, errClusteredPlacementAlreadyExists, http.StatusBadRequest)
+		return
 	}
 
 	// If we've made it this far than we're in one of the following situations, all of which
