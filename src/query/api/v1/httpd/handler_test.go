@@ -64,7 +64,7 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, tally.NewTestScope("", nil))
 }
 
-func TestHandlerTimeoutError(t *testing.T) {
+func TestHandlerFetchTimeoutError(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
