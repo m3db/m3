@@ -93,7 +93,7 @@ func TestLocalType(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -198,7 +198,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -302,7 +302,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -410,7 +410,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -516,7 +516,7 @@ func TestClusterTypeHosts(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -641,7 +641,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{

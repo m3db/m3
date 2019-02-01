@@ -119,6 +119,7 @@ type createHandler struct {
 	placementInitHandler   *placement.InitHandler
 	placementGetHandler    *placement.GetHandler
 	namespaceAddHandler    *namespace.AddHandler
+	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
 	embeddedDbCfg          *dbconfig.DBConfiguration
 }
@@ -137,6 +138,7 @@ func NewCreateHandler(
 		placementInitHandler:   placement.NewInitHandler(placementHandlerOptions),
 		placementGetHandler:    placement.NewGetHandler(placementHandlerOptions),
 		namespaceAddHandler:    namespace.NewAddHandler(client),
+		namespaceGetHandler:    namespace.NewGetHandler(client),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
 		embeddedDbCfg:          embeddedDbCfg,
 	}
@@ -203,7 +205,23 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	nsRegistry, err := h.namespaceAddHandler.Add(namespaceRequest)
+	nsRegistry, err := h.namespaceGetHandler.Get()
+	if err != nil {
+		logger.Error("unable to retrieve existing namespaces", zap.Error(err))
+		xhttp.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	_, nsExists := nsRegistry.Namespaces[namespaceRequest.Name]
+	if nsExists {
+		err := fmt.Errorf(
+			"unable to create namespace: %s because it already exists",
+			namespaceRequest.Name)
+		logger.Error("unable to create namespace", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+	}
+
+	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
