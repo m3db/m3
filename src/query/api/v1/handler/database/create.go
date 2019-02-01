@@ -163,8 +163,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 
-	requirePlacementRequest := currPlacement == nil
-	parsedReq, namespaceRequest, placementRequest, rErr := h.parseRequest(r, requirePlacementRequest)
+	parsedReq, namespaceRequest, placementRequest, rErr := h.parseRequest(r, currPlacement)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
@@ -284,7 +283,12 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*admin.DatabaseCreateRequest, *admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
+func (h *createHandler) parseRequest(
+	r *http.Request,
+	existingPlacement clusterplacement.Placement,
+) (*admin.DatabaseCreateRequest, *admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
+	requirePlacement := existingPlacement == nil
+
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
@@ -311,7 +315,7 @@ func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*a
 		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
-	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
+	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq, existingPlacement)
 	if err != nil {
 		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -328,10 +332,25 @@ func (h *createHandler) parseRequest(r *http.Request, requirePlacement bool) (*a
 	return dbCreateReq, namespaceAddRequest, placementInitRequest, nil
 }
 
-func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.NamespaceAddRequest, error) {
-	opts := dbnamespace.NewOptions()
+func defaultedNamespaceAddRequest(
+	r *admin.DatabaseCreateRequest,
+	existingPlacement clusterplacement.Placement,
+) (*admin.NamespaceAddRequest, error) {
+	var (
+		opts   = dbnamespace.NewOptions()
+		dbType = dbType(r.Type)
+	)
+	if dbType == "" && existingPlacement != nil {
+		// If they didn't provide a database type, infer it from the
+		// existing placement.
+		if placementIsLocal(existingPlacement) {
+			dbType = dbTypeLocal
+		} else {
+			dbType = dbTypeCluster
+		}
+	}
 
-	switch dbType(r.Type) {
+	switch dbType {
 	case dbTypeLocal, dbTypeCluster:
 		opts = opts.SetRepairEnabled(false)
 		retentionOpts := opts.RetentionOptions()

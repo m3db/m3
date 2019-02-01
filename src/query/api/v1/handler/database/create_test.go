@@ -76,14 +76,18 @@ func SetupDatabaseTest(
 }
 
 func TestLocalType(t *testing.T) {
-	testLocalType(t, false)
+	testLocalType(t, "local", false)
 }
 
 func TestLocalTypePlacementAlreadyExists(t *testing.T) {
-	testLocalType(t, true)
+	testLocalType(t, "local", true)
 }
 
-func testLocalType(t *testing.T, placementExists bool) {
+func TestLocalTypePlacementAlreadyExistsNoTypeProvided(t *testing.T) {
+	testLocalType(t, "", true)
+}
+
+func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -91,12 +95,12 @@ func testLocalType(t *testing.T, placementExists bool) {
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
+	jsonInput := fmt.Sprintf(`
 		{
 			"namespaceName": "testNamespace",
-			"type": "local"
+			"type": "%s"
 		}
-	`
+	`, providedType)
 
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
@@ -190,6 +194,50 @@ func testLocalType(t *testing.T, placementExists bool) {
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+}
+
+func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "local"
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             "m3db_not_local",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	_, err = ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestLocalTypeWithNumShards(t *testing.T) {
@@ -555,6 +603,50 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 				Weight:         1,
 				Endpoint:       "http://host2:9000",
 				Hostname:       "host2",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	_, err = ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster"
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             DefaultLocalHostID,
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
 				Port:           9000,
 			},
 		},
