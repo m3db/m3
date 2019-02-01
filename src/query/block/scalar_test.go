@@ -89,7 +89,7 @@ func TestScalarBlock(t *testing.T) {
 	}
 
 	assert.Equal(t, 0, series.Meta.Tags.Len())
-	assert.Equal(t, "", series.Meta.Name)
+	assert.Equal(t, []byte(nil), series.Meta.Name)
 
 	require.False(t, seriesIter.Next())
 	require.NoError(t, seriesIter.Err())
@@ -106,5 +106,5 @@ func verifyMetas(t *testing.T, meta Metadata, seriesMeta []SeriesMeta) {
 	assert.Len(t, seriesMeta, 1)
 	sMeta := seriesMeta[0]
 	assert.Equal(t, 0, sMeta.Tags.Len())
-	assert.Equal(t, "", sMeta.Name)
+	assert.Equal(t, []byte(nil), sMeta.Name)
 }

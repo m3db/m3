@@ -46,8 +46,8 @@ type Segment interface {
 // Writer writes out a FST segment from the provided elements.
 type Writer interface {
 	// Reset sets the Writer to persist the provide segment.
-	// NB(prateek): the provided segment must be a Sealed Mutable segment.
-	Reset(s sgmt.MutableSegment) error
+	// NB(prateek): if provided segment is a mutable segment it must be sealed.
+	Reset(s sgmt.Builder) error
 
 	// MajorVersion is the major version for the writer.
 	MajorVersion() int

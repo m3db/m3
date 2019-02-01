@@ -116,8 +116,8 @@ func TestToMetricValid(t *testing.T) {
 	d := doc.Document{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{[]byte("bar"), []byte("baz")},
-			doc.Field{[]byte("some"), []byte("others")},
+			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
+			doc.Field{Name: []byte("some"), Value: []byte("others")},
 		},
 	}
 	id, tags, err := convert.ToMetric(d, testOpts)
@@ -143,10 +143,25 @@ func TestTagsFromTagsIter(t *testing.T) {
 	require.True(t, true, expectedTags.Equal(tags))
 }
 
+func TestTagsFromTagsIterNoPool(t *testing.T) {
+	var (
+		id           = ident.StringID("foo")
+		expectedTags = ident.NewTags(
+			ident.StringTag("bar", "baz"),
+			ident.StringTag("foo", "m3"),
+		)
+		tagsIter = ident.NewTagsIterator(expectedTags)
+	)
+
+	tags, err := convert.TagsFromTagsIter(id, tagsIter, nil)
+	require.NoError(t, err)
+	require.True(t, true, expectedTags.Equal(tags))
+}
+
 func TestToMetricInvalidID(t *testing.T) {
 	d := doc.Document{
 		Fields: []doc.Field{
-			doc.Field{[]byte("bar"), []byte("baz")},
+			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
 		},
 	}
 	_, _, err := convert.ToMetric(d, testOpts)
@@ -157,7 +172,7 @@ func TestToMetricInvalidTag(t *testing.T) {
 	d := doc.Document{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{convert.ReservedFieldNameID, []byte("baz")},
+			doc.Field{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
 		},
 	}
 	_, tags, err := convert.ToMetric(d, testOpts)

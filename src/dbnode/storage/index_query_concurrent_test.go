@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -208,6 +210,10 @@ func testNamespaceIndexHighConcurrentQueries(
 					timeoutWg.Wait()
 					return block.Query(q, opts, r)
 				}).
+				AnyTimes()
+			mockBlock.EXPECT().
+				Stats(gomock.Any()).
+				Return(nil).
 				AnyTimes()
 			mockBlock.EXPECT().
 				Close().

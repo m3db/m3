@@ -66,7 +66,7 @@ func TestFromM3IdentToMetric(t *testing.T) {
 	metric, err := FromM3IdentToMetric(testID, tagIters, models.NewTagOptions().SetMetricName(name))
 	require.NoError(t, err)
 
-	assert.Equal(t, testID.String(), metric.ID)
+	assert.Equal(t, testID.Bytes(), metric.ID)
 	assert.Equal(t, testTags, metric.Tags.Tags)
 	assert.Equal(t, name, metric.Tags.Opts.MetricName())
 }

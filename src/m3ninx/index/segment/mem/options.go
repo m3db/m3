@@ -34,9 +34,9 @@ const (
 	defaultBytesArrayPoolCapacity = 1024
 	// This pool is used in a single-threaded manner.
 	defaultBytesArrayPoolSize = 1
-	// 2^24 * 16 bytes (byte slice pointer) * 2 (Golang G.C) ~=
+	// 2<<23 * 16 bytes (byte slice pointer) * 2 (Golang G.C) ~=
 	// 0.5 GiB max memory usage.
-	defaultBytesArrayPoolMaxArrayCapacity = 2 ^ 24
+	defaultBytesArrayPoolMaxArrayCapacity = 2 << 23
 )
 
 // Options is a collection of knobs for an in-memory segment.

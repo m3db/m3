@@ -267,7 +267,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		}
 
 		series := ts.NewSeries(
-			fmt.Sprintf("series-%d", i), values, tags)
+			[]byte(fmt.Sprintf("series-%d", i)), values, tags)
 
 		fr.SeriesList = append(fr.SeriesList, series)
 	}

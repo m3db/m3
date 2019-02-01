@@ -67,7 +67,7 @@ func tagsToSeriesMeta(tags []models.Tags) []block.SeriesMeta {
 	expectedMetas := make([]block.SeriesMeta, len(tags))
 	for i, m := range tags {
 		expectedMetas[i] = block.SeriesMeta{
-			Name: CountValuesType,
+			Name: []byte(CountValuesType),
 			Tags: m,
 		}
 	}

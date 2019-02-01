@@ -316,8 +316,7 @@ func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion)
 		return err
 	}
 	var (
-		numShards = placement.NumShards()
-		shardID   = c.shardFn(metricID, numShards)
+		shardID   = c.shardFn(metricID, uint32(placement.NumShards()))
 		instances = placement.InstancesForShard(shardID)
 		multiErr  = xerrors.NewMultiError()
 	)

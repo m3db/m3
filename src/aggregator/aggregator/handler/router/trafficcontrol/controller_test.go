@@ -24,16 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/router"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestTrafficControllerWithoutInitialKVValue(t *testing.T) {
@@ -133,30 +128,4 @@ func TestTrafficControllerWithInitialKVValue(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	require.False(t, disabler.Allow())
-}
-
-func TestTrafficControlledRouter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	m := router.NewMockRouter(ctrl)
-	r := NewRouter(NewTrafficDisabler(
-		NewOptions()),
-		m,
-		tally.NoopScope,
-	)
-	buf1 := common.NewRefCountedBuffer(msgpack.NewPooledBufferedEncoderSize(nil, 1024))
-	m.EXPECT().Route(uint32(1), buf1)
-	require.NoError(t, r.Route(1, buf1))
-
-	buf2 := common.NewRefCountedBuffer(msgpack.NewPooledBufferedEncoderSize(nil, 1024))
-	r = NewRouter(NewTrafficEnabler(
-		NewOptions()),
-		m,
-		tally.NoopScope,
-	)
-	require.NoError(t, r.Route(2, buf2))
-	require.Panics(t, buf2.DecRef)
-	m.EXPECT().Close()
-	r.Close()
 }

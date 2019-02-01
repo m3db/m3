@@ -35,14 +35,13 @@ func FromM3IdentToMetric(
 	iterTags ident.TagIterator,
 	tagOptions models.TagOptions,
 ) (models.Metric, error) {
-	id := identID.String()
 	tags, err := FromIdentTagIteratorToTags(iterTags, tagOptions)
 	if err != nil {
 		return models.Metric{}, err
 	}
 
 	return models.Metric{
-		ID:   id,
+		ID:   identID.Bytes(),
 		Tags: tags,
 	}, nil
 }

@@ -42,6 +42,8 @@ GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
 GO_RELEASER_WORKING_DIR   := /m3
 GOMETALINT_VERSION        := v2.0.5
 
+export NPROC := 2 # Maximum package concurrency for unit tests.
+
 SERVICES :=     \
 	m3dbnode      \
 	m3coordinator \
@@ -74,7 +76,8 @@ TOOLS :=               \
 	clone_fileset        \
 	dtest                \
 	verify_commitlogs    \
-	verify_index_files
+	verify_index_files   \
+	carbon_load
 
 .PHONY: setup
 setup:
@@ -190,7 +193,7 @@ docs-serve: docs-container
 
 .PHONY: docs-deploy
 docs-deploy: docs-container
-	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
+	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
 
 .PHONY: docker-integration-test
 docker-integration-test:
@@ -198,6 +201,7 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
+	@./scripts/docker-integration-tests/carbon/test.sh
 
 .PHONY: site-build
 site-build:

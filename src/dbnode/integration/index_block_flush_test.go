@@ -154,7 +154,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	log.Infof("waiting till mutable segments are evicted")
 	evicted := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
-		counter, ok := counters["dbindex.mutable-segment-evicted"]
+		counter, ok := counters["dbindex.blocks-evicted-mutable-segments"]
 		return ok && counter > 0
 	}, 10*time.Second)
 	require.True(t, evicted)

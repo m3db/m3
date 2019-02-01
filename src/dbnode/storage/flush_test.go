@@ -58,7 +58,7 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 }
 
 func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	startCh := make(chan struct{}, 1)
@@ -163,7 +163,7 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 }
 
 func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(false))
@@ -201,7 +201,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))

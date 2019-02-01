@@ -123,7 +123,7 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, _ := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opType,
+		[]byte(n.op.opType),
 		seriesMetas,
 	)
 

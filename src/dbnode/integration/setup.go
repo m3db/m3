@@ -139,6 +139,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(nsInit).
 		SetMinimumSnapshotInterval(opts.MinimumSnapshotInterval())
+	if strings.ToLower(os.Getenv("TEST_DEBUG_LOG")) == "true" {
+		logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelDebug)
+		storageOpts = storageOpts.SetInstrumentOptions(
+			storageOpts.InstrumentOptions().SetLogger(logger))
+	}
 
 	// Use specified series cache policy from environment if set.
 	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))

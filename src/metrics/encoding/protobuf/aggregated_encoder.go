@@ -62,7 +62,8 @@ func (enc *aggregatedEncoder) Encode(
 	enc.pb.EncodeNanos = encodedAtNanos
 	// Always allocate a new byte slice to avoid modifying the existing one which may still being used.
 	enc.buf = allocate(enc.pool, enc.pb.Size())
-	_, err := enc.pb.MarshalTo(enc.buf)
+	n, err := enc.pb.MarshalTo(enc.buf)
+	enc.buf = enc.buf[:n]
 	return err
 }
 

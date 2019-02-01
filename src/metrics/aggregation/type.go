@@ -249,8 +249,24 @@ func validateProtoType(a aggregationpb.AggregationType) error {
 
 // ParseType parses an aggregation type.
 func ParseType(str string) (Type, error) {
-	aggType, ok := typeStringMap[str]
-	if !ok {
+	var (
+		aggType    Type
+		exactMatch bool
+		looseMatch bool
+	)
+
+	aggType, exactMatch = typeStringMap[str]
+	if !exactMatch {
+		for key, val := range typeStringMap {
+			if strings.ToLower(key) == strings.ToLower(str) {
+				looseMatch = true
+				aggType = val
+				break
+			}
+		}
+	}
+
+	if !exactMatch && !looseMatch {
 		return UnknownType, fmt.Errorf("invalid aggregation type: %s", str)
 	}
 	return aggType, nil

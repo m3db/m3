@@ -230,16 +230,10 @@ aggregator:
     maxBufferSize: 5m
     forcedFlushWindowSize: 10s
   flush:
-    writer:
-      maxBufferSize: 1440
-      encodingTimeSamplingRate: 0.01
-      bufferedEncoderPool:
-        size: 16384
     handlers:
       - dynamicBackend:
           name: m3msg
           hashType: murmur32
-          totalShards: 64
           producer:
             buffer:
               maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.

@@ -44,7 +44,7 @@ type PreparedDataPersist struct {
 }
 
 // IndexFn is a function that persists a m3ninx MutableSegment.
-type IndexFn func(segment.MutableSegment) error
+type IndexFn func(segment.Builder) error
 
 // IndexCloser is a function that performs cleanup after persisting the index data
 // block for a (namespace, blockStart) combination and returns the corresponding

@@ -121,7 +121,7 @@ func (b *encodedBlock) buildSeriesMeta() error {
 		}
 
 		b.seriesMetas[i] = block.SeriesMeta{
-			Name: iter.ID().String(),
+			Name: iter.ID().Bytes(),
 			Tags: tags,
 		}
 	}

@@ -152,7 +152,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opType,
+		[]byte(n.op.opType),
 		seriesMetas,
 	)
 
@@ -192,7 +192,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 		for k, v := range bucketBlock.indexMapping {
 			// Add the metas of this bucketBlock right after the previous block
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
-				Name: n.op.OpType(),
+				Name: []byte(n.op.opType),
 				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
 					Name:  []byte(n.op.params.StringParameter),
 					Value: utils.FormatFloatToBytes(k),
