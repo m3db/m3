@@ -2,7 +2,79 @@
 
 ## Introduction
 
-Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces, read our [storage engine documentation](../architecture/engine.md).
+Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our [storage engine documentation](../architecture/engine.md).
+
+## Namespace Operations
+
+The operations below include sample CURLs, but you can always review the API documentation by navigating to
+
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
+
+### Adding a Namespace
+
+#### Recommended (Easy way)
+
+The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot o the complexity of configuring a namespace and require only two pieces  of configuration to be provided: the `name` of the namespace, as well as its `retention_time`.
+
+For example, the following CURL:
+
+```bash
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/database/namespace/create -d '{
+  "name": "default_unaggregated",
+  "retention_time": "24h"
+}'
+```
+
+will create a namespace called `default_unaggregated` with a retention of `24 hours` with default and  recommended values (calculated based on your specified retention) already configured.
+
+If you feel the need to configure the namespace options yourself (for performance or other reasons), read the `Advanced` section below.
+
+#### Advanced (Hard Way)
+
+The "advanced" API allows you to configure every aspect of the namespace that you're adding which can  sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
+Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
+
+```
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace -d '{
+  "name": "default_unaggregated",
+  "options": {
+    "bootstrapEnabled": true,
+    "flushEnabled": true,
+    "writesToCommitLog": true,
+    "cleanupEnabled": true,
+    "snapshotEnabled": true,
+    "repairEnabled": false,
+    "retentionOptions": {
+      "retentionPeriodDuration": "2d",
+      "blockSizeDuration": "2h",
+      "bufferFutureDuration": "10m",
+      "bufferPastDuration": "10m",
+      "blockDataExpiry": true,
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+    },
+    "indexOptions": {
+      "enabled": true,
+      "blockSizeDuration": "4h"
+    }
+  }
+}'
+```
+
+Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.
+
+### Deleting a Namespace
+
+Deleting a namespace is a simple as using the `DELETE` `/api/v1/namespace` API on an M3Coordinator instance.
+
+`curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/namespace/<NAMESPACE_NAME>`
+
+Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.
+
+### Modifying a Namespace
+
+There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example,it is never safe to modify the blockSize of a namespace.
+
+Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.
 
 ## Namespace Attributes
 
@@ -77,55 +149,3 @@ Can be modified without creating a new namespace: `yes`
 ### Index Options
 
 TODO
-
-## Namespace Operations
-
-The operations below include sample CURLs, but you can always review the API documentation by navigating to
-
-`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
-
-### Adding a Namespace
-
-Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
-
-```
-curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace -d '{
-  "name": "default_unaggregated",
-  "options": {
-    "bootstrapEnabled": true,
-    "flushEnabled": true,
-    "writesToCommitLog": true,
-    "cleanupEnabled": true,
-    "snapshotEnabled": true,
-    "repairEnabled": false,
-    "retentionOptions": {
-      "retentionPeriodDuration": "2d",
-      "blockSizeDuration": "2h",
-      "bufferFutureDuration": "10m",
-      "bufferPastDuration": "10m",
-      "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
-    },
-    "indexOptions": {
-      "enabled": true,
-      "blockSizeDuration": "4h"
-    }
-  }
-}'
-```
-
-Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.
-
-### Deleting a Namespace
-
-Deleting a namespace is a simple as using the `DELETE` `/api/v1/namespace` API on an M3Coordinator instance.
-
-`curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/namespace/<NAMESPACE_NAME>`
-
-Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.
-
-### Modifying a Namespace
-
-There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example,it is never safe to modify the blockSize of a namespace.
-
-Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.

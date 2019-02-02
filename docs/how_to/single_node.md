@@ -32,6 +32,8 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
+Note that the `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement) and [namespaces](../operational_guide/namespace_configuration).
+
 **Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `local` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above with the appropriate aggregation options specified - for more information on our aggregation functionality, check out our [M3Query documentation](query.md). For example:
 
 <!-- TODO: link to aggregation documentation (outside of query.md) -->
