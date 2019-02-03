@@ -184,6 +184,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusInternalServerError
 		}
 		xhttp.Error(w, err, status)
+		return
 	}
 
 	nsRegistry, err := h.namespaceGetHandler.Get()
