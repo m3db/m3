@@ -169,7 +169,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 
-	parsedReq, namespaceRequest, placementRequest, rErr := h.parseRequest(r, currPlacement)
+	parsedReq, namespaceRequest, placementRequest, rErr := h.parseAndValidateRequest(r, currPlacement)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
@@ -289,7 +289,7 @@ func (h *createHandler) maybeInitPlacement(
 	}
 }
 
-func (h *createHandler) parseRequest(
+func (h *createHandler) parseAndValidateRequest(
 	r *http.Request,
 	existingPlacement clusterplacement.Placement,
 ) (*admin.DatabaseCreateRequest, *admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
