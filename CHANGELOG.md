@@ -10,16 +10,6 @@ Changelog
 - **M3DB**: Add [endpoint](https://m3db.io/openapi/#operation/databaseConfigSetBootstrappers) for setting database bootstrapers dynamically(#1239)
 
 
-## Bug fixes
-
-- **M3DB**: Fix bug where namespace-level configuration "writes to commitlog" was not respected (#1232)
-- **M3DB**: Improve how M3DB handles durability during topology changes. Previously, a new node that was added to an M3DB cluster would not be completely durable (able to recover all data from disk) for a few minutes after the node join completed even though it marked all its shards as available. Now, newly added M3DB nodes will never mark their shards as available until they are completely durable (#1183). Also, Make M3DB health check not return success until node is bootstrapped AND durable, not just bootstrapped. This makes automated operations (like those performed by the Kubernetes operator or various scripts) much safer (#1287)
-- **M3DB**: Make it possible to safely replace/add/remove M3DB seed nodes by exposing etcd configuration (#1339)
-- **M3Coordinator**: Fix bug in database create API so it respects number of shards (#1188)
-- **M3Coordinator**: Fix tag propagation for temporal functions (#1307)
-- **M3Coordinator**: Properly propagate M3DB fetch timeout from config instead of using default value (#1342)
-
-
 ## Performance
 
 - **M3DB** (Index) Replace usage of slow "memory segment" for index segment with immutable F.S.Ts that are constantly being generated in the foreground as series are being inserted. Significantly reduces query latency (10x+) for some types of workloads that make heavy use of regex (#1197)
@@ -29,6 +19,16 @@ Changelog
 - **M3DB**: (Index) Don't use object pool for allocating long-lived arrays of tag slices which reduces steady-state memory consumption because the default size is 16 which is much bigger than the number of tags most metrics have (#1300)
 - **M3DB**: Auto-calculate size of WriteBatchPool based on commitlog queue size and improve chance of batch being returned to pool (#1236)
 - **M3DB**: Don't allow msgpack library to allocate *bufio.Reader (reduces allocations) and mmap bloomfilters and index summaries as files instead of anonymously so they can be paged out by the O.S if necessary (#1289)
+
+
+## Bug fixes
+
+- **M3DB**: Fix bug where namespace-level configuration "writes to commitlog" was not respected (#1232)
+- **M3DB**: Improve how M3DB handles durability during topology changes. Previously, a new node that was added to an M3DB cluster would not be completely durable (able to recover all data from disk) for a few minutes after the node join completed even though it marked all its shards as available. Now, newly added M3DB nodes will never mark their shards as available until they are completely durable (#1183). Also, Make M3DB health check not return success until node is bootstrapped AND durable, not just bootstrapped. This makes automated operations (like those performed by the Kubernetes operator or various scripts) much safer (#1287)
+- **M3DB**: Make it possible to safely replace/add/remove M3DB seed nodes by exposing etcd configuration (#1339)
+- **M3Coordinator**: Fix bug in database create API so it respects number of shards (#1188)
+- **M3Coordinator**: Fix tag propagation for temporal functions (#1307)
+- **M3Coordinator**: Properly propagate M3DB fetch timeout from config instead of using default value (#1342)
 
 
 # 0.4.8 (2018-10-20)
