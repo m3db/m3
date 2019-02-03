@@ -194,6 +194,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO(rartoul): Add test for NS exists.
 	_, nsExists := nsRegistry.Namespaces[namespaceRequest.Name]
 	if nsExists {
 		err := fmt.Errorf(
@@ -201,6 +202,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			namespaceRequest.Name)
 		logger.Error("unable to create namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
+		return
 	}
 
 	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest)
