@@ -178,8 +178,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if currPlacement != nil {
 		// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through.
-
-		if dbType(parsedReq.Type) == dbTypeCluster {
+		switch dbType(parsedReq.Type) {
+		case dbTypeCluster:
 			if placementRequest != nil {
 				// If the caller has specified a desired clustered placement and a placement already exists,
 				// throw an error because the create database API should not be used for modifying clustered
@@ -190,18 +190,18 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if placementIsLocal(currPlacement) {
-				// If the caller has specified that they desire a clustered placement and a local placement
-				// already exists then throw an error because we can't ignore their request and we also can't
-				// convert a local placement to a clustered one.
+				// If the caller has specified that they desire a clustered placement (without specifying hosts)
+				// and a local placement already exists then throw an error because we can't ignore their request
+				// and we also can't convert a local placement to a clustered one.
 				logger.Error("unable to create database", zap.Error(errCantReplaceLocalPlacementWithClustered))
 				xhttp.Error(w, errCantReplaceLocalPlacementWithClustered, http.StatusBadRequest)
 				return
 			}
 
 			// This is fine because we'll just assume they want to keep the same clustered placement
-			// that they already have.
+			// that they already have because they didn't specify any hosts.
 
-		} else if dbType(parsedReq.Type) == dbTypeLocal {
+		case dbTypeLocal:
 			if !placementIsLocal(currPlacement) {
 				// If the caller has specified that they desire a local placement and a clustered placement
 				// already exists then throw an error because we can't ignore their request and we also can't
@@ -214,12 +214,10 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// This is fine because we'll just assume they want to keep the same local placement
 			// that they already have.
 
-		} else if parsedReq.Type == "" {
+		case "":
 			// This is fine because we'll just assume they want to keep the same placement that they already
 			// have.
-
-		} else {
-
+		default:
 			// Invalid dbType.
 			err := fmt.Errorf("unknown database type: %s", parsedReq.Type)
 			logger.Error("unable to create database", zap.Error(err))
