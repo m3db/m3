@@ -176,8 +176,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through.
 	if currPlacement != nil {
-		// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through.
 		switch dbType(parsedReq.Type) {
 		case dbTypeCluster:
 			if placementRequest != nil {
@@ -224,19 +224,10 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
-	}
-
-	// If we've made it this far then we're in one of the following situations, all of which
-	// are valid:
-	//
-	//     1. Clustered placement requested and no placement exists.
-	//     2. Local placement requested and no placement exists.
-	//     3. Local placement requested and placement exists, but it doesn't matter because all
-	//        local placements are the same  so we just won't make any changes.
-	if currPlacement == nil {
-		// Create the requested placement if we don't have one already. This is safe because in the case
-		// where a placement did not already exist, the parse function above validated that we have all
-		// the required information to create a placement.
+	} else {
+		// If we're here then there is no existing placement, so just create it. This is safe because in
+		// the case where a placement did not already exist, the parse function above validated that we
+		// have all the required information to create a placement.
 		currPlacement, err = h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
 		if err != nil {
 			logger.Error("unable to initialize placement", zap.Error(err))
