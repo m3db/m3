@@ -34,22 +34,6 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 
 Note that the `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement) and [namespaces](../operational_guide/namespace_configuration). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now its enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
 
-**Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `local` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above with the appropriate aggregation options specified - for more information on our aggregation functionality, check out our [M3Query documentation](query.md). For example:
-
-<!-- TODO: link to aggregation documentation (outside of query.md) -->
-
-```json
-local:
-  namespaces:
-    - namespace: default
-      type: unaggregated
-      retention: 48h
-    - namespace: <new_namespace>
-      type: aggregated
-      retention: <new_retention>
-      resolution: <new_resolution>
-```
-
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
 errors related to a local cache file, such as `[W] could not load cache from file
 /var/lib/m3kv/m3db_embedded.json`. Those are expected for a local instance and in general any
