@@ -176,64 +176,14 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through.
-	if currPlacement != nil {
-		switch dbType(parsedReq.Type) {
-		case dbTypeCluster:
-			if placementRequest != nil {
-				// If the caller has specified a desired clustered placement and a placement already exists,
-				// throw an error because the create database API should not be used for modifying clustered
-				// placements. Instead, they should use the placement APIs.
-				logger.Error("unable to create database", zap.Error(errClusteredPlacementAlreadyExists))
-				xhttp.Error(w, errClusteredPlacementAlreadyExists, http.StatusBadRequest)
-				return
-			}
-
-			if placementIsLocal(currPlacement) {
-				// If the caller has specified that they desire a clustered placement (without specifying hosts)
-				// and a local placement already exists then throw an error because we can't ignore their request
-				// and we also can't convert a local placement to a clustered one.
-				logger.Error("unable to create database", zap.Error(errCantReplaceLocalPlacementWithClustered))
-				xhttp.Error(w, errCantReplaceLocalPlacementWithClustered, http.StatusBadRequest)
-				return
-			}
-
-			// This is fine because we'll just assume they want to keep the same clustered placement
-			// that they already have because they didn't specify any hosts.
-
-		case dbTypeLocal:
-			if !placementIsLocal(currPlacement) {
-				// If the caller has specified that they desire a local placement and a clustered placement
-				// already exists then throw an error because we can't ignore their request and we also can't
-				// convert a clustered placement to a local one.
-				logger.Error("unable to create database", zap.Error(errCantReplaceLocalPlacementWithClustered))
-				xhttp.Error(w, errCantReplaceLocalPlacementWithClustered, http.StatusBadRequest)
-				return
-			}
-
-			// This is fine because we'll just assume they want to keep the same local placement
-			// that they already have.
-
-		case "":
-			// This is fine because we'll just assume they want to keep the same placement that they already
-			// have.
-		default:
-			// Invalid dbType.
-			err := fmt.Errorf("unknown database type: %s", parsedReq.Type)
-			logger.Error("unable to create database", zap.Error(err))
-			xhttp.Error(w, err, http.StatusBadRequest)
-			return
+	currPlacement, badRequest, err := h.maybeInitPlacement(currPlacement, parsedReq, placementRequest, r)
+	if err != nil {
+		logger.Error("unable to initialize placement", zap.Error(err))
+		status := http.StatusBadRequest
+		if !badRequest {
+			status = http.StatusInternalServerError
 		}
-	} else {
-		// If we're here then there is no existing placement, so just create it. This is safe because in
-		// the case where a placement did not already exist, the parse function above validated that we
-		// have all the required information to create a placement.
-		currPlacement, err = h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
-		if err != nil {
-			logger.Error("unable to initialize placement", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
-			return
-		}
+		xhttp.Error(w, err, status)
 	}
 
 	nsRegistry, err := h.namespaceGetHandler.Get()
@@ -276,6 +226,66 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
+}
+
+func (h *createHandler) maybeInitPlacement(
+	currPlacement clusterplacement.Placement,
+	parsedReq *admin.DatabaseCreateRequest,
+	placementRequest *admin.PlacementInitRequest,
+	r *http.Request,
+) (clusterplacement.Placement, bool, error) {
+	if currPlacement == nil {
+		// If we're here then there is no existing placement, so just create it. This is safe because in
+		// the case where a placement did not already exist, the parse function above validated that we
+		// have all the required information to create a placement.
+		newPlacement, err := h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return newPlacement, false, nil
+	}
+
+	// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through for
+	// the scenario where the placement already exists.
+	switch dbType(parsedReq.Type) {
+	case dbTypeCluster:
+		if placementRequest != nil {
+			// If the caller has specified a desired clustered placement and a placement already exists,
+			// throw an error because the create database API should not be used for modifying clustered
+			// placements. Instead, they should use the placement APIs.
+			return nil, true, errClusteredPlacementAlreadyExists
+		}
+
+		if placementIsLocal(currPlacement) {
+			// If the caller has specified that they desire a clustered placement (without specifying hosts)
+			// and a local placement already exists then throw an error because we can't ignore their request
+			// and we also can't convert a local placement to a clustered one.
+			return nil, true, errCantReplaceLocalPlacementWithClustered
+		}
+
+		// This is fine because we'll just assume they want to keep the same clustered placement
+		// that they already have because they didn't specify any hosts.
+		return currPlacement, false, nil
+	case dbTypeLocal:
+		if !placementIsLocal(currPlacement) {
+			// If the caller has specified that they desire a local placement and a clustered placement
+			// already exists then throw an error because we can't ignore their request and we also can't
+			// convert a clustered placement to a local one.
+			return nil, true, errCantReplaceLocalPlacementWithClustered
+		}
+
+		// This is fine because we'll just assume they want to keep the same local placement
+		// that they already have.
+		return currPlacement, false, nil
+	case "":
+		// This is fine because we'll just assume they want to keep the same placement that they already
+		// have.
+		return currPlacement, false, nil
+	default:
+		// Invalid dbType.
+		return nil, true, fmt.Errorf("unknown database type: %s", parsedReq.Type)
+	}
 }
 
 func (h *createHandler) parseRequest(
