@@ -85,8 +85,8 @@ carbon:
         aggregation:
           type: mean
         policies:
-          resolution: 1m
-          retention: 48h
+          - resolution: 1m
+            retention: 48h
 ```
 
 Lets break that down.
