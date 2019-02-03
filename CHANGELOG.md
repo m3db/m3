@@ -1,6 +1,35 @@
 Changelog
 =========
-# (unreleased)
+# 0.5.0 (2019-02-03)
+
+## New Features
+
+**M3Coordinator**: Add [Graphite support](http://m3db.github.io/m3/integrations/grafana/) in the form of Carbon ingestion (with configurable aggregation and storage policies), as well as direct and Grafana based Graphite querying support (#1309, #1310, #1308, #1319, #1318, #1327, #1328)
+**M3Coordinator**: Add tag completion API (#1175)
+**M3Coordinator**: Add new opt-in ID generation function that will never collide (#1286)
+**M3DB**: Add [endpoint](https://m3db.io/openapi/#operation/databaseConfigSetBootstrappers) for setting database bootstrapers dynamically(#1239)
+
+
+## Bug fixes
+
+**M3DB**: Fix bug where namespace-level configuration "writes to commitlog" was not respected (#1232)
+**M3DB**: Improve how M3DB handles durability during topology changes. Previously, a new node that was added to an M3DB cluster would not be completely durable (able to recover all data from disk) for a few minutes after the node join completed even though it marked all its shards as available. Now, newly added M3DB nodes will never mark their shards as available until they are completely durable (#1183). Also, Make M3DB health check not return success until node is bootstrapped AND durable, not just bootstrapped. This makes automated operations (like those performed by the Kubernetes operator or various scripts) much safer (#1287)
+**M3DB**: Make it possible to safely replace/add/remove M3DB seed nodes by exposing etcd configuration (#1339)
+**M3Coordinator**: Fix bug in database create API so it respects number of shards (#1188)
+**M3Coordinator**: Fix tag propagation for temporal functions (#1307)
+**M3Coordinator**: Properly propagate M3DB fetch timeout from config instead of using default value (#1342)
+
+
+## Performance
+
+**M3DB** (Index) Replace usage of slow "memory segment" for index segment with immutable F.S.Ts that are constantly being generated in the foreground as series are being inserted. Significantly reduces query latency (10x+) for some types of workloads that make heavy use of regex (#1197)
+**M3DB**: (Index) Add support for concurrent index block queries (improves performance of queries that look back many blocks (#1195)
+**M3DB**: (Index) Improve pooling configuration of one of the index array pools to prevent (almost) unbounded growth over time for certain workloads (#1254)
+**M3DB**: (Index) Use only one roaring bitmap library (Pilosa), and upgrade to version of Pilosa with our upstreammed `UnionInPlace` improvements that reduces memory consumption of expensive queries by over a factor of 10x (#1238), fixes: #1192
+**M3DB**: (Index) Don't use object pool for allocating long-lived arrays of tag slices which reduces steady-state memory consumption because the default size is 16 which is much bigger than the number of tags most metrics have (#1300)
+**M3DB**: Auto-calculate size of WriteBatchPool based on commitlog queue size and improve chance of batch being returned to pool (#1236)
+**M3DB**: Don't allow msgpack library to allocate *bufio.Reader (reduces allocations) and mmap bloomfilters and index summaries as files instead of anonymously so they can be paged out by the O.S if necessary (#1289)
+
 
 # 0.4.8 (2018-10-20)
 
