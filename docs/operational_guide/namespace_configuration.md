@@ -14,7 +14,7 @@ The operations below include sample CURLs, but you can always review the API doc
 
 #### Recommended (Easy way)
 
-The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and require only two pieces  of configuration to be provided: the `name` of the namespace, as well as its `retention_time`.
+The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and require only two pieces of configuration to be provided: the `name` of the namespace, as well as its `retention_time`.
 
 For example, the following CURL:
 
@@ -25,13 +25,13 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/d
 }'
 ```
 
-will create a namespace called `default_unaggregated` with a retention of `24 hours` with default and  recommended values (calculated based on your specified retention) already configured.
+will create a namespace called `default_unaggregated` with a retention of `24 hours` with default and recommended values (calculated based on your specified retention) already configured.
 
 If you feel the need to configure the namespace options yourself (for performance or other reasons), read the `Advanced` section below.
 
 #### Advanced (Hard Way)
 
-The "advanced" API allows you to configure every aspect of the namespace that you're adding which can  sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
+The "advanced" API allows you to configure every aspect of the namespace that you're adding which can sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
 Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
 
 ```
