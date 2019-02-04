@@ -47,7 +47,7 @@ function wait_for_db_init {
     '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
-  curl -X POST 0.0.0.0:7201/api/v1/database/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
     "retentionTime": "24h",
@@ -73,7 +73,7 @@ function wait_for_db_init {
     '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
 
   echo "Adding unagg namespace"
-  curl -f -X POST 0.0.0.0:7201/api/v1/database/namespace/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/database/namespace/create -d '{
     "namespaceName": "unagg",
     "retentionTime": "24h"
   }'
