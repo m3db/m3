@@ -23,6 +23,7 @@ package xhttp
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -43,11 +44,13 @@ func DurationToNanosBytes(r io.Reader) ([]byte, error) {
 	d := json.NewDecoder(r)
 	d.UseNumber()
 	if err := d.Decode(&dict); err != nil {
+		fmt.Println("a")
 		return nil, err
 	}
 
 	ret, err := DurationToNanosMap(dict)
 	if err != nil {
+		fmt.Println("b")
 		return nil, err
 	}
 
