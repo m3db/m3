@@ -163,7 +163,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger = logging.WithContext(ctx)
 	)
 
-	currPlacement, _, err := h.placementGetHandler.Get(placement.M3DBServiceName, r)
+	currPlacement, _, err := h.placementGetHandler.Get(placement.M3DBServiceName, nil)
 	if err != nil {
 		logger.Error("unable to get  placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

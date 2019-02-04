@@ -109,16 +109,28 @@ func (h *GetHandler) Get(
 	serviceName string,
 	httpReq *http.Request,
 ) (placement placement.Placement, badRequest bool, err error) {
+	var headers http.Header
+	if httpReq != nil {
+		headers = httpReq.Header
+	}
+
 	opts := NewServiceOptions(
-		serviceName, httpReq.Header, h.M3AggServiceOptions)
+		serviceName, headers, h.M3AggServiceOptions)
 
 	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		return nil, false, err
 	}
 
-	var version int
-	if vs := httpReq.FormValue("version"); vs != "" {
+	var (
+		version int
+		vs      string
+	)
+	if httpReq != nil {
+		vs = httpReq.FormValue("version")
+	}
+
+	if vs != "" {
 		version, err = strconv.Atoi(vs)
 		if err == nil {
 			placement, err = service.PlacementForVersion(version)
