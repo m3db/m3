@@ -17,6 +17,7 @@ function defer {
 }
 trap defer EXIT
 
+sleep 10000
 setup_single_m3db_node
 
 echo "Start Prometheus containers"
