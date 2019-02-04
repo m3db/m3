@@ -26,6 +26,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 )
 
+// StepCollector is implemented by any accumulators or consolidators working on
+// stepwise iteration.
+type StepCollector interface {
+	AddPointForIterator(ts.Datapoint, int)
+}
+
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value
 type ConsolidationFunc func(datapoints []ts.Datapoint) float64
 

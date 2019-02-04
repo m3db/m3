@@ -38,6 +38,19 @@ type encodedSeriesIterUnconsolidated struct {
 	seriesIters      []encoding.SeriesIterator
 }
 
+func (b *encodedBlockUnconsolidated) SeriesIter() (
+	block.UnconsolidatedSeriesIter,
+	error,
+) {
+	return &encodedSeriesIterUnconsolidated{
+		idx:              -1,
+		meta:             b.meta,
+		seriesMeta:       b.seriesMetas,
+		seriesIters:      b.seriesBlockIterators,
+		lookbackDuration: b.lookback,
+	}, nil
+}
+
 func (it *encodedSeriesIterUnconsolidated) Current() block.UnconsolidatedSeries {
 	return it.series
 }

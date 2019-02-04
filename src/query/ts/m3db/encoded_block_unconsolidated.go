@@ -72,16 +72,3 @@ func (b *encodedBlockUnconsolidated) WithMetadata(
 		seriesMetas:          seriesMetas,
 	}, nil
 }
-
-func (b *encodedBlockUnconsolidated) SeriesIter() (
-	block.UnconsolidatedSeriesIter,
-	error,
-) {
-	return &encodedSeriesIterUnconsolidated{
-		idx:              -1,
-		meta:             b.meta,
-		seriesMeta:       b.seriesMetas,
-		seriesIters:      b.seriesBlockIterators,
-		lookbackDuration: b.lookback,
-	}, nil
-}

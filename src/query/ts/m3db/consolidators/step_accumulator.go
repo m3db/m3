@@ -38,6 +38,9 @@ type StepLookbackAccumulator struct {
 	datapoints       [][]xts.Datapoint
 }
 
+// Ensure StepLookbackAccumulator satisfies StepCollector
+var _ StepCollector = (*StepLookbackAccumulator)(nil)
+
 // NewStepLookbackAccumulator creates an accumulator used for
 // step iteration across a series list with a given lookback.
 func NewStepLookbackAccumulator(
