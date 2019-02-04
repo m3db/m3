@@ -94,7 +94,6 @@ func (s *stepIter) Next() bool {
 
 	next := s.iter.Next()
 	if !next {
-		s.err = s.iter.Err()
 		return false
 	}
 
@@ -112,7 +111,11 @@ func (s *stepIter) Close() {
 }
 
 func (s *stepIter) Err() error {
-	return s.err
+	if s.err != nil {
+		return s.err
+	}
+
+	return s.iter.Err()
 }
 
 func (s *stepIter) Current() block.Step {
@@ -143,7 +146,11 @@ func (s *seriesIter) Close() {
 }
 
 func (s *seriesIter) Err() error {
-	return s.err
+	if s.err != nil {
+		return s.err
+	}
+
+	return s.iter.Err()
 }
 
 func (s *seriesIter) Current() block.Series {
@@ -157,7 +164,6 @@ func (s *seriesIter) Next() bool {
 
 	next := s.iter.Next()
 	if !next {
-		s.err = s.iter.Err()
 		return false
 	}
 

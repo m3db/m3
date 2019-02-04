@@ -167,7 +167,11 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 
 	numValues := 0
 	for _, block := range blockList {
-		b, _ := block.block.StepIter()
+		b, err := block.block.StepIter()
+		if err != nil {
+			return nil, err
+		}
+
 		numValues += b.StepCount()
 	}
 
