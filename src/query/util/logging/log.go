@@ -22,8 +22,11 @@ package logging
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -130,4 +133,78 @@ func WithResponseTimeLoggingFunc(
 			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
 		}
 	}
+}
+
+// WithPanicErrorResponder wraps around the given handler, providing response time logging
+func WithPanicErrorResponder(next http.Handler) http.Handler {
+	return WithPanicErrorResponderFunc(next.ServeHTTP)
+}
+
+func WithPanicErrorResponderFunc(
+	next func(w http.ResponseWriter, r *http.Request),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		overridden := &responseWrittenResponseWriter{writer: w}
+		w = overridden
+		defer func() {
+			if err := recover(); err != nil {
+				// need to write to logger somehow...
+
+				if !overridden.written {
+					// should lock before checking this
+					// need to e
+					json.NewEncoder(w).Encode(struct {
+						Error string `json:"error"`
+					}{
+						Error: fmt.Sprintf("%s", err),
+					})
+				} else {
+					// cannot write the error back to the caller, some contents already written
+					// maybe log a message that it can't write the error back to the caller?
+				}
+			}
+		}()
+
+		next(w, r)
+	}
+}
+
+type responseWrittenResponseWriter struct {
+	sync.RWMutex
+	writer  http.ResponseWriter
+	written bool
+}
+
+func (w *responseWrittenResponseWriter) Header() http.Header {
+	return w.writer.Header()
+}
+func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
+	w.RLock()
+	alreadyWritten := w.written
+	w.RUnlock()
+
+	if alreadyWritten {
+		return w.writer.Write(d)
+	}
+
+	w.Lock()
+	w.written = true
+	w.Unlock()
+
+	return w.writer.Write(d)
+}
+func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
+	w.writer.WriteHeader(statusCode)
+
+	w.RLock()
+	alreadyWritten := w.written
+	w.RUnlock()
+
+	if alreadyWritten {
+		return
+	}
+
+	w.Lock()
+	w.written = true
+	w.Unlock()
 }
