@@ -47,10 +47,21 @@ function wait_for_db_init {
     '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
-  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/database/create -d '{
-    "type": "local",
+  curl -X POST 0.0.0.0:7201/api/v1/database/create -d '{
+    "type": "cluster",
     "namespaceName": "agg",
-    "retentionTime": "24h"
+    "retentionTime": "24h",
+    "replicationFactor": 1,
+    "hosts": [
+      {
+          "id": "m3db_local",
+          "isolation_group": "rack-a",
+          "zone": "embedded",
+          "weight": 1024,
+          "address": "dbnode01",
+          "port": 9000
+      }
+    ]
   }'
 
   echo "Wait until placement is init'd"
@@ -62,7 +73,7 @@ function wait_for_db_init {
     '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
 
   echo "Adding unagg namespace"
-  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/database/namespace/create -d '{
+  curl -f -X POST 0.0.0.0:7201/api/v1/database/namespace/create -d '{
     "namespaceName": "unagg",
     "retentionTime": "24h"
   }'

@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
 
@@ -300,24 +299,18 @@ func (h *createHandler) parseAndValidateRequest(
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		fmt.Println(1)
-		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		wrapped := fmt.Errorf("err converting duration to nano bytes: %s", err.Error())
+		return nil, nil, nil, xhttp.NewParseError(wrapped, http.StatusBadRequest)
 	}
-	fmt.Println(string(rBody))
 
 	dbCreateReq := new(admin.DatabaseCreateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), dbCreateReq); err != nil {
-		fmt.Println(2)
 		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	requiredFields := []string{dbCreateReq.NamespaceName}
-	if requirePlacement {
-		requiredFields = append(requiredFields, dbCreateReq.Type)
-	}
-	if util.HasEmptyString(requiredFields...) {
-		fmt.Println(3)
-		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+	if dbCreateReq.NamespaceName == "" {
+		err := fmt.Errorf("%s: namespaceName", errMissingRequiredField)
+		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	requestedDBType := dbType(dbCreateReq.Type)
@@ -329,7 +322,6 @@ func (h *createHandler) parseAndValidateRequest(
 
 	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq, existingPlacement)
 	if err != nil {
-		fmt.Println(4)
 		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 

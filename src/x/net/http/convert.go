@@ -44,17 +44,19 @@ func DurationToNanosBytes(r io.Reader) ([]byte, error) {
 	d := json.NewDecoder(r)
 	d.UseNumber()
 	if err := d.Decode(&dict); err != nil {
-		fmt.Println("a")
-		return nil, err
+		return nil, fmt.Errorf("err decoding JSON: %s", err.Error())
 	}
 
 	ret, err := DurationToNanosMap(dict)
 	if err != nil {
-		fmt.Println("b")
-		return nil, err
+		return nil, fmt.Errorf("err converting duration to nanos: %s", err.Error())
 	}
 
-	return json.Marshal(ret)
+	b, err := json.Marshal(ret)
+	if err != nil {
+		return nil, fmt.Errorf("err unmarshaling JSON: %s", err.Error())
+	}
+	return b, nil
 }
 
 // DurationToNanosMap transforms keys with a Duration into Nanos
