@@ -46,7 +46,7 @@ func RegisterRoutes(
 	logged := logging.WithResponseTimeLogging
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
-	// our documentation easier so we can separate out concepts, but share the underyling code.
+	// our documentation easier so we can separate out concepts, but share the underlying code.
 	createHandler := logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP
 	r.HandleFunc(CreateURL, createHandler).Methods(CreateHTTPMethod)
 	r.HandleFunc(CreateNamespaceURL, createHandler).Methods(CreateNamespaceHTTPMethod)
