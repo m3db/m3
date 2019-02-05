@@ -23,9 +23,12 @@ package fs
 import (
 	"errors"
 	"io"
+	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 var (
@@ -101,6 +104,19 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
+		// TODO(need to flow query cache into this function).
+		fstOpts := fsOpts.FSTOptions()
+		if false {
+			fsID := opts.ReaderOptions.Identifier
+			qc := newSegmentSpecificQueryCache(
+				fsID.Namespace.String(),
+				fsID.BlockStart,
+				fsID.VolumeIndex,
+				// TODO: dont pass nil
+				index.QueryCache{},
+			)
+			fstOpts = fstOpts.SetQueryCache(qc)
+		}
 		seg, err := newPersistentSegment(fileset, fsOpts.FSTOptions())
 		if err != nil {
 			return nil, err
@@ -113,4 +129,57 @@ func ReadIndexSegments(
 	// transferring ownership to the caller.
 	success = true
 	return segments, nil
+}
+
+type segmentSpecificQueryCache struct {
+	namespace   string
+	blockStart  time.Time
+	volumeIndex int
+
+	queryCache index.QueryCache
+}
+
+func newSegmentSpecificQueryCache(
+	namespace string,
+	blockStart time.Time,
+	volumeIndex int,
+	queryCache index.QueryCache,
+) segmentSpecificQueryCache {
+	return segmentSpecificQueryCache{
+		namespace:   namespace,
+		blockStart:  blockStart,
+		volumeIndex: volumeIndex,
+
+		queryCache: queryCache,
+	}
+}
+
+func (s segmentSpecificQueryCache) GetRegexp(
+	pattern string,
+) (postings.List, bool) {
+	return s.queryCache.GetRegexp(
+		s.namespace, s.blockStart, s.volumeIndex, pattern)
+}
+
+func (s segmentSpecificQueryCache) GetTerm(
+	pattern string,
+) (postings.List, bool) {
+	return s.queryCache.GetTerm(
+		s.namespace, s.blockStart, s.volumeIndex, pattern)
+}
+
+func (s segmentSpecificQueryCache) PutRegexp(
+	pattern string,
+	pl postings.List,
+) {
+	s.queryCache.PutRegexp(
+		s.namespace, s.blockStart, s.volumeIndex, pattern, pl)
+}
+
+func (s segmentSpecificQueryCache) PutTerm(
+	pattern string,
+	pl postings.List,
+) {
+	s.queryCache.PutTerm(
+		s.namespace, s.blockStart, s.volumeIndex, pattern, pl)
 }

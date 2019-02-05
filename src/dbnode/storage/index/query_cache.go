@@ -49,7 +49,7 @@ type QueryCacheEntry struct {
 
 // QueryCacheValue represents a value stored in the query cache.
 type QueryCacheValue struct {
-	Postings postings.List
+	PostingsList postings.List
 }
 
 // QueryCache implements an LRU for caching queries and their results.
@@ -78,7 +78,7 @@ func (q *QueryCache) GetRegexp(
 		Pattern:     pattern,
 		PatternType: PatternTypeRegexp,
 	}]
-	return p.Postings, ok
+	return p.PostingsList, ok
 }
 
 // GetTerm returns the cached results for the provided term query, if any.
@@ -95,7 +95,7 @@ func (q *QueryCache) GetTerm(
 		Pattern:     pattern,
 		PatternType: PatternTypeTerm,
 	}]
-	return p.Postings, ok
+	return p.PostingsList, ok
 }
 
 // PutRegexp updates the LRU with the result of the regexp query.
@@ -104,7 +104,7 @@ func (q *QueryCache) PutRegexp(
 	blockStart time.Time,
 	volumeIndex int,
 	pattern string,
-	p postings.List,
+	pl postings.List,
 ) {
 	q.c[QueryCacheEntry{
 		Namespace:   namespace,
@@ -112,7 +112,7 @@ func (q *QueryCache) PutRegexp(
 		VolumeIndex: volumeIndex,
 		Pattern:     pattern,
 		PatternType: PatternTypeRegexp,
-	}] = QueryCacheValue{Postings: p}
+	}] = QueryCacheValue{PostingsList: pl}
 }
 
 // PutTerm updates the LRU with the result of the term query.
@@ -121,7 +121,7 @@ func (q *QueryCache) PutTerm(
 	blockStart time.Time,
 	volumeIndex int,
 	pattern string,
-	p postings.List,
+	pl postings.List,
 ) {
 	q.c[QueryCacheEntry{
 		Namespace:   namespace,
@@ -129,5 +129,5 @@ func (q *QueryCache) PutTerm(
 		VolumeIndex: volumeIndex,
 		Pattern:     pattern,
 		PatternType: PatternTypeTerm,
-	}] = QueryCacheValue{Postings: p}
+	}] = QueryCacheValue{PostingsList: pl}
 }
