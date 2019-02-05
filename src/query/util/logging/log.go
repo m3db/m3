@@ -22,13 +22,13 @@ package logging
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -45,9 +45,8 @@ const (
 
 var logger *zap.Logger
 
-// InitWithCores is used to set up a new logger
+// InitWithCores is used to set up a new logger.
 func InitWithCores(cores []zapcore.Core) {
-
 	consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
 
 	highPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
@@ -63,6 +62,7 @@ func InitWithCores(cores []zapcore.Core) {
 	if cores == nil {
 		cores = make([]zapcore.Core, 0, 2)
 	}
+
 	cores = append(cores, zapcore.NewCore(consoleEncoder, consoleErrors, highPriority))
 	cores = append(cores, zapcore.NewCore(consoleEncoder, consoleDebugging, lowPriority))
 
@@ -72,25 +72,26 @@ func InitWithCores(cores []zapcore.Core) {
 	defer logger.Sync()
 }
 
-// NewContext returns a context has a zap logger with the extra fields added
+// NewContext returns a context has a zap logger with the extra fields added.
 func NewContext(ctx context.Context, fields ...zapcore.Field) context.Context {
 	return context.WithValue(ctx, loggerKey, WithContext(ctx).With(fields...))
 }
 
-// NewContextWithGeneratedID returns a context with a generated id with a zap logger and an id field
+// NewContextWithGeneratedID returns a context with a generated id with a zap
+// logger and an id field.
 func NewContextWithGeneratedID(ctx context.Context) context.Context {
 	// Attach a rqID with all logs so that its simple to trace the whole call stack
 	rqID := uuid.NewRandom()
 	return NewContextWithID(ctx, rqID.String())
 }
 
-// NewContextWithID returns a context which has a zap logger and an id field
+// NewContextWithID returns a context which has a zap logger and an id field.
 func NewContextWithID(ctx context.Context, id string) context.Context {
 	ctxWithID := context.WithValue(ctx, rqIDKey, id)
 	return context.WithValue(ctxWithID, loggerKey, WithContext(ctx).With(zap.String("rqID", id)))
 }
 
-// ReadContextID returns the context's id or "undefined"
+// ReadContextID returns the context's id or "undefined".
 func ReadContextID(ctx context.Context) string {
 	if ctxID, ok := ctx.Value(rqIDKey).(string); ok {
 		return ctxID
@@ -98,7 +99,7 @@ func ReadContextID(ctx context.Context) string {
 	return undefinedID
 }
 
-// WithContext returns a zap logger with as much context as possible
+// WithContext returns a zap logger with as much context as possible.
 func WithContext(ctx context.Context) *zap.Logger {
 	if ctx == nil {
 		return logger
@@ -110,7 +111,8 @@ func WithContext(ctx context.Context) *zap.Logger {
 	return logger
 }
 
-// WithResponseTimeLogging wraps around the given handler, providing response time logging
+// WithResponseTimeLogging wraps around the given handler, providing response time
+// logging.
 func WithResponseTimeLogging(next http.Handler) http.Handler {
 	return WithResponseTimeLoggingFunc(next.ServeHTTP)
 }
@@ -130,81 +132,47 @@ func WithResponseTimeLoggingFunc(
 		endTime := time.Now()
 		d := endTime.Sub(startTime)
 		if d > time.Second {
-			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
+			logger.Info("finished handling request", zap.Time("time", endTime),
+				zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
 		}
 	}
 }
 
 // WithPanicErrorResponder wraps around the given handler, providing response time logging
-func WithPanicErrorResponder(next http.Handler) http.Handler {
-	return WithPanicErrorResponderFunc(next.ServeHTTP)
+func WithPanicErrorResponder(next http.Handler, logger *zap.Logger) http.Handler {
+	return WithPanicErrorResponderFunc(next.ServeHTTP, logger)
 }
 
 func WithPanicErrorResponderFunc(
 	next func(w http.ResponseWriter, r *http.Request),
+	logger *zap.Logger,
 ) http.HandlerFunc {
+	var (
+		mu      sync.Mutex
+		written bool
+	)
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		overridden := &responseWrittenResponseWriter{writer: w}
-		w = overridden
+		// overridden := &responseWrittenResponseWriter{writer: w}
+		// w = overridden
 		defer func() {
 			if err := recover(); err != nil {
-				// need to write to logger somehow...
+				logger.Error("panic captured", zap.Any("stack", err))
 
-				if !overridden.written {
-					// should lock before checking this
-					// need to e
-					json.NewEncoder(w).Encode(struct {
-						Error string `json:"error"`
-					}{
-						Error: fmt.Sprintf("%s", err),
-					})
+				mu.Lock()
+				if !written {
+					xhttp.Error(w, fmt.Errorf("%v", err), http.StatusInternalServerError)
+					written = true
 				} else {
 					// cannot write the error back to the caller, some contents already written
 					// maybe log a message that it can't write the error back to the caller?
+					logger.Warn("cannot write error for request; already written")
 				}
+
+				mu.Unlock()
 			}
 		}()
 
 		next(w, r)
 	}
-}
-
-type responseWrittenResponseWriter struct {
-	sync.RWMutex
-	writer  http.ResponseWriter
-	written bool
-}
-
-func (w *responseWrittenResponseWriter) Header() http.Header {
-	return w.writer.Header()
-}
-func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
-	w.RLock()
-	alreadyWritten := w.written
-	w.RUnlock()
-
-	if alreadyWritten {
-		return w.writer.Write(d)
-	}
-
-	w.Lock()
-	w.written = true
-	w.Unlock()
-
-	return w.writer.Write(d)
-}
-func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
-	w.writer.WriteHeader(statusCode)
-
-	w.RLock()
-	alreadyWritten := w.written
-	w.RUnlock()
-
-	if alreadyWritten {
-		return
-	}
-
-	w.Lock()
-	w.written = true
-	w.Unlock()
 }
