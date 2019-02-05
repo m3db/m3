@@ -31,9 +31,12 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
+	defaultCapacity         = 1024
+	defaultCount            = 10
 	defaultLookbackDuration = time.Duration(0)
 	defaultConsolidationFn  = consolidators.TakeLast
 	defaultIterAlloc        = func(r io.Reader) encoding.ReaderIterator {
@@ -48,17 +51,27 @@ type encodedBlockOptions struct {
 	tagOptions       models.TagOptions
 	iterAlloc        encoding.ReaderIteratorAllocate
 	pools            encoding.IteratorPools
+	checkedPools     pool.CheckedBytesPool
 }
 
 // NewOptions creates a default encoded block options which dictates how
 // encoded blocks are generated.
 func NewOptions() Options {
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+		Capacity: defaultCapacity,
+		Count:    defaultCount,
+	}}, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	bytesPool.Init()
+
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
 		consolidationFn:  defaultConsolidationFn,
 		tagOptions:       models.NewTagOptions(),
 		iterAlloc:        defaultIterAlloc,
 		pools:            pools.BuildIteratorPools(),
+		checkedPools:     bytesPool,
 	}
 }
 
@@ -125,6 +138,16 @@ func (o *encodedBlockOptions) SetIteratorPools(p encoding.IteratorPools) Options
 
 func (o *encodedBlockOptions) IteratorPools() encoding.IteratorPools {
 	return o.pools
+}
+
+func (o *encodedBlockOptions) SetCheckedBytesPool(p pool.CheckedBytesPool) Options {
+	opts := *o
+	opts.checkedPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) CheckedBytesPool() pool.CheckedBytesPool {
+	return o.checkedPools
 }
 
 func (o *encodedBlockOptions) Validate() error {
