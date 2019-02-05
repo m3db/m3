@@ -72,13 +72,14 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 		return false
 	}
 
+	bounds := it.meta.Bounds
 	it.idx++
-	next := it.idx < it.meta.Bounds.Steps()
+	next := it.idx < bounds.Steps()
 	if !next {
 		return false
 	}
 
-	stepTime, err := it.meta.Bounds.TimeForIndex(it.idx)
+	stepTime, err := bounds.TimeForIndex(it.idx)
 	if err != nil {
 		it.err = err
 		return false

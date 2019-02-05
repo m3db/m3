@@ -23,24 +23,18 @@ package m3db
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIter struct {
-	lastBlock    bool
-	started      bool
-	currentTime  time.Time
-	err          error
-	bounds       models.Bounds
-	meta         block.Metadata
-	seriesMeta   []block.SeriesMeta
-	seriesIters  []encoding.SeriesIterator
-	seriesPeek   []peekValue
-	consolidator *consolidators.StepLookbackConsolidator
+	lastBlock         bool
+	err               error
+	stepTime          time.Time
+	meta              block.Metadata
+	seriesMeta        []block.SeriesMeta
+	consolidator      *consolidators.StepLookbackConsolidator
+	collectorIterator *encodedStepIterWithCollector
 }
 
 func (b *encodedBlock) stepIter() block.StepIter {
@@ -52,14 +46,17 @@ func (b *encodedBlock) stepIter() block.StepIter {
 		len(b.seriesBlockIterators),
 		cs.consolidationFn,
 	)
+
+	collectorIterator := newEncodedStepIterWithCollector(b.lastBlock,
+		consolidator, b.seriesBlockIterators)
+
 	return &encodedStepIter{
-		lastBlock:    b.lastBlock,
-		currentTime:  cs.currentTime,
-		bounds:       cs.bounds,
-		meta:         b.meta,
-		seriesMeta:   b.seriesMetas,
-		seriesIters:  b.seriesBlockIterators,
-		consolidator: consolidator,
+		lastBlock:         b.lastBlock,
+		stepTime:          cs.currentTime,
+		meta:              b.meta,
+		seriesMeta:        b.seriesMetas,
+		consolidator:      consolidator,
+		collectorIterator: collectorIterator,
 	}
 }
 
@@ -73,107 +70,8 @@ func (s *encodedStep) Values() []float64 { return s.values }
 
 func (it *encodedStepIter) Current() block.Step {
 	return &encodedStep{
-		time:   it.currentTime,
+		time:   it.stepTime,
 		values: it.consolidator.ConsolidateAndMoveToNext(),
-	}
-}
-
-// Moves to the next consolidated step for the i-th series in the block,
-// populating the consolidator for that step. Will keep reading values
-// until either hitting the next step boundary and returning, or until
-// encountering a value beyond the boundary, at which point it adds it
-// to a stored peeked value that is consumed on the next pass.
-func (it *encodedStepIter) nextConsolidatedForStep(i int) {
-	peek := it.seriesPeek[i]
-	if peek.finished {
-		// No next value in this iterator
-		return
-	}
-
-	if peek.started {
-		point := peek.point
-		if point.Timestamp.After(it.currentTime) {
-			// This point exists further than the current step
-			// There are next values, but this point should be NaN
-			return
-		}
-
-		// Currently at a potentially viable data point.
-		// Record previously peeked value, and all potentially valid
-		// values, then apply consolidation function to them to get the
-		// consolidated point.
-		it.consolidator.AddPointForIterator(point, i)
-		// clear peeked point.
-		it.seriesPeek[i].started = false
-		// If at boundary, add the point as the current value.
-		if point.Timestamp.Equal(it.currentTime) {
-			return
-		}
-	}
-
-	iter := it.seriesIters[i]
-	// Read through iterator until finding a data point outside of the
-	// range of this consolidated step; then consolidate those points into
-	// a value, set the next peek value.
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-
-		// If this datapoint is before the current timestamp, add it as a
-		// consolidation candidate.
-		if !dp.Timestamp.After(it.currentTime) {
-			it.seriesPeek[i].started = false
-			it.consolidator.AddPointForIterator(dp, i)
-		} else {
-			// This point exists further than the current step.
-			// Set peeked value to this point, then consolidate the retrieved
-			// series.
-			it.seriesPeek[i].point = dp
-			it.seriesPeek[i].started = true
-			return
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		it.err = err
-	}
-}
-
-func (it *encodedStepIter) nextConsolidated() {
-	end := it.bounds.End()
-	// Check that current time is not before end since end is exclusive
-	if it.currentTime.After(end) {
-		return
-	}
-
-	for i := range it.seriesIters {
-		it.nextConsolidatedForStep(i)
-	}
-}
-
-// Need to run an initial step; if there are any values
-// that appear at exactly the start, they must be added.
-func (it *encodedStepIter) initialStep() {
-	it.seriesPeek = make([]peekValue, len(it.seriesIters))
-	for i, iter := range it.seriesIters {
-		if iter.Next() {
-			dp, _, _ := iter.Current()
-			if dp.Timestamp.Equal(it.bounds.Start) {
-				it.consolidator.AddPointForIterator(dp, i)
-			} else {
-				it.seriesPeek[i] = peekValue{
-					point: ts.Datapoint{
-						Timestamp: dp.Timestamp,
-						Value:     dp.Value,
-					},
-					started: true,
-				}
-			}
-		}
-
-		if err := iter.Err(); err != nil {
-			it.err = err
-			return
-		}
 	}
 }
 
@@ -182,26 +80,25 @@ func (it *encodedStepIter) Next() bool {
 		return false
 	}
 
-	checkNextTime := it.currentTime.Add(it.bounds.StepSize * 2)
-	if it.bounds.End().Before(checkNextTime) {
+	bounds := it.meta.Bounds
+	checkNextTime := it.stepTime.Add(bounds.StepSize * 2)
+	if bounds.End().Before(checkNextTime) {
 		return false
 	}
 
-	if !it.started {
-		it.initialStep()
-		it.started = true
-	} else {
-		it.currentTime = it.currentTime.Add(it.bounds.StepSize)
-		it.nextConsolidated()
+	it.collectorIterator.nextAtTime(it.stepTime)
+	it.stepTime = it.stepTime.Add(bounds.StepSize)
+	if it.err = it.collectorIterator.err; it.err != nil {
+		return false
 	}
 
-	nextTime := it.currentTime.Add(it.bounds.StepSize)
+	nextTime := it.stepTime.Add(bounds.StepSize)
 	// Has next values if the next step is before end boundary.
-	return !it.bounds.End().Before(nextTime)
+	return !bounds.End().Before(nextTime)
 }
 
 func (it *encodedStepIter) StepCount() int {
-	return it.bounds.Steps()
+	return it.meta.Bounds.Steps()
 }
 
 func (it *encodedStepIter) SeriesMeta() []block.SeriesMeta {
@@ -213,7 +110,11 @@ func (it *encodedStepIter) Meta() block.Metadata {
 }
 
 func (it *encodedStepIter) Err() error {
-	return it.err
+	if it.err != nil {
+		return it.err
+	}
+
+	return it.collectorIterator.err
 }
 
 func (it *encodedStepIter) Close() {
