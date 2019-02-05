@@ -92,3 +92,27 @@ remote_read:
 remote_write:
   - url: "http://localhost:7201/api/v1/prom/remote/write"
 ```
+
+Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of jobs under `scrape_configs` so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
+
+```json
+- job_name: 'm3db'
+  static_configs:
+    - targets: ['<M3DB_HOST_NAME_1>:7203', '<M3DB_HOST_NAME_2>:7203', '<M3DB_HOST_NAME_3>:7203']
+- job_name: 'm3coordinator'
+  static_configs:
+    - targets: ['<M3COORDINATOR_HOST_NAME_1>:7203']
+```
+
+**NOTE:** If you are running `M3DB` with embedded `M3Coordinator`, you should only have one job. We recommend just calling this job `m3`. For example:
+
+```json
+- job_name: 'm3'
+  static_configs:
+    - targets: ['<HOST_NAME>:7203']
+```
+## Querying With Grafana
+
+When using the Prometheus integration with Grafana, there are two different ways you can query for your metrics. The first option is to configure Grafana to query Prometheus directly by following [these instructions.](http://docs.grafana.org/features/datasources/prometheus/)
+
+Alternatively, you can configure Grafana to read metrics directly from `M3Coordinator` in which case you will bypass Prometheus entirely and use M3's `PromQL` engine instead. To set this up, follow the same instructions from the previous step, but set the `url` to: `http://<M3_COORDINATOR_HOST_NAME>:7201`.

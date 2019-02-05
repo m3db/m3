@@ -1,7 +1,5 @@
 # M3DB, a distributed time series database
 
-**Please note:** This documentation is a work in progress and more detail is required.
-
 ## About
 
 M3DB, inspired by [Gorilla][gorilla] and [Cassandra][cassandra], is a distributed time series database released as open source by [Uber Technologies][ubeross]. It can be used for storing realtime metrics at long retention.

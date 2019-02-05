@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -52,13 +52,15 @@ const (
 type PromReadHandler struct {
 	engine          *executor.Engine
 	promReadMetrics promReadMetrics
+	timeoutOpts     *prometheus.TimeoutOpts
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(engine *executor.Engine, scope tally.Scope) http.Handler {
+func NewPromReadHandler(engine *executor.Engine, scope tally.Scope, timeoutOpts *prometheus.TimeoutOpts) http.Handler {
 	return &PromReadHandler{
 		engine:          engine,
 		promReadMetrics: newPromReadMetrics(scope),
+		timeoutOpts:     timeoutOpts,
 	}
 }
 
@@ -87,7 +89,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timeout, err := prometheus.ParseRequestTimeout(r)
+	timeout, err := prometheus.ParseRequestTimeout(r, h.timeoutOpts.FetchTimeout)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		xhttp.Error(w, err, http.StatusBadRequest)
@@ -128,7 +130,9 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
-func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
+func (h *PromReadHandler) parseRequest(
+	r *http.Request,
+) (*prompb.ReadRequest, *xhttp.ParseError) {
 	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -142,7 +146,12 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *x
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, timeout time.Duration) ([]*prompb.QueryResult, error) {
+func (h *PromReadHandler) read(
+	reqCtx context.Context,
+	w http.ResponseWriter,
+	r *prompb.ReadRequest,
+	timeout time.Duration,
+) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
 		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")

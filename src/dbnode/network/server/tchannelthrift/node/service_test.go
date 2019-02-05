@@ -53,7 +53,10 @@ import (
 
 // Create opts once to avoid recreating a lot of default pools, etc
 var (
-	testStorageOpts = storage.NewOptions()
+	testIndexOptions          = index.NewOptions()
+	testNamespaceOptions      = namespace.NewOptions()
+	testStorageOpts           = storage.NewOptions()
+	testTChannelThriftOptions = tchannelthrift.NewOptions()
 )
 
 func init() {
@@ -70,7 +73,7 @@ func TestServiceHealth(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	// Assert bootstrapped false
 	mockDB.EXPECT().IsBootstrappedAndDurable().Return(false)
@@ -102,7 +105,7 @@ func TestServiceBootstrapped(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	// Should return an error when not bootstrapped
 	mockDB.EXPECT().IsBootstrappedAndDurable().Return(false)
@@ -126,7 +129,7 @@ func TestServiceQuery(t *testing.T) {
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -188,7 +191,7 @@ func TestServiceQuery(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(index.NewOptions())
+	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
@@ -261,7 +264,7 @@ func TestServiceQueryOverloaded(t *testing.T) {
 	mockDB.EXPECT().IsOverloaded().Return(true)
 
 	var (
-		service = NewService(mockDB, nil).(*service)
+		service = NewService(mockDB, testTChannelThriftOptions).(*service)
 		tctx, _ = tchannelthrift.NewContext(time.Minute)
 		ctx     = tchannelthrift.Context(tctx)
 		start   = time.Now().Add(-2 * time.Hour)
@@ -300,7 +303,7 @@ func TestServiceFetch(t *testing.T) {
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -367,7 +370,7 @@ func TestServiceFetchIsOverloaded(t *testing.T) {
 	mockDB.EXPECT().IsOverloaded().Return(true)
 
 	var (
-		service = NewService(mockDB, nil).(*service)
+		service = NewService(mockDB, testTChannelThriftOptions).(*service)
 		tctx, _ = tchannelthrift.NewContext(time.Minute)
 		ctx     = tchannelthrift.Context(tctx)
 		start   = time.Now().Add(-2 * time.Hour)
@@ -399,7 +402,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -497,7 +500,7 @@ func TestServiceFetchBatchRawIsOverloaded(t *testing.T) {
 	mockDB.EXPECT().IsOverloaded().Return(true)
 
 	var (
-		service = NewService(mockDB, nil).(*service)
+		service = NewService(mockDB, testTChannelThriftOptions).(*service)
 		tctx, _ = tchannelthrift.NewContext(time.Minute)
 		ctx     = tchannelthrift.Context(tctx)
 		start   = time.Now().Add(-2 * time.Hour)
@@ -527,13 +530,13 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 
 	nsID := "metrics"
 	mockNs := storage.NewMockNamespace(ctrl)
-	mockNs.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
+	mockNs.EXPECT().Options().Return(testNamespaceOptions).AnyTimes()
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Namespace(ident.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -643,14 +646,14 @@ func TestServiceFetchBlocksRawIsOverloaded(t *testing.T) {
 
 	nsID := "metrics"
 	mockNs := storage.NewMockNamespace(ctrl)
-	mockNs.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
+	mockNs.EXPECT().Options().Return(testNamespaceOptions).AnyTimes()
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Namespace(ident.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(true)
 
 	var (
-		service = NewService(mockDB, nil).(*service)
+		service = NewService(mockDB, testTChannelThriftOptions).(*service)
 		tctx, _ = tchannelthrift.NewContext(time.Minute)
 		ctx     = tchannelthrift.Context(tctx)
 		start   = time.Now().Add(-2 * time.Hour)
@@ -688,7 +691,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
@@ -832,7 +835,7 @@ func TestServiceFetchBlocksMetadataEndpointV2RawIsOverloaded(t *testing.T) {
 
 	// Configure constants / options
 	var (
-		service          = NewService(mockDB, nil).(*service)
+		service          = NewService(mockDB, testTChannelThriftOptions).(*service)
 		tctx, _          = tchannelthrift.NewContext(time.Minute)
 		ctx              = tchannelthrift.Context(tctx)
 		now              = time.Now()
@@ -870,7 +873,7 @@ func TestServiceFetchTagged(t *testing.T) {
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -922,7 +925,7 @@ func TestServiceFetchTagged(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(index.NewOptions())
+	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
@@ -1002,7 +1005,7 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	mockDB.EXPECT().IsOverloaded().Return(true)
 
 	var (
-		service = NewService(mockDB, nil).(*service)
+		service = NewService(mockDB, testTChannelThriftOptions).(*service)
 
 		tctx, _ = tchannelthrift.NewContext(time.Minute)
 		ctx     = tchannelthrift.Context(tctx)
@@ -1019,7 +1022,7 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 
-	resMap := index.NewResults(index.NewOptions())
+	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
@@ -1056,7 +1059,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1072,7 +1075,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(index.NewOptions())
+	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
 	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
 	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
@@ -1125,7 +1128,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1176,7 +1179,7 @@ func TestServiceWrite(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1212,7 +1215,7 @@ func TestServiceWriteTagged(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1262,7 +1265,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1379,7 +1382,7 @@ func TestServiceRepair(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1398,7 +1401,7 @@ func TestServiceTruncate(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1430,7 +1433,7 @@ func TestServiceSetPersistRateLimit(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1462,7 +1465,7 @@ func TestServiceSetWriteNewSeriesAsync(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1493,7 +1496,7 @@ func TestServiceSetWriteNewSeriesBackoffDuration(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1527,7 +1530,7 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
 
-	service := NewService(mockDB, nil).(*service)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)

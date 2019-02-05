@@ -24,11 +24,12 @@ import (
 	"errors"
 	"math/rand"
 
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3x/clock"
-	murmur3 "github.com/m3db/stackmurmur3"
 
 	"github.com/uber-go/tally"
 )
@@ -36,6 +37,8 @@ import (
 var (
 	errWriterClosed = errors.New("writer is closed")
 )
+
+type randFn func() float64
 
 type protobufWriterMetrics struct {
 	writerClosed  tally.Counter
@@ -57,8 +60,6 @@ func newProtobufWriterMetrics(scope tally.Scope) protobufWriterMetrics {
 	}
 }
 
-type idShardFn func([]byte) uint32
-
 // protobufWriter encodes data and routes them to the backend.
 // protobufWriter is not thread safe.
 type protobufWriter struct {
@@ -74,12 +75,13 @@ type protobufWriter struct {
 
 	nowFn   clock.NowFn
 	randFn  randFn
-	shardFn idShardFn
+	shardFn sharding.ShardFn
 }
 
 // NewProtobufWriter creates a writer that encodes metric in protobuf.
 func NewProtobufWriter(
 	producer producer.Producer,
+	shardFn sharding.ShardFn,
 	opts Options,
 ) Writer {
 	nowFn := opts.ClockOptions().NowFn()
@@ -93,9 +95,9 @@ func NewProtobufWriter(
 		rand:                     rand.New(rand.NewSource(nowFn().UnixNano())),
 		metrics:                  newProtobufWriterMetrics(instrumentOpts.MetricsScope()),
 		nowFn:                    nowFn,
+		shardFn:                  shardFn,
 	}
 	w.randFn = w.rand.Float64
-	w.shardFn = w.shard
 	return w
 }
 
@@ -115,16 +117,12 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 	}
 
 	w.metrics.encodeSuccess.Inc(1)
-	if err := w.p.Produce(newMessage(shard, w.encoder.Buffer())); err != nil {
+	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
 	}
 	w.metrics.routeSuccess.Inc(1)
 	return nil
-}
-
-func (w *protobufWriter) shard(b []byte) uint32 {
-	return murmur3.Sum32(b) % w.numShards
 }
 
 func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (aggregated.MetricWithStoragePolicy, uint32) {
@@ -136,7 +134,7 @@ func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (
 	w.m.Metric.TimeNanos = mp.TimeNanos
 	w.m.Metric.Value = mp.Value
 	w.m.StoragePolicy = mp.StoragePolicy
-	shard := w.shardFn(w.m.ID)
+	shard := w.shardFn(w.m.ID, w.numShards)
 	return w.m, shard
 }
 
@@ -156,11 +154,12 @@ func (w *protobufWriter) Close() error {
 
 type message struct {
 	shard uint32
+	sp    policy.StoragePolicy
 	data  protobuf.Buffer
 }
 
-func newMessage(shard uint32, data protobuf.Buffer) producer.Message {
-	return message{shard: shard, data: data}
+func newMessage(shard uint32, sp policy.StoragePolicy, data protobuf.Buffer) producer.Message {
+	return message{shard: shard, sp: sp, data: data}
 }
 
 func (d message) Shard() uint32 {
@@ -182,4 +181,26 @@ func (d message) Size() int {
 
 func (d message) Finalize(producer.FinalizeReason) {
 	d.data.Close()
+}
+
+type storagePolicyFilter struct {
+	acceptedStoragePolicies []policy.StoragePolicy
+}
+
+// NewStoragePolicyFilter creates a new storage policy based filter.
+func NewStoragePolicyFilter(acceptedStoragePolicies []policy.StoragePolicy) producer.FilterFunc {
+	return storagePolicyFilter{acceptedStoragePolicies}.Filter
+}
+
+func (f storagePolicyFilter) Filter(m producer.Message) bool {
+	msg, ok := m.(message)
+	if !ok {
+		return true
+	}
+	for _, accepted := range f.acceptedStoragePolicies {
+		if accepted == msg.sp {
+			return true
+		}
+	}
+	return false
 }

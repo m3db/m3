@@ -25,10 +25,11 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -45,25 +46,28 @@ const (
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
 type PromReadInstantHandler struct {
-	engine  *executor.Engine
-	tagOpts models.TagOptions
+	engine      *executor.Engine
+	tagOpts     models.TagOptions
+	timeoutOpts *prometheus.TimeoutOpts
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
 func NewPromReadInstantHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
+	timeoutOpts *prometheus.TimeoutOpts,
 ) *PromReadInstantHandler {
 	return &PromReadInstantHandler{
-		engine:  engine,
-		tagOpts: tagOpts,
+		engine:      engine,
+		tagOpts:     tagOpts,
+		timeoutOpts: timeoutOpts,
 	}
 }
 
 func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
-	params, rErr := parseInstantaneousParams(r)
+	params, rErr := parseInstantaneousParams(r, h.timeoutOpts)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return

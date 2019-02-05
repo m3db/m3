@@ -422,9 +422,12 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	}
 
 	if err := topo.MarkShardsAvailable(d.hostID, markAvailable...); err != nil {
-		d.log.Errorf("cluster db failed marking shards %v available: %v",
+		d.log.Errorf("cluster db failed marking shards: %v as available, err: %v",
 			markAvailable, err)
+		return
 	}
+
+	d.log.Infof("cluster db successfully marked shards: %v as available", markAvailable)
 }
 
 func (d *clusterDB) resetReuseable() {

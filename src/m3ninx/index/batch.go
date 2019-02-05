@@ -39,7 +39,7 @@ type Batch struct {
 
 	// If AllowPartialUpdates is true the index will continue to index documents in the batch
 	// even if it encounters an error attempting to index a previous document in the batch.
-	// If true, on the other hand, then any errors encountered indexing a document will cause
+	// If false, on the other hand, then any errors encountered indexing a document will cause
 	// the entire batch to fail and none of the documents in the batch will be indexed.
 	AllowPartialUpdates bool
 }

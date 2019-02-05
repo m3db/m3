@@ -52,7 +52,7 @@ func (a *metricsAppender) AddTag(name, value []byte) {
 	a.tags.append(name, value)
 }
 
-func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
+func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error) {
 	// Sort tags
 	sort.Sort(a.tags)
 
@@ -80,33 +80,47 @@ func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// Always aggregate any default staged metadats
-	for _, stagedMetadatas := range a.defaultStagedMetadatas {
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			unownedID:       unownedID,
-			stagedMetadatas: stagedMetadatas,
-		})
-	}
+	if opts.Override {
+		for _, rule := range opts.OverrideRules.MappingRules {
+			stagedMetadatas, err := rule.StagedMetadatas()
+			if err != nil {
+				return nil, err
+			}
+			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+				agg:             a.agg,
+				unownedID:       unownedID,
+				stagedMetadatas: stagedMetadatas,
+			})
+		}
+	} else {
+		// Always aggregate any default staged metadats
+		for _, stagedMetadatas := range a.defaultStagedMetadatas {
+			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+				agg:             a.agg,
+				unownedID:       unownedID,
+				stagedMetadatas: stagedMetadatas,
+			})
+		}
 
-	stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-	if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
-		// Only sample if going to actually aggregate
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			unownedID:       unownedID,
-			stagedMetadatas: stagedMetadatas,
-		})
-	}
+		stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
+		if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
+			// Only sample if going to actually aggregate
+			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+				agg:             a.agg,
+				unownedID:       unownedID,
+				stagedMetadatas: stagedMetadatas,
+			})
+		}
 
-	numRollups := matchResult.NumNewRollupIDs()
-	for i := 0; i < numRollups; i++ {
-		rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			unownedID:       rollup.ID,
-			stagedMetadatas: rollup.Metadatas,
-		})
+		numRollups := matchResult.NumNewRollupIDs()
+		for i := 0; i < numRollups; i++ {
+			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
+			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+				agg:             a.agg,
+				unownedID:       rollup.ID,
+				stagedMetadatas: rollup.Metadatas,
+			})
+		}
 	}
 
 	return a.multiSamplesAppender, nil

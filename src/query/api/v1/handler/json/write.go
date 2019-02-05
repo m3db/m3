@@ -60,6 +60,8 @@ func NewWriteJSONHandler(store storage.Storage) http.Handler {
 
 // WriteQuery represents the write request from the user
 // NB(braskin): support only writing one datapoint for now
+// TODO: build this out to be a legitimate batched endpoint, change
+// Tags to take a list of tag structs
 type WriteQuery struct {
 	Tags      map[string]string `json:"tags" validate:"nonzero"`
 	Timestamp string            `json:"timestamp" validate:"nonzero"`
@@ -124,7 +126,9 @@ func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *xhttp.Pa
 	}
 
 	var writeQuery *WriteQuery
-	json.Unmarshal(js, &writeQuery)
+	if err = json.Unmarshal(js, &writeQuery); err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
 
 	return writeQuery, nil
 }

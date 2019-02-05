@@ -116,7 +116,7 @@ func main() {
 			}()
 		}
 
-		fields, err := seg.Fields()
+		fields, err := seg.FieldsIterable().Fields()
 		if err != nil {
 			log.Fatalf("unable to retrieve segment fields: %v", err)
 		}
@@ -127,34 +127,42 @@ func main() {
 		}
 		var largeFields []largeField
 		var termLens ints
+		var numFields int
 		for fields.Next() {
+			numFields++
+
 			f := fields.Current()
-			terms, err := seg.Terms(f)
+			terms, err := seg.TermsIterable().Terms(f)
 			if err != nil {
 				log.Fatalf("unable to retrieve segment term: %v", err)
 			}
-			// ids output
-			if bytes.Equal(doc.IDReservedFieldName, f) && idsWriter != nil {
-				for terms.Next() {
-					t := terms.Current()
+
+			numTerms := 0
+			isNameField := bytes.Equal(doc.IDReservedFieldName, f)
+			for terms.Next() {
+				numTerms++
+
+				if isNameField && idsWriter != nil {
+					// ids output
+					t, _ := terms.Current()
 					idsWriter.Write(t)
 					idsWriter.WriteByte('\n')
 				}
 			}
 
 			// large field output
-			if *optLargeFieldLimit > 0 && terms.Len() > int(*optLargeFieldLimit) {
+			if *optLargeFieldLimit > 0 && numTerms > int(*optLargeFieldLimit) {
 				largeFields = append(largeFields, largeField{
 					field:    string(f),
-					numTerms: terms.Len(),
+					numTerms: numTerms,
 				})
 			}
-			termLens = append(termLens, terms.Len())
+			termLens = append(termLens, numTerms)
 		}
 
 		summary := termLens.summary()
 		log.Infof("Segment: [%v], Size: [%v], NumFields: [%v], Num Terms: [%+v]", i,
-			formatCommas(int(seg.Size())), formatCommas(fields.Len()), summary)
+			formatCommas(int(seg.Size())), formatCommas(numFields), summary)
 		if *optLargeFieldLimit > 0 {
 			log.Infof("Large fields: %+v", largeFields)
 		}

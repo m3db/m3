@@ -33,8 +33,9 @@ import (
 
 // Engine executes a Query.
 type Engine struct {
-	metrics *engineMetrics
-	store   storage.Storage
+	metrics          *engineMetrics
+	store            storage.Storage
+	lookbackDuration time.Duration
 }
 
 // EngineOptions can be used to pass custom flags to engine
@@ -48,10 +49,11 @@ type Query struct {
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage, scope tally.Scope) *Engine {
+func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration) *Engine {
 	return &Engine{
-		metrics: newEngineMetrics(scope),
-		store:   store,
+		metrics:          newEngineMetrics(scope),
+		store:            store,
+		lookbackDuration: lookbackDuration,
 	}
 }
 
@@ -102,9 +104,16 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 }
 
 // Execute runs the query and closes the results channel once done
-func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *EngineOptions, results chan *storage.QueryResult) {
+func (e *Engine) Execute(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *EngineOptions,
+	results chan *storage.QueryResult,
+) {
 	defer close(results)
-	result, err := e.store.Fetch(ctx, query, &storage.FetchOptions{})
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = 0
+	result, err := e.store.Fetch(ctx, query, fetchOpts)
 	if err != nil {
 		results <- &storage.QueryResult{Err: err}
 		return
@@ -115,7 +124,13 @@ func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *E
 
 // ExecuteExpr runs the query DAG and closes the results channel once done
 // nolint: unparam
-func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, params models.RequestParams, results chan Query) {
+func (e *Engine) ExecuteExpr(
+	ctx context.Context,
+	parser parser.Parser,
+	opts *EngineOptions,
+	params models.RequestParams,
+	results chan Query,
+) {
 	defer close(results)
 
 	req := newRequest(e, params)

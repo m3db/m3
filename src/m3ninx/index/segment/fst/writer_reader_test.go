@@ -125,7 +125,7 @@ func TestFieldDoesNotExist(t *testing.T) {
 			require.NoError(t, terms.Err())
 			require.NoError(t, terms.Close())
 
-			terms, err = fstSeg.Terms(elaborateFieldName)
+			terms, err = fstSeg.TermsIterable().Terms(elaborateFieldName)
 			require.NoError(t, err)
 			require.False(t, terms.Next())
 			require.NoError(t, terms.Err())
@@ -160,11 +160,11 @@ func TestFieldsEquals(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			memSeg, fstSeg := newTestSegments(t, test.docs)
 
-			memFieldsIter, err := memSeg.Fields()
+			memFieldsIter, err := memSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			memFields := toSlice(t, memFieldsIter)
 
-			fstFieldsIter, err := fstSeg.Fields()
+			fstFieldsIter, err := fstSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			fstFields := toSlice(t, fstFieldsIter)
 
@@ -181,11 +181,11 @@ func TestFieldsEqualsParallel(t *testing.T) {
 			var wg sync.WaitGroup
 			wg.Add(2)
 			go func() {
-				fstSeg.Fields()
+				fstSeg.FieldsIterable().Fields()
 				wg.Done()
 			}()
 			go func() {
-				fstSeg.Fields()
+				fstSeg.FieldsIterable().Fields()
 				wg.Done()
 			}()
 			wg.Wait()
@@ -198,24 +198,24 @@ func TestTermEquals(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			memSeg, fstSeg := newTestSegments(t, test.docs)
 
-			memFieldsIter, err := memSeg.Fields()
+			memFieldsIter, err := memSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			memFields := toSlice(t, memFieldsIter)
 
-			fstFieldsIter, err := fstSeg.Fields()
+			fstFieldsIter, err := fstSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			fstFields := toSlice(t, fstFieldsIter)
 
 			assertTermEquals := func(fields [][]byte) {
 				for _, f := range fields {
-					memTermsIter, err := memSeg.Terms(f)
+					memTermsIter, err := memSeg.TermsIterable().Terms(f)
 					require.NoError(t, err)
-					memTerms := toSlice(t, memTermsIter)
+					memTerms := toTermPostings(t, memTermsIter)
 
-					fstTermsIter, err := fstSeg.Terms(f)
+					fstTermsIter, err := fstSeg.TermsIterable().Terms(f)
 					require.NoError(t, err)
-					fstTerms := toSlice(t, fstTermsIter)
-					assertSliceOfByteSlicesEqual(t, memTerms, fstTerms)
+					fstTerms := toTermPostings(t, fstTermsIter)
+					require.Equal(t, memTerms, fstTerms)
 				}
 			}
 			assertTermEquals(memFields)
@@ -241,15 +241,15 @@ func TestPostingsListEqualForMatchTerm(t *testing.T) {
 			for _, f := range memFields {
 				memTermsIter, err := memSeg.Terms(f)
 				require.NoError(t, err)
-				memTerms := toSlice(t, memTermsIter)
+				memTerms := toTermPostings(t, memTermsIter)
 
-				for _, term := range memTerms {
-					memPl, err := memReader.MatchTerm(f, term)
+				for term := range memTerms {
+					memPl, err := memReader.MatchTerm(f, []byte(term))
 					require.NoError(t, err)
-					fstPl, err := fstReader.MatchTerm(f, term)
+					fstPl, err := fstReader.MatchTerm(f, []byte(term))
 					require.NoError(t, err)
 					require.True(t, memPl.Equal(fstPl),
-						fmt.Sprintf("%s:%s - [%v] != [%v]", string(f), string(term), pprintIter(memPl), pprintIter(fstPl)))
+						fmt.Sprintf("%s:%s - [%v] != [%v]", string(f), term, pprintIter(memPl), pprintIter(fstPl)))
 				}
 			}
 		})
@@ -262,9 +262,9 @@ func TestPostingsListContainsID(t *testing.T) {
 			memSeg, fstSeg := newTestSegments(t, test.docs)
 			memIDsIter, err := memSeg.Terms(doc.IDReservedFieldName)
 			require.NoError(t, err)
-			memIDs := toSlice(t, memIDsIter)
-			for _, i := range memIDs {
-				ok, err := fstSeg.ContainsID(i)
+			memIDs := toTermPostings(t, memIDsIter)
+			for i := range memIDs {
+				ok, err := fstSeg.ContainsID([]byte(i))
 				require.NoError(t, err)
 				require.True(t, ok)
 			}
@@ -315,12 +315,12 @@ func TestSegmentDocs(t *testing.T) {
 			for _, f := range memFields {
 				memTermsIter, err := memSeg.Terms(f)
 				require.NoError(t, err)
-				memTerms := toSlice(t, memTermsIter)
+				memTerms := toTermPostings(t, memTermsIter)
 
-				for _, term := range memTerms {
-					memPl, err := memReader.MatchTerm(f, term)
+				for term := range memTerms {
+					memPl, err := memReader.MatchTerm(f, []byte(term))
 					require.NoError(t, err)
-					fstPl, err := fstReader.MatchTerm(f, term)
+					fstPl, err := fstReader.MatchTerm(f, []byte(term))
 					require.NoError(t, err)
 
 					memDocs, err := memReader.Docs(memPl)
@@ -359,10 +359,10 @@ func TestPostingsListLifecycleSimple(t *testing.T) {
 
 	require.NoError(t, fstSeg.Close())
 
-	_, err := fstSeg.Fields()
+	_, err := fstSeg.FieldsIterable().Fields()
 	require.Error(t, err)
 
-	_, err = fstSeg.Terms(nil)
+	_, err = fstSeg.TermsIterable().Terms(nil)
 	require.Error(t, err)
 
 	_, err = fstSeg.Reader()
@@ -457,6 +457,32 @@ func toSlice(t *testing.T, iter sgmt.OrderedBytesIterator) [][]byte {
 		curr := iter.Current()
 		bytes := append([]byte(nil), curr...)
 		elems = append(elems, bytes)
+	}
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+	return elems
+}
+
+type termPostings map[string][]int
+
+func toTermPostings(t *testing.T, iter sgmt.TermsIterator) termPostings {
+	elems := make(termPostings)
+	for iter.Next() {
+		term, postings := iter.Current()
+		_, exists := elems[string(term)]
+		require.False(t, exists)
+
+		values := []int{}
+		it := postings.Iterator()
+		for it.Next() {
+			values = append(values, int(it.Current()))
+		}
+		sort.Sort(sort.IntSlice(values))
+
+		require.NoError(t, it.Err())
+		require.NoError(t, it.Close())
+
+		elems[string(term)] = values
 	}
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())

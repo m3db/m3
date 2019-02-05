@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
@@ -40,6 +41,12 @@ import (
 
 const (
 	promQuery = `http_requests_total{job="prometheus",group="canary"}`
+)
+
+var (
+	timeoutOpts = &prometheus.TimeoutOpts{
+		FetchTimeout: 15 * time.Second,
+	}
 )
 
 func defaultParams() url.Values {
@@ -56,7 +63,7 @@ func TestParamParsing(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, err := parseParams(req)
+	r, err := parseParams(req, timeoutOpts)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
@@ -69,7 +76,7 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	params.Add(timeParam, now.Format(time.RFC3339))
 	req.URL.RawQuery = params.Encode()
 
-	r, err := parseInstantaneousParams(req)
+	r, err := parseInstantaneousParams(req, timeoutOpts)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
@@ -79,7 +86,7 @@ func TestInvalidStart(t *testing.T) {
 	vals := defaultParams()
 	vals.Del(startParam)
 	req.URL.RawQuery = vals.Encode()
-	_, err := parseParams(req)
+	_, err := parseParams(req, timeoutOpts)
 	require.NotNil(t, err, "unable to parse request")
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
@@ -90,7 +97,7 @@ func TestInvalidTarget(t *testing.T) {
 	vals.Del(queryParam)
 	req.URL.RawQuery = vals.Encode()
 
-	p, err := parseParams(req)
+	p, err := parseParams(req, timeoutOpts)
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
 	require.Equal(t, err.Code(), http.StatusBadRequest)
@@ -152,14 +159,16 @@ func TestRenderResultsJSON(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
-		})),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
-		})),
+		ts.NewSeries([]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
 	}
 
 	renderResultsJSON(buffer, series, params)
@@ -216,14 +225,16 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
-		})),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
-		})),
+		ts.NewSeries([]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
 	}
 
 	renderResultsInstantaneousJSON(buffer, series)

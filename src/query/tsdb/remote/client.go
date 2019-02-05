@@ -24,6 +24,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -45,14 +46,15 @@ type Client interface {
 }
 
 type grpcClient struct {
-	tagOptions     models.TagOptions
-	client         rpc.QueryClient
-	connection     *grpc.ClientConn
-	poolWrapper    *pools.PoolWrapper
-	readWorkerPool xsync.PooledWorkerPool
-	once           sync.Once
-	pools          encoding.IteratorPools
-	poolErr        error
+	tagOptions       models.TagOptions
+	client           rpc.QueryClient
+	connection       *grpc.ClientConn
+	poolWrapper      *pools.PoolWrapper
+	readWorkerPool   xsync.PooledWorkerPool
+	once             sync.Once
+	pools            encoding.IteratorPools
+	poolErr          error
+	lookbackDuration time.Duration
 }
 
 const initResultSize = 10
@@ -63,6 +65,7 @@ func NewGRPCClient(
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	lookbackDuration time.Duration,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
 	if len(addresses) == 0 {
@@ -80,11 +83,12 @@ func NewGRPCClient(
 
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
-		tagOptions:     tagOptions,
-		client:         client,
-		connection:     cc,
-		poolWrapper:    poolWrapper,
-		readWorkerPool: readWorkerPool,
+		tagOptions:       tagOptions,
+		client:           client,
+		connection:       cc,
+		poolWrapper:      poolWrapper,
+		readWorkerPool:   readWorkerPool,
+		lookbackDuration: lookbackDuration,
 	}, nil
 }
 
@@ -188,7 +192,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	res, err := storage.FetchResultToBlockResult(fetchResult, query)
+	res, err := storage.FetchResultToBlockResult(fetchResult, query, c.lookbackDuration)
 	if err != nil {
 		return block.Result{}, err
 	}

@@ -3,6 +3,12 @@ coordinator:
     type: "config"
     value: "0.0.0.0:7201"
 
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
   metrics:
     scope:
       prefix: "coordinator"
@@ -12,6 +18,9 @@ coordinator:
     sanitization: prometheus
     samplingRate: 1.0
     extended: none
+
+  limits:
+    maxComputedDatapoints: 10000
 
 db:
   logging:

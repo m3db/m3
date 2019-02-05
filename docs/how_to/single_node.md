@@ -10,24 +10,19 @@ containing:
 - A "coordinator" instance (`m3coordinator`) for writing and querying tagged metrics, as well as
   managing cluster topology and runtime configuration.
 
-To begin, first start up a Docker container with port `7201` (used to manage the cluster topology)
-and port `9003` (used to read and write metrics) exposed. We recommend you create a persistent data
+To begin, first start up a Docker container with port `7201` (used to manage the cluster topology), port `7203` which is where Prometheus scrapes metrics produced by `M3DB` and `M3Coordinator`, and port `9003` (used to read and write metrics) exposed. We recommend you create a persistent data
 directory on your host for durability:
 
 ```
 docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $GOPATH/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml:/etc/m3dbnode/m3dbnode.yml quay.io/m3/m3dbnode:latest
 ```
 
-<!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
-placements, etc. are -->
+**Note:** If you don't have `M3` setup in your `$GOPATH`, you can find the [m3dbnode-local-etcd.yml file here](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml).
 
-<!-- TODO: add something about how this is in no way a recommended production deployment guide,
-and write a guide for what is considered a production-ready deployment (this is in the works) -->
+**Note:** This setup runs `M3DB` and `M3Coordinator` as one application and should only be used for testing/development purposes. If you want to run a clustered `M3DB` with a separate `M3Coordinator` process (which is our recommended production setup), please [see here](cluster_hard_way.md).
 
 Next, create an initial namespace for your metrics in the database:
-
-<!-- TODO: link to config reference docs once available -->
 
 ```json
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
@@ -35,6 +30,22 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "namespaceName": "default",
   "retentionTime": "48h"
 }'
+```
+
+**Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `local` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above with the appropriate aggregation options specified - for more information on our aggregation functionality, check out our [M3Query documentation](query.md). For example:
+
+<!-- TODO: link to aggregation documentation (outside of query.md) -->
+
+```json
+local:
+  namespaces:
+    - namespace: default
+      type: unaggregated
+      retention: 48h
+    - namespace: <new_namespace>
+      type: aggregated
+      retention: <new_retention>
+      resolution: <new_resolution>
 ```
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or

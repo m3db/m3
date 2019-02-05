@@ -1,18 +1,3 @@
-coordinator:
-  listenAddress:
-    type: "config"
-    value: "0.0.0.0:7201"
-
-  metrics:
-    scope:
-      prefix: "coordinator"
-    prometheus:
-      handlerPath: /metrics
-      listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
-    sanitization: prometheus
-    samplingRate: 1.0
-    extended: none
-
 db:
   logging:
     level: info

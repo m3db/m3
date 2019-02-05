@@ -27,8 +27,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -167,6 +170,9 @@ type Block interface {
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
 
+	// Stats returns block stats.
+	Stats(reporter BlockStatsReporter) error
+
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
 	Seal() error
@@ -184,7 +190,7 @@ type Block interface {
 	// valid to be called once the block and hence mutable segments are sealed.
 	// It is expected that results have been added to the block that covers any
 	// data the mutable segments should have held at this time.
-	EvictMutableSegments() (EvictMutableSegmentResults, error)
+	EvictMutableSegments() error
 
 	// Close will release any held resources and close the Block.
 	Close() error
@@ -201,6 +207,42 @@ func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
 	e.NumDocs += o.NumDocs
 	e.NumMutableSegments += o.NumMutableSegments
 }
+
+// BlockStatsReporter is a block stats reporter that collects
+// block stats on a per block basis (without needing to query each
+// block and get an immutable list of segments back).
+type BlockStatsReporter interface {
+	ReportSegmentStats(stats BlockSegmentStats)
+}
+
+// BlockStatsReporterFn implements the block stats reporter using
+// a callback function.
+type BlockStatsReporterFn func(stats BlockSegmentStats)
+
+// ReportSegmentStats implements the BlockStatsReporter interface.
+func (f BlockStatsReporterFn) ReportSegmentStats(stats BlockSegmentStats) {
+	f(stats)
+}
+
+// BlockSegmentStats has segment stats.
+type BlockSegmentStats struct {
+	Type    BlockSegmentType
+	Mutable bool
+	Age     time.Duration
+	Size    int64
+}
+
+// BlockSegmentType is a block segment type
+type BlockSegmentType uint
+
+const (
+	// ActiveForegroundSegment is an active foreground compacted segment.
+	ActiveForegroundSegment BlockSegmentType = iota
+	// ActiveBackgroundSegment is an active background compacted segment.
+	ActiveBackgroundSegment
+	// FlushedSegment is an immutable segment that can't change any longer.
+	FlushedSegment
+)
 
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
@@ -253,9 +295,27 @@ func (b *WriteBatch) Append(
 	entry WriteBatchEntry,
 	doc doc.Document,
 ) {
+	// Append just using the result from the current entry
+	b.appendWithResult(entry, doc, &entry.resultVal)
+}
+
+// AppendAll appends all entries from another batch to this batch
+// and ensures they share the same result struct.
+func (b *WriteBatch) AppendAll(from *WriteBatch) {
+	numEntries, numDocs := len(from.entries), len(from.docs)
+	for i := 0; i < numEntries && i < numDocs; i++ {
+		b.appendWithResult(from.entries[i], from.docs[i], from.entries[i].result)
+	}
+}
+
+func (b *WriteBatch) appendWithResult(
+	entry WriteBatchEntry,
+	doc doc.Document,
+	result *WriteBatchEntryResult,
+) {
 	// Set private WriteBatchEntry fields
 	entry.enqueuedIdx = len(b.entries)
-	entry.result = WriteBatchEntryResult{}
+	entry.result = result
 
 	// Append
 	b.entries = append(b.entries, entry)
@@ -316,7 +376,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 		lastBlockStart xtime.UnixNano
 	)
 	for i := range allEntries {
-		if allEntries[i].OnIndexSeries == nil {
+		if allEntries[i].result.Done {
 			// Hit a marked done entry
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
@@ -356,7 +416,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 func (b *WriteBatch) numPending() int {
 	numUnmarked := 0
 	for i := range b.entries {
-		if b.entries[i].OnIndexSeries == nil {
+		if b.entries[i].result.Done {
 			break
 		}
 		numUnmarked++
@@ -419,12 +479,12 @@ func (b *WriteBatch) SortByEnqueued() {
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
 func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 	for idx := range b.entries {
-		if b.entries[idx].OnIndexSeries != nil {
+		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
 			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-			b.entries[idx].OnIndexSeries = nil
-			b.entries[idx].result = WriteBatchEntryResult{Err: nil}
+			b.entries[idx].result.Done = true
+			b.entries[idx].result.Err = nil
 		}
 	}
 }
@@ -444,8 +504,8 @@ func (b *WriteBatch) MarkUnmarkedEntryError(
 	if b.entries[idx].OnIndexSeries != nil {
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-		b.entries[idx].OnIndexSeries = nil
-		b.entries[idx].result = WriteBatchEntryResult{Err: err}
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = err
 	}
 }
 
@@ -502,13 +562,20 @@ type WriteBatchEntry struct {
 	// enqueuedIdx is the idx of the entry when originally enqueued by the call
 	// to append on the write batch
 	enqueuedIdx int
-	// result is the result for this entry which is updated when marked done
-	result WriteBatchEntryResult
+	// result is the result for this entry which is updated when marked done,
+	// if it is nil then it is not needed, it is a pointer type so many can be
+	// shared when write batches are derived from one and another when
+	// combining (for instance across from shards into a single write batch).
+	result *WriteBatchEntryResult
+	// resultVal is used to set the result initially from so it doesn't have to
+	// be separately allocated.
+	resultVal WriteBatchEntryResult
 }
 
 // WriteBatchEntryResult represents a result.
 type WriteBatchEntryResult struct {
-	Err error
+	Done bool
+	Err  error
 }
 
 func (e WriteBatchEntry) indexBlockStart(
@@ -519,7 +586,7 @@ func (e WriteBatchEntry) indexBlockStart(
 
 // Result returns the result for this entry.
 func (e WriteBatchEntry) Result() WriteBatchEntryResult {
-	return e.result
+	return *e.result
 }
 
 // Options control the Indexing knobs.
@@ -545,11 +612,23 @@ type Options interface {
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
+	// SetSegmentBuilderOptions sets the mem segment options.
+	SetSegmentBuilderOptions(value builder.Options) Options
+
+	// SegmentBuilderOptions returns the mem segment options.
+	SegmentBuilderOptions() builder.Options
+
 	// SetMemSegmentOptions sets the mem segment options.
 	SetMemSegmentOptions(value mem.Options) Options
 
 	// MemSegmentOptions returns the mem segment options.
 	MemSegmentOptions() mem.Options
+
+	// SetFSTSegmentOptions sets the fst segment options.
+	SetFSTSegmentOptions(value fst.Options) Options
+
+	// FSTSegmentOptions returns the fst segment options.
+	FSTSegmentOptions() fst.Options
 
 	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options
@@ -574,4 +653,16 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetForegroundCompactionPlannerOptions sets the compaction planner options.
+	SetForegroundCompactionPlannerOptions(v compaction.PlannerOptions) Options
+
+	// ForegroundCompactionPlannerOptions returns the compaction planner options.
+	ForegroundCompactionPlannerOptions() compaction.PlannerOptions
+
+	// SetBackgroundCompactionPlannerOptions sets the compaction planner options.
+	SetBackgroundCompactionPlannerOptions(v compaction.PlannerOptions) Options
+
+	// BackgroundCompactionPlannerOptions returns the compaction planner options.
+	BackgroundCompactionPlannerOptions() compaction.PlannerOptions
 }

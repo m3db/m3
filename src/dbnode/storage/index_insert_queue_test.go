@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/fortytw2/leaktest"
@@ -37,14 +38,17 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestIndexInsertQueue() *nsIndexInsertQueue {
+func newTestIndexInsertQueue(
+	namespace namespace.Metadata,
+) *nsIndexInsertQueue {
 	var (
-		nsIndexInsertBatchFn = func(inserts []*index.WriteBatch) {}
+		nsIndexInsertBatchFn = func(inserts *index.WriteBatch) {}
 		nowFn                = time.Now
 		scope                = tally.NoopScope
 	)
 
-	q := newNamespaceIndexInsertQueue(nsIndexInsertBatchFn, nowFn, scope).(*nsIndexInsertQueue)
+	q := newNamespaceIndexInsertQueue(nsIndexInsertBatchFn,
+		namespace, nowFn, scope).(*nsIndexInsertQueue)
 	q.indexBatchBackoff = 10 * time.Millisecond
 	return q
 }
@@ -57,10 +61,10 @@ func testTags(i int) ident.Tags {
 }
 
 func TestIndexInsertQueueStopBeforeStart(t *testing.T) {
-	q := newTestIndexInsertQueue()
+	q := newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 	assert.Error(t, q.Stop())
 
-	q = newTestIndexInsertQueue()
+	q = newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 	assert.NoError(t, q.Start())
 	assert.Error(t, q.Start())
 	assert.NoError(t, q.Stop())
@@ -70,7 +74,7 @@ func TestIndexInsertQueueStopBeforeStart(t *testing.T) {
 
 func TestIndexInsertQueueLifecycleLeaks(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
-	q := newTestIndexInsertQueue()
+	q := newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 	assert.NoError(t, q.Start())
 	assert.NoError(t, q.Stop())
 }
@@ -81,14 +85,14 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		q               = newTestIndexInsertQueue()
+		q               = newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 		insertLock      sync.Mutex
 		insertedBatches []*index.WriteBatch
 		callback        = index.NewMockOnIndexSeries(ctrl)
 	)
-	q.indexBatchFn = func(inserts []*index.WriteBatch) {
+	q.indexBatchFn = func(inserts *index.WriteBatch) {
 		insertLock.Lock()
-		insertedBatches = append(insertedBatches, inserts...)
+		insertedBatches = append(insertedBatches, inserts)
 		insertLock.Unlock()
 	}
 
@@ -123,7 +127,7 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 			currTime = currTime.Add(d)
 		}
 	)
-	q := newTestIndexInsertQueue()
+	q := newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 	q.nowFn = func() time.Time {
 		timeLock.Lock()
 		defer timeLock.Unlock()
@@ -189,7 +193,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	var (
-		inserts  [][]*index.WriteBatch
+		inserts  []*index.WriteBatch
 		currTime = time.Now()
 		timeLock = sync.Mutex{}
 		addTime  = func(d time.Duration) {
@@ -207,14 +211,14 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	for i := range insertProgressWgs {
 		insertProgressWgs[i].Add(1)
 	}
-	q := newTestIndexInsertQueue()
+	q := newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 	q.nowFn = func() time.Time {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
 	}
-	q.indexBatchFn = func(value []*index.WriteBatch) {
-		inserts = append(inserts, value)
+	q.indexBatchFn = func(values *index.WriteBatch) {
+		inserts = append(inserts, values)
 		insertWgs[len(inserts)-1].Done()
 		insertProgressWgs[len(inserts)-1].Wait()
 	}
@@ -291,9 +295,15 @@ func TestIndexInsertQueueFlushedOnClose(t *testing.T) {
 		currTime          = time.Now().Truncate(time.Second)
 	)
 
-	q := newNamespaceIndexInsertQueue(func(value []*index.WriteBatch) {
-		atomic.AddInt64(&numInsertObserved, int64(len(value)))
-	}, func() time.Time { return currTime }, tally.NoopScope)
+	q := newNamespaceIndexInsertQueue(
+		func(values *index.WriteBatch) {
+			atomic.AddInt64(&numInsertObserved, int64(values.Len()))
+		},
+		newTestNamespaceMetadata(t),
+		func() time.Time {
+			return currTime
+		},
+		tally.NoopScope)
 
 	require.NoError(t, q.Start())
 

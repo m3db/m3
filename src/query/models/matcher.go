@@ -92,7 +92,9 @@ func (m Matchers) ToTags(
 	tags := NewTags(len(m), tagOptions)
 	for _, v := range m {
 		if v.Type != MatchEqual {
-			return Tags{}, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
+			return EmptyTags(),
+				fmt.Errorf("illegal match type, got %v, but expecting: %v",
+					v.Type, MatchEqual)
 		}
 
 		tags = tags.AddTag(Tag{Name: v.Name, Value: v.Value}).Clone()

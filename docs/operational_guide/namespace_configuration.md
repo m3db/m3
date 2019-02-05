@@ -101,7 +101,7 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/n
     "retentionOptions": {
       "retentionPeriodDuration": "2d",
       "blockSizeDuration": "2h",
-      "bufferFutureDuratiom": "10m",
+      "bufferFutureDuration": "10m",
       "bufferPastDuration": "10m",
       "blockDataExpiry": true,
       "blockDataExpiryAfterNotAccessPeriodDuration": "5m"

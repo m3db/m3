@@ -22,20 +22,23 @@ package httpd
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
+	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
@@ -45,9 +48,9 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/net/http/cors"
 
-	"github.com/coreos/etcd/pkg/cors"
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 )
@@ -59,22 +62,26 @@ const (
 
 var (
 	remoteSource = map[string]string{"source": "remote"}
+	nativeSource = map[string]string{"source": "native"}
+
+	defaultTimeout = 30 * time.Second
 )
 
 // Handler represents an HTTP handler.
 type Handler struct {
-	router        *mux.Router
-	handler       http.Handler
-	storage       storage.Storage
-	downsampler   downsample.Downsampler
-	engine        *executor.Engine
-	clusters      m3.Clusters
-	clusterClient clusterclient.Client
-	config        config.Configuration
-	embeddedDbCfg *dbconfig.DBConfiguration
-	scope         tally.Scope
-	createdAt     time.Time
-	tagOptions    models.TagOptions
+	router               *mux.Router
+	handler              http.Handler
+	storage              storage.Storage
+	downsamplerAndWriter ingest.DownsamplerAndWriter
+	engine               *executor.Engine
+	clusters             m3.Clusters
+	clusterClient        clusterclient.Client
+	config               config.Configuration
+	embeddedDbCfg        *dbconfig.DBConfiguration
+	scope                tally.Scope
+	createdAt            time.Time
+	tagOptions           models.TagOptions
+	timeoutOpts          *prometheus.TimeoutOpts
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -84,9 +91,8 @@ func (h *Handler) Router() http.Handler {
 
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
-	storage storage.Storage,
+	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
-	downsampler downsample.Downsampler,
 	engine *executor.Engine,
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
@@ -97,26 +103,38 @@ func NewHandler(
 	r := mux.NewRouter()
 
 	// apply middleware. Just CORS for now, but we could add more here as needed.
-	withMiddleware := &cors.CORSHandler{
+	withMiddleware := &cors.Handler{
 		Handler: r,
-		Info: &cors.CORSInfo{
+		Info: &cors.Info{
 			"*": true,
 		},
 	}
 
+	var timeoutOpts = &prometheus.TimeoutOpts{}
+	if embeddedDbCfg == nil {
+		timeoutOpts.FetchTimeout = defaultTimeout
+	} else {
+		if embeddedDbCfg.Client.FetchTimeout < 0 {
+			return nil, errors.New("m3db client fetch timeout should be > 0")
+		}
+
+		timeoutOpts.FetchTimeout = embeddedDbCfg.Client.FetchTimeout
+	}
+
 	h := &Handler{
-		router:        r,
-		handler:       withMiddleware,
-		storage:       storage,
-		downsampler:   downsampler,
-		engine:        engine,
-		clusters:      m3dbClusters,
-		clusterClient: clusterClient,
-		config:        cfg,
-		embeddedDbCfg: embeddedDbCfg,
-		scope:         scope,
-		createdAt:     time.Now(),
-		tagOptions:    tagOptions,
+		router:               r,
+		handler:              withMiddleware,
+		storage:              downsamplerAndWriter.Storage(),
+		downsamplerAndWriter: downsamplerAndWriter,
+		engine:               engine,
+		clusters:             m3dbClusters,
+		clusterClient:        clusterClient,
+		config:               cfg,
+		embeddedDbCfg:        embeddedDbCfg,
+		scope:                scope,
+		createdAt:            time.Now(),
+		tagOptions:           tagOptions,
+		timeoutOpts:          timeoutOpts,
 	}
 	return h, nil
 }
@@ -131,10 +149,9 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
-	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
+	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource), h.timeoutOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
-		h.storage,
-		h.downsampler,
+		h.downsamplerAndWriter,
 		h.tagOptions,
 		h.scope.Tagged(remoteSource),
 	)
@@ -142,7 +159,13 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
-	nativePromReadHandler := native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)
+	nativePromReadHandler := native.NewPromReadHandler(
+		h.engine,
+		h.tagOptions,
+		&h.config.Limits,
+		h.scope.Tagged(nativeSource),
+		h.timeoutOpts,
+	)
 
 	h.router.HandleFunc(remote.PromReadURL,
 		logged(promRemoteReadHandler).ServeHTTP,
@@ -154,7 +177,7 @@ func (h *Handler) RegisterRoutes() error {
 		logged(nativePromReadHandler).ServeHTTP,
 	).Methods(native.PromReadHTTPMethod)
 	h.router.HandleFunc(native.PromReadInstantURL,
-		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions)).ServeHTTP,
+		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions, h.timeoutOpts)).ServeHTTP,
 	).Methods(native.PromReadInstantHTTPMethod)
 
 	// Native M3 search and write endpoints
@@ -180,8 +203,17 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
-		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope)).ServeHTTP,
+		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope, *h.config.LookbackDuration)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
+
+	// Graphite endpoints
+	h.router.HandleFunc(graphite.ReadURL,
+		logged(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+	).Methods(graphite.ReadHTTPMethods...)
+
+	h.router.HandleFunc(graphite.FindURL,
+		logged(graphite.NewFindHandler(h.storage)).ServeHTTP,
+	).Methods(graphite.FindHTTPMethods...)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
