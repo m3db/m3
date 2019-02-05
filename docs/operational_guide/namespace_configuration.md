@@ -6,7 +6,7 @@ Namespaces in M3DB are analogous to tables in other databases. Each namespace ha
 
 ## Namespace Operations
 
-The operations below include sample CURLs, but you can always review the API documentation by navigating to
+The operations below include sample cURLs, but you can always review the API documentation by navigating to
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
@@ -16,7 +16,7 @@ The operations below include sample CURLs, but you can always review the API doc
 
 The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the `name` of the namespace, as well as its `retention_time`.
 
-For example, the following CURL:
+For example, the following cURL:
 
 ```bash
 curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/database/namespace/create -d '{
@@ -74,7 +74,7 @@ Note that deleting a namespace will not have any effect on the M3DB nodes until 
 
 ### Modifying a Namespace
 
-There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example,it is never safe to modify the blockSize of a namespace.
+There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example, it is never safe to modify the blockSize of a namespace.
 
 Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.
 
@@ -118,7 +118,7 @@ Can be modified without creating a new namespace: `yes`
 
 #### blockSize
 
-This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../architecture/engine.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
+This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../../m3db/architecture/engine.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
 
 Can be modified without creating a new namespace: `no`
 

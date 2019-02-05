@@ -32,7 +32,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
-Note that the `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement) and [namespaces](../operational_guide/namespace_configuration). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now its enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
+Note that the `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement.md) and [namespaces](../operational_guide/namespace_configuration.md). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now its enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
 errors related to a local cache file, such as `[W] could not load cache from file

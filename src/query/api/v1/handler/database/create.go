@@ -51,7 +51,7 @@ const (
 	// CreateURL is the URL for the database create handler.
 	CreateURL = handler.RoutePrefixV1 + "/database/create"
 
-	// CreateNamespaceURL is the URL for the database namespace create  handler.
+	// CreateNamespaceURL is the URL for the database namespace create handler.
 	CreateNamespaceURL = handler.RoutePrefixV1 + "/database/namespace/create"
 
 	// CreateHTTPMethod is the HTTP method used with the create database resource.
@@ -166,6 +166,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("unable to get  placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
+		return
 	}
 
 	parsedReq, namespaceRequest, placementRequest, rErr := h.parseAndValidateRequest(r, currPlacement)
