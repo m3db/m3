@@ -254,6 +254,13 @@ func TestFinalize(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 	require.Equal(t, 0, res.Size())
+
+	for _, entry := range res.Map().Iter() {
+		id, _ := entry.Key(), entry.Value()
+		require.False(t, id.IsNoFinalize())
+		// TODO(rartoul): Could verify tags are NoFinalize() as well if
+		// they had that method.
+	}
 }
 
 func TestNoFinalize(t *testing.T) {
@@ -280,4 +287,11 @@ func TestNoFinalize(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 	require.Equal(t, 1, res.Size())
+
+	for _, entry := range res.Map().Iter() {
+		id, _ := entry.Key(), entry.Value()
+		require.True(t, id.IsNoFinalize())
+		// TODO(rartoul): Could verify tags are NoFinalize() as well if
+		// they had that method.
+	}
 }

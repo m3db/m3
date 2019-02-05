@@ -170,5 +170,12 @@ func (r *results) Finalize() {
 }
 
 func (r *results) NoFinalize() {
+	// Ensure neither the results object itself, or any of its underlying
+	// IDs and tags will be finalized.
 	r.noFinalize = true
+	for _, entry := range r.resultsMap.Iter() {
+		id, tags := entry.Key(), entry.Value()
+		id.NoFinalize()
+		tags.NoFinalize()
+	}
 }
