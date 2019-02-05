@@ -90,7 +90,7 @@ func setup(t *testing.T, ctxLogger bool) (*os.File, *os.File, *http.Request) {
 	return stdout, stderr, req
 }
 
-func TestPanicErrorReporter(t *testing.T) {
+func TestPanicErrorResponder(t *testing.T) {
 	stdout, stderr, req := setup(t, true)
 	defer os.Remove(stdout.Name())
 	defer os.Remove(stderr.Name())
@@ -137,6 +137,41 @@ func TestPanicErrorReporter(t *testing.T) {
 			count++
 		}
 	}
+}
+
+func TestPanicErrorResponderOnlyIfNotWrittenRequest(t *testing.T) {
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
+
+	writer := &httpWriter{written: make([]string, 0, 10)}
+	deadbeef := WithPanicErrorResponder(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("foo"))
+			panic("err")
+		}))
+	deadbeef.ServeHTTP(writer, req)
+
+	assert.Equal(t, 0, writer.status)
+	require.Equal(t, 1, len(writer.written))
+	assert.Equal(t, "foo", writer.written[0])
+}
+
+func TestPanicErrorResponderOnlyIfNotWrittenHeader(t *testing.T) {
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
+
+	writer := &httpWriter{written: make([]string, 0, 10)}
+	deadbeef := WithPanicErrorResponder(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(404)
+			panic("err")
+		}))
+	deadbeef.ServeHTTP(writer, req)
+
+	assert.Equal(t, 404, writer.status)
+	require.Equal(t, 0, len(writer.written))
 }
 
 type delayHandler struct {

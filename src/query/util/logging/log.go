@@ -147,33 +147,65 @@ func WithPanicErrorResponder(next http.Handler) http.Handler {
 func withPanicErrorResponderFunc(
 	next func(w http.ResponseWriter, r *http.Request),
 ) http.HandlerFunc {
-	var (
-		mu      sync.Mutex
-		written bool
-	)
-
 	return func(w http.ResponseWriter, r *http.Request) {
-		// overridden := &responseWrittenResponseWriter{writer: w}
-		// w = overridden
+		writeCheckWriter := &responseWrittenResponseWriter{writer: w}
+		w = writeCheckWriter
+
 		defer func() {
 			if err := recover(); err != nil {
 				logger := WithContext(r.Context())
 				logger.Error("panic captured", zap.Any("stack", err))
 
-				mu.Lock()
-				if !written {
+				if !writeCheckWriter.Written() {
 					xhttp.Error(w, fmt.Errorf("%v", err), http.StatusInternalServerError)
-					written = true
-				} else {
-					// cannot write the error back to the caller, some contents already written
-					// maybe log a message that it can't write the error back to the caller?
-					logger.Warn("cannot write error for request; already written")
+					return
 				}
 
-				mu.Unlock()
+				// cannot write the error back to the caller, some contents already written
+				// maybe log a message that it can't write the error back to the caller?
+				logger.Warn("cannot write error for request; already written")
 			}
 		}()
 
 		next(w, r)
 	}
+}
+
+type responseWrittenResponseWriter struct {
+	sync.RWMutex
+	writer  http.ResponseWriter
+	written bool
+}
+
+func (w *responseWrittenResponseWriter) Written() bool {
+	w.RLock()
+	v := w.written
+	w.RUnlock()
+	return v
+}
+
+func (w *responseWrittenResponseWriter) setWritten() {
+	w.RLock()
+	if w.written {
+		return
+	}
+	w.RUnlock()
+
+	w.Lock()
+	w.written = true
+	w.Unlock()
+}
+
+func (w *responseWrittenResponseWriter) Header() http.Header {
+	return w.writer.Header()
+}
+
+func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
+	w.setWritten()
+	return w.writer.Write(d)
+}
+
+func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
+	w.setWritten()
+	w.writer.WriteHeader(statusCode)
 }
