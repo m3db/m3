@@ -29,6 +29,7 @@ import (
 	"time"
 
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -139,13 +140,12 @@ func WithResponseTimeLoggingFunc(
 }
 
 // WithPanicErrorResponder wraps around the given handler, providing response time logging
-func WithPanicErrorResponder(next http.Handler, logger *zap.Logger) http.Handler {
-	return WithPanicErrorResponderFunc(next.ServeHTTP, logger)
+func WithPanicErrorResponder(next http.Handler) http.Handler {
+	return withPanicErrorResponderFunc(next.ServeHTTP)
 }
 
-func WithPanicErrorResponderFunc(
+func withPanicErrorResponderFunc(
 	next func(w http.ResponseWriter, r *http.Request),
-	logger *zap.Logger,
 ) http.HandlerFunc {
 	var (
 		mu      sync.Mutex
@@ -157,6 +157,7 @@ func WithPanicErrorResponderFunc(
 		// w = overridden
 		defer func() {
 			if err := recover(); err != nil {
+				logger := WithContext(r.Context())
 				logger.Error("panic captured", zap.Any("stack", err))
 
 				mu.Lock()
