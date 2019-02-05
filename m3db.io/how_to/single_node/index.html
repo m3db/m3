@@ -490,6 +490,42 @@
           
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      API
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        API
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
+      Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
     <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
@@ -504,13 +540,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
     
-    <label class="md-nav__link" for="nav-4-3">
+    <label class="md-nav__link" for="nav-4-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-3">
+      <label class="md-nav__title" for="nav-4-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -657,6 +693,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../query/" title="M3Query" class="md-nav__link">
+      M3Query
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -777,6 +825,30 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/graphite/" title="Graphite" class="md-nav__link">
+      Graphite
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/grafana/" title="Grafana" class="md-nav__link">
+      Grafana
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -863,27 +935,34 @@ containing:</p>
 <li>A "coordinator" instance (<code>m3coordinator</code>) for writing and querying tagged metrics, as well as
   managing cluster topology and runtime configuration.</li>
 </ul>
-<p>To begin, first start up a Docker container with port <code>7201</code> (used to manage the cluster topology)
-and port <code>9003</code> (used to read and write metrics) exposed. We recommend you create a persistent data
+<p>To begin, first start up a Docker container with port <code>7201</code> (used to manage the cluster topology), port <code>7203</code> which is where Prometheus scrapes metrics produced by <code>M3DB</code> and <code>M3Coordinator</code>, and port <code>9003</code> (used to read and write metrics) exposed. We recommend you create a persistent data
 directory on your host for durability:</p>
 <pre><code>docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $GOPATH/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml:/etc/m3dbnode/m3dbnode.yml quay.io/m3/m3dbnode:latest
 </code></pre>
 
-<!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
-placements, etc. are -->
-
-<!-- TODO: add something about how this is in no way a recommended production deployment guide,
-and write a guide for what is considered a production-ready deployment (this is in the works) -->
-
+<p><strong>Note:</strong> If you don't have <code>M3</code> setup in your <code>$GOPATH</code>, you can find the <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml">m3dbnode-local-etcd.yml file here</a>.</p>
+<p><strong>Note:</strong> This setup runs <code>M3DB</code> and <code>M3Coordinator</code> as one application and should only be used for testing/development purposes. If you want to run a clustered <code>M3DB</code> with a separate <code>M3Coordinator</code> process (which is our recommended production setup), please <a href="../cluster_hard_way/">see here</a>.</p>
 <p>Next, create an initial namespace for your metrics in the database:</p>
-<!-- TODO: link to config reference docs once available -->
-
 <pre><code class="json">curl -X POST http://localhost:7201/api/v1/database/create -d '{
   &quot;type&quot;: &quot;local&quot;,
   &quot;namespaceName&quot;: &quot;default&quot;,
   &quot;retentionTime&quot;: &quot;48h&quot;
 }'
+</code></pre>
+
+<p><strong>Note:</strong> If you want to create more than one namespace, you should follow the <a href="../../operational_guide/namespace_configuration/">instructions here</a> and also add the namespace you created to the <code>local</code> section of the <code>m3dbnode-local-etcd.yml</code> file used in the <code>docker run</code> command above with the appropriate aggregation options specified - for more information on our aggregation functionality, check out our <a href="../query/">M3Query documentation</a>. For example:</p>
+<!-- TODO: link to aggregation documentation (outside of query.md) -->
+
+<pre><code class="json">local:
+  namespaces:
+    - namespace: default
+      type: unaggregated
+      retention: 48h
+    - namespace: &lt;new_namespace&gt;
+      type: aggregated
+      retention: &lt;new_retention&gt;
+      resolution: &lt;new_resolution&gt;
 </code></pre>
 
 <p>Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or

@@ -627,6 +627,42 @@
           
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      API
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        API
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../query_engine/api/" title="Query" class="md-nav__link">
+      Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
     <a href="../../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
@@ -641,13 +677,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
     
-    <label class="md-nav__link" for="nav-4-3">
+    <label class="md-nav__link" for="nav-4-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-3">
+      <label class="md-nav__title" for="nav-4-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -750,6 +786,18 @@
   <li class="md-nav__item">
     <a href="../../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
       M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../how_to/query/" title="M3Query" class="md-nav__link">
+      M3Query
     </a>
   </li>
 
@@ -870,6 +918,30 @@
   <li class="md-nav__item">
     <a href="../../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
       Prometheus
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../integrations/graphite/" title="Graphite" class="md-nav__link">
+      Graphite
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../integrations/grafana/" title="Grafana" class="md-nav__link">
+      Grafana
     </a>
   </li>
 
@@ -1207,8 +1279,7 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>If the blocksize is set to two hours, then all writes for all series for a given shard will be buffered in memory for two hours at a time. At the end of the two hour period all of the <a href="../storage/">fileset files</a> will be generated, written to disk, and then the in-memory objects can be released and replaced with new ones for the new block. The old objects will be removed from memory in the subsequent tick.</p>
 <h2 id="caveats-limitations">Caveats / Limitations</h2>
 <ol>
-<li>M3DB currently supports exact ID based lookups. It does not support tag/secondary indexing. This feature is under development and future versions of M3DB will have support for a built-in reverse index.</li>
-<li>M3DB does not support updates / deletes. All data written to M3DB is immutable.</li>
+<li>Currently M3DB does not support arbitrary updates or deletes. There is support for upserts for time series data in a mutable block, however after time series data moves out of the mutable window it then becomes immutable.</li>
 <li>M3DB does not support writing arbitrarily into the past and future. This is generally fine for monitoring workloads, but can be problematic for traditional <a href="https://en.wikipedia.org/wiki/Online_transaction_processing">OLTP</a> and <a href="https://en.wikipedia.org/wiki/Online_analytical_processing">OLAP</a> workloads. Future versions of M3DB will have better support for writes with arbitrary timestamps.</li>
 <li>M3DB does not support writing datapoints with values other than double-precision floats. Future versions of M3DB will have support for storing arbitrary values.</li>
 <li>M3DB does not support storing data with an indefinite retention period, every namespace in M3DB is required to have a retention policy which specifies how long data in that namespace will be retained for. While there is no upper bound on that value (Uber has production databases running with retention periods as high as 5 years), its still required and generally speaking M3DB is optimized for workloads with a well-defined <a href="https://en.wikipedia.org/wiki/Time_to_live">TTL</a>.</li>

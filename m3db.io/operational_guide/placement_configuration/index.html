@@ -490,6 +490,42 @@
           
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      API
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        API
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
+      Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
     <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
@@ -504,13 +540,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
     
-    <label class="md-nav__link" for="nav-4-3">
+    <label class="md-nav__link" for="nav-4-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-3">
+      <label class="md-nav__title" for="nav-4-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -613,6 +649,18 @@
   <li class="md-nav__item">
     <a href="../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
       M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/query/" title="M3Query" class="md-nav__link">
+      M3Query
     </a>
   </li>
 
@@ -787,8 +835,22 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#adding-removing-seed-nodes" title="Adding / Removing Seed Nodes" class="md-nav__link">
+    Adding / Removing Seed Nodes
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#replacing-a-node" title="Replacing a Node" class="md-nav__link">
     Replacing a Node
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replacing-a-seed-node" title="Replacing a Seed Node" class="md-nav__link">
+    Replacing a Seed Node
   </a>
   
 </li>
@@ -882,6 +944,30 @@
   <li class="md-nav__item">
     <a href="../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
       Prometheus
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/graphite/" title="Graphite" class="md-nav__link">
+      Graphite
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/grafana/" title="Grafana" class="md-nav__link">
+      Grafana
     </a>
   </li>
 
@@ -1035,8 +1121,22 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#adding-removing-seed-nodes" title="Adding / Removing Seed Nodes" class="md-nav__link">
+    Adding / Removing Seed Nodes
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#replacing-a-node" title="Replacing a Node" class="md-nav__link">
     Replacing a Node
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replacing-a-seed-node" title="Replacing a Seed Node" class="md-nav__link">
+    Replacing a Seed Node
   </a>
   
 </li>
@@ -1102,6 +1202,8 @@
 <h4 id="port">Port</h4>
 <p>This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the port over which this M3DB node expects to receive traffic (defaults to 9000).</p>
 <h3 id="placement-operations">Placement Operations</h3>
+<p><strong>NOTE</strong>: If you find yourself performing operations on seed nodes, please refer to the seed node-specific sections
+below before making changes.</p>
 <p>The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to</p>
 <p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
 <p><strong>Note</strong>: The <a href="../bootstrapping/">peers bootstrapper</a> must be configured on all nodes in the M3DB cluster for placement changes to work. The <code>peers</code> bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration</p>
@@ -1166,7 +1268,15 @@
 </code></pre>
 
 <p>After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the <code>Available</code> state.</p>
+<h4 id="adding-removing-seed-nodes">Adding / Removing Seed Nodes</h4>
+<p>If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an external etcd cluster, as
+the overhead of operating two stateful systems at once is non-trivial. As this is not a recommended production setup,
+this section is intentionally brief.</p>
+<p>To add or remove nodes to the etcd cluster, use <code>etcdctl member add</code> and <code>etcdctl member remove</code> as found in <code>Replacing
+a Seed Node</code> below. A general rule to keep in mind is that any time the M3DB process starts on a seed node, the list of
+cluster members in <code>etcdctl member list</code> must match <em>exactly</em> the list in config.</p>
 <h4 id="replacing-a-node">Replacing a Node</h4>
+<p><strong>NOTE</strong>: If using embedded etcd and replacing a seed node, please read the section below.</p>
 <p>Send a POST request to the <code>/api/v1/services/m3db/placement/replace</code> endpoint containing hosts to replace and candidates to replace it with.</p>
 <pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement/replace -d '{
     &quot;leavingInstanceIDs&quot;: [&quot;&lt;OLD_NODE_ID&gt;&quot;],
@@ -1183,6 +1293,73 @@
     ]
 }'
 </code></pre>
+
+<h4 id="replacing-a-seed-node">Replacing a Seed Node</h4>
+<p>If you are using the embedded etcd mode (which is only recommended for test purposes) and replacing a seed node then
+there are a few more steps to be done, as you are essentially doing two replace operations at once (replacing an etcd
+node <em>and</em> and M3DB node). To perform these steps you will need the <code>etcdctl</code> binary (version 3.2 or later), which can
+be downloaded from the <a href="https://github.com/etcd-io/etcd/releases">etcd releases</a> page.</p>
+<p>Many of the instructions here are mentioned in the <a href="https://github.com/etcd-io/etcd/blob/v3.3.11/Documentation/op-guide/runtime-configuration.md">etcd operational
+guide</a>, which we recommend
+reading for more context.</p>
+<p>To provide some context for the commands below, let's assume your cluster was created with the below configuration, and
+that you'd like to replace <code>host3</code> with a new host <code>host4</code>, which has IP address <code>1.1.1.4</code>:</p>
+<pre><code>initialCluster:
+  - hostID: host1
+    endpoint: http://1.1.1.1:2380
+  - hostID: host2
+    endpoint: http://1.1.1.2:2380
+  - hostID: host3
+    endpoint: http://1.1.1.3:2380
+</code></pre>
+
+<ol>
+<li>On an existing node in the cluster that is <strong>not</strong> the one you're removing, use <code>etcdctl</code> to remove <code>host3</code> from the
+   cluster:</li>
+</ol>
+<pre><code>$ ETCDCTL_API=3 etcdctl member list
+9d29673cf1328d1, started, host1, http://1.1.1.1:2380, http://1.1.1.1:2379
+f14613b6c8a336b, started, host2, http://1.1.1.2:2380, http://1.1.1.2:2379
+2fd477713daf243, started, host3, http://1.1.1.3:2380, http://1.1.1.3:2379  # &lt;&lt;&lt; INSTANCE WE WANT TO REMOVE
+
+$ ETCDCTL_API=3 etcdctl member remove 2fd477713daf243
+Removed member 2fd477713daf243 from cluster
+</code></pre>
+
+<ol>
+<li>From the same host, use <code>etcdctl</code> to add <code>host4</code> to the cluster:</li>
+</ol>
+<pre><code>$ ETCDCTL_API=3 etcdctl member add host4 --peer-urls http://1.1.1.4:2380
+</code></pre>
+
+<ol>
+<li><strong>Before</strong> starting M3DB on <code>host4</code>, modify the initial cluster list to indicate <code>host4</code> has a cluster state of
+   <code>existing</code>. Note: if you had previously started M3DB on this host, you'll have to remove the <code>member</code> subdirectory in
+   <code>$M3DB_DATA_DIR/etcd/</code>.</li>
+</ol>
+<pre><code>initialCluster:
+  - hostID: host1
+    endpoint: http://1.1.1.1:2380
+  - hostID: host2
+    endpoint: http://1.1.1.2:2380
+  - hostID: host4
+    clusterState: existing
+    endpoint: http://1.1.1.4:2380
+</code></pre>
+
+<ol>
+<li>
+<p>Start M3DB on <code>host4</code>.</p>
+</li>
+<li>
+<p>On all other seed nodes, update their <code>initialCluster</code> list to be exactly equal to the list on <code>host4</code> from step 3.
+   Rolling restart the hosts one at a time, waiting until they indicate they are bootstrapped (indicated in the
+   <code>/health</code>) endpoint before continuing to the next.</p>
+</li>
+<li>
+<p>Follow the steps from <code>Replacing a Seed Node</code> to replace <code>host3</code> with <code>host4</code> in the M3DB placement.</p>
+</li>
+</ol>
                 
                   
                 

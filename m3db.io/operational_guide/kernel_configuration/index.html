@@ -490,6 +490,42 @@
           
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      API
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        API
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
+      Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
     <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
@@ -504,13 +540,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
     
-    <label class="md-nav__link" for="nav-4-3">
+    <label class="md-nav__link" for="nav-4-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-3">
+      <label class="md-nav__title" for="nav-4-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -613,6 +649,18 @@
   <li class="md-nav__item">
     <a href="../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
       M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/query/" title="M3Query" class="md-nav__link">
+      M3Query
     </a>
   </li>
 
@@ -791,6 +839,30 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/graphite/" title="Graphite" class="md-nav__link">
+      Graphite
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/grafana/" title="Grafana" class="md-nav__link">
+      Grafana
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -883,9 +955,9 @@
                 <h1 id="kernel-configuration">Kernel Configuration</h1>
 <p>This document lists the Kernel tweaks M3DB needs to run well.</p>
 <h2 id="vmmax_map_count">vm.max_map_count</h2>
-<p>M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump <code>vm.max_map_count</code>. We suggest setting this value to <code>262144</code>, so you don’t have to come back and debug issues later.</p>
+<p>M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump <code>vm.max_map_count</code>. We suggest setting this value to <code>3000000</code>, so you don’t have to come back and debug issues later.</p>
 <p>On Linux, you can increase the limits by running the following command as root:</p>
-<pre><code>sysctl -w vm.max_map_count=262144
+<pre><code>sysctl -w vm.max_map_count=3000000
 </code></pre>
 
 <p>To set this value permanently, update the <code>vm.max_map_count</code> setting in <code>/etc/sysctl.conf</code>.</p>

@@ -490,6 +490,42 @@
           
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      API
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        API
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
+      Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
     <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
@@ -504,13 +540,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
     
-    <label class="md-nav__link" for="nav-4-3">
+    <label class="md-nav__link" for="nav-4-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-3">
+      <label class="md-nav__title" for="nav-4-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -704,6 +740,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../query/" title="M3Query" class="md-nav__link">
+      M3Query
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -820,6 +868,30 @@
   <li class="md-nav__item">
     <a href="../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
       Prometheus
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/graphite/" title="Graphite" class="md-nav__link">
+      Graphite
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/grafana/" title="Grafana" class="md-nav__link">
+      Grafana
     </a>
   </li>
 
@@ -947,10 +1019,13 @@
                 
                 
                 <h1 id="m3db-on-kubernetes">M3DB on Kubernetes</h1>
-<p>M3DB on Kubernetes is currently in the alpha phase of development. We currently provide static manifests to bootstrap a
-cluster. In the future, we hope to create an <a href="https://coreos.com/operators/">operator</a> and leverage <a href="https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/">custom resource
-definitions</a> (CRDs) to automatically
-handle operations such as managing cluster topology, but for now, our manifests should be adequate to get started.</p>
+<p><strong>Please note:</strong> If possible <em><a href="https://operator.m3db.io/">PLEASE USE THE OPERATOR</a></em> to deploy to Kubernetes if you
+can. It is a considerly more streamlined setup.</p>
+<p>The <a href="https://operator.m3db.io/">operator</a> leverages <a href="https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/">custom resource definitions</a>
+(CRDs) to automatically handle operations such as managing cluster topology.</p>
+<p>The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
+as a guide to running M3 on Kubernetes, if and only if you have significant custom requirements not satisified by
+the operator.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>M3DB performs better when it has access to fast disks. Every incoming write is written to a commit log, which at high
 volumes of writes can be sensitive to spikes in disk latency. Additionally the random seeks into files when loading cold
@@ -1241,13 +1316,13 @@ certain nodes. Specifically:</p>
           </a>
         
         
-          <a href="../../operational_guide/placement/" title="Placement/Topology" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../query/" title="M3Query" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Placement/Topology
+                M3Query
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
