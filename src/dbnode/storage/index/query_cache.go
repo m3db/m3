@@ -23,19 +23,33 @@ package index
 import (
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/postings"
 	xtime "github.com/m3db/m3x/time"
+)
+
+// PatternType is an enum for the various pattern types. It allows us
+// separate them logically within the cache.
+type PatternType int
+
+var (
+	// PatternTypeRegexp indicates that the pattern is of type regexp.
+	PatternTypeRegexp PatternType = 0
+	// PatternTypeTerm indicates that the pattern is of type term.
+	PatternTypeTerm PatternType = 1
 )
 
 // QueryCacheEntry represents an entry in the query cache.
 type QueryCacheEntry struct {
-	Namespace  string
-	BlockStart xtime.UnixNano
-	Regexp     string
+	Namespace   string
+	BlockStart  xtime.UnixNano
+	VolumeIndex int
+	Pattern     string
+	PatternType PatternType
 }
 
 // QueryCacheValue represents a value stored in the query cache.
 type QueryCacheValue struct {
-	Results Results
+	Postings postings.List
 }
 
 // QueryCache implements an LRU for caching queries and their results.
@@ -43,25 +57,77 @@ type QueryCache struct {
 	c map[QueryCacheEntry]QueryCacheValue
 }
 
-// Get returns the cached results for the provided query, if any.
-func (q *QueryCache) Get(
-	namespace string,
-	blockStart time.Time,
-	Regexp string,
-) Results {
-	return nil
+// NewQueryCache creates a new query cache.
+func NewQueryCache(size int) QueryCache {
+	return QueryCache{
+		c: make(map[QueryCacheEntry]QueryCacheValue),
+	}
 }
 
-// Put updates the LRU with the result of the query.
-func (q *QueryCache) Put(
+// GetRegexp returns the cached results for the provided regexp query, if any.
+func (q *QueryCache) GetRegexp(
 	namespace string,
 	blockStart time.Time,
-	Regexp string,
-	r Results,
-) {
-	// Ensure that the underlying IDs and tags in the results we're
-	// about to cache won't get finalized when the request that
-	// generated them completes.
-	r.NoFinalize()
+	volumeIndex int,
+	pattern string,
+) (postings.List, bool) {
+	p, ok := q.c[QueryCacheEntry{
+		Namespace:   namespace,
+		BlockStart:  xtime.ToUnixNano(blockStart),
+		VolumeIndex: volumeIndex,
+		Pattern:     pattern,
+		PatternType: PatternTypeRegexp,
+	}]
+	return p.Postings, ok
+}
 
+// GetTerm returns the cached results for the provided term query, if any.
+func (q *QueryCache) GetTerm(
+	namespace string,
+	blockStart time.Time,
+	volumeIndex int,
+	pattern string,
+) (postings.List, bool) {
+	p, ok := q.c[QueryCacheEntry{
+		Namespace:   namespace,
+		BlockStart:  xtime.ToUnixNano(blockStart),
+		VolumeIndex: volumeIndex,
+		Pattern:     pattern,
+		PatternType: PatternTypeTerm,
+	}]
+	return p.Postings, ok
+}
+
+// PutRegexp updates the LRU with the result of the regexp query.
+func (q *QueryCache) PutRegexp(
+	namespace string,
+	blockStart time.Time,
+	volumeIndex int,
+	pattern string,
+	p postings.List,
+) {
+	q.c[QueryCacheEntry{
+		Namespace:   namespace,
+		BlockStart:  xtime.ToUnixNano(blockStart),
+		VolumeIndex: volumeIndex,
+		Pattern:     pattern,
+		PatternType: PatternTypeRegexp,
+	}] = QueryCacheValue{Postings: p}
+}
+
+// PutTerm updates the LRU with the result of the term query.
+func (q *QueryCache) PutTerm(
+	namespace string,
+	blockStart time.Time,
+	volumeIndex int,
+	pattern string,
+	p postings.List,
+) {
+	q.c[QueryCacheEntry{
+		Namespace:   namespace,
+		BlockStart:  xtime.ToUnixNano(blockStart),
+		VolumeIndex: volumeIndex,
+		Pattern:     pattern,
+		PatternType: PatternTypeTerm,
+	}] = QueryCacheValue{Postings: p}
 }

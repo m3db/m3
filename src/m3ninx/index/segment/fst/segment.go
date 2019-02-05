@@ -74,6 +74,13 @@ type SegmentData struct {
 	Closer io.Closer
 }
 
+type queryCache interface {
+	GetRegexp(regexp string) (postings.List, bool)
+	GetTerm(term string) (postings.List, bool)
+	PutRegexp(regexp string, pl postings.List)
+	PutTerm(term string, pl postings.List)
+}
+
 // Validate validates the provided segment data, returning an error if it's not.
 func (sd SegmentData) Validate() error {
 	if sd.MajorVersion != MajorVersion {
@@ -320,6 +327,13 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 		return nil, errReaderClosed
 	}
 
+	if qc := r.opts.QueryCache(); qc != nil {
+		pl, ok := qc.GetTerm(string(term))
+		if ok {
+			return pl, nil
+		}
+	}
+
 	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
@@ -352,6 +366,11 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 		return nil, err
 	}
 
+	if qc := r.opts.QueryCache(); qc != nil {
+		// If we made it this far the query wasn't in the cache so insert it.
+		qc.PutTerm(string(term), pl)
+	}
+
 	return pl, nil
 }
 
@@ -365,6 +384,13 @@ func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (pos
 	re := compiled.FST
 	if re == nil {
 		return nil, errReaderNilRegexp
+	}
+
+	if qc := r.opts.QueryCache(); qc != nil {
+		pl, ok := qc.GetRegexp(compiled.FSTSyntax.String())
+		if ok {
+			return pl, nil
+		}
 	}
 
 	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
@@ -420,6 +446,10 @@ func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (pos
 		return nil, err
 	}
 
+	if qc := r.opts.QueryCache(); qc != nil {
+		// If we made it this far the query wasn't in the cache so insert it.
+		qc.PutRegexp(compiled.FSTSyntax.String(), pl)
+	}
 	return pl, nil
 }
 
