@@ -231,3 +231,53 @@ func tagsFromFields(fields []doc.Field) ident.Tags {
 	}
 	return tags
 }
+
+func TestFinalize(t *testing.T) {
+	// Create a Results and insert some data.
+	res := NewResults(testOpts)
+	d1 := doc.Document{ID: []byte("abc")}
+	added, size, err := res.AddDocument(d1)
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, 1, size)
+
+	// Ensure the data is present.
+	tags, ok := res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Equal(t, 0, len(tags.Values()))
+
+	// Call Finalize() to reset the Results.
+	res.Finalize()
+
+	// Ensure data was removed by call to Finalize().
+	tags, ok = res.Map().Get(ident.StringID("abc"))
+	require.False(t, ok)
+	require.Equal(t, 0, len(tags.Values()))
+	require.Equal(t, 0, res.Size())
+}
+
+func TestNoFinalize(t *testing.T) {
+	// Create a Results and insert some data.
+	res := NewResults(testOpts)
+	d1 := doc.Document{ID: []byte("abc")}
+	added, size, err := res.AddDocument(d1)
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, 1, size)
+
+	// Ensure the data is present.
+	tags, ok := res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Equal(t, 0, len(tags.Values()))
+
+	// Call to NoFinalize indicates that subsequent call
+	// to finalize should be a no-op.
+	res.NoFinalize()
+	res.Finalize()
+
+	// Ensure data was not removed by call to Finalize().
+	tags, ok = res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Equal(t, 0, len(tags.Values()))
+	require.Equal(t, 1, res.Size())
+}

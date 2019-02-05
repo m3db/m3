@@ -39,7 +39,8 @@ type results struct {
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool ResultsPool
+	pool       ResultsPool
+	noFinalize bool
 }
 
 // NewResults returns a new results object.
@@ -156,10 +157,18 @@ func (r *results) Reset(nsID ident.ID) {
 }
 
 func (r *results) Finalize() {
+	if r.noFinalize {
+		return
+	}
+
 	r.Reset(nil)
 
 	if r.pool == nil {
 		return
 	}
 	r.pool.Put(r)
+}
+
+func (r *results) NoFinalize() {
+	r.noFinalize = true
 }

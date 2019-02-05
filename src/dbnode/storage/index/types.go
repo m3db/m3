@@ -94,6 +94,11 @@ type Results interface {
 	// including returning it to a backing pool.
 	Finalize()
 
+	// NoFinalize marks the Results such that a subsequent call to Finalize() will
+	// be a no-op and will not return the object to the pool or release any of its
+	// resources.
+	NoFinalize()
+
 	// Size returns the number of IDs tracked.
 	Size() int
 
