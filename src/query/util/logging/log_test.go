@@ -35,6 +35,16 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+func TestContextWithID(t *testing.T) {
+	ctx := context.TODO()
+	assert.Equal(t, undefinedID, ReadContextID(ctx))
+
+	InitWithCores(nil)
+	id := "cool id"
+	ctx = NewContextWithID(ctx, id)
+	assert.Equal(t, id, ReadContextID(ctx))
+}
+
 type httpWriter struct {
 	written []string
 	status  int
@@ -79,6 +89,12 @@ func setup(t *testing.T, ctxLogger bool) (*os.File, *os.File, *http.Request) {
 	require.NoError(t, err)
 
 	if ctxLogger {
+		// Only stacktrace `error` priority and higher
+		highPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapcore.ErrorLevel
+		})
+
+		templogger = templogger.WithOptions(zap.AddStacktrace(highPriority))
 		ctx := context.WithValue(context.TODO(), loggerKey, templogger)
 		ctx = NewContext(ctx, zap.String("foo", "bar"))
 		req = req.WithContext(ctx)
@@ -101,13 +117,10 @@ func TestPanicErrorResponder(t *testing.T) {
 
 	assert.Equal(t, 500, writer.status)
 	require.Equal(t, 1, len(writer.written))
-	assert.Equal(t, "{\"error\":\"beef\"}\n", writer.written[0])
+	assert.Equal(t, "{\"error\":\"caught panic: beef\"}\n", writer.written[0])
 
-	b, err := ioutil.ReadAll(stderr)
-	require.NoError(t, err)
-	assert.Equal(t, 0, len(b))
-
-	b, err = ioutil.ReadAll(stdout)
+	assertNoErrorLogs(t, stderr)
+	b, err := ioutil.ReadAll(stdout)
 	require.NoError(t, err)
 	outstrs := strings.Split(string(b), "\n")
 
@@ -139,6 +152,53 @@ func TestPanicErrorResponder(t *testing.T) {
 	}
 }
 
+func assertNoErrorLogs(t *testing.T, stderr *os.File) {
+	b, err := ioutil.ReadAll(stderr)
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(b))
+}
+
+func assertPanicLogsWritten(t *testing.T, stdout, stderr *os.File) {
+	assertNoErrorLogs(t, stderr)
+	b, err := ioutil.ReadAll(stdout)
+	require.NoError(t, err)
+	outstrs := strings.Split(string(b), "\n")
+
+	assert.True(t, strings.Contains(outstrs[0], "ERROR"))
+	assert.True(t, strings.Contains(outstrs[0], "panic captured"))
+	assert.True(t, strings.Contains(outstrs[0], `"stack": "err"`))
+	assert.True(t, strings.Contains(outstrs[0], `"foo": "bar"`))
+
+	// Assert that stack trace is written
+	// `log.go` should appear in the output five times, once for the error log
+	// method, once for the error log location, once for the call to `next(..)`,
+	// once for the panicHandler, and once for the info message about failing
+	// the write.
+	count := 0
+	for _, s := range outstrs {
+		if strings.Contains(s, "log.go") {
+			count++
+			// This should be the last INFO message
+			if count == 5 {
+				assert.True(t, strings.Contains(s, "WARN"))
+				assert.True(t, strings.Contains(s,
+					`cannot write error for request; already written	{"foo": "bar"}`))
+			}
+		}
+	}
+
+	assert.Equal(t, 5, count)
+
+	// `log_test` should appear in the output twice, once for the call in the
+	// deadbeef method, and once for the ServeHttp call.
+	count = 0
+	for _, s := range outstrs {
+		if strings.Contains(s, "log_test.go") {
+			count++
+		}
+	}
+}
+
 func TestPanicErrorResponderOnlyIfNotWrittenRequest(t *testing.T) {
 	stdout, stderr, req := setup(t, true)
 	defer os.Remove(stdout.Name())
@@ -155,6 +215,9 @@ func TestPanicErrorResponderOnlyIfNotWrittenRequest(t *testing.T) {
 	assert.Equal(t, 0, writer.status)
 	require.Equal(t, 1, len(writer.written))
 	assert.Equal(t, "foo", writer.written[0])
+
+	// Verify that panic capture is still logged.
+	assertPanicLogsWritten(t, stdout, stderr)
 }
 
 func TestPanicErrorResponderOnlyIfNotWrittenHeader(t *testing.T) {
@@ -172,6 +235,9 @@ func TestPanicErrorResponderOnlyIfNotWrittenHeader(t *testing.T) {
 
 	assert.Equal(t, 404, writer.status)
 	require.Equal(t, 0, len(writer.written))
+
+	// Verify that panic capture is still logged.
+	assertPanicLogsWritten(t, stdout, stderr)
 }
 
 type delayHandler struct {
@@ -183,8 +249,8 @@ func (h delayHandler) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 }
 
 func TestWithResponseTimeLogging(t *testing.T) {
-	slowHandler := WithResponseTimeLogging(delayHandler{delay: time.Second})
-	fastHandler := WithResponseTimeLogging(delayHandler{delay: time.Duration(0)})
+	slowHandler := withResponseTimeLogging(delayHandler{delay: time.Second})
+	fastHandler := withResponseTimeLogging(delayHandler{delay: time.Duration(0)})
 
 	stdout, stderr, req := setup(t, false)
 	defer os.Remove(stdout.Name())
@@ -196,11 +262,9 @@ func TestWithResponseTimeLogging(t *testing.T) {
 	fastHandler.ServeHTTP(writer, req)
 
 	require.Equal(t, 0, len(writer.written))
-	b, err := ioutil.ReadAll(stderr)
-	require.NoError(t, err)
-	assert.Equal(t, 0, len(b))
+	assertNoErrorLogs(t, stderr)
 
-	b, err = ioutil.ReadAll(stdout)
+	b, err := ioutil.ReadAll(stdout)
 	require.NoError(t, err)
 	outstrs := strings.Split(string(b), "\n")
 
@@ -211,4 +275,60 @@ func TestWithResponseTimeLogging(t *testing.T) {
 	assert.True(t, strings.Contains(out, "finished handling request"))
 	assert.True(t, strings.Contains(out, `"url": "cool"`))
 	assert.True(t, strings.Contains(out, `response": "1.`))
+}
+
+func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
+
+	writer := &httpWriter{written: make([]string, 0, 10)}
+	slowPanic := WithResponseTimeAndPanicErrorLoggingFunc(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(time.Second)
+			panic("err")
+		}))
+
+	slowPanic.ServeHTTP(writer, req)
+
+	assert.Equal(t, 500, writer.status)
+	require.Equal(t, 1, len(writer.written))
+	assert.Equal(t, "{\"error\":\"caught panic: err\"}\n", writer.written[0])
+
+	assertNoErrorLogs(t, stderr)
+
+	b, err := ioutil.ReadAll(stdout)
+	require.NoError(t, err)
+	outstrs := strings.Split(string(b), "\n")
+	assert.True(t, strings.Contains(outstrs[0], "ERROR"))
+	assert.True(t, strings.Contains(outstrs[0], "panic captured"))
+	assert.True(t, strings.Contains(outstrs[0], `"stack": "err"`))
+	assert.True(t, strings.Contains(outstrs[0], `"foo": "bar"`))
+
+	// Assert that stack trace is written
+	count := 0
+	for _, s := range outstrs {
+		if strings.Contains(s, "log.go") {
+			count++
+		}
+	}
+
+	assert.Equal(t, 5, count)
+
+	// `log_test` should appear in the output twice, once for the call in the
+	// deadbeef method, and once for the ServeHttp call.
+	count = 0
+	for _, s := range outstrs {
+		if strings.Contains(s, "log_test.go") {
+			count++
+		}
+	}
+
+	// assert that the second last line of the log captures response time.
+	last := outstrs[len(outstrs)-2]
+
+	assert.True(t, strings.Contains(last, "INFO"))
+	assert.True(t, strings.Contains(last, "finished handling request"))
+	assert.True(t, strings.Contains(last, `"url": "cool"`))
+	assert.True(t, strings.Contains(last, `response": "1.`))
 }

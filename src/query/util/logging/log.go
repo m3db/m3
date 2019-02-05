@@ -69,7 +69,7 @@ func InitWithCores(cores []zapcore.Core) {
 
 	core := zapcore.NewTee(cores...)
 
-	logger = zap.New(core)
+	logger = zap.New(core).WithOptions(zap.AddStacktrace(highPriority))
 	defer logger.Sync()
 }
 
@@ -97,6 +97,7 @@ func ReadContextID(ctx context.Context) string {
 	if ctxID, ok := ctx.Value(rqIDKey).(string); ok {
 		return ctxID
 	}
+
 	return undefinedID
 }
 
@@ -112,15 +113,15 @@ func WithContext(ctx context.Context) *zap.Logger {
 	return logger
 }
 
-// WithResponseTimeLogging wraps around the given handler, providing response time
+// withResponseTimeLogging wraps around the given handler, providing response time
 // logging.
-func WithResponseTimeLogging(next http.Handler) http.Handler {
-	return WithResponseTimeLoggingFunc(next.ServeHTTP)
+func withResponseTimeLogging(next http.Handler) http.Handler {
+	return withResponseTimeLoggingFunc(next.ServeHTTP)
 }
 
-// WithResponseTimeLoggingFunc wraps around the http request handler function,
+// withResponseTimeLoggingFunc wraps around the http request handler function,
 // providing response time logging.
-func WithResponseTimeLoggingFunc(
+func withResponseTimeLoggingFunc(
 	next func(w http.ResponseWriter, r *http.Request),
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +140,8 @@ func WithResponseTimeLoggingFunc(
 	}
 }
 
-// WithPanicErrorResponder wraps around the given handler, providing response time logging
+// WithPanicErrorResponder wraps around the given handler,
+// providing panic recovery and logging.
 func WithPanicErrorResponder(next http.Handler) http.Handler {
 	return withPanicErrorResponderFunc(next.ServeHTTP)
 }
@@ -157,12 +159,12 @@ func withPanicErrorResponderFunc(
 				logger.Error("panic captured", zap.Any("stack", err))
 
 				if !writeCheckWriter.Written() {
-					xhttp.Error(w, fmt.Errorf("%v", err), http.StatusInternalServerError)
+					xhttp.Error(w, fmt.Errorf("caught panic: %v", err),
+						http.StatusInternalServerError)
 					return
 				}
 
-				// cannot write the error back to the caller, some contents already written
-				// maybe log a message that it can't write the error back to the caller?
+				// cannot write the error back to the caller, some contents already written.
 				logger.Warn("cannot write error for request; already written")
 			}
 		}()
@@ -208,4 +210,20 @@ func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
 func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
 	w.setWritten()
 	w.writer.WriteHeader(statusCode)
+}
+
+// WithResponseTimeAndPanicErrorLogging wraps around the given handler,
+// providing panic recovery and response time logging.
+func WithResponseTimeAndPanicErrorLogging(next http.Handler) http.Handler {
+	return WithResponseTimeAndPanicErrorLoggingFunc(next.ServeHTTP)
+}
+
+// WithResponseTimeAndPanicErrorLoggingFunc wraps around the http request
+// handler function, providing panic recovery and response time logging.
+func WithResponseTimeAndPanicErrorLoggingFunc(
+	next func(w http.ResponseWriter, r *http.Request),
+) http.Handler {
+	// Wrap panic first, to be able to capture slow requests that panic in the
+	// logs.
+	return withResponseTimeLoggingFunc(withPanicErrorResponderFunc(next))
 }

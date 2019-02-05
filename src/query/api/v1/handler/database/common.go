@@ -43,11 +43,17 @@ func RegisterRoutes(
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
 ) {
-	logged := logging.WithResponseTimeLogging
+	wrapped := logging.WithResponseTimeAndPanicErrorLogging
 
-	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
+	r.HandleFunc(CreateURL, wrapped(
+		NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).
+		Methods(CreateHTTPMethod)
 
-	r.HandleFunc(ConfigGetBootstrappersURL, logged(NewConfigGetBootstrappersHandler(client)).ServeHTTP).Methods(ConfigGetBootstrappersHTTPMethod)
-	r.HandleFunc(ConfigSetBootstrappersURL, logged(NewConfigSetBootstrappersHandler(client)).ServeHTTP).Methods(ConfigSetBootstrappersHTTPMethod)
+	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
+		NewConfigGetBootstrappersHandler(client)).ServeHTTP).
+		Methods(ConfigGetBootstrappersHTTPMethod)
+	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
+		NewConfigSetBootstrappersHandler(client)).ServeHTTP).
+		Methods(ConfigSetBootstrappersHTTPMethod)
 
 }

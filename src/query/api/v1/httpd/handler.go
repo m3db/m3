@@ -141,12 +141,14 @@ func NewHandler(
 
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
-	logged := logging.WithResponseTimeLogging
+	// Wrap requests with response time logging as well as panic recovery.
+	wrapped := logging.WithResponseTimeAndPanicErrorLogging
+	panicOnly := logging.WithPanicErrorResponder
 
 	h.router.HandleFunc(openapi.URL,
-		logged(&openapi.DocHandler{}).ServeHTTP,
+		wrapped(&openapi.DocHandler{}).ServeHTTP,
 	).Methods(openapi.HTTPMethod)
-	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
+	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(wrapped(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource), h.timeoutOpts)
@@ -168,51 +170,51 @@ func (h *Handler) RegisterRoutes() error {
 	)
 
 	h.router.HandleFunc(remote.PromReadURL,
-		logged(promRemoteReadHandler).ServeHTTP,
+		wrapped(promRemoteReadHandler).ServeHTTP,
 	).Methods(remote.PromReadHTTPMethod)
 	h.router.HandleFunc(remote.PromWriteURL,
-		promRemoteWriteHandler.ServeHTTP,
+		panicOnly(promRemoteWriteHandler).ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)
 	h.router.HandleFunc(native.PromReadURL,
-		logged(nativePromReadHandler).ServeHTTP,
+		wrapped(nativePromReadHandler).ServeHTTP,
 	).Methods(native.PromReadHTTPMethod)
 	h.router.HandleFunc(native.PromReadInstantURL,
-		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions, h.timeoutOpts)).ServeHTTP,
+		wrapped(native.NewPromReadInstantHandler(h.engine, h.tagOptions, h.timeoutOpts)).ServeHTTP,
 	).Methods(native.PromReadInstantHTTPMethod)
 
 	// Native M3 search and write endpoints
 	h.router.HandleFunc(handler.SearchURL,
-		logged(handler.NewSearchHandler(h.storage)).ServeHTTP,
+		wrapped(handler.NewSearchHandler(h.storage)).ServeHTTP,
 	).Methods(handler.SearchHTTPMethod)
 	h.router.HandleFunc(m3json.WriteJSONURL,
-		logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
+		wrapped(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints
 	h.router.HandleFunc(native.CompleteTagsURL,
-		logged(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+		wrapped(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
 	).Methods(native.CompleteTagsHTTPMethod)
 	h.router.HandleFunc(remote.TagValuesURL,
-		logged(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
+		wrapped(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
 	).Methods(remote.TagValuesHTTPMethod)
 
 	// Series match endpoints
 	h.router.HandleFunc(remote.PromSeriesMatchURL,
-		logged(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
+		wrapped(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
 	).Methods(remote.PromSeriesMatchHTTPMethod)
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
-		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope, *h.config.LookbackDuration)).ServeHTTP,
+		wrapped(validator.NewPromDebugHandler(nativePromReadHandler, h.scope, *h.config.LookbackDuration)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
-		logged(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewRenderHandler(h.storage)).ServeHTTP,
 	).Methods(graphite.ReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.FindURL,
-		logged(graphite.NewFindHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewFindHandler(h.storage)).ServeHTTP,
 	).Methods(graphite.FindHTTPMethods...)
 
 	if h.clusterClient != nil {
