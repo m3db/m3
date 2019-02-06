@@ -1,4 +1,22 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_M3QUERY",
+      "label": "M3Query - Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
   "__requires": [
     {
       "type": "grafana",
@@ -68,7 +86,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "format": "none",
@@ -124,6 +142,7 @@
       "tableColumn": "Value",
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(database_bootstrapped{instance=~\"$instance\"} == bool 1)",
           "format": "time_series",
           "instant": true,
@@ -157,7 +176,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "format": "none",
@@ -213,6 +232,7 @@
       "tableColumn": "Value",
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(database_bootstrapped{instance=~\"$instance\"} == bool 0)",
           "format": "time_series",
           "instant": true,
@@ -245,7 +265,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "format": "none",
@@ -301,6 +321,7 @@
       "tableColumn": "revision",
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "count(build_information{instance=~\"$instance\"}) by (revision)",
           "format": "time_series",
           "instant": true,
@@ -333,7 +354,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "format": "none",
@@ -389,6 +410,7 @@
       "tableColumn": "go_version",
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "count(build_information{instance=~\"$instance\"}) by (go_version)",
           "format": "time_series",
           "instant": true,
@@ -431,7 +453,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -472,12 +494,23 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "commitlog_writes_queued{instance=~\"$instance\"}",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
           "key": 0.09635984016153087,
           "refId": "C",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "commitlog_writes_queued{instance=~\"$instance\"}",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.09635984016153087,
+          "refId": "A",
           "textEditor": true
         }
       ],
@@ -525,7 +558,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -566,6 +599,7 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": " sum(rate(commitlog_writes_success{instance=~\"$instance\"}[$step]))",
           "format": "time_series",
           "hide": false,
@@ -573,6 +607,17 @@
           "key": 0.7940843773344208,
           "legendFormat": "writes",
           "refId": "C",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": " sum(rate(commitlog_writes_success{instance=~\"$instance\"}[$step]))",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.7940843773344208,
+          "legendFormat": "writes m3",
+          "refId": "A",
           "textEditor": true
         }
       ],
@@ -620,7 +665,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -655,6 +700,7 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(rate(dbshard_insert_queue_inserts{instance=~\"$instance\"}[$step])) by (pending_write)",
           "format": "time_series",
           "hide": false,
@@ -662,6 +708,17 @@
           "key": 0.6661769838428799,
           "legendFormat": "pendingWrite-{{pending_write}}",
           "refId": "C",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "sum(rate(dbshard_insert_queue_inserts{instance=~\"$instance\"}[$step])) by (pending_write)",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.6661769838428799,
+          "legendFormat": "pendingWrite-{{pending_write}} m3",
+          "refId": "A",
           "textEditor": true
         }
       ],
@@ -719,7 +776,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -761,6 +818,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(service_fetchBatchRaw_success{instance=~\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
@@ -770,6 +828,7 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(service_fetchBatchRaw_errors{instance=~\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
@@ -779,6 +838,7 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(service_writeBatchRaw_success{instance=~\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
@@ -788,12 +848,53 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(service_writeBatchRaw_errors{instance=~\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
               "key": 0.666035411738013,
               "refId": "D",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(service_fetchBatchRaw_success{instance=~\"$instance\"}[1m])",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.666035411738013,
+              "refId": "E",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(service_fetchBatchRaw_errors{instance=~\"$instance\"}[1m])",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.666035411738013,
+              "refId": "F",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(service_writeBatchRaw_success{instance=~\"$instance\"}[1m])",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.666035411738013,
+              "refId": "G",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(service_writeBatchRaw_errors{instance=~\"$instance\"}[1m])",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.666035411738013,
+              "refId": "H",
               "textEditor": true
             }
           ],
@@ -841,7 +942,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -875,11 +976,20 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "service_writeBatchRaw_latency{instance=~\"$instance\",quantile=\"0.99\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.813148562053182,
               "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "service_writeBatchRaw_latency{instance=~\"$instance\",quantile=\"0.99\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.813148562053182,
+              "refId": "A"
             }
           ],
           "thresholds": [],
@@ -926,7 +1036,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -960,11 +1070,20 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "service_fetchBatchRaw_latency{instance=~\"$instance\",quantile=\"0.99\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.37467787057058555,
               "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "service_fetchBatchRaw_latency{instance=~\"$instance\",quantile=\"0.99\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.37467787057058555,
+              "refId": "A"
             }
           ],
           "thresholds": [],
@@ -1030,7 +1149,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1072,6 +1191,7 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(rate(service_writeTaggedBatchRaw_success{instance=~\"$instance\"}[$step]))",
           "format": "time_series",
           "hide": false,
@@ -1082,6 +1202,7 @@
           "textEditor": true
         },
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(rate(service_writeTaggedBatchRaw_errors{instance=~\"$instance\"}[$step]))",
           "format": "time_series",
           "hide": false,
@@ -1092,6 +1213,7 @@
           "textEditor": true
         },
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(rate(service_fetchTaggedBatchRaw_success{instance=~\"$instance\"}[$step]))",
           "format": "time_series",
           "hide": false,
@@ -1102,6 +1224,7 @@
           "textEditor": true
         },
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "sum(rate(service_fetchTaggedBatchRaw_errors{instance=~\"$instance\"}[$step]))",
           "format": "time_series",
           "hide": false,
@@ -1109,6 +1232,50 @@
           "key": 0.666035411738013,
           "legendFormat": "fetchTaggedErrors",
           "refId": "D",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "sum(rate(service_writeTaggedBatchRaw_success{instance=~\"$instance\"}[$step]))",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.666035411738013,
+          "legendFormat": "writeTaggedSuccess m3",
+          "refId": "E",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "sum(rate(service_writeTaggedBatchRaw_errors{instance=~\"$instance\"}[$step]))",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.666035411738013,
+          "legendFormat": "writeTaggedErrors m3",
+          "refId": "F",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "sum(rate(service_fetchTaggedBatchRaw_success{instance=~\"$instance\"}[$step]))",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.666035411738013,
+          "legendFormat": "fetchTaggedSuccess m3",
+          "refId": "G",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "sum(rate(service_fetchTaggedBatchRaw_errors{instance=~\"$instance\"}[$step]))",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.666035411738013,
+          "legendFormat": "fetchTaggedErrors m3",
+          "refId": "H",
           "textEditor": true
         }
       ],
@@ -1156,7 +1323,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1191,11 +1358,20 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "service_writeTaggedBatchRaw_latency{instance=~\"$instance\",quantile=\"0.99\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "key": 0.813148562053182,
           "refId": "D"
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "service_writeTaggedBatchRaw_latency{instance=~\"$instance\",quantile=\"0.99\"}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "key": 0.813148562053182,
+          "refId": "A"
         }
       ],
       "thresholds": [],
@@ -1242,7 +1418,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1277,12 +1453,22 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "service_fetchTagged_success_latency{instance=~\"$instance\",quantile=\"0.99\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "key": 0.37467787057058555,
           "legendFormat": "{{instance}}",
           "refId": "D"
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "service_fetchTagged_success_latency{instance=~\"$instance\",quantile=\"0.99\"}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "key": 0.37467787057058555,
+          "legendFormat": "{{instance}} m3",
+          "refId": "A"
         }
       ],
       "thresholds": [],
@@ -1343,7 +1529,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1378,12 +1564,23 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$step])",
           "format": "time_series",
           "intervalFactor": 1,
           "key": 0.7090064740553321,
           "legendFormat": "{{instance}}",
           "refId": "A",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$step])",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "key": 0.7090064740553321,
+          "legendFormat": "{{instance}} m3",
+          "refId": "B",
           "textEditor": true
         }
       ],
@@ -1430,7 +1627,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1465,6 +1662,7 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "process_resident_memory_bytes{instance=~\"$instance\"}",
           "format": "time_series",
           "hide": false,
@@ -1475,6 +1673,7 @@
           "textEditor": true
         },
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "process_virtual_memory_bytes{instance=~\"$instance\"}",
           "format": "time_series",
           "hide": true,
@@ -1482,6 +1681,28 @@
           "key": 0.7090064740553321,
           "legendFormat": "virtual-{{instance}}",
           "refId": "B",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "process_resident_memory_bytes{instance=~\"$instance\"}",
+          "format": "time_series",
+          "hide": false,
+          "intervalFactor": 1,
+          "key": 0.7090064740553321,
+          "legendFormat": "resident-{{instance}} m3",
+          "refId": "C",
+          "textEditor": true
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "process_virtual_memory_bytes{instance=~\"$instance\"}",
+          "format": "time_series",
+          "hide": true,
+          "intervalFactor": 1,
+          "key": 0.7090064740553321,
+          "legendFormat": "virtual-{{instance}} m3",
+          "refId": "D",
           "textEditor": true
         }
       ],
@@ -1528,7 +1749,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1563,10 +1784,19 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A",
+          "textEditor": false
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "refId": "B",
           "textEditor": false
         }
       ],
@@ -1613,7 +1843,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1648,12 +1878,22 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "process_num_fds{instance=~\"$instance\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "key": 0.4107640408210529,
           "legendFormat": "{{instance}}",
           "refId": "A"
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "process_num_fds{instance=~\"$instance\"}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "key": 0.4107640408210529,
+          "legendFormat": "{{instance}} m3",
+          "refId": "B"
         }
       ],
       "thresholds": [],
@@ -1699,7 +1939,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "$datasource",
+      "datasource": "-- Mixed --",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1734,12 +1974,22 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": "${DS_PROMETHEUS}",
           "expr": "runtime_num_goroutines{instance=~\"$instance\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "key": 0.5498548297308425,
           "legendFormat": "{{instance}}",
           "refId": "A"
+        },
+        {
+          "datasource": "${DS_M3QUERY}",
+          "expr": "runtime_num_goroutines{instance=~\"$instance\"}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "key": 0.5498548297308425,
+          "legendFormat": "{{instance}} m3",
+          "refId": "B"
         }
       ],
       "thresholds": [],
@@ -1795,7 +2045,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -1830,6 +2080,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_bootstrapped{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
@@ -1881,7 +2132,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -1916,12 +2167,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_duration{instance=~\"$instance\",quantile=\"0.99\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.045140271498789186,
               "legendFormat": "{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_duration{instance=~\"$instance\",quantile=\"0.99\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.045140271498789186,
+              "legendFormat": "{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -1967,7 +2228,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2002,12 +2263,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(database_tick_active_series{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.7552494727739296,
               "legendFormat": "totalActiveSeries",
               "refId": "B"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(database_tick_active_series{instance=~\"$instance\"})",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.7552494727739296,
+              "legendFormat": "totalActiveSeries m3",
+              "refId": "A"
             }
           ],
           "thresholds": [],
@@ -2053,7 +2324,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2088,12 +2359,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_fs_flush{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.025515486279266364,
               "legendFormat": "{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_fs_flush{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.025515486279266364,
+              "legendFormat": "{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -2139,7 +2420,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -2171,11 +2452,20 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_fs_snapshot{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_fs_snapshot{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -2223,7 +2513,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -2255,11 +2545,20 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_fs_index_flush{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_fs_index_flush{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -2322,7 +2621,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2357,6 +2656,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_wired_blocks{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2365,6 +2665,7 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_unwired_blocks{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2373,6 +2674,7 @@
               "refId": "B"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_active_blocks{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2380,11 +2682,46 @@
               "refId": "C"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_open_blocks{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "openBlocks-{{instance}}",
               "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_wired_blocks{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.6091384812937135,
+              "legendFormat": "wiredBlocks-{{instance}} m3",
+              "refId": "E"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_unwired_blocks{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.6091384812937135,
+              "legendFormat": "unwiredBlocks-{{instance}} m3",
+              "refId": "F"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_active_blocks{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "activeBlocks-{{instance}} m3",
+              "refId": "G"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_open_blocks{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "openBlocks-{{instance}} m3",
+              "refId": "H"
             }
           ],
           "thresholds": [],
@@ -2430,7 +2767,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2465,6 +2802,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(database_tick_made_expired_blocks{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2473,6 +2811,7 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(database_tick_made_unwired_blocks{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2480,6 +2819,7 @@
               "refId": "B"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(database_tick_merged_out_of_order_blocks{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2487,11 +2827,45 @@
               "refId": "C"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(database_tick_made_wired_blocks{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "madeWiredBlocks-{{instance}}",
               "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(database_tick_made_expired_blocks{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.12716494400774314,
+              "legendFormat": "madeExpiredBlocks-{{instance}} m3",
+              "refId": "E"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(database_tick_made_unwired_blocks{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "madeUnwiredBlocks-{{instance}} m3",
+              "refId": "F"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(database_tick_merged_out_of_order_blocks{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "mergedOutOfOrderBlocks-{{instance}} m3",
+              "refId": "G"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(database_tick_made_wired_blocks{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "madeWiredBlocks-{{instance}} m3",
+              "refId": "H"
             }
           ],
           "thresholds": [],
@@ -2537,7 +2911,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2572,12 +2946,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(database_series_encoder_created{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.12716494400774314,
               "legendFormat": "seriesEncoderCreated-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(database_series_encoder_created{instance=~\"$instance\"}[$step])",
+              "format": "time_series DS_M3QUERY",
+              "intervalFactor": 1,
+              "key": 0.12716494400774314,
+              "legendFormat": "seriesEncoderCreated-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -2623,7 +3007,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2658,6 +3042,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(cluster_shards_available{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2666,6 +3051,7 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(cluster_shards_initializing{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
@@ -2674,12 +3060,40 @@
               "refId": "B"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(cluster_shards_leaving{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8040141995856238,
               "legendFormat": "leaving",
               "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(cluster_shards_available{instance=~\"$instance\"})",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8040141995856238,
+              "legendFormat": "available m3",
+              "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(cluster_shards_initializing{instance=~\"$instance\"})",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8040141995856238,
+              "legendFormat": "initializing m3",
+              "refId": "E"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(cluster_shards_leaving{instance=~\"$instance\"})",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8040141995856238,
+              "legendFormat": "leaving m3",
+              "refId": "F"
             }
           ],
           "thresholds": [],
@@ -2725,7 +3139,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 1,
           "gridPos": {
             "h": 5,
@@ -2757,6 +3171,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "wired_list_limit{instance=~\"$instance\"}",
               "format": "time_series",
               "hide": false,
@@ -2764,16 +3179,40 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(wired_list_evicted{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "B"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "wired_list_unwireable{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "wired_list_limit{instance=~\"$instance\"}",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(wired_list_evicted{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "E"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "wired_list_unwireable{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "F"
             }
           ],
           "thresholds": [],
@@ -2821,7 +3260,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 1,
           "gridPos": {
             "h": 5,
@@ -2853,10 +3292,18 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "wired_list_evicted_after_duration{instance=~\"$instance\",quantile=\"0.99\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "wired_list_evicted_after_duration{instance=~\"$instance\",quantile=\"0.99\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -2919,7 +3366,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2954,8 +3401,15 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "key": 0.7090064740553321,
               "refId": "A",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "key": 0.7090064740553321,
+              "refId": "B",
               "textEditor": true
             }
           ],
@@ -3002,7 +3456,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3037,8 +3491,15 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "key": 0.7090064740553321,
               "refId": "A",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "key": 0.7090064740553321,
+              "refId": "B",
               "textEditor": true
             }
           ],
@@ -3100,7 +3561,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3135,6 +3596,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_write_tagged_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": false,
@@ -3145,6 +3607,7 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_write_tagged_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
@@ -3153,6 +3616,7 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_write_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
@@ -3161,12 +3625,51 @@
               "refId": "B"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_write_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_errors",
               "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_write_tagged_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.05448509070742946,
+              "legendFormat": "{{namespace}}_tagged_success m3",
+              "refId": "E",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_write_tagged_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_tagged_errors m3",
+              "refId": "F"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_write_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_success m3",
+              "refId": "G"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_write_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_errors m3",
+              "refId": "H"
             }
           ],
           "thresholds": [],
@@ -3213,7 +3716,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3248,6 +3751,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_read_tagged_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": false,
@@ -3258,6 +3762,7 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_read_tagged_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
@@ -3266,6 +3771,7 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_read_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
@@ -3274,12 +3780,51 @@
               "refId": "B"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_reads_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_errors",
               "refId": "D"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_read_tagged_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.05448509070742946,
+              "legendFormat": "{{namespace}}_tagged_success m3",
+              "refId": "E",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_read_tagged_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_tagged_errors m3",
+              "refId": "F"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_read_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_success m3",
+              "refId": "G"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_reads_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_errors m3",
+              "refId": "H"
             }
           ],
           "thresholds": [],
@@ -3326,7 +3871,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3361,6 +3906,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_queryIDs_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": false,
@@ -3371,6 +3917,7 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(database_queryIDs_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": true,
@@ -3378,6 +3925,27 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_query_ids_errors",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_queryIDs_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.05448509070742946,
+              "legendFormat": "{{namespace}}_query_ids_success m3",
+              "refId": "D",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(database_queryIDs_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": true,
+              "intervalFactor": 1,
+              "key": 0.8767351594065642,
+              "legendFormat": "{{namespace}}_query_ids_errors m3",
+              "refId": "F"
             }
           ],
           "thresholds": [],
@@ -3424,7 +3992,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3459,6 +4027,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(increase(database_flush_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": false,
@@ -3469,6 +4038,7 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(increase(database_flush_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": false,
@@ -3476,6 +4046,28 @@
               "key": 0.44937754638999294,
               "legendFormat": "{{namespace}}_flush_errors",
               "refId": "A",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(increase(database_flush_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.44937754638999294,
+              "legendFormat": "{{namespace}}_flush_success m3",
+              "refId": "D",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(increase(database_flush_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.44937754638999294,
+              "legendFormat": "{{namespace}}_flush_errors m3",
+              "refId": "E",
               "textEditor": true
             }
           ],
@@ -3523,7 +4115,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3558,6 +4150,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(increase(database_index_flush_success{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "hide": false,
@@ -3568,11 +4161,31 @@
               "textEditor": true
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(increase(database_index_flush_errors{instance=~\"$instance\"}[$step])) by (namespace)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "{{namespace}}_index_flush_errors",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(increase(database_index_flush_success{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "key": 0.44937754638999294,
+              "legendFormat": "{{namespace}}_index_flush_success m3",
+              "refId": "D",
+              "textEditor": true
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(increase(database_index_flush_errors{instance=~\"$instance\"}[$step])) by (namespace)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "{{namespace}}_index_flush_errors m3",
+              "refId": "E"
             }
           ],
           "thresholds": [],
@@ -3634,7 +4247,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3669,12 +4282,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "m3dbclient_stream_from_peers_fetch_blocks_inprogress{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.26636320136208314,
               "legendFormat": "fetchBlocksInProgress-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "m3dbclient_stream_from_peers_fetch_blocks_inprogress{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.26636320136208314,
+              "legendFormat": "fetchBlocksInProgress-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -3720,7 +4343,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3755,12 +4378,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "m3dbclient_stream_from_peers_fetch_metadata_peers_inprogress{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.6565937560035238,
               "legendFormat": "fetchBlocksMetadataInProgress-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "m3dbclient_stream_from_peers_fetch_metadata_peers_inprogress{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.6565937560035238,
+              "legendFormat": "fetchBlocksMetadataInProgress-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -3806,7 +4439,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3841,12 +4474,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "m3dbclient_stream_from_peers_fetch_blocks_enqueue_channel_length{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.024380707546677316,
               "legendFormat": "fetchBlocksEnqueueChannelLength-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "m3dbclient_stream_from_peers_fetch_blocks_enqueue_channel_length{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.024380707546677316,
+              "legendFormat": "fetchBlocksEnqueueChannelLength-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -3892,7 +4535,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3927,12 +4570,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_metadata_peers_batch_call{instance=~\"$instance\"}[$step])) by (instance)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8052472520531426,
               "legendFormat": "fetchBlocksMetadataBatchCalls-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_metadata_peers_batch_call{instance=~\"$instance\"}[$step])) by (instance)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8052472520531426,
+              "legendFormat": "fetchBlocksMetadataBatchCalls-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -3978,7 +4631,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4013,12 +4666,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_metadata_peers_received{instance=~\"$instance\"}[$step])) by (host)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.359145903986988,
               "legendFormat": "fetchBlocksMetadataReceived-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_metadata_peers_received{instance=~\"$instance\"}[$step])) by (host)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.359145903986988,
+              "legendFormat": "fetchBlocksMetadataReceived-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4064,7 +4727,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4099,12 +4762,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_metadata_peers_peer_retry{instance=~\"$instance\"}[$step])) by (instance)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.359145903986988,
               "legendFormat": "fetchBlocksMetadataPaginationRetry-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_metadata_peers_peer_retry{instance=~\"$instance\"}[$step])) by (instance)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.359145903986988,
+              "legendFormat": "fetchBlocksMetadataPaginationRetry-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4165,7 +4838,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -4200,11 +4873,20 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(service_overload_rejected{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.05455062296227564,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(service_overload_rejected{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.05455062296227564,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4250,7 +4932,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -4285,6 +4967,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_fs_persist_write_duration_ms{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
@@ -4292,11 +4975,28 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_fs_persist_throttle_duration_ms{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.2814048282536148,
-              "refId": "A"
+              "refId": "B"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_fs_persist_write_duration_ms{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.8368215616799846,
+              "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_fs_persist_throttle_duration_ms{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.2814048282536148,
+              "refId": "D"
             }
           ],
           "thresholds": [],
@@ -4357,7 +5057,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4392,12 +5092,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_success{instance=~\"$instance\"}[$step])) by (instance)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.4195302108331671,
               "legendFormat": "fetchBlockSuccess-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_success{instance=~\"$instance\"}[$step])) by (instance)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.4195302108331671,
+              "legendFormat": "fetchBlockSuccess-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4443,7 +5153,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4478,12 +5188,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_error{instance=~\"$instance\"}[$step])) by (instance)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.7411861401478703,
               "legendFormat": "fetchBlockError-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_error{instance=~\"$instance\"}[$step])) by (instance)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.7411861401478703,
+              "legendFormat": "fetchBlockError-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4529,7 +5249,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4564,12 +5284,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_full_retry{instance=~\"$instance\"}[$step])) by (instance)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.3848186046051656,
               "legendFormat": "fetchBlockFullRetry-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_full_retry{instance=~\"$instance\"}[$step])) by (instance)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.3848186046051656,
+              "legendFormat": "fetchBlockFullRetry-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4615,7 +5345,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4650,12 +5380,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_final_error{instance=~\"$instance\"}[$step])) by (instance)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.3848186046051656,
               "legendFormat": "fetchBlockFinalError-{{instance}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(rate(m3dbclient_stream_from_peers_fetch_block_final_error{instance=~\"$instance\"}[$step])) by (instance)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.3848186046051656,
+              "legendFormat": "fetchBlockFinalError-{{instance}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4716,7 +5456,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4751,6 +5491,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "[[PoolType]]_free{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
@@ -4758,12 +5499,30 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "[[PoolType]]_put_on_full{instance=~\"$instance\"}",
               "format": "time_series",
               "hide": true,
               "intervalFactor": 1,
               "key": 0.4590639612241416,
               "refId": "B"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "[[PoolType]]_free{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.4590639612241416,
+              "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "[[PoolType]]_put_on_full{instance=~\"$instance\"}",
+              "format": "time_series",
+              "hide": true,
+              "intervalFactor": 1,
+              "key": 0.4590639612241416,
+              "refId": "D"
             }
           ],
           "thresholds": [],
@@ -4809,7 +5568,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4845,11 +5604,20 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.3914310519012809,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.3914310519012809,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4910,7 +5678,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4945,12 +5713,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(build_information{}) by (go_version)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.7855942131678251,
               "legendFormat": "{{go_version}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(build_information{}) by (go_version)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.7855942131678251,
+              "legendFormat": "{{go_version}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -4996,7 +5774,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -5038,12 +5816,22 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "sum(build_information{}) by (revision)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.5783520603949805,
               "legendFormat": "{{revision}}",
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "sum(build_information{}) by (revision)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "key": 0.5783520603949805,
+              "legendFormat": "{{revision}} m3",
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -5104,7 +5892,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -5141,6 +5929,7 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(dbindex_insert_queue_index_queue_num_pending{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "hide": false,
@@ -5148,10 +5937,26 @@
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "B"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(dbindex_insert_queue_index_queue_num_pending{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "D"
             }
           ],
           "thresholds": [],
@@ -5199,7 +6004,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5231,10 +6036,18 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "dbindex_insert_end_to_end_latency{instance=~\"$instance\",quantile=\"0.99\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "dbindex_insert_end_to_end_latency{instance=~\"$instance\",quantile=\"0.99\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -5297,7 +6110,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5329,10 +6142,18 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_index_num_docs{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_index_num_docs{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -5380,7 +6201,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5412,10 +6233,18 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "database_tick_index_num_segments{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "database_tick_index_num_segments{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -5463,7 +6292,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5495,17 +6324,34 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "dbindex_num_active_compactions{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "dbindex_num_segments_compacting{instance=~\"$instance\"}",
               "format": "time_series",
               "hide": true,
               "intervalFactor": 1,
               "refId": "B"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "dbindex_num_active_compactions{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "dbindex_num_segments_compacting{instance=~\"$instance\"}",
+              "format": "time_series",
+              "hide": true,
+              "intervalFactor": 1,
+              "refId": "D"
             }
           ],
           "thresholds": [],
@@ -5553,7 +6399,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5585,10 +6431,18 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "dbindex_compaction_latency{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "dbindex_compaction_latency{instance=~\"$instance\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -5636,7 +6490,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "$datasource",
+          "datasource": "-- Mixed --",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5668,16 +6522,32 @@
           "steppedLine": false,
           "targets": [
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "increase(database_tick_index_num_blocks_evicted{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A"
             },
             {
+              "datasource": "${DS_PROMETHEUS}",
               "expr": "increase(database_tick_index_num_blocks_sealed{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "B"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "increase(database_tick_index_num_blocks_evicted{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "C"
+            },
+            {
+              "datasource": "${DS_M3QUERY}",
+              "expr": "increase(database_tick_index_num_blocks_sealed{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "D"
             }
           ],
           "thresholds": [],
@@ -5877,7 +6747,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "$datasource",
+        "datasource": "Prometheus",
         "hide": 0,
         "includeAll": true,
         "label": "instance",
@@ -5893,21 +6763,6 @@
         "tagsQuery": "",
         "type": "query",
         "useTags": false
-      },
-      {
-        "current": {
-          "text": "M3Query - Prometheus",
-          "value": "M3Query - Prometheus"
-        },
-        "hide": 0,
-        "label": null,
-        "name": "datasource",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
       }
     ]
   },
@@ -5932,7 +6787,7 @@
     "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
   },
   "timezone": "browser",
-  "title": "M3DB Node Details",
-  "uid": "99SFck0iza",
+  "title": "M3DB Node Details - mixed",
+  "uid": "misterquery",
   "version": 4
 }
