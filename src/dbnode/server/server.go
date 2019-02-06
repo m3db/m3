@@ -299,6 +299,7 @@ func Run(runOpts RunOptions) {
 		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
+	// TODO(rartoul)
 	queryCache := index.NewQueryCache(256000)
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
@@ -317,7 +318,8 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemory).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory)
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory).
+		SetQueryCache(queryCache)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size

@@ -119,7 +119,7 @@ func ReadIndexSegments(
 			)
 			fstOpts = fstOpts.SetQueryCache(qc)
 		}
-		seg, err := newPersistentSegment(fileset, fsOpts.FSTOptions())
+		seg, err := newPersistentSegment(fileset, fstOpts)
 		if err != nil {
 			return nil, err
 		}
