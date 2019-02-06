@@ -24,7 +24,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 // PatternType is an enum for the various pattern types. It allows us
@@ -52,15 +54,24 @@ type QueryCacheValue struct {
 	PostingsList postings.List
 }
 
+// QueryCacheOptions is the options struct for the query cache.
+type QueryCacheOptions struct {
+	InstrumentOptions instrument.Options
+}
+
 // QueryCache implements an LRU for caching queries and their results.
 type QueryCache struct {
-	c map[QueryCacheEntry]QueryCacheValue
+	c       map[QueryCacheEntry]QueryCacheValue
+	opts    QueryCacheOptions
+	metrics *queryCacheMetrics
 }
 
 // NewQueryCache creates a new query cache.
-func NewQueryCache(size int) *QueryCache {
+func NewQueryCache(size int, opts QueryCacheOptions) *QueryCache {
 	return &QueryCache{
-		c: make(map[QueryCacheEntry]QueryCacheValue),
+		c:       make(map[QueryCacheEntry]QueryCacheValue),
+		opts:    opts,
+		metrics: newQueryCacheMetrics(opts.InstrumentOptions.MetricsScope()),
 	}
 }
 
@@ -78,6 +89,11 @@ func (q *QueryCache) GetRegexp(
 		Pattern:     pattern,
 		PatternType: PatternTypeRegexp,
 	}]
+	if ok {
+		q.metrics.regexp.hits.Inc(1)
+	} else {
+		q.metrics.regexp.misses.Inc(1)
+	}
 	return p.PostingsList, ok
 }
 
@@ -95,6 +111,11 @@ func (q *QueryCache) GetTerm(
 		Pattern:     pattern,
 		PatternType: PatternTypeTerm,
 	}]
+	if ok {
+		q.metrics.term.hits.Inc(1)
+	} else {
+		q.metrics.term.misses.Inc(1)
+	}
 	return p.PostingsList, ok
 }
 
@@ -113,6 +134,7 @@ func (q *QueryCache) PutRegexp(
 		Pattern:     pattern,
 		PatternType: PatternTypeRegexp,
 	}] = QueryCacheValue{PostingsList: pl}
+	q.metrics.regexp.puts.Inc(1)
 }
 
 // PutTerm updates the LRU with the result of the term query.
@@ -130,4 +152,31 @@ func (q *QueryCache) PutTerm(
 		Pattern:     pattern,
 		PatternType: PatternTypeTerm,
 	}] = QueryCacheValue{PostingsList: pl}
+	q.metrics.term.puts.Inc(1)
+}
+
+type queryCacheMetrics struct {
+	regexp *queryCacheMethodMetrics
+	term   *queryCacheMethodMetrics
+}
+
+func newQueryCacheMetrics(scope tally.Scope) *queryCacheMetrics {
+	return &queryCacheMetrics{
+		regexp: newQueryCacheMethodMetrics(scope.SubScope("regexp")),
+		term:   newQueryCacheMethodMetrics(scope.SubScope("term")),
+	}
+}
+
+type queryCacheMethodMetrics struct {
+	hits   tally.Counter
+	misses tally.Counter
+	puts   tally.Counter
+}
+
+func newQueryCacheMethodMetrics(scope tally.Scope) *queryCacheMethodMetrics {
+	return &queryCacheMethodMetrics{
+		hits:   scope.Counter("hits"),
+		misses: scope.Counter("misses"),
+		puts:   scope.Counter("puts"),
+	}
 }

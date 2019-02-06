@@ -299,8 +299,11 @@ func Run(runOpts RunOptions) {
 		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
-	// TODO(rartoul)
-	queryCache := index.NewQueryCache(256000)
+	// TODO(rartoul): Config
+	queryCache := index.NewQueryCache(256000, index.QueryCacheOptions{
+		InstrumentOptions: opts.InstrumentOptions().
+			SetMetricsScope(scope.SubScope("query-cache"))
+	})
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
