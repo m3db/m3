@@ -367,8 +367,9 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 	}
 
 	if qc := r.opts.QueryCache(); qc != nil {
-		// If we made it this far the query wasn't in the cache so insert it.
-		qc.PutTerm(string(term), pl)
+		// If we made it this far the query wasn't in the cache so insert it. Clone the postings list
+		// because the existing one references mmap'd bytes that could get unmap'd.
+		qc.PutTerm(string(term), pl.Clone())
 	}
 
 	return pl, nil
@@ -447,8 +448,9 @@ func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (pos
 	}
 
 	if qc := r.opts.QueryCache(); qc != nil {
-		// If we made it this far the query wasn't in the cache so insert it.
-		qc.PutRegexp(compiled.FSTSyntax.String(), pl)
+		// If we made it this far the query wasn't in the cache so insert it. Clone the postings
+		// list because the existing one references mmap'd bytes that could get unmap'd.
+		qc.PutRegexp(compiled.FSTSyntax.String(), pl.Clone())
 	}
 	return pl, nil
 }
