@@ -302,7 +302,7 @@ func Run(runOpts RunOptions) {
 	// TODO(rartoul): Config
 	queryCache := index.NewQueryCache(256000, index.QueryCacheOptions{
 		InstrumentOptions: opts.InstrumentOptions().
-			SetMetricsScope(scope.SubScope("query-cache"))
+			SetMetricsScope(scope.SubScope("query-cache")),
 	})
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
