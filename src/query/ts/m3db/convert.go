@@ -119,6 +119,7 @@ func convertM3DBSegmentedBlockIterators(
 			seriesIterator,
 			iterAlloc,
 			bounds,
+			pools,
 			checkedPools,
 		)
 
@@ -151,6 +152,7 @@ func blockReplicasFromSeriesIterator(
 	seriesIterator encoding.SeriesIterator,
 	iterAlloc encoding.ReaderIteratorAllocate,
 	bounds models.Bounds,
+	pools encoding.IteratorPools,
 	checkedPools pool.CheckedBytesPool,
 ) (seriesBlocks, error) {
 	blocks := make(seriesBlocks, 0, bounds.Steps())

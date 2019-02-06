@@ -81,8 +81,7 @@ func (it *encodedStepIter) Next() bool {
 	}
 
 	bounds := it.meta.Bounds
-	checkNextTime := it.stepTime.Add(bounds.StepSize * 2)
-	if bounds.End().Before(checkNextTime) {
+	if bounds.End().Before(it.stepTime) {
 		return false
 	}
 
@@ -92,9 +91,7 @@ func (it *encodedStepIter) Next() bool {
 		return false
 	}
 
-	nextTime := it.stepTime.Add(bounds.StepSize)
-	// Has next values if the next step is before end boundary.
-	return !bounds.End().Before(nextTime)
+	return !bounds.End().Before(it.stepTime)
 }
 
 func (it *encodedStepIter) StepCount() int {

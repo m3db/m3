@@ -29,7 +29,6 @@ import (
 )
 
 type encodedStepIterUnconsolidated struct {
-	idx               int
 	err               error
 	stepTime          time.Time
 	meta              block.Metadata
@@ -54,7 +53,7 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 		b.lastBlock, accumulator, b.seriesBlockIterators)
 
 	return &encodedStepIterUnconsolidated{
-		idx:               -1,
+		stepTime:          cs.currentTime,
 		meta:              b.meta,
 		seriesMeta:        b.seriesMetas,
 		accumulator:       accumulator,
@@ -73,25 +72,17 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 	}
 
 	bounds := it.meta.Bounds
-	it.idx++
-	next := it.idx < bounds.Steps()
-	if !next {
+	if bounds.End().Before(it.stepTime) {
 		return false
 	}
 
-	stepTime, err := bounds.TimeForIndex(it.idx)
-	if err != nil {
-		it.err = err
-		return false
-	}
-
-	it.collectorIterator.nextAtTime(stepTime)
+	it.collectorIterator.nextAtTime(it.stepTime)
+	it.stepTime = it.stepTime.Add(bounds.StepSize)
 	if it.err = it.collectorIterator.err; it.err != nil {
 		return false
 	}
 
-	it.stepTime = stepTime
-	return next
+	return !bounds.End().Before(it.stepTime)
 }
 
 func (it *encodedStepIterUnconsolidated) StepCount() int {
