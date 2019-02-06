@@ -164,7 +164,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	currPlacement, _, err := h.placementGetHandler.Get(placement.M3DBServiceName, nil)
 	if err != nil {
-		logger.Error("unable to get  placement", zap.Error(err))
+		logger.Error("unable to get placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -300,7 +300,7 @@ func (h *createHandler) parseAndValidateRequest(
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		wrapped := fmt.Errorf("err converting duration to nano bytes: %s", err.Error())
+		wrapped := fmt.Errorf("error converting duration to nano bytes: %s", err.Error())
 		return nil, nil, nil, xhttp.NewParseError(wrapped, http.StatusBadRequest)
 	}
 
