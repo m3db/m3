@@ -114,6 +114,4 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 }
 ```
 
-## Integrations
-
-[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).
+Now that you've got the M3 stack up and running, take a look at the rest of our documentation to see how you can integrate with [Prometheus](../integrations/prometheus.md) and [Graphite](../integrations/graphite.md)
