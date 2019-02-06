@@ -45,7 +45,11 @@ func RegisterRoutes(
 ) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
+	// Register the same handler under two different endpoints. This just makes explaining things in
+	// our documentation easier so we can separate out concepts, but share the underlying code.
+	createHandler := logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP
+	r.HandleFunc(CreateURL, createHandler).Methods(CreateHTTPMethod)
+	r.HandleFunc(CreateNamespaceURL, createHandler).Methods(CreateNamespaceHTTPMethod)
 
 	r.HandleFunc(ConfigGetBootstrappersURL, logged(NewConfigGetBootstrappersHandler(client)).ServeHTTP).Methods(ConfigGetBootstrappersHTTPMethod)
 	r.HandleFunc(ConfigSetBootstrappersURL, logged(NewConfigSetBootstrappersHandler(client)).ServeHTTP).Methods(ConfigSetBootstrappersHTTPMethod)
