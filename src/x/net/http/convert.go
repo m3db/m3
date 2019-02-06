@@ -23,6 +23,7 @@ package xhttp
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -43,15 +44,19 @@ func DurationToNanosBytes(r io.Reader) ([]byte, error) {
 	d := json.NewDecoder(r)
 	d.UseNumber()
 	if err := d.Decode(&dict); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding JSON: %s", err.Error())
 	}
 
 	ret, err := DurationToNanosMap(dict)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error converting duration to nanos: %s", err.Error())
 	}
 
-	return json.Marshal(ret)
+	b, err := json.Marshal(ret)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling JSON: %s", err.Error())
+	}
+	return b, nil
 }
 
 // DurationToNanosMap transforms keys with a Duration into Nanos

@@ -22,12 +22,17 @@ package xio
 
 import (
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3x/pool"
 )
 
 type nullSegmentReader struct{}
 
-func (r nullSegmentReader) Read([]byte) (n int, err error) { return 0, nil }
-func (r nullSegmentReader) Segment() (ts.Segment, error)   { return ts.Segment{}, nil }
-func (r nullSegmentReader) Reset(ts.Segment)               {}
-func (r nullSegmentReader) Finalize()                      {}
-func (r nullSegmentReader) Clone() (SegmentReader, error)  { return r, nil }
+func (r nullSegmentReader) Read(_ []byte) (n int, err error) { return 0, nil }
+func (r nullSegmentReader) Segment() (ts.Segment, error)     { return ts.Segment{}, nil }
+func (r nullSegmentReader) Reset(_ ts.Segment)               {}
+func (r nullSegmentReader) Finalize()                        {}
+func (r nullSegmentReader) Clone(
+	_ pool.CheckedBytesPool,
+) (SegmentReader, error) {
+	return r, nil
+}

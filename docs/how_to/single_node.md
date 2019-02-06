@@ -15,14 +15,12 @@ directory on your host for durability:
 
 ```
 docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $GOPATH/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml:/etc/m3dbnode/m3dbnode.yml quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v <PATH_TO_M3DB_CONFIG.yml>:/etc/m3dbnode/m3dbnode.yml quay.io/m3/m3dbnode:latest
 ```
 
-**Note:** If you don't have `M3` setup in your `$GOPATH`, you can find the [m3dbnode-local-etcd.yml file here](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml).
+**Note:** For the single node case, we recommend that you start with this [sample config file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml). If you inspect the file, you'll see that all the configuration is namespaced by `coordinator` or `db`. That's because this setup runs `M3DB` and `M3Coordinator` as one application. While this is convenient for testing and development, you'll want to run clustered `M3DB` with a separate `M3Coordinator` in production. You can read more about that [here.](cluster_hard_way.md).
 
-**Note:** This setup runs `M3DB` and `M3Coordinator` as one application and should only be used for testing/development purposes. If you want to run a clustered `M3DB` with a separate `M3Coordinator` process (which is our recommended production setup), please [see here](cluster_hard_way.md).
-
-Next, create an initial namespace for your metrics in the database:
+Next, create an initial namespace for your metrics in the database using the cURL below. Keep in mind that the provided `namespaceName` must match the namespace in the `local` section of the `M3Coordinator` YAML configuration, and if you choose to [add any additional namespaces](../operational_guide/namespace_configuration.md) you'll need to add them to the `local` section of `M3Coordinator`'s YAML config as well.
 
 ```json
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
@@ -32,24 +30,9 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
-**Note:** If you want to create more than one namespace, you should follow the [instructions here](../operational_guide/namespace_configuration.md) and also add the namespace you created to the `local` section of the `m3dbnode-local-etcd.yml` file used in the `docker run` command above with the appropriate aggregation options specified - for more information on our aggregation functionality, check out our [M3Query documentation](query.md). For example:
+**Note**: The `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement.md) and [namespaces](../operational_guide/namespace_configuration.md). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now it's enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
 
-<!-- TODO: link to aggregation documentation (outside of query.md) -->
-
-```json
-local:
-  namespaces:
-    - namespace: default
-      type: unaggregated
-      retention: 48h
-    - namespace: <new_namespace>
-      type: aggregated
-      retention: <new_retention>
-      resolution: <new_resolution>
-```
-
-Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
-errors related to a local cache file, such as `[W] could not load cache from file
+Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or errors related to a local cache file, such as `[W] could not load cache from file
 /var/lib/m3kv/m3db_embedded.json`. Those are expected for a local instance and in general any
 warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 
@@ -131,6 +114,4 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 }
 ```
 
-## Integrations
-
-[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).
+Now that you've got the M3 stack up and running, take a look at the rest of our documentation to see how you can integrate with [Prometheus](../integrations/prometheus.md) and [Graphite](../integrations/graphite.md)
