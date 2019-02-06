@@ -58,8 +58,8 @@ type QueryCache struct {
 }
 
 // NewQueryCache creates a new query cache.
-func NewQueryCache(size int) QueryCache {
-	return QueryCache{
+func NewQueryCache(size int) *QueryCache {
+	return &QueryCache{
 		c: make(map[QueryCacheEntry]QueryCacheValue),
 	}
 }

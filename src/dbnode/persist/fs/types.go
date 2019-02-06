@@ -449,7 +449,7 @@ type Options interface {
 	SetQueryCache(value index.QueryCache) Options
 
 	// QueryCache returns the query cache.
-	QueryCache() index.QueryCache
+	QueryCache() *index.QueryCache
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

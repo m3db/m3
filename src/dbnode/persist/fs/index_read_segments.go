@@ -107,7 +107,7 @@ func ReadIndexSegments(
 		}
 
 		fstOpts := fsOpts.FSTOptions()
-		if false {
+		if fsOpts.QueryCache() != nil {
 			fsID := opts.ReaderOptions.Identifier
 			qc := newSegmentSpecificQueryCache(
 				fsID.Namespace.String(),
@@ -136,14 +136,14 @@ type segmentSpecificQueryCache struct {
 	blockStart  time.Time
 	volumeIndex int
 
-	queryCache index.QueryCache
+	queryCache *index.QueryCache
 }
 
 func newSegmentSpecificQueryCache(
 	namespace string,
 	blockStart time.Time,
 	volumeIndex int,
-	queryCache index.QueryCache,
+	queryCache *index.QueryCache,
 ) segmentSpecificQueryCache {
 	return segmentSpecificQueryCache{
 		namespace:   namespace,
