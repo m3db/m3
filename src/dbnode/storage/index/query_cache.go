@@ -132,11 +132,17 @@ func (q *QueryCache) get(
 		PatternType: PatternTypeRegexp,
 	})
 	q.RUnlock()
+
 	if ok {
 		q.metrics.regexp.hits.Inc(1)
 	} else {
 		q.metrics.regexp.misses.Inc(1)
 	}
+
+	if !ok {
+		return nil, false
+	}
+
 	return p.(QueryCacheValue).PostingsList, ok
 }
 
