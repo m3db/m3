@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/golang-lru"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/pilosa/pilosa/lru"
 	"github.com/uber-go/tally"
 )
 
@@ -77,13 +77,18 @@ type QueryCache struct {
 }
 
 // NewQueryCache creates a new query cache.
-func NewQueryCache(size int, opts QueryCacheOptions) *QueryCache {
+func NewQueryCache(size int, opts QueryCacheOptions) (*QueryCache, error) {
+	lru, err := lru.New(size)
+	if err != nil {
+		return nil, err
+	}
+
 	return &QueryCache{
-		lru:     lru.New(size),
+		lru:     lru,
 		size:    size,
 		opts:    opts,
 		metrics: newQueryCacheMetrics(opts.InstrumentOptions.MetricsScope()),
-	}
+	}, nil
 }
 
 // GetRegexp returns the cached results for the provided regexp query, if any.
