@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -313,57 +314,57 @@ type IndexFileSetReader interface {
 	Validate() error
 }
 
-// Options represents the options for filesystem persistence
+// Options represents the options for filesystem persistence.
 type Options interface {
-	// Validate will validate the options and return an error if not valid
+	// Validate will validate the options and return an error if not valid.
 	Validate() error
 
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetRuntimeOptionsManager sets the runtime options manager
+	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
-	// RuntimeOptionsManager returns the runtime options manager
+	// RuntimeOptionsManager returns the runtime options manager.
 	RuntimeOptionsManager() runtime.OptionsManager
 
-	// SetDecodingOptions sets the decoding options
+	// SetDecodingOptions sets the decoding options.
 	SetDecodingOptions(value msgpack.DecodingOptions) Options
 
-	// DecodingOptions returns the decoding options
+	// DecodingOptions returns the decoding options.
 	DecodingOptions() msgpack.DecodingOptions
 
-	// SetFilePathPrefix sets the file path prefix for sharded TSDB files
+	// SetFilePathPrefix sets the file path prefix for sharded TSDB files.
 	SetFilePathPrefix(value string) Options
 
-	// FilePathPrefix returns the file path prefix for sharded TSDB files
+	// FilePathPrefix returns the file path prefix for sharded TSDB files.
 	FilePathPrefix() string
 
-	// SetNewFileMode sets the new file mode
+	// SetNewFileMode sets the new file mode.
 	SetNewFileMode(value os.FileMode) Options
 
-	// NewFileMode returns the new file mode
+	// NewFileMode returns the new file mode.
 	NewFileMode() os.FileMode
 
-	// SetNewDirectoryMode sets the new directory mode
+	// SetNewDirectoryMode sets the new directory mode.
 	SetNewDirectoryMode(value os.FileMode) Options
 
-	// NewDirectoryMode returns the new directory mode
+	// NewDirectoryMode returns the new directory mode.
 	NewDirectoryMode() os.FileMode
 
-	// SetIndexSummariesPercent size sets the percent of index summaries to write
+	// SetIndexSummariesPercent size sets the percent of index summaries to write.
 	SetIndexSummariesPercent(value float64) Options
 
-	// IndexSummariesPercent size returns the percent of index summaries to write
+	// IndexSummariesPercent size returns the percent of index summaries to write.
 	IndexSummariesPercent() float64
 
 	// SetIndexBloomFilterFalsePositivePercent size sets the percent of false positive
@@ -371,7 +372,7 @@ type Options interface {
 	SetIndexBloomFilterFalsePositivePercent(value float64) Options
 
 	// IndexBloomFilterFalsePositivePercent size returns the percent of false positive
-	// rate to use for the index bloom filter size and k hashes estimation
+	// rate to use for the index bloom filter size and k hashes estimation.
 	IndexBloomFilterFalsePositivePercent() float64
 
 	// SetForceIndexSummariesMmapMemory sets whether the summaries files will be mmap'd
@@ -382,67 +383,73 @@ type Options interface {
 	// as an anonymous region, or as a file.
 	ForceIndexSummariesMmapMemory() bool
 
-	// SetForceBloomFilterMmapMemory sets whether the bloom filters will be mmap'd
+	// SetForceBloomFilterMmapMemory sets whether the bloom filters will be mmap'd.
 	// as an anonymous region, or as a file.
 	SetForceBloomFilterMmapMemory(value bool) Options
 
-	// ForceBloomFilterMmapMemory returns whether the bloom filters will be mmap'd
+	// ForceBloomFilterMmapMemory returns whether the bloom filters will be mmap'd.
 	// as an anonymous region, or as a file.
 	ForceBloomFilterMmapMemory() bool
 
-	// SetWriterBufferSize sets the buffer size for writing TSDB files
+	// SetWriterBufferSize sets the buffer size for writing TSDB files.
 	SetWriterBufferSize(value int) Options
 
-	// WriterBufferSize returns the buffer size for writing TSDB files
+	// WriterBufferSize returns the buffer size for writing TSDB files.
 	WriterBufferSize() int
 
-	// SetInfoReaderBufferSize sets the buffer size for reading TSDB info, digest and checkpoint files
+	// SetInfoReaderBufferSize sets the buffer size for reading TSDB info, digest and checkpoint files.
 	SetInfoReaderBufferSize(value int) Options
 
-	// InfoReaderBufferSize returns the buffer size for reading TSDB info, digest and checkpoint files
+	// InfoReaderBufferSize returns the buffer size for reading TSDB info, digest and checkpoint files.
 	InfoReaderBufferSize() int
 
-	// SetDataReaderBufferSize sets the buffer size for reading TSDB data and index files
+	// SetDataReaderBufferSize sets the buffer size for reading TSDB data and index files.
 	SetDataReaderBufferSize(value int) Options
 
-	// DataReaderBufferSize returns the buffer size for reading TSDB data and index files
+	// DataReaderBufferSize returns the buffer size for reading TSDB data and index files.
 	DataReaderBufferSize() int
 
-	// SetSeekReaderBufferSize size sets the buffer size for seeking TSDB files
+	// SetSeekReaderBufferSize size sets the buffer size for seeking TSDB files.
 	SetSeekReaderBufferSize(value int) Options
 
-	// SeekReaderBufferSize size returns the buffer size for seeking TSDB files
+	// SeekReaderBufferSize size returns the buffer size for seeking TSDB files.
 	SeekReaderBufferSize() int
 
-	// SetMmapEnableHugeTLB sets whether mmap huge pages are enabled when running on linux
+	// SetMmapEnableHugeTLB sets whether mmap huge pages are enabled when running on linux.
 	SetMmapEnableHugeTLB(value bool) Options
 
-	// MmapEnableHugeTLB returns whether mmap huge pages are enabled when running on linux
+	// MmapEnableHugeTLB returns whether mmap huge pages are enabled when running on linux.
 	MmapEnableHugeTLB() bool
 
-	// SetMmapHugeTLBThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux
+	// SetMmapHugeTLBThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux.
 	SetMmapHugeTLBThreshold(value int64) Options
 
-	// MmapHugeTLBThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux
+	// MmapHugeTLBThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux.
 	MmapHugeTLBThreshold() int64
 
-	// SetTagEncoderPool sets the tag encoder pool
+	// SetTagEncoderPool sets the tag encoder pool.
 	SetTagEncoderPool(value serialize.TagEncoderPool) Options
 
-	// TagEncoderPool returns the tag encoder pool
+	// TagEncoderPool returns the tag encoder pool.
 	TagEncoderPool() serialize.TagEncoderPool
 
-	// SetTagDecoderPool sets the tag decoder pool
+	// SetTagDecoderPool sets the tag decoder pool.
 	SetTagDecoderPool(value serialize.TagDecoderPool) Options
 
-	// TagDecoderPool returns the tag decoder pool
+	// TagDecoderPool returns the tag decoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
 
-	// SetFStOptions sets the fst options
+	// SetFStOptions sets the fst options.
 	SetFSTOptions(value fst.Options) Options
 
-	// FSTOptions returns the fst options
+	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
+
+	// SetQueryCache sets the query cache.
+	SetQueryCache(value index.QueryCache) Options
+
+	// QueryCache returns the query cache.
+	QueryCache() index.QueryCache
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

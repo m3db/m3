@@ -106,7 +106,6 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
-		// TODO(need to flow query cache into this function).
 		fstOpts := fsOpts.FSTOptions()
 		if false {
 			fsID := opts.ReaderOptions.Identifier
@@ -114,8 +113,7 @@ func ReadIndexSegments(
 				fsID.Namespace.String(),
 				fsID.BlockStart,
 				fsID.VolumeIndex,
-				// TODO: dont pass nil
-				index.QueryCache{},
+				fsOpts.QueryCache(),
 			)
 			fstOpts = fstOpts.SetQueryCache(qc)
 		}
