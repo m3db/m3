@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/m3db/m3/src/dbnode/storage/index"
+
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -98,6 +100,7 @@ type options struct {
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
+	queryCache                           index.QueryCache
 }
 
 // NewOptions creates a new set of fs options
@@ -352,4 +355,14 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
+}
+
+func (o *options) SetQueryCache(value index.QueryCache) Options {
+	opts := *o
+	opts.queryCache = value
+	return &opts
+}
+
+func (o *options) QueryCache() index.QueryCache {
+	return o.queryCache
 }

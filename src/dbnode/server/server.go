@@ -299,6 +299,7 @@ func Run(runOpts RunOptions) {
 		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
+	queryCache := index.NewQueryCache(256000)
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
