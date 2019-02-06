@@ -21,11 +21,13 @@
 package index
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/pilosa/pilosa/lru"
 	"github.com/uber-go/tally"
 )
 
@@ -33,11 +35,13 @@ import (
 // separate them logically within the cache.
 type PatternType int
 
-var (
+const (
 	// PatternTypeRegexp indicates that the pattern is of type regexp.
 	PatternTypeRegexp PatternType = 0
 	// PatternTypeTerm indicates that the pattern is of type term.
 	PatternTypeTerm PatternType = 1
+
+	reportLoopInterval = time.Second
 )
 
 // QueryCacheEntry represents an entry in the query cache.
@@ -61,15 +65,22 @@ type QueryCacheOptions struct {
 
 // QueryCache implements an LRU for caching queries and their results.
 type QueryCache struct {
-	c       map[QueryCacheEntry]QueryCacheValue
+	sync.RWMutex
+
+	lru *lru.Cache
+
+	size    int
 	opts    QueryCacheOptions
 	metrics *queryCacheMetrics
+
+	stopReporting chan struct{}
 }
 
 // NewQueryCache creates a new query cache.
 func NewQueryCache(size int, opts QueryCacheOptions) *QueryCache {
 	return &QueryCache{
-		c:       make(map[QueryCacheEntry]QueryCacheValue),
+		lru:     lru.New(size),
+		size:    size,
 		opts:    opts,
 		metrics: newQueryCacheMetrics(opts.InstrumentOptions.MetricsScope()),
 	}
@@ -82,19 +93,12 @@ func (q *QueryCache) GetRegexp(
 	volumeIndex int,
 	pattern string,
 ) (postings.List, bool) {
-	p, ok := q.c[QueryCacheEntry{
-		Namespace:   namespace,
-		BlockStart:  xtime.ToUnixNano(blockStart),
-		VolumeIndex: volumeIndex,
-		Pattern:     pattern,
-		PatternType: PatternTypeRegexp,
-	}]
-	if ok {
-		q.metrics.regexp.hits.Inc(1)
-	} else {
-		q.metrics.regexp.misses.Inc(1)
-	}
-	return p.PostingsList, ok
+	return q.get(
+		namespace,
+		blockStart,
+		volumeIndex,
+		pattern,
+		PatternTypeRegexp)
 }
 
 // GetTerm returns the cached results for the provided term query, if any.
@@ -104,19 +108,36 @@ func (q *QueryCache) GetTerm(
 	volumeIndex int,
 	pattern string,
 ) (postings.List, bool) {
-	p, ok := q.c[QueryCacheEntry{
+	return q.get(
+		namespace,
+		blockStart,
+		volumeIndex,
+		pattern,
+		PatternTypeTerm)
+}
+
+func (q *QueryCache) get(
+	namespace string,
+	blockStart time.Time,
+	volumeIndex int,
+	pattern string,
+	patternType PatternType,
+) (postings.List, bool) {
+	q.RLock()
+	p, ok := q.lru.Get(QueryCacheEntry{
 		Namespace:   namespace,
 		BlockStart:  xtime.ToUnixNano(blockStart),
 		VolumeIndex: volumeIndex,
 		Pattern:     pattern,
-		PatternType: PatternTypeTerm,
-	}]
+		PatternType: PatternTypeRegexp,
+	})
+	q.RUnlock()
 	if ok {
-		q.metrics.term.hits.Inc(1)
+		q.metrics.regexp.hits.Inc(1)
 	} else {
-		q.metrics.term.misses.Inc(1)
+		q.metrics.regexp.misses.Inc(1)
 	}
-	return p.PostingsList, ok
+	return p.(QueryCacheValue).PostingsList, ok
 }
 
 // PutRegexp updates the LRU with the result of the regexp query.
@@ -127,14 +148,13 @@ func (q *QueryCache) PutRegexp(
 	pattern string,
 	pl postings.List,
 ) {
-	q.c[QueryCacheEntry{
-		Namespace:   namespace,
-		BlockStart:  xtime.ToUnixNano(blockStart),
-		VolumeIndex: volumeIndex,
-		Pattern:     pattern,
-		PatternType: PatternTypeRegexp,
-	}] = QueryCacheValue{PostingsList: pl}
-	q.metrics.regexp.puts.Inc(1)
+	q.put(
+		namespace,
+		blockStart,
+		volumeIndex,
+		pattern,
+		PatternTypeRegexp,
+		pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
@@ -145,25 +165,86 @@ func (q *QueryCache) PutTerm(
 	pattern string,
 	pl postings.List,
 ) {
-	q.c[QueryCacheEntry{
+	q.put(
+		namespace,
+		blockStart,
+		volumeIndex,
+		pattern,
+		PatternTypeTerm,
+		pl)
+}
+
+func (q *QueryCache) put(
+	namespace string,
+	blockStart time.Time,
+	volumeIndex int,
+	pattern string,
+	patternType PatternType,
+	pl postings.List,
+) {
+	q.Lock()
+	q.lru.Add(QueryCacheEntry{
 		Namespace:   namespace,
 		BlockStart:  xtime.ToUnixNano(blockStart),
 		VolumeIndex: volumeIndex,
 		Pattern:     pattern,
-		PatternType: PatternTypeTerm,
-	}] = QueryCacheValue{PostingsList: pl}
-	q.metrics.term.puts.Inc(1)
+		PatternType: PatternTypeRegexp,
+	}, QueryCacheValue{PostingsList: pl})
+	q.Unlock()
+	q.metrics.regexp.puts.Inc(1)
+}
+
+// StartReportLoop starts a background process that will call Report()
+// on a regular basis and returns a function that will end the background
+// process.
+func (q *QueryCache) StartReportLoop() func() {
+	doneCh := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+			}
+
+			q.Report()
+			time.Sleep(reportLoopInterval)
+		}
+	}()
+
+	return func() { close(doneCh) }
+}
+
+// Report will emit metrics about the status of the cache.
+func (q *QueryCache) Report() {
+	var size float64
+	var capacity float64
+
+	q.RLock()
+	size = float64(q.lru.Len())
+	capacity = float64(q.size)
+	q.RUnlock()
+
+	q.metrics.size.Update(size)
+	q.metrics.capacity.Update(capacity)
 }
 
 type queryCacheMetrics struct {
 	regexp *queryCacheMethodMetrics
 	term   *queryCacheMethodMetrics
+
+	size     tally.Gauge
+	capacity tally.Gauge
 }
 
 func newQueryCacheMetrics(scope tally.Scope) *queryCacheMetrics {
 	return &queryCacheMetrics{
 		regexp: newQueryCacheMethodMetrics(scope.SubScope("regexp")),
 		term:   newQueryCacheMethodMetrics(scope.SubScope("term")),
+
+		size:     scope.Gauge("size"),
+		capacity: scope.Gauge("capacity"),
 	}
 }
 

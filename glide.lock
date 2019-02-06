@@ -1,5 +1,5 @@
-hash: 6b3bc7cfbeb7028b3282365a6ad4cf84f44054d7a955886311c1855a480df7fc
-updated: 2019-01-30T09:06:46.152462-05:00
+hash: 3c15d06369d790701f72004e8ff6226e89c870d28d9b1603240f8e7694272631
+updated: 2019-02-06T16:35:20.014919-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -186,6 +186,8 @@ imports:
   - runtime
   - runtime/internal
   - utilities
+- name: github.com/hashicorp/golang-lru
+  version: 20f1fb78b0740ba8c3cb143a61e86ba5c8669768
 - name: github.com/hashicorp/hcl
   version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
   subpackages:
@@ -204,6 +206,8 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- name: github.com/jroimartin/gocui
+  version: c055c87ae801372cd74a0839b972db4f7697ae5f
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
@@ -269,6 +273,10 @@ imports:
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/magiconair/properties
   version: b3b15ef068fd0b17ddf408a23669f20811d194d2
+- name: github.com/mattn/go-runewidth
+  version: 9e777a8366cce605130a531d2cd6363d07ad7317
+  subpackages:
+  - runewidth.go
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -283,6 +291,8 @@ imports:
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/nightlyone/lockfile
   version: 1d49c987357a327b5b03aa84cbddd582c328615d
+- name: github.com/nsf/termbox-go
+  version: 02980233997d87bbda048393d47b4d453f7a398d
 - name: github.com/oklog/ulid
   version: 66bb6560562feca7045b23db1ae85b01260f87c5
 - name: github.com/opentracing/opentracing-go
@@ -302,6 +312,7 @@ imports:
   repo: https://github.com/m3db/pilosa
   subpackages:
   - logger
+  - lru
   - roaring
   - stats
 - name: github.com/pkg/errors

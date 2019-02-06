@@ -304,6 +304,9 @@ func Run(runOpts RunOptions) {
 		InstrumentOptions: opts.InstrumentOptions().
 			SetMetricsScope(scope.SubScope("query-cache")),
 	})
+	endReportLoop := queryCache.StartReportLoop()
+	defer endReportLoop()
+
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
