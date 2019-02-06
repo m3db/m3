@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our [storage engine documentation](../architecture/engine.md).
+Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our [storage engine documentation](../m3db/architecture/engine.md).
 
 ## Namespace Operations
 
