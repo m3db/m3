@@ -446,7 +446,7 @@ type Options interface {
 	FSTOptions() fst.Options
 
 	// SetQueryCache sets the query cache.
-	SetQueryCache(value index.QueryCache) Options
+	SetQueryCache(value *index.QueryCache) Options
 
 	// QueryCache returns the query cache.
 	QueryCache() *index.QueryCache
