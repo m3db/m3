@@ -122,7 +122,7 @@ func (c *postingsListLRU) Add(uuid uuid.UUID, pattern string, patternType Patter
 	}
 
 	evict := c.evictList.Len() > c.size
-	// Verify size not exceeded
+	// Verify size not exceeded.
 	if evict {
 		c.removeOldest()
 	}
