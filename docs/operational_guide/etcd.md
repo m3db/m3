@@ -1,6 +1,6 @@
 # etcd
 
-The M3 stack leverages M3 as a distributed key-value storage to:
+The M3 stack leverages `etcd` as a distributed key-value storage to:
 
 1. Update cluster configuration in realtime
 2. Manage placements for our distributed / sharded tiers like M3DB and M3Aggregator
@@ -14,7 +14,9 @@ and much more!
 
 Both `M3` and `etcd` are complex distributed systems, and trying to operate both within the same binary is challenging and dangerous for production workloads.
 
-Instead, we recommend running an external `etcd` cluster that is isolated from the `M3` stack so that performing operations like node adds, removes, and replaces are easier. In addition, while M3 relies on `etcd` to provide strong consistency, the operations we use it for are all low-throughput so you should be able to operate a very low maintenance `etcd` cluster.
+Instead, we recommend running an external `etcd` cluster that is isolated from the `M3` stack so that performing operations like node adds, removes, and replaces are easier.
+
+While M3 relies on `etcd` to provide strong consistency, the perations we use it for are all low-throughput so you should be able to operate a very low maintenance `etcd` cluster. [A 3-node setup for high availability](https://github.com/etcd-io/etcd/blob/v3.3.11/Documentation/faq.md#what-is-failure-tolerance) should be more than sufficient for most workloads.
 
 ## Configuring an External etcd Cluster
 
@@ -64,7 +66,7 @@ config:
                   - http://external_etcd3:2379
 ```
 
-**Note**: `M3DB` placements and namespaces are stored in `etcd` so if you want to switch to an external `etcd` cluster you'll need to recreate all your placements and namespaces.
+**Note**: `M3DB` placements and namespaces are stored in `etcd` so if you want to switch to an external `etcd` cluster you'll need to recreate all your placements and namespaces. You can do this manually or use `etcdctl`'s [Mirror Maker](https://github.com/etcd-io/etcd/blob/v3.3.11/etcdctl/doc/mirror_maker.md) functionality.
 
 ### M3Coordinator
 
