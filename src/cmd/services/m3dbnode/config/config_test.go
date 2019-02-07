@@ -387,6 +387,7 @@ func TestConfiguration(t *testing.T) {
   blockRetrieve: null
   cache:
     series: null
+    postingsList: null
   fs:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
