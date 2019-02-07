@@ -28,9 +28,6 @@ import (
 	"github.com/pborman/uuid"
 )
 
-// EvictCallback is used to get a callback when a cache entry is evicted
-type EvictCallback func(uuid uuid.UUID, pattern string, postingsList postings.List)
-
 // PostingsListLRU implements a non-thread safe fixed size LRU cache of postings lists
 // that were resolved by running a given query against a particular segment. Normally
 // an key in the LRU would look like:
@@ -60,7 +57,6 @@ type postingsListLRU struct {
 	size      int
 	evictList *list.List
 	items     map[[16]byte]map[patternAndPatternType]*list.Element
-	onEvict   EvictCallback
 }
 
 type cachedQuery struct {
@@ -87,17 +83,16 @@ type patternAndPatternType struct {
 }
 
 // newPostingsListLRU constructs an LRU of the given size
-func newPostingsListLRU(size int, onEvict EvictCallback) (*postingsListLRU, error) {
+func newPostingsListLRU(size int) (*postingsListLRU, error) {
 	if size <= 0 {
 		return nil, errors.New("Must provide a positive size")
 	}
-	c := &postingsListLRU{
+
+	return &postingsListLRU{
 		size:      size,
 		evictList: list.New(),
 		items:     make(map[[16]byte]map[patternAndPatternType]*list.Element),
-		onEvict:   onEvict,
-	}
-	return c, nil
+	}, nil
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
@@ -206,9 +201,6 @@ func (c *postingsListLRU) removeElement(e *list.Element) {
 		delete(patterns, key)
 		if len(patterns) == 0 {
 			delete(c.items, entry.uuid.Array())
-		}
-		if c.onEvict != nil {
-			c.onEvict(entry.uuid, entry.pattern, entry.postingsList)
 		}
 	}
 }

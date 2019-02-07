@@ -78,7 +78,7 @@ type PostingsListCache struct {
 
 // NewPostingsListCache creates a new query cache.
 func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsListCache, error) {
-	lru, err := newPostingsListLRU(size, nil)
+	lru, err := newPostingsListLRU(size)
 	if err != nil {
 		return nil, err
 	}
