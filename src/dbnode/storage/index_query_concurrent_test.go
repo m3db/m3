@@ -1,3 +1,4 @@
+// +build big
 //
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -366,6 +367,4 @@ func testNamespaceIndexHighConcurrentQueries(
 		}()
 		ctxCloseWg.Wait()
 	}
-
-	panic("hmm")
 }
