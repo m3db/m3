@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 )
@@ -43,20 +42,6 @@ const (
 
 	reportLoopInterval = time.Second
 )
-
-// PostingsListCacheEntry represents an entry in the query cache.
-type PostingsListCacheEntry struct {
-	Namespace   string
-	BlockStart  xtime.UnixNano
-	VolumeIndex int
-	Pattern     string
-	PatternType PatternType
-}
-
-// PostingsListCacheValue represents a value stored in the query cache.
-type PostingsListCacheValue struct {
-	PostingsList postings.List
-}
 
 // PostingsListCacheOptions is the options struct for the query cache.
 type PostingsListCacheOptions struct {
