@@ -1,5 +1,5 @@
-hash: 3c15d06369d790701f72004e8ff6226e89c870d28d9b1603240f8e7694272631
-updated: 2019-02-06T16:35:20.014919-05:00
+hash: 6b3bc7cfbeb7028b3282365a6ad4cf84f44054d7a955886311c1855a480df7fc
+updated: 2019-02-07T17:21:02.160474-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -186,8 +186,6 @@ imports:
   - runtime
   - runtime/internal
   - utilities
-- name: github.com/hashicorp/golang-lru
-  version: 20f1fb78b0740ba8c3cb143a61e86ba5c8669768
 - name: github.com/hashicorp/hcl
   version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
   subpackages:
@@ -312,7 +310,6 @@ imports:
   repo: https://github.com/m3db/pilosa
   subpackages:
   - logger
-  - lru
   - roaring
   - stats
 - name: github.com/pkg/errors
