@@ -139,7 +139,7 @@ After sending the delete command you will need to wait for the M3DB cluster to r
 
 #### Adding / Removing Seed Nodes
 
-If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an external etcd cluster, as
+If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an [external etcd](../etcd.md) cluster, as
 the overhead of operating two stateful systems at once is non-trivial. As this is not a recommended production setup,
 this section is intentionally brief.
 
