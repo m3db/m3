@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,13 +35,13 @@ import (
 )
 
 const (
-	numTestEntries = 1000
+	numTestPlEntries = 1000
 )
 
 var (
 	// Filled in by init().
-	testEntries []testEntry
-	testOptions = PostingsListCacheOptions{
+	testPlEntries               []testEntry
+	testPostingListCacheOptions = PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	}
 )
@@ -55,16 +55,16 @@ type testEntry struct {
 
 func TestSimpleLRUBehavior(t *testing.T) {
 	size := 3
-	plCache, err := NewPostingsListCache(size, testOptions)
+	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
 
 	var (
-		e0 = testEntries[0]
-		e1 = testEntries[1]
-		e2 = testEntries[2]
-		e3 = testEntries[3]
-		e4 = testEntries[4]
-		e5 = testEntries[5]
+		e0 = testPlEntries[0]
+		e1 = testPlEntries[1]
+		e2 = testPlEntries[2]
+		e3 = testPlEntries[3]
+		e4 = testPlEntries[4]
+		e5 = testPlEntries[5]
 	)
 	putEntry(plCache, 0)
 	putEntry(plCache, 1)
@@ -118,67 +118,67 @@ func TestSimpleLRUBehavior(t *testing.T) {
 }
 
 func TestPurgeSegment(t *testing.T) {
-	size := len(testEntries)
-	plCache, err := NewPostingsListCache(size, testOptions)
+	size := len(testPlEntries)
+	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
 
 	// Write many entries with the same segment UUID.
 	for i := 0; i < 100; i++ {
-		if testEntries[i].patternType == PatternTypeRegexp {
+		if testPlEntries[i].patternType == PatternTypeRegexp {
 			plCache.PutRegexp(
-				testEntries[0].segmentUUID,
-				testEntries[i].pattern,
-				testEntries[i].postingsList,
+				testPlEntries[0].segmentUUID,
+				testPlEntries[i].pattern,
+				testPlEntries[i].postingsList,
 			)
 		} else {
 			plCache.PutTerm(
-				testEntries[0].segmentUUID,
-				testEntries[i].pattern,
-				testEntries[i].postingsList,
+				testPlEntries[0].segmentUUID,
+				testPlEntries[i].pattern,
+				testPlEntries[i].postingsList,
 			)
 		}
 	}
 
 	// Write the remaining entries.
-	for i := 100; i < len(testEntries); i++ {
+	for i := 100; i < len(testPlEntries); i++ {
 		putEntry(plCache, i)
 	}
 
 	// Purge all entries related to the segment.
-	plCache.PurgeSegment(testEntries[0].segmentUUID)
+	plCache.PurgeSegment(testPlEntries[0].segmentUUID)
 
 	// All entries related to the purged segment should be gone.
 	require.Equal(t, size-100, plCache.lru.Len())
 	for i := 0; i < 100; i++ {
-		if testEntries[i].patternType == PatternTypeRegexp {
+		if testPlEntries[i].patternType == PatternTypeRegexp {
 			_, ok := plCache.GetRegexp(
-				testEntries[0].segmentUUID,
-				testEntries[i].pattern,
+				testPlEntries[0].segmentUUID,
+				testPlEntries[i].pattern,
 			)
 			require.False(t, ok)
 		} else {
 			_, ok := plCache.GetTerm(
-				testEntries[0].segmentUUID,
-				testEntries[i].pattern,
+				testPlEntries[0].segmentUUID,
+				testPlEntries[i].pattern,
 			)
 			require.False(t, ok)
 		}
 	}
 
 	// Remaining entries should still be present.
-	for i := 100; i < len(testEntries); i++ {
+	for i := 100; i < len(testPlEntries); i++ {
 		getEntry(plCache, i)
 	}
 }
 
 func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
-	plCache, err := NewPostingsListCache(len(testEntries), testOptions)
+	plCache, err := NewPostingsListCache(len(testPlEntries), testPostingListCacheOptions)
 	require.NoError(t, err)
-	for i := range testEntries {
+	for i := range testPlEntries {
 		putEntry(plCache, i)
 	}
 
-	for i, entry := range testEntries {
+	for i, entry := range testPlEntries {
 		cached, ok := getEntry(plCache, i)
 		require.True(t, ok)
 		require.True(t, cached.Equal(entry.postingsList))
@@ -186,20 +186,20 @@ func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
 }
 
 func TestConcurrencyWithEviction(t *testing.T) {
-	testConcurrency(t, len(testEntries)/10, true, false)
+	testConcurrency(t, len(testPlEntries)/10, true, false)
 }
 
 func TestConcurrencyVerifyResultsNoEviction(t *testing.T) {
-	testConcurrency(t, len(testEntries), false, true)
+	testConcurrency(t, len(testPlEntries), false, true)
 }
 
 func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
-	plCache, err := NewPostingsListCache(size, testOptions)
+	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
 	// Spin up writers.
-	for i := range testEntries {
+	for i := range testPlEntries {
 		wg.Add(1)
 		go func(i int) {
 			for j := 0; j < 100; j++ {
@@ -210,7 +210,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	}
 
 	// Spin up readers.
-	for i := range testEntries {
+	for i := range testPlEntries {
 		wg.Add(1)
 		go func(i int) {
 			for j := 0; j < 100; j++ {
@@ -227,7 +227,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 				select {
 				case <-stopPurge:
 				default:
-					for _, entry := range testEntries {
+					for _, entry := range testPlEntries {
 						plCache.PurgeSegment(entry.segmentUUID)
 					}
 				}
@@ -242,7 +242,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 		return
 	}
 
-	for i, entry := range testEntries {
+	for i, entry := range testPlEntries {
 		cached, ok := getEntry(plCache, i)
 		if !ok {
 			// Debug.
@@ -254,32 +254,32 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 }
 
 func putEntry(cache *PostingsListCache, i int) {
-	if testEntries[i].patternType == PatternTypeRegexp {
+	if testPlEntries[i].patternType == PatternTypeRegexp {
 		cache.PutRegexp(
-			testEntries[i].segmentUUID,
-			testEntries[i].pattern,
-			testEntries[i].postingsList,
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].pattern,
+			testPlEntries[i].postingsList,
 		)
 	} else {
 		cache.PutTerm(
-			testEntries[i].segmentUUID,
-			testEntries[i].pattern,
-			testEntries[i].postingsList,
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].pattern,
+			testPlEntries[i].postingsList,
 		)
 	}
 }
 
 func getEntry(cache *PostingsListCache, i int) (postings.List, bool) {
-	if testEntries[i].patternType == PatternTypeRegexp {
+	if testPlEntries[i].patternType == PatternTypeRegexp {
 		return cache.GetRegexp(
-			testEntries[i].segmentUUID,
-			testEntries[i].pattern,
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].pattern,
 		)
 	}
 
 	return cache.GetTerm(
-		testEntries[i].segmentUUID,
-		testEntries[i].pattern,
+		testPlEntries[i].segmentUUID,
+		testPlEntries[i].pattern,
 	)
 }
 
@@ -306,7 +306,7 @@ func printSortedKeys(t *testing.T, cache *PostingsListCache) {
 
 func init() {
 	// Generate test data.
-	for i := 0; i < numTestEntries; i++ {
+	for i := 0; i < numTestPlEntries; i++ {
 		segmentUUID := uuid.Parse(
 			fmt.Sprintf("00000000-0000-0000-0000-000000000%03d", i))
 		pattern := fmt.Sprintf("%d", i)
@@ -317,7 +317,7 @@ func init() {
 		if i%2 == 0 {
 			patternType = PatternTypeTerm
 		}
-		testEntries = append(testEntries, testEntry{
+		testPlEntries = append(testPlEntries, testEntry{
 			segmentUUID:  segmentUUID,
 			pattern:      pattern,
 			patternType:  patternType,

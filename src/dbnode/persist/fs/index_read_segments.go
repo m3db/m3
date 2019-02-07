@@ -23,9 +23,12 @@ package fs
 import (
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/pborman/uuid"
@@ -107,17 +110,13 @@ func ReadIndexSegments(
 		}
 
 		fstOpts := fsOpts.FSTOptions()
-		if fsOpts.PostingsListCache() != nil {
-			qc := newSegmentSpecificPostingsListCache(
-				fsOpts.PostingsListCache())
-			fstOpts = fstOpts.SetQueryCache(qc)
-		}
 		seg, err := newPersistentSegment(fileset, fstOpts)
 		if err != nil {
 			return nil, err
 		}
 
-		segments = append(segments, seg)
+		segWithCache := newSegmentWithCache(seg, fsOpts.PostingsListCache())
+		segments = append(segments, segWithCache)
 	}
 
 	// Indicate we don't need the defer() above to release any resources, as we are
@@ -126,44 +125,86 @@ func ReadIndexSegments(
 	return segments, nil
 }
 
-type segmentSpecificPostingsListCache struct {
+type segmentWithCache struct {
+	fst.Segment
+	sync.Mutex
+
 	uuid              uuid.UUID
 	postingsListCache *index.PostingsListCache
+
+	closed bool
 }
 
-func newSegmentSpecificPostingsListCache(
-	postingsListCache *index.PostingsListCache,
-) segmentSpecificPostingsListCache {
-	uuid := uuid.NewUUID()
+func newSegmentWithCache(
+	seg fst.Segment,
+	cache *index.PostingsListCache,
+) *segmentWithCache {
+	return &segmentWithCache{
+		Segment: seg,
 
-	return segmentSpecificPostingsListCache{
-		uuid:              uuid,
-		postingsListCache: postingsListCache,
+		uuid:              uuid.NewUUID(),
+		postingsListCache: cache,
 	}
 }
 
-func (s segmentSpecificPostingsListCache) GetRegexp(
-	pattern string,
-) (postings.List, bool) {
-	return s.postingsListCache.GetRegexp(s.uuid, pattern)
+func (s *segmentWithCache) MatchRegexp(
+	field []byte,
+	c m3ninxindex.CompiledRegex,
+) (postings.List, error) {
+	s.Lock()
+	defer s.Unlock()
+	if s.closed {
+		return nil, errors.New("cant query closed segment")
+	}
+
+	if s.postingsListCache == nil {
+		return s.Segment.MatchRegexp(field, c)
+	}
+
+	pattern := c.FSTSyntax.String()
+	pl, ok := s.postingsListCache.GetRegexp(s.uuid, pattern)
+	if ok {
+		return pl, nil
+	}
+
+	pl, err := s.Segment.MatchRegexp(field, c)
+	if err != nil {
+		s.postingsListCache.PutRegexp(s.uuid, pattern, pl)
+	}
+	return pl, err
 }
 
-func (s segmentSpecificPostingsListCache) GetTerm(
-	pattern string,
-) (postings.List, bool) {
-	return s.postingsListCache.GetTerm(s.uuid, pattern)
+func (s *segmentWithCache) MatchTerm(
+	field []byte, term []byte,
+) (postings.List, error) {
+	s.Lock()
+	defer s.Unlock()
+	if s.closed {
+		return nil, errors.New("cant query closed segment")
+	}
+
+	if s.postingsListCache == nil {
+		return s.Segment.MatchTerm(field, term)
+	}
+
+	termString := string(term)
+	pl, ok := s.postingsListCache.GetTerm(s.uuid, termString)
+	if ok {
+		return pl, nil
+	}
+
+	pl, err := s.Segment.MatchTerm(field, term)
+	if err != nil {
+		s.postingsListCache.PutTerm(s.uuid, termString, pl)
+	}
+	return pl, err
 }
 
-func (s segmentSpecificPostingsListCache) PutRegexp(
-	pattern string,
-	pl postings.List,
-) {
-	s.postingsListCache.PutRegexp(s.uuid, pattern, pl)
-}
+func (s *segmentWithCache) Close() error {
+	s.Lock()
+	defer s.Unlock()
+	s.closed = true
 
-func (s segmentSpecificPostingsListCache) PutTerm(
-	pattern string,
-	pl postings.List,
-) {
-	s.postingsListCache.PutTerm(s.uuid, pattern, pl)
+	s.postingsListCache.PurgeSegment(s.uuid)
+	return s.Segment.Close()
 }

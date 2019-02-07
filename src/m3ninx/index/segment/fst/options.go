@@ -51,12 +51,6 @@ type Options interface {
 
 	// PostingsListPool returns the postings list pool.
 	PostingsListPool() postings.Pool
-
-	// SetPostingsListCache sets the query cache.
-	SetPostingsListCache(q postingsListCache) Options
-
-	// PostingsListCache returns the query cache.
-	PostingsListCache() postingsListCache
 }
 
 type opts struct {
@@ -64,7 +58,6 @@ type opts struct {
 	bytesSliceArrPool bytes.SliceArrayPool
 	bytesPool         pool.BytesPool
 	postingsPool      postings.Pool
-	postingsListCache postingsListCache
 }
 
 // NewOptions returns new options.
@@ -116,14 +109,4 @@ func (o *opts) SetPostingsListPool(v postings.Pool) Options {
 
 func (o *opts) PostingsListPool() postings.Pool {
 	return o.postingsPool
-}
-
-func (o *opts) SetPostingsListCache(v postingsListCache) Options {
-	opts := *o
-	opts.postingsListCache = v
-	return &opts
-}
-
-func (o *opts) PostingsListCache() postingsListCache {
-	return o.postingsListCache
 }
