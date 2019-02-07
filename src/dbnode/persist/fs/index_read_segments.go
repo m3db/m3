@@ -23,12 +23,12 @@ package fs
 import (
 	"errors"
 	"io"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/pborman/uuid"
 )
 
 var (
@@ -107,14 +107,9 @@ func ReadIndexSegments(
 		}
 
 		fstOpts := fsOpts.FSTOptions()
-		if fsOpts.QueryCache() != nil {
-			fsID := opts.ReaderOptions.Identifier
-			qc := newSegmentSpecificQueryCache(
-				fsID.Namespace.String(),
-				fsID.BlockStart,
-				fsID.VolumeIndex,
-				fsOpts.QueryCache(),
-			)
+		if fsOpts.PostingsListCache() != nil {
+			qc := newSegmentSpecificPostingsListCache(
+				fsOpts.PostingsListCache())
 			fstOpts = fstOpts.SetQueryCache(qc)
 		}
 		seg, err := newPersistentSegment(fileset, fstOpts)
@@ -131,55 +126,44 @@ func ReadIndexSegments(
 	return segments, nil
 }
 
-type segmentSpecificQueryCache struct {
-	namespace   string
-	blockStart  time.Time
-	volumeIndex int
-
-	queryCache *index.QueryCache
+type segmentSpecificPostingsListCache struct {
+	uuid              uuid.UUID
+	postingsListCache *index.PostingsListCache
 }
 
-func newSegmentSpecificQueryCache(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
-	queryCache *index.QueryCache,
-) segmentSpecificQueryCache {
-	return segmentSpecificQueryCache{
-		namespace:   namespace,
-		blockStart:  blockStart,
-		volumeIndex: volumeIndex,
+func newSegmentSpecificPostingsListCache(
+	postingsListCache *index.PostingsListCache,
+) segmentSpecificPostingsListCache {
+	uuid := uuid.NewUUID()
 
-		queryCache: queryCache,
+	return segmentSpecificPostingsListCache{
+		uuid:              uuid,
+		postingsListCache: postingsListCache,
 	}
 }
 
-func (s segmentSpecificQueryCache) GetRegexp(
+func (s segmentSpecificPostingsListCache) GetRegexp(
 	pattern string,
 ) (postings.List, bool) {
-	return s.queryCache.GetRegexp(
-		s.namespace, s.blockStart, s.volumeIndex, pattern)
+	return s.postingsListCache.GetRegexp(s.uuid, pattern)
 }
 
-func (s segmentSpecificQueryCache) GetTerm(
+func (s segmentSpecificPostingsListCache) GetTerm(
 	pattern string,
 ) (postings.List, bool) {
-	return s.queryCache.GetTerm(
-		s.namespace, s.blockStart, s.volumeIndex, pattern)
+	return s.postingsListCache.GetTerm(s.uuid, pattern)
 }
 
-func (s segmentSpecificQueryCache) PutRegexp(
+func (s segmentSpecificPostingsListCache) PutRegexp(
 	pattern string,
 	pl postings.List,
 ) {
-	s.queryCache.PutRegexp(
-		s.namespace, s.blockStart, s.volumeIndex, pattern, pl)
+	s.postingsListCache.PutRegexp(s.uuid, pattern, pl)
 }
 
-func (s segmentSpecificQueryCache) PutTerm(
+func (s segmentSpecificPostingsListCache) PutTerm(
 	pattern string,
 	pl postings.List,
 ) {
-	s.queryCache.PutTerm(
-		s.namespace, s.blockStart, s.volumeIndex, pattern, pl)
+	s.postingsListCache.PutTerm(s.uuid, pattern, pl)
 }

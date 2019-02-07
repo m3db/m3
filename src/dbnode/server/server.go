@@ -300,14 +300,14 @@ func Run(runOpts RunOptions) {
 	tagDecoderPool.Init()
 
 	// TODO(rartoul): Config
-	queryCache, err := index.NewQueryCache(256000, index.QueryCacheOptions{
+	postingsListCache, err := index.NewPostingsListCache(256000, index.QueryCacheOptions{
 		InstrumentOptions: opts.InstrumentOptions().
 			SetMetricsScope(scope.SubScope("query-cache")),
 	})
 	if err != nil {
 		logger.Fatalf("could not construct query cache: %s", err.Error())
 	}
-	endReportLoop := queryCache.StartReportLoop()
+	endReportLoop := postingsListCache.StartReportLoop()
 	defer endReportLoop()
 
 	fsopts := fs.NewOptions().

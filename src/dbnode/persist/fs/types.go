@@ -445,11 +445,11 @@ type Options interface {
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
 
-	// SetQueryCache sets the query cache.
-	SetQueryCache(value *index.QueryCache) Options
+	// SetPostingsListCache sets the query cache.
+	SetPostingsListCache(value *index.PostingsListCache) Options
 
-	// QueryCache returns the query cache.
-	QueryCache() *index.QueryCache
+	// PostingsListCache returns the query cache.
+	PostingsListCache() *index.PostingsListCache
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

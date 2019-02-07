@@ -100,7 +100,7 @@ type options struct {
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
-	queryCache                           *index.QueryCache
+	postingsListCache                    *index.PostingsListCache
 }
 
 // NewOptions creates a new set of fs options
@@ -357,12 +357,12 @@ func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
 }
 
-func (o *options) SetQueryCache(value *index.QueryCache) Options {
+func (o *options) SetPostingsListCache(value *index.PostingsListCache) Options {
 	opts := *o
-	opts.queryCache = value
+	opts.postingsListCache = value
 	return &opts
 }
 
-func (o *options) QueryCache() *index.QueryCache {
-	return o.queryCache
+func (o *options) PostingsListCache() *index.PostingsListCache {
+	return o.postingsListCache
 }
