@@ -23,6 +23,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -38,7 +39,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,15 +64,29 @@ func TestNamespaceIndexHighConcurrentQueriesWithTimeoutsAndForceTimeout(t *testi
 		})
 }
 
+func TestNamespaceIndexHighConcurrentQueriesWithBlockErrors(t *testing.T) {
+	testNamespaceIndexHighConcurrentQueries(t,
+		testNamespaceIndexHighConcurrentQueriesOptions{
+			withTimeouts:  false,
+			forceTimeouts: false,
+			blockErrors:   true,
+		})
+}
+
 type testNamespaceIndexHighConcurrentQueriesOptions struct {
 	withTimeouts  bool
 	forceTimeouts bool
+	blockErrors   bool
 }
 
 func testNamespaceIndexHighConcurrentQueries(
 	t *testing.T,
 	opts testNamespaceIndexHighConcurrentQueriesOptions,
 ) {
+	if opts.forceTimeouts && opts.blockErrors {
+		t.Fatalf("force timeout and block errors cannot both be enabled")
+	}
+
 	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
@@ -184,10 +198,10 @@ func testNamespaceIndexHighConcurrentQueries(
 		onIndexWg.Wait()
 	}
 
-	// If force timeout, replace one of the blocks with a mock
-	// block that times out.
+	// If force timeout or block errors are enabled, replace one of the blocks
+	// with a mock block that times out or returns an error respectively.
 	var timeoutWg, timedOutQueriesWg sync.WaitGroup
-	if opts.forceTimeouts {
+	if opts.forceTimeouts || opts.blockErrors {
 		// Need to restore now as timeouts are measured by looking at time.Now
 		restoreNow()
 
@@ -196,6 +210,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		for start, block := range nsIdx.state.blocksByTime {
 			block := block // Capture for lambda
 			mockBlock := index.NewMockBlock(ctrl)
+
 			mockBlock.EXPECT().
 				StartTime().
 				DoAndReturn(func() time.Time { return block.StartTime() }).
@@ -204,13 +219,24 @@ func testNamespaceIndexHighConcurrentQueries(
 				EndTime().
 				DoAndReturn(func() time.Time { return block.EndTime() }).
 				AnyTimes()
-			mockBlock.EXPECT().
-				Query(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
-					timeoutWg.Wait()
-					return block.Query(q, opts, r)
-				}).
-				AnyTimes()
+
+			if opts.blockErrors {
+				mockBlock.EXPECT().
+					Query(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+						return false, errors.New("some-error")
+					}).
+					AnyTimes()
+			} else {
+				mockBlock.EXPECT().
+					Query(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+						timeoutWg.Wait()
+						return block.Query(q, opts, r)
+					}).
+					AnyTimes()
+			}
+
 			mockBlock.EXPECT().
 				Stats(gomock.Any()).
 				Return(nil).
@@ -248,6 +274,8 @@ func testNamespaceIndexHighConcurrentQueries(
 				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
 				ctx := context.NewContext()
+				defer ctx.Close()
+
 				if opts.forceTimeouts {
 					// For the force timeout tests we just want to spin up the
 					// contexts for timeouts.
@@ -262,7 +290,7 @@ func testNamespaceIndexHighConcurrentQueries(
 							StartInclusive: rangeStart,
 							EndExclusive:   rangeEnd,
 						})
-						assert.Error(t, err)
+						require.Error(t, err)
 						timedOutQueriesWg.Done()
 					}()
 					continue
@@ -274,7 +302,14 @@ func testNamespaceIndexHighConcurrentQueries(
 					StartInclusive: rangeStart,
 					EndExclusive:   rangeEnd,
 				})
-				assert.NoError(t, err)
+
+				if opts.blockErrors {
+					require.Error(t, err)
+					// Early return because we don't want to check the results.
+					return
+				} else {
+					require.NoError(t, err)
+				}
 
 				// Read the results concurrently too
 				hits := make(map[string]struct{}, results.Results.Size())
@@ -282,25 +317,22 @@ func testNamespaceIndexHighConcurrentQueries(
 					id := entry.Key().String()
 
 					doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					if err != nil {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
 					expectedDoc, ok := expectedResults[id]
-					assert.True(t, ok)
+					require.True(t, ok)
 					if !ok {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					assert.Equal(t, expectedDoc, doc)
+					require.Equal(t, expectedDoc, doc)
 					hits[id] = struct{}{}
 				}
 				expectedHits := idsPerBlock * (k + 1)
-				assert.Equal(t, expectedHits, len(hits))
-
-				// Now safe to close the context after reading results
-				ctx.Close()
+				require.Equal(t, expectedHits, len(hits))
 			}
 		}()
 	}

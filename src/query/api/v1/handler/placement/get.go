@@ -21,11 +21,13 @@
 package placement
 
 import (
+	"errors"
 	"net/http"
 	"path"
 	"strconv"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -56,6 +58,8 @@ var (
 	// M3CoordinatorGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Coordinator service.
 	M3CoordinatorGetURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
+
+	errPlacementDoesNotExist = errors.New("placement does not exist")
 )
 
 // GetHandler is the handler for placement gets.
@@ -70,33 +74,19 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx)
-		opts   = NewServiceOptions(
-			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
-	if err != nil {
-		xhttp.Error(w, err, http.StatusInternalServerError)
+	placement, badRequest, err := h.Get(serviceName, r)
+	if err != nil && badRequest {
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
-
-	var placement placement.Placement
-	var version int
-	status := http.StatusNotFound
-	if vs := r.FormValue("version"); vs != "" {
-		version, err = strconv.Atoi(vs)
-		if err == nil {
-			placement, err = service.PlacementForVersion(version)
-		} else {
-			status = http.StatusBadRequest
-		}
-	} else {
-		placement, err = service.Placement()
-	}
-
 	if err != nil {
-		xhttp.Error(w, err, status)
+		xhttp.Error(w, err, http.StatusNotFound)
 		return
+	}
+	if placement == nil {
+		xhttp.Error(w, errPlacementDoesNotExist, http.StatusNotFound)
 	}
 
 	placementProto, err := placement.Proto()
@@ -112,4 +102,54 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
+}
+
+// Get gets a placement.
+func (h *GetHandler) Get(
+	serviceName string,
+	httpReq *http.Request,
+) (placement placement.Placement, badRequest bool, err error) {
+	var headers http.Header
+	if httpReq != nil {
+		headers = httpReq.Header
+	}
+
+	opts := NewServiceOptions(
+		serviceName, headers, h.M3AggServiceOptions)
+
+	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
+	if err != nil {
+		return nil, false, err
+	}
+
+	var (
+		version int
+		vs      string
+	)
+	if httpReq != nil {
+		vs = httpReq.FormValue("version")
+	}
+
+	if vs != "" {
+		version, err = strconv.Atoi(vs)
+		if err == nil {
+			placement, err = service.PlacementForVersion(version)
+		} else {
+			badRequest = true
+		}
+	} else {
+		placement, err = service.Placement()
+	}
+
+	if err == kv.ErrNotFound {
+		// TODO(rartoul): This should probably be handled at the service
+		// level but that would be a large refactor.
+		return nil, false, nil
+	}
+
+	if err != nil {
+		return nil, badRequest, err
+	}
+
+	return placement, badRequest, nil
 }
