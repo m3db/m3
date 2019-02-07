@@ -120,7 +120,7 @@ func (q *PostingsListCache) get(
 ) (postings.List, bool) {
 	// No RLock because a Get() operation mutates the LRU.
 	q.Lock()
-	p, ok := q.lru.Get(segmentUUID, pattern, PatternTypeRegexp)
+	p, ok := q.lru.Get(segmentUUID, pattern, patternType)
 	q.Unlock()
 
 	if ok {
@@ -164,11 +164,19 @@ func (q *PostingsListCache) put(
 	q.lru.Add(
 		segmentUUID,
 		pattern,
-		PatternTypeRegexp,
+		patternType,
 		pl,
 	)
 	q.Unlock()
 	q.metrics.regexp.puts.Inc(1)
+}
+
+// PurgeSegment removes all postings lists associated with the specified
+// segment from the cache.
+func (q *PostingsListCache) PurgeSegment(segmentUUID uuid.UUID) {
+	q.Lock()
+	q.lru.PurgeSegment(segmentUUID)
+	q.Unlock()
 }
 
 // StartReportLoop starts a background process that will call Report()

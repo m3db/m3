@@ -117,6 +117,60 @@ func TestSimpleLRUBehavior(t *testing.T) {
 	}
 }
 
+func TestPurge(t *testing.T) {
+	size := len(testEntries)
+	plCache, err := NewPostingsListCache(size, testOptions)
+	require.NoError(t, err)
+
+	// Write many entries with the same segment UUID.
+	for i := 0; i < 100; i++ {
+		if testEntries[i].patternType == PatternTypeRegexp {
+			plCache.PutRegexp(
+				testEntries[0].segmentUUID,
+				testEntries[i].pattern,
+				testEntries[i].postingsList,
+			)
+		} else {
+			plCache.PutTerm(
+				testEntries[0].segmentUUID,
+				testEntries[i].pattern,
+				testEntries[i].postingsList,
+			)
+		}
+	}
+
+	// Write the remaining entries.
+	for i := 100; i < len(testEntries); i++ {
+		putEntry(plCache, i)
+	}
+
+	// Purge all entries related to the segment.
+	plCache.PurgeSegment(testEntries[0].segmentUUID)
+
+	// All entries related to the purged segment should be gone.
+	require.Equal(t, size-100, plCache.lru.Len())
+	for i := 0; i < 100; i++ {
+		if testEntries[i].patternType == PatternTypeRegexp {
+			_, ok := plCache.GetRegexp(
+				testEntries[0].segmentUUID,
+				testEntries[i].pattern,
+			)
+			require.False(t, ok)
+		} else {
+			_, ok := plCache.GetTerm(
+				testEntries[0].segmentUUID,
+				testEntries[i].pattern,
+			)
+			require.False(t, ok)
+		}
+	}
+
+	// Remaining entries should still be present.
+	for i := 100; i < len(testEntries); i++ {
+		getEntry(plCache, i)
+	}
+}
+
 func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
 	plCache, err := NewPostingsListCache(len(testEntries), testOptions)
 	require.NoError(t, err)
@@ -132,14 +186,14 @@ func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
 }
 
 func TestConcurrencyWithEviction(t *testing.T) {
-	testConcurrency(t, len(testEntries)/10, false)
+	testConcurrency(t, len(testEntries)/10, true, false)
 }
 
 func TestConcurrencyVerifyResultsNoEviction(t *testing.T) {
-	testConcurrency(t, len(testEntries), true)
+	testConcurrency(t, len(testEntries), false, true)
 }
 
-func testConcurrency(t *testing.T, size int, verify bool) {
+func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	plCache, err := NewPostingsListCache(size, testOptions)
 	require.NoError(t, err)
 
@@ -166,7 +220,23 @@ func testConcurrency(t *testing.T, size int, verify bool) {
 		}(i)
 	}
 
+	stopPurge := make(chan struct{})
+	if purge {
+		go func() {
+			for {
+				select {
+				case <-stopPurge:
+				default:
+					for _, entry := range testEntries {
+						plCache.PurgeSegment(entry.segmentUUID)
+					}
+				}
+			}
+		}()
+	}
+
 	wg.Wait()
+	close(stopPurge)
 
 	if !verify {
 		return

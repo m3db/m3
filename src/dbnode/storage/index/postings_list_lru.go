@@ -150,14 +150,22 @@ func (c *postingsListLRU) Get(uuid uuid.UUID, pattern string, patternType Patter
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
 func (c *postingsListLRU) Remove(uuid uuid.UUID, pattern string, patternType PatternType) bool {
-	if patterns, ok := c.items[uuid.Array()]; ok {
+	if uuidEntries, ok := c.items[uuid.Array()]; ok {
 		key := newPatternAndPatternType(pattern, patternType)
-		if ent, ok := patterns[key]; ok {
+		if ent, ok := uuidEntries[key]; ok {
 			c.removeElement(ent)
 			return true
 		}
 	}
 	return false
+}
+
+func (c *postingsListLRU) PurgeSegment(segmentUUID uuid.UUID) {
+	if uuidEntries, ok := c.items[segmentUUID.Array()]; ok {
+		for _, ent := range uuidEntries {
+			c.removeElement(ent)
+		}
+	}
 }
 
 // Len returns the number of items in the cache.
