@@ -32,6 +32,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	defaultReadThroughSegmentOptions = ReadThroughSegmentOptions{
+		CacheRegexp: true,
+		CacheTerms:  true,
+	}
+)
+
 func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -47,7 +54,8 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 		FSTSyntax: parsedRegex,
 	}
 
-	readThrough := NewReadThroughSegment(segment, cache)
+	readThrough := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions)
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
@@ -59,6 +67,43 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 
 	// Make sure it relies on the cache if its present (mock only expects
 	// one call.)
+	pl, err = readThrough.MatchRegexp(field, compiledRegex)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+}
+
+func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	segment := fst.NewMockSegment(ctrl)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	require.NoError(t, err)
+
+	field := []byte("some-field")
+	parsedRegex, err := syntax.Parse(".*this-will-be-slow.*", syntax.Simple)
+	require.NoError(t, err)
+	compiledRegex := index.CompiledRegex{
+		FSTSyntax: parsedRegex,
+	}
+
+	readThrough := NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
+		CacheRegexp: false,
+	})
+	originalPL := roaring.NewPostingsList()
+	require.NoError(t, originalPL.Insert(1))
+	segment.EXPECT().
+		MatchRegexp(field, gomock.Any()).
+		Return(originalPL, nil).
+		Times(2)
+
+	// Make sure it goes to the segment.
+	pl, err := readThrough.MatchRegexp(field, compiledRegex)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+
+	// Make sure it goes to the segment the second time - meaning the cache was
+	// disabled.
 	pl, err = readThrough.MatchRegexp(field, compiledRegex)
 	require.NoError(t, err)
 	require.True(t, pl.Equal(originalPL))
@@ -78,7 +123,8 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 		FSTSyntax: parsedRegex,
 	}
 
-	readThrough := NewReadThroughSegment(segment, nil)
+	readThrough := NewReadThroughSegment(
+		segment, nil, defaultReadThroughSegmentOptions)
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
@@ -101,8 +147,9 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 		field = []byte("some-field")
 		term  = []byte("some-term")
 
-		readThrough = NewReadThroughSegment(segment, cache)
-		originalPL  = roaring.NewPostingsList()
+		readThrough = NewReadThroughSegment(
+			segment, cache, defaultReadThroughSegmentOptions)
+		originalPL = roaring.NewPostingsList()
 	)
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
@@ -119,6 +166,41 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 	require.True(t, pl.Equal(originalPL))
 }
 
+func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	segment := fst.NewMockSegment(ctrl)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	require.NoError(t, err)
+
+	var (
+		field = []byte("some-field")
+		term  = []byte("some-term")
+
+		readThrough = NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
+			CacheTerms: false,
+		})
+		originalPL = roaring.NewPostingsList()
+	)
+	require.NoError(t, originalPL.Insert(1))
+	segment.EXPECT().
+		MatchTerm(field, term).
+		Return(originalPL, nil).
+		Times(2)
+
+	// Make sure it goes to the segment when the cache misses.
+	pl, err := readThrough.MatchTerm(field, term)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+
+	// Make sure it goes to the segment the second time - meaning the cache was
+	// disabled.
+	pl, err = readThrough.MatchTerm(field, term)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+}
+
 func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -129,8 +211,9 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 		field = []byte("some-field")
 		term  = []byte("some-term")
 
-		readThrough = NewReadThroughSegment(segment, nil)
-		originalPL  = roaring.NewPostingsList()
+		readThrough = NewReadThroughSegment(
+			segment, nil, defaultReadThroughSegmentOptions)
+		originalPL = roaring.NewPostingsList()
 	)
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
@@ -149,7 +232,8 @@ func TestClose(t *testing.T) {
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
-	readThrough := NewReadThroughSegment(segment, cache)
+	readThrough := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions)
 	segmentUUID := readThrough.(*readThroughSegment).uuid
 
 	// Store an entry for the segment in the cache so we can check if it

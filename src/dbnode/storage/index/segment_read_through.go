@@ -39,10 +39,20 @@ type readThroughSegment struct {
 	fst.Segment
 	sync.Mutex
 
+	opts              ReadThroughSegmentOptions
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
 
 	closed bool
+}
+
+// ReadThroughSegmentOptions is the options struct for the
+// ReadThroughSegment.
+type ReadThroughSegmentOptions struct {
+	// Whether the postings list for regexp queries should be cached.
+	CacheRegexp bool
+	// Whether the postings list for term queries should be cached.
+	CacheTerms bool
 }
 
 // NewReadThroughSegment accepts a segment and a postings list cache
@@ -51,10 +61,12 @@ type readThroughSegment struct {
 func NewReadThroughSegment(
 	seg fst.Segment,
 	cache *PostingsListCache,
+	opts ReadThroughSegmentOptions,
 ) fst.Segment {
 	return &readThroughSegment{
 		Segment: seg,
 
+		opts:              opts,
 		uuid:              uuid.NewUUID(),
 		postingsListCache: cache,
 	}
@@ -70,7 +82,7 @@ func (s *readThroughSegment) MatchRegexp(
 		return nil, errCantQueryClosedSegment
 	}
 
-	if s.postingsListCache == nil {
+	if s.postingsListCache == nil || !s.opts.CacheRegexp {
 		return s.Segment.MatchRegexp(field, c)
 	}
 
@@ -96,7 +108,7 @@ func (s *readThroughSegment) MatchTerm(
 		return nil, errCantQueryClosedSegment
 	}
 
-	if s.postingsListCache == nil {
+	if s.postingsListCache == nil || !s.opts.CacheTerms {
 		return s.Segment.MatchTerm(field, term)
 	}
 
