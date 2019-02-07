@@ -24,12 +24,18 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIterWithCollector struct {
-	lastBlock   bool
-	err         error
+	lastBlock bool
+	err       error
+
+	stepTime   time.Time
+	meta       block.Metadata
+	seriesMeta []block.SeriesMeta
+
 	collector   consolidators.StepCollector
 	seriesPeek  []peekValue
 	seriesIters []encoding.SeriesIterator
@@ -113,8 +119,51 @@ func (it *encodedStepIterWithCollector) nextForStep(
 	}
 }
 
-func (it *encodedStepIterWithCollector) nextAtTime(stepTime time.Time) {
+func (it *encodedStepIterWithCollector) nextAtTime(time time.Time) {
 	for i := range it.seriesIters {
-		it.nextForStep(i, stepTime)
+		it.nextForStep(i, it.stepTime)
 	}
+}
+
+func (it *encodedStepIterWithCollector) Next() bool {
+	if it.err != nil {
+		return false
+	}
+
+	bounds := it.meta.Bounds
+	if bounds.End().Before(it.stepTime) {
+		return false
+	}
+
+	for i := range it.seriesIters {
+		it.nextForStep(i, it.stepTime)
+	}
+
+	if it.err != nil {
+		return false
+	}
+
+	it.stepTime = it.stepTime.Add(bounds.StepSize)
+	return !bounds.End().Before(it.stepTime)
+}
+
+func (it *encodedStepIterWithCollector) StepCount() int {
+	return it.meta.Bounds.Steps()
+}
+
+func (it *encodedStepIterWithCollector) SeriesMeta() []block.SeriesMeta {
+	return it.seriesMeta
+}
+
+func (it *encodedStepIterWithCollector) Meta() block.Metadata {
+	return it.meta
+}
+
+func (it *encodedStepIterWithCollector) Err() error {
+	return it.err
+}
+
+func (it *encodedStepIterWithCollector) Close() {
+	// noop, as the resources at the step may still be in use;
+	// instead call Close() on the encodedBlock that generated this
 }

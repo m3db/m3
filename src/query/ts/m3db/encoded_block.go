@@ -159,16 +159,8 @@ func (b *encodedBlock) WithMetadata(
 		b.lookback,
 		b.lastBlock,
 	)
+
 	bl.meta = meta
 	bl.seriesMetas = seriesMetas
-
 	return &bl, nil
-}
-
-func (b *encodedBlock) StepIter() (block.StepIter, error) {
-	return b.stepIter(), nil
-}
-
-func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
-	return b.seriesIter(), nil
 }

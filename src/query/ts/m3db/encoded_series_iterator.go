@@ -41,7 +41,10 @@ type encodedSeriesIter struct {
 	consolidator *consolidators.SeriesLookbackConsolidator
 }
 
-func (b *encodedBlock) seriesIter() block.SeriesIter {
+func (b *encodedBlock) SeriesIter() (
+	block.SeriesIter,
+	error,
+) {
 	cs := b.consolidation
 	bounds := cs.bounds
 	consolidator := consolidators.NewSeriesLookbackConsolidator(
@@ -50,6 +53,7 @@ func (b *encodedBlock) seriesIter() block.SeriesIter {
 		cs.currentTime,
 		cs.consolidationFn,
 	)
+
 	return &encodedSeriesIter{
 		idx:          -1,
 		meta:         b.meta,
@@ -57,7 +61,7 @@ func (b *encodedBlock) seriesIter() block.SeriesIter {
 		seriesMeta:   b.seriesMetas,
 		seriesIters:  b.seriesBlockIterators,
 		consolidator: consolidator,
-	}
+	}, nil
 }
 
 func (it *encodedSeriesIter) Err() error {

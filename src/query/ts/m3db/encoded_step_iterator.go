@@ -21,100 +21,48 @@
 package m3db
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIter struct {
-	lastBlock         bool
-	err               error
-	stepTime          time.Time
-	meta              block.Metadata
-	seriesMeta        []block.SeriesMeta
-	consolidator      *consolidators.StepLookbackConsolidator
-	collectorIterator *encodedStepIterWithCollector
+	consolidator *consolidators.StepLookbackConsolidator
+	encodedStepIterWithCollector
 }
 
-func (b *encodedBlock) stepIter() block.StepIter {
+func (b *encodedBlock) StepIter() (
+	block.StepIter,
+	error,
+) {
 	cs := b.consolidation
+	iters := b.seriesBlockIterators
 	consolidator := consolidators.NewStepLookbackConsolidator(
 		b.lookback,
 		cs.bounds.StepSize,
 		cs.currentTime,
-		len(b.seriesBlockIterators),
+		len(iters),
 		cs.consolidationFn,
 	)
 
-	collectorIterator := newEncodedStepIterWithCollector(b.lastBlock,
-		consolidator, b.seriesBlockIterators)
-
 	return &encodedStepIter{
-		lastBlock:         b.lastBlock,
-		stepTime:          cs.currentTime,
-		meta:              b.meta,
-		seriesMeta:        b.seriesMetas,
-		consolidator:      consolidator,
-		collectorIterator: collectorIterator,
-	}
-}
+		consolidator: consolidator,
+		encodedStepIterWithCollector: encodedStepIterWithCollector{
+			lastBlock: b.lastBlock,
 
-type encodedStep struct {
-	time   time.Time
-	values []float64
-}
+			stepTime:   cs.currentTime,
+			meta:       b.meta,
+			seriesMeta: b.seriesMetas,
 
-func (s *encodedStep) Time() time.Time   { return s.time }
-func (s *encodedStep) Values() []float64 { return s.values }
+			collector:   consolidator,
+			seriesPeek:  make([]peekValue, len(iters)),
+			seriesIters: iters,
+		},
+	}, nil
+}
 
 func (it *encodedStepIter) Current() block.Step {
-	return &encodedStep{
-		time:   it.stepTime,
-		values: it.consolidator.ConsolidateAndMoveToNext(),
-	}
-}
-
-func (it *encodedStepIter) Next() bool {
-	if it.err != nil {
-		return false
-	}
-
-	bounds := it.meta.Bounds
-	if bounds.End().Before(it.stepTime) {
-		return false
-	}
-
-	it.collectorIterator.nextAtTime(it.stepTime)
-	it.stepTime = it.stepTime.Add(bounds.StepSize)
-	if it.err = it.collectorIterator.err; it.err != nil {
-		return false
-	}
-
-	return !bounds.End().Before(it.stepTime)
-}
-
-func (it *encodedStepIter) StepCount() int {
-	return it.meta.Bounds.Steps()
-}
-
-func (it *encodedStepIter) SeriesMeta() []block.SeriesMeta {
-	return it.seriesMeta
-}
-
-func (it *encodedStepIter) Meta() block.Metadata {
-	return it.meta
-}
-
-func (it *encodedStepIter) Err() error {
-	if it.err != nil {
-		return it.err
-	}
-
-	return it.collectorIterator.err
-}
-
-func (it *encodedStepIter) Close() {
-	// noop, as the resources at the step may still be in use;
-	// instead call Close() on the encodedBlock that generated this
+	return block.NewColStep(
+		it.stepTime,
+		it.consolidator.ConsolidateAndMoveToNext(),
+	)
 }

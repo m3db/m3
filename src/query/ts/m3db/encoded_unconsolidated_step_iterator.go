@@ -21,20 +21,14 @@
 package m3db
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIterUnconsolidated struct {
-	err               error
-	stepTime          time.Time
-	meta              block.Metadata
-	seriesMeta        []block.SeriesMeta
-	accumulator       *consolidators.StepLookbackAccumulator
-	collectorIterator *encodedStepIterWithCollector
+	accumulator *consolidators.StepLookbackAccumulator
+	encodedStepIterWithCollector
 }
 
 func (b *encodedBlockUnconsolidated) StepIter() (
@@ -42,6 +36,7 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 	error,
 ) {
 	cs := b.consolidation
+	iters := b.seriesBlockIterators
 	accumulator := consolidators.NewStepLookbackAccumulator(
 		b.lookback,
 		cs.bounds.StepSize,
@@ -49,64 +44,23 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 		len(b.seriesBlockIterators),
 	)
 
-	collectorIterator := newEncodedStepIterWithCollector(
-		b.lastBlock, accumulator, b.seriesBlockIterators)
-
 	return &encodedStepIterUnconsolidated{
-		stepTime:          cs.currentTime,
-		meta:              b.meta,
-		seriesMeta:        b.seriesMetas,
-		accumulator:       accumulator,
-		collectorIterator: collectorIterator,
+		accumulator: accumulator,
+		encodedStepIterWithCollector: encodedStepIterWithCollector{
+			lastBlock: b.lastBlock,
+
+			stepTime:   cs.currentTime,
+			meta:       b.meta,
+			seriesMeta: b.seriesMetas,
+
+			collector:   accumulator,
+			seriesPeek:  make([]peekValue, len(iters)),
+			seriesIters: iters,
+		},
 	}, nil
 }
 
 func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
 	points := it.accumulator.AccumulateAndMoveToNext()
 	return storage.NewUnconsolidatedStep(it.stepTime, points)
-}
-
-func (it *encodedStepIterUnconsolidated) Next() bool {
-	if it.err != nil {
-		return false
-	}
-
-	bounds := it.meta.Bounds
-	if bounds.End().Before(it.stepTime) {
-		return false
-	}
-
-	it.collectorIterator.nextAtTime(it.stepTime)
-	it.stepTime = it.stepTime.Add(bounds.StepSize)
-	if it.err = it.collectorIterator.err; it.err != nil {
-		return false
-	}
-
-	return !bounds.End().Before(it.stepTime)
-}
-
-func (it *encodedStepIterUnconsolidated) StepCount() int {
-	// Returns the projected step count, post-consolidation
-	return it.meta.Bounds.Steps()
-}
-
-func (it *encodedStepIterUnconsolidated) Err() error {
-	if it.err != nil {
-		return it.err
-	}
-
-	return it.collectorIterator.err
-}
-
-func (it *encodedStepIterUnconsolidated) SeriesMeta() []block.SeriesMeta {
-	return it.seriesMeta
-}
-
-func (it *encodedStepIterUnconsolidated) Meta() block.Metadata {
-	return it.meta
-}
-
-func (it *encodedStepIterUnconsolidated) Close() {
-	// noop, as the resources at the step may still be in use;
-	// instead call Close() on the encodedBlock that generated this
 }
