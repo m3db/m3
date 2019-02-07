@@ -101,6 +101,7 @@ type options struct {
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
 	postingsListCache                    *index.PostingsListCache
+	readThroughSegmentOptions            index.ReadThroughSegmentOptions
 }
 
 // NewOptions creates a new set of fs options
@@ -365,4 +366,14 @@ func (o *options) SetPostingsListCache(value *index.PostingsListCache) Options {
 
 func (o *options) PostingsListCache() *index.PostingsListCache {
 	return o.postingsListCache
+}
+
+func (o *options) SetReadThroughSegmentOptions(value index.ReadThroughSegmentOptions) Options {
+	opts := *o
+	opts.readThroughSegmentOptions = value
+	return &opts
+}
+
+func (o *options) ReadThroughSegmentOptions() index.ReadThroughSegmentOptions {
+	return o.readThroughSegmentOptions
 }

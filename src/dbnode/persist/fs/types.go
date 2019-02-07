@@ -445,11 +445,17 @@ type Options interface {
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
 
-	// SetPostingsListCache sets the query cache.
+	// SetPostingsListCache sets the postings list cache.
 	SetPostingsListCache(value *index.PostingsListCache) Options
 
-	// PostingsListCache returns the query cache.
+	// PostingsListCache returns the postings list cache.
 	PostingsListCache() *index.PostingsListCache
+
+	// SetReadThroughSegmentOptions sets the read through segment cache options.
+	SetReadThroughSegmentOptions(value index.ReadThroughSegmentOptions) Options
+
+	// ReadThroughSegmentOptions returns the read through segment cache options.
+	ReadThroughSegmentOptions() index.ReadThroughSegmentOptions
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

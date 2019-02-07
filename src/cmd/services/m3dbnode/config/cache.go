@@ -22,10 +22,19 @@ package config
 
 import "github.com/m3db/m3/src/dbnode/storage/series"
 
+var (
+	defaultPostingsListCacheSize   = 256000
+	defaultPostingsListCacheRegexp = true
+	defaultPostingsListCacheTerms  = true
+)
+
 // CacheConfigurations is the cache configurations.
 type CacheConfigurations struct {
 	// Series cache policy.
 	Series *SeriesCacheConfiguration `yaml:"series"`
+
+	// PostingsList cache policy.
+	PostingsList *PostingsListCacheConfiguration `yaml:"postingsList"`
 }
 
 // SeriesConfiguration returns the series cache configuration or default
@@ -36,6 +45,20 @@ func (c CacheConfigurations) SeriesConfiguration() SeriesCacheConfiguration {
 		return SeriesCacheConfiguration{Policy: series.DefaultCachePolicy}
 	}
 	return *c.Series
+}
+
+// PostingsListConfiguration returns the postings list cache configuration
+// or default if none is specified.
+func (c CacheConfigurations) PostingsListConfiguration() PostingsListCacheConfiguration {
+	if c.PostingsList == nil {
+		return PostingsListCacheConfiguration{
+			Size:        &defaultPostingsListCacheSize,
+			CacheRegexp: &defaultPostingsListCacheRegexp,
+			CacheTerms:  &defaultPostingsListCacheTerms,
+		}
+	}
+
+	return *c.PostingsList
 }
 
 // SeriesCacheConfiguration is the series cache configuration.
@@ -49,4 +72,41 @@ type SeriesCacheConfiguration struct {
 type LRUSeriesCachePolicyConfiguration struct {
 	MaxBlocks         uint `yaml:"maxBlocks" validate:"nonzero"`
 	EventsChannelSize uint `yaml:"eventsChannelSize" validate:"nonzero"`
+}
+
+// PostingsListCacheConfiguration is the postings list cache configuration.
+type PostingsListCacheConfiguration struct {
+	Size        *int
+	CacheRegexp *bool
+	CacheTerms  *bool
+}
+
+// SizeOrDefault returns the provided size or the default value is none is
+// provided.
+func (p *PostingsListCacheConfiguration) SizeOrDefault() int {
+	if p.Size == nil {
+		return defaultPostingsListCacheSize
+	}
+
+	return *p.Size
+}
+
+// CacheRegexpOrDefault returns the provided cache regexp configuration value
+// or the default value is none is provided.
+func (p *PostingsListCacheConfiguration) CacheRegexpOrDefault() bool {
+	if p.CacheRegexp == nil {
+		return defaultPostingsListCacheRegexp
+	}
+
+	return *p.CacheRegexp
+}
+
+// CacheTermsOrDefault returns the provided cache terms configuration value
+// or the default value is none is provided.
+func (p *PostingsListCacheConfiguration) CacheTermsOrDefault() bool {
+	if p.CacheTerms == nil {
+		return defaultPostingsListCacheTerms
+	}
+
+	return *p.CacheTerms
 }

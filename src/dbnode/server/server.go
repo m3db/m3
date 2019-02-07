@@ -299,11 +299,15 @@ func Run(runOpts RunOptions) {
 		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
-	// TODO(rartoul): Config
-	postingsListCache, err := index.NewPostingsListCache(256000, index.QueryCacheOptions{
-		InstrumentOptions: opts.InstrumentOptions().
-			SetMetricsScope(scope.SubScope("query-cache")),
-	})
+	var (
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("query-cache")),
+		}
+	)
+	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
 		logger.Fatalf("could not construct query cache: %s", err.Error())
 	}
@@ -328,7 +332,11 @@ func Run(runOpts RunOptions) {
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemory).
 		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory).
-		SetQueryCache(queryCache)
+		SetPostingsListCache(postingsListCache).
+		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
+			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+		})
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size

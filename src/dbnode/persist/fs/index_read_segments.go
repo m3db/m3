@@ -110,8 +110,11 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
-		plCache := fsOpts.PostingsListCache()
-		segWithCache := index.NewReadThroughSegment(seg, plCache)
+		var (
+			plCache         = fsOpts.PostingsListCache()
+			readThroughOpts = fsOpts.ReadThroughSegmentOptions()
+			segWithCache    = index.NewReadThroughSegment(seg, plCache, readThroughOpts)
+		)
 		segments = append(segments, segWithCache)
 	}
 
