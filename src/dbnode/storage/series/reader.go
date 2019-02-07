@@ -126,7 +126,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		// a time within this loop so that the returned results contain data
 		// from blocks in chronological order. Failure to do this will result
 		// in an out of order error in the MultiReaderIterator on query.
-		resultsBlock := []xio.BlockReader{}
+		var resultsBlock []xio.BlockReader
 
 		retrievedFromCache := false
 		if seriesBlocks != nil {
@@ -176,7 +176,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 			}
 		}
 
-		results = append(results, resultsBlock)
+		if len(resultsBlock) > 0 {
+			results = append(results, resultsBlock)
+		}
 	}
 
 	return results, nil
