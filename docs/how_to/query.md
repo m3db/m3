@@ -25,7 +25,7 @@ All namespaces that you wish to query from must be configured when [setting up M
 
 ### etcd
 
-The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an external etcd cluster.
+The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an [external etcd](../operational_guide/etcd.md) cluster.
 
 <!-- TODO: link to etcd operational guide -->
 
