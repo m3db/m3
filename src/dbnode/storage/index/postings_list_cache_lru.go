@@ -63,7 +63,7 @@ type cachedQuery struct {
 	postingsList postings.List
 }
 
-// entry is used to hold a value in the evictList
+// entry is used to hold a value in the evictList.
 type entry struct {
 	uuid         uuid.UUID
 	pattern      string
