@@ -35,7 +35,7 @@ var (
 	errCantCloseClosedSegment = errors.New("cant close closed segment")
 )
 
-type readThroughSegment struct {
+type ReadThroughSegment struct {
 	fst.Segment
 	sync.Mutex
 
@@ -63,7 +63,7 @@ func NewReadThroughSegment(
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
 ) fst.Segment {
-	return &readThroughSegment{
+	return &ReadThroughSegment{
 		Segment: seg,
 
 		opts:              opts,
@@ -72,7 +72,9 @@ func NewReadThroughSegment(
 	}
 }
 
-func (s *readThroughSegment) MatchRegexp(
+// MatchRegexp returns a cached posting list or queries the underlying
+// segment if their is a cache miss.
+func (s *ReadThroughSegment) MatchRegexp(
 	field []byte,
 	c index.CompiledRegex,
 ) (postings.List, error) {
@@ -99,7 +101,9 @@ func (s *readThroughSegment) MatchRegexp(
 	return pl, err
 }
 
-func (s *readThroughSegment) MatchTerm(
+// MatchTerm returns a cached posting list or queries the underlying
+// segment if their is a cache miss.
+func (s *ReadThroughSegment) MatchTerm(
 	field []byte, term []byte,
 ) (postings.List, error) {
 	s.Lock()
@@ -125,7 +129,9 @@ func (s *readThroughSegment) MatchTerm(
 	return pl, err
 }
 
-func (s *readThroughSegment) Close() error {
+// Close purges all entries in the cache associated with this segment,
+// and then closes the underlying segment.
+func (s *ReadThroughSegment) Close() error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -134,6 +140,9 @@ func (s *readThroughSegment) Close() error {
 
 	s.closed = true
 
+	// Purge segments from the cache before closing the segment to avoid
+	// temporarily having postings lists in the cache whose underlying
+	// bytes are no longer mmap'd.
 	s.postingsListCache.PurgeSegment(s.uuid)
 	return s.Segment.Close()
 }

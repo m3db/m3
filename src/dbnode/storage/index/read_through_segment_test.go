@@ -234,7 +234,7 @@ func TestClose(t *testing.T) {
 
 	readThrough := NewReadThroughSegment(
 		segment, cache, defaultReadThroughSegmentOptions)
-	segmentUUID := readThrough.(*readThroughSegment).uuid
+	segmentUUID := readThrough.(*ReadThroughSegment).uuid
 
 	// Store an entry for the segment in the cache so we can check if it
 	// gets purged after.
@@ -243,7 +243,7 @@ func TestClose(t *testing.T) {
 	segment.EXPECT().Close().Return(nil)
 	err = readThrough.Close()
 	require.NoError(t, err)
-	require.True(t, readThrough.(*readThroughSegment).closed)
+	require.True(t, readThrough.(*ReadThroughSegment).closed)
 
 	// Make sure it does not allow double closes.
 	err = readThrough.Close()
