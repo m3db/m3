@@ -36,6 +36,8 @@ import (
 
 const (
 	initBlockReplicaLength = 10
+	// This outputs time as 11:12:03AM
+	blockTimeFormat = "3:04:05PM"
 )
 
 // blockReplica contains the replicas for a single m3db block.
@@ -52,8 +54,8 @@ type seriesBlocks []seriesBlock
 
 func (b seriesBlock) String() string {
 	return fmt.Sprint("BlockSize:", b.blockSize.Hours(), " blockStart:",
-		b.blockStart.Format("3:04:05PM"), " readStart:", b.readStart.Format("3:04:05PM"),
-		" num replicas", len(b.replicas))
+		b.blockStart.Format(blockTimeFormat), " readStart:",
+		b.readStart.Format(blockTimeFormat), " num replicas", len(b.replicas))
 }
 
 func (b seriesBlocks) Len() int {
@@ -209,6 +211,17 @@ func blockDuration(blockSize, stepSize time.Duration) time.Duration {
 	return stepSize * time.Duration(numSteps)
 }
 
+// calculates duration required to fill the gap of fillSize in stepSize sized
+// increments.
+func calculateFillDuration(fillSize, stepSize time.Duration) time.Duration {
+	numberToFill := int(fillSize / stepSize)
+	if fillSize%stepSize != 0 {
+		numberToFill++
+	}
+
+	return stepSize * time.Duration(numberToFill)
+}
+
 // pads series blocks.
 func updateSeriesBlockStarts(
 	blocks seriesBlocks,
@@ -222,24 +235,14 @@ func updateSeriesBlockStarts(
 	firstStart := blocks[0].blockStart
 	if iterStart.Before(firstStart) {
 		fillSize := firstStart.Sub(iterStart)
-		numberToFill := int(fillSize / stepSize)
-		if fillSize%stepSize != 0 {
-			numberToFill++
-		}
-
-		iterStart = iterStart.Add(stepSize * time.Duration(numberToFill))
+		iterStart = iterStart.Add(calculateFillDuration(fillSize, stepSize))
 	}
 
 	// Update read starts for existing blocks.
 	for i, bl := range blocks {
 		blocks[i].readStart = iterStart
 		fillSize := bl.blockStart.Add(bl.blockSize).Sub(iterStart)
-		numberToFill := int(fillSize / stepSize)
-		if fillSize%stepSize != 0 {
-			numberToFill++
-		}
-
-		iterStart = iterStart.Add(stepSize * time.Duration(numberToFill))
+		iterStart = iterStart.Add(calculateFillDuration(fillSize, stepSize))
 	}
 
 	return blocks
