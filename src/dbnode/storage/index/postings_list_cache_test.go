@@ -117,7 +117,7 @@ func TestSimpleLRUBehavior(t *testing.T) {
 	}
 }
 
-func TestPurge(t *testing.T) {
+func TestPurgeSegment(t *testing.T) {
 	size := len(testEntries)
 	plCache, err := NewPostingsListCache(size, testOptions)
 	require.NoError(t, err)
