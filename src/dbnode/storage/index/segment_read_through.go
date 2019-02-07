@@ -35,7 +35,7 @@ var (
 	errCantCloseClosedSegment = errors.New("cant close closed segment")
 )
 
-type segmentReadThrough struct {
+type readThroughSegment struct {
 	fst.Segment
 	sync.Mutex
 
@@ -52,7 +52,7 @@ func NewReadThroughSegment(
 	seg fst.Segment,
 	cache *PostingsListCache,
 ) fst.Segment {
-	return &segmentReadThrough{
+	return &readThroughSegment{
 		Segment: seg,
 
 		uuid:              uuid.NewUUID(),
@@ -60,7 +60,7 @@ func NewReadThroughSegment(
 	}
 }
 
-func (s *segmentReadThrough) MatchRegexp(
+func (s *readThroughSegment) MatchRegexp(
 	field []byte,
 	c index.CompiledRegex,
 ) (postings.List, error) {
@@ -87,7 +87,7 @@ func (s *segmentReadThrough) MatchRegexp(
 	return pl, err
 }
 
-func (s *segmentReadThrough) MatchTerm(
+func (s *readThroughSegment) MatchTerm(
 	field []byte, term []byte,
 ) (postings.List, error) {
 	s.Lock()
@@ -113,7 +113,7 @@ func (s *segmentReadThrough) MatchTerm(
 	return pl, err
 }
 
-func (s *segmentReadThrough) Close() error {
+func (s *readThroughSegment) Close() error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {

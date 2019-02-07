@@ -23,15 +23,10 @@ package fs
 import (
 	"errors"
 	"io"
-	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/pborman/uuid"
 )
 
 var (
@@ -115,7 +110,8 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
-		segWithCache := newSegmentWithCache(seg, fsOpts.PostingsListCache())
+		plCache := fsOpts.PostingsListCache()
+		segWithCache := index.NewReadThroughSegment(seg, plCache)
 		segments = append(segments, segWithCache)
 	}
 
@@ -123,88 +119,4 @@ func ReadIndexSegments(
 	// transferring ownership to the caller.
 	success = true
 	return segments, nil
-}
-
-type segmentWithCache struct {
-	fst.Segment
-	sync.Mutex
-
-	uuid              uuid.UUID
-	postingsListCache *index.PostingsListCache
-
-	closed bool
-}
-
-func newSegmentWithCache(
-	seg fst.Segment,
-	cache *index.PostingsListCache,
-) *segmentWithCache {
-	return &segmentWithCache{
-		Segment: seg,
-
-		uuid:              uuid.NewUUID(),
-		postingsListCache: cache,
-	}
-}
-
-func (s *segmentWithCache) MatchRegexp(
-	field []byte,
-	c m3ninxindex.CompiledRegex,
-) (postings.List, error) {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return nil, errors.New("cant query closed segment")
-	}
-
-	if s.postingsListCache == nil {
-		return s.Segment.MatchRegexp(field, c)
-	}
-
-	pattern := c.FSTSyntax.String()
-	pl, ok := s.postingsListCache.GetRegexp(s.uuid, pattern)
-	if ok {
-		return pl, nil
-	}
-
-	pl, err := s.Segment.MatchRegexp(field, c)
-	if err != nil {
-		s.postingsListCache.PutRegexp(s.uuid, pattern, pl)
-	}
-	return pl, err
-}
-
-func (s *segmentWithCache) MatchTerm(
-	field []byte, term []byte,
-) (postings.List, error) {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return nil, errors.New("cant query closed segment")
-	}
-
-	if s.postingsListCache == nil {
-		return s.Segment.MatchTerm(field, term)
-	}
-
-	termString := string(term)
-	pl, ok := s.postingsListCache.GetTerm(s.uuid, termString)
-	if ok {
-		return pl, nil
-	}
-
-	pl, err := s.Segment.MatchTerm(field, term)
-	if err != nil {
-		s.postingsListCache.PutTerm(s.uuid, termString, pl)
-	}
-	return pl, err
-}
-
-func (s *segmentWithCache) Close() error {
-	s.Lock()
-	defer s.Unlock()
-	s.closed = true
-
-	s.postingsListCache.PurgeSegment(s.uuid)
-	return s.Segment.Close()
 }
