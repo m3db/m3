@@ -257,3 +257,18 @@ func TestClose(t *testing.T) {
 	_, err = readThrough.MatchTerm(nil, nil)
 	require.Equal(t, errCantQueryClosedSegment, err)
 }
+
+func TestCloseNoCache(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	segment := fst.NewMockSegment(ctrl)
+
+	readThrough := NewReadThroughSegment(
+		segment, nil, defaultReadThroughSegmentOptions)
+
+	segment.EXPECT().Close().Return(nil)
+	err := readThrough.Close()
+	require.NoError(t, err)
+	require.True(t, readThrough.(*ReadThroughSegment).closed)
+}
