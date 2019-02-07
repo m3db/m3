@@ -149,8 +149,8 @@ func (c *postingsListLRU) Get(uuid uuid.UUID, pattern string, patternType Patter
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *postingsListLRU) Remove(uuid uuid.UUID, pattern string, patternType PatternType) bool {
-	if uuidEntries, ok := c.items[uuid.Array()]; ok {
+func (c *postingsListLRU) Remove(segmentUUID uuid.UUID, pattern string, patternType PatternType) bool {
+	if uuidEntries, ok := c.items[segmentUUID.Array()]; ok {
 		key := newPatternAndPatternType(pattern, patternType)
 		if ent, ok := uuidEntries[key]; ok {
 			c.removeElement(ent)
