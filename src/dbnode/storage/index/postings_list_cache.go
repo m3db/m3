@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 )
 
@@ -44,8 +44,8 @@ const (
 	reportLoopInterval = time.Second
 )
 
-// QueryCacheEntry represents an entry in the query cache.
-type QueryCacheEntry struct {
+// PostingsListCacheEntry represents an entry in the query cache.
+type PostingsListCacheEntry struct {
 	Namespace   string
 	BlockStart  xtime.UnixNano
 	VolumeIndex int
@@ -53,90 +53,75 @@ type QueryCacheEntry struct {
 	PatternType PatternType
 }
 
-// QueryCacheValue represents a value stored in the query cache.
-type QueryCacheValue struct {
+// PostingsListCacheValue represents a value stored in the query cache.
+type PostingsListCacheValue struct {
 	PostingsList postings.List
 }
 
-// QueryCacheOptions is the options struct for the query cache.
-type QueryCacheOptions struct {
+// PostingsListCacheOptions is the options struct for the query cache.
+type PostingsListCacheOptions struct {
 	InstrumentOptions instrument.Options
 }
 
-// QueryCache implements an LRU for caching queries and their results.
-type QueryCache struct {
-	sync.RWMutex
+// PostingsListCache implements an LRU for caching queries and their results.
+type PostingsListCache struct {
+	sync.Mutex
 
-	lru *lru.Cache
+	lru *postingsListLRU
 
 	size    int
-	opts    QueryCacheOptions
-	metrics *queryCacheMetrics
+	opts    PostingsListCacheOptions
+	metrics *postingsListCacheMetrics
 
 	stopReporting chan struct{}
 }
 
-// NewQueryCache creates a new query cache.
-func NewQueryCache(size int, opts QueryCacheOptions) (*QueryCache, error) {
-	lru, err := lru.New(size)
+// NewPostingsListCache creates a new query cache.
+func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsListCache, error) {
+	lru, err := newPostingsListLRU(size, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &QueryCache{
+	return &PostingsListCache{
 		lru:     lru,
 		size:    size,
 		opts:    opts,
-		metrics: newQueryCacheMetrics(opts.InstrumentOptions.MetricsScope()),
+		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
 	}, nil
 }
 
 // GetRegexp returns the cached results for the provided regexp query, if any.
-func (q *QueryCache) GetRegexp(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
+func (q *PostingsListCache) GetRegexp(
+	segmentUUID uuid.UUID,
 	pattern string,
 ) (postings.List, bool) {
 	return q.get(
-		namespace,
-		blockStart,
-		volumeIndex,
+		segmentUUID,
 		pattern,
 		PatternTypeRegexp)
 }
 
 // GetTerm returns the cached results for the provided term query, if any.
-func (q *QueryCache) GetTerm(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
+func (q *PostingsListCache) GetTerm(
+	segmentUUID uuid.UUID,
 	pattern string,
 ) (postings.List, bool) {
 	return q.get(
-		namespace,
-		blockStart,
-		volumeIndex,
+		segmentUUID,
 		pattern,
 		PatternTypeTerm)
 }
 
-func (q *QueryCache) get(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
+func (q *PostingsListCache) get(
+	segmentUUID uuid.UUID,
 	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
-	q.RLock()
-	p, ok := q.lru.Get(QueryCacheEntry{
-		Namespace:   namespace,
-		BlockStart:  xtime.ToUnixNano(blockStart),
-		VolumeIndex: volumeIndex,
-		Pattern:     pattern,
-		PatternType: PatternTypeRegexp,
-	})
-	q.RUnlock()
+	// No RLock because a Get() operation mutates the LRU.
+	q.Lock()
+	p, ok := q.lru.Get(segmentUUID, pattern, PatternTypeRegexp)
+	q.Unlock()
 
 	if ok {
 		q.metrics.regexp.hits.Inc(1)
@@ -148,59 +133,40 @@ func (q *QueryCache) get(
 		return nil, false
 	}
 
-	return p.(QueryCacheValue).PostingsList, ok
+	return p, ok
 }
 
 // PutRegexp updates the LRU with the result of the regexp query.
-func (q *QueryCache) PutRegexp(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
+func (q *PostingsListCache) PutRegexp(
+	segmentUUID uuid.UUID,
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(
-		namespace,
-		blockStart,
-		volumeIndex,
-		pattern,
-		PatternTypeRegexp,
-		pl)
+	q.put(segmentUUID, pattern, PatternTypeRegexp, pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
-func (q *QueryCache) PutTerm(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
+func (q *PostingsListCache) PutTerm(
+	segmentUUID uuid.UUID,
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(
-		namespace,
-		blockStart,
-		volumeIndex,
-		pattern,
-		PatternTypeTerm,
-		pl)
+	q.put(segmentUUID, pattern, PatternTypeTerm, pl)
 }
 
-func (q *QueryCache) put(
-	namespace string,
-	blockStart time.Time,
-	volumeIndex int,
+func (q *PostingsListCache) put(
+	segmentUUID uuid.UUID,
 	pattern string,
 	patternType PatternType,
 	pl postings.List,
 ) {
 	q.Lock()
-	q.lru.Add(QueryCacheEntry{
-		Namespace:   namespace,
-		BlockStart:  xtime.ToUnixNano(blockStart),
-		VolumeIndex: volumeIndex,
-		Pattern:     pattern,
-		PatternType: PatternTypeRegexp,
-	}, QueryCacheValue{PostingsList: pl})
+	q.lru.Add(
+		segmentUUID,
+		pattern,
+		PatternTypeRegexp,
+		pl,
+	)
 	q.Unlock()
 	q.metrics.regexp.puts.Inc(1)
 }
@@ -208,7 +174,7 @@ func (q *QueryCache) put(
 // StartReportLoop starts a background process that will call Report()
 // on a regular basis and returns a function that will end the background
 // process.
-func (q *QueryCache) StartReportLoop() func() {
+func (q *PostingsListCache) StartReportLoop() func() {
 	doneCh := make(chan struct{})
 
 	go func() {
@@ -228,45 +194,45 @@ func (q *QueryCache) StartReportLoop() func() {
 }
 
 // Report will emit metrics about the status of the cache.
-func (q *QueryCache) Report() {
+func (q *PostingsListCache) Report() {
 	var size float64
 	var capacity float64
 
-	q.RLock()
+	q.Lock()
 	size = float64(q.lru.Len())
 	capacity = float64(q.size)
-	q.RUnlock()
+	q.Unlock()
 
 	q.metrics.size.Update(size)
 	q.metrics.capacity.Update(capacity)
 }
 
-type queryCacheMetrics struct {
-	regexp *queryCacheMethodMetrics
-	term   *queryCacheMethodMetrics
+type postingsListCacheMetrics struct {
+	regexp *postingsListCacheMethodMetrics
+	term   *postingsListCacheMethodMetrics
 
 	size     tally.Gauge
 	capacity tally.Gauge
 }
 
-func newQueryCacheMetrics(scope tally.Scope) *queryCacheMetrics {
-	return &queryCacheMetrics{
-		regexp: newQueryCacheMethodMetrics(scope.SubScope("regexp")),
-		term:   newQueryCacheMethodMetrics(scope.SubScope("term")),
+func newPostingsListCacheMetrics(scope tally.Scope) *postingsListCacheMetrics {
+	return &postingsListCacheMetrics{
+		regexp: newPostingsListCacheMethodMetrics(scope.SubScope("regexp")),
+		term:   newPostingsListCacheMethodMetrics(scope.SubScope("term")),
 
 		size:     scope.Gauge("size"),
 		capacity: scope.Gauge("capacity"),
 	}
 }
 
-type queryCacheMethodMetrics struct {
+type postingsListCacheMethodMetrics struct {
 	hits   tally.Counter
 	misses tally.Counter
 	puts   tally.Counter
 }
 
-func newQueryCacheMethodMetrics(scope tally.Scope) *queryCacheMethodMetrics {
-	return &queryCacheMethodMetrics{
+func newPostingsListCacheMethodMetrics(scope tally.Scope) *postingsListCacheMethodMetrics {
+	return &postingsListCacheMethodMetrics{
 		hits:   scope.Counter("hits"),
 		misses: scope.Counter("misses"),
 		puts:   scope.Counter("puts"),
