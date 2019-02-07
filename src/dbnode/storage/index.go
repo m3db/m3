@@ -934,10 +934,12 @@ func (i *nsIndex) Query(
 		if results.returned {
 			// If already returned then we early cancelled, don't add any
 			// further results or errors since caller already has a result.
+			fmt.Println("early returning")
 			return
 		}
 
 		if err != nil {
+			fmt.Println("adding to multiErr")
 			results.multiErr = results.multiErr.Add(err)
 			return
 		}
