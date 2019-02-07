@@ -35,6 +35,13 @@ var (
 	errCantCloseClosedSegment = errors.New("cant close closed segment")
 )
 
+// ReadThroughSegment wraps a segment with a postings list cache so that
+// queries can be transparently cached in a read through manner. In addition,
+// the postings lists returned by the segments may not be safe to use once the
+// underlying segments are closed due to the postings lists pointing into the
+// segments mmap'd region. As a result, the close method of the ReadThroughSegment
+// will make sure that the cache is purged of all the segments postings lists before
+// the segment itself is closed.
 type ReadThroughSegment struct {
 	fst.Segment
 	sync.Mutex

@@ -96,9 +96,15 @@ func newPostingsListLRU(size int) (*postingsListLRU, error) {
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
-func (c *postingsListLRU) Add(uuid uuid.UUID, pattern string, patternType PatternType, pl postings.List) (evicted bool) {
+func (c *postingsListLRU) Add(
+	segmentUUID uuid.UUID,
+	pattern string,
+	patternType PatternType,
+	pl postings.List,
+) (evicted bool) {
 	// Check for existing item.
-	if uuidEntries, ok := c.items[uuid.Array()]; ok {
+	uuidArray := segmentUUID.Array()
+	if uuidEntries, ok := c.items[uuidArray]; ok {
 		key := newPatternAndPatternType(pattern, patternType)
 		if ent, ok := uuidEntries[key]; ok {
 			c.evictList.MoveToFront(ent)
@@ -109,14 +115,19 @@ func (c *postingsListLRU) Add(uuid uuid.UUID, pattern string, patternType Patter
 
 	// Add new item.
 	var (
-		ent   = &entry{uuid: uuid, pattern: pattern, patternType: patternType, postingsList: pl}
+		ent = &entry{
+			uuid:         segmentUUID,
+			pattern:      pattern,
+			patternType:  patternType,
+			postingsList: pl,
+		}
 		entry = c.evictList.PushFront(ent)
 		key   = newPatternAndPatternType(pattern, patternType)
 	)
-	if patterns, ok := c.items[uuid.Array()]; ok {
+	if patterns, ok := c.items[uuidArray]; ok {
 		patterns[key] = entry
 	} else {
-		c.items[uuid.Array()] = map[patternAndPatternType]*list.Element{
+		c.items[uuidArray] = map[patternAndPatternType]*list.Element{
 			key: entry,
 		}
 	}
@@ -130,8 +141,13 @@ func (c *postingsListLRU) Add(uuid uuid.UUID, pattern string, patternType Patter
 }
 
 // Get looks up a key's value from the cache.
-func (c *postingsListLRU) Get(uuid uuid.UUID, pattern string, patternType PatternType) (postings.List, bool) {
-	if uuidEntries, ok := c.items[uuid.Array()]; ok {
+func (c *postingsListLRU) Get(
+	segmentUUID uuid.UUID,
+	pattern string,
+	patternType PatternType,
+) (postings.List, bool) {
+	uuidArray := segmentUUID.Array()
+	if uuidEntries, ok := c.items[uuidArray]; ok {
 		key := newPatternAndPatternType(pattern, patternType)
 		if ent, ok := uuidEntries[key]; ok {
 			c.evictList.MoveToFront(ent)
@@ -144,14 +160,20 @@ func (c *postingsListLRU) Get(uuid uuid.UUID, pattern string, patternType Patter
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *postingsListLRU) Remove(segmentUUID uuid.UUID, pattern string, patternType PatternType) bool {
-	if uuidEntries, ok := c.items[segmentUUID.Array()]; ok {
+func (c *postingsListLRU) Remove(
+	segmentUUID uuid.UUID,
+	pattern string,
+	patternType PatternType,
+) bool {
+	uuidArray := segmentUUID.Array()
+	if uuidEntries, ok := c.items[uuidArray]; ok {
 		key := newPatternAndPatternType(pattern, patternType)
 		if ent, ok := uuidEntries[key]; ok {
 			c.removeElement(ent)
 			return true
 		}
 	}
+
 	return false
 }
 
