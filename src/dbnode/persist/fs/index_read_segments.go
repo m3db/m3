@@ -43,8 +43,6 @@ type ReadIndexSegmentsOptions struct {
 	// required for reading index segments.
 	FilesystemOptions Options
 
-	// QueryCache
-
 	// Unexported fields that are hooks used for testing.
 	newReaderFn            newIndexReaderFn
 	newPersistentSegmentFn newPersistentSegmentFn
