@@ -82,7 +82,7 @@ type patternAndPatternType struct {
 	patternType PatternType
 }
 
-// newPostingsListLRU constructs an LRU of the given size
+// newPostingsListLRU constructs an LRU of the given size.
 func newPostingsListLRU(size int) (*postingsListLRU, error) {
 	if size <= 0 {
 		return nil, errors.New("Must provide a positive size")
