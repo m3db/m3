@@ -41,20 +41,6 @@ type encodedStepIterWithCollector struct {
 	seriesIters []encoding.SeriesIterator
 }
 
-func newEncodedStepIterWithCollector(
-	lastBlock bool,
-	collector consolidators.StepCollector,
-	seriesIters []encoding.SeriesIterator,
-) *encodedStepIterWithCollector {
-	return &encodedStepIterWithCollector{
-		lastBlock:   lastBlock,
-		collector:   collector,
-		seriesIters: seriesIters,
-		// TODO: pool
-		seriesPeek: make([]peekValue, len(seriesIters)),
-	}
-}
-
 // Moves to the next step for the i-th series in the block, populating
 // the collector for that step. Will keep reading values until either
 // hitting the next step boundary and returning, or until encountering
@@ -116,12 +102,6 @@ func (it *encodedStepIterWithCollector) nextForStep(
 
 	if err := iter.Err(); err != nil {
 		it.err = err
-	}
-}
-
-func (it *encodedStepIterWithCollector) nextAtTime(time time.Time) {
-	for i := range it.seriesIters {
-		it.nextForStep(i, it.stepTime)
 	}
 }
 
