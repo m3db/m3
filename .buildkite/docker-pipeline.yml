@@ -1,10 +1,12 @@
 steps:
   - wait
   - name: ":docker: build"
-    command: "scripts/docker_build.sh"
+    command: "docker/build.sh"
+    env:
+      DRYRUN: "true"
     agents:
       queue: builder
-    timeout_in_minutes: 40
+    timeout_in_minutes: 60
     retry:
       automatic:
         limit: 1

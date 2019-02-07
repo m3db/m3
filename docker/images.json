@@ -1,0 +1,20 @@
+{
+  "image_base": "quay.io/m3db",
+  "images": {
+    "m3dbnode": {
+      "dockerfile": "docker/m3dbnode/Dockerfile",
+      "aliases": [
+        "m3db"
+      ]
+    },
+    "m3coordinator": {
+      "dockerfile": "docker/m3coordinator/Dockerfile"
+    },
+    "m3query": {
+      "dockerfile": "docker/m3query/Dockerfile"
+    },
+    "m3nsch": {
+      "dockerfile": "docker/m3nsch/Dockerfile"
+    }
+  }
+}

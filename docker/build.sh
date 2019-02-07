@@ -9,8 +9,28 @@
 
 set -exuo pipefail
 
-IMAGES="m3dbnode m3coordinator m3query m3nsch"
-TAG_BASE="quay.io/m3db"
+# TODO remove
+git tag -f mschalle-test
+
+function cleanup() {
+  docker system prune -f
+  find /tmp -name '*m3-docker' -print0 | xargs -0 rm -fv
+}
+
+trap cleanup EXIT
+
+function push() {
+  if [[ -z "$DRYRUN" ]]; then
+    docker push "$1"
+  else
+    echo "would push $1"
+  fi
+}
+
+CONFIG="docker/images.json"
+
+IMAGES="$(<$CONFIG jq -er '.images | to_entries | map(.key)[]')"
+TAG_BASE="$(<$CONFIG jq -er .image_base)"
 TAGS_TO_PUSH=""
 
 # If this commit matches an exact tag, push a tagged build and "latest".
@@ -34,19 +54,20 @@ fi
 for IMAGE in $IMAGES; do
   # Do one build, then push all the necessary tags.
   SHA_TMP=$(mktemp --suffix m3-docker)
-  docker build --iidfile "$SHA_TMP" -f "docker/${IMAGE}/Dockerfile" .
+  docker build --iidfile "$SHA_TMP" -f "$(<$CONFIG jq -er ".images[\"${IMAGE}\"].dockerfile")" .
   IMAGE_SHA=$(cat "$SHA_TMP")
   for TAG in $TAGS_TO_PUSH; do
     FULL_TAG="${TAG_BASE}/${IMAGE}:${TAG}"
     docker tag "$IMAGE_SHA" "$FULL_TAG"
-    docker push "$FULL_TAG"
+    push "$FULL_TAG"
 
-    # We also dual-publish m3dbnode under m3db
-    if [[ "$IMAGE" == "m3dbnode" ]]; then
-      DUAL_TAG="${TAG_BASE}/m3db:${TAG}"
+    # If the image has aliases, tag them too.
+    ALIASES="$(<$CONFIG jq -r "(.images[\"${IMAGE}\"].aliases | if . == null then [] else . end)[]")"
+    for ALIAS in $ALIASES; do
+      DUAL_TAG="${TAG_BASE}/${ALIAS}:${TAG}"
       docker tag "$IMAGE_SHA" "$DUAL_TAG"
-      docker push "$DUAL_TAG"
-    fi
+      push "$DUAL_TAG"
+    done
   done
 done
 
@@ -55,6 +76,3 @@ CLEANUP_IMAGES=$(docker images | grep "$TAG_BASE" | awk '{print $3}' | sort | un
 for IMG in $CLEANUP_IMAGES; do
   docker rmi -f "$IMG"
 done
-
-docker system prune -f
-find /tmp -name '*m3-docker' -print0 | xargs -0 sudo rm -fv
