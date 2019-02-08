@@ -1,7 +1,7 @@
 common: &common
   timeout_in_minutes: 20
   agents:
-    queue: builders
+    queue: workers
   retry:
     # Automatically retry failures one time.
     automatic:
@@ -12,8 +12,6 @@ common: &common
 steps:
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
-    agents:
-      queue: workers
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.10.x
@@ -23,8 +21,6 @@ steps:
     <<: *common
   - name: "Unit %n"
     command: make clean install-vendor test-ci-unit
-    agents:
-      queue: workers
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
@@ -33,8 +29,6 @@ steps:
     <<: *common
   - name: "Big Unit %n"
     command: make clean install-vendor test-ci-big-unit
-    agents:
-      queue: workers
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
@@ -43,8 +37,6 @@ steps:
     <<: *common
   - name: "Integration (:docker:), Services, Tools, Metalint"
     command: make install-vendor metalint docker-integration-test tools services
-    agents:
-      queue: workers
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.10.x
@@ -55,8 +47,6 @@ steps:
   - name: "Integration (dbnode Recently Read) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=recently_read
-    agents:
-      queue: workers
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -65,8 +55,6 @@ steps:
   - name: "Integration (dbnode LRU) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=lru
-    agents:
-      queue: workers
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -75,8 +63,6 @@ steps:
   - label: "Integration (collector, aggregator, m3em, cluster, msg, metrics) %n"
     parallelism: 4
     command: make clean install-vendor test-ci-integration-collector test-ci-integration-aggregator test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
-    agents:
-      queue: workers
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -84,8 +70,6 @@ steps:
     <<: *common
   - label: "FOSSA license scan"
     command: make clean install-vendor fossa
-    agents:
-      queue: workers
     plugins:
       docker-compose#v2.5.1:
         run: app
