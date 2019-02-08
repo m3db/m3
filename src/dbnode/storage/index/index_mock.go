@@ -132,6 +132,18 @@ func (mr *MockResultsMockRecorder) Namespace() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockResults)(nil).Namespace))
 }
 
+// NoFinalize mocks base method
+func (m *MockResults) NoFinalize() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "NoFinalize")
+}
+
+// NoFinalize indicates an expected call of NoFinalize
+func (mr *MockResultsMockRecorder) NoFinalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NoFinalize", reflect.TypeOf((*MockResults)(nil).NoFinalize))
+}
+
 // Reset mocks base method
 func (m *MockResults) Reset(arg0 ident.ID) {
 	m.ctrl.T.Helper()
