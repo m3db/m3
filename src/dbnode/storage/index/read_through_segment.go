@@ -32,8 +32,8 @@ import (
 )
 
 var (
-	errCantQueryClosedSegment = errors.New("cant query closed segment")
-	errCantCloseClosedSegment = errors.New("cant close closed segment")
+	errCantGetReaderFromClosedSegment = errors.New("cant get reader from closed segment")
+	errCantCloseClosedSegment         = errors.New("cant close closed segment")
 )
 
 // ReadThroughSegment wraps a segment with a postings list cache so that
@@ -45,7 +45,7 @@ var (
 // the segment itself is closed.
 type ReadThroughSegment struct {
 	segment.Segment
-	sync.Mutex
+	sync.RWMutex
 
 	opts              ReadThroughSegmentOptions
 	uuid              uuid.UUID
@@ -80,6 +80,12 @@ func NewReadThroughSegment(
 
 // Reader returns a read through reader for the read through segment.
 func (r *ReadThroughSegment) Reader() (index.Reader, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errCantGetReaderFromClosedSegment
+	}
+
 	reader, err := r.Segment.Reader()
 	if err != nil {
 		return nil, err
@@ -110,13 +116,10 @@ func (r *ReadThroughSegment) Close() error {
 
 type readThroughSegmentReader struct {
 	index.Reader
-	sync.Mutex
 
 	opts              ReadThroughSegmentOptions
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
-
-	closed bool
 }
 
 func newReadThroughSegmentReader(
@@ -139,12 +142,6 @@ func (s *readThroughSegmentReader) MatchRegexp(
 	field []byte,
 	c index.CompiledRegex,
 ) (postings.List, error) {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return nil, errCantQueryClosedSegment
-	}
-
 	if s.postingsListCache == nil || !s.opts.CacheRegexp {
 		return s.Reader.MatchRegexp(field, c)
 	}
@@ -167,12 +164,6 @@ func (s *readThroughSegmentReader) MatchRegexp(
 func (s *readThroughSegmentReader) MatchTerm(
 	field []byte, term []byte,
 ) (postings.List, error) {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return nil, errCantQueryClosedSegment
-	}
-
 	if s.postingsListCache == nil || !s.opts.CacheTerms {
 		return s.Reader.MatchTerm(field, term)
 	}
