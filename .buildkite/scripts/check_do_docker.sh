@@ -2,9 +2,6 @@
 
 set -exuo pipefail
 
-# TODO remove
-git tag -f mschalle-test
-
 # This script checks if we should do a docker build, and if so adds a step in
 # the build pipeline to do so.
 

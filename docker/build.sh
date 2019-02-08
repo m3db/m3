@@ -9,9 +9,6 @@
 
 set -exuo pipefail
 
-# TODO remove
-git tag -f mschalle-test
-
 function cleanup() {
   docker system prune -f
   find /tmp -name '*m3-docker' -print0 | xargs -0 rm -fv

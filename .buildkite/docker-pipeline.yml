@@ -2,8 +2,6 @@ steps:
   - wait
   - name: ":docker: build"
     command: "docker/build.sh"
-    env:
-      DRYRUN: "true"
     agents:
       queue: builder
     timeout_in_minutes: 60
