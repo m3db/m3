@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -395,8 +394,7 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 	segs, err := prepared.Close()
 	require.NoError(t, err)
 	require.Len(t, segs, 1)
-	unwrappedSeg := segs[0].(*index.ReadThroughSegment).Segment
-	require.Equal(t, fsSeg, unwrappedSeg)
+	require.Equal(t, fsSeg, segs[0])
 }
 
 func TestPersistenceManagerNoRateLimit(t *testing.T) {
