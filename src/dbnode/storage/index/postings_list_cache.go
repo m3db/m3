@@ -109,11 +109,7 @@ func (q *PostingsListCache) get(
 	p, ok := q.lru.Get(segmentUUID, pattern, patternType)
 	q.Unlock()
 
-	if ok {
-		q.metrics.regexp.hits.Inc(1)
-	} else {
-		q.metrics.regexp.misses.Inc(1)
-	}
+	q.emitCacheGetMetrics(patternType, ok)
 
 	if !ok {
 		return nil, false
@@ -154,7 +150,7 @@ func (q *PostingsListCache) put(
 		pl,
 	)
 	q.Unlock()
-	q.metrics.regexp.puts.Inc(1)
+	q.emitCachePutMetrics(patternType)
 }
 
 // PurgeSegment removes all postings lists associated with the specified
@@ -199,6 +195,27 @@ func (q *PostingsListCache) Report() {
 
 	q.metrics.size.Update(size)
 	q.metrics.capacity.Update(capacity)
+}
+
+func (q *PostingsListCache) emitCacheGetMetrics(patternType PatternType, hit bool) {
+	switch {
+	case patternType == PatternTypeRegexp && hit:
+		q.metrics.regexp.hits.Inc(1)
+	case patternType == PatternTypeRegexp && !hit:
+		q.metrics.regexp.misses.Inc(1)
+	case patternType == PatternTypeTerm && hit:
+		q.metrics.term.hits.Inc(1)
+	case patternType == PatternTypeTerm && !hit:
+		q.metrics.term.misses.Inc(1)
+	}
+}
+
+func (q *PostingsListCache) emitCachePutMetrics(patternType PatternType) {
+	if patternType == PatternTypeRegexp {
+		q.metrics.regexp.puts.Inc(1)
+	} else {
+		q.metrics.term.puts.Inc(1)
+	}
 }
 
 type postingsListCacheMetrics struct {
