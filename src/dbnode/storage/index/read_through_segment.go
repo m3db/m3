@@ -91,7 +91,7 @@ func (r *ReadThroughSegment) Reader() (index.Reader, error) {
 		return nil, err
 	}
 	return newReadThroughSegmentReader(
-		reader, r.postingsListCache, r.opts), nil
+		reader, r.uuid, r.postingsListCache, r.opts), nil
 }
 
 // Close purges all entries in the cache associated with this segment,
@@ -124,6 +124,7 @@ type readThroughSegmentReader struct {
 
 func newReadThroughSegmentReader(
 	reader index.Reader,
+	uuid uuid.UUID,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
 ) index.Reader {
@@ -131,7 +132,7 @@ func newReadThroughSegmentReader(
 		Reader: reader,
 
 		opts:              opts,
-		uuid:              uuid.NewUUID(),
+		uuid:              uuid,
 		postingsListCache: cache,
 	}
 }
