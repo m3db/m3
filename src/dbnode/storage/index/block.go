@@ -740,13 +740,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 			if err != nil {
 				return nil, err
 			}
-
-			var (
-				plCache         = b.opts.PostingsListCache()
-				readThroughOpts = b.opts.ReadThroughSegmentOptions()
-				readThroughSeg  = NewReadThroughSegment(reader, plCache, readThroughOpts)
-			)
-			readers = append(readers, readThroughSeg)
+			readers = append(readers, reader)
 		}
 	}
 
@@ -839,9 +833,20 @@ func (b *block) AddResults(
 			results.Fulfilled().SummaryString(), blockRange.String())
 	}
 
+	var (
+		plCache         = b.opts.PostingsListCache()
+		readThroughOpts = b.opts.ReadThroughSegmentOptions()
+		segments        = results.Segments()
+	)
+
+	readThroughSegments := make([]segment.Segment, 0, len(segments))
+	for _, seg := range segments {
+		readThroughSeg := NewReadThroughSegment(seg, plCache, readThroughOpts)
+		readThroughSegments = append(readThroughSegments, readThroughSeg)
+	}
 	entry := blockShardRangesSegments{
 		shardTimeRanges: results.Fulfilled(),
-		segments:        results.Segments(),
+		segments:        readThroughSegments,
 	}
 
 	// First see if this block can cover all our current blocks covering shard

@@ -54,8 +54,10 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 		FSTSyntax: parsedRegex,
 	}
 
-	readThrough := NewReadThroughSegment(
-		segment, cache, defaultReadThroughSegmentOptions)
+	readThrough, err := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
@@ -87,9 +89,11 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 		FSTSyntax: parsedRegex,
 	}
 
-	readThrough := NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
+	readThrough, err := NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
 		CacheRegexp: false,
-	})
+	}).Reader()
+	require.NoError(t, err)
+
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().
@@ -123,8 +127,10 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 		FSTSyntax: parsedRegex,
 	}
 
-	readThrough := NewReadThroughSegment(
-		segment, nil, defaultReadThroughSegmentOptions)
+	readThrough, err := NewReadThroughSegment(
+		segment, nil, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
 	segment.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
@@ -147,11 +153,14 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 		field = []byte("some-field")
 		term  = []byte("some-term")
 
-		readThrough = NewReadThroughSegment(
-			segment, cache, defaultReadThroughSegmentOptions)
 		originalPL = roaring.NewPostingsList()
 	)
 	require.NoError(t, originalPL.Insert(1))
+
+	readThrough, err := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
 	segment.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
 
 	// Make sure it goes to the segment when the cache misses.
@@ -178,12 +187,15 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 		field = []byte("some-field")
 		term  = []byte("some-term")
 
-		readThrough = NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
-			CacheTerms: false,
-		})
 		originalPL = roaring.NewPostingsList()
 	)
 	require.NoError(t, originalPL.Insert(1))
+
+	readThrough, err := NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
+		CacheTerms: false,
+	}).Reader()
+	require.NoError(t, err)
+
 	segment.EXPECT().
 		MatchTerm(field, term).
 		Return(originalPL, nil).
@@ -211,11 +223,14 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 		field = []byte("some-field")
 		term  = []byte("some-term")
 
-		readThrough = NewReadThroughSegment(
-			segment, nil, defaultReadThroughSegmentOptions)
 		originalPL = roaring.NewPostingsList()
 	)
 	require.NoError(t, originalPL.Insert(1))
+
+	readThrough, err := NewReadThroughSegment(
+		segment, nil, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
 	segment.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
 
 	// Make sure it it works with no cache.
@@ -232,9 +247,11 @@ func TestClose(t *testing.T) {
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
-	readThrough := NewReadThroughSegment(
-		segment, cache, defaultReadThroughSegmentOptions)
-	segmentUUID := readThrough.(*ReadThroughSegment).uuid
+	readThrough, err := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
+	segmentUUID := readThrough.(*readThroughSegmentReader).uuid
 
 	// Store an entry for the segment in the cache so we can check if it
 	// gets purged after.
@@ -243,7 +260,7 @@ func TestClose(t *testing.T) {
 	segment.EXPECT().Close().Return(nil)
 	err = readThrough.Close()
 	require.NoError(t, err)
-	require.True(t, readThrough.(*ReadThroughSegment).closed)
+	require.True(t, readThrough.(*readThroughSegmentReader).closed)
 
 	// Make sure it does not allow double closes.
 	err = readThrough.Close()

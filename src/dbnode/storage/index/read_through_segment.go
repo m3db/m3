@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/pborman/uuid"
@@ -43,7 +44,7 @@ var (
 // will make sure that the cache is purged of all the segments postings lists before
 // the segment itself is closed.
 type ReadThroughSegment struct {
-	index.Reader
+	segment.Segment
 	sync.Mutex
 
 	opts              ReadThroughSegmentOptions
@@ -62,16 +63,69 @@ type ReadThroughSegmentOptions struct {
 	CacheTerms bool
 }
 
-// NewReadThroughSegment accepts a segment and a postings list cache
-// and returns a read-through segment such that the postings list
-// cache will be checked and updated with every query.
+// NewReadThroughSegment creates a new read through segment.
 func NewReadThroughSegment(
-	seg index.Reader,
+	seg segment.Segment,
+	cache *PostingsListCache,
+	opts ReadThroughSegmentOptions,
+) segment.Segment {
+	return &ReadThroughSegment{
+		Segment: seg,
+
+		opts:              opts,
+		uuid:              uuid.NewUUID(),
+		postingsListCache: cache,
+	}
+}
+
+// Reader returns a read through reader for the read through segment.
+func (r *ReadThroughSegment) Reader() (index.Reader, error) {
+	reader, err := r.Segment.Reader()
+	if err != nil {
+		return nil, err
+	}
+	return newReadThroughSegmentReader(
+		reader, r.postingsListCache, r.opts), nil
+}
+
+// Close purges all entries in the cache associated with this segment,
+// and then closes the underlying segment.
+func (r *ReadThroughSegment) Close() error {
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		return errCantCloseClosedSegment
+	}
+
+	r.closed = true
+
+	if r.postingsListCache != nil {
+		// Purge segments from the cache before closing the segment to avoid
+		// temporarily having postings lists in the cache whose underlying
+		// bytes are no longer mmap'd.
+		r.postingsListCache.PurgeSegment(r.uuid)
+	}
+	return r.Segment.Close()
+}
+
+type readThroughSegmentReader struct {
+	index.Reader
+	sync.Mutex
+
+	opts              ReadThroughSegmentOptions
+	uuid              uuid.UUID
+	postingsListCache *PostingsListCache
+
+	closed bool
+}
+
+func newReadThroughSegmentReader(
+	reader index.Reader,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
 ) index.Reader {
-	return &ReadThroughSegment{
-		Reader: seg,
+	return &readThroughSegmentReader{
+		Reader: reader,
 
 		opts:              opts,
 		uuid:              uuid.NewUUID(),
@@ -81,7 +135,7 @@ func NewReadThroughSegment(
 
 // MatchRegexp returns a cached posting list or queries the underlying
 // segment if their is a cache miss.
-func (s *ReadThroughSegment) MatchRegexp(
+func (s *readThroughSegmentReader) MatchRegexp(
 	field []byte,
 	c index.CompiledRegex,
 ) (postings.List, error) {
@@ -110,7 +164,7 @@ func (s *ReadThroughSegment) MatchRegexp(
 
 // MatchTerm returns a cached posting list or queries the underlying
 // segment if their is a cache miss.
-func (s *ReadThroughSegment) MatchTerm(
+func (s *readThroughSegmentReader) MatchTerm(
 	field []byte, term []byte,
 ) (postings.List, error) {
 	s.Lock()
@@ -134,24 +188,4 @@ func (s *ReadThroughSegment) MatchTerm(
 		s.postingsListCache.PutTerm(s.uuid, termString, pl)
 	}
 	return pl, err
-}
-
-// Close purges all entries in the cache associated with this segment,
-// and then closes the underlying segment.
-func (s *ReadThroughSegment) Close() error {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return errCantCloseClosedSegment
-	}
-
-	s.closed = true
-
-	if s.postingsListCache != nil {
-		// Purge segments from the cache before closing the segment to avoid
-		// temporarily having postings lists in the cache whose underlying
-		// bytes are no longer mmap'd.
-		s.postingsListCache.PurgeSegment(s.uuid)
-	}
-	return s.Reader.Close()
 }
