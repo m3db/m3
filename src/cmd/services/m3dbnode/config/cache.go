@@ -76,9 +76,9 @@ type LRUSeriesCachePolicyConfiguration struct {
 
 // PostingsListCacheConfiguration is the postings list cache configuration.
 type PostingsListCacheConfiguration struct {
-	Size        *int
-	CacheRegexp *bool
-	CacheTerms  *bool
+	Size        *int  `yaml:"size"`
+	CacheRegexp *bool `yaml:"cacheRegexp"`
+	CacheTerms  *bool `yaml:"cacheTerms"`
 }
 
 // SizeOrDefault returns the provided size or the default value is none is
