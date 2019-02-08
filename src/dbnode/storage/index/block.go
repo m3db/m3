@@ -840,7 +840,11 @@ func (b *block) AddResults(
 	)
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
-		readThroughSeg := NewReadThroughSegment(seg, plCache, readThroughOpts)
+		readThroughSeg := seg
+		if _, ok := seg.(segment.MutableSegment); !ok {
+			// Only wrap the immutable segments with a read through cache.
+			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
+		}
 		readThroughSegments = append(readThroughSegments, readThroughSeg)
 	}
 
