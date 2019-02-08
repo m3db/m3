@@ -91,4 +91,4 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
         env:
-- FOSSA_API_KEY
+          - FOSSA_API_KEY
