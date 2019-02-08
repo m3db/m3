@@ -838,12 +838,12 @@ func (b *block) AddResults(
 		readThroughOpts = b.opts.ReadThroughSegmentOptions()
 		segments        = results.Segments()
 	)
-
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
 		readThroughSeg := NewReadThroughSegment(seg, plCache, readThroughOpts)
 		readThroughSegments = append(readThroughSegments, readThroughSeg)
 	}
+
 	entry := blockShardRangesSegments{
 		shardTimeRanges: results.Fulfilled(),
 		segments:        readThroughSegments,

@@ -241,14 +241,35 @@ func Run(runOpts RunOptions) {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
+	// Setup postings list cache.
+	var (
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("query-cache")),
+		}
+	)
+	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatalf("could not construct query cache: %s", err.Error())
+	}
+	endReportLoop := postingsListCache.StartReportLoop()
+	defer endReportLoop()
+
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
 	if cfg.WriteNewSeriesAsync {
 		insertMode = index.InsertAsync
 	}
-	opts = opts.SetIndexOptions(
-		indexOpts.SetInsertMode(insertMode))
+	indexOpts = indexOpts.SetInsertMode(insertMode).
+		SetPostingsListCache(postingsListCache).
+		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
+			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+		})
+	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -1127,20 +1148,7 @@ func withEncodingAndPoolingOptions(
 		postingsListOpts = poolOptions(policy.PostingsListPoolPolicyWithDefaults(),
 			scope.SubScope("postingslist-pool"))
 		postingsList = postings.NewPool(postingsListOpts, roaring.NewPostingsList)
-
-		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
-		plCacheSize    = plCacheConfig.SizeOrDefault()
-		plCacheOptions = index.PostingsListCacheOptions{
-			InstrumentOptions: opts.InstrumentOptions().
-				SetMetricsScope(scope.SubScope("query-cache")),
-		}
 	)
-	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
-	if err != nil {
-		logger.Fatalf("could not construct query cache: %s", err.Error())
-	}
-	endReportLoop := postingsListCache.StartReportLoop()
-	defer endReportLoop()
 
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
@@ -1157,12 +1165,7 @@ func withEncodingAndPoolingOptions(
 				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
-		SetResultsPool(resultsPool).
-		SetPostingsListCache(postingsListCache).
-		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-		})
+		SetResultsPool(resultsPool)
 
 	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
 
