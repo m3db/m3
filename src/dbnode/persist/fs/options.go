@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/instrument"
@@ -99,8 +98,6 @@ type options struct {
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
-	postingsListCache                    *index.PostingsListCache
-	readThroughSegmentOptions            index.ReadThroughSegmentOptions
 }
 
 // NewOptions creates a new set of fs options
@@ -355,24 +352,4 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
-}
-
-func (o *options) SetPostingsListCache(value *index.PostingsListCache) Options {
-	opts := *o
-	opts.postingsListCache = value
-	return &opts
-}
-
-func (o *options) PostingsListCache() *index.PostingsListCache {
-	return o.postingsListCache
-}
-
-func (o *options) SetReadThroughSegmentOptions(value index.ReadThroughSegmentOptions) Options {
-	opts := *o
-	opts.readThroughSegmentOptions = value
-	return &opts
-}
-
-func (o *options) ReadThroughSegmentOptions() index.ReadThroughSegmentOptions {
-	return o.readThroughSegmentOptions
 }

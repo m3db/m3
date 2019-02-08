@@ -299,21 +299,6 @@ func Run(runOpts RunOptions) {
 		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
-	var (
-		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
-		plCacheSize    = plCacheConfig.SizeOrDefault()
-		plCacheOptions = index.PostingsListCacheOptions{
-			InstrumentOptions: opts.InstrumentOptions().
-				SetMetricsScope(scope.SubScope("query-cache")),
-		}
-	)
-	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
-	if err != nil {
-		logger.Fatalf("could not construct query cache: %s", err.Error())
-	}
-	endReportLoop := postingsListCache.StartReportLoop()
-	defer endReportLoop()
-
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -331,12 +316,7 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemory).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory).
-		SetPostingsListCache(postingsListCache).
-		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-		})
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -1141,11 +1121,27 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetIdentifierPool(identifierPool))
 
-	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
-		scope.SubScope("index-results-pool")))
-	postingsListOpts := poolOptions(policy.PostingsListPoolPolicyWithDefaults(),
-		scope.SubScope("postingslist-pool"))
-	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+	var (
+		resultsPool = index.NewResultsPool(poolOptions(policy.IndexResultsPool,
+			scope.SubScope("index-results-pool")))
+		postingsListOpts = poolOptions(policy.PostingsListPoolPolicyWithDefaults(),
+			scope.SubScope("postingslist-pool"))
+		postingsList = postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("query-cache")),
+		}
+	)
+	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatalf("could not construct query cache: %s", err.Error())
+	}
+	endReportLoop := postingsListCache.StartReportLoop()
+	defer endReportLoop()
+
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
@@ -1161,7 +1157,13 @@ func withEncodingAndPoolingOptions(
 				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
-		SetResultsPool(resultsPool)
+		SetResultsPool(resultsPool).
+		SetPostingsListCache(postingsListCache).
+		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
+			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+		})
+
 	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
 
 	return opts.SetIndexOptions(indexOpts)

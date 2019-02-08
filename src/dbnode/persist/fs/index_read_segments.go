@@ -24,7 +24,6 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 )
@@ -108,12 +107,7 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
-		var (
-			plCache         = fsOpts.PostingsListCache()
-			readThroughOpts = fsOpts.ReadThroughSegmentOptions()
-			segWithCache    = index.NewReadThroughSegment(seg, plCache, readThroughOpts)
-		)
-		segments = append(segments, segWithCache)
+		segments = append(segments, seg)
 	}
 
 	// Indicate we don't need the defer() above to release any resources, as we are

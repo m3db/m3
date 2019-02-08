@@ -740,7 +740,13 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 			if err != nil {
 				return nil, err
 			}
-			readers = append(readers, reader)
+
+			var (
+				plCache         = b.opts.PostingsListCache()
+				readThroughOpts = b.opts.ReadThroughSegmentOptions()
+				readThroughSeg  = NewReadThroughSegment(reader, plCache, readThroughOpts)
+			)
+			readers = append(readers, readThroughSeg)
 		}
 	}
 

@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/pborman/uuid"
@@ -44,7 +43,7 @@ var (
 // will make sure that the cache is purged of all the segments postings lists before
 // the segment itself is closed.
 type ReadThroughSegment struct {
-	fst.Segment
+	index.Reader
 	sync.Mutex
 
 	opts              ReadThroughSegmentOptions
@@ -67,12 +66,12 @@ type ReadThroughSegmentOptions struct {
 // and returns a read-through segment such that the postings list
 // cache will be checked and updated with every query.
 func NewReadThroughSegment(
-	seg fst.Segment,
+	seg index.Reader,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
-) fst.Segment {
+) index.Reader {
 	return &ReadThroughSegment{
-		Segment: seg,
+		Reader: seg,
 
 		opts:              opts,
 		uuid:              uuid.NewUUID(),
@@ -93,7 +92,7 @@ func (s *ReadThroughSegment) MatchRegexp(
 	}
 
 	if s.postingsListCache == nil || !s.opts.CacheRegexp {
-		return s.Segment.MatchRegexp(field, c)
+		return s.Reader.MatchRegexp(field, c)
 	}
 
 	pattern := c.FSTSyntax.String()
@@ -102,7 +101,7 @@ func (s *ReadThroughSegment) MatchRegexp(
 		return pl, nil
 	}
 
-	pl, err := s.Segment.MatchRegexp(field, c)
+	pl, err := s.Reader.MatchRegexp(field, c)
 	if err == nil {
 		s.postingsListCache.PutRegexp(s.uuid, pattern, pl)
 	}
@@ -121,7 +120,7 @@ func (s *ReadThroughSegment) MatchTerm(
 	}
 
 	if s.postingsListCache == nil || !s.opts.CacheTerms {
-		return s.Segment.MatchTerm(field, term)
+		return s.Reader.MatchTerm(field, term)
 	}
 
 	termString := string(term)
@@ -130,7 +129,7 @@ func (s *ReadThroughSegment) MatchTerm(
 		return pl, nil
 	}
 
-	pl, err := s.Segment.MatchTerm(field, term)
+	pl, err := s.Reader.MatchTerm(field, term)
 	if err == nil {
 		s.postingsListCache.PutTerm(s.uuid, termString, pl)
 	}
@@ -154,5 +153,5 @@ func (s *ReadThroughSegment) Close() error {
 		// bytes are no longer mmap'd.
 		s.postingsListCache.PurgeSegment(s.uuid)
 	}
-	return s.Segment.Close()
+	return s.Reader.Close()
 }
