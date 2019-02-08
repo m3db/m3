@@ -42,16 +42,21 @@ type blockAtTime struct {
 type blocksAtTime []blockAtTime
 
 type encodedBlockBuilder struct {
+	lookback        time.Duration
 	blocksAtTime    blocksAtTime
 	tagOptions      models.TagOptions
 	consolidationFn consolidators.ConsolidationFunc
 }
 
 func newEncodedBlockBuilder(
-	tagOptions models.TagOptions,
-	consolidationFn consolidators.ConsolidationFunc,
+	opts Options,
 ) *encodedBlockBuilder {
+	lookback := opts.LookbackDuration()
+	tagOptions := opts.TagOptions()
+	consolidationFn := opts.ConsolidationFunc()
+
 	return &encodedBlockBuilder{
+		lookback:        lookback,
 		blocksAtTime:    make(blocksAtTime, 0, initBlockLength),
 		tagOptions:      tagOptions,
 		consolidationFn: consolidationFn,
@@ -83,7 +88,7 @@ func (b *encodedBlockBuilder) add(
 		[]encoding.SeriesIterator{},
 		b.tagOptions,
 		consolidation,
-		time.Duration(0),
+		b.lookback,
 		lastBlock,
 	)
 

@@ -99,16 +99,12 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	if err := builder.AddCols(iter.StepCount()); err != nil {
+	if err = builder.AddCols(iter.StepCount()); err != nil {
 		return err
 	}
 
 	for index := 0; iter.Next(); index++ {
-		step, err := iter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := iter.Current()
 		values := make([]float64, len(step.Values()))
 		ts.Memset(values, math.NaN())
 		for i, dps := range step.Values() {
@@ -122,6 +118,10 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 		for _, value := range values {
 			builder.AppendValue(index, value)
 		}
+	}
+
+	if err = iter.Err(); err != nil {
+		return err
 	}
 
 	nextBlock := builder.Build()

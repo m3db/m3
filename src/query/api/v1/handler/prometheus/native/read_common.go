@@ -58,7 +58,6 @@ func read(
 	// Results is closed by execute
 	results := make(chan executor.Query)
 	go engine.ExecuteExpr(ctx, parser, opts, params, results)
-
 	// Block slices are sorted by start time
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
@@ -143,11 +142,6 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	}
 
 	firstBlock := blockList[0].block
-	firstStepIter, err := firstBlock.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
 	firstSeriesIter, err := firstBlock.SeriesIter()
 	if err != nil {
 		return nil, err
@@ -171,22 +165,35 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		seriesIters[i] = seriesIter
 	}
 
-	numValues := firstStepIter.StepCount() * len(blockList)
+	numValues := 0
+	for _, block := range blockList {
+		b, err := block.block.StepIter()
+		if err != nil {
+			return nil, err
+		}
+
+		numValues += b.StepCount()
+	}
+
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
+				if err = iter.Err(); err != nil {
+					return nil, err
+				}
+
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
-			blockSeries, err := iter.Current()
-			if err != nil {
+			if err = iter.Err(); err != nil {
 				return nil, err
 			}
 
-			for i := 0; i < blockSeries.Len(); i++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
+			blockSeries := iter.Current()
+			for j := 0; j < blockSeries.Len(); j++ {
+				values.SetValueAt(valIdx, blockSeries.ValueAtStep(j))
 				valIdx++
 			}
 		}
@@ -224,21 +231,11 @@ func insertSortedBlock(
 			"the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
 	}
 
-	blockStepIter, err := b.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	blockStepCount := blockStepIter.StepCount()
-	if stepCount != blockStepCount {
-		return nil, fmt.Errorf("mismatch in number of steps for the"+
-			"block, wanted: %d, found: %d", stepCount, blockStepCount)
-	}
-
 	// Binary search to keep the start times sorted
 	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.Before(blockMeta.Bounds.Start)
+		return blockList[i].meta.Bounds.Start.After(blockMeta.Bounds.Start)
 	})
+
 	// Append here ensures enough size in the slice
 	blockList = append(blockList, blockWithMeta{})
 	copy(blockList[index+1:], blockList[index:])
@@ -246,5 +243,6 @@ func insertSortedBlock(
 		block: b,
 		meta:  blockMeta,
 	}
+
 	return blockList, nil
 }

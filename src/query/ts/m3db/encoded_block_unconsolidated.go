@@ -31,6 +31,7 @@ import (
 type encodedBlockUnconsolidated struct {
 	// There is slightly different execution for the last block in the series
 	lastBlock            bool
+	lookback             time.Duration
 	meta                 block.Metadata
 	tagOptions           models.TagOptions
 	consolidation        consolidationSettings
@@ -41,6 +42,7 @@ type encodedBlockUnconsolidated struct {
 func (b *encodedBlockUnconsolidated) Consolidate() (block.Block, error) {
 	return &encodedBlock{
 		lastBlock:            b.lastBlock,
+		lookback:             b.lookback,
 		meta:                 b.meta,
 		tagOptions:           b.tagOptions,
 		consolidation:        b.consolidation,
@@ -68,31 +70,5 @@ func (b *encodedBlockUnconsolidated) WithMetadata(
 		seriesBlockIterators: b.seriesBlockIterators,
 		meta:                 meta,
 		seriesMetas:          seriesMetas,
-	}, nil
-}
-
-func (b *encodedBlockUnconsolidated) StepIter() (
-	block.UnconsolidatedStepIter,
-	error,
-) {
-	return &encodedStepIterUnconsolidated{
-		meta:        b.meta,
-		seriesMeta:  b.seriesMetas,
-		seriesIters: b.seriesBlockIterators,
-		lastBlock:   b.lastBlock,
-		validIters:  make([]bool, len(b.seriesBlockIterators)),
-	}, nil
-}
-
-func (b *encodedBlockUnconsolidated) SeriesIter() (
-	block.UnconsolidatedSeriesIter,
-	error,
-) {
-	return &encodedSeriesIterUnconsolidated{
-		idx:              -1,
-		meta:             b.meta,
-		seriesMeta:       b.seriesMetas,
-		seriesIters:      b.seriesBlockIterators,
-		lookbackDuration: time.Minute,
 	}, nil
 }
