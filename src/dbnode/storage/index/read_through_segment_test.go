@@ -44,6 +44,9 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
+	reader := index.NewMockReader(ctrl)
+	segment.EXPECT().Reader().Return(reader, nil)
+
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
@@ -60,7 +63,7 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
-	segment.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
+	reader.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
 
 	// Make sure it goes to the segment when the cache misses.
 	pl, err := readThrough.MatchRegexp(field, compiledRegex)
@@ -79,6 +82,9 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
+	reader := index.NewMockReader(ctrl)
+	segment.EXPECT().Reader().Return(reader, nil)
+
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
@@ -96,7 +102,7 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
-	segment.EXPECT().
+	reader.EXPECT().
 		MatchRegexp(field, gomock.Any()).
 		Return(originalPL, nil).
 		Times(2)
@@ -119,10 +125,13 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 
 	var (
 		segment          = fst.NewMockSegment(ctrl)
+		reader           = index.NewMockReader(ctrl)
 		field            = []byte("some-field")
 		parsedRegex, err = syntax.Parse(".*this-will-be-slow.*", syntax.Simple)
 	)
 	require.NoError(t, err)
+
+	segment.EXPECT().Reader().Return(reader, nil)
 	compiledRegex := index.CompiledRegex{
 		FSTSyntax: parsedRegex,
 	}
@@ -133,7 +142,7 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 
 	originalPL := roaring.NewPostingsList()
 	require.NoError(t, originalPL.Insert(1))
-	segment.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
+	reader.EXPECT().MatchRegexp(field, gomock.Any()).Return(originalPL, nil)
 
 	// Make sure it it works with no cache.
 	pl, err := readThrough.MatchRegexp(field, compiledRegex)
@@ -146,6 +155,9 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
+	reader := index.NewMockReader(ctrl)
+	segment.EXPECT().Reader().Return(reader, nil)
+
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
@@ -161,7 +173,7 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 		segment, cache, defaultReadThroughSegmentOptions).Reader()
 	require.NoError(t, err)
 
-	segment.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
+	reader.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
 
 	// Make sure it goes to the segment when the cache misses.
 	pl, err := readThrough.MatchTerm(field, term)
@@ -180,6 +192,9 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
+	reader := index.NewMockReader(ctrl)
+	segment.EXPECT().Reader().Return(reader, nil)
+
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
@@ -196,7 +211,7 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 	}).Reader()
 	require.NoError(t, err)
 
-	segment.EXPECT().
+	reader.EXPECT().
 		MatchTerm(field, term).
 		Return(originalPL, nil).
 		Times(2)
@@ -219,6 +234,7 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 
 	var (
 		segment = fst.NewMockSegment(ctrl)
+		reader  = index.NewMockReader(ctrl)
 
 		field = []byte("some-field")
 		term  = []byte("some-term")
@@ -227,11 +243,13 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 	)
 	require.NoError(t, originalPL.Insert(1))
 
+	segment.EXPECT().Reader().Return(reader, nil)
+
 	readThrough, err := NewReadThroughSegment(
 		segment, nil, defaultReadThroughSegmentOptions).Reader()
 	require.NoError(t, err)
 
-	segment.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
+	reader.EXPECT().MatchTerm(field, term).Return(originalPL, nil)
 
 	// Make sure it it works with no cache.
 	pl, err := readThrough.MatchTerm(field, term)
@@ -247,32 +265,27 @@ func TestClose(t *testing.T) {
 	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
 
-	readThrough, err := NewReadThroughSegment(
-		segment, cache, defaultReadThroughSegmentOptions).Reader()
-	require.NoError(t, err)
+	readThroughSeg := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions)
 
-	segmentUUID := readThrough.(*readThroughSegmentReader).uuid
+	segmentUUID := readThroughSeg.(*ReadThroughSegment).uuid
 
 	// Store an entry for the segment in the cache so we can check if it
 	// gets purged after.
 	cache.PutRegexp(segmentUUID, "some-regexp", roaring.NewPostingsList())
 
 	segment.EXPECT().Close().Return(nil)
-	err = readThrough.Close()
+	err = readThroughSeg.Close()
 	require.NoError(t, err)
-	require.True(t, readThrough.(*readThroughSegmentReader).closed)
+	require.True(t, readThroughSeg.(*ReadThroughSegment).closed)
 
 	// Make sure it does not allow double closes.
-	err = readThrough.Close()
+	err = readThroughSeg.Close()
 	require.Equal(t, errCantCloseClosedSegment, err)
 
-	// Make sure it does not accept regexp queries after being closed.
-	_, err = readThrough.MatchRegexp(nil, index.CompiledRegex{})
-	require.Equal(t, errCantQueryClosedSegment, err)
-
-	// Make sure it does not accept term queries after being closed.
-	_, err = readThrough.MatchTerm(nil, nil)
-	require.Equal(t, errCantQueryClosedSegment, err)
+	// Make sure it does not allow readers to be created after closing.
+	_, err = readThroughSeg.Reader()
+	require.Equal(t, errCantGetReaderFromClosedSegment, err)
 }
 
 func TestCloseNoCache(t *testing.T) {
