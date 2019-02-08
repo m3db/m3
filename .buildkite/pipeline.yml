@@ -76,3 +76,4 @@ steps:
         workdir: /go/src/github.com/m3db/m3
         env:
           - FOSSA_API_KEY
+    <<: *common
