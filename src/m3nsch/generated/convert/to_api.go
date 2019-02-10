@@ -25,12 +25,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3nsch"
-	proto "github.com/m3db/m3/src/m3nsch/rpc"
+	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
 
-	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
+	gogo_proto "github.com/gogo/protobuf/types"
 )
 
-func toTimeFromProtoTimestamp(t *google_protobuf.Timestamp) time.Time {
+func toTimeFromProtoTimestamp(t *gogo_proto.Timestamp) time.Time {
 	return time.Unix(t.Seconds, int64(t.Nanos))
 }
 

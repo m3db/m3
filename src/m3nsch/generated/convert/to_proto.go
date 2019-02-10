@@ -18,7 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate protoc --go_out=plugins=grpc:. m3nsch.proto
-//go:generate mockgen -source=m3nsch.pb.go -package=rpc -destination=mock_m3nsch.pb.go
+package convert
 
-package rpc
+import (
+	"github.com/m3db/m3/src/m3nsch"
+	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
+
+	gogo_proto "github.com/gogo/protobuf/types"
+)
+
+// ToProtoStatus converts an API status into a RPC status.
+func ToProtoStatus(status m3nsch.Status) proto.Status {
+	switch status {
+	case m3nsch.StatusUninitialized:
+		return proto.Status_UNINITIALIZED
+	case m3nsch.StatusInitialized:
+		return proto.Status_INITIALIZED
+	case m3nsch.StatusRunning:
+		return proto.Status_RUNNING
+	}
+	return proto.Status_UNKNOWN
+}
+
+// ToProtoWorkload converts an API Workload into a RPC Workload.
+func ToProtoWorkload(mw m3nsch.Workload) proto.Workload {
+	var w proto.Workload
+	w.BaseTime = &gogo_proto.Timestamp{
+		Seconds: mw.BaseTime.Unix(),
+		Nanos:   int32(mw.BaseTime.UnixNano()),
+	}
+	w.Cardinality = int32(mw.Cardinality)
+	w.IngressQPS = int32(mw.IngressQPS)
+	w.MetricPrefix = mw.MetricPrefix
+	w.Namespace = mw.Namespace
+	return w
+}
