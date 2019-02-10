@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3nsch"
-	"github.com/m3db/m3/src/m3nsch/rpc"
-	"github.com/m3db/m3/src/m3nsch/rpc/convert"
+	"github.com/m3db/m3/src/m3nsch/generated/convert"
+	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -109,7 +109,7 @@ func (m *m3nschCoordinator) Status() (map[string]m3nsch.AgentStatus, error) {
 	)
 
 	m.forEachClient(func(c *m3nschClient) {
-		response, err := c.client.Status(ctx, &rpc.StatusRequest{})
+		response, err := c.client.Status(ctx, &proto.StatusRequest{})
 		if err != nil {
 			multiErr.Add(c.endpoint, err)
 			return
@@ -212,7 +212,7 @@ func (m *m3nschCoordinator) SetWorkload(workload m3nsch.Workload) error {
 		}
 
 		rpcWorkload := convert.ToProtoWorkload(targetWorkload)
-		_, clientErr := c.client.Modify(ctx, &rpc.ModifyRequest{Workload: &rpcWorkload})
+		_, clientErr := c.client.Modify(ctx, &proto.ModifyRequest{Workload: &rpcWorkload})
 		multiErr.Add(endpoint, clientErr)
 	})
 
@@ -260,7 +260,7 @@ func (m *m3nschCoordinator) Init(
 		}
 
 		rpcWorkload := convert.ToProtoWorkload(targetWorkload)
-		_, clientErr := c.client.Init(ctx, &rpc.InitRequest{
+		_, clientErr := c.client.Init(ctx, &proto.InitRequest{
 			Token:      token,
 			Workload:   &rpcWorkload,
 			Force:      force,
@@ -295,7 +295,7 @@ func (m *m3nschCoordinator) Start() error {
 	multiErr = syncClientMultiErr{}
 	m.forEachClient(func(c *m3nschClient) {
 		endpoint := c.endpoint
-		_, clientErr := c.client.Start(ctx, &rpc.StartRequest{})
+		_, clientErr := c.client.Start(ctx, &proto.StartRequest{})
 		multiErr.Add(endpoint, clientErr)
 	})
 
@@ -308,7 +308,7 @@ func (m *m3nschCoordinator) Stop() error {
 	multiErr := syncClientMultiErr{}
 	m.forEachClient(func(c *m3nschClient) {
 		endpoint := c.endpoint
-		_, err := c.client.Stop(ctx, &rpc.StopRequest{})
+		_, err := c.client.Stop(ctx, &proto.StopRequest{})
 		multiErr.Add(endpoint, err)
 	})
 
@@ -404,7 +404,7 @@ type m3nschClient struct {
 	endpoint string
 	logger   xlog.Logger
 	conn     *grpc.ClientConn
-	client   rpc.MenschClient
+	client   proto.MenschClient
 }
 
 func newM3nschClient(
@@ -420,7 +420,7 @@ func newM3nschClient(
 		return nil, fmt.Errorf("could not connect: %v", err)
 	}
 	logger.Debug("connection established")
-	client := rpc.NewMenschClient(conn)
+	client := proto.NewMenschClient(conn)
 	return &m3nschClient{
 		endpoint: endpoint,
 		logger:   logger,
