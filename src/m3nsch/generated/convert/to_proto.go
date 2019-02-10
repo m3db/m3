@@ -51,5 +51,6 @@ func ToProtoWorkload(mw m3nsch.Workload) proto.Workload {
 	w.IngressQPS = int32(mw.IngressQPS)
 	w.MetricPrefix = mw.MetricPrefix
 	w.Namespace = mw.Namespace
+	w.UniqueAmplifier = mw.UniqueAmplifier
 	return w
 }

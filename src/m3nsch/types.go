@@ -64,6 +64,11 @@ type Workload struct {
 	// MetricStartIdx is an offset to control metric numbering. Can be safely ignored
 	// by external callers.
 	MetricStartIdx int
+
+	// UniqueAmplifier is the percentage of unique metrics generated as a float
+	// between 0.0 and 1.0 that will be unique. This allows for generating metrics
+	// with steady cardinality rate over time.
+	UniqueAmplifier float64
 }
 
 // Coordinator refers to the process responsible for synchronizing load generation.

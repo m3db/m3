@@ -41,11 +41,12 @@ func ToM3nschWorkload(workload *proto.Workload) (m3nsch.Workload, error) {
 	}
 
 	return m3nsch.Workload{
-		BaseTime:     toTimeFromProtoTimestamp(workload.BaseTime),
-		MetricPrefix: workload.MetricPrefix,
-		Namespace:    workload.Namespace,
-		Cardinality:  int(workload.Cardinality),
-		IngressQPS:   int(workload.IngressQPS),
+		BaseTime:        toTimeFromProtoTimestamp(workload.BaseTime),
+		MetricPrefix:    workload.MetricPrefix,
+		Namespace:       workload.Namespace,
+		Cardinality:     int(workload.Cardinality),
+		IngressQPS:      int(workload.IngressQPS),
+		UniqueAmplifier: workload.UniqueAmplifier,
 	}, nil
 }
 
