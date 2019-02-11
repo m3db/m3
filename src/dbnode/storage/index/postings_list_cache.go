@@ -185,8 +185,10 @@ func (q *PostingsListCache) StartReportLoop() func() {
 
 // Report will emit metrics about the status of the cache.
 func (q *PostingsListCache) Report() {
-	var size float64
-	var capacity float64
+	var (
+		size     float64
+		capacity float64
+	)
 
 	q.Lock()
 	size = float64(q.lru.Len())
