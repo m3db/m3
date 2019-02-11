@@ -37,9 +37,9 @@ type PatternType int
 
 const (
 	// PatternTypeRegexp indicates that the pattern is of type regexp.
-	PatternTypeRegexp PatternType = 0
+	PatternTypeRegexp PatternType = iota
 	// PatternTypeTerm indicates that the pattern is of type term.
-	PatternTypeTerm PatternType = 1
+	PatternTypeTerm
 
 	reportLoopInterval = time.Second
 )
