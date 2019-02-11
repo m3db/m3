@@ -346,6 +346,16 @@ func (t Tags) Name() ([]byte, bool) {
 	return t.Get(t.Opts.MetricName())
 }
 
+// SetBucket sets the bucket tag value.
+func (t Tags) SetBucket(value []byte) Tags {
+	return t.AddOrUpdateTag(Tag{Name: t.Opts.BucketName(), Value: value})
+}
+
+// Bucket gets the bucket tag value.
+func (t Tags) Bucket() ([]byte, bool) {
+	return t.Get(t.Opts.BucketName())
+}
+
 // AddTags is used to add a list of tags and maintain sorted order.
 func (t Tags) AddTags(tags []Tag) Tags {
 	t.Tags = append(t.Tags, tags...)

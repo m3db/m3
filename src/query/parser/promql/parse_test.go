@@ -129,6 +129,8 @@ var linearParseTests = []struct {
 	{"minute(up)", linear.MinuteType},
 	{"month(up)", linear.MonthType},
 	{"year(up)", linear.YearType},
+
+	{"histogram_quantile(1,up)", linear.HistogramQuantileType},
 }
 
 func TestLinearParses(t *testing.T) {

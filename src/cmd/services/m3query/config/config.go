@@ -299,6 +299,10 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 
+	// BucketName specifies the tag name that corresponds to the metric's bucket.
+	// If not provided, defaults to `le`.
+	BucketName string `yaml:"bucketName"`
+
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
@@ -309,6 +313,11 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	name := cfg.MetricName
 	if name != "" {
 		opts = opts.SetMetricName([]byte(name))
+	}
+
+	bucket := cfg.BucketName
+	if bucket != "" {
+		opts = opts.SetBucketName([]byte(bucket))
 	}
 
 	if cfg.Scheme == models.TypeDefault {
