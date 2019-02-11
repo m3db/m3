@@ -23,6 +23,7 @@ package temporal
 import (
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -50,31 +51,37 @@ const (
 
 	// StdVarType calculates the standard variance of all values in the specified interval.
 	StdVarType = "stdvar_over_time"
+
+	// QuantileType  calculates the standard variance of all values in the specified interval.
+	QuantileType = "quantile_over_time"
 )
 
-type aggFunc func([]float64) float64
+type aggFunc func([]float64, float64) float64
 
 var (
 	aggFuncs = map[string]aggFunc{
-		AvgType:    avgOverTime,
-		CountType:  countOverTime,
-		MinType:    minOverTime,
-		MaxType:    maxOverTime,
-		SumType:    sumOverTime,
-		StdDevType: stddevOverTime,
-		StdVarType: stdvarOverTime,
+		AvgType:      avgOverTime,
+		CountType:    countOverTime,
+		MinType:      minOverTime,
+		MaxType:      maxOverTime,
+		SumType:      sumOverTime,
+		StdDevType:   stddevOverTime,
+		StdVarType:   stdvarOverTime,
+		QuantileType: quantileOverTime,
 	}
 )
 
 type aggProcessor struct {
-	aggFunc aggFunc
+	aggFunc        aggFunc
+	quantileScalar float64
 }
 
 func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
 	return &aggNode{
-		controller: controller,
-		op:         op,
-		aggFunc:    a.aggFunc,
+		controller:     controller,
+		op:             op,
+		aggFunc:        a.aggFunc,
+		quantileScalar: a.quantileScalar,
 	}
 }
 
@@ -85,6 +92,19 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 			aggFunc: aggregationFunc,
 		}
 
+		if optype == QuantileType {
+			if len(args) != 2 {
+				return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
+			}
+
+			scalar, ok := args[1].(float64)
+			if !ok {
+				return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
+			}
+
+			a.quantileScalar = scalar
+		}
+
 		return newBaseOp(args, optype, a)
 	}
 
@@ -92,21 +112,22 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 }
 
 type aggNode struct {
-	op         baseOp
-	controller *transform.Controller
-	aggFunc    func([]float64) float64
+	op             baseOp
+	controller     *transform.Controller
+	aggFunc        func([]float64, float64) float64
+	quantileScalar float64
 }
 
 func (a *aggNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
-	return a.aggFunc(datapoints.Values())
+	return a.aggFunc(datapoints.Values(), a.quantileScalar)
 }
 
-func avgOverTime(values []float64) float64 {
+func avgOverTime(values []float64, _ float64) float64 {
 	sum, count := sumAndCount(values)
 	return sum / count
 }
 
-func countOverTime(values []float64) float64 {
+func countOverTime(values []float64, _ float64) float64 {
 	_, count := sumAndCount(values)
 	if count == 0 {
 		return math.NaN()
@@ -115,7 +136,7 @@ func countOverTime(values []float64) float64 {
 	return count
 }
 
-func minOverTime(values []float64) float64 {
+func minOverTime(values []float64, _ float64) float64 {
 	var seenNotNaN bool
 	min := math.Inf(1)
 	for _, v := range values {
@@ -132,7 +153,7 @@ func minOverTime(values []float64) float64 {
 	return min
 }
 
-func maxOverTime(values []float64) float64 {
+func maxOverTime(values []float64, _ float64) float64 {
 	var seenNotNaN bool
 	max := math.Inf(-1)
 	for _, v := range values {
@@ -149,16 +170,16 @@ func maxOverTime(values []float64) float64 {
 	return max
 }
 
-func sumOverTime(values []float64) float64 {
+func sumOverTime(values []float64, _ float64) float64 {
 	sum, _ := sumAndCount(values)
 	return sum
 }
 
-func stddevOverTime(values []float64) float64 {
-	return math.Sqrt(stdvarOverTime(values))
+func stddevOverTime(values []float64, _ float64) float64 {
+	return math.Sqrt(stdvarOverTime(values, -1))
 }
 
-func stdvarOverTime(values []float64) float64 {
+func stdvarOverTime(values []float64, _ float64) float64 {
 	var aux, count, mean float64
 	for _, v := range values {
 		if !math.IsNaN(v) {
@@ -191,4 +212,61 @@ func sumAndCount(values []float64) (float64, float64) {
 	}
 
 	return sum, count
+}
+
+func quantileOverTime(values []float64, scalar float64) float64 {
+	valuesHeap := make(vectorByValueHeap, 0, len(values))
+	for _, v := range values {
+		valuesHeap = append(values, v)
+	}
+	val := quantile(scalar, valuesHeap)
+	return val
+}
+
+// prob can just use sort.Float64s
+type vectorByValueHeap []float64
+
+func (s vectorByValueHeap) Len() int {
+	return len(s)
+}
+
+func (s vectorByValueHeap) Less(i, j int) bool {
+	if math.IsNaN(s[i]) {
+		return true
+	}
+	return s[i] < s[j]
+}
+
+func (s vectorByValueHeap) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// qauntile calculates the given quantile of a vector of samples.
+//
+// The Vector will be sorted.
+// If 'values' has zero elements, NaN is returned.
+// If q<0, -Inf is returned.
+// If q>1, +Inf is returned.
+func quantile(q float64, values vectorByValueHeap) float64 {
+	if len(values) == 0 {
+		return math.NaN()
+	}
+	if q < 0 {
+		return math.Inf(-1)
+	}
+	if q > 1 {
+		return math.Inf(+1)
+	}
+	sort.Sort(values)
+
+	n := float64(len(values))
+	// When the quantile lies between two samples,
+	// we use a weighted average of the two samples.
+	rank := q * (n - 1)
+
+	lowerIndex := math.Max(0, math.Floor(rank))
+	upperIndex := math.Min(n-1, lowerIndex+1)
+
+	weight := rank - math.Floor(rank)
+	return values[int(lowerIndex)]*(1-weight) + values[int(upperIndex)]*weight
 }
