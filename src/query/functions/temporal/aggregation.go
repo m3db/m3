@@ -97,7 +97,7 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 				return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
 			}
 
-			scalar, ok := args[1].(float64)
+			scalar, ok := args[0].(float64)
 			if !ok {
 				return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
 			}
@@ -215,39 +215,39 @@ func sumAndCount(values []float64) (float64, float64) {
 }
 
 func quantileOverTime(values []float64, scalar float64) float64 {
-	valuesHeap := make(vectorByValueHeap, 0, len(values))
+	valuesSlice := make(valsSlice, 0, len(values))
 	for _, v := range values {
-		valuesHeap = append(values, v)
+		valuesSlice = append(values, v)
 	}
-	val := quantile(scalar, valuesHeap)
-	return val
+
+	return quantile(scalar, valuesSlice)
 }
 
-// prob can just use sort.Float64s
-type vectorByValueHeap []float64
+type valsSlice []float64
 
-func (s vectorByValueHeap) Len() int {
+func (s valsSlice) Len() int {
 	return len(s)
 }
 
-func (s vectorByValueHeap) Less(i, j int) bool {
+func (s valsSlice) Less(i, j int) bool {
 	if math.IsNaN(s[i]) {
 		return true
 	}
+
 	return s[i] < s[j]
 }
 
-func (s vectorByValueHeap) Swap(i, j int) {
+func (s valsSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// qauntile calculates the given quantile of a vector of samples.
+// qauntile calculates the given quantile of a slice of values.
 //
-// The Vector will be sorted.
+// This slice will be sorted.
 // If 'values' has zero elements, NaN is returned.
 // If q<0, -Inf is returned.
 // If q>1, +Inf is returned.
-func quantile(q float64, values vectorByValueHeap) float64 {
+func quantile(q float64, values valsSlice) float64 {
 	if len(values) == 0 {
 		return math.NaN()
 	}
@@ -260,8 +260,8 @@ func quantile(q float64, values vectorByValueHeap) float64 {
 	sort.Sort(values)
 
 	n := float64(len(values))
-	// When the quantile lies between two samples,
-	// we use a weighted average of the two samples.
+	// When the quantile lies between two values,
+	// we use a weighted average of the two values.
 	rank := q * (n - 1)
 
 	lowerIndex := math.Max(0, math.Floor(rank))
