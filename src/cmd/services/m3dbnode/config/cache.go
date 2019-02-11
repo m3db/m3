@@ -51,11 +51,7 @@ func (c CacheConfigurations) SeriesConfiguration() SeriesCacheConfiguration {
 // or default if none is specified.
 func (c CacheConfigurations) PostingsListConfiguration() PostingsListCacheConfiguration {
 	if c.PostingsList == nil {
-		return PostingsListCacheConfiguration{
-			Size:        &defaultPostingsListCacheSize,
-			CacheRegexp: &defaultPostingsListCacheRegexp,
-			CacheTerms:  &defaultPostingsListCacheTerms,
-		}
+		return PostingsListCacheConfiguration{}
 	}
 
 	return *c.PostingsList

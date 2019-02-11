@@ -247,7 +247,7 @@ func Run(runOpts RunOptions) {
 		plCacheSize    = plCacheConfig.SizeOrDefault()
 		plCacheOptions = index.PostingsListCacheOptions{
 			InstrumentOptions: opts.InstrumentOptions().
-				SetMetricsScope(scope.SubScope("query-cache")),
+				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
 	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
