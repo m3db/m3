@@ -24,9 +24,12 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -171,7 +174,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
 		return File{}, err
 	}
-	fd, err := fs.OpenWritable(filePath, w.newFileMode)
+	fd, err := fs.OpenWritableDirect(filePath, w.newFileMode)
 	if err != nil {
 		return File{}, err
 	}
@@ -328,11 +331,14 @@ func (w *writer) write(data []byte) error {
 	return err
 }
 
+const blockSize = 4096
+
 type fsChunkWriter struct {
 	fd      xos.File
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
+	block   [2 * blockSize]byte
 }
 
 func newChunkWriter(flushFn flushFn, fsync bool) chunkWriter {
@@ -389,19 +395,52 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 	// Combine buffers to reduce to a single syscall
 	w.buff = append(w.buff[:chunkHeaderLen], p...)
 
+	// Block offset
+	data := (*reflect.SliceHeader)(unsafe.Pointer(&w.block)).Data
+	alignOffset := int(data % blockSize)
+
 	// Write contents to file descriptor
-	n, err := w.fd.Write(w.buff)
-	if err != nil {
-		w.flushFn(err)
-		return n, err
+	written := 0
+	readBuff := w.buff
+	for {
+		read := len(readBuff)
+		if read == 0 {
+			break
+		}
+
+		if read > blockSize {
+			read = blockSize
+		}
+
+		dmaBuff := w.block[alignOffset : alignOffset+read]
+		copy(dmaBuff, readBuff[:read])
+
+		// progress buffer forward
+		readBuff = readBuff[read:]
+
+		n, err := w.fd.Write(dmaBuff)
+		if err != nil {
+			w.flushFn(err)
+			return written, err
+		}
+
+		written += n
+
+		if n != read {
+			err := fmt.Errorf("did not write enough: expected=%d, actual=%d",
+				read, n)
+			w.flushFn(err)
+			return written, err
+		}
 	}
 
 	// Fsync if required to
+	var err error
 	if w.fsync {
 		err = w.sync()
 	}
 
 	// Fire flush callback
 	w.flushFn(err)
-	return n, err
+	return written, err
 }
