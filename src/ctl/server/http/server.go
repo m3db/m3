@@ -24,9 +24,9 @@ import (
 	"net/http"
 	"sync"
 
-	_ "github.com/m3db/m3ctl/generated/ui/statik" // Generated UI statik package
-	mserver "github.com/m3db/m3ctl/server"
-	"github.com/m3db/m3ctl/service"
+	_ "github.com/m3db/m3/src/ctl/generated/ui/statik" // Generated UI statik package
+	mserver "github.com/m3db/m3/src/ctl/server"
+	"github.com/m3db/m3/src/ctl/service"
 	"github.com/m3db/m3x/log"
 
 	"github.com/gorilla/mux"

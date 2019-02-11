@@ -1,6 +1,6 @@
-# R2 UI
+# M3Ctl UI
 
-Note: Work in progess
+Note: Work in progress.
 
 This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app).
 

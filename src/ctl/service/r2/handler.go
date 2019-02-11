@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3ctl/auth"
+	"github.com/m3db/m3/src/ctl/auth"
 	"github.com/m3db/m3x/log"
 )
 
