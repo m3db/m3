@@ -108,6 +108,10 @@ func (c *postingsListLRU) Add(
 	if uuidEntries, ok := c.items[uuidArray]; ok {
 		key := newPatternAndPatternType(pattern, patternType)
 		if ent, ok := uuidEntries[key]; ok {
+			// If it already exists, just move it to the front. This avoids storing
+			// the same item in the LRU twice which is important because the maps
+			// can only point to one entry at a time and we use them for purges. Also,
+			// it saves space by avoiding storing duplicate values.
 			c.evictList.MoveToFront(ent)
 			ent.Value.(*entry).postingsList = pl
 			return false

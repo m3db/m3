@@ -255,13 +255,25 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 }
 
 func putEntry(cache *PostingsListCache, i int) {
+	// Do each put twice to test the logic that avoids storing
+	// multiple entries for the same value.
 	if testPlEntries[i].patternType == PatternTypeRegexp {
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
 			testPlEntries[i].pattern,
 			testPlEntries[i].postingsList,
 		)
+		cache.PutRegexp(
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].pattern,
+			testPlEntries[i].postingsList,
+		)
 	} else {
+		cache.PutTerm(
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].pattern,
+			testPlEntries[i].postingsList,
+		)
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
 			testPlEntries[i].pattern,
