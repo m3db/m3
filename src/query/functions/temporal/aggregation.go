@@ -52,7 +52,7 @@ const (
 	// StdVarType calculates the standard variance of all values in the specified interval.
 	StdVarType = "stdvar_over_time"
 
-	// QuantileType  calculates the standard variance of all values in the specified interval.
+	// QuantileType calculates the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified interval.
 	QuantileType = "quantile_over_time"
 )
 
