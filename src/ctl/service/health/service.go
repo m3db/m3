@@ -27,7 +27,7 @@ import (
 	"os"
 	"time"
 
-	mservice "github.com/m3db/m3ctl/service"
+	mservice "github.com/m3db/m3/src/ctl/service"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/gorilla/mux"
@@ -64,7 +64,7 @@ func (s *service) URLPrefix() string {
 func (s *service) RegisterHandlers(router *mux.Router) error {
 	log := s.iOpts.Logger()
 	router.HandleFunc("", healthCheck)
-	log.Infof("Registered health endpoints")
+	log.Infof("registered health endpoints")
 	return nil
 }
 

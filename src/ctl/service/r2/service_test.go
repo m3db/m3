@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/m3db/m3ctl/auth"
+	"github.com/m3db/m3/src/ctl/auth"
 
 	"github.com/stretchr/testify/require"
 )

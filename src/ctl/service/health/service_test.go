@@ -27,8 +27,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/m3db/m3x/instrument"
+
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 )
 

@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/ctl/service/r2"
+	r2store "github.com/m3db/m3/src/ctl/service/r2/store"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/pipeline"
@@ -31,8 +33,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
-	"github.com/m3db/m3ctl/service/r2"
-	r2store "github.com/m3db/m3ctl/service/r2/store"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"

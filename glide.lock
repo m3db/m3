@@ -134,6 +134,14 @@ imports:
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 432dd90af23366a89a611c020003fc8ba281ae5d
+- name: github.com/go-playground/locales
+  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
+- name: github.com/go-stack/stack
+  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
   version: ba06b47c162d49f2af050fb4c75bcbc86a159d5c
   subpackages:
@@ -357,6 +365,10 @@ imports:
   - fileutil
   - index
   - labels
+- name: github.com/rakyll/statik
+  version: 19b88da8fc15428620782ba18f68423130e7ac7d
+  subpackages:
+  - fs
 - name: github.com/RoaringBitmap/roaring
   version: 3d677d3262197ee558b85029301eb69b8239f91a
 - name: github.com/satori/go.uuid

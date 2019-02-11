@@ -12,11 +12,11 @@ auto_gen             := scripts/auto-gen.sh
 process_coverfile    := scripts/process-cover.sh
 gopath_prefix        := $(GOPATH)/src
 gopath_bin_path      := $(GOPATH)/bin
-m3db_package         := github.com/m3db/m3
-m3db_package_path    := $(gopath_prefix)/$(m3db_package)
+m3_package           := github.com/m3db/m3
+m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
-retool_bin_path      := $(m3db_package_path)/_tools/bin
-retool_src_prefix    := $(m3db_package_path)/_tools/src
+retool_bin_path      := $(m3_package_path)/_tools/bin
+retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
@@ -33,8 +33,8 @@ vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
 BUILD                     := $(abspath ./bin)
-VENDOR                    := $(m3db_package_path)/$(vendor_prefix)
-GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
+VENDOR                    := $(m3_package_path)/$(vendor_prefix)
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3_package)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
@@ -50,6 +50,7 @@ SERVICES :=     \
 	m3aggregator  \
 	m3query       \
 	m3collector   \
+	m3ctl         \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
@@ -67,6 +68,7 @@ SUBDIRS :=    \
 	m3nsch      \
 	m3ninx      \
 	aggregator  \
+	ctl         \
 
 TOOLS :=               \
 	read_ids             \
@@ -87,6 +89,10 @@ define SERVICE_RULES
 
 .PHONY: $(SERVICE)
 $(SERVICE): setup
+ifeq ($(SERVICE),m3ctl)
+	@echo "Building $(SERVICE) dependencies"
+	make build-ui-ctl-statik-gen
+endif
 	@echo Building $(SERVICE)
 	[ -d $(VENDOR) ] || make install-vendor
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
@@ -237,25 +243,25 @@ define SUBDIR_RULES
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
 thrift-gen-$(SUBDIR): install-tools
 	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
 proto-gen-$(SUBDIR): install-tools
 	@echo "--- Generating protobuf files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
 asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
@@ -344,6 +350,54 @@ endef
 # of metalint and finishes faster.
 $(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
 
+.PHONY: build-ui-ctl
+build-ui-ctl:
+ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
+	# Need to use subshell output of set-node-version as cannot
+	# set side-effects of nvm to later commands
+	@echo "Building UI components, if npm install or build fails try: npm cache clean"
+	make node-yarn-run \
+		node_version="6" \
+		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && npm run build"
+else
+	@echo "Skip building UI components, already built, to rebuild first make clean"
+endif
+	# Move public assets into public subdirectory so that it can
+	# be included in the single statik package built from ./ui/build
+	rm -rf ./src/ctl/ui/build/public
+	cp -r ./src/ctl/public ./src/ctl/ui/build/public
+
+.PHONY: build-ui-ctl-statik-gen
+build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
+
+.PHONY: build-ui-ctl-statik
+build-ui-ctl-statik: build-ui-ctl install-tools
+	mkdir -p ./src/ctl/generated/ui
+	$(retool_bin_path)/statik -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+
+.PHONY: node-yarn-run
+node-yarn-run:
+	make node-run \
+		node_version="$(node_version)" \
+		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn) && $(node_cmd)"
+
+.PHONY: node-run
+node-run:
+ifneq ($(shell brew --prefix nvm 2>/dev/null),)
+	@echo "Using nvm from brew to select node version $(node_version)"
+	source $(shell brew --prefix nvm)/nvm.sh && nvm use $(node_version) && bash -c "$(node_cmd)"
+else ifneq ($(shell type nvm 2>/dev/null),)
+	@echo "Using nvm to select node version $(node_version)"
+	nvm use $(node_version) && bash -c "$(node_cmd)"
+else
+	node --version 2>&1 >/dev/null || \
+		(echo "Trying apt install" && which apt-get && (curl -sL https://deb.nodesource.com/setup_$(node_version).x | bash) && apt-get install -y nodejs) || \
+		(echo "Trying apk install" && which apk && apk add --update nodejs nodejs-npm) || \
+		(echo "No node install or known package manager" && exit 1)
+	@echo "Not using nvm, using node version $(shell node --version)"
+	bash -c "$(node_cmd)"
+endif
+
 .PHONY: metalint
 metalint: install-gometalinter install-linter-badtime install-linter-importorder
 	@echo "--- metalinting src/"
@@ -371,5 +425,6 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(BUILD)
 	@rm -rf $(VENDOR)
+	@rm -rf ./src/ctl/ui/build
 
 .DEFAULT_GOAL := all

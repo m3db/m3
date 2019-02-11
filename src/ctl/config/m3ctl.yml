@@ -1,0 +1,18 @@
+logging:
+  level: info
+
+http:
+  host: 0.0.0.0
+  port: 9000
+  readTimeout: 10s
+  writeTimeout: 10s
+
+metrics:
+  prometheus:
+    handlerPath: /metrics
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+store:
+  stub: true

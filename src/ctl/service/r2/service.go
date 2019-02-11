@@ -26,9 +26,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3ctl/auth"
-	mservice "github.com/m3db/m3ctl/service"
-	"github.com/m3db/m3ctl/service/r2/store"
+	"github.com/m3db/m3/src/ctl/auth"
+	mservice "github.com/m3db/m3/src/ctl/service"
+	"github.com/m3db/m3/src/ctl/service/r2/store"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
@@ -202,7 +202,7 @@ func (s *service) RegisterHandlers(router *mux.Router) error {
 			return err
 		}
 	}
-	s.logger.Info("Registered rules endpoints")
+	s.logger.Info("registered rules endpoints")
 	return nil
 }
 
