@@ -41,7 +41,7 @@ const (
 	// PatternTypeTerm indicates that the pattern is of type term.
 	PatternTypeTerm
 
-	reportLoopInterval = time.Second
+	reportLoopInterval = 10 * time.Second
 )
 
 // PostingsListCacheOptions is the options struct for the query cache.
