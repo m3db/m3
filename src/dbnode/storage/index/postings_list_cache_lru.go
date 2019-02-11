@@ -96,7 +96,7 @@ func newPostingsListLRU(size int) (*postingsListLRU, error) {
 	}, nil
 }
 
-// Add adds a value to the cache.  Returns true if an eviction occurred.
+// Add adds a value to the cache. Returns true if an eviction occurred.
 func (c *postingsListLRU) Add(
 	segmentUUID uuid.UUID,
 	pattern string,
