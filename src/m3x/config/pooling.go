@@ -24,7 +24,7 @@ import "github.com/m3db/m3x/sync"
 
 const (
 	defaultWorkerPoolStaticSize = 4096
-	defaultGrowKillProbability  = 0.01
+	defaultGrowKillProbability  = 0.001
 )
 
 // WorkerPoolPolicy specifies the policy for the worker pool.

@@ -21,19 +21,20 @@
 package sync
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/m3db/m3x/instrument"
 )
 
 const (
-	defaultNumShards             = int64(2 ^ 4)
-	defaultKillWorkerProbability = 0.0001
+	defaultKillWorkerProbability = 0.001
 	defaultGrowOnDemand          = false
 )
 
 var (
-	defaultNowFn = time.Now
+	defaultNumShards = int64(runtime.NumCPU())
+	defaultNowFn     = time.Now
 )
 
 // NowFn is a function that returns the current time.
