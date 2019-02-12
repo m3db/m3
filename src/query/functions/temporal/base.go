@@ -48,30 +48,7 @@ type baseOp struct {
 
 // skipping lint check for a single operator type since we will be adding more
 // nolint : unparam
-func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor) (baseOp, error) {
-	if operatorType != HoltWintersType && operatorType != PredictLinearType && operatorType != QuantileType {
-		if len(args) != 1 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", operatorType, len(args))
-		}
-	}
-
-	var (
-		durArg   interface{}
-		duration time.Duration
-		ok       bool
-	)
-
-	if operatorType != QuantileType {
-		durArg = args[0]
-	} else {
-		durArg = args[1]
-	}
-
-	duration, ok = durArg.(time.Duration)
-	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", durArg, operatorType)
-	}
-
+func newBaseOp(duration time.Duration, operatorType string, processorFn MakeProcessor) (baseOp, error) {
 	return baseOp{
 		operatorType: operatorType,
 		processorFn:  processorFn,

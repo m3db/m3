@@ -132,12 +132,12 @@ var testCases = []testCase{
 		name:   "quantile_over_time",
 		opType: QuantileType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 6},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.6},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.8},
 		},
 		afterAllBlocks: [][]float64{
-			{0, 1, 1, 1, 1},
-			{5, 6, 6, 6, 6},
+			{0.8, 0.8, 0.8, 0.8, 0.8},
+			{5.8, 5.8, 5.8, 5.8, 5.8},
 		},
 	},
 }
