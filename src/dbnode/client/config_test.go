@@ -72,29 +72,40 @@ hashing:
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	boolTrue := true
+	var (
+		levelMajority        = topology.ConsistencyLevelMajority
+		readUnstrictMajority = topology.ReadConsistencyLevelUnstrictMajority
+		connectAny           = topology.ConnectConsistencyLevelAny
+		second10             = 10 * time.Second
+		second15             = 15 * time.Second
+		second20             = 20 * time.Second
+		num4                 = 4
+		numHalf              = 0.5
+		boolTrue             = true
+	)
+
 	expected := Configuration{
-		WriteConsistencyLevel:   topology.ConsistencyLevelMajority,
-		ReadConsistencyLevel:    topology.ReadConsistencyLevelUnstrictMajority,
-		ConnectConsistencyLevel: topology.ConnectConsistencyLevelAny,
-		WriteTimeout:            10 * time.Second,
-		FetchTimeout:            15 * time.Second,
-		ConnectTimeout:          20 * time.Second,
-		WriteRetry: retry.Configuration{
+		WriteConsistencyLevel:   &levelMajority,
+		ReadConsistencyLevel:    &readUnstrictMajority,
+		ConnectConsistencyLevel: &connectAny,
+		WriteTimeout:            &second10,
+		FetchTimeout:            &second15,
+		ConnectTimeout:          &second20,
+		WriteRetry: &retry.Configuration{
 			InitialBackoff: 500 * time.Millisecond,
 			BackoffFactor:  3,
 			MaxRetries:     2,
 			Jitter:         &boolTrue,
 		},
-		FetchRetry: retry.Configuration{
+		FetchRetry: &retry.Configuration{
 			InitialBackoff: 500 * time.Millisecond,
 			BackoffFactor:  2,
 			MaxRetries:     3,
 			Jitter:         &boolTrue,
 		},
-		BackgroundHealthCheckFailLimit:          4,
-		BackgroundHealthCheckFailThrottleFactor: 0.5,
-		HashingConfiguration: HashingConfiguration{
+		BackgroundHealthCheckFailLimit:          &num4,
+		BackgroundHealthCheckFailThrottleFactor: &numHalf,
+		HashingConfiguration: &HashingConfiguration{
 			Seed: 42,
 		},
 	}
