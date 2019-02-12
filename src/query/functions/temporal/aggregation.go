@@ -56,7 +56,7 @@ const (
 	QuantileType = "quantile_over_time"
 )
 
-type aggFunc func([]float64, float64) float64
+type aggFunc func([]float64) float64
 
 var (
 	aggFuncs = map[string]aggFunc{
@@ -67,31 +67,30 @@ var (
 		SumType:      sumOverTime,
 		StdDevType:   stddevOverTime,
 		StdVarType:   stdvarOverTime,
-		QuantileType: quantileOverTime,
+		QuantileType: makeQuantileOverTimeFn,
 	}
 )
 
 type aggProcessor struct {
-	aggFunc        aggFunc
-	quantileScalar float64
+	aggFunc aggFunc
 }
 
 func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
 	return &aggNode{
-		controller:     controller,
-		op:             op,
-		aggFunc:        a.aggFunc,
-		quantileScalar: a.quantileScalar,
+		controller: controller,
+		op:         op,
+		aggFunc:    a.aggFunc,
 	}
 }
 
 // NewAggOp creates a new base temporal transform with a specified node.
 func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
-	if aggregationFunc, ok := aggFuncs[optype]; ok {
-		a := aggProcessor{
-			aggFunc: aggregationFunc,
-		}
+	var (
+		aggregationFunc aggFunc
+		ok              bool
+	)
 
+	if aggregationFunc, ok = aggFuncs[optype]; ok {
 		if optype == QuantileType {
 			if len(args) != 2 {
 				return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
@@ -102,7 +101,11 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 				return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
 			}
 
-			a.quantileScalar = scalar
+			aggregationFunc = makeQuantileOverTimeFn(scalar)
+		}
+
+		a := aggProcessor{
+			aggFunc: aggregationFunc,
 		}
 
 		return newBaseOp(args, optype, a)
@@ -112,22 +115,21 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 }
 
 type aggNode struct {
-	op             baseOp
-	controller     *transform.Controller
-	aggFunc        func([]float64, float64) float64
-	quantileScalar float64
+	op         baseOp
+	controller *transform.Controller
+	aggFunc    func([]float64, float64) float64
 }
 
 func (a *aggNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
 	return a.aggFunc(datapoints.Values(), a.quantileScalar)
 }
 
-func avgOverTime(values []float64, _ float64) float64 {
+func avgOverTime(values []float64) float64 {
 	sum, count := sumAndCount(values)
 	return sum / count
 }
 
-func countOverTime(values []float64, _ float64) float64 {
+func countOverTime(values []float64) float64 {
 	_, count := sumAndCount(values)
 	if count == 0 {
 		return math.NaN()
@@ -136,7 +138,7 @@ func countOverTime(values []float64, _ float64) float64 {
 	return count
 }
 
-func minOverTime(values []float64, _ float64) float64 {
+func minOverTime(values []float64) float64 {
 	var seenNotNaN bool
 	min := math.Inf(1)
 	for _, v := range values {
@@ -153,7 +155,7 @@ func minOverTime(values []float64, _ float64) float64 {
 	return min
 }
 
-func maxOverTime(values []float64, _ float64) float64 {
+func maxOverTime(values []float64) float64 {
 	var seenNotNaN bool
 	max := math.Inf(-1)
 	for _, v := range values {
@@ -170,16 +172,16 @@ func maxOverTime(values []float64, _ float64) float64 {
 	return max
 }
 
-func sumOverTime(values []float64, _ float64) float64 {
+func sumOverTime(values []float64) float64 {
 	sum, _ := sumAndCount(values)
 	return sum
 }
 
-func stddevOverTime(values []float64, _ float64) float64 {
+func stddevOverTime(values []float64) float64 {
 	return math.Sqrt(stdvarOverTime(values, -1))
 }
 
-func stdvarOverTime(values []float64, _ float64) float64 {
+func stdvarOverTime(values []float64) float64 {
 	var aux, count, mean float64
 	for _, v := range values {
 		if !math.IsNaN(v) {
@@ -214,13 +216,15 @@ func sumAndCount(values []float64) (float64, float64) {
 	return sum, count
 }
 
-func quantileOverTime(values []float64, scalar float64) float64 {
-	valuesSlice := make(valsSlice, 0, len(values))
-	for _, v := range values {
-		valuesSlice = append(values, v)
-	}
+func makeQuantileOverTimeFn(scalar float64) aggFunc {
+	return func(values []float64) float64 {
+		valuesSlice := make(valsSlice, 0, len(values))
+		for _, v := range values {
+			valuesSlice = append(values, v)
+		}
 
-	return quantile(scalar, valuesSlice)
+		return quantile(scalar, valuesSlice)
+	}
 }
 
 type valsSlice []float64

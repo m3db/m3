@@ -69,7 +69,7 @@ func NewHoltWintersOp(args []interface{}) (transform.Params, error) {
 }
 
 func makeHoltWintersFn(sf, tf float64) aggFunc {
-	return func(vals []float64, _ float64) float64 {
+	return func(vals []float64) float64 {
 		var (
 			foundFirst, foundSecond         bool
 			secondVal                       float64
