@@ -60,14 +60,13 @@ type aggFunc func([]float64) float64
 
 var (
 	aggFuncs = map[string]aggFunc{
-		AvgType:      avgOverTime,
-		CountType:    countOverTime,
-		MinType:      minOverTime,
-		MaxType:      maxOverTime,
-		SumType:      sumOverTime,
-		StdDevType:   stddevOverTime,
-		StdVarType:   stdvarOverTime,
-		QuantileType: makeQuantileOverTimeFn,
+		AvgType:    avgOverTime,
+		CountType:  countOverTime,
+		MinType:    minOverTime,
+		MaxType:    maxOverTime,
+		SumType:    sumOverTime,
+		StdDevType: stddevOverTime,
+		StdVarType: stdvarOverTime,
 	}
 )
 
@@ -83,27 +82,33 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 	}
 }
 
-// NewAggOp creates a new base temporal transform with a specified node.
-func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
-	var (
-		aggregationFunc aggFunc
-		ok              bool
-	)
-
-	if aggregationFunc, ok = aggFuncs[optype]; ok {
-		if optype == QuantileType {
-			if len(args) != 2 {
-				return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
-			}
-
-			scalar, ok := args[0].(float64)
-			if !ok {
-				return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
-			}
-
-			aggregationFunc = makeQuantileOverTimeFn(scalar)
+// NewQuantileOp create a new base temporal transform for quantile_over_time func
+func NewQuantileOp(args []interface{}, optype string) (transform.Params, error) {
+	if optype == QuantileType {
+		if len(args) != 2 {
+			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
 		}
 
+		scalar, ok := args[0].(float64)
+		if !ok {
+			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
+		}
+
+		aggregationFunc := makeQuantileOverTimeFn(scalar)
+
+		a := aggProcessor{
+			aggFunc: aggregationFunc,
+		}
+
+		return newBaseOp(args, optype, a)
+	}
+
+	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
+}
+
+// NewAggOp creates a new base temporal transform with a specified node.
+func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
+	if aggregationFunc, ok := aggFuncs[optype]; ok {
 		a := aggProcessor{
 			aggFunc: aggregationFunc,
 		}
@@ -117,11 +122,11 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 type aggNode struct {
 	op         baseOp
 	controller *transform.Controller
-	aggFunc    func([]float64, float64) float64
+	aggFunc    func([]float64) float64
 }
 
 func (a *aggNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
-	return a.aggFunc(datapoints.Values(), a.quantileScalar)
+	return a.aggFunc(datapoints.Values())
 }
 
 func avgOverTime(values []float64) float64 {
@@ -178,7 +183,7 @@ func sumOverTime(values []float64) float64 {
 }
 
 func stddevOverTime(values []float64) float64 {
-	return math.Sqrt(stdvarOverTime(values, -1))
+	return math.Sqrt(stdvarOverTime(values))
 }
 
 func stdvarOverTime(values []float64) float64 {

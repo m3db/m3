@@ -204,8 +204,12 @@ func NewFunctionExpr(
 
 	case temporal.AvgType, temporal.CountType, temporal.MinType,
 		temporal.MaxType, temporal.SumType, temporal.StdDevType,
-		temporal.StdVarType, temporal.QuantileType:
+		temporal.StdVarType:
 		p, err = temporal.NewAggOp(argValues, name)
+		return p, true, err
+
+	case temporal.QuantileType:
+		p, err = temporal.NewQuantileOp(argValues, name)
 		return p, true, err
 
 	case temporal.HoltWintersType:

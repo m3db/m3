@@ -266,15 +266,22 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
-			var args []interface{}
+			var (
+				args   []interface{}
+				baseOp transform.Params
+				err    error
+			)
+
 			if tt.opType == QuantileType {
 				args = []interface{}{0.2, 5 * time.Minute}
+				baseOp, err = NewQuantileOp(args, tt.opType)
+				require.NoError(t, err)
 			} else {
 				args = []interface{}{5 * time.Minute}
+				baseOp, err = NewAggOp(args, tt.opType)
+				require.NoError(t, err)
 			}
 
-			baseOp, err := NewAggOp(args, tt.opType)
-			require.NoError(t, err)
 			node := baseOp.Node(c, transform.Options{
 				TimeSpec: transform.TimeSpec{
 					Start: boundStart.Add(-2 * bounds.Duration),
