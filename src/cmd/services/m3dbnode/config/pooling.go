@@ -122,10 +122,10 @@ type PoolPolicy struct {
 	Size *int `yaml:"size"`
 
 	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark *float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
+	RefillLowWaterMark *float64 `yaml:"lowWatermark"`
 
 	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark *float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+	RefillHighWaterMark *float64 `yaml:"highWatermark"`
 
 	// Default values to be returned if the above values are not set.
 	defaultSize                int
