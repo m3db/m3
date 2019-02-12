@@ -966,7 +966,7 @@ func withEncodingAndPoolingOptions(
 	}
 
 	var bytesPool pool.CheckedBytesPool
-	switch policy.Type {
+	switch policy.TypeOrDefault() {
 	case config.SimplePooling:
 		bytesPool = pool.NewCheckedBytesPool(
 			buckets,
@@ -1105,7 +1105,7 @@ func withEncodingAndPoolingOptions(
 		SetWriteBatchPool(writeBatchPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
-		SetDatabaseBlockAllocSize(policy.BlockAllocSize).
+		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
 		SetSegmentReaderPool(segmentReaderPool).

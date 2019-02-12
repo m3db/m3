@@ -39,10 +39,10 @@ const (
 // PoolingPolicy specifies the pooling policy.
 type PoolingPolicy struct {
 	// The initial alloc size for a block.
-	BlockAllocSize int `yaml:"blockAllocSize"`
+	BlockAllocSize *int `yaml:"blockAllocSize"`
 
 	// The general pool type (currently only supported: simple).
-	Type PoolingType `yaml:"type"`
+	Type *PoolingType `yaml:"type"`
 
 	// The Bytes pool buckets to use.
 	BytesPool BytesPool `yaml:"bytesPool"`
@@ -112,6 +112,26 @@ type PoolingPolicy struct {
 
 	// The policy for the PostingsListPool.
 	PostingsListPool PostingsListPool `yaml:"postingsListPool"`
+}
+
+// BlockAllocSizeOrDefault returns the configured block alloc size if provided,
+// or a default value otherwise.
+func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
+	if p.BlockAllocSize != nil {
+		return *p.BlockAllocSize
+	}
+
+	return 16
+}
+
+// TypeOrDefault returns the configured pooling type if provided, or a default
+// value otherwise.
+func (p *PoolingPolicy) TypeOrDefault() PoolingType {
+	if p.Type != nil {
+		return *p.Type
+	}
+
+	return SimplePooling
 }
 
 // PoolPolicy specifies a single pool policy.
