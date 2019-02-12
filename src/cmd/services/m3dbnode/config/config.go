@@ -118,7 +118,7 @@ type DBConfiguration struct {
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing in-memory data.
-	Repair RepairPolicy `yaml:"repair"`
+	Repair *RepairPolicy `yaml:"repair"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
