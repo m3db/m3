@@ -21,6 +21,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -35,9 +36,9 @@ import (
 )
 
 var (
-	errCannotStartNotInitialized = fmt.Errorf("unable to start, agent is not initialized")
-	errCannotStopNotInitialized  = fmt.Errorf("unable to stop, agent is not initialized")
-	errAlreadyInitialized        = fmt.Errorf("unable to initialize, agent already initialized")
+	errCannotStartNotInitialized = errors.New("unable to start, agent is not initialized")
+	errCannotStopNotInitialized  = errors.New("unable to stop, agent is not initialized")
+	errAlreadyInitialized        = errors.New("unable to initialize, agent already initialized")
 )
 
 type m3nschAgent struct {
