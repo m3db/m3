@@ -338,7 +338,7 @@ type ContextPoolPolicy struct {
 
 // PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *ContextPool) PoolPolicyOrDefault() PoolPolicy {
+func (p *ContextPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
 	policy.defaultSize = defaultContextPoolSize
 	policy.defaultRefillLowWaterMark = commonRefillLowWaterMark
@@ -429,11 +429,6 @@ func (p *ClosersPool) PoolPolicyOrDefault() PoolPolicy {
 	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
 	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
-}
-
-// ContextPool is the pool policy for the context pool.
-type ContextPool struct {
-	PoolPolicy `yaml:",inline"`
 }
 
 // SegmentReaderPool is the pool policy for the segment reader pool.
