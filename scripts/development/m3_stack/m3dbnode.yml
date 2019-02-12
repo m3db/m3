@@ -22,21 +22,6 @@ db:
   client:
     writeConsistencyLevel: majority
     readConsistencyLevel: unstrict_majority
-    writeTimeout: 10s
-    fetchTimeout: 15s
-    connectTimeout: 20s
-    writeRetry:
-        initialBackoff: 500ms
-        backoffFactor: 3
-        maxRetries: 2
-        jitter: true
-    fetchRetry:
-        initialBackoff: 500ms
-        backoffFactor: 2
-        maxRetries: 3
-        jitter: true
-    backgroundHealthCheckFailLimit: 4
-    backgroundHealthCheckFailThrottleFactor: 0.5
 
   gcPercentage: 100
 
