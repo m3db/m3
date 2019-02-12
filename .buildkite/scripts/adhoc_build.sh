@@ -21,7 +21,7 @@ function build() {
   fi
 
   local action=$1
-  local url="https://api.buildkite.com/v2/organizations/m3/pipelines/m3-monorepo-ci"
+  local url="https://api.buildkite.com/v2/organizations/uberopensource/pipelines/m3-monorepo-ci"
   local auth="Authorization: Bearer $BUILDKITE_CLI_TOKEN"
 
   if [[ "$action" != "build" && "$action" != "list" ]]; then
@@ -41,7 +41,7 @@ function build() {
   data=$(cat <<EOF
     {
       "branch": "${branch}",
-      "message": "$(whoami) adhoc build",
+      "message": "$(git show -s --format=%s HEAD) (adhoc)",
       "commit": "HEAD",
       "ignore_pipeline_branch_filters": true,
       "clean_checkout": true

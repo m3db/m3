@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 
-package rpc;
+package m3nsch;
 
 service Mensch {
   rpc Status(StatusRequest) returns (StatusResponse);
@@ -59,10 +59,9 @@ message StopResponse{
 }
 
 message Workload {
-  google.protobuf.Timestamp baseTime     = 1;
-  string                    metricPrefix = 2;
-  string                    namespace    = 3;
-  int32                     cardinality  = 4;
-  int32                     ingressQPS   = 5;
+  google.protobuf.Timestamp baseTime        = 1;
+  string                    metricPrefix    = 2;
+  string                    namespace       = 3;
+  int32                     cardinality     = 4;
+  int32                     ingressQPS      = 5;
 }
-
