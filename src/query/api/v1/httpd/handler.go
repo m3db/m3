@@ -114,11 +114,12 @@ func NewHandler(
 	if embeddedDbCfg == nil {
 		timeoutOpts.FetchTimeout = defaultTimeout
 	} else {
-		if embeddedDbCfg.Client.FetchTimeout < 0 {
+		if embeddedDbCfg.Client.FetchTimeout != nil ||
+			*embeddedDbCfg.Client.FetchTimeout <= 0 {
 			return nil, errors.New("m3db client fetch timeout should be > 0")
 		}
 
-		timeoutOpts.FetchTimeout = embeddedDbCfg.Client.FetchTimeout
+		timeoutOpts.FetchTimeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	h := &Handler{

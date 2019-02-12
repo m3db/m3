@@ -43,42 +43,42 @@ var (
 // Configuration is a configuration that can be used to construct a client.
 type Configuration struct {
 	// The environment (static or dynamic) configuration.
-	EnvironmentConfig environment.Configuration `yaml:"config"`
+	EnvironmentConfig *environment.Configuration `yaml:"config"`
 
 	// WriteConsistencyLevel specifies the write consistency level.
-	WriteConsistencyLevel topology.ConsistencyLevel `yaml:"writeConsistencyLevel"`
+	WriteConsistencyLevel *topology.ConsistencyLevel `yaml:"writeConsistencyLevel"`
 
 	// ReadConsistencyLevel specifies the read consistency level.
-	ReadConsistencyLevel topology.ReadConsistencyLevel `yaml:"readConsistencyLevel"`
+	ReadConsistencyLevel *topology.ReadConsistencyLevel `yaml:"readConsistencyLevel"`
 
 	// ConnectConsistencyLevel specifies the cluster connect consistency level.
-	ConnectConsistencyLevel topology.ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
+	ConnectConsistencyLevel *topology.ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
 
 	// WriteTimeout is the write request timeout.
-	WriteTimeout time.Duration `yaml:"writeTimeout" validate:"min=0"`
+	WriteTimeout *time.Duration `yaml:"writeTimeout" validate:"min=0"`
 
 	// FetchTimeout is the fetch request timeout.
-	FetchTimeout time.Duration `yaml:"fetchTimeout" validate:"min=0"`
+	FetchTimeout *time.Duration `yaml:"fetchTimeout" validate:"min=0"`
 
 	// ConnectTimeout is the cluster connect timeout.
-	ConnectTimeout time.Duration `yaml:"connectTimeout" validate:"min=0"`
+	ConnectTimeout *time.Duration `yaml:"connectTimeout" validate:"min=0"`
 
 	// WriteRetry is the write retry config.
-	WriteRetry retry.Configuration `yaml:"writeRetry"`
+	WriteRetry *retry.Configuration `yaml:"writeRetry"`
 
 	// FetchRetry is the fetch retry config.
-	FetchRetry retry.Configuration `yaml:"fetchRetry"`
+	FetchRetry *retry.Configuration `yaml:"fetchRetry"`
 
 	// BackgroundHealthCheckFailLimit is the amount of times a background check
 	// must fail before a connection is taken out of consideration.
-	BackgroundHealthCheckFailLimit int `yaml:"backgroundHealthCheckFailLimit" validate:"min=1,max=10"`
+	BackgroundHealthCheckFailLimit *int `yaml:"backgroundHealthCheckFailLimit" validate:"min=1,max=10"`
 
 	// BackgroundHealthCheckFailThrottleFactor is the factor of the host connect
 	// time to use when sleeping between a failed health check and the next check.
-	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor" validate:"min=0,max=10"`
+	BackgroundHealthCheckFailThrottleFactor *float64 `yaml:"backgroundHealthCheckFailThrottleFactor" validate:"min=0,max=10"`
 
 	// HashingConfiguration is the configuration for hashing of IDs to shards.
-	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+	HashingConfiguration *HashingConfiguration `yaml:"hashing"`
 }
 
 // HashingConfiguration is the configuration for hashing
@@ -177,18 +177,39 @@ func (c Configuration) NewAdminClient(
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(envCfg.TopologyInitializer).
-		SetWriteConsistencyLevel(c.WriteConsistencyLevel).
-		SetReadConsistencyLevel(c.ReadConsistencyLevel).
-		SetClusterConnectConsistencyLevel(c.ConnectConsistencyLevel).
-		SetBackgroundHealthCheckFailLimit(c.BackgroundHealthCheckFailLimit).
-		SetBackgroundHealthCheckFailThrottleFactor(c.BackgroundHealthCheckFailThrottleFactor).
-		SetWriteRequestTimeout(c.WriteTimeout).
-		SetFetchRequestTimeout(c.FetchTimeout).
-		SetClusterConnectTimeout(c.ConnectTimeout).
-		SetWriteRetrier(c.WriteRetry.NewRetrier(writeRequestScope)).
-		SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope)).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
+
+	if c.WriteConsistencyLevel != nil {
+		v = v.SetWriteConsistencyLevel(*c.WriteConsistencyLevel)
+	}
+	if c.ReadConsistencyLevel != nil {
+		v = v.SetReadConsistencyLevel(*c.ReadConsistencyLevel)
+	}
+	if c.ConnectConsistencyLevel != nil {
+		v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
+	}
+	if c.BackgroundHealthCheckFailLimit != nil {
+		v = v.SetBackgroundHealthCheckFailLimit(*c.BackgroundHealthCheckFailLimit)
+	}
+	if c.BackgroundHealthCheckFailThrottleFactor != nil {
+		v = v.SetBackgroundHealthCheckFailThrottleFactor(*c.BackgroundHealthCheckFailThrottleFactor)
+	}
+	if c.WriteTimeout != nil {
+		v = v.SetWriteRequestTimeout(*c.WriteTimeout)
+	}
+	if c.FetchTimeout != nil {
+		v = v.SetFetchRequestTimeout(*c.FetchTimeout)
+	}
+	if c.ConnectTimeout != nil {
+		v = v.SetClusterConnectTimeout(*c.ConnectTimeout)
+	}
+	if c.WriteRetry != nil {
+		v = v.SetWriteRetrier(c.WriteRetry.NewRetrier(writeRequestScope))
+	}
+	if c.FetchRetry != nil {
+		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
+	}
 
 	encodingOpts := params.EncodingOptions
 	if encodingOpts == nil {
