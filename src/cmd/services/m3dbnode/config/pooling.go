@@ -38,19 +38,21 @@ const (
 	commonRefillLowWaterMark  = 0.7
 	commonRefillHighWaterMark = 0.7
 
-	defaultContextPoolSize = 262144
-
-	defaultSeriesPoolSize = 262144
-
-	defaultBlockPoolSize = 262144
-
-	defaultEncoderPoolSize = 262144
-
-	defaultClosersPoolSize = 104857
-
+	defaultContextPoolSize       = 262144
+	defaultSeriesPoolSize        = 262144
+	defaultBlockPoolSize         = 262144
+	defaultEncoderPoolSize       = 262144
+	defaultClosersPoolSize       = 104857
 	defaultSegmentReaderPoolSize = 16384
+	defaultIteratorPoolSize      = 2048
+	defaultBlockMetadataPoolSize = 65536
+	defaultBlocksMetadataPool    = 65536
+	defaultIdentifierPoolSize    = 262144
 
-	defaultIteratorPoolSize = 2048
+	// defaultPostingsListPoolSize has a small default pool size since postings
+	// lists can frequently reach the size of 4mb each in practice even when
+	// reset.
+	defaultPostingsListPoolSize = 16
 
 	defaultFetchBlockMetadataResultsPoolSize     = 65536
 	defaultFetchBlockMetadataResultsPoolCapacity = 32
@@ -61,22 +63,11 @@ const (
 	defaultHostBlockMetadataSlicePoolSize     = 131072
 	defaultHostBlockMetadataSlicePoolCapacity = 3
 
-	defaultBlockMetadataPoolSize = 65536
-
 	defaultBlockMetadataSlicePoolSize     = 65536
 	defaultBlockMetadataSlicePoolCapacity = 32
 
-	defaultBlocksMetadataPool = 65536
-
 	defaultBlocksMetadataSlicePoolSize     = 32
 	defaultBlocksMetadataSlicePoolCapacity = 4096
-
-	defaultIdentifierPoolSize = 262144
-
-	// defaultPostingsListPoolSize has a small default pool size since postings
-	// lists can frequently reach the size of 4mb each in practice even when
-	// reset.
-	defaultPostingsListPoolSize = 16
 )
 
 var (
