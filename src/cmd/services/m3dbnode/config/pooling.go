@@ -98,16 +98,16 @@ type PoolingPolicy struct {
 	TagsPool MaxCapacityPoolPolicy `yaml:"tagsPool"`
 
 	// The policy for the tags iterator pool.
-	TagsIteratorPool PoolPolicy `yaml:"tagIteratorPool"`
+	TagsIteratorPool DefaultPoolPolicy `yaml:"tagIteratorPool"`
 
 	// The policy for the index.ResultsPool.
-	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`
+	IndexResultsPool DefaultPoolPolicy `yaml:"indexResultsPool"`
 
 	// The policy for the TagEncoderPool.
-	TagEncoderPool PoolPolicy `yaml:"tagEncoderPool"`
+	TagEncoderPool DefaultPoolPolicy `yaml:"tagEncoderPool"`
 
 	// The policy for the TagDecoderPool.
-	TagDecoderPool PoolPolicy `yaml:"tagDecoderPool"`
+	TagDecoderPool DefaultPoolPolicy `yaml:"tagDecoderPool"`
 
 	// The policy for the WriteBatchPool.
 	WriteBatchPool WriteBatchPoolPolicy `yaml:"writeBatchPool"`
@@ -212,17 +212,6 @@ type BucketPoolPolicy struct {
 	defaultBuckets []CapacityPoolPolicy
 }
 
-// ContextPoolPolicy specifies the policy for the context pool.
-type ContextPoolPolicy struct {
-	PoolPolicy `yaml:",inline"`
-
-	// The maximum allowable size for a slice of finalizers that the
-	// pool will allow to be returned (finalizer slices that grow too
-	// large during use will be discarded instead of returning to the
-	// pool where they would consume more memory.)
-	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
-}
-
 // WriteBatchPoolPolicy specifies the pooling policy for the WriteBatch pool.
 type WriteBatchPoolPolicy struct {
 	// InitialBatchSize controls the initial batch size for each WriteBatch when
@@ -235,6 +224,17 @@ type WriteBatchPoolPolicy struct {
 
 	// Pool is the Pooling Policy for the WriteBatch pool.
 	Pool PoolPolicy `yaml:"pool"`
+}
+
+// ContextPoolPolicy specifies the policy for the context pool.
+type ContextPoolPolicy struct {
+	PoolPolicy `yaml:",inline"`
+
+	// The maximum allowable size for a slice of finalizers that the
+	// pool will allow to be returned (finalizer slices that grow too
+	// large during use will be discarded instead of returning to the
+	// pool where they would consume more memory.)
+	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
 }
 
 // PoolPolicyOrDefault returns the provided pool policy, or a default value if
@@ -255,6 +255,21 @@ func (c ContextPoolPolicy) MaxFinalizerCapacityOrDefault() int {
 	}
 
 	return c.MaxFinalizerCapacity
+}
+
+// DefaultPoolPolicy is the default pool policy.
+type DefaultPoolPolicy struct {
+	PoolPolicy `yaml:",inline"`
+}
+
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
+// one is not provided.
+func (p *DefaultPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
+	return PoolPolicy{
+		defaultSize:                4096,
+		defaultRefillLowWaterMark:  0.0,
+		defaultRefillHighWaterMark: 0.0,
+	}
 }
 
 // SeriesPool is the pool policy for the series pool.

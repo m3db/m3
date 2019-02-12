@@ -292,11 +292,15 @@ func Run(runOpts RunOptions) {
 	policy := cfg.PoolingPolicy
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
-		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+		poolOptions(
+			policy.TagEncoderPool.PoolPolicyOrDefault(),
+			scope.SubScope("tag-encoder-pool")))
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(),
-		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+		poolOptions(
+			policy.TagDecoderPool.PoolPolicyOrDefault(),
+			scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
 	fsopts := fs.NewOptions().
@@ -1047,10 +1051,12 @@ func withEncodingAndPoolingOptions(
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions: poolOptions(
 			policy.IdentifierPool.PoolPolicyOrDefault(), scope.SubScope("identifier-pool")),
-		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
-		TagsCapacity:            policy.TagsPool.Capacity,
-		TagsMaxCapacity:         policy.TagsPool.MaxCapacity,
-		TagsIteratorPoolOptions: poolOptions(policy.TagsIteratorPool, scope.SubScope("tags-iterator-pool")),
+		TagsPoolOptions: maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
+		TagsCapacity:    policy.TagsPool.Capacity,
+		TagsMaxCapacity: policy.TagsPool.MaxCapacity,
+		TagsIteratorPoolOptions: poolOptions(
+			policy.TagsIteratorPool.PoolPolicyOrDefault(),
+			scope.SubScope("tags-iterator-pool")),
 	})
 
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
@@ -1146,12 +1152,16 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetIdentifierPool(identifierPool))
 
-	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
-		scope.SubScope("index-results-pool")))
+	resultsPool := index.NewResultsPool(
+		poolOptions(
+			policy.IndexResultsPool.PoolPolicyOrDefault(),
+			scope.SubScope("index-results-pool")))
+
 	postingsListOpts := poolOptions(
 		policy.PostingsListPool.PoolPolicyOrDefault(),
 		scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
