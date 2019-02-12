@@ -1186,8 +1186,9 @@ func poolOptions(
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(refillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
+			opts = opts.
+				SetRefillLowWatermark(refillLowWaterMark).
+				SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {
