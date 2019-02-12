@@ -233,8 +233,8 @@ func Run(runOpts RunOptions) {
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
 			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
@@ -275,7 +275,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not parse new directory mode: %v", err)
 	}
 
-	mmapCfg := cfg.Filesystem.MmapConfiguration()
+	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
 	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
 	if shouldUseHugeTLB {
 		// Make sure the host supports HugeTLB before proceeding with it to prevent
@@ -307,20 +307,20 @@ func Run(runOpts RunOptions) {
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope.SubScope("database.fs"))).
-		SetFilePathPrefix(cfg.Filesystem.FilePathPrefix).
+		SetFilePathPrefix(cfg.Filesystem.FilePathPrefixOrDefault()).
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
-		SetWriterBufferSize(cfg.Filesystem.WriteBufferSize).
-		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
-		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
-		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
+		SetWriterBufferSize(cfg.Filesystem.WriteBufferSizeOrDefault()).
+		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSizeOrDefault()).
+		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSizeOrDefault()).
+		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSizeOrDefault()).
 		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
-		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemory).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory)
+		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault())
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size

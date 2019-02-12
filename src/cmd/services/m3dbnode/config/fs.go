@@ -30,6 +30,16 @@ const (
 	DefaultNewFileMode = os.FileMode(0666)
 	// DefaultNewDirectoryMode is the default new directory mode.
 	DefaultNewDirectoryMode = os.FileMode(0755)
+
+	defaultFilePathPrefix                = "/var/lib/m3db"
+	defaultWriteBufferSize               = 65536
+	defaultDataReadBufferSize            = 65536
+	defaultInfoReadBufferSize            = 128
+	defaultSeekReadBufferSize            = 4096
+	defaultThroughputLimitMbps           = 100.0
+	defaultThroughputCheckEvery          = 128
+	defaultForceIndexSummariesMmapMemory = false
+	defaultForceBloomFilterMmapMemory    = false
 )
 
 // DefaultMmapConfiguration is the default mmap configuration.
@@ -45,25 +55,25 @@ func DefaultMmapConfiguration() MmapConfiguration {
 // FilesystemConfiguration is the filesystem configuration.
 type FilesystemConfiguration struct {
 	// File path prefix for reading/writing TSDB files
-	FilePathPrefix string `yaml:"filePathPrefix" validate:"nonzero"`
+	FilePathPrefix *string `yaml:"filePathPrefix" validate:"nonzero"`
 
 	// Write buffer size
-	WriteBufferSize int `yaml:"writeBufferSize" validate:"min=1"`
+	WriteBufferSize *int `yaml:"writeBufferSize" validate:"min=1"`
 
 	// Data read buffer size
-	DataReadBufferSize int `yaml:"dataReadBufferSize" validate:"min=1"`
+	DataReadBufferSize *int `yaml:"dataReadBufferSize" validate:"min=1"`
 
 	// Info metadata file read buffer size
-	InfoReadBufferSize int `yaml:"infoReadBufferSize" validate:"min=1"`
+	InfoReadBufferSize *int `yaml:"infoReadBufferSize" validate:"min=1"`
 
 	// Seek data read buffer size
-	SeekReadBufferSize int `yaml:"seekReadBufferSize" validate:"min=1"`
+	SeekReadBufferSize *int `yaml:"seekReadBufferSize" validate:"min=1"`
 
 	// Disk flush throughput limit in Mb/s
-	ThroughputLimitMbps float64 `yaml:"throughputLimitMbps" validate:"min=0.0"`
+	ThroughputLimitMbps *float64 `yaml:"throughputLimitMbps" validate:"min=0.0"`
 
 	// Disk flush throughput check interval
-	ThroughputCheckEvery int `yaml:"throughputCheckEvery" validate:"nonzero"`
+	ThroughputCheckEvery *int `yaml:"throughputCheckEvery" validate:"nonzero"`
 
 	// NewFileMode is the new file permissions mode to use when
 	// creating files - specify as three digits, e.g. 666.
@@ -78,11 +88,110 @@ type FilesystemConfiguration struct {
 
 	// ForceIndexSummariesMmapMemory forces the mmap that stores the index lookup bytes
 	// to be an anonymous region in memory as opposed to a file-based mmap.
-	ForceIndexSummariesMmapMemory bool `yaml:"force_index_summaries_mmap_memory"`
+	ForceIndexSummariesMmapMemory *bool `yaml:"force_index_summaries_mmap_memory"`
 
 	// ForceBloomFilterMmapMemory forces the mmap that stores the index lookup bytes
 	// to be an anonymous region in memory as opposed to a file-based mmap.
-	ForceBloomFilterMmapMemory bool `yaml:"force_bloom_filter_mmap_memory"`
+	ForceBloomFilterMmapMemory *bool `yaml:"force_bloom_filter_mmap_memory"`
+}
+
+// FilePathPrefixOrDefault returns the configured file path prefix if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) FilePathPrefixOrDefault() string {
+	if f.FilePathPrefix != nil {
+		return *f.FilePathPrefix
+	}
+
+	return defaultFilePathPrefix
+}
+
+// WriteBufferSizeOrDefault returns the configured write buffer size if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) WriteBufferSizeOrDefault() int {
+	if f.WriteBufferSize != nil {
+		return *f.WriteBufferSize
+	}
+
+	return defaultWriteBufferSize
+}
+
+// DataReadBufferSizeOrDefault returns the configured data read buffer size if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) DataReadBufferSizeOrDefault() int {
+	if f.DataReadBufferSize != nil {
+		return *f.DataReadBufferSize
+	}
+
+	return defaultDataReadBufferSize
+}
+
+// InfoReadBufferSizeOrDefault returns the configured info read buffer size if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) InfoReadBufferSizeOrDefault() int {
+	if f.InfoReadBufferSize != nil {
+		return *f.InfoReadBufferSize
+	}
+
+	return defaultInfoReadBufferSize
+}
+
+// SeekReadBufferSizeOrDefault returns the configured seek read buffer size if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) SeekReadBufferSizeOrDefault() int {
+	if f.SeekReadBufferSize != nil {
+		return *f.SeekReadBufferSize
+	}
+
+	return defaultSeekReadBufferSize
+}
+
+// ThroughputLimitMbpsOrDefault returns the configured throughput limit mbps if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) ThroughputLimitMbpsOrDefault() float64 {
+	if f.ThroughputLimitMbps != nil {
+		return *f.ThroughputLimitMbps
+	}
+
+	return defaultThroughputLimitMbps
+}
+
+// ThroughputCheckEveryOrDefault returns the configured throughput check every value if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) ThroughputCheckEveryOrDefault() int {
+	if f.ThroughputCheckEvery != nil {
+		return *f.ThroughputCheckEvery
+	}
+
+	return defaultThroughputCheckEvery
+}
+
+// MmapConfigurationOrDefault returns the configured mmap configuration if configured, or a
+// default value otherwise.
+func (f FilesystemConfiguration) MmapConfigurationOrDefault() MmapConfiguration {
+	if f.Mmap == nil {
+		return DefaultMmapConfiguration()
+	}
+	return *f.Mmap
+}
+
+// ForceIndexSummariesMmapMemoryOrDefault returns the configured value for forcing the summaries
+// mmaps into anonymous region in memory if configured, or a default value otherwise.
+func (f FilesystemConfiguration) ForceIndexSummariesMmapMemoryOrDefault() bool {
+	if f.ForceIndexSummariesMmapMemory != nil {
+		return *f.ForceIndexSummariesMmapMemory
+	}
+
+	return defaultForceIndexSummariesMmapMemory
+}
+
+// ForceBloomFilterMmapMemoryOrDefault returns the configured value for forcing the bloom
+// filter mmaps into anonymous region in memory if configured, or a default value otherwise.
+func (f FilesystemConfiguration) ForceBloomFilterMmapMemoryOrDefault() bool {
+	if f.ForceBloomFilterMmapMemory != nil {
+		return *f.ForceBloomFilterMmapMemory
+	}
+
+	return defaultForceBloomFilterMmapMemory
 }
 
 // MmapConfiguration is the mmap configuration.
@@ -102,12 +211,12 @@ type MmapHugeTLBConfiguration struct {
 }
 
 // ParseNewFileMode parses the specified new file mode.
-func (p FilesystemConfiguration) ParseNewFileMode() (os.FileMode, error) {
-	if p.NewFileMode == nil {
+func (f FilesystemConfiguration) ParseNewFileMode() (os.FileMode, error) {
+	if f.NewFileMode == nil {
 		return DefaultNewFileMode, nil
 	}
 
-	str := *p.NewFileMode
+	str := *f.NewFileMode
 	if len(str) != 3 {
 		return 0, fmt.Errorf("file mode must be 3 chars long")
 	}
@@ -126,12 +235,12 @@ func (p FilesystemConfiguration) ParseNewFileMode() (os.FileMode, error) {
 }
 
 // ParseNewDirectoryMode parses the specified new directory mode.
-func (p FilesystemConfiguration) ParseNewDirectoryMode() (os.FileMode, error) {
-	if p.NewDirectoryMode == nil {
+func (f FilesystemConfiguration) ParseNewDirectoryMode() (os.FileMode, error) {
+	if f.NewDirectoryMode == nil {
 		return DefaultNewDirectoryMode, nil
 	}
 
-	str := *p.NewDirectoryMode
+	str := *f.NewDirectoryMode
 	if len(str) != 3 {
 		return 0, fmt.Errorf("file mode must be 3 chars long")
 	}
@@ -147,12 +256,4 @@ func (p FilesystemConfiguration) ParseNewDirectoryMode() (os.FileMode, error) {
 		return 0, fmt.Errorf("no value to parse")
 	}
 	return os.ModeDir | os.FileMode(v), nil
-}
-
-// MmapConfiguration returns the effective mmap configuration.
-func (p FilesystemConfiguration) MmapConfiguration() MmapConfiguration {
-	if p.Mmap == nil {
-		return DefaultMmapConfiguration()
-	}
-	return *p.Mmap
 }
