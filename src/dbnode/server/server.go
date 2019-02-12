@@ -1030,9 +1030,11 @@ func withEncodingAndPoolingOptions(
 		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
 	}
 
-	writeBatchPoolPolicy := policy.WriteBatchPool.Pool
-	writeBatchPoolSize := writeBatchPoolPolicy.SizeOrDefault()
-	if writeBatchPoolSize == 0 {
+	writeBatchPoolPolicy := poolOptions(
+		policy.WriteBatchPool.Pool,
+		scope.SubScope("write-batch-pool"),
+	)
+	if writeBatchPoolPolicy.Size() == 0 {
 		// If no value set, calculate a reasonabble value based on the commit log
 		// queue size. We base it off the commitlog queue size because we will
 		// want to be able to buffer at least one full commitlog queues worth of
@@ -1041,10 +1043,10 @@ func withEncodingAndPoolingOptions(
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
 		// TODO: This seems wrong
 		expectedBatchSize := *writeBatchPoolInitialBatchSize
-		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
+		writeBatchPoolPolicy = writeBatchPoolPolicy.SetSize(commitlogQueueSize / expectedBatchSize)
 	}
 	writeBatchPool := ts.NewWriteBatchPool(
-		poolOptions(writeBatchPoolPolicy, scope.SubScope("write-batch-pool")),
+		writeBatchPoolPolicy,
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
 
