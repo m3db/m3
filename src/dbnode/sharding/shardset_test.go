@@ -21,6 +21,7 @@
 package sharding
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/shard"
@@ -28,6 +29,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestYoloShard(t *testing.T) {
+	str := ident.StringID("stats.dca1.counts.m3+venue_aborted_ios+app=rider,app_version=3.335.10000,city_name=new_jersey,dc=dca1,env=prod,is_helix=true,os=ios,pipe=us1,service=superflurry,type=counter")
+	hash := DefaultHashFn(8184)
+	fmt.Println(hash(str))
+	panic("yolo")
+}
 
 func TestShardSet(t *testing.T) {
 	ss, err := NewShardSet(
