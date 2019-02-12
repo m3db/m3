@@ -36,8 +36,6 @@ const (
 	defaultPostingsListPoolSize = 16
 )
 
-var ()
-
 // PoolingPolicy specifies the pooling policy.
 type PoolingPolicy struct {
 	// The initial alloc size for a block.
