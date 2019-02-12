@@ -1027,7 +1027,6 @@ func withEncodingAndPoolingOptions(
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
-		// TODO: This seems wrong
 		expectedBatchSize := *writeBatchPoolInitialBatchSize
 		writeBatchPoolPolicy = writeBatchPoolPolicy.SetSize(commitlogQueueSize / expectedBatchSize)
 	}
