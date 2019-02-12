@@ -113,31 +113,7 @@ type PoolingPolicy struct {
 	WriteBatchPool WriteBatchPoolPolicy `yaml:"writeBatchPool"`
 
 	// The policy for the PostingsListPool.
-	PostingsListPool PoolPolicy `yaml:"postingsListPool"`
-}
-
-// // PostingsListPoolPolicyWithDefaults returns the postings list pool policy
-// // and will set a sensible default size if not specified in the YAML
-// // configuration.
-// func (c PoolingPolicy) PostingsListPoolPolicyWithDefaults() PoolPolicy {
-// 	if c.PostingsListPool.Size != nil {
-// 		return c.PostingsListPool
-// 	}
-// 	policy := c.PostingsListPool
-// 	policy.Size = defaultPostingsListPoolSize
-// 	return policy
-// }
-
-// OptionalPoolPolicy specifies an optional pool policy.
-type OptionalPoolPolicy struct {
-	// The size of the pool.
-	Size *int `yaml:"size"`
-
-	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark *float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark *float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+	PostingsListPool PostingsListPool `yaml:"postingsListPool"`
 }
 
 // PoolPolicy specifies a single pool policy.
@@ -155,6 +131,35 @@ type PoolPolicy struct {
 	defaultSize                int
 	defaultRefillLowWaterMark  float64
 	defaultRefillHighWaterMark float64
+}
+
+// SizeOrDefault returns the configured size if present, or a default value otherwise.
+func (p *PoolPolicy) SizeOrDefault() int {
+	if p.Size != nil {
+		return *p.Size
+	}
+
+	return p.defaultSize
+}
+
+// RefillLowWaterMarkOrDefault returns the configured refill low water mark if present,
+// or a default value otherwise.
+func (p *PoolPolicy) RefillLowWaterMarkOrDefault() float64 {
+	if p.RefillLowWaterMark != nil {
+		return *p.RefillLowWaterMark
+	}
+
+	return p.defaultRefillLowWaterMark
+}
+
+// RefillHighWaterMarkOrDefault returns the configured refill high water mark if present,
+// or a default value otherwise.
+func (p *PoolPolicy) RefillHighWaterMarkOrDefault() float64 {
+	if p.RefillHighWaterMark != nil {
+		return *p.RefillHighWaterMark
+	}
+
+	return p.defaultRefillHighWaterMark
 }
 
 // CapacityPoolPolicy specifies a single pool policy that has a
@@ -236,9 +241,9 @@ type WriteBatchPoolPolicy struct {
 // one is not provided.
 func (c ContextPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
-		Size:                c.Size,
-		RefillLowWaterMark:  c.RefillLowWaterMark,
-		RefillHighWaterMark: c.RefillHighWaterMark,
+		defaultSize:                262144,
+		defaultRefillLowWaterMark:  0.7,
+		defaultRefillHighWaterMark: 1.0,
 	}
 }
 
@@ -535,5 +540,20 @@ func (p *BytesPool) PoolPolicyOrDefault() BucketPoolPolicy {
 				RefillHighWaterMark: 1.0,
 			},
 		},
+	}
+}
+
+// PostingsListPool is the pool policy for the postings list pool.
+type PostingsListPool struct {
+	PoolPolicy `yaml:",inline"`
+}
+
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
+// one is not provided.
+func (p *PostingsListPool) PoolPolicyOrDefault() PoolPolicy {
+	return PoolPolicy{
+		defaultSize:                16,
+		defaultRefillLowWaterMark:  0.7,
+		defaultRefillHighWaterMark: 1.0,
 	}
 }

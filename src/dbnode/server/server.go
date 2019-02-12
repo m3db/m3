@@ -463,7 +463,7 @@ func Run(runOpts RunOptions) {
 
 	// Set repair options
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
-		capacityPoolOptions(policy.HostBlockMetadataSlicePool,
+		capacityPoolOptions(policy.HostBlockMetadataSlicePool.PoolPolicyOrDefault(),
 			scope.SubScope("host-block-metadata-slice-pool")),
 		policy.HostBlockMetadataSlicePool.Capacity)
 
@@ -978,20 +978,38 @@ func withEncodingAndPoolingOptions(
 	bytesPool.Init()
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
-		poolOptions(policy.SegmentReaderPool, scope.SubScope("segment-reader-pool")))
+		poolOptions(
+			policy.SegmentReaderPool.PoolPolicyOrDefault(),
+			scope.SubScope("segment-reader-pool")))
 	segmentReaderPool.Init()
+
 	encoderPool := encoding.NewEncoderPool(
-		poolOptions(policy.EncoderPool, scope.SubScope("encoder-pool")))
-	closersPoolOpts := poolOptions(policy.ClosersPool, scope.SubScope("closers-pool"))
-	contextPoolOpts := poolOptions(policy.ContextPool.PoolPolicy(), scope.SubScope("context-pool"))
+		poolOptions(
+			policy.EncoderPool.PoolPolicyOrDefault(),
+			scope.SubScope("encoder-pool")))
+
+	closersPoolOpts := poolOptions(
+		policy.ClosersPool.PoolPolicyOrDefault(),
+		scope.SubScope("closers-pool"))
+
+	contextPoolOpts := poolOptions(
+		policy.ContextPool.PoolPolicyOrDefault(),
+		scope.SubScope("context-pool"))
+
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
 		SetFinalizerPoolOptions(closersPoolOpts).
-		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityWithDefault()))
+		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityOrDefault()))
+
 	iteratorPool := encoding.NewReaderIteratorPool(
-		poolOptions(policy.IteratorPool, scope.SubScope("iterator-pool")))
+		poolOptions(
+			policy.IteratorPool.PoolPolicyOrDefault(),
+			scope.SubScope("iterator-pool")))
+
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
-		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
+		poolOptions(
+			policy.IteratorPool.PoolPolicyOrDefault(),
+			scope.SubScope("multi-iterator-pool")))
 
 	var writeBatchPoolInitialBatchSize *int
 	if policy.WriteBatchPool.InitialBatchSize != nil {
@@ -1009,15 +1027,17 @@ func withEncodingAndPoolingOptions(
 	}
 
 	writeBatchPoolPolicy := policy.WriteBatchPool.Pool
-	if writeBatchPoolPolicy.Size == 0 {
+	writeBatchPoolSize := writeBatchPoolPolicy.SizeOrDefault()
+	if writeBatchPoolSize == 0 {
 		// If no value set, calculate a reasonabble value based on the commit log
 		// queue size. We base it off the commitlog queue size because we will
 		// want to be able to buffer at least one full commitlog queues worth of
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
+		// TODO: This seems wrong
 		expectedBatchSize := *writeBatchPoolInitialBatchSize
-		writeBatchPoolPolicy.Size = commitlogQueueSize / expectedBatchSize
+		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
 	writeBatchPool := ts.NewWriteBatchPool(
 		poolOptions(writeBatchPoolPolicy, scope.SubScope("write-batch-pool")),
@@ -1025,7 +1045,8 @@ func withEncodingAndPoolingOptions(
 		writeBatchPoolMaxBatchSize)
 
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
-		IDPoolOptions:           poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")),
+		IDPoolOptions: poolOptions(
+			policy.IdentifierPool.PoolPolicyOrDefault(), scope.SubScope("identifier-pool")),
 		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
 		TagsCapacity:            policy.TagsPool.Capacity,
 		TagsMaxCapacity:         policy.TagsPool.MaxCapacity,
@@ -1033,12 +1054,12 @@ func withEncodingAndPoolingOptions(
 	})
 
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlockMetadataResultsPool,
+		capacityPoolOptions(policy.FetchBlockMetadataResultsPool.PoolPolicyOrDefault(),
 			scope.SubScope("fetch-block-metadata-results-pool")),
 		policy.FetchBlockMetadataResultsPool.Capacity)
 
 	fetchBlocksMetadataResultsPool := block.NewFetchBlocksMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool,
+		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool.PoolPolicyOrDefault(),
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
 		policy.FetchBlocksMetadataResultsPool.Capacity)
 
@@ -1099,8 +1120,10 @@ func withEncodingAndPoolingOptions(
 		wiredList := block.NewWiredList(wiredListOpts)
 		blockOpts = blockOpts.SetWiredList(wiredList)
 	}
-	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
-		scope.SubScope("block-pool")))
+	blockPool := block.NewDatabaseBlockPool(
+		poolOptions(
+			policy.BlockPool.PoolPolicyOrDefault(),
+			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
 		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
 	})
@@ -1112,7 +1135,9 @@ func withEncodingAndPoolingOptions(
 	seriesOpts := storage.NewSeriesOptionsFromOptions(opts, retentionOpts).
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
-		poolOptions(policy.SeriesPool, scope.SubScope("series-pool")))
+		poolOptions(
+			policy.SeriesPool.PoolPolicyOrDefault(),
+			scope.SubScope("series-pool")))
 
 	opts = opts.
 		SetSeriesOptions(seriesOpts).
@@ -1123,7 +1148,8 @@ func withEncodingAndPoolingOptions(
 
 	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
 		scope.SubScope("index-results-pool")))
-	postingsListOpts := poolOptions(policy.PostingsListPoolPolicyWithDefaults(),
+	postingsListOpts := poolOptions(
+		policy.PostingsListPool.PoolPolicyOrDefault(),
 		scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 	indexOpts := opts.IndexOptions().
@@ -1151,14 +1177,20 @@ func poolOptions(
 	policy config.PoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
-	opts := pool.NewObjectPoolOptions()
-	if policy.Size > 0 {
-		opts = opts.SetSize(policy.Size)
-		if policy.RefillLowWaterMark > 0 &&
-			policy.RefillHighWaterMark > 0 &&
-			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+	var (
+		opts                = pool.NewObjectPoolOptions()
+		size                = policy.SizeOrDefault()
+		refillLowWaterMark  = policy.RefillLowWaterMarkOrDefault()
+		refillHighWaterMark = policy.RefillHighWaterMarkOrDefault()
+	)
+
+	if size > 0 {
+		opts = opts.SetSize(size)
+		if refillLowWaterMark > 0 &&
+			refillHighWaterMark > 0 &&
+			refillHighWaterMark > refillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(refillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {
