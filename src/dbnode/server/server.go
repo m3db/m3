@@ -1021,7 +1021,7 @@ func withEncodingAndPoolingOptions(
 		scope.SubScope("write-batch-pool"),
 	)
 	if writeBatchPoolPolicy.Size() == 0 {
-		// If no value set, calculate a reasonabble value based on the commit log
+		// If no value set, calculate a reasonable value based on the commit log
 		// queue size. We base it off the commitlog queue size because we will
 		// want to be able to buffer at least one full commitlog queues worth of
 		// writes without allocating because these objects are very expensive to
