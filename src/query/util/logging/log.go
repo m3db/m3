@@ -22,9 +22,13 @@ package logging
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
+
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
@@ -42,9 +46,8 @@ const (
 
 var logger *zap.Logger
 
-// InitWithCores is used to set up a new logger
+// InitWithCores is used to set up a new logger.
 func InitWithCores(cores []zapcore.Core) {
-
 	consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
 
 	highPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
@@ -60,42 +63,45 @@ func InitWithCores(cores []zapcore.Core) {
 	if cores == nil {
 		cores = make([]zapcore.Core, 0, 2)
 	}
+
 	cores = append(cores, zapcore.NewCore(consoleEncoder, consoleErrors, highPriority))
 	cores = append(cores, zapcore.NewCore(consoleEncoder, consoleDebugging, lowPriority))
 
 	core := zapcore.NewTee(cores...)
 
-	logger = zap.New(core)
+	logger = zap.New(core).WithOptions(zap.AddStacktrace(highPriority))
 	defer logger.Sync()
 }
 
-// NewContext returns a context has a zap logger with the extra fields added
+// NewContext returns a context has a zap logger with the extra fields added.
 func NewContext(ctx context.Context, fields ...zapcore.Field) context.Context {
 	return context.WithValue(ctx, loggerKey, WithContext(ctx).With(fields...))
 }
 
-// NewContextWithGeneratedID returns a context with a generated id with a zap logger and an id field
+// NewContextWithGeneratedID returns a context with a generated id with a zap
+// logger and an id field.
 func NewContextWithGeneratedID(ctx context.Context) context.Context {
 	// Attach a rqID with all logs so that its simple to trace the whole call stack
 	rqID := uuid.NewRandom()
 	return NewContextWithID(ctx, rqID.String())
 }
 
-// NewContextWithID returns a context which has a zap logger and an id field
+// NewContextWithID returns a context which has a zap logger and an id field.
 func NewContextWithID(ctx context.Context, id string) context.Context {
 	ctxWithID := context.WithValue(ctx, rqIDKey, id)
 	return context.WithValue(ctxWithID, loggerKey, WithContext(ctx).With(zap.String("rqID", id)))
 }
 
-// ReadContextID returns the context's id or "undefined"
+// ReadContextID returns the context's id or "undefined".
 func ReadContextID(ctx context.Context) string {
 	if ctxID, ok := ctx.Value(rqIDKey).(string); ok {
 		return ctxID
 	}
+
 	return undefinedID
 }
 
-// WithContext returns a zap logger with as much context as possible
+// WithContext returns a zap logger with as much context as possible.
 func WithContext(ctx context.Context) *zap.Logger {
 	if ctx == nil {
 		return logger
@@ -107,14 +113,15 @@ func WithContext(ctx context.Context) *zap.Logger {
 	return logger
 }
 
-// WithResponseTimeLogging wraps around the given handler, providing response time logging
-func WithResponseTimeLogging(next http.Handler) http.Handler {
-	return WithResponseTimeLoggingFunc(next.ServeHTTP)
+// withResponseTimeLogging wraps around the given handler, providing response time
+// logging.
+func withResponseTimeLogging(next http.Handler) http.Handler {
+	return withResponseTimeLoggingFunc(next.ServeHTTP)
 }
 
-// WithResponseTimeLoggingFunc wraps around the http request handler function,
+// withResponseTimeLoggingFunc wraps around the http request handler function,
 // providing response time logging.
-func WithResponseTimeLoggingFunc(
+func withResponseTimeLoggingFunc(
 	next func(w http.ResponseWriter, r *http.Request),
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +134,96 @@ func WithResponseTimeLoggingFunc(
 		endTime := time.Now()
 		d := endTime.Sub(startTime)
 		if d > time.Second {
-			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
+			logger.Info("finished handling request", zap.Time("time", endTime),
+				zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
 		}
 	}
+}
+
+// WithPanicErrorResponder wraps around the given handler,
+// providing panic recovery and logging.
+func WithPanicErrorResponder(next http.Handler) http.Handler {
+	return withPanicErrorResponderFunc(next.ServeHTTP)
+}
+
+func withPanicErrorResponderFunc(
+	next func(w http.ResponseWriter, r *http.Request),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeCheckWriter := &responseWrittenResponseWriter{writer: w}
+		w = writeCheckWriter
+
+		defer func() {
+			if err := recover(); err != nil {
+				logger := WithContext(r.Context())
+				logger.Error("panic captured", zap.Any("stack", err))
+
+				if !writeCheckWriter.Written() {
+					xhttp.Error(w, fmt.Errorf("caught panic: %v", err),
+						http.StatusInternalServerError)
+					return
+				}
+
+				// cannot write the error back to the caller, some contents already written.
+				logger.Warn("cannot write error for request; already written")
+			}
+		}()
+
+		next(w, r)
+	}
+}
+
+type responseWrittenResponseWriter struct {
+	sync.RWMutex
+	writer  http.ResponseWriter
+	written bool
+}
+
+func (w *responseWrittenResponseWriter) Written() bool {
+	w.RLock()
+	v := w.written
+	w.RUnlock()
+	return v
+}
+
+func (w *responseWrittenResponseWriter) setWritten() {
+	w.RLock()
+	if w.written {
+		return
+	}
+	w.RUnlock()
+
+	w.Lock()
+	w.written = true
+	w.Unlock()
+}
+
+func (w *responseWrittenResponseWriter) Header() http.Header {
+	return w.writer.Header()
+}
+
+func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
+	w.setWritten()
+	return w.writer.Write(d)
+}
+
+func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
+	w.setWritten()
+	w.writer.WriteHeader(statusCode)
+}
+
+// WithResponseTimeAndPanicErrorLogging wraps around the given handler,
+// providing panic recovery and response time logging.
+func WithResponseTimeAndPanicErrorLogging(next http.Handler) http.Handler {
+	return WithResponseTimeAndPanicErrorLoggingFunc(next.ServeHTTP)
+}
+
+// WithResponseTimeAndPanicErrorLoggingFunc wraps around the http request
+// handler function, providing panic recovery and response time logging.
+func WithResponseTimeAndPanicErrorLoggingFunc(
+	next func(w http.ResponseWriter, r *http.Request),
+) http.Handler {
+	// Wrap panic first, to be able to capture slow requests that panic in the
+	// logs.
+	return withResponseTimeLoggingFunc(withPanicErrorResponderFunc(next))
 }

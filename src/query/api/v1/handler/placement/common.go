@@ -497,17 +497,22 @@ func validateAllAvailable(p placement.Placement) error {
 	return nil
 }
 
-func applyMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithResponseTimeLoggingFunc(
-		parseServiceMiddleware(
-			f))
+func applyMiddleware(
+	f func(serviceName string, w http.ResponseWriter, r *http.Request),
+) func(w http.ResponseWriter, r *http.Request) {
+	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
+		parseServiceMiddleware(f),
+	).ServeHTTP
 }
 
-func applyDeprecatedMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithResponseTimeLoggingFunc(
+func applyDeprecatedMiddleware(
+	f func(serviceName string, w http.ResponseWriter, r *http.Request),
+) func(w http.ResponseWriter, r *http.Request) {
+	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			f(M3DBServiceName, w, r)
-		})
+		},
+	).ServeHTTP
 }
 
 func parseServiceMiddleware(
