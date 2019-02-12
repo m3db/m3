@@ -237,9 +237,9 @@ type WriteBatchPoolPolicy struct {
 	Pool PoolPolicy `yaml:"pool"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
+func (c ContextPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                262144,
 		defaultRefillLowWaterMark:  0.7,
@@ -262,9 +262,9 @@ type SeriesPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *SeriesPool) PoolPolicy() PoolPolicy {
+func (p *SeriesPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                262144,
 		defaultRefillLowWaterMark:  0.7,
@@ -277,9 +277,9 @@ type BlockPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *BlockPool) PoolPolicy() PoolPolicy {
+func (p *BlockPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                262144,
 		defaultRefillLowWaterMark:  0.7,
@@ -292,9 +292,9 @@ type EncoderPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *EncoderPool) PoolPolicy() PoolPolicy {
+func (p *EncoderPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                262144,
 		defaultRefillLowWaterMark:  0.7,
@@ -307,9 +307,9 @@ type ClosersPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *ClosersPool) PoolPolicy() PoolPolicy {
+func (p *ClosersPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                104857,
 		defaultRefillLowWaterMark:  0.7,
@@ -322,9 +322,9 @@ type ContextPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *ContextPool) PoolPolicy() PoolPolicy {
+func (p *ContextPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                262144,
 		defaultRefillLowWaterMark:  0.7,
@@ -337,9 +337,9 @@ type SegmentReaderPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *SegmentReaderPool) PoolPolicy() PoolPolicy {
+func (p *SegmentReaderPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                16384,
 		defaultRefillLowWaterMark:  0.7,
@@ -352,9 +352,9 @@ type IteratorPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *IteratorPool) PoolPolicy() PoolPolicy {
+func (p *IteratorPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                2048,
 		defaultRefillLowWaterMark:  0.7,
@@ -367,9 +367,9 @@ type FetchBlockMetadataResultsPool struct {
 	CapacityPoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *FetchBlockMetadataResultsPool) PoolPolicy() CapacityPoolPolicy {
+func (p *FetchBlockMetadataResultsPool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	return CapacityPoolPolicy{
 		Size:                65536,
 		Capacity:            32,
@@ -383,9 +383,9 @@ type FetchBlocksMetadataResultsPool struct {
 	CapacityPoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *FetchBlocksMetadataResultsPool) PoolPolicy() CapacityPoolPolicy {
+func (p *FetchBlocksMetadataResultsPool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	return CapacityPoolPolicy{
 		defaultSize:                32,
 		defaultCapacity:            4096,
@@ -399,9 +399,9 @@ type HostBlockMetadataSlicePool struct {
 	CapacityPoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *HostBlockMetadataSlicePool) PoolPolicy() CapacityPoolPolicy {
+func (p *HostBlockMetadataSlicePool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	return CapacityPoolPolicy{
 		defaultSize:                131072,
 		defaultCapacity:            3,
@@ -415,9 +415,9 @@ type BlockMetadataPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *BlockMetadataPool) PoolPolicy() PoolPolicy {
+func (p *BlockMetadataPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                65536,
 		defaultRefillLowWaterMark:  0.7,
@@ -430,9 +430,9 @@ type BlockMetadataSlicePool struct {
 	CapacityPoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *BlockMetadataSlicePool) PoolPolicy() CapacityPoolPolicy {
+func (p *BlockMetadataSlicePool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	return CapacityPoolPolicy{
 		defaultSize:                65536,
 		defaultCapacity:            32,
@@ -446,9 +446,9 @@ type BlocksMetadataPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *BlocksMetadataPool) PoolPolicy() PoolPolicy {
+func (p *BlocksMetadataPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                65536,
 		defaultRefillLowWaterMark:  0.7,
@@ -461,9 +461,9 @@ type BlocksMetadataSlicePool struct {
 	CapacityPoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *BlocksMetadataSlicePool) PoolPolicy() CapacityPoolPolicy {
+func (p *BlocksMetadataSlicePool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	return CapacityPoolPolicy{
 		defaultSize:                32,
 		defaultCapacity:            4096,
@@ -477,9 +477,9 @@ type IdentifierPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *IdentifierPool) PoolPolicy() PoolPolicy {
+func (p *IdentifierPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                262144,
 		defaultRefillLowWaterMark:  0.7,
@@ -492,9 +492,9 @@ type BytesPool struct {
 	BucketPoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *BytesPool) PoolPolicy() BucketPoolPolicy {
+func (p *BytesPool) PoolPolicyOrDefault() BucketPoolPolicy {
 	return BucketPoolPolicy{
 		defaultBuckets: []CapacityPoolPolicy{
 			{
@@ -548,9 +548,9 @@ type PostingsListPool struct {
 	PoolPolicy `yaml:",inline"`
 }
 
-// PoolPolicy returns the provided pool policy, or a default value if
+// PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (p *PostingsListPool) PoolPolicy() PoolPolicy {
+func (p *PostingsListPool) PoolPolicyOrDefault() PoolPolicy {
 	return PoolPolicy{
 		defaultSize:                16,
 		defaultRefillLowWaterMark:  0.7,
