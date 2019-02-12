@@ -50,7 +50,8 @@ func NewHistogramQuantileOp(
 	opType string,
 ) (parser.Params, error) {
 	if len(args) != 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for clamp: %d", len(args))
+		return emptyOp, fmt.Errorf(
+			"invalid number of args for histogram_quantile: %d", len(args))
 	}
 
 	if opType != HistogramQuantileType {
@@ -188,7 +189,7 @@ func sanitizeBuckets(bucketMap bucketedSeries) {
 
 		sort.Sort(buckets)
 		maxBound := buckets.buckets[len(buckets.buckets)-1].upperBound
-		if !math.IsInf(maxBound, +1) {
+		if !math.IsInf(maxBound, 1) {
 			delete(bucketMap, k)
 		}
 	}
@@ -203,7 +204,7 @@ func bucketQuantile(q float64, buckets []bucketValue) float64 {
 
 	// NB: similar situation here if the max bound bucket does not have a value
 	// at this point, it is necessary to re-check.
-	if !math.IsInf(buckets[len(buckets)-1].upperBound, +1) {
+	if !math.IsInf(buckets[len(buckets)-1].upperBound, 1) {
 		return math.NaN()
 	}
 
