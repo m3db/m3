@@ -349,11 +349,11 @@ func (p *ContextPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
 // MaxFinalizerCapacityOrDefault returns the maximum finalizer capacity and
 // fallsback to the default value if its not set.
 func (p ContextPoolPolicy) MaxFinalizerCapacityOrDefault() int {
-	if c.MaxFinalizerCapacity == 0 {
+	if p.MaxFinalizerCapacity == 0 {
 		return defaultMaxFinalizerCapacity
 	}
 
-	return c.MaxFinalizerCapacity
+	return p.MaxFinalizerCapacity
 }
 
 // DefaultPoolPolicy is the default pool policy.
