@@ -145,7 +145,7 @@ func (p *PoolPolicy) SizeOrDefault() int {
 // RefillLowWaterMarkOrDefault returns the configured refill low water mark if present,
 // or a default value otherwise.
 func (p *PoolPolicy) RefillLowWaterMarkOrDefault() float64 {
-	if p.RefillLowWaterMark != nil {
+	if p.RefillLowWaterMark != nil && *p.RefillLowWaterMark > 0 && *p.RefillLowWaterMark < 1 {
 		return *p.RefillLowWaterMark
 	}
 
@@ -155,7 +155,7 @@ func (p *PoolPolicy) RefillLowWaterMarkOrDefault() float64 {
 // RefillHighWaterMarkOrDefault returns the configured refill high water mark if present,
 // or a default value otherwise.
 func (p *PoolPolicy) RefillHighWaterMarkOrDefault() float64 {
-	if p.RefillHighWaterMark != nil {
+	if p.RefillHighWaterMark != nil && *p.RefillHighWaterMark > 0 && *p.RefillHighWaterMark < 1 {
 		return *p.RefillHighWaterMark
 	}
 
