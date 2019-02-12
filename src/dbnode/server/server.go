@@ -59,7 +59,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -465,22 +464,9 @@ func Run(runOpts RunOptions) {
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 
-	// Set repair options
-	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
-		capacityPoolOptions(policy.HostBlockMetadataSlicePool.PoolPolicyOrDefault(),
-			scope.SubScope("host-block-metadata-slice-pool")),
-		policy.HostBlockMetadataSlicePool.Capacity)
-
 	opts = opts.
-		SetRepairEnabled(cfg.Repair.Enabled).
-		SetRepairOptions(opts.RepairOptions().
-			SetAdminClient(m3dbClient).
-			SetRepairInterval(cfg.Repair.Interval).
-			SetRepairTimeOffset(cfg.Repair.Offset).
-			SetRepairTimeJitter(cfg.Repair.Jitter).
-			SetRepairThrottle(cfg.Repair.Throttle).
-			SetRepairCheckInterval(cfg.Repair.CheckInterval).
-			SetHostBlockMetadataSlicePool(hostBlockMetadataSlicePool))
+		// Feature currently not working.
+		SetRepairEnabled(false)
 
 	// Set tchannelthrift options
 	ttopts := tchannelthrift.NewOptions().
