@@ -82,28 +82,28 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 	}
 }
 
-// NewQuantileOp create a new base temporal transform for quantile_over_time func
+// NewQuantileOp create a new base temporal transform for quantile_over_time func.
 func NewQuantileOp(args []interface{}, optype string) (transform.Params, error) {
-	if optype == QuantileType {
-		if len(args) != 2 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
-		}
-
-		scalar, ok := args[0].(float64)
-		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
-		}
-
-		aggregationFunc := makeQuantileOverTimeFn(scalar)
-
-		a := aggProcessor{
-			aggFunc: aggregationFunc,
-		}
-
-		return newBaseOp(args, optype, a)
+	if optype != QuantileType {
+		return nil, fmt.Errorf("unknown aggregation type: %s", optype)
 	}
 
-	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
+	if len(args) != 2 {
+		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
+	}
+
+	q, ok := args[0].(float64)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to quantile argument: %v for %s", args[0], QuantileType)
+	}
+
+	aggregationFunc := makeQuantileOverTimeFn(q)
+
+	a := aggProcessor{
+		aggFunc: aggregationFunc,
+	}
+
+	return newBaseOp(args, optype, a)
 }
 
 // NewAggOp creates a new base temporal transform with a specified node.
@@ -221,14 +221,9 @@ func sumAndCount(values []float64) (float64, float64) {
 	return sum, count
 }
 
-func makeQuantileOverTimeFn(scalar float64) aggFunc {
+func makeQuantileOverTimeFn(q float64) aggFunc {
 	return func(values []float64) float64 {
-		valuesSlice := make(valsSlice, 0, len(values))
-		for _, v := range values {
-			valuesSlice = append(values, v)
-		}
-
-		return quantile(scalar, valuesSlice)
+		return quantile(q, valsSlice(values))
 	}
 }
 
@@ -260,12 +255,15 @@ func quantile(q float64, values valsSlice) float64 {
 	if len(values) == 0 {
 		return math.NaN()
 	}
+
 	if q < 0 {
 		return math.Inf(-1)
 	}
+
 	if q > 1 {
 		return math.Inf(+1)
 	}
+
 	sort.Sort(values)
 
 	n := float64(len(values))
