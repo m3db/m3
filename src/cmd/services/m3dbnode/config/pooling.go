@@ -30,10 +30,100 @@ const (
 
 const (
 	defaultMaxFinalizerCapacity = 4
+
+	defaultPoolSize            = 4096
+	defaultRefillLowWaterMark  = 0.0
+	defaultRefillHighWaterMark = 0.0
+
+	commonRefillLowWaterMark  = 0.7
+	commonRefillHighWaterMark = 0.7
+
+	defaultContextPoolSize = 262144
+
+	defaultSeriesPoolSize = 262144
+
+	defaultBlockPoolSize = 262144
+
+	defaultEncoderPoolSize = 262144
+
+	defaultClosersPoolSize = 104857
+
+	defaultSegmentReaderPoolSize = 16384
+
+	defaultIteratorPoolSize = 2048
+
+	defaultFetchBlockMetadataResultsPoolSize     = 65536
+	defaultFetchBlockMetadataResultsPoolCapacity = 32
+
+	defaultFetchBlocksMetadataResultsPoolSize     = 32
+	defaultFetchBlocksMetadataResultsPoolCapacity = 4096
+
+	defaultHostBlockMetadataSlicePoolSize     = 131072
+	defaultHostBlockMetadataSlicePoolCapacity = 3
+
+	defaultBlockMetadataPoolSize = 65536
+
+	defaultBlockMetadataSlicePoolSize     = 65536
+	defaultBlockMetadataSlicePoolCapacity = 32
+
+	defaultBlocksMetadataPool = 65536
+
+	defaultBlocksMetadataSlicePoolSize     = 32
+	defaultBlocksMetadataSlicePoolCapacity = 4096
+
+	defaultIdentifierPoolSize = 262144
+
 	// defaultPostingsListPoolSize has a small default pool size since postings
 	// lists can frequently reach the size of 4mb each in practice even when
 	// reset.
 	defaultPostingsListPoolSize = 16
+)
+
+var (
+	defaultBytesPoolBuckets = []CapacityPoolPolicy{
+		{
+			Capacity:            16,
+			Size:                524288,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+		{
+			Capacity:            32,
+			Size:                262144,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+		{
+			Capacity:            64,
+			Size:                131072,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+		{
+			Capacity:            128,
+			Size:                65536,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+		{
+			Capacity:            256,
+			Size:                65536,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+		{
+			Capacity:            1440,
+			Size:                16384,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+		{
+			Capacity:            4096,
+			Size:                8192,
+			RefillLowWaterMark:  0.7,
+			RefillHighWaterMark: 1.0,
+		},
+	}
 )
 
 // PoolingPolicy specifies the pooling policy.
@@ -257,11 +347,11 @@ type ContextPoolPolicy struct {
 
 // PoolPolicyOrDefault returns the provided pool policy, or a default value if
 // one is not provided.
-func (c ContextPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
-	policy := c.PoolPolicy
-	policy.defaultSize = 262144
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+func (p *ContextPool) PoolPolicyOrDefault() PoolPolicy {
+	policy := p.PoolPolicy
+	policy.defaultSize = defaultContextPoolSize
+	policy.defaultRefillLowWaterMark = commonRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = commonRefillHighWaterMark
 	return policy
 }
 
@@ -284,9 +374,9 @@ type DefaultPoolPolicy struct {
 // one is not provided.
 func (p *DefaultPoolPolicy) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 4096
-	policy.defaultRefillLowWaterMark = 0.0
-	policy.defaultRefillHighWaterMark = 0.0
+	policy.defaultSize = defaultPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -299,9 +389,9 @@ type SeriesPool struct {
 // one is not provided.
 func (p *SeriesPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 262144
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultSeriesPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -314,9 +404,9 @@ type BlockPool struct {
 // one is not provided.
 func (p *BlockPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 262144
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultBlockPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -329,9 +419,9 @@ type EncoderPool struct {
 // one is not provided.
 func (p *EncoderPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 262144
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultEncoderPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -344,25 +434,15 @@ type ClosersPool struct {
 // one is not provided.
 func (p *ClosersPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 104857
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultClosersPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
 // ContextPool is the pool policy for the context pool.
 type ContextPool struct {
 	PoolPolicy `yaml:",inline"`
-}
-
-// PoolPolicyOrDefault returns the provided pool policy, or a default value if
-// one is not provided.
-func (p *ContextPool) PoolPolicyOrDefault() PoolPolicy {
-	policy := p.PoolPolicy
-	policy.defaultSize = 262144
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
-	return policy
 }
 
 // SegmentReaderPool is the pool policy for the segment reader pool.
@@ -374,9 +454,9 @@ type SegmentReaderPool struct {
 // one is not provided.
 func (p *SegmentReaderPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 16384
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultSegmentReaderPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -389,9 +469,9 @@ type IteratorPool struct {
 // one is not provided.
 func (p *IteratorPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 2048
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultIteratorPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -404,10 +484,10 @@ type FetchBlockMetadataResultsPool struct {
 // one is not provided.
 func (p *FetchBlockMetadataResultsPool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	policy := p.CapacityPoolPolicy
-	policy.defaultSize = 65536
-	policy.defaultCapacity = 32
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultFetchBlockMetadataResultsPoolSize
+	policy.defaultCapacity = defaultFetchBlockMetadataResultsPoolCapacity
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -420,10 +500,10 @@ type FetchBlocksMetadataResultsPool struct {
 // one is not provided.
 func (p *FetchBlocksMetadataResultsPool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	policy := p.CapacityPoolPolicy
-	policy.defaultSize = 32
-	policy.defaultCapacity = 4096
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultFetchBlocksMetadataResultsPoolSize
+	policy.defaultCapacity = defaultFetchBlocksMetadataResultsPoolCapacity
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -436,10 +516,10 @@ type HostBlockMetadataSlicePool struct {
 // one is not provided.
 func (p *HostBlockMetadataSlicePool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	policy := p.CapacityPoolPolicy
-	policy.defaultSize = 131072
-	policy.defaultCapacity = 3
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultHostBlockMetadataSlicePoolSize
+	policy.defaultCapacity = defaultHostBlockMetadataSlicePoolCapacity
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -452,9 +532,9 @@ type BlockMetadataPool struct {
 // one is not provided.
 func (p *BlockMetadataPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 65536
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultBlockMetadataPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -467,10 +547,10 @@ type BlockMetadataSlicePool struct {
 // one is not provided.
 func (p *BlockMetadataSlicePool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	policy := p.CapacityPoolPolicy
-	policy.defaultSize = 65536
-	policy.defaultCapacity = 32
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultBlockMetadataSlicePoolSize
+	policy.defaultCapacity = defaultBlockMetadataSlicePoolCapacity
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -483,9 +563,9 @@ type BlocksMetadataPool struct {
 // one is not provided.
 func (p *BlocksMetadataPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 65536
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultBlocksMetadataPool
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -498,10 +578,10 @@ type BlocksMetadataSlicePool struct {
 // one is not provided.
 func (p *BlocksMetadataSlicePool) PoolPolicyOrDefault() CapacityPoolPolicy {
 	policy := p.CapacityPoolPolicy
-	policy.defaultSize = 32
-	policy.defaultCapacity = 4096
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultBlocksMetadataSlicePoolSize
+	policy.defaultCapacity = defaultBlocksMetadataSlicePoolCapacity
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -514,9 +594,9 @@ type IdentifierPool struct {
 // one is not provided.
 func (p *IdentifierPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 262144
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultIdentifierPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
 
@@ -529,50 +609,7 @@ type BytesPool struct {
 // one is not provided.
 func (p *BytesPool) PoolPolicyOrDefault() BucketPoolPolicy {
 	policy := p.BucketPoolPolicy
-	policy.defaultBuckets = []CapacityPoolPolicy{
-		{
-			Capacity:            16,
-			Size:                524288,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-		{
-			Capacity:            32,
-			Size:                262144,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-		{
-			Capacity:            64,
-			Size:                131072,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-		{
-			Capacity:            128,
-			Size:                65536,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-		{
-			Capacity:            256,
-			Size:                65536,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-		{
-			Capacity:            1440,
-			Size:                16384,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-		{
-			Capacity:            4096,
-			Size:                8192,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
-		},
-	}
+	policy.defaultBuckets = defaultBytesPoolBuckets
 	return policy
 }
 
@@ -585,8 +622,8 @@ type PostingsListPool struct {
 // one is not provided.
 func (p *PostingsListPool) PoolPolicyOrDefault() PoolPolicy {
 	policy := p.PoolPolicy
-	policy.defaultSize = 16
-	policy.defaultRefillLowWaterMark = 0.7
-	policy.defaultRefillHighWaterMark = 1.0
+	policy.defaultSize = defaultPostingsListPoolSize
+	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
+	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
 }
