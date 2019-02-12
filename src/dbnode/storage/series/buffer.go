@@ -344,12 +344,7 @@ func (b *dbBuffer) Flush(
 		// there be buckets for previous versions. In this case, we need to try
 		// to flush them again, so we merge them together to one stream and
 		// persist it.
-		sr := make([]xio.SegmentReader, 0, numStreams)
-		for _, stream := range streams {
-			sr = append(sr, stream)
-		}
-
-		encoder, _, err := mergeStreamsToEncoder(blockStart, sr, b.opts)
+		encoder, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts)
 		if err != nil {
 			return FlushOutcomeErr, err
 		}
