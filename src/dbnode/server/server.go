@@ -463,7 +463,7 @@ func Run(runOpts RunOptions) {
 
 	// Set repair options
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
-		capacityPoolOptions(policy.HostBlockMetadataSlicePool.PoolPolicyOrDefault(),
+		capacityPoolOptions(policy.HostBlockMetadataSlicePool.PoolPolicy(),
 			scope.SubScope("host-block-metadata-slice-pool")),
 		policy.HostBlockMetadataSlicePool.Capacity)
 
@@ -979,21 +979,21 @@ func withEncodingAndPoolingOptions(
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
 		poolOptions(
-			policy.SegmentReaderPool.PoolPolicyOrDefault(),
+			policy.SegmentReaderPool.PoolPolicy(),
 			scope.SubScope("segment-reader-pool")))
 	segmentReaderPool.Init()
 
 	encoderPool := encoding.NewEncoderPool(
 		poolOptions(
-			policy.EncoderPool.PoolPolicyOrDefault(),
+			policy.EncoderPool.PoolPolicy(),
 			scope.SubScope("encoder-pool")))
 
 	closersPoolOpts := poolOptions(
-		policy.ClosersPool.PoolPolicyOrDefault(),
+		policy.ClosersPool.PoolPolicy(),
 		scope.SubScope("closers-pool"))
 
 	contextPoolOpts := poolOptions(
-		policy.ContextPool.PoolPolicyOrDefault(),
+		policy.ContextPool.PoolPolicy(),
 		scope.SubScope("context-pool"))
 
 	contextPool := context.NewPool(context.NewOptions().
@@ -1003,12 +1003,12 @@ func withEncodingAndPoolingOptions(
 
 	iteratorPool := encoding.NewReaderIteratorPool(
 		poolOptions(
-			policy.IteratorPool.PoolPolicyOrDefault(),
+			policy.IteratorPool.PoolPolicy(),
 			scope.SubScope("iterator-pool")))
 
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(
-			policy.IteratorPool.PoolPolicyOrDefault(),
+			policy.IteratorPool.PoolPolicy(),
 			scope.SubScope("multi-iterator-pool")))
 
 	var writeBatchPoolInitialBatchSize *int
@@ -1046,7 +1046,7 @@ func withEncodingAndPoolingOptions(
 
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions: poolOptions(
-			policy.IdentifierPool.PoolPolicyOrDefault(), scope.SubScope("identifier-pool")),
+			policy.IdentifierPool.PoolPolicy(), scope.SubScope("identifier-pool")),
 		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
 		TagsCapacity:            policy.TagsPool.Capacity,
 		TagsMaxCapacity:         policy.TagsPool.MaxCapacity,
@@ -1054,12 +1054,12 @@ func withEncodingAndPoolingOptions(
 	})
 
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlockMetadataResultsPool.PoolPolicyOrDefault(),
+		capacityPoolOptions(policy.FetchBlockMetadataResultsPool.PoolPolicy(),
 			scope.SubScope("fetch-block-metadata-results-pool")),
 		policy.FetchBlockMetadataResultsPool.Capacity)
 
 	fetchBlocksMetadataResultsPool := block.NewFetchBlocksMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool.PoolPolicyOrDefault(),
+		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool.PoolPolicy(),
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
 		policy.FetchBlocksMetadataResultsPool.Capacity)
 
@@ -1122,7 +1122,7 @@ func withEncodingAndPoolingOptions(
 	}
 	blockPool := block.NewDatabaseBlockPool(
 		poolOptions(
-			policy.BlockPool.PoolPolicyOrDefault(),
+			policy.BlockPool.PoolPolicy(),
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
 		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
@@ -1136,7 +1136,7 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(
-			policy.SeriesPool.PoolPolicyOrDefault(),
+			policy.SeriesPool.PoolPolicy(),
 			scope.SubScope("series-pool")))
 
 	opts = opts.
@@ -1149,7 +1149,7 @@ func withEncodingAndPoolingOptions(
 	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
 		scope.SubScope("index-results-pool")))
 	postingsListOpts := poolOptions(
-		policy.PostingsListPool.PoolPolicyOrDefault(),
+		policy.PostingsListPool.PoolPolicy(),
 		scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 	indexOpts := opts.IndexOptions().
