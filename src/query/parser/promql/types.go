@@ -208,6 +208,10 @@ func NewFunctionExpr(
 		p, err = temporal.NewAggOp(argValues, name)
 		return p, true, err
 
+	case temporal.QuantileType:
+		p, err = temporal.NewQuantileOp(argValues, name)
+		return p, true, err
+
 	case temporal.HoltWintersType:
 		p, err = temporal.NewHoltWintersOp(argValues)
 		return p, true, err
