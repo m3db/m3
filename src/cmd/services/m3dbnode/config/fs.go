@@ -55,25 +55,25 @@ func DefaultMmapConfiguration() MmapConfiguration {
 // FilesystemConfiguration is the filesystem configuration.
 type FilesystemConfiguration struct {
 	// File path prefix for reading/writing TSDB files
-	FilePathPrefix *string `yaml:"filePathPrefix" validate:"nonzero"`
+	FilePathPrefix *string `yaml:"filePathPrefix"`
 
 	// Write buffer size
-	WriteBufferSize *int `yaml:"writeBufferSize" validate:"min=1"`
+	WriteBufferSize *int `yaml:"writeBufferSize"`
 
 	// Data read buffer size
-	DataReadBufferSize *int `yaml:"dataReadBufferSize" validate:"min=1"`
+	DataReadBufferSize *int `yaml:"dataReadBufferSize"`
 
 	// Info metadata file read buffer size
-	InfoReadBufferSize *int `yaml:"infoReadBufferSize" validate:"min=1"`
+	InfoReadBufferSize *int `yaml:"infoReadBufferSize"`
 
 	// Seek data read buffer size
-	SeekReadBufferSize *int `yaml:"seekReadBufferSize" validate:"min=1"`
+	SeekReadBufferSize *int `yaml:"seekReadBufferSize"`
 
 	// Disk flush throughput limit in Mb/s
-	ThroughputLimitMbps *float64 `yaml:"throughputLimitMbps" validate:"min=0.0"`
+	ThroughputLimitMbps *float64 `yaml:"throughputLimitMbps"`
 
 	// Disk flush throughput check interval
-	ThroughputCheckEvery *int `yaml:"throughputCheckEvery" validate:"nonzero"`
+	ThroughputCheckEvery *int `yaml:"throughputCheckEvery"`
 
 	// NewFileMode is the new file permissions mode to use when
 	// creating files - specify as three digits, e.g. 666.
@@ -108,7 +108,7 @@ func (f FilesystemConfiguration) FilePathPrefixOrDefault() string {
 // WriteBufferSizeOrDefault returns the configured write buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) WriteBufferSizeOrDefault() int {
-	if f.WriteBufferSize != nil {
+	if f.WriteBufferSize != nil && *f.WriteBufferSize > 1 {
 		return *f.WriteBufferSize
 	}
 
@@ -118,7 +118,7 @@ func (f FilesystemConfiguration) WriteBufferSizeOrDefault() int {
 // DataReadBufferSizeOrDefault returns the configured data read buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) DataReadBufferSizeOrDefault() int {
-	if f.DataReadBufferSize != nil {
+	if f.DataReadBufferSize != nil && *f.DataReadBufferSize > 1 {
 		return *f.DataReadBufferSize
 	}
 
@@ -128,7 +128,7 @@ func (f FilesystemConfiguration) DataReadBufferSizeOrDefault() int {
 // InfoReadBufferSizeOrDefault returns the configured info read buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) InfoReadBufferSizeOrDefault() int {
-	if f.InfoReadBufferSize != nil {
+	if f.InfoReadBufferSize != nil && *f.InfoReadBufferSize > 1 {
 		return *f.InfoReadBufferSize
 	}
 
@@ -138,7 +138,7 @@ func (f FilesystemConfiguration) InfoReadBufferSizeOrDefault() int {
 // SeekReadBufferSizeOrDefault returns the configured seek read buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) SeekReadBufferSizeOrDefault() int {
-	if f.SeekReadBufferSize != nil {
+	if f.SeekReadBufferSize != nil && *f.SeekReadBufferSize > 1 {
 		return *f.SeekReadBufferSize
 	}
 
@@ -148,7 +148,7 @@ func (f FilesystemConfiguration) SeekReadBufferSizeOrDefault() int {
 // ThroughputLimitMbpsOrDefault returns the configured throughput limit mbps if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) ThroughputLimitMbpsOrDefault() float64 {
-	if f.ThroughputLimitMbps != nil {
+	if f.ThroughputLimitMbps != nil && *f.ThroughputLimitMbps > 0 {
 		return *f.ThroughputLimitMbps
 	}
 
@@ -158,7 +158,7 @@ func (f FilesystemConfiguration) ThroughputLimitMbpsOrDefault() float64 {
 // ThroughputCheckEveryOrDefault returns the configured throughput check every value if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) ThroughputCheckEveryOrDefault() int {
-	if f.ThroughputCheckEvery != nil {
+	if f.ThroughputCheckEvery != nil && *f.ThroughputCheckEvery > 0 {
 		return *f.ThroughputCheckEvery
 	}
 
