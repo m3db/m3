@@ -95,6 +95,7 @@ func newEncodedBlock(
 func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return &encodedBlockUnconsolidated{
 		lastBlock:            b.lastBlock,
+		lookback:             b.lookback,
 		meta:                 b.meta,
 		tagOptions:           b.tagOptions,
 		consolidation:        b.consolidation,
@@ -158,16 +159,8 @@ func (b *encodedBlock) WithMetadata(
 		b.lookback,
 		b.lastBlock,
 	)
+
 	bl.meta = meta
 	bl.seriesMetas = seriesMetas
-
 	return &bl, nil
-}
-
-func (b *encodedBlock) StepIter() (block.StepIter, error) {
-	return b.stepIter(), nil
-}
-
-func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
-	return b.seriesIter(), nil
 }

@@ -76,19 +76,19 @@ func (c *consolidatedStepIter) Close() {
 	c.unconsolidated.Close()
 }
 
-func (c *consolidatedStepIter) Current() (block.Step, error) {
-	step, err := c.unconsolidated.Current()
-	if err != nil {
-		return nil, err
-	}
+func (c *consolidatedStepIter) Err() error {
+	return c.unconsolidated.Err()
+}
 
+func (c *consolidatedStepIter) Current() block.Step {
+	step := c.unconsolidated.Current()
 	stepValues := step.Values()
 	consolidatedValues := make([]float64, len(stepValues))
 	for i, singleSeriesValues := range stepValues {
 		consolidatedValues[i] = c.consolidationFunc(singleSeriesValues)
 	}
 
-	return block.NewColStep(step.Time(), consolidatedValues), nil
+	return block.NewColStep(step.Time(), consolidatedValues)
 }
 
 func (c *consolidatedStepIter) StepCount() int {
@@ -112,17 +112,17 @@ func (c *consolidatedSeriesIter) Next() bool {
 	return c.unconsolidated.Next()
 }
 
+func (c *consolidatedSeriesIter) Err() error {
+	return c.unconsolidated.Err()
+}
+
 func (c *consolidatedSeriesIter) Close() {
 	c.unconsolidated.Close()
 }
 
-func (c *consolidatedSeriesIter) Current() (block.Series, error) {
-	series, err := c.unconsolidated.Current()
-	if err != nil {
-		return block.Series{}, err
-	}
-
-	return series.Consolidated(c.consolidationFunc), nil
+func (c *consolidatedSeriesIter) Current() block.Series {
+	series := c.unconsolidated.Current()
+	return series.Consolidated(c.consolidationFunc)
 }
 
 func (c *consolidatedSeriesIter) SeriesCount() int {

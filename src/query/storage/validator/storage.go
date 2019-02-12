@@ -83,6 +83,7 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 	}
 
 	results := promReadResp.Data.Result
+
 	seriesList := make([]*ts.Series, len(results))
 
 	for i, result := range results {
@@ -115,17 +116,29 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 			}
 		}
 
+		metricName := string(tagOptions.MetricName())
 		tags := models.NewTags(len(result.Metric), tagOptions)
 		for name, val := range result.Metric {
-			tags = tags.AddTag(models.Tag{
-				Name:  []byte(name),
-				Value: []byte(val),
-			})
+			if name == metricName {
+				tags = tags.SetName([]byte(val))
+			} else {
+				tags = tags.AddTag(models.Tag{
+					Name:  []byte(name),
+					Value: []byte(val),
+				})
+			}
 		}
 
+		// NB: if there is no tag for series name here, the input is a Prometheus
+		// query result for a function that mutates the output tags and drops `name`
+		// which is a valid case.
+		//
+		// It's safe to set ts.Series.Name() here to a default value, as this field
+		// is used as a minor optimization for presenting grafana output, and as
+		// such, series names are not validated for equality.
 		name, exists := tags.Name()
 		if !exists {
-			return nil, errors.New("metric name does not exist")
+			name = []byte("default")
 		}
 
 		seriesList[i] = ts.NewSeries(

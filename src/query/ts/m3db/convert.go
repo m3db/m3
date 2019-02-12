@@ -21,6 +21,8 @@
 package m3db
 
 import (
+	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -34,16 +36,27 @@ import (
 
 const (
 	initBlockReplicaLength = 10
+	// This outputs time as 11:12:03AM
+	blockTimeFormat = "3:04:05PM"
 )
 
-// blockReplica contains the replicas for a single m3db block
+// blockReplica contains the replicas for a single m3db block.
 type seriesBlock struct {
-	start     time.Time
+	// internal start time for the block.
+	blockStart time.Time
+	// time at which the first point in the block will appear.
+	readStart time.Time
 	blockSize time.Duration
 	replicas  []encoding.MultiReaderIterator
 }
 
 type seriesBlocks []seriesBlock
+
+func (b seriesBlock) String() string {
+	return fmt.Sprint("BlockSize:", b.blockSize.Hours(), " blockStart:",
+		b.blockStart.Format(blockTimeFormat), " readStart:",
+		b.readStart.Format(blockTimeFormat), " num replicas", len(b.replicas))
+}
 
 func (b seriesBlocks) Len() int {
 	return len(b)
@@ -54,7 +67,7 @@ func (b seriesBlocks) Swap(i, j int) {
 }
 
 func (b seriesBlocks) Less(i, j int) bool {
-	return b[i].start.Before(b[j].start)
+	return b[i].blockStart.Before(b[j].blockStart)
 }
 
 func seriesIteratorsToEncodedBlockIterators(
@@ -96,7 +109,7 @@ func convertM3DBSegmentedBlockIterators(
 	opts Options,
 ) ([]block.Block, error) {
 	defer iterators.Close()
-	blockBuilder := newEncodedBlockBuilder(opts.TagOptions(), opts.ConsolidationFunc())
+	blockBuilder := newEncodedBlockBuilder(opts)
 	var (
 		iterAlloc    = opts.IterAlloc()
 		pools        = opts.IteratorPools()
@@ -108,6 +121,7 @@ func convertM3DBSegmentedBlockIterators(
 			seriesIterator,
 			iterAlloc,
 			bounds,
+			pools,
 			checkedPools,
 		)
 
@@ -115,7 +129,19 @@ func convertM3DBSegmentedBlockIterators(
 			return nil, err
 		}
 
-		err = seriesBlocksFromBlockReplicas(blockBuilder, blockReplicas, bounds.StepSize, seriesIterator, pools)
+		blockReplicas = updateSeriesBlockStarts(
+			blockReplicas,
+			bounds.StepSize,
+			seriesIterator.Start(),
+		)
+
+		err = seriesBlocksFromBlockReplicas(
+			blockBuilder,
+			blockReplicas,
+			bounds.StepSize,
+			seriesIterator,
+			pools,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -128,9 +154,15 @@ func blockReplicasFromSeriesIterator(
 	seriesIterator encoding.SeriesIterator,
 	iterAlloc encoding.ReaderIteratorAllocate,
 	bounds models.Bounds,
+	pools encoding.IteratorPools,
 	checkedPools pool.CheckedBytesPool,
 ) (seriesBlocks, error) {
 	blocks := make(seriesBlocks, 0, bounds.Steps())
+	var pool encoding.MultiReaderIteratorPool
+	if pools != nil {
+		pool = pools.MultiReaderIterator()
+	}
+
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
@@ -148,11 +180,11 @@ func blockReplicasFromSeriesIterator(
 				readers[i] = clonedReader
 			}
 
-			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
+			iter := encoding.NewMultiReaderIterator(iterAlloc, pool)
 			iter.Reset(readers, start, bs)
 			inserted := false
 			for _, bl := range blocks {
-				if bl.start.Equal(start) {
+				if bl.blockStart.Equal(start) {
 					inserted = true
 					bl.replicas = append(bl.replicas, iter)
 					break
@@ -161,9 +193,9 @@ func blockReplicasFromSeriesIterator(
 
 			if !inserted {
 				blocks = append(blocks, seriesBlock{
-					start:     start,
-					blockSize: bs,
-					replicas:  []encoding.MultiReaderIterator{iter},
+					blockStart: start,
+					blockSize:  bs,
+					replicas:   []encoding.MultiReaderIterator{iter},
 				})
 			}
 		}
@@ -172,6 +204,48 @@ func blockReplicasFromSeriesIterator(
 	// sort series blocks by start time
 	sort.Sort(blocks)
 	return blocks, nil
+}
+
+func blockDuration(blockSize, stepSize time.Duration) time.Duration {
+	numSteps := math.Ceil(float64(blockSize) / float64(stepSize))
+	return stepSize * time.Duration(numSteps)
+}
+
+// calculates duration required to fill the gap of fillSize in stepSize sized
+// increments.
+func calculateFillDuration(fillSize, stepSize time.Duration) time.Duration {
+	numberToFill := int(fillSize / stepSize)
+	if fillSize%stepSize != 0 {
+		numberToFill++
+	}
+
+	return stepSize * time.Duration(numberToFill)
+}
+
+// pads series blocks.
+func updateSeriesBlockStarts(
+	blocks seriesBlocks,
+	stepSize time.Duration,
+	iterStart time.Time,
+) seriesBlocks {
+	if len(blocks) == 0 {
+		return blocks
+	}
+
+	firstStart := blocks[0].blockStart
+	if iterStart.Before(firstStart) {
+		fillSize := firstStart.Sub(iterStart)
+		iterStart = iterStart.Add(calculateFillDuration(fillSize, stepSize))
+	}
+
+	// Update read starts for existing blocks.
+	for i, bl := range blocks {
+		blocks[i].readStart = iterStart
+		fillSize := bl.blockStart.Add(bl.blockSize).Sub(iterStart)
+		iterStart = iterStart.Add(calculateFillDuration(fillSize, stepSize))
+	}
+
+	return blocks
 }
 
 func seriesBlocksFromBlockReplicas(
@@ -197,11 +271,11 @@ func seriesBlocksFromBlockReplicas(
 	// TODO: use pooling
 	for i, block := range blockReplicas {
 		filterValuesStart := seriesIterator.Start()
-		if block.start.After(filterValuesStart) {
-			filterValuesStart = block.start
+		if block.blockStart.After(filterValuesStart) {
+			filterValuesStart = block.blockStart
 		}
 
-		end := block.start.Add(block.blockSize)
+		end := block.blockStart.Add(block.blockSize)
 		filterValuesEnd := seriesIterator.End()
 		if end.Before(filterValuesEnd) {
 			filterValuesEnd = end
@@ -216,13 +290,20 @@ func seriesBlocksFromBlockReplicas(
 			Replicas:       block.replicas,
 		}, nil)
 
+		// NB: if querying a small range, such that blockSize is greater than the
+		// iterator duration, use the smaller range instead.
+		duration := filterValuesEnd.Sub(filterValuesStart)
+		if duration > block.blockSize {
+			duration = block.blockSize
+		}
+
 		// NB(braskin): we should be careful when directly accessing the series iterators.
 		// Instead, we should access them through the SeriesBlock.
 		isLastBlock := i == replicaLength
 		blockBuilder.add(
 			models.Bounds{
-				Start:    filterValuesStart,
-				Duration: block.blockSize,
+				Start:    block.readStart,
+				Duration: duration,
 				StepSize: stepSize,
 			},
 			iter,

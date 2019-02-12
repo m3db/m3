@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,51 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package mocks
 
-import (
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-)
-
-type encodedStepIter struct {
-	consolidator *consolidators.StepLookbackConsolidator
-	encodedStepIterWithCollector
-}
-
-func (b *encodedBlock) StepIter() (
-	block.StepIter,
-	error,
-) {
-	cs := b.consolidation
-	iters := b.seriesBlockIterators
-	consolidator := consolidators.NewStepLookbackConsolidator(
-		b.lookback,
-		cs.bounds.StepSize,
-		cs.currentTime,
-		len(iters),
-		cs.consolidationFn,
-	)
-
-	return &encodedStepIter{
-		consolidator: consolidator,
-		encodedStepIterWithCollector: encodedStepIterWithCollector{
-			lastBlock: b.lastBlock,
-
-			stepTime:   cs.currentTime,
-			meta:       b.meta,
-			seriesMeta: b.seriesMetas,
-
-			collector:   consolidator,
-			seriesPeek:  make([]peekValue, len(iters)),
-			seriesIters: iters,
-		},
-	}, nil
-}
-
-func (it *encodedStepIter) Current() block.Step {
-	return block.NewColStep(
-		it.stepTime,
-		it.consolidator.ConsolidateAndMoveToNext(),
-	)
-}
+//go:generate sh -c "mockgen -package=m3nsch -destination=$GOPATH/src/github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch/m3nsch_pb_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch/m3nsch.pb.go"

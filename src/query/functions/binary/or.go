@@ -55,22 +55,22 @@ func makeOrBlock(
 		return nil, err
 	}
 
-	if err := builder.AddCols(lIter.StepCount()); err != nil {
+	if err = builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
 
 	index := 0
 	for ; lIter.Next(); index++ {
-		lStep, err := lIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		lStep := lIter.Current()
 		lValues := lStep.Values()
 		builder.AppendValues(index, lValues)
 	}
 
-	if err := appendValuesAtIndices(missingIndices, rIter, builder); err != nil {
+	if err = lIter.Err(); err != nil {
+		return nil, err
+	}
+
+	if err = appendValuesAtIndices(missingIndices, rIter, builder); err != nil {
 		return nil, err
 	}
 

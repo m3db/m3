@@ -133,19 +133,19 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	if err := builder.AddCols(stepIter.StepCount()); err != nil {
+	if err = builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := stepIter.Current()
 		values := step.Values()
 		aggregatedValues := n.op.takeFunc(values, buckets)
 		builder.AppendValues(index, aggregatedValues)
+	}
+
+	if err = stepIter.Err(); err != nil {
+		return err
 	}
 
 	nextBlock := builder.Build()

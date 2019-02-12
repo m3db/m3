@@ -1,7 +1,7 @@
 common: &common
   timeout_in_minutes: 20
   agents:
-    queue: monorepo
+    queue: workers
   retry:
     # Automatically retry failures one time.
     automatic:
@@ -76,3 +76,4 @@ steps:
         workdir: /go/src/github.com/m3db/m3
         env:
           - FOSSA_API_KEY
+    <<: *common

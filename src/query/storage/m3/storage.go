@@ -144,7 +144,6 @@ func (s *m3storage) FetchBlocks(
 	// If using multiblock, update options to reflect this.
 	if options.BlockType == models.TypeMultiBlock {
 		opts = opts.
-			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
 	}
 

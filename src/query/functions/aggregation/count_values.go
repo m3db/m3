@@ -164,11 +164,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	for columnIndex := 0; stepIter.Next(); columnIndex++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := stepIter.Current()
 		values := step.Values()
 		for bucketIndex, bucket := range buckets {
 			processBlockBucketAtColumn(
@@ -178,6 +174,10 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 				columnIndex,
 			)
 		}
+	}
+
+	if err = stepIter.Err(); err != nil {
+		return err
 	}
 
 	numSeries := 0
