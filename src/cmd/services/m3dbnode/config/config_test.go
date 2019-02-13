@@ -21,6 +21,7 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -159,9 +160,9 @@ db:
           highWatermark: 0.02
       fetchBlocksMetadataResultsPool:
           size: 32
-          capacity: 4096
           lowWatermark: 0.01
           highWatermark: 0.02
+          capacity: 4096
       hostBlockMetadataSlicePool:
           size: 131072
           capacity: 3
@@ -208,12 +209,9 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
       writeBatchPool:
+          size: 8192
           initialBatchSize: 128
           maxBatchSize: 100000
-          pool:
-            size: 8192
-            lowWatermark: 0.01
-            highWatermark: 0.02
       postingsListPool:
           size: 8
           lowWatermark: 0
@@ -418,37 +416,37 @@ func TestConfiguration(t *testing.T) {
     bytesPool:
       buckets:
       - size: 6291456
+        lowWatermark: 0.1
+        highWatermark: 0.12
         capacity: 16
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 32
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 64
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 128
-        lowWatermark: 0.1
-        highWatermark: 0.12
       - size: 3145728
+        lowWatermark: 0.1
+        highWatermark: 0.12
         capacity: 256
+      - size: 524288
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 524288
         capacity: 1440
-        lowWatermark: 0.1
-        highWatermark: 0.12
       - size: 524288
+        lowWatermark: 0.01
+        highWatermark: 0.02
         capacity: 4096
-        lowWatermark: 0.01
-        highWatermark: 0.02
       - size: 32768
-        capacity: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
+        capacity: 8192
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -484,43 +482,43 @@ func TestConfiguration(t *testing.T) {
       highWatermark: 0.02
     fetchBlockMetadataResultsPool:
       size: 65536
-      capacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 32
     fetchBlocksMetadataResultsPool:
       size: 32
-      capacity: 4096
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 4096
     hostBlockMetadataSlicePool:
       size: 131072
-      capacity: 3
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 3
     blockMetadataPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
     blockMetadataSlicePool:
       size: 65536
-      capacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 32
     blocksMetadataPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
     blocksMetadataSlicePool:
       size: 32
-      capacity: 4096
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 4096
     tagsPool:
       size: 65536
-      capacity: 8
-      maxCapacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 8
+      maxCapacity: 32
     tagIteratorPool:
       size: 8192
       lowWatermark: 0.01
@@ -538,12 +536,9 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
     writeBatchPool:
+      size: 8192
       initialBatchSize: 128
       maxBatchSize: 100000
-      pool:
-        size: 8192
-        lowWatermark: 0.01
-        highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0
@@ -609,6 +604,8 @@ coordinator: null
 	actual := string(data)
 	if expected != actual {
 		diff := xtest.Diff(expected, actual)
+		fmt.Println("expected: ", expected)
+		fmt.Println("actual: ", actual)
 		require.FailNow(t, "reverse config did not match:\n"+diff)
 	}
 }

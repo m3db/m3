@@ -37,10 +37,9 @@ func TestContextPoolPolicyPoolPolicy(t *testing.T) {
 		},
 	}
 
-	policy := cpp.PoolPolicyOrDefault()
-	require.Equal(t, size, policy.SizeOrDefault())
-	require.Equal(t, refillLowWaterMark, policy.RefillLowWaterMarkOrDefault())
-	require.Equal(t, refillHighWaterMark, policy.RefillHighWaterMarkOrDefault())
+	require.Equal(t, size, cpp.SizeOrDefault())
+	require.Equal(t, refillLowWaterMark, cpp.RefillLowWaterMarkOrDefault())
+	require.Equal(t, refillHighWaterMark, cpp.RefillHighWaterMarkOrDefault())
 }
 
 func TestContextPoolMaxFinalizerCapacityOrDefault(t *testing.T) {
@@ -51,25 +50,4 @@ func TestContextPoolMaxFinalizerCapacityOrDefault(t *testing.T) {
 
 	cpp.MaxFinalizerCapacity = 10
 	require.Equal(t, 10, cpp.MaxFinalizerCapacityOrDefault())
-}
-
-func TestPostingsPoolPolicyDefaultSize(t *testing.T) {
-	policy := PoolingPolicy{
-		PostingsListPool: PostingsListPool{},
-	}
-
-	parsed := policy.PostingsListPool.PoolPolicyOrDefault()
-	require.Equal(t, defaultPostingsListPoolSize, parsed.SizeOrDefault())
-}
-
-func TestPostingsPoolPolicyWithSize(t *testing.T) {
-	defaultPlus1 := defaultPostingsListPoolSize + 1
-	policy := PoolingPolicy{
-		PostingsListPool: PostingsListPool{
-			PoolPolicy{Size: &defaultPlus1},
-		},
-	}
-
-	parsed := policy.PostingsListPool.PoolPolicyOrDefault()
-	require.Equal(t, defaultPlus1, parsed.SizeOrDefault())
 }
