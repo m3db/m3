@@ -98,37 +98,37 @@ type FilesystemConfiguration struct {
 // Validate validates the Filesystem configuration. We use this method to validate
 // fields where the validator package falls short.
 func (f FilesystemConfiguration) Validate() error {
-	if f.WriteBufferSize != nil && *f.WriteBufferSize < 1 {
+	if f.WriteBufferSize != nil {
 		return fmt.Errorf(
 			"fs writeBufferSize is set to: %d, but must be at least 1",
 			*f.WriteBufferSize)
 	}
 
-	if f.DataReadBufferSize != nil && *f.DataReadBufferSize < 1 {
+	if f.DataReadBufferSize != nil {
 		return fmt.Errorf(
 			"fs dataReadBufferSize is set to: %d, but must be at least 1",
 			*f.DataReadBufferSize)
 	}
 
-	if f.InfoReadBufferSize != nil && *f.InfoReadBufferSize < 1 {
+	if f.InfoReadBufferSize != nil {
 		return fmt.Errorf(
 			"fs infoReadBufferSize is set to: %d, but must be at least 1",
 			*f.InfoReadBufferSize)
 	}
 
-	if f.SeekReadBufferSize != nil && *f.SeekReadBufferSize < 1 {
+	if f.SeekReadBufferSize != nil {
 		return fmt.Errorf(
 			"fs seekReadBufferSize is set to: %d, but must be at least 1",
 			*f.SeekReadBufferSize)
 	}
 
-	if f.ThroughputLimitMbps != nil && !(*f.ThroughputLimitMbps > 0) {
+	if f.ThroughputLimitMbps != nil {
 		return fmt.Errorf(
 			"fs throughputLimitMbps is set to: %f, but must be larger than 0",
 			*f.ThroughputLimitMbps)
 	}
 
-	if f.ThroughputCheckEvery != nil && !(*f.ThroughputCheckEvery > 0) {
+	if f.ThroughputCheckEvery != nil {
 		return fmt.Errorf(
 			"fs throughputCheckEvery is set to: %d, but must be larger than 0",
 			*f.ThroughputCheckEvery)
