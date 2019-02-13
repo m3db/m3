@@ -28,6 +28,8 @@ type PoolingType string
 const (
 	// SimplePooling uses the basic Go runtime to allocate bytes for bytes pools.
 	SimplePooling PoolingType = "simple"
+
+	defaultPoolingType = SimplePooling
 )
 
 const (
@@ -401,7 +403,7 @@ func (p *PoolingPolicy) TypeOrDefault() PoolingType {
 		return *p.Type
 	}
 
-	return SimplePooling
+	return defaultPoolingType
 }
 
 // PoolPolicy specifies a single pool policy.
