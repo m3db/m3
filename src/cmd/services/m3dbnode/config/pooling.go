@@ -76,46 +76,60 @@ const (
 var (
 	defaultBytesPoolBuckets = []CapacityPoolPolicy{
 		{
-			Capacity:            16,
-			Size:                524288,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 16,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                524288,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 		{
-			Capacity:            32,
-			Size:                262144,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 32,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                262144,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 		{
-			Capacity:            64,
-			Size:                131072,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 64,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                131072,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 		{
-			Capacity:            128,
-			Size:                65536,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 128,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                65536,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 		{
-			Capacity:            256,
-			Size:                65536,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 256,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                65536,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 		{
-			Capacity:            1440,
-			Size:                16384,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 1440,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                16384,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 		{
-			Capacity:            4096,
-			Size:                8192,
-			RefillLowWaterMark:  0.7,
-			RefillHighWaterMark: 1.0,
+			defaultCapacity: 4096,
+			PoolPolicy: PoolPolicy{
+				defaultSize:                8192,
+				defaultRefillLowWaterMark:  0.7,
+				defaultRefillHighWaterMark: 1.0,
+			},
 		},
 	}
 )
@@ -246,10 +260,9 @@ func (p *PoolingPolicy) Validate() error {
 	if err := p.BlocksMetadataSlicePool.Validate("blocksMetadataSlicePool"); err != nil {
 		return err
 	}
-	// TODO: tag pool
-	// if err := p.TagsPool.Validate("tagsPool"); err != nil {
-	// 	return err
-	// }
+	if err := p.TagsPool.Validate("tagsPool"); err != nil {
+		return err
+	}
 	if err := p.TagsIteratorPool.Validate("tagsIteratorPool"); err != nil {
 		return err
 	}
@@ -262,12 +275,9 @@ func (p *PoolingPolicy) Validate() error {
 	if err := p.TagDecoderPool.Validate("tagDecoderPool"); err != nil {
 		return err
 	}
-	// TODO: Write batch pool
-	// if err := p.WriteBatchPool.Validate("WriteBatchPool"); err != nil {
-	// 	return err
-	// }
-	// TODO: POSTINGS LIST POOL
-
+	if err := p.PostingsListPool.Validate("postingsListPool"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -357,59 +367,44 @@ func (p *PoolPolicy) RefillHighWaterMarkOrDefault() float64 {
 // CapacityPoolPolicy specifies a single pool policy that has a
 // per element capacity.
 type CapacityPoolPolicy struct {
-	// The size of the pool.
-	Size int `yaml:"size"`
+	PoolPolicy `yaml:",inline"`
 
 	// The capacity of items in the pool.
-	Capacity int `yaml:"capacity"`
-
-	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+	Capacity *int `yaml:"capacity"`
 
 	// Default values to be returned if the above values are not set.
-	defaultSize                int
-	defaultCapacity            int
-	defaultRefillLowWaterMark  float64
-	defaultRefillHighWaterMark float64
+	defaultCapacity int
 }
 
-// Validate validates the pool policy config.
+// Validate validates the capacity pool policy config.
 func (p *CapacityPoolPolicy) Validate(poolName string) error {
-	if p.RefillLowWaterMark < 0 || p.RefillLowWaterMark > 1 {
-		return fmt.Errorf(
-			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
-			poolName)
+	if err := p.PoolPolicy.Validate(poolName); err != nil {
+		return err
 	}
 
-	if p.RefillHighWaterMark < 0 || p.RefillHighWaterMark > 1 {
-		return fmt.Errorf(
-			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
-			poolName)
+	if p.Capacity != nil && *p.Capacity < 0 {
+		return fmt.Errorf("capacity of %s pool must be 0 or larger", poolName)
 	}
 
 	return nil
 }
 
+// CapacityOrDefault returns the configured capacity if present, or a default value otherwise.
+func (p *CapacityPoolPolicy) CapacityOrDefault() int {
+	if p.Capacity != nil {
+		return *p.Capacity
+	}
+
+	return p.defaultCapacity
+}
+
 // MaxCapacityPoolPolicy specifies a single pool policy that has a
 // per element capacity, and a maximum allowed capacity as well.
 type MaxCapacityPoolPolicy struct {
-	// The size of the pool.
-	Size int `yaml:"size"`
-
-	// The capacity of items in the pool.
-	Capacity int `yaml:"capacity"`
+	CapacityPoolPolicy `yaml:",inline"`
 
 	// The max capacity of items in the pool.
 	MaxCapacity int `yaml:"maxCapacity"`
-
-	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
 // BucketPoolPolicy specifies a bucket pool policy.
@@ -423,6 +418,9 @@ type BucketPoolPolicy struct {
 
 // WriteBatchPoolPolicy specifies the pooling policy for the WriteBatch pool.
 type WriteBatchPoolPolicy struct {
+	// The size of the pool.
+	Size *int `yaml:"size"`
+
 	// InitialBatchSize controls the initial batch size for each WriteBatch when
 	// the pool is being constructed / refilled.
 	InitialBatchSize *int `yaml:"initialBatchSize"`
@@ -430,9 +428,6 @@ type WriteBatchPoolPolicy struct {
 	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
 	// and still remain in the pool.
 	MaxBatchSize *int `yaml:"maxBatchSize"`
-
-	// Pool is the Pooling Policy for the WriteBatch pool.
-	Pool PoolPolicy `yaml:"pool"`
 }
 
 // ContextPoolPolicy specifies the policy for the context pool.
@@ -722,4 +717,8 @@ func (p *PostingsListPool) PoolPolicyOrDefault() PoolPolicy {
 	policy.defaultRefillLowWaterMark = defaultRefillLowWaterMark
 	policy.defaultRefillHighWaterMark = defaultRefillHighWaterMark
 	return policy
+}
+
+func intPtr(x int) *int {
+	return &x
 }

@@ -939,11 +939,11 @@ func withEncodingAndPoolingOptions(
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
 		var b pool.Bucket
-		b.Capacity = bucket.Capacity
-		b.Count = bucket.Size
+		b.Capacity = bucket.CapacityOrDefault()
+		b.Count = bucket.SizeOrDefault()
 		b.Options = bytesPoolOpts.
-			SetRefillLowWatermark(bucket.RefillLowWaterMark).
-			SetRefillHighWatermark(bucket.RefillHighWaterMark)
+			SetRefillLowWatermark(bucket.RefillLowWaterMarkOrDefault()).
+			SetRefillHighWatermark(bucket.RefillHighWaterMarkOrDefault())
 		buckets[i] = b
 		logger.Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
@@ -1016,11 +1016,10 @@ func withEncodingAndPoolingOptions(
 		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
 	}
 
-	writeBatchPoolPolicy := poolOptions(
-		policy.WriteBatchPool.Pool,
-		scope.SubScope("write-batch-pool"),
-	)
-	if writeBatchPoolPolicy.Size() == 0 {
+	var writeBatchPoolSize int
+	if policy.WriteBatchPool.Size != nil {
+		writeBatchPoolSize = *policy.WriteBatchPool.Size
+	} else {
 		// If no value set, calculate a reasonable value based on the commit log
 		// queue size. We base it off the commitlog queue size because we will
 		// want to be able to buffer at least one full commitlog queues worth of
@@ -1028,10 +1027,23 @@ func withEncodingAndPoolingOptions(
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
 		expectedBatchSize := *writeBatchPoolInitialBatchSize
-		writeBatchPoolPolicy = writeBatchPoolPolicy.SetSize(commitlogQueueSize / expectedBatchSize)
+		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
+
+	writeBatchPoolOpts := pool.NewObjectPoolOptions()
+	writeBatchPoolOpts = writeBatchPoolOpts.
+		SetSize(writeBatchPoolSize).
+		// Set watermarks to zero because this pool is sized to be as large as we
+		// ever need it to be, so background allocations are usually wasteful.
+		SetRefillLowWatermark(0.0).
+		SetRefillHighWatermark(0.0).
+		SetInstrumentOptions(
+			writeBatchPoolOpts.
+				InstrumentOptions().
+				SetMetricsScope(scope.SubScope("write-batch-pool")))
+
 	writeBatchPool := ts.NewWriteBatchPool(
-		writeBatchPoolPolicy,
+		writeBatchPoolOpts,
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
 
@@ -1039,7 +1051,7 @@ func withEncodingAndPoolingOptions(
 		IDPoolOptions: poolOptions(
 			policy.IdentifierPool.PoolPolicyOrDefault(), scope.SubScope("identifier-pool")),
 		TagsPoolOptions: maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
-		TagsCapacity:    policy.TagsPool.Capacity,
+		TagsCapacity:    policy.TagsPool.CapacityOrDefault(),
 		TagsMaxCapacity: policy.TagsPool.MaxCapacity,
 		TagsIteratorPoolOptions: poolOptions(
 			policy.TagsIteratorPool.PoolPolicyOrDefault(),
@@ -1049,12 +1061,12 @@ func withEncodingAndPoolingOptions(
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
 		capacityPoolOptions(policy.FetchBlockMetadataResultsPool.PoolPolicyOrDefault(),
 			scope.SubScope("fetch-block-metadata-results-pool")),
-		policy.FetchBlockMetadataResultsPool.Capacity)
+		policy.FetchBlockMetadataResultsPool.CapacityOrDefault())
 
 	fetchBlocksMetadataResultsPool := block.NewFetchBlocksMetadataResultsPool(
 		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool.PoolPolicyOrDefault(),
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
-		policy.FetchBlocksMetadataResultsPool.Capacity)
+		policy.FetchBlocksMetadataResultsPool.CapacityOrDefault())
 
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
@@ -1202,14 +1214,20 @@ func capacityPoolOptions(
 	policy config.CapacityPoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
-	opts := pool.NewObjectPoolOptions()
-	if policy.Size > 0 {
-		opts = opts.SetSize(policy.Size)
-		if policy.RefillLowWaterMark > 0 &&
-			policy.RefillHighWaterMark > 0 &&
-			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+	var (
+		opts                = pool.NewObjectPoolOptions()
+		size                = policy.SizeOrDefault()
+		refillLowWaterMark  = policy.RefillLowWaterMarkOrDefault()
+		refillHighWaterMark = policy.RefillHighWaterMarkOrDefault()
+	)
+
+	if size > 0 {
+		opts = opts.SetSize(size)
+		if refillLowWaterMark > 0 &&
+			refillHighWaterMark > 0 &&
+			refillHighWaterMark > refillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(refillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {
@@ -1223,14 +1241,20 @@ func maxCapacityPoolOptions(
 	policy config.MaxCapacityPoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
-	opts := pool.NewObjectPoolOptions()
-	if policy.Size > 0 {
-		opts = opts.SetSize(policy.Size)
-		if policy.RefillLowWaterMark > 0 &&
-			policy.RefillHighWaterMark > 0 &&
-			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+	var (
+		opts                = pool.NewObjectPoolOptions()
+		size                = policy.SizeOrDefault()
+		refillLowWaterMark  = policy.RefillLowWaterMarkOrDefault()
+		refillHighWaterMark = policy.RefillHighWaterMarkOrDefault()
+	)
+
+	if size > 0 {
+		opts = opts.SetSize(size)
+		if refillLowWaterMark > 0 &&
+			refillHighWaterMark > 0 &&
+			refillHighWaterMark > refillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(refillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {
