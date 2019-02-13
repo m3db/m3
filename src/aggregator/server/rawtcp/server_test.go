@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator/capture"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -173,21 +172,8 @@ var (
 	}
 )
 
-func TestRawTCPServerHandleUnaggregatedMsgpackEncoding(t *testing.T) {
-	testRawTCPServerHandleUnaggregated(t, func(int) encodingProtocol { return msgpackEncoding })
-}
-
 func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
 	testRawTCPServerHandleUnaggregated(t, func(int) encodingProtocol { return protobufEncoding })
-}
-
-func TestRawTCPServerHandleUnaggregatedMixedEncoding(t *testing.T) {
-	testRawTCPServerHandleUnaggregated(t, func(workerID int) encodingProtocol {
-		if workerID%2 == 0 {
-			return msgpackEncoding
-		}
-		return protobufEncoding
-	})
 }
 
 func testRawTCPServerHandleUnaggregated(
@@ -238,12 +224,6 @@ func testRawTCPServerHandleUnaggregated(
 
 			var stream []byte
 			switch protocol {
-			case msgpackEncoding:
-				encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
-				require.NoError(t, encoder.EncodeCounterWithPoliciesList(testCounterWithPoliciesList))
-				require.NoError(t, encoder.EncodeBatchTimerWithPoliciesList(testBatchTimerWithPoliciesList))
-				require.NoError(t, encoder.EncodeGaugeWithPoliciesList(testGaugeWithPoliciesList))
-				stream = encoder.Encoder().Bytes()
 			case protobufEncoding:
 				encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
 				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{

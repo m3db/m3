@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
@@ -264,192 +263,6 @@ var (
 	}
 )
 
-func TestUnaggregatedIteratorDecodeCounterWithPoliciesList(t *testing.T) {
-	inputs := []unaggregated.CounterWithPoliciesList{
-		{
-			Counter:      testCounter1,
-			PoliciesList: testPoliciesList1,
-		},
-		{
-			Counter:      testCounter1,
-			PoliciesList: testPoliciesList2,
-		},
-		{
-			Counter:      testCounter2,
-			PoliciesList: testPoliciesList1,
-		},
-		{
-			Counter:      testCounter2,
-			PoliciesList: testPoliciesList2,
-		},
-	}
-	expected := []unaggregated.CounterWithMetadatas{
-		{
-			Counter:         testCounter1,
-			StagedMetadatas: testConvertedMetadatas1,
-		},
-		{
-			Counter:         testCounter1,
-			StagedMetadatas: testConvertedMetadatas2,
-		},
-		{
-			Counter:         testCounter2,
-			StagedMetadatas: testConvertedMetadatas1,
-		},
-		{
-			Counter:         testCounter2,
-			StagedMetadatas: testConvertedMetadatas2,
-		},
-	}
-
-	encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewBufferedEncoder())
-	for _, input := range inputs {
-		require.NoError(t, encoder.EncodeCounterWithPoliciesList(input))
-	}
-	var (
-		i      int
-		stream = bytes.NewReader(encoder.Encoder().Bytes())
-	)
-	it := NewUnaggregatedIterator(
-		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
-		protobuf.NewUnaggregatedOptions(),
-	)
-	defer it.Close()
-	for it.Next() {
-		res := it.Current()
-		require.Equal(t, encoding.CounterWithMetadatasType, res.Type)
-		require.Equal(t, expected[i], res.CounterWithMetadatas)
-		i++
-	}
-	require.Equal(t, io.EOF, it.Err())
-	require.Equal(t, len(inputs), i)
-}
-
-func TestUnaggregatedIteratorDecodeBatchTimerWithPoliciesList(t *testing.T) {
-	inputs := []unaggregated.BatchTimerWithPoliciesList{
-		{
-			BatchTimer:   testBatchTimer1,
-			PoliciesList: testPoliciesList1,
-		},
-		{
-			BatchTimer:   testBatchTimer1,
-			PoliciesList: testPoliciesList2,
-		},
-		{
-			BatchTimer:   testBatchTimer2,
-			PoliciesList: testPoliciesList1,
-		},
-		{
-			BatchTimer:   testBatchTimer2,
-			PoliciesList: testPoliciesList2,
-		},
-	}
-	expected := []unaggregated.BatchTimerWithMetadatas{
-		{
-			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testConvertedMetadatas1,
-		},
-		{
-			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testConvertedMetadatas2,
-		},
-		{
-			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testConvertedMetadatas1,
-		},
-		{
-			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testConvertedMetadatas2,
-		},
-	}
-
-	encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewBufferedEncoder())
-	for _, input := range inputs {
-		require.NoError(t, encoder.EncodeBatchTimerWithPoliciesList(input))
-	}
-	var (
-		i      int
-		stream = bytes.NewReader(encoder.Encoder().Bytes())
-	)
-	it := NewUnaggregatedIterator(
-		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
-		protobuf.NewUnaggregatedOptions(),
-	)
-	defer it.Close()
-	for it.Next() {
-		res := it.Current()
-		require.Equal(t, encoding.BatchTimerWithMetadatasType, res.Type)
-		require.Equal(t, expected[i], res.BatchTimerWithMetadatas)
-		i++
-	}
-	require.Equal(t, io.EOF, it.Err())
-	require.Equal(t, len(inputs), i)
-}
-
-func TestUnaggregatedIteratorDecodeGaugeWithPoliciesList(t *testing.T) {
-	inputs := []unaggregated.GaugeWithPoliciesList{
-		{
-			Gauge:        testGauge1,
-			PoliciesList: testPoliciesList1,
-		},
-		{
-			Gauge:        testGauge1,
-			PoliciesList: testPoliciesList2,
-		},
-		{
-			Gauge:        testGauge2,
-			PoliciesList: testPoliciesList1,
-		},
-		{
-			Gauge:        testGauge2,
-			PoliciesList: testPoliciesList2,
-		},
-	}
-	expected := []unaggregated.GaugeWithMetadatas{
-		{
-			Gauge:           testGauge1,
-			StagedMetadatas: testConvertedMetadatas1,
-		},
-		{
-			Gauge:           testGauge1,
-			StagedMetadatas: testConvertedMetadatas2,
-		},
-		{
-			Gauge:           testGauge2,
-			StagedMetadatas: testConvertedMetadatas1,
-		},
-		{
-			Gauge:           testGauge2,
-			StagedMetadatas: testConvertedMetadatas2,
-		},
-	}
-
-	encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewBufferedEncoder())
-	for _, input := range inputs {
-		require.NoError(t, encoder.EncodeGaugeWithPoliciesList(input))
-	}
-	var (
-		i      int
-		stream = bytes.NewReader(encoder.Encoder().Bytes())
-	)
-	it := NewUnaggregatedIterator(
-		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
-		protobuf.NewUnaggregatedOptions(),
-	)
-	defer it.Close()
-	for it.Next() {
-		res := it.Current()
-		require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
-		require.Equal(t, expected[i], res.GaugeWithMetadatas)
-		i++
-	}
-	require.Equal(t, io.EOF, it.Err())
-	require.Equal(t, len(inputs), i)
-}
-
 func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.CounterWithMetadatas{
 		{
@@ -486,7 +299,6 @@ func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
 	)
 	it := NewUnaggregatedIterator(
 		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	defer it.Close()
@@ -536,7 +348,6 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithMetadatas(t *testing.T) {
 	)
 	it := NewUnaggregatedIterator(
 		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	defer it.Close()
@@ -586,7 +397,6 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 	)
 	it := NewUnaggregatedIterator(
 		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	defer it.Close()
@@ -606,28 +416,14 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 		testCounters               = []unaggregated.Counter{testCounter1, testCounter2}
 		testBatchTimers            = []unaggregated.BatchTimer{testBatchTimer1, testBatchTimer2}
 		testGauges                 = []unaggregated.Gauge{testGauge1, testGauge2}
-		testPoliciesLists          = []policy.PoliciesList{testPoliciesList1, testPoliciesList2}
 		testMetadataLists          = []metadata.StagedMetadatas{testMetadatas1, testMetadatas2}
 		testConvertedMetadataLists = []metadata.StagedMetadatas{testConvertedMetadatas1, testConvertedMetadatas2}
-		msgpackInputs              []interface{}
 		expectedMsgpackOutputs     []encoding.UnaggregatedMessageUnion
 		protobufInputs             []interface{}
 	)
 
 	for metricIdx := 0; metricIdx < 2; metricIdx++ {
 		for metadataIdx := 0; metadataIdx < 2; metadataIdx++ {
-			msgpackInputs = append(msgpackInputs, unaggregated.CounterWithPoliciesList{
-				Counter:      testCounters[metricIdx],
-				PoliciesList: testPoliciesLists[metadataIdx],
-			})
-			msgpackInputs = append(msgpackInputs, unaggregated.BatchTimerWithPoliciesList{
-				BatchTimer:   testBatchTimers[metricIdx],
-				PoliciesList: testPoliciesLists[metadataIdx],
-			})
-			msgpackInputs = append(msgpackInputs, unaggregated.GaugeWithPoliciesList{
-				Gauge:        testGauges[metricIdx],
-				PoliciesList: testPoliciesLists[metadataIdx],
-			})
 			expectedMsgpackOutputs = append(expectedMsgpackOutputs, encoding.UnaggregatedMessageUnion{
 				Type: encoding.CounterWithMetadatasType,
 				CounterWithMetadatas: unaggregated.CounterWithMetadatas{
@@ -671,20 +467,7 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 
 	var stream bytes.Buffer
 	for iter := 0; iter < numIter; iter++ {
-		msgpackEncoder := msgpack.NewUnaggregatedEncoder(msgpack.NewBufferedEncoder())
 		protobufEncoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
-		for _, input := range msgpackInputs {
-			switch input := input.(type) {
-			case unaggregated.CounterWithPoliciesList:
-				require.NoError(t, msgpackEncoder.EncodeCounterWithPoliciesList(input))
-			case unaggregated.BatchTimerWithPoliciesList:
-				require.NoError(t, msgpackEncoder.EncodeBatchTimerWithPoliciesList(input))
-			case unaggregated.GaugeWithPoliciesList:
-				require.NoError(t, msgpackEncoder.EncodeGaugeWithPoliciesList(input))
-			default:
-				require.Fail(t, "unrecognized type %T", input)
-			}
-		}
 		for _, input := range protobufInputs {
 			var msg encoding.UnaggregatedMessageUnion
 			switch input := input.(type) {
@@ -708,10 +491,8 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			}
 			require.NoError(t, protobufEncoder.EncodeMessage(msg))
 		}
-		_, err := stream.Write(msgpackEncoder.Encoder().Bytes())
-		require.NoError(t, err)
 		dataBuf := protobufEncoder.Relinquish()
-		_, err = stream.Write(dataBuf.Bytes())
+		_, err := stream.Write(dataBuf.Bytes())
 		require.NoError(t, err)
 		dataBuf.Close()
 	}
@@ -722,64 +503,36 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 	)
 	it := NewUnaggregatedIterator(
 		reader,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
-		j := i % (len(msgpackInputs) + len(protobufInputs))
-		if j < len(msgpackInputs) {
-			require.True(t, cmp.Equal(expectedMsgpackOutputs[j], res, testCmpOpts...))
-		} else {
-			// Protobuf encoded data.
-			j -= len(msgpackInputs)
-			switch expectedRes := protobufInputs[j].(type) {
-			case unaggregated.CounterWithMetadatas:
-				require.Equal(t, encoding.CounterWithMetadatasType, res.Type)
-				require.True(t, cmp.Equal(expectedRes, res.CounterWithMetadatas, testCmpOpts...))
-			case unaggregated.BatchTimerWithMetadatas:
-				require.Equal(t, encoding.BatchTimerWithMetadatasType, res.Type)
-				require.True(t, cmp.Equal(expectedRes, res.BatchTimerWithMetadatas, testCmpOpts...))
-			case unaggregated.GaugeWithMetadatas:
-				require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
-				require.True(t, cmp.Equal(expectedRes, res.GaugeWithMetadatas, testCmpOpts...))
-			default:
-				require.Fail(t, "unknown input type: %T", protobufInputs[j])
-			}
+		j := i % (len(protobufInputs))
+		// Protobuf encoded data.
+		switch expectedRes := protobufInputs[j].(type) {
+		case unaggregated.CounterWithMetadatas:
+			require.Equal(t, encoding.CounterWithMetadatasType, res.Type)
+			require.True(t, cmp.Equal(expectedRes, res.CounterWithMetadatas, testCmpOpts...))
+		case unaggregated.BatchTimerWithMetadatas:
+			require.Equal(t, encoding.BatchTimerWithMetadatasType, res.Type)
+			require.True(t, cmp.Equal(expectedRes, res.BatchTimerWithMetadatas, testCmpOpts...))
+		case unaggregated.GaugeWithMetadatas:
+			require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
+			require.True(t, cmp.Equal(expectedRes, res.GaugeWithMetadatas, testCmpOpts...))
+		default:
+			require.Fail(t, "unknown input type: %T", protobufInputs[j])
 		}
 		i++
 	}
 	require.Equal(t, io.EOF, it.Err())
-	require.Equal(t, (len(msgpackInputs)+len(protobufInputs))*numIter, i)
-}
-
-func TestUnaggregatedIteratorDecodeMsgpackError(t *testing.T) {
-	reader := bytes.NewReader([]byte{0x1, 0x2})
-	it := NewUnaggregatedIterator(
-		reader,
-		msgpack.NewUnaggregatedIteratorOptions(),
-		protobuf.NewUnaggregatedOptions(),
-	)
-	defer it.Close()
-	i := 0
-	for it.Next() {
-		i++
-	}
-	require.NotEqual(t, io.EOF, it.Err())
-	require.Equal(t, it.Err(), it.(*unaggregatedIterator).msgpackIt.Err())
-	require.Equal(t, 0, i)
-
-	// Verify calling Next() still returns false.
-	require.False(t, it.Next())
-	require.Equal(t, it.Err(), it.(*unaggregatedIterator).msgpackIt.Err())
+	require.Equal(t, (len(protobufInputs))*numIter, i)
 }
 
 func TestUnaggregatedIteratorDecodeProtobufError(t *testing.T) {
 	reader := bytes.NewReader([]byte{0x2, 0x2})
 	it := NewUnaggregatedIterator(
 		reader,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	defer it.Close()
@@ -800,7 +553,6 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 	stream := bytes.NewReader([]byte{0x1, 0x2, 0x3})
 	it := NewUnaggregatedIterator(
 		stream,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	iterator := it.(*unaggregatedIterator)
@@ -821,21 +573,17 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 func TestUnaggregatedIteratorClose(t *testing.T) {
 	it := NewUnaggregatedIterator(
 		nil,
-		msgpack.NewUnaggregatedIteratorOptions(),
 		protobuf.NewUnaggregatedOptions(),
 	)
 	require.False(t, it.(*unaggregatedIterator).closed)
-	require.NotNil(t, it.(*unaggregatedIterator).msgpackIt)
 	require.NotNil(t, it.(*unaggregatedIterator).protobufIt)
 
 	it.Close()
 	require.True(t, it.(*unaggregatedIterator).closed)
-	require.Nil(t, it.(*unaggregatedIterator).msgpackIt)
 	require.Nil(t, it.(*unaggregatedIterator).protobufIt)
 
 	// Verify that closing a second time is a no op.
 	it.Close()
 	require.True(t, it.(*unaggregatedIterator).closed)
-	require.Nil(t, it.(*unaggregatedIterator).msgpackIt)
 	require.Nil(t, it.(*unaggregatedIterator).protobufIt)
 }

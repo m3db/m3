@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 )
 
@@ -46,7 +45,6 @@ type UnaggregatedIterator interface {
 type unaggregatedIterator struct {
 	reader encoding.ByteReadScanner
 
-	msgpackIt  msgpack.UnaggregatedIterator
 	protobufIt protobuf.UnaggregatedIterator
 	msg        encoding.UnaggregatedMessageUnion
 	closed     bool
@@ -56,14 +54,11 @@ type unaggregatedIterator struct {
 // NewUnaggregatedIterator creates a new unaggregated iterator.
 func NewUnaggregatedIterator(
 	reader encoding.ByteReadScanner,
-	msgpackItOpts msgpack.UnaggregatedIteratorOptions,
 	protobufItOpts protobuf.UnaggregatedOptions,
 ) UnaggregatedIterator {
-	msgpackIt := msgpack.NewUnaggregatedIterator(reader, msgpackItOpts)
 	protobufIt := protobuf.NewUnaggregatedIterator(reader, protobufItOpts)
 	return &unaggregatedIterator{
 		reader:     reader,
-		msgpackIt:  msgpackIt,
 		protobufIt: protobufIt,
 	}
 }
@@ -77,19 +72,6 @@ func (it *unaggregatedIterator) Next() bool {
 		return false
 	}
 	switch protocol {
-	case msgpackProtocol:
-		if !it.msgpackIt.Next() {
-			return false
-		}
-		metric := it.msgpackIt.Metric()
-		policiesList := it.msgpackIt.PoliciesList()
-		msg, err := toUnaggregatedMessageUnion(metric, policiesList)
-		if err != nil {
-			it.err = err
-			return false
-		}
-		it.msg = msg
-		return true
 	case protobufProtocol:
 		if !it.protobufIt.Next() {
 			return false
@@ -108,9 +90,6 @@ func (it *unaggregatedIterator) Err() error {
 	if it.err != nil {
 		return it.err
 	}
-	if err := it.msgpackIt.Err(); err != nil {
-		return err
-	}
 	return it.protobufIt.Err()
 }
 
@@ -119,8 +98,6 @@ func (it *unaggregatedIterator) Close() {
 		return
 	}
 	it.closed = true
-	it.msgpackIt.Close()
-	it.msgpackIt = nil
 	it.protobufIt.Close()
 	it.protobufIt = nil
 	it.msg = encoding.UnaggregatedMessageUnion{}

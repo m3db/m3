@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -319,90 +318,4 @@ type UnaggregatedIteratorPool interface {
 
 	// Put puts an unaggregated iterator into the pool.
 	Put(it UnaggregatedIterator)
-}
-
-// AggregatedEncoder is an encoder for encoding aggregated metrics.
-type AggregatedEncoder interface {
-	// EncodeMetricWithStoragePolicy encodes a metric with an applicable storage policy.
-	EncodeMetricWithStoragePolicy(mp aggregated.MetricWithStoragePolicy) error
-
-	// EncodeMetricWithStoragePolicyAndEncodeTime encodes a metric with an applicable
-	// storage policy, alongside the time at which encoding happens.
-	EncodeMetricWithStoragePolicyAndEncodeTime(
-		mp aggregated.MetricWithStoragePolicy,
-		encodedAtNanos int64,
-	) error
-
-	// EncodeChunkedMetricWithStoragePolicy encodes a chunked metric with an applicable storage policy.
-	EncodeChunkedMetricWithStoragePolicy(cmp aggregated.ChunkedMetricWithStoragePolicy) error
-
-	// EncodeChunkedMetricWithStoragePolicyAndEncodeTime encodes a chunked metric with
-	// an applicable storage policy, alongside the time at which encoding happens.
-	EncodeChunkedMetricWithStoragePolicyAndEncodeTime(
-		cmp aggregated.ChunkedMetricWithStoragePolicy,
-		encodedAtNanos int64,
-	) error
-
-	// Encoder returns the encoder.
-	Encoder() BufferedEncoder
-
-	// Reset resets the encoder.
-	Reset(encoder BufferedEncoder)
-}
-
-// AggregatedIterator is an iterator for decoding aggregated metrics.
-type AggregatedIterator interface {
-	// Next returns true if there are more metrics to decode.
-	Next() bool
-
-	// Value returns the current raw metric, the corresponding policy, and timestamp at
-	// which the metric and the policy were encoded if applicable.
-	Value() (aggregated.RawMetric, policy.StoragePolicy, int64)
-
-	// Err returns the error encountered during decoding, if any.
-	Err() error
-
-	// Reset resets the iterator.
-	Reset(reader io.Reader)
-
-	// Close closes the iterator.
-	Close()
-}
-
-// AggregatedIteratorOptions provide options for aggregated iterators.
-type AggregatedIteratorOptions interface {
-	// SetIgnoreHigherVersion determines whether the iterator ignores messages
-	// with higher-than-supported version.
-	SetIgnoreHigherVersion(value bool) AggregatedIteratorOptions
-
-	// IgnoreHigherVersion returns whether the iterator ignores messages with
-	// higher-than-supported version.
-	IgnoreHigherVersion() bool
-
-	// SetReaderBufferSize sets the reader buffer size.
-	SetReaderBufferSize(value int) AggregatedIteratorOptions
-
-	// ReaderBufferSize returns the reader buffer size.
-	ReaderBufferSize() int
-
-	// SetIteratorPool sets the aggregated iterator pool.
-	SetIteratorPool(value AggregatedIteratorPool) AggregatedIteratorOptions
-
-	// IteratorPool returns the aggregated iterator pool.
-	IteratorPool() AggregatedIteratorPool
-}
-
-// AggregatedIteratorAlloc allocates an aggregated iterator.
-type AggregatedIteratorAlloc func() AggregatedIterator
-
-// AggregatedIteratorPool is a pool of aggregated iterators.
-type AggregatedIteratorPool interface {
-	// Init initializes the aggregated iterator pool.
-	Init(alloc AggregatedIteratorAlloc)
-
-	// Get returns an aggregated iterator from the pool.
-	Get() AggregatedIterator
-
-	// Put puts an aggregated iterator into the pool.
-	Put(it AggregatedIterator)
 }

@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/migration"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -84,7 +83,6 @@ type handler struct {
 	aggregator     aggregator.Aggregator
 	log            log.Logger
 	readBufferSize int
-	msgpackItOpts  msgpack.UnaggregatedIteratorOptions
 	protobufItOpts protobuf.UnaggregatedOptions
 
 	errLogRateLimiter *rate.Limiter
@@ -104,7 +102,6 @@ func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler 
 		aggregator:        aggregator,
 		log:               iOpts.Logger(),
 		readBufferSize:    opts.ReadBufferSize(),
-		msgpackItOpts:     opts.MsgpackUnaggregatedIteratorOptions(),
 		protobufItOpts:    opts.ProtobufUnaggregatedIteratorOptions(),
 		errLogRateLimiter: limiter,
 		rand:              rand.New(rand.NewSource(nowFn().UnixNano())),
@@ -119,7 +116,7 @@ func (s *handler) Handle(conn net.Conn) {
 	}
 
 	reader := bufio.NewReaderSize(conn, s.readBufferSize)
-	it := migration.NewUnaggregatedIterator(reader, s.msgpackItOpts, s.protobufItOpts)
+	it := migration.NewUnaggregatedIterator(reader, s.protobufItOpts)
 	defer it.Close()
 
 	// Iterate over the incoming metrics stream and queue up metrics.

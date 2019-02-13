@@ -21,7 +21,6 @@
 package rawtcp
 
 import (
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -56,12 +55,6 @@ type Options interface {
 	// ServerOptiosn returns the server options.
 	ServerOptions() server.Options
 
-	// SetMsgpackUnaggregatedIteratorOptions sets the msgpack unaggregated iterator options.
-	SetMsgpackUnaggregatedIteratorOptions(value msgpack.UnaggregatedIteratorOptions) Options
-
-	// MsgpackUnaggregatedIteratorOptions returns the msgpack unaggregated iterator options.
-	MsgpackUnaggregatedIteratorOptions() msgpack.UnaggregatedIteratorOptions
-
 	// SetProtobufUnaggregatedIteratorOptions sets the protobuf unaggregated iterator options.
 	SetProtobufUnaggregatedIteratorOptions(value protobuf.UnaggregatedOptions) Options
 
@@ -85,7 +78,6 @@ type options struct {
 	clockOpts            clock.Options
 	instrumentOpts       instrument.Options
 	serverOpts           server.Options
-	msgpackItOpts        msgpack.UnaggregatedIteratorOptions
 	protobufItOpts       protobuf.UnaggregatedOptions
 	readBufferSize       int
 	errLogLimitPerSecond int64
@@ -97,7 +89,6 @@ func NewOptions() Options {
 		clockOpts:            clock.NewOptions(),
 		instrumentOpts:       instrument.NewOptions(),
 		serverOpts:           server.NewOptions(),
-		msgpackItOpts:        msgpack.NewUnaggregatedIteratorOptions(),
 		protobufItOpts:       protobuf.NewUnaggregatedOptions(),
 		readBufferSize:       defaultReadBufferSize,
 		errLogLimitPerSecond: defaultErrorLogLimitPerSecond,
@@ -132,16 +123,6 @@ func (o *options) SetServerOptions(value server.Options) Options {
 
 func (o *options) ServerOptions() server.Options {
 	return o.serverOpts
-}
-
-func (o *options) SetMsgpackUnaggregatedIteratorOptions(value msgpack.UnaggregatedIteratorOptions) Options {
-	opts := *o
-	opts.msgpackItOpts = value
-	return &opts
-}
-
-func (o *options) MsgpackUnaggregatedIteratorOptions() msgpack.UnaggregatedIteratorOptions {
-	return o.msgpackItOpts
 }
 
 func (o *options) SetProtobufUnaggregatedIteratorOptions(value protobuf.UnaggregatedOptions) Options {
