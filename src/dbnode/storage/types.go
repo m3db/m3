@@ -59,28 +59,29 @@ type IndexedErrorHandler interface {
 	HandleError(index int, err error)
 }
 
-// Database is a time series database
+// Database is a time series database.
 type Database interface {
-	// Options returns the database options
+	// Options returns the database options.
 	Options() Options
 
-	// AssignShardSet sets the shard set assignment and returns immediately
+	// AssignShardSet sets the shard set assignment and returns immediately.
 	AssignShardSet(shardSet sharding.ShardSet)
 
-	// Namespaces returns the namespaces
+	// Namespaces returns the namespaces.
 	Namespaces() []Namespace
 
-	// Namespace returns the specified namespace
+	// Namespace returns the specified namespace.
 	Namespace(ns ident.ID) (Namespace, bool)
 
-	// Open will open the database for writing and reading
+	// Open will open the database for writing and reading.
 	Open() error
 
 	// Close will close the database for writing and reading. Close releases
-	// release resources held by owned namespaces
+	// release resources held by owned namespaces.
 	Close() error
 
-	// ShardSet returns the set of shards currently associated with this namespace
+	// ShardSet returns the set of shards currently associated with
+	// this namespace.
 	ShardSet() sharding.ShardSet
 
 	// Terminate will close the database for writing and reading. Terminate does
@@ -88,7 +89,7 @@ type Database interface {
 	// the GC to do so.
 	Terminate() error
 
-	// Write value to the database for an ID
+	// Write value to the database for an ID.
 	Write(
 		ctx context.Context,
 		namespace ident.ID,
@@ -99,7 +100,7 @@ type Database interface {
 		annotation []byte,
 	) error
 
-	// WriteTagged values to the database for an ID
+	// WriteTagged values to the database for an ID.
 	WriteTagged(
 		ctx context.Context,
 		namespace ident.ID,
@@ -112,7 +113,8 @@ type Database interface {
 	) error
 
 	// BatchWriter returns a batch writer for the provided namespace that can
-	// be used to issue a batch of writes to either WriteBatch or WriteTaggedBatch.
+	// be used to issue a batch of writes to either WriteBatch
+	// or WriteTaggedBatch.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
@@ -147,7 +149,8 @@ type Database interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
+	// FetchBlocks retrieves data blocks for a given id and a list of block
+	// start times.
 	FetchBlocks(
 		ctx context.Context,
 		namespace ident.ID,
@@ -180,16 +183,17 @@ type Database interface {
 	// the local disk.
 	IsBootstrappedAndDurable() bool
 
-	// IsOverloaded determines whether the database is overloaded
+	// IsOverloaded determines whether the database is overloaded.
 	IsOverloaded() bool
 
 	// Repair will issue a repair and return nil on success or error on error.
 	Repair() error
 
-	// Truncate truncates data for the given namespace
+	// Truncate truncates data for the given namespace.
 	Truncate(namespace ident.ID) (int64, error)
 
-	// BootstrapState captures and returns a snapshot of the databases' bootstrap state.
+	// BootstrapState captures and returns a snapshot of the databases'
+	// bootstrap state.
 	BootstrapState() DatabaseBootstrapState
 }
 
@@ -231,22 +235,22 @@ func (n NamespacesByID) Less(i, j int) bool {
 type databaseNamespace interface {
 	Namespace
 
-	// Close will release the namespace resources and close the namespace
+	// Close will release the namespace resources and close the namespace.
 	Close() error
 
-	// AssignShardSet sets the shard set assignment and returns immediately
+	// AssignShardSet sets the shard set assignment and returns immediately.
 	AssignShardSet(shardSet sharding.ShardSet)
 
-	// GetOwnedShards returns the database shards
+	// GetOwnedShards returns the database shards.
 	GetOwnedShards() []databaseShard
 
 	// GetIndex returns the reverse index backing the namespace, if it exists.
 	GetIndex() (namespaceIndex, error)
 
-	// Tick performs any regular maintenance operations
+	// Tick performs any regular maintenance operations.
 	Tick(c context.Cancellable, tickStart time.Time) error
 
-	// Write writes a data point
+	// Write writes a data point.
 	Write(
 		ctx context.Context,
 		id ident.ID,
@@ -256,7 +260,7 @@ type databaseNamespace interface {
 		annotation []byte,
 	) (ts.Series, error)
 
-	// WriteTagged values to the namespace for an ID
+	// WriteTagged values to the namespace for an ID.
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
@@ -274,14 +278,15 @@ type databaseNamespace interface {
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
 
-	// ReadEncoded reads data for given id within [start, end)
+	// ReadEncoded reads data for given id within [start, end).
 	ReadEncoded(
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
+	// FetchBlocks retrieves data blocks for a given id and a list of block
+	// start times.
 	FetchBlocks(
 		ctx context.Context,
 		shardID uint32,
@@ -299,10 +304,10 @@ type databaseNamespace interface {
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
-	// Bootstrap performs bootstrapping
+	// Bootstrap performs bootstrapping.
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
-	// Flush flushes in-memory data
+	// Flush flushes in-memory data.
 	Flush(
 		blockStart time.Time,
 		ShardBootstrapStates ShardBootstrapStates,
@@ -314,7 +319,7 @@ type databaseNamespace interface {
 		flush persist.IndexFlush,
 	) error
 
-	// Snapshot snapshots unflushed in-memory data
+	// Snapshot snapshots unflushed in-memory data.
 	Snapshot(
 		blockStart,
 		snapshotTime time.Time,
@@ -337,25 +342,26 @@ type databaseNamespace interface {
 	IsCapturedBySnapshot(
 		alignedInclusiveStart, alignedInclusiveEnd, t time.Time) (bool, error)
 
-	// Truncate truncates the in-memory data for this namespace
+	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
 
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 
-	// BootstrapState captures and returns a snapshot of the namespaces' bootstrap state.
+	// BootstrapState captures and returns a snapshot of the namespaces'
+	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
 }
 
-// Shard is a time series database shard
+// Shard is a time series database shard.
 type Shard interface {
-	// ID returns the ID of the shard
+	// ID returns the ID of the shard.
 	ID() uint32
 
-	// NumSeries returns the number of series in the shard
+	// NumSeries returns the number of series in the shard.
 	NumSeries() int64
 
-	// IsBootstrapped returns whether the shard is already bootstrapped
+	// IsBootstrapped returns whether the shard is already bootstrapped.
 	IsBootstrapped() bool
 
 	// BootstrapState returns the shards' bootstrap state.
@@ -370,10 +376,11 @@ type databaseShard interface {
 	// https://github.com/golang/mock/issues/10
 	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
 
-	// Close will release the shard resources and close the shard
+	// Close will release the shard resources and close the shard.
 	Close() error
 
-	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
+	// Tick performs any updates to ensure series drain their buffers
+	// and blocks are flushed, etc.
 	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(
@@ -385,7 +392,7 @@ type databaseShard interface {
 		annotation []byte,
 	) (ts.Series, error)
 
-	// WriteTagged values to the shard for an ID
+	// WriteTagged values to the shard for an ID.
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
@@ -402,7 +409,8 @@ type databaseShard interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
+	// FetchBlocks retrieves data blocks for a given id and a list of block
+	// start times.
 	FetchBlocks(
 		ctx context.Context,
 		id ident.ID,
@@ -537,7 +545,7 @@ type databaseBootstrapManager interface {
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() error
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
 }
 
@@ -546,11 +554,11 @@ type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
 	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
-	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
-	// if any.
+	// LastSuccessfulSnapshotStartTime returns the start time of the last
+	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
 }
 
@@ -559,7 +567,7 @@ type databaseCleanupManager interface {
 	// Cleanup cleans up data not needed in the persistent storage.
 	Cleanup(t time.Time) error
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
 }
 
@@ -572,17 +580,17 @@ type databaseFileSystemManager interface {
 	Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
 	// Disable disables the filesystem manager and prevents it from
-	// performing file operations, returns the current file operation status
+	// performing file operations, returns the current file operation status.
 	Disable() fileOpStatus
 
-	// Enable enables the filesystem manager to perform file operations
+	// Enable enables the filesystem manager to perform file operations.
 	Enable() fileOpStatus
 
-	// Status returns the file operation status
+	// Status returns the file operation status.
 	Status() fileOpStatus
 
 	// Run attempts to perform all filesystem-related operations,
-	// returning true if those operations are performed, and false otherwise
+	// returning true if those operations are performed, and false otherwise.
 	Run(
 		t time.Time,
 		dbBootstrapStateAtTickStart DatabaseBootstrapState,
@@ -590,20 +598,20 @@ type databaseFileSystemManager interface {
 		forceType forceType,
 	) bool
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
 
-	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
-	// if any.
+	// LastSuccessfulSnapshotStartTime returns the start time of the last
+	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
-// databaseShardRepairer repairs in-memory data for a shard
+// databaseShardRepairer repairs in-memory data for a shard.
 type databaseShardRepairer interface {
-	// Options returns the repair options
+	// Options returns the repair options.
 	Options() repair.Options
 
-	// Repair repairs the data for a given namespace and shard
+	// Repair repairs the data for a given namespace and shard.
 	Repair(
 		ctx context.Context,
 		namespace ident.ID,
@@ -612,22 +620,22 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseRepairer repairs in-memory database data
+// databaseRepairer repairs in-memory database data.
 type databaseRepairer interface {
-	// Start starts the repair process
+	// Start starts the repair process.
 	Start()
 
-	// Stop stops the repair process
+	// Stop stops the repair process.
 	Stop()
 
-	// Repair repairs in-memory data
+	// Repair repairs in-memory data.
 	Repair() error
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
 }
 
-// databaseTickManager performs periodic ticking
+// databaseTickManager performs periodic ticking.
 type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
@@ -635,7 +643,7 @@ type databaseTickManager interface {
 	Tick(forceType forceType, tickStart time.Time) error
 }
 
-// databaseMediator mediates actions among various database managers
+// databaseMediator mediates actions among various database managers.
 type databaseMediator interface {
 	// Open opens the mediator.
 	Open() error
@@ -668,8 +676,8 @@ type databaseMediator interface {
 	// Report reports runtime information.
 	Report()
 
-	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
-	// if any.
+	// LastSuccessfulSnapshotStartTime returns the start time of the last
+	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
@@ -685,7 +693,7 @@ type databaseNamespaceWatch interface {
 	Close() error
 }
 
-// Options represents the options for storage
+// Options represents the options for storage.
 type Options interface {
 	// Validate validates assumptions baked into the code.
 	Validate() error
