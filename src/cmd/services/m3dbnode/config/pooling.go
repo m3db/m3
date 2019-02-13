@@ -219,7 +219,7 @@ func (p *PoolingPolicy) TypeOrDefault() PoolingType {
 // PoolPolicy specifies a single pool policy.
 type PoolPolicy struct {
 	// The size of the pool.
-	Size *int `yaml:"size" validate:"min=0.0,max=1.0"`
+	Size *int `yaml:"size" validate:"min=0"`
 
 	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark *float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
