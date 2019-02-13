@@ -71,8 +71,8 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
 
-	neg1Sec := -1 * time.Second
-	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &neg1Sec}}
+	negValue := -1 * time.Second
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
 	require.Error(t, err)

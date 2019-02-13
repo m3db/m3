@@ -111,11 +111,10 @@ func NewHandler(
 	}
 
 	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil {
+	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
 		timeoutOpts.FetchTimeout = defaultTimeout
 	} else {
-		if embeddedDbCfg.Client.FetchTimeout != nil ||
-			*embeddedDbCfg.Client.FetchTimeout <= 0 {
+		if *embeddedDbCfg.Client.FetchTimeout <= 0 {
 			return nil, errors.New("m3db client fetch timeout should be > 0")
 		}
 
