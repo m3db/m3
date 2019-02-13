@@ -489,7 +489,7 @@ func (p *CapacityPoolPolicy) initDefaultsAndValidate(poolName string) error {
 	}
 
 	if *p.Capacity < 0 {
-		return fmt.Errorf("capacity of %s pool must be 0 or larger", poolName)
+		return fmt.Errorf("capacity of %s pool must be >= 0", poolName)
 	}
 
 	return nil
@@ -524,7 +524,7 @@ func (p *MaxCapacityPoolPolicy) initDefaultsAndValidate(poolName string) error {
 	}
 
 	if *p.MaxCapacity < 0 {
-		return fmt.Errorf("maxCapacity of %s pool must be 0 or larger", poolName)
+		return fmt.Errorf("maxCapacity of %s pool must be >= 0", poolName)
 	}
 
 	return nil
@@ -553,6 +553,8 @@ func (p *BucketPoolPolicy) initDefaultsAndValidate(poolName string) error {
 	}
 
 	for i, bucket := range p.Buckets {
+		// If the user provided buckets, but no values for refill low/high watermarks
+		// then set them to default values.
 		if bucket.RefillLowWaterMark == nil {
 			p.Buckets[i].RefillLowWaterMark = &defaultRefillLowWaterMark
 		}
