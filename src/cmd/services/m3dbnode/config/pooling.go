@@ -30,6 +30,7 @@ const (
 
 const (
 	defaultMaxFinalizerCapacity = 4
+	defaultBlockAllocSize       = 16
 
 	defaultPoolSize            = 4096
 	defaultRefillLowWaterMark  = 0.0
@@ -202,7 +203,7 @@ func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
 		return *p.BlockAllocSize
 	}
 
-	return 16
+	return defaultBlockAllocSize
 }
 
 // TypeOrDefault returns the configured pooling type if provided, or a default
@@ -218,13 +219,13 @@ func (p *PoolingPolicy) TypeOrDefault() PoolingType {
 // PoolPolicy specifies a single pool policy.
 type PoolPolicy struct {
 	// The size of the pool.
-	Size *int `yaml:"size"`
+	Size *int `yaml:"size" validate:"min=0.0,max=1.0"`
 
 	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark *float64 `yaml:"lowWatermark"`
+	RefillLowWaterMark *float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
 	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark *float64 `yaml:"highWatermark"`
+	RefillHighWaterMark *float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 
 	// Default values to be returned if the above values are not set.
 	defaultSize                int
@@ -244,7 +245,7 @@ func (p *PoolPolicy) SizeOrDefault() int {
 // RefillLowWaterMarkOrDefault returns the configured refill low water mark if present,
 // or a default value otherwise.
 func (p *PoolPolicy) RefillLowWaterMarkOrDefault() float64 {
-	if p.RefillLowWaterMark != nil && *p.RefillLowWaterMark > 0 && *p.RefillLowWaterMark < 1 {
+	if p.RefillLowWaterMark != nil {
 		return *p.RefillLowWaterMark
 	}
 
@@ -254,7 +255,7 @@ func (p *PoolPolicy) RefillLowWaterMarkOrDefault() float64 {
 // RefillHighWaterMarkOrDefault returns the configured refill high water mark if present,
 // or a default value otherwise.
 func (p *PoolPolicy) RefillHighWaterMarkOrDefault() float64 {
-	if p.RefillHighWaterMark != nil && *p.RefillHighWaterMark > 0 && *p.RefillHighWaterMark < 1 {
+	if p.RefillHighWaterMark != nil {
 		return *p.RefillHighWaterMark
 	}
 

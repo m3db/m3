@@ -52,6 +52,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "configuration validation failed %v\n", err)
+		os.Exit(1)
+	}
+
 	var (
 		dbClientCh        chan client.Client
 		clusterClientCh   chan clusterclient.Client

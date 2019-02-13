@@ -58,6 +58,16 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
+// Validate validates the Configuration. We use this method to validate
+// fields where the validator package falls short.
+func (c Configuration) Validate() error {
+	if err := c.DB.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
 	// Index configuration.
@@ -131,6 +141,16 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+}
+
+// Validate validates the Configuration. We use this method to validate
+// fields where the validator package falls short.
+func (c DBConfiguration) Validate() error {
+	if err := c.Filesystem.Validate(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IndexConfiguration contains index-specific configuration.
