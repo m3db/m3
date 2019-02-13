@@ -159,6 +159,14 @@ func TestBucketQuantile(t *testing.T) {
 	})
 	assert.True(t, math.IsNaN(actual))
 
+	// bucket with negative infinity bound returns nan
+	actual = bucketQuantile(0.5, []bucketValue{
+		{upperBound: 1, value: 1},
+		{upperBound: 2, value: 2},
+		{upperBound: math.Inf(-1), value: 22},
+	})
+	assert.True(t, math.IsNaN(actual))
+
 	actual = bucketQuantile(0.5, []bucketValue{
 		{upperBound: 1, value: 1},
 		{upperBound: math.Inf(1), value: 22},
@@ -272,7 +280,7 @@ var (
 	ninf = math.Inf(-1)
 )
 
-func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
+func TestQuantileFunctionForInvalidQValues(t *testing.T) {
 	actual := testQuantileFunctionWithQ(t, -1)
 	assert.Equal(t, [][]float64{{ninf, ninf, ninf, ninf, ninf}}, actual)
 	actual = testQuantileFunctionWithQ(t, 1.1)

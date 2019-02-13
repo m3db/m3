@@ -276,6 +276,15 @@ func TestUpdateBucket(t *testing.T) {
 	actual, found = tags.Bucket()
 	assert.True(t, found)
 	assert.Equal(t, value2, actual)
+
+	value3 := []byte("")
+	tags = tags.SetBucket(value3)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value3, actual)
+	actual, found = tags.Bucket()
+	assert.True(t, found)
+	assert.Equal(t, value3, actual)
 }
 
 func TestAddOrUpdateTags(t *testing.T) {

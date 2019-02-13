@@ -304,7 +304,8 @@ func processValidQuantile(
 		values := step.Values()
 		bucketValues := make([]bucketValue, 0, initIndexBucketLength)
 
-		aggregatedValues := make([]float64, 0, len(bucketedSeries))
+		aggregatedValues := make([]float64, len(bucketedSeries))
+		idx := 0
 		for _, b := range bucketedSeries {
 			buckets := b.buckets
 			// clear previous bucket values.
@@ -322,7 +323,8 @@ func processValidQuantile(
 				}
 			}
 
-			aggregatedValues = append(aggregatedValues, bucketQuantile(q, bucketValues))
+			aggregatedValues[idx] = bucketQuantile(q, bucketValues)
+			idx++
 		}
 
 		builder.AppendValues(index, aggregatedValues)
@@ -359,11 +361,8 @@ func processInvalidQuantile(
 	setValue := math.Inf(sign)
 	outValues := make([]float64, len(bucketedSeries))
 	ts.Memset(outValues, setValue)
-
 	for index := 0; stepIter.Next(); index++ {
-		cloned := make([]float64, len(outValues))
-		copy(cloned, outValues)
-		builder.AppendValues(index, cloned)
+		builder.AppendValues(index, outValues)
 	}
 
 	if err = stepIter.Err(); err != nil {
