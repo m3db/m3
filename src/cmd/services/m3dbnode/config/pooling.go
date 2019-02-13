@@ -436,14 +436,12 @@ func (p *PoolPolicy) initDefaultsAndValidate(poolName string) error {
 
 	if *p.RefillLowWaterMark < 0 || *p.RefillLowWaterMark > 1 {
 		return fmt.Errorf(
-			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
-			poolName)
+			"invalid lowWatermark value for %s pool, should be >= 0 and <= 1", poolName)
 	}
 
 	if *p.RefillHighWaterMark < 0 || *p.RefillHighWaterMark > 1 {
 		return fmt.Errorf(
-			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
-			poolName)
+			"invalid lowWatermark value for %s pool, should be >= 0 and <= 1", poolName)
 	}
 
 	return nil
