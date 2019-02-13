@@ -951,7 +951,7 @@ func testWriterConcurrentWriteStress(
 	)
 	for i := 0; i < len(results); i++ {
 		buf := bytes.NewBuffer(results[i])
-		iter := migration.NewUnaggregatedIterator(buf, nil, protobuf.NewUnaggregatedOptions())
+		iter := migration.NewUnaggregatedIterator(buf, protobuf.NewUnaggregatedOptions())
 		for iter.Next() {
 			msgResult := iter.Current()
 			switch msgResult.Type {
