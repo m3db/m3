@@ -80,9 +80,11 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second, nil)
+	shouldWrite, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
+		xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
+	assert.False(t, shouldWrite)
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
@@ -98,9 +100,20 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second, nil)
+	shouldWrite, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1,
+		xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
+	assert.False(t, shouldWrite)
+}
+
+// Writes to buffer, verifying no error and that further writes should happen.
+func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
+	ctx := context.NewContext()
+	shouldWrite, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	require.NoError(t, err)
+	require.True(t, shouldWrite)
+	ctx.Close()
 }
 
 func TestBufferWriteRead(t *testing.T) {
@@ -120,9 +133,7 @@ func TestBufferWriteRead(t *testing.T) {
 	}
 
 	for _, v := range data {
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	ctx := context.NewContext()
@@ -152,9 +163,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	ctx := context.NewContext()
@@ -200,9 +209,7 @@ func TestBufferDrain(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	assert.Equal(t, true, buffer.NeedsDrain())
@@ -264,11 +271,10 @@ func TestBufferMinMax(t *testing.T) {
 		{start.Add(mins(2.0)), 5, xtime.Second, nil},
 		{start.Add(mins(2.5)), 6, xtime.Second, nil},
 	}
+
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	// Drain the earliest bucket
@@ -342,9 +348,7 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	assert.Equal(t, true, buffer.NeedsDrain())
@@ -387,9 +391,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		if v.timestamp.After(curr) {
 			curr = v.timestamp
 		}
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	bucketIdx := (curr.UnixNano() / int64(rops.BlockSize())) % bucketsLen
@@ -579,9 +581,84 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 
 	for _, values := range data {
 		for _, value := range values {
-			err := b.write(value.timestamp, value.value,
+			shouldWrite, err := b.write(value.timestamp, value.value,
 				value.unit, value.annotation)
 			require.NoError(t, err)
+			require.True(t, shouldWrite)
+		}
+	}
+
+	// First assert that streams() call is correct
+	ctx := context.NewContext()
+
+	result := b.streams(ctx)
+	require.NotNil(t, result)
+
+	results := [][]xio.BlockReader{result}
+
+	assertValuesEqual(t, expected, results, opts)
+
+	// Now assert that discardMerged() returns same expected result
+	mergeResult, err := b.discardMerged()
+	require.NoError(t, err)
+
+	stream, err := mergeResult.block.Stream(ctx)
+	require.NoError(t, err)
+
+	results = [][]xio.BlockReader{[]xio.BlockReader{stream}}
+
+	assertValuesEqual(t, expected, results, opts)
+}
+
+func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+
+	b := &dbBufferBucket{opts: opts}
+	b.resetTo(curr)
+
+	type dataWithShouldWrite struct {
+		v value
+		w bool
+	}
+
+	data := [][]dataWithShouldWrite{
+		{
+			{w: true, v: value{curr, 1, xtime.Second, nil}},
+			{w: false, v: value{curr, 1, xtime.Second, nil}},
+			{w: false, v: value{curr, 1, xtime.Second, nil}},
+			{w: false, v: value{curr, 1, xtime.Second, nil}},
+			{w: true, v: value{curr.Add(secs(10)), 2, xtime.Second, nil}},
+		},
+		{
+			{w: true, v: value{curr, 1, xtime.Second, nil}},
+			{w: false, v: value{curr.Add(secs(10)), 2, xtime.Second, nil}},
+			{w: true, v: value{curr.Add(secs(10)), 5, xtime.Second, nil}},
+		},
+		{
+			{w: true, v: value{curr, 1, xtime.Second, nil}},
+			{w: true, v: value{curr.Add(secs(20)), 8, xtime.Second, nil}},
+		},
+		{
+			{w: true, v: value{curr, 10, xtime.Second, nil}},
+			{w: true, v: value{curr.Add(secs(20)), 10, xtime.Second, nil}},
+		},
+	}
+
+	expected := []value{
+		{curr, 10, xtime.Second, nil},
+		{curr.Add(secs(10)), 5, xtime.Second, nil},
+		{curr.Add(secs(20)), 10, xtime.Second, nil},
+	}
+
+	for _, valuesWithMeta := range data {
+		for _, valueWithMeta := range valuesWithMeta {
+			value := valueWithMeta.v
+			shouldWrite, err := b.write(value.timestamp, value.value,
+				value.unit, value.annotation)
+			require.NoError(t, err)
+			assert.Equal(t, valueWithMeta.w, shouldWrite)
 		}
 	}
 
@@ -689,9 +766,7 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	curr = start.
@@ -782,9 +857,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	var encoders []encoding.Encoder
@@ -873,9 +946,7 @@ func TestBufferSnapshot(t *testing.T) {
 	// Perform the writes
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
-		ctx.Close()
+		verifyWriteToBuffer(t, buffer, v)
 	}
 
 	// Verify internal state

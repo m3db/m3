@@ -65,7 +65,7 @@ type databaseBuffer interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (bool, error)
 
 	Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, error)
 
@@ -181,15 +181,15 @@ func (b *dbBuffer) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) error {
+) (bool, error) {
 	now := b.nowFn()
 	futureLimit := now.Add(1 * b.bufferFuture)
 	pastLimit := now.Add(-1 * b.bufferPast)
 	if !futureLimit.After(timestamp) {
-		return m3dberrors.ErrTooFuture
+		return false, m3dberrors.ErrTooFuture
 	}
 	if !pastLimit.Before(timestamp) {
-		return m3dberrors.ErrTooPast
+		return false, m3dberrors.ErrTooPast
 	}
 
 	bucketStart := timestamp.Truncate(b.blockSize)
@@ -590,7 +590,7 @@ func (b *dbBufferBucket) write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) error {
+) (bool, error) {
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
@@ -603,7 +603,7 @@ func (b *dbBufferBucket) write(
 		if timestamp.Equal(lastWriteAt) {
 			last, err := b.encoders[i].encoder.LastEncoded()
 			if err != nil {
-				return err
+				return false, err
 			}
 			if last.Value == value {
 				// No-op since matches the current value
@@ -614,7 +614,7 @@ func (b *dbBufferBucket) write(
 				// in a time window will still cause a flood of disk/CPU resource
 				// usage writing values to the commit log, even if the memory
 				// profile is lean as a side effect of this write being a no-op.
-				return nil
+				return false, nil
 			}
 			continue
 		}
@@ -631,7 +631,7 @@ func (b *dbBufferBucket) write(
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-		return b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+		return true, b.writeToEncoderIndex(idx, datapoint, unit, annotation)
 	}
 
 	// Need a new encoder, we didn't find an encoder to write to
@@ -653,9 +653,9 @@ func (b *dbBufferBucket) write(
 	if err != nil {
 		encoder.Close()
 		b.encoders = b.encoders[:idx]
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func (b *dbBufferBucket) writeToEncoderIndex(
