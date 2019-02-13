@@ -132,6 +132,12 @@ func Run(runOpts RunOptions) {
 		cfg = runOpts.Config
 	}
 
+	err := cfg.InitDefaultsAndValidate()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error initializing config defaults and validating config: %v", err)
+		os.Exit(1)
+	}
+
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
@@ -292,13 +298,13 @@ func Run(runOpts RunOptions) {
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		poolOptions(
-			policy.TagEncoderPool.PoolPolicyOrDefault(),
+			policy.TagEncoderPool,
 			scope.SubScope("tag-encoder-pool")))
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(),
 		poolOptions(
-			policy.TagDecoderPool.PoolPolicyOrDefault(),
+			policy.TagDecoderPool,
 			scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
@@ -969,21 +975,21 @@ func withEncodingAndPoolingOptions(
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
 		poolOptions(
-			policy.SegmentReaderPool.PoolPolicyOrDefault(),
+			policy.SegmentReaderPool,
 			scope.SubScope("segment-reader-pool")))
 	segmentReaderPool.Init()
 
 	encoderPool := encoding.NewEncoderPool(
 		poolOptions(
-			policy.EncoderPool.PoolPolicyOrDefault(),
+			policy.EncoderPool,
 			scope.SubScope("encoder-pool")))
 
 	closersPoolOpts := poolOptions(
-		policy.ClosersPool.PoolPolicyOrDefault(),
+		policy.ClosersPool,
 		scope.SubScope("closers-pool"))
 
 	contextPoolOpts := poolOptions(
-		policy.ContextPool.PoolPolicyOrDefault(),
+		policy.ContextPool.PoolPolicy,
 		scope.SubScope("context-pool"))
 
 	contextPool := context.NewPool(context.NewOptions().
@@ -993,12 +999,12 @@ func withEncodingAndPoolingOptions(
 
 	iteratorPool := encoding.NewReaderIteratorPool(
 		poolOptions(
-			policy.IteratorPool.PoolPolicyOrDefault(),
+			policy.IteratorPool,
 			scope.SubScope("iterator-pool")))
 
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(
-			policy.IteratorPool.PoolPolicyOrDefault(),
+			policy.IteratorPool,
 			scope.SubScope("multi-iterator-pool")))
 
 	var writeBatchPoolInitialBatchSize *int
@@ -1047,26 +1053,31 @@ func withEncodingAndPoolingOptions(
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
 
+	tagPoolPolicy := policy.TagsPool
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions: poolOptions(
-			policy.IdentifierPool.PoolPolicyOrDefault(), scope.SubScope("identifier-pool")),
-		TagsPoolOptions: maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
-		TagsCapacity:    policy.TagsPool.CapacityOrDefault(),
-		TagsMaxCapacity: policy.TagsPool.MaxCapacity,
+			policy.IdentifierPool, scope.SubScope("identifier-pool")),
+		TagsPoolOptions: maxCapacityPoolOptions(tagPoolPolicy, scope.SubScope("tags-pool")),
+		TagsCapacity:    tagPoolPolicy.CapacityOrDefault(),
+		TagsMaxCapacity: tagPoolPolicy.MaxCapacityOrDefault(),
 		TagsIteratorPoolOptions: poolOptions(
-			policy.TagsIteratorPool.PoolPolicyOrDefault(),
+			policy.TagsIteratorPool,
 			scope.SubScope("tags-iterator-pool")),
 	})
 
+	fetchBlockMetadataResultsPoolPolicy := policy.FetchBlockMetadataResultsPool
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlockMetadataResultsPool.PoolPolicyOrDefault(),
+		capacityPoolOptions(
+			fetchBlockMetadataResultsPoolPolicy,
 			scope.SubScope("fetch-block-metadata-results-pool")),
-		policy.FetchBlockMetadataResultsPool.CapacityOrDefault())
+		fetchBlockMetadataResultsPoolPolicy.CapacityOrDefault())
 
+	fetchBlocksMetadataResultsPoolPolicy := policy.FetchBlocksMetadataResultsPool
 	fetchBlocksMetadataResultsPool := block.NewFetchBlocksMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool.PoolPolicyOrDefault(),
+		capacityPoolOptions(
+			fetchBlocksMetadataResultsPoolPolicy,
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
-		policy.FetchBlocksMetadataResultsPool.CapacityOrDefault())
+		fetchBlocksMetadataResultsPoolPolicy.CapacityOrDefault())
 
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
@@ -1127,7 +1138,7 @@ func withEncodingAndPoolingOptions(
 	}
 	blockPool := block.NewDatabaseBlockPool(
 		poolOptions(
-			policy.BlockPool.PoolPolicyOrDefault(),
+			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
 		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
@@ -1141,7 +1152,7 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(
-			policy.SeriesPool.PoolPolicyOrDefault(),
+			policy.SeriesPool,
 			scope.SubScope("series-pool")))
 
 	opts = opts.
@@ -1153,11 +1164,11 @@ func withEncodingAndPoolingOptions(
 
 	resultsPool := index.NewResultsPool(
 		poolOptions(
-			policy.IndexResultsPool.PoolPolicyOrDefault(),
+			policy.IndexResultsPool,
 			scope.SubScope("index-results-pool")))
 
 	postingsListOpts := poolOptions(
-		policy.PostingsListPool.PoolPolicyOrDefault(),
+		policy.PostingsListPool,
 		scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 

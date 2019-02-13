@@ -98,39 +98,39 @@ type FilesystemConfiguration struct {
 // Validate validates the Filesystem configuration. We use this method to validate
 // fields where the validator package falls short.
 func (f FilesystemConfiguration) Validate() error {
-	if f.WriteBufferSize != nil {
+	if f.WriteBufferSize != nil && *f.WriteBufferSize < 1 {
 		return fmt.Errorf(
 			"fs writeBufferSize is set to: %d, but must be at least 1",
 			*f.WriteBufferSize)
 	}
 
-	if f.DataReadBufferSize != nil {
+	if f.DataReadBufferSize != nil && *f.DataReadBufferSize < 1 {
 		return fmt.Errorf(
 			"fs dataReadBufferSize is set to: %d, but must be at least 1",
 			*f.DataReadBufferSize)
 	}
 
-	if f.InfoReadBufferSize != nil {
+	if f.InfoReadBufferSize != nil && *f.InfoReadBufferSize < 1 {
 		return fmt.Errorf(
 			"fs infoReadBufferSize is set to: %d, but must be at least 1",
 			*f.InfoReadBufferSize)
 	}
 
-	if f.SeekReadBufferSize != nil {
+	if f.SeekReadBufferSize != nil && *f.SeekReadBufferSize < 1 {
 		return fmt.Errorf(
 			"fs seekReadBufferSize is set to: %d, but must be at least 1",
 			*f.SeekReadBufferSize)
 	}
 
-	if f.ThroughputLimitMbps != nil {
+	if f.ThroughputLimitMbps != nil && *f.ThroughputLimitMbps < 1 {
 		return fmt.Errorf(
-			"fs throughputLimitMbps is set to: %f, but must be larger than 0",
+			"fs throughputLimitMbps is set to: %f, but must be at least 1",
 			*f.ThroughputLimitMbps)
 	}
 
-	if f.ThroughputCheckEvery != nil {
+	if f.ThroughputCheckEvery != nil && *f.ThroughputCheckEvery < 1 {
 		return fmt.Errorf(
-			"fs throughputCheckEvery is set to: %d, but must be larger than 0",
+			"fs throughputCheckEvery is set to: %d, but must be at least 1",
 			*f.ThroughputCheckEvery)
 	}
 
@@ -150,7 +150,7 @@ func (f FilesystemConfiguration) FilePathPrefixOrDefault() string {
 // WriteBufferSizeOrDefault returns the configured write buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) WriteBufferSizeOrDefault() int {
-	if f.WriteBufferSize != nil && *f.WriteBufferSize > 1 {
+	if f.WriteBufferSize != nil {
 		return *f.WriteBufferSize
 	}
 
@@ -160,7 +160,7 @@ func (f FilesystemConfiguration) WriteBufferSizeOrDefault() int {
 // DataReadBufferSizeOrDefault returns the configured data read buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) DataReadBufferSizeOrDefault() int {
-	if f.DataReadBufferSize != nil && *f.DataReadBufferSize > 1 {
+	if f.DataReadBufferSize != nil {
 		return *f.DataReadBufferSize
 	}
 
@@ -170,7 +170,7 @@ func (f FilesystemConfiguration) DataReadBufferSizeOrDefault() int {
 // InfoReadBufferSizeOrDefault returns the configured info read buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) InfoReadBufferSizeOrDefault() int {
-	if f.InfoReadBufferSize != nil && *f.InfoReadBufferSize > 1 {
+	if f.InfoReadBufferSize != nil {
 		return *f.InfoReadBufferSize
 	}
 
@@ -180,7 +180,7 @@ func (f FilesystemConfiguration) InfoReadBufferSizeOrDefault() int {
 // SeekReadBufferSizeOrDefault returns the configured seek read buffer size if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) SeekReadBufferSizeOrDefault() int {
-	if f.SeekReadBufferSize != nil && *f.SeekReadBufferSize > 1 {
+	if f.SeekReadBufferSize != nil {
 		return *f.SeekReadBufferSize
 	}
 
@@ -190,7 +190,7 @@ func (f FilesystemConfiguration) SeekReadBufferSizeOrDefault() int {
 // ThroughputLimitMbpsOrDefault returns the configured throughput limit mbps if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) ThroughputLimitMbpsOrDefault() float64 {
-	if f.ThroughputLimitMbps != nil && *f.ThroughputLimitMbps > 0 {
+	if f.ThroughputLimitMbps != nil {
 		return *f.ThroughputLimitMbps
 	}
 
@@ -200,7 +200,7 @@ func (f FilesystemConfiguration) ThroughputLimitMbpsOrDefault() float64 {
 // ThroughputCheckEveryOrDefault returns the configured throughput check every value if configured, or a
 // default value otherwise.
 func (f FilesystemConfiguration) ThroughputCheckEveryOrDefault() int {
-	if f.ThroughputCheckEvery != nil && *f.ThroughputCheckEvery > 0 {
+	if f.ThroughputCheckEvery != nil {
 		return *f.ThroughputCheckEvery
 	}
 

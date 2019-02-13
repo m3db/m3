@@ -58,10 +58,10 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
-// Validate validates the Configuration. We use this method to validate
-// fields where the validator package falls short.
-func (c Configuration) Validate() error {
-	if err := c.DB.Validate(); err != nil {
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *Configuration) InitDefaultsAndValidate() error {
+	if err := c.DB.InitDefaultsAndValidate(); err != nil {
 		return err
 	}
 
@@ -143,10 +143,13 @@ type DBConfiguration struct {
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
 }
 
-// Validate validates the Configuration. We use this method to validate
-// fields where the validator package falls short.
-func (c DBConfiguration) Validate() error {
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *DBConfiguration) InitDefaultsAndValidate() error {
 	if err := c.Filesystem.Validate(); err != nil {
+		return err
+	}
+	if err := c.PoolingPolicy.InitDefaultsAndValidate(); err != nil {
 		return err
 	}
 

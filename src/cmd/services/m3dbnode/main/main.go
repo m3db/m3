@@ -52,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.InitDefaultsAndValidate(); err != nil {
 		fmt.Fprintf(os.Stderr, "configuration validation failed %v\n", err)
 		os.Exit(1)
 	}
