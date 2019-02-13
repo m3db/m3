@@ -20,6 +20,8 @@
 
 package config
 
+import "fmt"
+
 // PoolingType is a type of pooling, using runtime or mmap'd bytes pooling.
 type PoolingType string
 
@@ -174,6 +176,7 @@ type PoolingPolicy struct {
 	// The policy for the BlocksMetadataSlice pool.
 	BlocksMetadataSlicePool BlocksMetadataSlicePool `yaml:"blocksMetadataSlicePool"`
 
+	// TODO: Fix me
 	// The policy for the tags pool.
 	TagsPool MaxCapacityPoolPolicy `yaml:"tagsPool"`
 
@@ -194,6 +197,78 @@ type PoolingPolicy struct {
 
 	// The policy for the PostingsListPool.
 	PostingsListPool PostingsListPool `yaml:"postingsListPool"`
+}
+
+// Validate validates the pooling policy config.
+func (p *PoolingPolicy) Validate() error {
+	if err := p.ClosersPool.Validate("closersPool"); err != nil {
+		return err
+	}
+	if err := p.ContextPool.Validate("contextPool"); err != nil {
+		return err
+	}
+	if err := p.SeriesPool.Validate("seriesPool"); err != nil {
+		return err
+	}
+	if err := p.BlockPool.Validate("blockPool"); err != nil {
+		return err
+	}
+	if err := p.EncoderPool.Validate("encoderPool"); err != nil {
+		return err
+	}
+	if err := p.IteratorPool.Validate("iteratorPool"); err != nil {
+		return err
+	}
+	if err := p.SegmentReaderPool.Validate("segmentReaderPool"); err != nil {
+		return err
+	}
+	if err := p.IdentifierPool.Validate("identifierPool"); err != nil {
+		return err
+	}
+	if err := p.FetchBlockMetadataResultsPool.Validate("fetchBlockMetadataResultsPool"); err != nil {
+		return err
+	}
+	if err := p.FetchBlocksMetadataResultsPool.Validate("fetchBlocksMetadataResultsPool"); err != nil {
+		return err
+	}
+	if err := p.HostBlockMetadataSlicePool.Validate("hostBlockMetadataSlicePool"); err != nil {
+		return err
+	}
+	if err := p.BlockMetadataPool.Validate("blockMetadataPool"); err != nil {
+		return err
+	}
+	if err := p.BlockMetadataSlicePool.Validate("blockMetadataSlicePool"); err != nil {
+		return err
+	}
+	if err := p.BlocksMetadataPool.Validate("blocksMetadataPool"); err != nil {
+		return err
+	}
+	if err := p.BlocksMetadataSlicePool.Validate("blocksMetadataSlicePool"); err != nil {
+		return err
+	}
+	// TODO: tag pool
+	// if err := p.TagsPool.Validate("tagsPool"); err != nil {
+	// 	return err
+	// }
+	if err := p.TagsIteratorPool.Validate("tagsIteratorPool"); err != nil {
+		return err
+	}
+	if err := p.IndexResultsPool.Validate("indexResultsPool"); err != nil {
+		return err
+	}
+	if err := p.TagEncoderPool.Validate("tagEncoderPool"); err != nil {
+		return err
+	}
+	if err := p.TagDecoderPool.Validate("tagDecoderPool"); err != nil {
+		return err
+	}
+	// TODO: Write batch pool
+	// if err := p.WriteBatchPool.Validate("WriteBatchPool"); err != nil {
+	// 	return err
+	// }
+	// TODO: POSTINGS LIST POOL
+
+	return nil
 }
 
 // BlockAllocSizeOrDefault returns the configured block alloc size if provided,
@@ -219,18 +294,35 @@ func (p *PoolingPolicy) TypeOrDefault() PoolingType {
 // PoolPolicy specifies a single pool policy.
 type PoolPolicy struct {
 	// The size of the pool.
-	Size *int `yaml:"size" validate:"min=0"`
+	Size *int `yaml:"size"`
 
 	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark *float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
+	RefillLowWaterMark *float64 `yaml:"lowWatermark"`
 
 	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark *float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+	RefillHighWaterMark *float64 `yaml:"highWatermark"`
 
 	// Default values to be returned if the above values are not set.
 	defaultSize                int
 	defaultRefillLowWaterMark  float64
 	defaultRefillHighWaterMark float64
+}
+
+// Validate validates the pool policy config.
+func (p *PoolPolicy) Validate(poolName string) error {
+	if p.RefillLowWaterMark != nil && (*p.RefillLowWaterMark < 0 || *p.RefillLowWaterMark > 1) {
+		return fmt.Errorf(
+			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
+			poolName)
+	}
+
+	if p.RefillHighWaterMark != nil && (*p.RefillHighWaterMark < 0 || *p.RefillHighWaterMark > 1) {
+		return fmt.Errorf(
+			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
+			poolName)
+	}
+
+	return nil
 }
 
 // SizeOrDefault returns the configured size if present, or a default value otherwise.
@@ -282,6 +374,23 @@ type CapacityPoolPolicy struct {
 	defaultCapacity            int
 	defaultRefillLowWaterMark  float64
 	defaultRefillHighWaterMark float64
+}
+
+// Validate validates the pool policy config.
+func (p *CapacityPoolPolicy) Validate(poolName string) error {
+	if p.RefillLowWaterMark < 0 || p.RefillLowWaterMark > 1 {
+		return fmt.Errorf(
+			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
+			poolName)
+	}
+
+	if p.RefillHighWaterMark < 0 || p.RefillHighWaterMark > 1 {
+		return fmt.Errorf(
+			"invalid lowWatermark value for %s pool, should be larger than 0 and smaller than 1",
+			poolName)
+	}
+
+	return nil
 }
 
 // MaxCapacityPoolPolicy specifies a single pool policy that has a
