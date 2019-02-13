@@ -233,13 +233,9 @@ var (
 // PoolingPolicy specifies the pooling policy. To add a new pool, follow these steps:
 //
 //    1. Add the pool to the struct below.
-//    2. Add the default values to the defaultPoolPolicies map.
+//    2. Add the default values to the defaultPoolPolicies or defaultBucketPoolPolicies map.
 //    3. Add a call to initDefaultsAndValidate() for the new pool in the
 //       PoolingPolicy.InitDefaultsAndValidate() method.
-//
-// Note that the steps above apply to PoolPolicy, CapacityPoolPolicy, and
-// MaxCapacityPoolPolicy. If adding a new BucketPoolPolicy, follow the bytes pool
-// example.
 type PoolingPolicy struct {
 	// The initial alloc size for a block.
 	BlockAllocSize *int `yaml:"blockAllocSize"`
