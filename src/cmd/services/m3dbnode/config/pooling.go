@@ -173,56 +173,56 @@ var (
 					Capacity: intPtr(16),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(524288),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 				{
 					Capacity: intPtr(32),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(262144),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 				{
 					Capacity: intPtr(64),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(131072),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 				{
 					Capacity: intPtr(128),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(65536),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 				{
 					Capacity: intPtr(256),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(65536),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 				{
 					Capacity: intPtr(1440),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(16384),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 				{
 					Capacity: intPtr(4096),
 					PoolPolicy: PoolPolicy{
 						Size:                intPtr(8192),
-						RefillLowWaterMark:  floatPtr(0.7),
-						RefillHighWaterMark: floatPtr(1.0),
+						RefillLowWaterMark:  &defaultRefillLowWaterMark,
+						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
 				},
 			},
@@ -612,9 +612,5 @@ func (p ContextPoolPolicy) MaxFinalizerCapacityOrDefault() int {
 }
 
 func intPtr(x int) *int {
-	return &x
-}
-
-func floatPtr(x float64) *float64 {
 	return &x
 }
