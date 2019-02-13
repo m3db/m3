@@ -748,8 +748,7 @@ func (mu metricUnion) ID() metricid.RawID {
 type metadataType int
 
 const (
-	policiesListType metadataType = iota
-	stagedMetadatasType
+	stagedMetadatasType metadataType = iota
 	forwardMetadataType
 	timedMetadataType
 )
@@ -769,8 +768,6 @@ func (mu metadataUnion) expectedAggregationKeys(
 	defaultStoragePolicies []policy.StoragePolicy,
 ) (aggregationKeys, error) {
 	switch mu.mType {
-	case policiesListType:
-		return computeExpectedAggregationKeysFromPoliciesList(now, mu.policiesList, defaultStoragePolicies)
 	case stagedMetadatasType:
 		return computeExpectedAggregationKeysFromStagedMetadatas(now, mu.stagedMetadatas, defaultStoragePolicies)
 	case forwardMetadataType:
@@ -780,50 +777,6 @@ func (mu metadataUnion) expectedAggregationKeys(
 	default:
 		return nil, fmt.Errorf("unexpected metadata type: %v", mu.mType)
 	}
-}
-
-// computeExpectedAggregationKeysFromPoliciesList computes the expected set of aggregation keys
-// from the given time and the policies list.
-func computeExpectedAggregationKeysFromPoliciesList(
-	now time.Time,
-	policiesList policy.PoliciesList,
-	defaultStoragePolices []policy.StoragePolicy,
-) (aggregationKeys, error) {
-	// Find the staged policy that is currently active.
-	nowNanos := now.UnixNano()
-	i := len(policiesList) - 1
-	for i >= 0 {
-		if policiesList[i].CutoverNanos <= nowNanos {
-			break
-		}
-		i--
-	}
-	if i < 0 {
-		return nil, errors.New("no active staged policy")
-	}
-
-	// If the active policies are the default policies, create the aggregation keys
-	// from them.
-	policies, useDefault := policiesList[i].Policies()
-	if useDefault {
-		res := make(aggregationKeys, 0, len(defaultStoragePolices))
-		for _, sp := range defaultStoragePolices {
-			key := aggregationKey{storagePolicy: sp}
-			res = append(res, key)
-		}
-		return res, nil
-	}
-
-	// Otherwise create the aggregation keys from the staged policies.
-	res := make(aggregationKeys, 0, len(policies))
-	for _, p := range policies {
-		newKey := aggregationKey{
-			aggregationID: p.AggregationID,
-			storagePolicy: p.StoragePolicy,
-		}
-		res.add(newKey)
-	}
-	return res, nil
 }
 
 func computeExpectedAggregationKeysFromStagedMetadatas(

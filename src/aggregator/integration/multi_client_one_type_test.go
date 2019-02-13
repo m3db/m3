@@ -35,16 +35,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultiClientOneTypeWithPoliciesList(t *testing.T) {
-	metadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
-		}
-	}
-	testMultiClientOneType(t, metadataFn)
-}
-
 func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {
 	metadataFn := func(int) metadataUnion {
 		return metadataUnion{
@@ -137,11 +127,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 		for _, mm := range data.metricWithMetadatas {
 			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
-			if mm.metadata.mType == policiesListType {
-				require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
-			} else {
-				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
 		for _, client := range clients {
 			require.NoError(t, client.flush())
