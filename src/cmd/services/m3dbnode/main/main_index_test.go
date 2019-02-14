@@ -179,7 +179,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig.Service
+	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
