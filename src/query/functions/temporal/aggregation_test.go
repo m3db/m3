@@ -128,6 +128,18 @@ var testCases = []testCase{
 			{2, 2, 2, 2, 2},
 		},
 	},
+	{
+		name:   "quantile_over_time",
+		opType: QuantileType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.6},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.8},
+		},
+		afterAllBlocks: [][]float64{
+			{0.8, 0.8, 0.8, 0.8, 0.8},
+			{5.8, 5.8, 5.8, 5.8, 5.8},
+		},
+	},
 }
 
 func TestAggregation(t *testing.T) {
@@ -223,6 +235,18 @@ var testCasesNaNs = []testCase{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 	},
+	{
+		name:   "quantile_over_time",
+		opType: QuantileType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
 }
 
 func TestAggregationAllNaNs(t *testing.T) {
@@ -242,8 +266,22 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
-			baseOp, err := NewAggOp([]interface{}{5 * time.Minute}, tt.opType)
-			require.NoError(t, err)
+			var (
+				args   []interface{}
+				baseOp transform.Params
+				err    error
+			)
+
+			if tt.opType == QuantileType {
+				args = []interface{}{0.2, 5 * time.Minute}
+				baseOp, err = NewQuantileOp(args, tt.opType)
+				require.NoError(t, err)
+			} else {
+				args = []interface{}{5 * time.Minute}
+				baseOp, err = NewAggOp(args, tt.opType)
+				require.NoError(t, err)
+			}
+
 			node := baseOp.Node(c, transform.Options{
 				TimeSpec: transform.TimeSpec{
 					Start: boundStart.Add(-2 * bounds.Duration),

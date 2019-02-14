@@ -48,18 +48,7 @@ type baseOp struct {
 
 // skipping lint check for a single operator type since we will be adding more
 // nolint : unparam
-func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor) (baseOp, error) {
-	if operatorType != HoltWintersType && operatorType != PredictLinearType {
-		if len(args) != 1 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", operatorType, len(args))
-		}
-	}
-
-	duration, ok := args[0].(time.Duration)
-	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], operatorType)
-	}
-
+func newBaseOp(duration time.Duration, operatorType string, processorFn MakeProcessor) (baseOp, error) {
 	return baseOp{
 		operatorType: operatorType,
 		processorFn:  processorFn,

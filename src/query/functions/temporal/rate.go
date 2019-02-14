@@ -66,6 +66,15 @@ func (r rateProcessor) Init(op baseOp, controller *transform.Controller, opts tr
 
 // NewRateOp creates a new base temporal transform for rate functions
 func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
+	if len(args) != 1 {
+		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
+	}
+
+	duration, ok := args[0].(time.Duration)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+	}
+
 	var (
 		isRate, isCounter bool
 		rateFn            = standardRateFunc
@@ -93,7 +102,7 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 		rateFn:    rateFn,
 	}
 
-	return newBaseOp(args, optype, r)
+	return newBaseOp(duration, optype, r)
 }
 
 type rateFn func(ts.Datapoints, bool, bool, transform.TimeSpec, time.Duration) float64
