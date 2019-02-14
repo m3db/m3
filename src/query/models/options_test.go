@@ -36,10 +36,12 @@ func TestDefaultTagOptions(t *testing.T) {
 func TestValidTagOptions(t *testing.T) {
 	opts := NewTagOptions().
 		SetIDSchemeType(TypePrependMeta).
-		SetMetricName([]byte("name"))
+		SetMetricName([]byte("name")).
+		SetBucketName([]byte("bucket"))
 
 	assert.NoError(t, opts.Validate())
 	assert.Equal(t, []byte("name"), opts.MetricName())
+	assert.Equal(t, []byte("bucket"), opts.BucketName())
 	assert.Equal(t, TypePrependMeta, opts.IDSchemeType())
 }
 
@@ -51,6 +53,17 @@ func TestBadNameTagOptions(t *testing.T) {
 
 	opts = NewTagOptions().
 		SetMetricName([]byte{})
+	assert.EqualError(t, opts.Validate(), msg)
+}
+
+func TestBadBucketTagOptions(t *testing.T) {
+	msg := errNoBucket.Error()
+	opts := NewTagOptions().
+		SetBucketName(nil)
+	assert.EqualError(t, opts.Validate(), msg)
+
+	opts = NewTagOptions().
+		SetBucketName([]byte{})
 	assert.EqualError(t, opts.Validate(), msg)
 }
 

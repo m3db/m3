@@ -103,15 +103,17 @@ func TestDefaultTagOptionsConfig(t *testing.T) {
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("__name__"), opts.MetricName())
+	assert.Equal(t, []byte("le"), opts.BucketName())
 	assert.Equal(t, models.TypeLegacy, opts.IDSchemeType())
 }
 
 func TestTagOptionsConfig(t *testing.T) {
 	var cfg TagOptionsConfiguration
-	config := "metricName: abcdefg\nidScheme: prepend_meta"
+	config := "metricName: abcdefg\nidScheme: prepend_meta\nbucketName: foo"
 	require.NoError(t, yaml.Unmarshal([]byte(config), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("abcdefg"), opts.MetricName())
+	assert.Equal(t, []byte("foo"), opts.BucketName())
 	assert.Equal(t, models.TypePrependMeta, opts.IDSchemeType())
 }
