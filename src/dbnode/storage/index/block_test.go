@@ -773,6 +773,7 @@ func TestBlockAddResultsAddsSegment(t *testing.T) {
 		result.NewIndexBlock(start, []segment.Segment{seg1},
 			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
 	require.Equal(t, 1, len(b.shardRangesSegments))
+
 	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
 }
 
@@ -810,6 +811,7 @@ func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 		result.NewIndexBlock(start, []segment.Segment{seg1},
 			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
 	require.Equal(t, 1, len(b.shardRangesSegments))
+
 	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
 }
 

@@ -40,6 +40,12 @@ db:
       level: info
       file: /var/log/m3dbnode.log
 
+  cache:
+      postingsList:
+          size: 100
+          cacheRegexp: false
+          cacheTerms: false
+
   metrics:
       prometheus:
           handlerPath: /metrics
@@ -381,6 +387,10 @@ func TestConfiguration(t *testing.T) {
   blockRetrieve: null
   cache:
     series: null
+    postingsList:
+      size: 100
+      cacheRegexp: false
+      cacheTerms: false
   fs:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
