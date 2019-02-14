@@ -186,7 +186,9 @@ func (q *PostingsListCache) startReportLoop() Closer {
 			default:
 			}
 
+			q.Lock()
 			q.Report()
+			q.Unlock()
 			time.Sleep(reportLoopInterval)
 		}
 	}()
