@@ -21,7 +21,6 @@
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -604,8 +603,6 @@ coordinator: null
 	actual := string(data)
 	if expected != actual {
 		diff := xtest.Diff(expected, actual)
-		fmt.Println("expected: ", expected)
-		fmt.Println("actual: ", actual)
 		require.FailNow(t, "reverse config did not match:\n"+diff)
 	}
 }
