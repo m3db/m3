@@ -74,10 +74,10 @@ func startWorker(
 				metric  = metrics[randIdx]
 			)
 
-			_, err = fmt.Fprintf(conn, metricFmt, metric, rng.Float32(), int64(now.Unix()))
+			_, err = fmt.Fprintf(conn, metricFmt, metric, rng.Float32(), now.Unix())
 			numSuccess++
 
-			timeSinceSend := time.Now().Sub(now)
+			timeSinceSend := time.Since(now)
 			if timeSinceSend < idealTimeBetweenSend {
 				time.Sleep(idealTimeBetweenSend - timeSinceSend)
 			}
@@ -141,6 +141,6 @@ func main() {
 
 	wg.Wait()
 
-	durationOfBench := time.Now().Sub(start).Seconds()
+	durationOfBench := time.Since(start).Seconds()
 	fmt.Println("average QPS: ", float64(numSuccess)/durationOfBench)
 }

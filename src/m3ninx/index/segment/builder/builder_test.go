@@ -172,6 +172,7 @@ func toTermPostings(t *testing.T, iter segment.TermsIterator) termPostings {
 	return elems
 }
 
+// nolint: unused
 func printBuilder(t *testing.T, b segment.Builder) {
 	fmt.Printf("print builder %x\n", unsafe.Pointer(b.(*builder)))
 	fieldsIter, err := b.Fields()

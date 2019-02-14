@@ -24,8 +24,7 @@ import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
-
-	"github.com/pilosa/pilosa/roaring"
+	"github.com/m3db/pilosa/roaring"
 )
 
 // postingsIterRoaringPoolingConfig uses a configuration that avoids allocating
@@ -96,11 +95,8 @@ func (f *fstTermsPostingsIter) Next() bool {
 	f.currTerm = f.termsIter.Current()
 	f.err = f.retriever.UnmarshalPostingsListBitmap(f.bitmap,
 		f.termsIter.CurrentOffset())
-	if f.err != nil {
-		return false
-	}
 
-	return true
+	return f.err == nil
 }
 
 func (f *fstTermsPostingsIter) Current() ([]byte, postings.List) {

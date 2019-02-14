@@ -63,10 +63,6 @@ type postingsListLRU struct {
 	items     map[uuid.Array]map[patternAndPatternType]*list.Element
 }
 
-type cachedQuery struct {
-	postingsList postings.List
-}
-
 // entry is used to hold a value in the evictList.
 type entry struct {
 	uuid         uuid.UUID

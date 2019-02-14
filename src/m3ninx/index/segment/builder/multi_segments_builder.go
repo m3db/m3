@@ -32,12 +32,12 @@ import (
 )
 
 type builderFromSegments struct {
-	offset         postings.ID
 	docs           []doc.Document
 	idSet          *IDsMap
 	segments       []segmentMetadata
-	segmentsOffset postings.ID
 	termsIter      *termsIterFromSegments
+	offset         postings.ID
+	segmentsOffset postings.ID
 }
 
 type segmentMetadata struct {

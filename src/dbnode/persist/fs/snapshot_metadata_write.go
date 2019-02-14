@@ -148,12 +148,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr
 	}
 
 	// Ensure the file is written out.
-	err = w.sync(checkpointFile, snapshotsDirFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.sync(checkpointFile, snapshotsDirFile)
 }
 
 // sync ensures that the provided file is persisted to disk by syncing it, as well
@@ -164,10 +159,5 @@ func (w *SnapshotMetadataWriter) sync(file, parent *os.File) error {
 		return err
 	}
 
-	err = parent.Sync()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return parent.Sync()
 }

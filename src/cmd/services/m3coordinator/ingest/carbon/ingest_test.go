@@ -284,21 +284,18 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex1.bar.baz")),
 			timestamp: 1,
 			value:     1,
-			isValid:   true,
 		},
 		{
 			metric:    []byte("foo.match-regex2.bar.baz"),
 			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex2.bar.baz")),
 			timestamp: 2,
 			value:     2,
-			isValid:   true,
 		},
 		{
 			metric:    []byte("foo.match-regex3.bar.baz"),
 			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex3.bar.baz")),
 			timestamp: 3,
 			value:     3,
-			isValid:   true,
 		},
 	}, found)
 }
@@ -409,7 +406,6 @@ type testMetric struct {
 	tags      models.Tags
 	timestamp int
 	value     float64
-	isValid   bool
 }
 
 func assertTestMetricsAreEqual(t *testing.T, a, b []testMetric) {
@@ -484,9 +480,7 @@ var (
 	falseVar         = false
 	falsePtr         = &falseVar
 	aggregateMean    = aggregation.Mean
-	aggregateSum     = aggregation.Sum
 	aggregateLast    = aggregation.Last
 	aggregateMeanPtr = &aggregateMean
-	aggregateSumPtr  = &aggregateSum
 	aggregateLastPtr = &aggregateLast
 )
