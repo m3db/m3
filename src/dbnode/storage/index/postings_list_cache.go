@@ -35,6 +35,7 @@ import (
 // separate them logically within the cache.
 type PatternType int
 
+// Closer represents a function that will close managed resources.
 type Closer func()
 
 const (
