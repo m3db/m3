@@ -1184,13 +1184,9 @@ func withEncodingAndPoolingOptions(
 
 	var (
 		resultsPool = index.NewResultsPool(
-			poolOptions(
-				policy.IndexResultsPool,
-				scope.SubScope("index-results-pool")))
-		postingsListOpts = poolOptions(
-			policy.PostingsListPool,
-			scope.SubScope("postingslist-pool"))
-		postingsList = postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+			poolOptions(policy.IndexResultsPool, scope.SubScope("index-results-pool")))
+		postingsListOpts = poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
+		postingsList     = postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 	)
 
 	indexOpts := opts.IndexOptions().

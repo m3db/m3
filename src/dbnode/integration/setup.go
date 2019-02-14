@@ -173,7 +173,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	if err != nil {
 		return nil, fmt.Errorf("unable to create postings list cache: %v", err)
 	}
-	stopReporting() // Ok to run immediately since it just closes the background reporting loop.
+	// Ok to run immediately since it just closes the background reporting loop. Only ok because
+	// this is a test setup, in production we would want the metrics.
+	stopReporting()
 
 	indexOpts := storageOpts.IndexOptions().
 		SetInsertMode(indexMode).
