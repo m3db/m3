@@ -351,6 +351,7 @@ func newM3DBStorage(
 			etcdCfg = &cfg.ClusterManagement.Etcd
 
 		case len(cfg.Clusters) == 1 &&
+			cfg.Clusters[0].Client.EnvironmentConfig != nil &&
 			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
 			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
 		}

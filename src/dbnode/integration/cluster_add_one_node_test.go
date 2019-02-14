@@ -273,8 +273,12 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		doneWritingWhilePeerStreaming <- struct{}{}
 	}()
 
+	log.Debug("waiting for shards to be bootstrapped")
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
+
+	log.Debug("waiting for background writes to complete")
 	<-doneWritingWhilePeerStreaming
+
 	log.Debug("waiting for shards to be marked initialized")
 
 	allMarkedAvailable := func(
