@@ -149,7 +149,12 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 	if err := c.Filesystem.Validate(); err != nil {
 		return err
 	}
+
 	if err := c.PoolingPolicy.InitDefaultsAndValidate(); err != nil {
+		return err
+	}
+
+	if err := c.Client.Validate(); err != nil {
 		return err
 	}
 
