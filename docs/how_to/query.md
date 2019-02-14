@@ -40,7 +40,7 @@ You will notice that in the setup linked above, M3DB has just one unaggregated n
   resolution: 10s
 ```
 
- If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated.
+If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated.
 
 ```json
 - namespace: metrics_10s_48h
@@ -50,6 +50,25 @@ You will notice that in the setup linked above, M3DB has just one unaggregated n
   downsample:
     all: false
 ```
+
+## ID generation
+
+The default generation scheme for IDs is unfortunately prone to collisions, but is left as is for back-compat reasons. It is suggested to set the ID generation scheme to one of either "quoted" or "prepend_meta". Quoted generation scheme yields the most human-readable IDs, whereas Prepend_Meta is better for more compact IDS, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your coordinator configuration yaml file:
+
+```yaml
+tagOptions:
+  idScheme: <name>
+```
+
+As an example of how these schemes generate tags, consider a case with 4 tags, [{t1:v1}, {t2:v2}, {t3:v3}, {t4:v4}]. The following is an example of how different schemes will generate IDs.
+
+nil: t1=v1,t2=v2,t3=v3,t4=v4,
+prepend_meta: 2,2,2,2,2,2,2,2!t1v1t2v2t3v3t4v4
+quoted: {t1="v1",t2="v2",t3="v3",t4="v4"}
+
+If there is a chance that your metric tags will contain "control" characters for the nil case, specifically `=` and `,`, It is highly recommended that a scheme is specified, as the default scheme will be prone to ID collisions.
+
+NB: Once a scheme is selected and used, be very careful about switching it, as any incoming metrics will get an ID matching the new scheme instead, effectively doubling the metric count until any of the older metric IDs rotate out of their retention period.
 
 ## Grafana
 

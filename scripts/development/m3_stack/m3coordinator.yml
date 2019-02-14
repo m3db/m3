@@ -52,3 +52,6 @@ ingest:
 carbon:
   ingester:
     listenAddress: "0.0.0.0:7204"
+
+tagOptions:
+  idScheme: quoted
