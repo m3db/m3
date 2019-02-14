@@ -61,19 +61,6 @@ func newSampledPostingsLists(numPostingsLists, numTotalElements int) []*roaring.
 	return pls
 }
 
-func newSampledPostingsListsPilosa(numPostingsLists, numTotalElements int) []*roaring.Bitmap {
-	elems := make([][]uint64, numPostingsLists)
-	for i := 0; i < numTotalElements; i++ {
-		idx := i % numPostingsLists
-		elems[idx] = append(elems[idx], uint64(i))
-	}
-	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
-	for _, elem := range elems {
-		pls = append(pls, roaring.NewBitmap(elem...))
-	}
-	return pls
-}
-
 func BenchmarkUnionRandPlsFastOr(b *testing.B) {
 	pls := newRandPostingsLists(numPls, numElemsPer)
 	b.ReportAllocs()

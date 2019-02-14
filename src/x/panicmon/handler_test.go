@@ -35,21 +35,18 @@ func (m *mockProcessHandler) ProcessStarted(e ProcessStartEvent) {
 	m.Lock()
 	defer m.Unlock()
 	m.Called(e)
-	return
 }
 
 func (m *mockProcessHandler) ProcessFailed(e ProcessFailedEvent) {
 	m.Lock()
 	defer m.Unlock()
 	m.Called(e)
-	return
 }
 
 func (m *mockProcessHandler) ProcessExited(e ProcessExitedEvent) {
 	m.Lock()
 	defer m.Unlock()
 	m.Called(e)
-	return
 }
 
 type mockSignalHandler struct {
@@ -61,19 +58,16 @@ func (m *mockSignalHandler) SignalReceived(e SignalReceivedEvent) {
 	m.Lock()
 	defer m.Unlock()
 	m.Called(e)
-	return
 }
 
 func (m *mockSignalHandler) SignalPassed(e SignalPassedEvent) {
 	m.Lock()
 	defer m.Unlock()
 	m.Called(e)
-	return
 }
 
 func (m *mockSignalHandler) SignalFailed(e SignalFailedEvent) {
 	m.Lock()
 	defer m.Unlock()
 	m.Called(e)
-	return
 }

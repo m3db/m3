@@ -21,7 +21,6 @@
 package fst
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -39,9 +38,6 @@ var (
 	defaultInitialFSTTermsOffsetsSize = 1024
 	defaultInitialDocOffsetsSize      = 1024
 	defaultInitialIntEncoderSize      = 128
-
-	errUnableToFindPostingsOffset = errors.New("internal error: unable to find postings offset")
-	errUnableToFindFSTTermsOffset = errors.New("internal error: unable to find fst terms offset")
 )
 
 type writer struct {

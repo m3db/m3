@@ -49,11 +49,11 @@ type placement struct {
 	instancesByShard map[uint32][]Instance
 	rf               int
 	shards           []uint32
+	cutoverNanos     int64
+	version          int
 	isSharded        bool
 	isMirrored       bool
-	cutoverNanos     int64
 	maxShardSetID    uint32
-	version          int
 }
 
 // NewPlacement returns a ServicePlacement

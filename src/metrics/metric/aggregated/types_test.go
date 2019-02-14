@@ -127,18 +127,6 @@ var (
 		TimeNanos: 67890,
 		Value:     21.99,
 	}
-	testMetricWithStoragePolicyProto = metricpb.TimedMetricWithStoragePolicy{
-		TimedMetric: testMetric1Proto,
-		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
-				WindowSize: 10 * time.Second.Nanoseconds(),
-				Precision:  time.Second.Nanoseconds(),
-			},
-			Retention: &policypb.Retention{
-				Period: (6 * time.Hour).Nanoseconds(),
-			},
-		},
-	}
 	testForwardedMetric1Proto = metricpb.ForwardedMetric{
 		Type:      metricpb.MetricType_COUNTER,
 		Id:        []byte("testForwardedMetric1"),

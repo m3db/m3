@@ -95,11 +95,8 @@ func (f *fstTermsPostingsIter) Next() bool {
 	f.currTerm = f.termsIter.Current()
 	f.err = f.retriever.UnmarshalPostingsListBitmap(f.bitmap,
 		f.termsIter.CurrentOffset())
-	if f.err != nil {
-		return false
-	}
 
-	return true
+	return f.err == nil
 }
 
 func (f *fstTermsPostingsIter) Current() ([]byte, postings.List) {

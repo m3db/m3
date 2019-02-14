@@ -54,11 +54,10 @@ var (
 	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
-	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
-	defaultLimitsConfiguration = &LimitsConfiguration{
+	defaultLimitsConfiguration = LimitsConfiguration{
 		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
 		MaxComputedDatapoints: 86400,
 	}
@@ -112,7 +111,7 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
-	Limits LimitsConfiguration `yaml:"limits"`
+	Limits *LimitsConfiguration `yaml:"limits"`
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
@@ -178,6 +177,26 @@ func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
 	}
 
 	return v, nil
+}
+
+// LimitsOrDefault returns the specified limit configuration if provided, or the
+// default value otherwise.
+func (c Configuration) LimitsOrDefault() LimitsConfiguration {
+	if c.Limits != nil {
+		return *c.Limits
+	}
+
+	return *defaultLimitsConfiguration
+}
+
+// ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
+// default value if not.
+func (c *CarbonIngesterConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable

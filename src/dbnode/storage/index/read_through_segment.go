@@ -47,9 +47,10 @@ type ReadThroughSegment struct {
 	segment.Segment
 	sync.RWMutex
 
-	opts              ReadThroughSegmentOptions
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
+
+	opts ReadThroughSegmentOptions
 
 	closed bool
 }

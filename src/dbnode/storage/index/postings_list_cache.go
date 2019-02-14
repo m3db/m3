@@ -61,8 +61,6 @@ type PostingsListCache struct {
 	size    int
 	opts    PostingsListCacheOptions
 	metrics *postingsListCacheMetrics
-
-	stopReporting chan struct{}
 }
 
 // NewPostingsListCache creates a new query cache.

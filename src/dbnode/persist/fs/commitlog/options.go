@@ -66,7 +66,6 @@ var (
 	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
 	errBlockSizePositive        = errors.New("block size must be a positive duration")
 	errReadConcurrencyPositive  = errors.New("read concurrency must be a positive integer")
-	errBacklogQueueChannelSize  = errors.New("read concurrency must be a positive integer")
 )
 
 type options struct {

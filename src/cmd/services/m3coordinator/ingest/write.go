@@ -66,11 +66,11 @@ type DownsamplerAndWriter interface {
 // WriteOptions contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
 type WriteOptions struct {
-	DownsampleOverride     bool
 	DownsampleMappingRules []downsample.MappingRule
+	WriteStoragePolicies   []policy.StoragePolicy
 
-	WriteOverride        bool
-	WriteStoragePolicies []policy.StoragePolicy
+	DownsampleOverride bool
+	WriteOverride      bool
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -327,11 +327,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	}
 	appender.Finalize()
 
-	if err := iter.Error(); err != nil {
-		return err
-	}
-
-	return nil
+	return iter.Error()
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {

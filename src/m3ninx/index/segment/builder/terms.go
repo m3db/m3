@@ -73,6 +73,7 @@ func (t *terms) post(term []byte, id postings.ID) error {
 	return nil
 }
 
+// nolint: unused
 func (t *terms) get(term []byte) (postings.List, bool) {
 	value, ok := t.postings.Get(term)
 	return value, ok
