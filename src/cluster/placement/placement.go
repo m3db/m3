@@ -446,11 +446,11 @@ type instance struct {
 	id             string
 	isolationGroup string
 	zone           string
-	weight         uint32
 	endpoint       string
 	hostname       string
-	port           uint32
 	shards         shard.Shards
+	port           uint32
+	weight         uint32
 	shardSetID     uint32
 }
 
