@@ -173,6 +173,12 @@ func TestBucketQuantile(t *testing.T) {
 	})
 	assert.Equal(t, float64(1), actual)
 
+	actual = bucketQuantile(0.8, []bucketValue{
+		{upperBound: 2, value: 13},
+		{upperBound: math.Inf(1), value: 71},
+	})
+	assert.Equal(t, float64(2), actual)
+
 	// NB: tested against Prom
 	buckets := []bucketValue{
 		{upperBound: 1, value: 1},
@@ -252,12 +258,12 @@ func testQuantileFunctionWithQ(t *testing.T, q float64) [][]float64 {
 	}
 
 	v := [][]float64{
-		{1, 1, 11, 12, 1},
-		{2, 2, 12, 13, 2},
-		{5, 5, 15, 40, 5},
-		{10, 10, 20, 50, 10},
-		{15, 15, 25, 70, 15},
-		{16, 19, 26, 71, 1},
+		{1, 1, 11, math.NaN(), math.NaN()},
+		{2, 2, 12, 13, math.NaN()},
+		{5, 5, 15, math.NaN(), math.NaN()},
+		{10, 10, 20, math.NaN(), math.NaN()},
+		{15, 15, 25, math.NaN(), math.NaN()},
+		{16, 19, math.NaN(), 71, 1},
 	}
 
 	bounds := models.Bounds{
@@ -287,5 +293,5 @@ func TestQuantileFunctionForInvalidQValues(t *testing.T) {
 	assert.Equal(t, [][]float64{{inf, inf, inf, inf, inf}}, actual)
 
 	actual = testQuantileFunctionWithQ(t, 0.8)
-	test.EqualsWithNansWithDelta(t, [][]float64{{15.6, 20, 11.6, 13.4, 0.8}}, actual, 0.00001)
+	test.EqualsWithNansWithDelta(t, [][]float64{{15.6, 20, math.NaN(), 2, math.NaN()}}, actual, 0.00001)
 }

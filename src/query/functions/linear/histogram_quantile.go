@@ -152,25 +152,20 @@ func gatherSeriesToBuckets(metas []block.SeriesMeta) bucketedSeries {
 		excludeTags := [][]byte{tags.Opts.MetricName(), tags.Opts.BucketName()}
 		tagsWithoutKeys := tags.TagsWithoutKeys(excludeTags)
 		id := tagsWithoutKeys.ID()
+		newBucket := indexedBucket{
+			upperBound: bound,
+			idx:        i,
+		}
+
 		if buckets, found := bucketsForID[string(id)]; !found {
 			// Add a single indexed bucket for this ID with the current index only.
 			newBuckets := make([]indexedBucket, 0, initIndexBucketLength)
-			newBucket := indexedBucket{
-				upperBound: bound,
-				idx:        i,
-			}
-
 			newBuckets = append(newBuckets, newBucket)
 			bucketsForID[string(id)] = indexedBuckets{
 				buckets: newBuckets,
 				tags:    tagsWithoutKeys,
 			}
 		} else {
-			newBucket := indexedBucket{
-				upperBound: bound,
-				idx:        i,
-			}
-
 			buckets.buckets = append(buckets.buckets, newBucket)
 			bucketsForID[string(id)] = buckets
 		}
