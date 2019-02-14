@@ -175,7 +175,7 @@ func (q *PostingsListCache) PurgeSegment(segmentUUID uuid.UUID) {
 // startReportLoop starts a background process that will call Report()
 // on a regular basis and returns a function that will end the background
 // process.
-func (q *PostingsListCache) startReportLoop() func() {
+func (q *PostingsListCache) startReportLoop() Closer {
 	doneCh := make(chan struct{})
 
 	go func() {
