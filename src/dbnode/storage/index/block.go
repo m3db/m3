@@ -833,9 +833,24 @@ func (b *block) AddResults(
 			results.Fulfilled().SummaryString(), blockRange.String())
 	}
 
+	var (
+		plCache         = b.opts.PostingsListCache()
+		readThroughOpts = b.opts.ReadThroughSegmentOptions()
+		segments        = results.Segments()
+	)
+	readThroughSegments := make([]segment.Segment, 0, len(segments))
+	for _, seg := range segments {
+		readThroughSeg := seg
+		if _, ok := seg.(segment.MutableSegment); !ok {
+			// Only wrap the immutable segments with a read through cache.
+			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
+		}
+		readThroughSegments = append(readThroughSegments, readThroughSeg)
+	}
+
 	entry := blockShardRangesSegments{
 		shardTimeRanges: results.Fulfilled(),
-		segments:        results.Segments(),
+		segments:        readThroughSegments,
 	}
 
 	// First see if this block can cover all our current blocks covering shard
