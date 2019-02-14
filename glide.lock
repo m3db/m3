@@ -1,5 +1,5 @@
 hash: 68f6e58e11ab4f5acc342c013354dc0eca5cd2d17d5573edec766a067f44141a
-updated: 2019-02-14T13:01:12.320109-05:00
+updated: 2019-02-14T14:22:29.558454-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -61,6 +61,7 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
+  - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
   - pkg/fileutil
@@ -201,6 +202,10 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- name: github.com/jroimartin/gocui
+  version: c055c87ae801372cd74a0839b972db4f7697ae5f
+- name: github.com/kr/logfmt
+  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
   version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
@@ -268,6 +273,10 @@ imports:
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/magiconair/properties
   version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
+- name: github.com/mattn/go-runewidth
+  version: 9e777a8366cce605130a531d2cd6363d07ad7317
+  subpackages:
+  - runewidth.go
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -282,6 +291,8 @@ imports:
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/nightlyone/lockfile
   version: 0ad87eef1443f64d3d8c50da647e2b1552851124
+- name: github.com/nsf/termbox-go
+  version: 02980233997d87bbda048393d47b4d453f7a398d
 - name: github.com/oklog/ulid
   version: 1fe95fa015d44afc8cd427914daadb0317481b71
 - name: github.com/opentracing/opentracing-go
@@ -529,6 +540,8 @@ testImports:
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/glycerine/go-unsnap-stream
   version: f9677308dec2b35e76737f9713df328ad11b1fea
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
