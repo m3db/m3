@@ -93,54 +93,59 @@ const (
 type recommendedBlockSize struct {
 	forRetentionLessThanOrEqual time.Duration
 	dataBlockSize               time.Duration
-	indexBlockSize              time.Duration
 }
 
+// TODO(rartoul): Consider replacing these values with target numbers of
+// data block sizes and index blocksizes. I.E existing configuration could
+// be closely approximated with targets of 90 blocks for data and 45 blocks
+// for index.
 var recommendedBlockSizesByRetentionAsc = []recommendedBlockSize{
 	{
 		forRetentionLessThanOrEqual: 12 * time.Hour,
 		dataBlockSize:               30 * time.Minute,
-		indexBlockSize:              1 * time.Hour,
 	},
 	{
 		forRetentionLessThanOrEqual: 24 * time.Hour,
 		dataBlockSize:               time.Hour,
-		indexBlockSize:              2 * time.Hour,
 	},
 	{
+		// 2 days.
 		forRetentionLessThanOrEqual: 48 * time.Hour,
 		dataBlockSize:               time.Hour,
-		indexBlockSize:              2 * time.Hour,
 	},
 	{
+		// One week.
 		forRetentionLessThanOrEqual: 7 * 24 * time.Hour,
 		dataBlockSize:               4 * time.Hour,
-		indexBlockSize:              8 * time.Hour,
 	},
 	{
+		// One month.
 		forRetentionLessThanOrEqual: 30 * 24 * time.Hour,
 		dataBlockSize:               12 * time.Hour,
-		indexBlockSize:              24 * time.Hour,
 	},
 	{
+		// 3 months.
 		forRetentionLessThanOrEqual: 30 * 3 * 24 * time.Hour,
-		dataBlockSize:               24 * time.Hour,
-		indexBlockSize:              48 * time.Hour,
+		// One day.
+		dataBlockSize: 24 * time.Hour,
 	},
 	{
+		// 6 months.
 		forRetentionLessThanOrEqual: 30 * 6 * 24 * time.Hour,
-		dataBlockSize:               48 * time.Hour,
-		indexBlockSize:              96 * time.Hour,
+		// 2 days.
+		dataBlockSize: 48 * time.Hour,
 	},
 	{
+		// One year.
 		forRetentionLessThanOrEqual: 365 * 24 * time.Hour,
-		dataBlockSize:               96 * time.Hour,
-		indexBlockSize:              192 * time.Hour,
+		// 4 days.
+		dataBlockSize: 96 * time.Hour,
 	},
 	{
+		// Five years.
 		forRetentionLessThanOrEqual: 5 * 365 * 24 * time.Hour,
-		dataBlockSize:               168 * time.Hour,
-		indexBlockSize:              192 * time.Hour,
+		// One week.
+		dataBlockSize: 168 * time.Hour,
 	},
 }
 
@@ -403,10 +408,7 @@ func defaultedNamespaceAddRequest(
 
 		retentionPeriod := retentionOpts.RetentionPeriod()
 
-		var (
-			dataBlockSize  time.Duration
-			indexBlockSize time.Duration
-		)
+		var dataBlockSize time.Duration
 		switch {
 		case r.BlockSize != nil && r.BlockSize.Time != "":
 			value, err := time.ParseDuration(r.BlockSize.Time)
@@ -414,7 +416,6 @@ func defaultedNamespaceAddRequest(
 				return nil, fmt.Errorf("invalid block size time: %v", err)
 			}
 			dataBlockSize = value
-			indexBlockSize = dataBlockSize * dataToIndexBlockSizeScalingFactor
 
 		case r.BlockSize != nil && r.BlockSize.ExpectedSeriesDatapointsPerHour > 0:
 			value := r.BlockSize.ExpectedSeriesDatapointsPerHour
@@ -437,8 +438,7 @@ func defaultedNamespaceAddRequest(
 			} else if dataBlockSize > maxRecommendCalculateBlockSize {
 				dataBlockSize = maxRecommendCalculateBlockSize
 			}
-			indexBlockSize = dataBlockSize * dataToIndexBlockSizeScalingFactor
-
+GIT ST
 		default:
 			// Use the maximum block size if we don't find a way to
 			// recommended one based on request parameters
@@ -447,7 +447,6 @@ func defaultedNamespaceAddRequest(
 			for _, elem := range recommendedBlockSizesByRetentionAsc {
 				if retentionPeriod <= elem.forRetentionLessThanOrEqual {
 					dataBlockSize = elem.dataBlockSize
-					indexBlockSize = elem.indexBlockSize
 					break
 				}
 			}
@@ -458,7 +457,7 @@ func defaultedNamespaceAddRequest(
 
 		indexOpts := opts.IndexOptions().
 			SetEnabled(true).
-			SetBlockSize(indexBlockSize)
+			SetBlockSize(dataBlockSize * dataToIndexBlockSizeScalingFactor)
 
 		opts = opts.SetRetentionOptions(retentionOpts).
 			SetIndexOptions(indexOpts)
