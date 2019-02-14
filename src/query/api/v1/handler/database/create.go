@@ -438,7 +438,7 @@ func defaultedNamespaceAddRequest(
 			} else if dataBlockSize > maxRecommendCalculateBlockSize {
 				dataBlockSize = maxRecommendCalculateBlockSize
 			}
-GIT ST
+
 		default:
 			// Use the maximum block size if we don't find a way to
 			// recommended one based on request parameters
