@@ -57,7 +57,7 @@ var (
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
-	defaultLimitsConfiguration = LimitsConfiguration{
+	defaultLimitsConfiguration = &LimitsConfiguration{
 		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
 		MaxComputedDatapoints: 86400,
 	}
@@ -181,12 +181,12 @@ func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
 
 // LimitsOrDefault returns the specified limit configuration if provided, or the
 // default value otherwise.
-func (c Configuration) LimitsOrDefault() LimitsConfiguration {
+func (c Configuration) LimitsOrDefault() *LimitsConfiguration {
 	if c.Limits != nil {
-		return *c.Limits
+		return c.Limits
 	}
 
-	return *defaultLimitsConfiguration
+	return defaultLimitsConfiguration
 }
 
 // ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
