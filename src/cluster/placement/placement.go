@@ -51,9 +51,9 @@ type placement struct {
 	shards           []uint32
 	cutoverNanos     int64
 	version          int
+	maxShardSetID    uint32
 	isSharded        bool
 	isMirrored       bool
-	maxShardSetID    uint32
 }
 
 // NewPlacement returns a ServicePlacement

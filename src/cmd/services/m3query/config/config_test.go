@@ -57,7 +57,7 @@ func TestConfigLoading(t *testing.T) {
 
 	assert.Equal(t, &LimitsConfiguration{
 		MaxComputedDatapoints: 12000,
-	}, &cfg.Limits)
+	}, cfg.Limits)
 	// TODO: assert on more fields here.
 }
 
@@ -88,7 +88,7 @@ func TestConfigValidation(t *testing.T) {
 	for _, tc := range limitsCfgCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			cfg := baseCfg(t)
-			cfg.Limits = LimitsConfiguration{
+			cfg.Limits = &LimitsConfiguration{
 				MaxComputedDatapoints: 5,
 			}
 
