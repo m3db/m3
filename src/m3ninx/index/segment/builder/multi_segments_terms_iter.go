@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3x/errors"
 
-	bitmap "github.com/pilosa/pilosa/roaring"
+	bitmap "github.com/m3db/pilosa/roaring"
 )
 
 const (

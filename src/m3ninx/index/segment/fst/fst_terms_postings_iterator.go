@@ -25,7 +25,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
 
-	"github.com/pilosa/pilosa/roaring"
+	"github.com/m3db/pilosa/roaring"
 )
 
 // postingsIterRoaringPoolingConfig uses a configuration that avoids allocating

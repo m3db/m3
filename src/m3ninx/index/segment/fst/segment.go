@@ -39,7 +39,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/couchbase/vellum"
-	pilosaroaring "github.com/pilosa/pilosa/roaring"
+	pilosaroaring "github.com/m3db/pilosa/roaring"
 )
 
 var (
