@@ -60,11 +60,13 @@ tagOptions:
   idScheme: <name>
 ```
 
-As an example of how these schemes generate tags, consider a case with 4 tags, [{t1:v1}, {t2:v2}, {t3:v3}, {t4:v4}]. The following is an example of how different schemes will generate IDs.
+As an example of how these schemes generate tags, consider a series with 4 tags, `[{t1:v1}, {t2:"v2"}, {t3:v3}, {t4:v4}]`. The following is an example of how different schemes will generate IDs.
 
-nil: t1=v1,t2=v2,t3=v3,t4=v4,
-prepend_meta: 2,2,2,2,2,2,2,2!t1v1t2v2t3v3t4v4
-quoted: {t1="v1",t2="v2",t3="v3",t4="v4"}
+```
+nil: t1=v1,t2="v2",t3=v3,t4=v4,
+prepend_meta: 2,2,2,4,2,2,2,2!t1v1t2"v2"t3v3t4v4
+quoted: {t1="v1",t2="\"v2\"",t3="v3",t4="v4"}
+```
 
 If there is a chance that your metric tags will contain "control" characters for the nil case, specifically `=` and `,`, It is highly recommended that a scheme is specified, as the default scheme will be prone to ID collisions.
 
