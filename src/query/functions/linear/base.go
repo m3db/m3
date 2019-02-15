@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -80,13 +81,13 @@ func (c *baseNode) ProcessSeries(series block.Series) (block.Series, error) {
 }
 
 // Process the block
-func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
+func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
 	}
 
-	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
+	builder, err := c.controller.BlockBuilder(queryCtx, stepIter.Meta(), stepIter.SeriesMeta())
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
+	return c.controller.Process(queryCtx, nextBlock)
 }
 
 // Meta returns the metadata for the block

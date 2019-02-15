@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -97,7 +98,7 @@ type baseNode struct {
 }
 
 // Process the block.
-func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	it, err := b.StepIter()
 	if err != nil {
 		return err
@@ -113,5 +114,5 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	defer bl.Close()
-	return n.controller.Process(bl)
+	return n.controller.Process(queryCtx, bl)
 }
