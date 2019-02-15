@@ -215,9 +215,7 @@ func (m *flushManager) rotateCommitlogAndSnapshot(
 	m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
 	err = snapshotPersist.DoneSnapshot(snapshotID, rotatedCommitlogID)
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
+	multiErr = multiErr.Add(err)
 
 	finalErr := multiErr.FinalError()
 	if finalErr == nil {
