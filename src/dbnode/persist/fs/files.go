@@ -920,7 +920,7 @@ func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []s
 
 // SortedCommitLogFiles returns all the commit log files in the commit logs directory.
 func SortedCommitLogFiles(commitLogsDir string) ([]string, error) {
-	return sortedCommitlogFiles(commitLogsDir, commitLogFilePattern)
+	return sortedCommitLogFiles(commitLogsDir, commitLogFilePattern)
 }
 
 type toSortableFn func(files []string) sort.Interface
@@ -1070,7 +1070,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 	return filesetFiles, nil
 }
 
-func sortedCommitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
+func sortedCommitLogFiles(commitLogsDir string, pattern string) ([]string, error) {
 	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
 		return commitlogsByTimeAndIndexAscending(files)
 	})

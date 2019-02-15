@@ -48,7 +48,7 @@ type PreparedDataPersist struct {
 // CommitLogFiles represents a slice of commitlog files.
 type CommitLogFiles []CommitLogFile
 
-// Contains returns a boolean indicating whether the CommitlogFiles slice
+// Contains returns a boolean indicating whether the CommitLogFiles slice
 // contains the provided CommitlogFile based on its path.
 func (c CommitLogFiles) Contains(path string) bool {
 	for _, f := range c {

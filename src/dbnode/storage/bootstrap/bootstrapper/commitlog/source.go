@@ -1276,7 +1276,7 @@ func (s commitLogSource) shouldReturnUnfulfilled(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (bool, error) {
-	if !s.opts.ReturnUnfulfilledForCorruptCommitlogFiles() {
+	if !s.opts.ReturnUnfulfilledForCorruptCommitLogFiles() {
 		return false, nil
 	}
 
