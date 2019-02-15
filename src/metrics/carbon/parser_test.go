@@ -35,8 +35,6 @@ import (
 )
 
 var (
-	nullTime time.Time
-
 	testIOpts = instrument.NewOptions()
 )
 

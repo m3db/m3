@@ -69,7 +69,7 @@ func (a *samplesAppender) AppendGaugeTimedSample(t time.Time, value float64) err
 		Type:      metric.GaugeType,
 		ID:        a.unownedID,
 		TimeNanos: t.UnixNano(),
-		Value:     float64(value),
+		Value:     value,
 	})
 }
 

@@ -204,12 +204,6 @@ func testProtobufWriter(t *testing.T, ctrl *gomock.Controller, opts Options) *pr
 	return NewProtobufWriter(p, sharding.Murmur32Hash.MustShardFn(), opts).(*protobufWriter)
 }
 
-type encodeData struct {
-	aggregated.ChunkedMetricWithStoragePolicy
-
-	encodedAtNanos int64
-}
-
 type decodeData struct {
 	aggregated.MetricWithStoragePolicy
 

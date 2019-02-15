@@ -830,7 +830,7 @@ func startCarbonIngestion(
 	// Start server.
 	var (
 		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		carbonListenAddress = ingesterCfg.ListenAddress
+		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)
 	if strings.TrimSpace(carbonListenAddress) == "" {

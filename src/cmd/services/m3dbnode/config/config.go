@@ -61,11 +61,7 @@ type Configuration struct {
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
 // We use this method to validate fields where the validator package falls short.
 func (c *Configuration) InitDefaultsAndValidate() error {
-	if err := c.DB.InitDefaultsAndValidate(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.DB.InitDefaultsAndValidate()
 }
 
 // DBConfiguration is the configuration for a DB node.

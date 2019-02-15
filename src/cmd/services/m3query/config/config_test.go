@@ -75,7 +75,7 @@ func TestConfigLoading(t *testing.T) {
 
 	assert.Equal(t, &LimitsConfiguration{
 		MaxComputedDatapoints: 12000,
-	}, &cfg.Limits)
+	}, cfg.Limits)
 	// TODO: assert on more fields here.
 }
 
@@ -106,7 +106,7 @@ func TestConfigValidation(t *testing.T) {
 	for _, tc := range limitsCfgCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			cfg := baseCfg(t)
-			cfg.Limits = LimitsConfiguration{
+			cfg.Limits = &LimitsConfiguration{
 				MaxComputedDatapoints: 5,
 			}
 
@@ -124,6 +124,11 @@ func TestDefaultTagOptionsConfigErrors(t *testing.T) {
 	expectedError := fmt.Sprintf(errNoIDGenerationScheme, docLink)
 	require.EqualError(t, err, expectedError)
 	require.Nil(t, opts)
+}
+
+func TestGraphiteIDGenerationSchemeIsInvalid(t *testing.T) {
+	var cfg TagOptionsConfiguration
+	require.Error(t, yaml.Unmarshal([]byte("idScheme: graphite"), &cfg))
 }
 
 func TestTagOptionsConfigWithTagGenerationScheme(t *testing.T) {
@@ -145,4 +150,15 @@ func TestTagOptionsConfigWithTagGenerationScheme(t *testing.T) {
 		assert.Equal(t, []byte("__name__"), opts.MetricName())
 		assert.Equal(t, tt.scheme, opts.IDSchemeType())
 	}
+}
+
+func TestTagOptionsConfig(t *testing.T) {
+	var cfg TagOptionsConfiguration
+	config := "metricName: abcdefg\nidScheme: prepend_meta\nbucketName: foo"
+	require.NoError(t, yaml.Unmarshal([]byte(config), &cfg))
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("abcdefg"), opts.MetricName())
+	assert.Equal(t, []byte("foo"), opts.BucketName())
+	assert.Equal(t, models.TypePrependMeta, opts.IDSchemeType())
 }

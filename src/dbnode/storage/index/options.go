@@ -86,6 +86,7 @@ func init() {
 	}
 }
 
+// nolint: maligned
 type opts struct {
 	insertMode                      InsertMode
 	clockOpts                       clock.Options

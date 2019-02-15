@@ -164,7 +164,7 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := native.NewPromReadHandler(
 		h.engine,
 		h.tagOptions,
-		&h.config.Limits,
+		h.config.LimitsOrDefault(),
 		h.scope.Tagged(nativeSource),
 		h.timeoutOpts,
 	)

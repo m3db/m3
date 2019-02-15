@@ -85,10 +85,14 @@ const (
 type TagOptions interface {
 	// Validate validates these tag options.
 	Validate() error
-	// SetMetricName sets the name for the `metric name` metric.
+	// SetMetricName sets the name for the `metric name` tag.
 	SetMetricName(metricName []byte) TagOptions
-	// MetricName gets the name for the metric name `metric`.
+	// MetricName gets the name for the `metric name` tag.
 	MetricName() []byte
+	// SetBucketName sets the name for the `bucket label` tag.
+	SetBucketName(metricName []byte) TagOptions
+	// BucketName gets the name for the `bucket label` tag.
+	BucketName() []byte
 	// SetIDSchemeType sets the ID generation scheme type.
 	SetIDSchemeType(scheme IDSchemeType) TagOptions
 	// IDSchemeType gets the ID generation scheme type.

@@ -59,7 +59,6 @@ var (
 	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
-	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
@@ -117,7 +116,7 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
-	Limits LimitsConfiguration `yaml:"limits"`
+	Limits *LimitsConfiguration `yaml:"limits"`
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
@@ -183,6 +182,26 @@ func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
 	}
 
 	return v, nil
+}
+
+// LimitsOrDefault returns the specified limit configuration if provided, or the
+// default value otherwise.
+func (c Configuration) LimitsOrDefault() *LimitsConfiguration {
+	if c.Limits != nil {
+		return c.Limits
+	}
+
+	return defaultLimitsConfiguration
+}
+
+// ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
+// default value if not.
+func (c *CarbonIngesterConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable
@@ -304,6 +323,10 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 
+	// BucketName specifies the tag name that corresponds to the metric's bucket.
+	// If not provided, defaults to `le`.
+	BucketName string `yaml:"bucketName"`
+
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
@@ -314,6 +337,11 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	name := cfg.MetricName
 	if name != "" {
 		opts = opts.SetMetricName([]byte(name))
+	}
+
+	bucket := cfg.BucketName
+	if bucket != "" {
+		opts = opts.SetBucketName([]byte(bucket))
 	}
 
 	if cfg.Scheme == models.TypeDefault {
