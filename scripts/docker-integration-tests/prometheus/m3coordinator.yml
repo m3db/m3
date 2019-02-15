@@ -34,3 +34,6 @@ clusters:
                 - dbnode01:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
+
+tagOptions:
+  idScheme: quoted

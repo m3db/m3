@@ -60,3 +60,6 @@ readWorkerPoolPolicy:
 writeWorkerPoolPolicy:
   grow: false
   size: 10
+
+tagOptions:
+  idScheme: quoted

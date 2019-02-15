@@ -55,3 +55,6 @@ carbon:
         policies:
           - resolution: 5s
             retention: 10h
+
+tagOptions:
+  idScheme: quoted
