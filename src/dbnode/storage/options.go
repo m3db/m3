@@ -69,9 +69,6 @@ const (
 
 	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
-
-	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots.
-	defaultMinSnapshotInterval = 10 * time.Second
 )
 
 var (
@@ -127,7 +124,6 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcessProvider       bootstrap.ProcessProvider
 	persistManager                 persist.Manager
-	minSnapshotInterval            time.Duration
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
@@ -179,7 +175,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:            defaultRepairEnabled,
 		repairOpts:               repair.NewOptions(),
 		bootstrapProcessProvider: defaultBootstrapProcessProvider,
-		minSnapshotInterval:      defaultMinSnapshotInterval,
 		poolOpts:                 poolOpts,
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(poolOpts).
@@ -607,16 +602,6 @@ func (o *options) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetad
 
 func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
 	return o.fetchBlocksMetadataResultsPool
-}
-
-func (o *options) SetMinimumSnapshotInterval(value time.Duration) Options {
-	opts := *o
-	opts.minSnapshotInterval = value
-	return &opts
-}
-
-func (o *options) MinimumSnapshotInterval() time.Duration {
-	return o.minSnapshotInterval
 }
 
 func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {

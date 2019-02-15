@@ -69,7 +69,7 @@ type seriesMetadata struct {
 
 type commitLogReader interface {
 	// Open opens the commit log for reading
-	Open(filePath string) (time.Time, time.Duration, int64, error)
+	Open(filePath string) (int64, error)
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
 	Read() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
@@ -159,29 +159,27 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 	return reader
 }
 
-func (r *reader) Open(filePath string) (time.Time, time.Duration, int64, error) {
+func (r *reader) Open(filePath string) (int64, error) {
 	// Commitlog reader does not currently support being reused
 	if r.hasBeenOpened {
-		return timeZero, 0, 0, errCommitLogReaderIsNotReusable
+		return 0, errCommitLogReaderIsNotReusable
 	}
 	r.hasBeenOpened = true
 
 	fd, err := os.Open(filePath)
 	if err != nil {
-		return timeZero, 0, 0, err
+		return 0, err
 	}
 
 	r.chunkReader.reset(fd)
 	info, err := r.readInfo()
 	if err != nil {
 		r.Close()
-		return timeZero, 0, 0, err
+		return 0, err
 	}
-	start := time.Unix(0, info.Start)
-	duration := time.Duration(info.Duration)
 	index := info.Index
 
-	return start, duration, index, nil
+	return index, nil
 }
 
 // Read guarantees that the datapoints it returns will be in the same order as they are on disk

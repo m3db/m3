@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/persist"
+
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -35,8 +37,11 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		commitlogIdentifier = []byte("commitlog_id")
-		numMetadataFiles    = 10
+		commitlogIdentifier = persist.CommitlogFile{
+			FilePath: "some_path",
+			Index:    1,
+		}
+		numMetadataFiles = 10
 	)
 	defer func() {
 		os.RemoveAll(dir)

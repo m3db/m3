@@ -74,7 +74,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		// Prevent snapshotting from happening too frequently to allow for the
 		// possibility of a snapshot occurring after the shard set is assigned,
 		// but not after the node finishes bootstrapping.
-		SetMinimumSnapshotInterval(5 * time.Second)
+		SetTickMinimumInterval(5 * time.Second)
 
 	minShard := uint32(0)
 	maxShard := uint32(opts.NumShards()) - uint32(1)
