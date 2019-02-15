@@ -124,16 +124,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			)
 
-			commitLogBlockSize := 1 * time.Minute
-			require.True(t, commitLogBlockSize < blockSize)
-
 			var (
 				fsOpts = testFsOpts.
 					SetFilePathPrefix(dir)
 				commitLogOpts = testCommitlogOpts.
 						SetBlockSize(blockSize).
 						SetFilesystemOptions(fsOpts).
-						SetBlockSize(commitLogBlockSize).
 						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
 						SetClockOptions(testCommitlogOpts.ClockOptions().SetNowFn(nowFn))
@@ -301,13 +297,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					}
 
 					if len(commitLogFiles) > 0 {
-						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
-						if err != nil {
-							return false, err
-						}
-
-						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
-							fsOpts.FilePathPrefix(), lastCommitLogFile.Start)
+						nextCommitLogFile, _, err := commitlog.NextFile(commitLogOpts)
 						if err != nil {
 							return false, err
 						}

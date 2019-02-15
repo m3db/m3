@@ -45,28 +45,21 @@ import (
 )
 
 func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
-	testMixedModeReadWrite(t, false)
-}
-
-func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
 	var (
-		commitLogBlockSize = 15 * time.Minute
-		ns1BlockSize       = 1 * time.Hour
-		ns1ROpts           = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
-		nsID               = testNamespaces[0]
+		ns1BlockSize = 1 * time.Hour
+		ns1ROpts     = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
+		nsID         = testNamespaces[0]
 	)
 
 	ns1Opts := namespace.NewOptions().
-		SetRetentionOptions(ns1ROpts).
-		SetSnapshotEnabled(snapshotEnabled)
+		SetRetentionOptions(ns1ROpts)
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	// Test setup
@@ -191,7 +184,9 @@ func waitUntilFileSetFilesCleanedUp(
 	var (
 		shardSet       = setup.shardSet
 		filesetFiles   = []cleanupTimesFileSet{}
-		commitLogFiles = cleanupTimesCommitLog{}
+		commitLogFiles = cleanupTimesCommitLog{
+			clOpts: setup.storageOpts.CommitLogOptions(),
+		}
 	)
 	for _, id := range shardSet.AllIDs() {
 		filesetFiles = append(filesetFiles, cleanupTimesFileSet{

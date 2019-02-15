@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+	"github.com/m3db/m3/src/dbnode/persist"
 
 	"github.com/pborman/uuid"
 )
@@ -101,8 +102,11 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 			Index: protoMetadata.SnapshotIndex,
 			UUID:  parsedUUID,
 		},
-		CommitlogIdentifier: protoMetadata.CommitlogID,
-		MetadataFilePath:    snapshotMetadataFilePathFromIdentifier(prefix, id),
-		CheckpointFilePath:  snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
+		CommitlogIdentifier: persist.CommitlogFile{
+			FilePath: protoMetadata.CommitlogID.FilePath,
+			Index:    protoMetadata.CommitlogID.Index,
+		},
+		MetadataFilePath:   snapshotMetadataFilePathFromIdentifier(prefix, id),
+		CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
 	}, nil
 }

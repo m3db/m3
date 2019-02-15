@@ -64,9 +64,7 @@ var (
 	}
 
 	testLogInfo = schema.LogInfo{
-		Start:    time.Now().UnixNano(),
-		Duration: int64(2 * time.Hour),
-		Index:    234,
+		Index: 234,
 	}
 
 	testLogEntry = schema.LogEntry{

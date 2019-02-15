@@ -337,7 +337,6 @@ db:
         queue:
             calculationType: fixed
             size: 2097152
-        blockSize: 10m
 
     fs:
         filePathPrefix: {{.DataDir}}
