@@ -218,6 +218,7 @@ type CommitLogPolicy struct {
 	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel"`
 
 	// Deprecated. Left in struct to keep old YAMLs parseable.
+	// TODO(V1): remove
 	DeprecatedBlockSize *time.Duration `yaml:"blockSize"`
 }
 
