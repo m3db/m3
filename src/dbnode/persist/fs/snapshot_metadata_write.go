@@ -107,7 +107,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr
 	metadataBytes, err := proto.Marshal(&snapshot.Metadata{
 		SnapshotIndex: args.ID.Index,
 		SnapshotUUID:  []byte(args.ID.UUID.String()),
-		CommitlogID: &snapshot.CommitlogID{
+		CommitlogID: &snapshot.CommitLogID{
 			FilePath: args.CommitlogIdentifier.FilePath,
 			Index:    args.CommitlogIdentifier.Index,
 		},
