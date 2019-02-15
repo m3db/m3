@@ -40,7 +40,7 @@ import (
 )
 
 var (
-	testCommitlogFile = persist.CommitlogFile{
+	testCommitlogFile = persist.CommitLogFile{
 		FilePath: "/var/lib/m3db/commitlogs/commitlog-0-0.db",
 		Index:    0,
 	}

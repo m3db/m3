@@ -39,7 +39,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type commitLogFilesFn func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error)
+type commitLogFilesFn func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
 type snapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
 
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
@@ -51,7 +51,7 @@ type deleteInactiveDirectoriesFn func(parentDirPath string, activeDirNames []str
 // Narrow interface so as not to expose all the functionality of the commitlog
 // to the cleanup manager.
 type activeCommitlogs interface {
-	ActiveLogs() (persist.CommitlogFiles, error)
+	ActiveLogs() (persist.CommitLogFiles, error)
 }
 
 type cleanupManager struct {

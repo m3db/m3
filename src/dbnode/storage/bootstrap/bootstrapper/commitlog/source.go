@@ -659,7 +659,7 @@ func (s *commitLogSource) newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 	// Read all the commitlog files that are available on disk.
 	// TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
 	// the number of commitlog files that need to be read.
-	return func(persist.CommitlogFile) bool {
+	return func(persist.CommitLogFile) bool {
 		return true
 	}, mostRecentCompleteSnapshotByBlockShard, nil
 }

@@ -254,7 +254,7 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 			Index: 0,
 			UUID:  nil,
 		},
-		CommitlogIdentifier: persist.CommitlogFile{},
+		CommitlogIdentifier: persist.CommitLogFile{},
 	}).Return(nil)
 
 	var (
@@ -272,7 +272,7 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.DoneSnapshot(nil, persist.CommitlogFile{}))
+		assert.NoError(t, flush.DoneSnapshot(nil, persist.CommitLogFile{}))
 	}()
 
 	now := time.Now()
@@ -309,7 +309,7 @@ func TestPersistenceManagerCloseData(t *testing.T) {
 }
 
 func TestPersistenceManagerCloseIndex(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	pm, _, _, _ := testIndexPersistManager(t, ctrl)
@@ -318,7 +318,7 @@ func TestPersistenceManagerCloseIndex(t *testing.T) {
 }
 
 func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)
@@ -400,7 +400,7 @@ func TestPersistenceManagerPrepareIndexOpenError(t *testing.T) {
 }
 
 func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)

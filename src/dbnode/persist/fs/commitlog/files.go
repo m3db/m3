@@ -32,6 +32,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
+var (
+	timeNone = time.Unix(0, 0)
+)
+
 // NextFile returns the next commitlog file.
 func NextFile(opts Options) (string, int, error) {
 	files, _, err := Files(opts)
@@ -48,8 +52,15 @@ func NextFile(opts Options) (string, int, error) {
 
 	for ; ; newIndex++ {
 		var (
-			prefix   = opts.FilesystemOptions().FilePathPrefix()
-			filePath = fs.CommitlogFilePath(prefix, time.Unix(0, 0), newIndex)
+			prefix = opts.FilesystemOptions().FilePathPrefix()
+			// We pass timeNone for the commitlog file block start because that field
+			// is no longer required and can just be zero.
+			// TODO(rartoul): It should actually be completely backwards compatible to
+			// change the commitlog filename structure (because we don't rely on the name
+			// for any information, we just list all the files in a directory and then
+			// read their encoded heads to obtain information about them), so in the future
+			// we can just get rid of this.
+			filePath = fs.CommitlogFilePath(prefix, timeNone, newIndex)
 		)
 		exists, err := fs.FileExists(filePath)
 		if err != nil {
@@ -104,7 +115,7 @@ func ReadLogInfo(filePath string, opts Options) (int64, error) {
 
 // Files returns a slice of all available commit log files on disk along with
 // their associated metadata.
-func Files(opts Options) (persist.CommitlogFiles, []ErrorWithPath, error) {
+func Files(opts Options) (persist.CommitLogFiles, []ErrorWithPath, error) {
 	commitLogsDir := fs.CommitLogsDirPath(
 		opts.FilesystemOptions().FilePathPrefix())
 	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
@@ -112,10 +123,10 @@ func Files(opts Options) (persist.CommitlogFiles, []ErrorWithPath, error) {
 		return nil, nil, err
 	}
 
-	commitLogFiles := make([]persist.CommitlogFile, 0, len(filePaths))
+	commitLogFiles := make([]persist.CommitLogFile, 0, len(filePaths))
 	errorsWithPath := make([]ErrorWithPath, 0)
 	for _, filePath := range filePaths {
-		file := persist.CommitlogFile{
+		file := persist.CommitLogFile{
 			FilePath: filePath,
 		}
 
@@ -134,7 +145,7 @@ func Files(opts Options) (persist.CommitlogFiles, []ErrorWithPath, error) {
 			file.Index = index
 		}
 
-		commitLogFiles = append(commitLogFiles, persist.CommitlogFile{
+		commitLogFiles = append(commitLogFiles, persist.CommitLogFile{
 			FilePath: filePath,
 			Index:    index,
 		})
