@@ -47,7 +47,7 @@ type iterator struct {
 	scope      tally.Scope
 	metrics    iteratorMetrics
 	log        xlog.Logger
-	files      []persist.CommitlogFile
+	files      []persist.CommitLogFile
 	reader     commitLogReader
 	read       iteratorRead
 	err        error
@@ -66,7 +66,7 @@ type iteratorRead struct {
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
 // that want a convenient way to read all the commitlogs
 func ReadAllPredicate() FileFilterPredicate {
-	return func(_ persist.CommitlogFile) bool { return true }
+	return func(_ persist.CommitLogFile) bool { return true }
 }
 
 // NewIterator creates a new commit log iterator
@@ -182,8 +182,8 @@ func (i *iterator) nextReader() bool {
 	return true
 }
 
-func filterFiles(opts Options, files []persist.CommitlogFile, predicate FileFilterPredicate) []persist.CommitlogFile {
-	filtered := make([]persist.CommitlogFile, 0, len(files))
+func filterFiles(opts Options, files []persist.CommitLogFile, predicate FileFilterPredicate) []persist.CommitLogFile {
+	filtered := make([]persist.CommitLogFile, 0, len(files))
 	for _, f := range files {
 		if predicate(f) {
 			filtered = append(filtered, f)

@@ -45,12 +45,12 @@ type PreparedDataPersist struct {
 	Close   DataCloser
 }
 
-// CommitlogFiles represents a slice of commitlog files.
-type CommitlogFiles []CommitlogFile
+// CommitLogFiles represents a slice of commitlog files.
+type CommitLogFiles []CommitLogFile
 
 // Contains returns a boolean indicating whether the CommitlogFiles slice
 // contains the provided CommitlogFile based on its path.
-func (c CommitlogFiles) Contains(path string) bool {
+func (c CommitLogFiles) Contains(path string) bool {
 	for _, f := range c {
 		if f.FilePath == path {
 			return true
@@ -59,8 +59,8 @@ func (c CommitlogFiles) Contains(path string) bool {
 	return false
 }
 
-// CommitlogFile represents a commit log file and its associated metadata.
-type CommitlogFile struct {
+// CommitLogFile represents a commit log file and its associated metadata.
+type CommitLogFile struct {
 	FilePath string
 	Index    int64
 }
@@ -115,7 +115,7 @@ type SnapshotPreparer interface {
 	Preparer
 
 	// DoneSnapshot marks the snapshot as complete.
-	DoneSnapshot(snapshotUUID uuid.UUID, commitLogIdentifier CommitlogFile) error
+	DoneSnapshot(snapshotUUID uuid.UUID, commitLogIdentifier CommitLogFile) error
 }
 
 // IndexFlush is a persist flush cycle, each namespace, block combination needs

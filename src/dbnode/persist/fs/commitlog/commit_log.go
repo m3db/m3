@@ -127,7 +127,7 @@ func (f *flushState) getLastFlushAt() time.Time {
 
 type writerState struct {
 	writer     commitLogWriter
-	activeFile *persist.CommitlogFile
+	activeFile *persist.CommitLogFile
 }
 
 type closedState struct {
@@ -167,11 +167,11 @@ type callbackResult struct {
 }
 
 type activeLogsCallbackResult struct {
-	file *persist.CommitlogFile
+	file *persist.CommitLogFile
 }
 
 type rotateLogsResult struct {
-	file persist.CommitlogFile
+	file persist.CommitLogFile
 }
 
 func (r callbackResult) activeLogsCallbackResult() (activeLogsCallbackResult, error) {
@@ -282,7 +282,7 @@ func (l *commitLog) Open() error {
 	return nil
 }
 
-func (l *commitLog) ActiveLogs() (persist.CommitlogFiles, error) {
+func (l *commitLog) ActiveLogs() (persist.CommitLogFiles, error) {
 	l.closedState.RLock()
 	defer l.closedState.RUnlock()
 
@@ -292,7 +292,7 @@ func (l *commitLog) ActiveLogs() (persist.CommitlogFiles, error) {
 
 	var (
 		err   error
-		files []persist.CommitlogFile
+		files []persist.CommitLogFile
 		wg    sync.WaitGroup
 	)
 	wg.Add(1)
@@ -323,17 +323,17 @@ func (l *commitLog) ActiveLogs() (persist.CommitlogFiles, error) {
 	return files, nil
 }
 
-func (l *commitLog) RotateLogs() (persist.CommitlogFile, error) {
+func (l *commitLog) RotateLogs() (persist.CommitLogFile, error) {
 	l.closedState.RLock()
 	defer l.closedState.RUnlock()
 
 	if l.closedState.closed {
-		return persist.CommitlogFile{}, errCommitLogClosed
+		return persist.CommitLogFile{}, errCommitLogClosed
 	}
 
 	var (
 		err  error
-		file persist.CommitlogFile
+		file persist.CommitLogFile
 		wg   sync.WaitGroup
 	)
 	wg.Add(1)
@@ -351,7 +351,7 @@ func (l *commitLog) RotateLogs() (persist.CommitlogFile, error) {
 	wg.Wait()
 
 	if err != nil {
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	return file, nil
@@ -544,7 +544,7 @@ func (l *commitLog) onFlush(err error) {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriter() (persist.CommitlogFile, error) {
+func (l *commitLog) openWriter() (persist.CommitLogFile, error) {
 	if l.writerState.writer != nil {
 		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -561,7 +561,7 @@ func (l *commitLog) openWriter() (persist.CommitlogFile, error) {
 
 	file, err := l.writerState.writer.Open()
 	if err != nil {
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	l.writerState.activeFile = &file

@@ -37,7 +37,7 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		commitlogIdentifier = persist.CommitlogFile{
+		commitlogIdentifier = persist.CommitLogFile{
 			FilePath: "some_path",
 			Index:    1,
 		}

@@ -67,7 +67,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open() (persist.CommitlogFile, error)
+	Open() (persist.CommitLogFile, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -139,9 +139,9 @@ func newCommitLogWriter(
 	}
 }
 
-func (w *writer) Open() (persist.CommitlogFile, error) {
+func (w *writer) Open() (persist.CommitLogFile, error) {
 	if w.isOpen() {
-		return persist.CommitlogFile{}, errCommitLogWriterAlreadyOpen
+		return persist.CommitLogFile{}, errCommitLogWriterAlreadyOpen
 	}
 
 	// Reset buffers since they will grow 2x on demand so we want to make sure that
@@ -155,33 +155,33 @@ func (w *writer) Open() (persist.CommitlogFile, error) {
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	filePath, index, err := NextFile(w.opts)
 	if err != nil {
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 	logInfo := schema.LogInfo{
 		Index: int64(index),
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
-		return persist.CommitlogFile{}, err
+		return persist.CommitLogFile{}, err
 	}
 
-	return persist.CommitlogFile{
+	return persist.CommitLogFile{
 		FilePath: filePath,
 		Index:    int64(index),
 	}, nil

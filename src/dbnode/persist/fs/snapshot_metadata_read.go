@@ -102,7 +102,7 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 			Index: protoMetadata.SnapshotIndex,
 			UUID:  parsedUUID,
 		},
-		CommitlogIdentifier: persist.CommitlogFile{
+		CommitlogIdentifier: persist.CommitLogFile{
 			FilePath: protoMetadata.CommitlogID.FilePath,
 			Index:    protoMetadata.CommitlogID.Index,
 		},

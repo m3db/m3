@@ -55,7 +55,7 @@ type SnapshotMetadataWriter struct {
 // SnapshotMetadataWriteArgs are the arguments for SnapshotMetadataWriter.Write.
 type SnapshotMetadataWriteArgs struct {
 	ID                  SnapshotMetadataIdentifier
-	CommitlogIdentifier persist.CommitlogFile
+	CommitlogIdentifier persist.CommitLogFile
 }
 
 func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr error) {

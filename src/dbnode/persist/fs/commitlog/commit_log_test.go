@@ -155,7 +155,7 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func() (persist.CommitlogFile, error)
+	openFn  func() (persist.CommitLogFile, error)
 	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func(sync bool) error
 	closeFn func() error
@@ -163,8 +163,8 @@ type mockCommitLogWriter struct {
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func() (persist.CommitlogFile, error) {
-			return persist.CommitlogFile{}, nil
+		openFn: func() (persist.CommitLogFile, error) {
+			return persist.CommitLogFile{}, nil
 		},
 		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
@@ -178,7 +178,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open() (persist.CommitlogFile, error) {
+func (w *mockCommitLogWriter) Open() (persist.CommitLogFile, error) {
 	return w.openFn()
 }
 
@@ -525,7 +525,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	require.Equal(t, 4, len(files))
 
 	// This predicate should eliminate the first commitlog file
-	commitLogPredicate := func(f persist.CommitlogFile) bool {
+	commitLogPredicate := func(f persist.CommitLogFile) bool {
 		return f.Index > 0
 	}
 
@@ -643,8 +643,8 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return fmt.Errorf("an error")
 	}
 
-	writer.openFn = func() (persist.CommitlogFile, error) {
-		return persist.CommitlogFile{}, nil
+	writer.openFn = func() (persist.CommitLogFile, error) {
+		return persist.CommitLogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
@@ -689,11 +689,11 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func() (persist.CommitlogFile, error) {
+	writer.openFn = func() (persist.CommitLogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return persist.CommitlogFile{}, fmt.Errorf("an error")
+			return persist.CommitLogFile{}, fmt.Errorf("an error")
 		}
-		return persist.CommitlogFile{}, nil
+		return persist.CommitLogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
