@@ -741,17 +741,18 @@ func (b *BufferBucket) resetTo(
 ) {
 	// Close the old context if we're resetting for use.
 	b.reset()
-	b.wType = wType
 	b.opts = opts
+	b.start = start
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
-
-	b.start = start
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder: encoder,
 	})
 	b.bootstrapped = nil
+	// We would only ever create a bucket for it to be writable.
+	b.version = writableBucketVer
+	b.wType = wType
 }
 
 func (b *BufferBucket) reset() {
