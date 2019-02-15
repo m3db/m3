@@ -37,6 +37,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	// improve and simplify the commitlog bootstrapping logic. This is fine
 	// because this integration test protects against performance regressions
 	// not correctness.
+	// https://github.com/m3db/m3/issues/1383
 	t.SkipNow()
 
 	// Test setup
