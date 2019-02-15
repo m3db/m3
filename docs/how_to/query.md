@@ -60,17 +60,28 @@ tagOptions:
   idScheme: <name>
 ```
 
-As an example of how these schemes generate tags, consider a series with 4 tags, `[{t1:v1}, {t2:"v2"}, {t3:v3}, {t4:v4}]`. The following is an example of how different schemes will generate IDs.
+As an example of how these schemes generate tags, consider a series with the following 4 tags,
+`[{"t1":v1}, {t2:"v2"}, {t3:v3}, {t4:v4}]`. The following is an example of how different schemes will generate IDs.
 
 ```
-nil: t1=v1,t2="v2",t3=v3,t4=v4,
-prepend_meta: 2,2,2,4,2,2,2,2!t1v1t2"v2"t3v3t4v4
-quoted: {t1="v1",t2="\"v2\"",t3="v3",t4="v4"}
+legacy: "t1"=v1,t2="v2",t3=v3,t4=v4,
+prepend_meta: 4,2,2,4,2,2,2,2!"t1"v1t2"v2"t3v3t4v4
+quoted: {\"t1\"="v1",t2="\"v2\"",t3="v3",t4="v4"}
 ```
 
-If there is a chance that your metric tags will contain "control" characters for the nil case, specifically `=` and `,`, It is highly recommended that a scheme is specified, as the default scheme will be prone to ID collisions.
+If there is a chance that your metric tags will contain "control" characters, specifically `,` and `=`, it is highly recommended that one of either the `quoted` or `prepend_meta` schemes are specified, as the `legacy` scheme will be prone to ID collisions. As a general guideline, we suggest `quoted`, as it mirrors the more familiar Prometheus style IDs.
 
-NB: Once a scheme is selected and used, be very careful about switching it, as any incoming metrics will get an ID matching the new scheme instead, effectively doubling the metric count until any of the older metric IDs rotate out of their retention period.
+We technically have a fourth ID generation scheme that is used for Graphite IDs, but it is exclusive to the Graphite ingestion path and is not selectable as a general scheme.
+
+**WARNING:** Once a scheme is selected and used, be very careful about switching it, as any incoming metrics will get an ID matching the new scheme instead, effectively doubling the metric count until any of the older metric IDs rotate out of their retention period.
+
+### Migration
+
+We have recently updated our ID generation scheme in coordinator, as we wanted to avoid the collision issues as mentioned above. Unfortunately, that can cause issues along the upgrade path, and to account for this, we're enforcing an explicitly required ID scheme generation option to be added to coordinator configuration files.
+
+If you have been running m3query or m3coordinator already, you may want to counterintuitively select the collision-prone `quoted` scheme, as all the IDs for all of your current metrics would have already been generated with this scheme, and choosing another will effectively double your index size. If the twofold increase in cardinality is an acceptable increase (and unfortunately, this is likely to mean doubled cardinality until your longest retention cluster rotates out), it's suggested to choose a collision-resistant scheme instead.
+
+If none of these options work for you, or you would like further clarification, please stop by our [gitter channel](https://gitter.im/m3db/Lobby) and we should be able to help you.
 
 ## Grafana
 
