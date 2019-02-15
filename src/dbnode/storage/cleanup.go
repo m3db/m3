@@ -463,5 +463,5 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 
-	return nil
+	return finalErr
 }

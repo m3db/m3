@@ -88,6 +88,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 		commitlogs           commitLogFilesFn
 		snapshots            snapshotFilesFn
 		expectedDeletedFiles []string
+		expectErr            bool
 	}{
 		{
 			title: "Does nothing if no snapshot metadata files",
@@ -251,6 +252,24 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			// Should only delete anything with an index lower than 1.
 			expectedDeletedFiles: []string{"corrupt-commitlog-file-0", "corrupt-commitlog-file-1"},
 		},
+		{
+			title: "Handles errors listing snapshot files",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0}, nil, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, errors.New("some-error")
+			},
+			commitlogs: func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error) {
+				return nil, []commitlog.ErrorWithPath{
+					commitlog.NewErrorWithPath(errors.New("some-error-0"), "corrupt-commitlog-file-0"),
+					commitlog.NewErrorWithPath(errors.New("some-error-1"), "corrupt-commitlog-file-1"),
+				}, nil
+			},
+			// We still expect it to delete the commitlog files even though its going to return an error.
+			expectedDeletedFiles: []string{"corrupt-commitlog-file-0", "corrupt-commitlog-file-1"},
+			expectErr:            true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -296,7 +315,13 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				return nil
 			}
 
-			require.NoError(t, mgr.Cleanup(ts))
+			err := mgr.Cleanup(ts)
+			if tc.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
 			require.Equal(t, tc.expectedDeletedFiles, deletedFiles)
 		})
 	}
