@@ -502,29 +502,6 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	require.Error(t, mgr.Cleanup(ts))
 }
 
-type testCaseCleanupMgrNsBlocks struct {
-	// input
-	id             string
-	nsRetention    testRetentionOptions
-	blockStartSecs int64
-	// output
-	expectedStartSecs int64
-	expectedEndSecs   int64
-}
-
-type testRetentionOptions struct {
-	blockSizeSecs    int64
-	bufferPastSecs   int64
-	bufferFutureSecs int64
-}
-
-func (t *testRetentionOptions) newRetentionOptions() retention.Options {
-	return retentionOptions.
-		SetBufferPast(time.Duration(t.bufferPastSecs) * time.Second).
-		SetBufferFuture(time.Duration(t.bufferFutureSecs) * time.Second).
-		SetBlockSize(time.Duration(t.blockSizeSecs) * time.Second)
-}
-
 func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }

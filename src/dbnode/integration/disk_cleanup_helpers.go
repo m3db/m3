@@ -126,21 +126,6 @@ func (fset *cleanupTimesFileSet) anyExist() bool {
 	return false
 }
 
-func (fset *cleanupTimesFileSet) allExist() bool {
-	for _, t := range fset.times {
-		exists, err := fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
-		if err != nil {
-			panic(err)
-		}
-
-		if !exists {
-			return false
-		}
-	}
-
-	return true
-}
-
 func waitUntilDataCleanedUpExtended(
 	filesetFiles []cleanupTimesFileSet,
 	commitlog cleanupTimesCommitLog,
@@ -246,16 +231,4 @@ func waitUntilDataCleanedUp(clOpts commitlog.Options, namespace ident.ID, shard 
 			indices: []int64{},
 		},
 		timeout)
-}
-
-func getTimes(start time.Time, end time.Time, intervalSize time.Duration) []time.Time {
-	totalPeriod := end.Sub(start)
-	numPeriods := int(totalPeriod / intervalSize)
-
-	times := make([]time.Time, 0, numPeriods)
-	for i := 0; i < numPeriods; i++ {
-		times = append(times, start.Add(time.Duration(i)*intervalSize))
-	}
-
-	return times
 }

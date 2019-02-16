@@ -33,9 +33,7 @@ import (
 )
 
 var (
-	errStartDoesNotMatch    = errors.New("commit log file start does not match filename")
-	errDurationDoesNotMatch = errors.New("commit log file duration does not match filename")
-	errIndexDoesNotMatch    = errors.New("commit log file index does not match filename")
+	errIndexDoesNotMatch = errors.New("commit log file index does not match filename")
 )
 
 type iteratorMetrics struct {

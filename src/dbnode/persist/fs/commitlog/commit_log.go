@@ -43,8 +43,6 @@ var (
 	ErrCommitLogQueueFull = errors.New("commit log queue is full")
 
 	errCommitLogClosed = errors.New("commit log is closed")
-
-	timeZero = time.Time{}
 )
 
 type newCommitLogWriterFn func(
