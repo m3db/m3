@@ -656,11 +656,14 @@ func (s *commitLogSource) newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 		}
 	}
 
-	// Read all the commitlog files that are available on disk.
-	// TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
-	// the number of commitlog files that need to be read.
-	return func(persist.CommitLogFile) bool {
-		return true
+	return func(f persist.CommitLogFile) bool {
+		// Read all the commitlog files that were available on disk before the node started
+		// accepting writes.
+		// TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
+		// the number of commitlog files that need to be read.
+		commitlogFilesPresentBeforeStart := s.inspection.CommitLogFilesSet()
+		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
+		return ok
 	}, mostRecentCompleteSnapshotByBlockShard, nil
 }
 
