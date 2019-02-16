@@ -22,6 +22,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -48,6 +50,9 @@ const (
 	M3DBStorageType BackendStorageType = "m3db"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
+	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
+		"generation scheme is required in coordinator configuration settings. " +
+		"More information is available here: %s"
 )
 
 var (
@@ -340,7 +345,9 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	if cfg.Scheme == models.TypeDefault {
-		cfg.Scheme = models.TypeLegacy
+		// If no config has been set, error.
+		docLink := xdocs.Path("how_to/query#migration")
+		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)

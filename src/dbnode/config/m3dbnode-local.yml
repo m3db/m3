@@ -19,6 +19,10 @@ coordinator:
     samplingRate: 1.0
     extended: none
 
+  tagOptions:
+    # Configuration setting for generating metric IDs from tags.
+    idScheme: quoted
+
 db:
   logging:
     level: info

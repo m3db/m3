@@ -34,3 +34,6 @@ clusters:
               endpoint: http://127.0.0.1:2380
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
+
+tagOptions:
+  idScheme: quoted

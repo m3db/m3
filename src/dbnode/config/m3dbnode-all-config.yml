@@ -30,6 +30,10 @@ coordinator:
   limits:
     maxComputedDatapoints: 10000
 
+  tagOptions:
+    # Configuration setting for generating metric IDs from tags.
+    idScheme: quoted
+
 db:
   # Minimum log level which will be emitted.
   logging:

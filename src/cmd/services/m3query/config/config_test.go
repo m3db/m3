@@ -21,9 +21,11 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/query/models"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 
 	"github.com/stretchr/testify/assert"
@@ -32,18 +34,34 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestTagOptionsFromEmptyConfig(t *testing.T) {
+func TestTagOptionsFromEmptyConfigErrors(t *testing.T) {
 	cfg := TagOptionsConfiguration{}
 	opts, err := TagOptionsFromConfig(cfg)
-	require.NoError(t, err)
-	require.NotNil(t, opts)
-	assert.Equal(t, []byte("__name__"), opts.MetricName())
+	require.Error(t, err)
+	require.Nil(t, opts)
+}
+
+func TestTagOptionsFromConfigWithIDGenerationScheme(t *testing.T) {
+	schemes := []models.IDSchemeType{models.TypeLegacy,
+		models.TypePrependMeta, models.TypeQuoted}
+	for _, scheme := range schemes {
+		cfg := TagOptionsConfiguration{
+			Scheme: scheme,
+		}
+
+		opts, err := TagOptionsFromConfig(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, opts)
+		assert.Equal(t, []byte("__name__"), opts.MetricName())
+		assert.Equal(t, scheme, opts.IDSchemeType())
+	}
 }
 
 func TestTagOptionsFromConfig(t *testing.T) {
 	name := "foobar"
 	cfg := TagOptionsConfiguration{
 		MetricName: name,
+		Scheme:     models.TypeLegacy,
 	}
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
@@ -97,14 +115,41 @@ func TestConfigValidation(t *testing.T) {
 	}
 }
 
-func TestDefaultTagOptionsConfig(t *testing.T) {
+func TestDefaultTagOptionsConfigErrors(t *testing.T) {
 	var cfg TagOptionsConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("__name__"), opts.MetricName())
-	assert.Equal(t, []byte("le"), opts.BucketName())
-	assert.Equal(t, models.TypeLegacy, opts.IDSchemeType())
+
+	docLink := xdocs.Path("how_to/query#migration")
+	expectedError := fmt.Sprintf(errNoIDGenerationScheme, docLink)
+	require.EqualError(t, err, expectedError)
+	require.Nil(t, opts)
+}
+
+func TestGraphiteIDGenerationSchemeIsInvalid(t *testing.T) {
+	var cfg TagOptionsConfiguration
+	require.Error(t, yaml.Unmarshal([]byte("idScheme: graphite"), &cfg))
+}
+
+func TestTagOptionsConfigWithTagGenerationScheme(t *testing.T) {
+	var tests = []struct {
+		schemeStr string
+		scheme    models.IDSchemeType
+	}{
+		{"legacy", models.TypeLegacy},
+		{"prepend_meta", models.TypePrependMeta},
+		{"quoted", models.TypeQuoted},
+	}
+
+	for _, tt := range tests {
+		var cfg TagOptionsConfiguration
+		schemeConfig := fmt.Sprintf("idScheme: %s", tt.schemeStr)
+		require.NoError(t, yaml.Unmarshal([]byte(schemeConfig), &cfg))
+		opts, err := TagOptionsFromConfig(cfg)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("__name__"), opts.MetricName())
+		assert.Equal(t, tt.scheme, opts.IDSchemeType())
+	}
 }
 
 func TestTagOptionsConfig(t *testing.T) {

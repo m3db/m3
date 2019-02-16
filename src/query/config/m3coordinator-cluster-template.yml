@@ -12,6 +12,9 @@ metrics:
   samplingRate: 1.0
   extended: none
 
+tagOptions:
+  idScheme: quoted
+
 clusters:
 ## Fill-out the following and un-comment before using, and
 ## make sure indent by two spaces is applied.
