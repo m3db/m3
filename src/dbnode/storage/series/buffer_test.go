@@ -234,6 +234,64 @@ func TestBufferDrain(t *testing.T) {
 	assertValuesEqual(t, data[4:], results, opts)
 }
 
+func TestBufferDrainSamePoint(t *testing.T) {
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
+	}
+
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
+
+	data := []value{
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Second, nil},
+		// add one point over buffer to force flush.
+		{curr.Add(rops.BlockSize()).Add(rops.BufferPast() * 2), 1, xtime.Second, nil},
+	}
+
+	for i, v := range data {
+		curr = v.timestamp
+		ctx := context.NewContext()
+		shouldWrite, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		require.NoError(t, err)
+		if i == 0 || i == len(data)-1 {
+			assert.True(t, shouldWrite)
+		} else {
+			assert.False(t, shouldWrite)
+		}
+	}
+
+	assert.Equal(t, true, buffer.NeedsDrain())
+	assert.Equal(t, 0, len(drained))
+
+	buffer.DrainAndReset()
+
+	assert.Equal(t, false, buffer.NeedsDrain())
+	require.Equal(t, 1, len(drained))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	require.NotNil(t, results)
+
+	assertValuesEqual(t, data[:1], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, drained[0]),
+		},
+	}}, opts)
+	assertValuesEqual(t, data[4:], results, opts)
+}
+
 func TestBufferMinMax(t *testing.T) {
 	// Setup
 	drainFn := func(b block.DatabaseBlock) {}

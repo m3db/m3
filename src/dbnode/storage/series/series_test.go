@@ -84,6 +84,15 @@ func TestSeriesEmpty(t *testing.T) {
 	assert.True(t, series.IsEmpty())
 }
 
+// Writes to series, verifying no error and that further writes should happen.
+func verifyWriteToSeries(t *testing.T, series *dbSeries, v value) {
+	ctx := context.NewContext()
+	shouldWrite, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	require.NoError(t, err)
+	require.True(t, shouldWrite)
+	ctx.Close()
+}
+
 func TestSeriesWriteFlush(t *testing.T) {
 	opts := newSeriesTestOptions()
 	curr := time.Now().Truncate(opts.RetentionOptions().BlockSize())
@@ -104,9 +113,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, series.Write(ctx, v.timestamp, v.value, xtime.Second, v.annotation))
-		ctx.Close()
+		verifyWriteToSeries(t, series, v)
 	}
 
 	assert.Equal(t, true, series.buffer.NeedsDrain())
@@ -133,6 +140,63 @@ func TestSeriesWriteFlush(t *testing.T) {
 	}}, opts)
 }
 
+func TestSeriesSamePointDoesNotWrite(t *testing.T) {
+	opts := newSeriesTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	start := curr
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	_, err := series.Bootstrap(nil)
+	assert.NoError(t, err)
+
+	data := []value{
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Second, nil},
+		{curr.Add(rops.BlockSize()).Add(rops.BufferPast() * 2), 1, xtime.Second, nil},
+	}
+
+	for i, v := range data {
+		curr = v.timestamp
+		ctx := context.NewContext()
+		shouldWrite, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		require.NoError(t, err)
+		if i == 0 || i == len(data)-1 {
+			require.True(t, shouldWrite)
+		} else {
+			require.False(t, shouldWrite)
+		}
+		ctx.Close()
+	}
+
+	assert.Equal(t, true, series.buffer.NeedsDrain())
+
+	// Tick the series which should cause a drain
+	_, err = series.Tick()
+	assert.NoError(t, err)
+
+	assert.Equal(t, false, series.buffer.NeedsDrain())
+
+	blocks := series.blocks.AllBlocks()
+	require.Len(t, blocks, 1)
+
+	block, ok := series.blocks.BlockAt(start)
+	assert.Equal(t, true, ok)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	stream, err := block.Stream(ctx)
+	require.NoError(t, err)
+	assertValuesEqual(t, data[:1], [][]xio.BlockReader{[]xio.BlockReader{
+		stream,
+	}}, opts)
+}
+
 func TestSeriesWriteFlushRead(t *testing.T) {
 	opts := newSeriesTestOptions()
 	curr := time.Now().Truncate(opts.RetentionOptions().BlockSize())
@@ -154,9 +218,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		ctx := context.NewContext()
-		assert.NoError(t, series.Write(ctx, v.timestamp, v.value, xtime.Second, v.annotation))
-		ctx.Close()
+		verifyWriteToSeries(t, series, v)
 	}
 
 	ctx := context.NewContext()
@@ -697,7 +759,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			require.NoError(t, series.Write(ctx, start, value, xtime.Second, nil))
+			shouldWrite, err := series.Write(ctx, start, value, xtime.Second, nil)
+			require.NoError(t, err)
+			assert.True(t, shouldWrite)
 			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
@@ -707,7 +771,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			require.NoError(t, series.Write(ctx, start, value, xtime.Second, nil))
+			shouldWrite, err := series.Write(ctx, start, value, xtime.Second, nil)
+			require.NoError(t, err)
+			assert.True(t, shouldWrite)
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
 		}
@@ -765,9 +831,15 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	assert.NoError(t, series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil))
-	assert.NoError(t, series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil))
-	assert.NoError(t, series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil))
+	shouldWrite, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil)
+	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
+	shouldWrite, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil)
+	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
+	shouldWrite, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil)
+	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
 	require.NoError(t, err)
