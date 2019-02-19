@@ -53,7 +53,7 @@ If you run Statsite, m3agg, or some other aggregation tier, you will want to set
 
 ## ID generation
 
-The default generation scheme for IDs (`legacy`) is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either `quoted` or `prepend_meta`. `quoted` generation scheme yields the most human-readable IDs, whereas `prepend_meta` is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:
+The default generation scheme for IDs, `legacy`, is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either `quoted` or `prepend_meta`. `quoted` generation scheme yields the most human-readable IDs, whereas `prepend_meta` is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:
 
 ```yaml
 tagOptions:
@@ -69,7 +69,7 @@ prepend_meta: 4,2,2,4,2,2,2,2!"t1"v1t2"v2"t3v3t4v4
 quoted: {\"t1\"="v1",t2="\"v2\"",t3="v3",t4="v4"}
 ```
 
-If there is a chance that your metric tags will contain "control" characters (WHAT ARE THE CONTROL CHARACTERS?), specifically `,` and `=`, it is highly recommended that one of either the `quoted` or `prepend_meta` schemes are specified, as the `legacy` scheme may cause ID collisions. As a general guideline, we suggest `quoted`, as it mirrors the more familiar Prometheus style IDs.
+If there is a chance that your metric tags will contain "control" characters, specifically `,` and `=`, it is highly recommended that one of either the `quoted` or `prepend_meta` schemes are specified, as the `legacy` scheme may cause ID collisions. As a general guideline, we suggest `quoted`, as it mirrors the more familiar Prometheus style IDs.
 
 We technically have a fourth ID generation scheme that is used for Graphite IDs, but it is exclusive to the Graphite ingestion path and is not selectable as a general scheme.
 
