@@ -3,11 +3,14 @@ Changelog
 
 # 0.6.0 (2019-02-19)
 
+## Breaking changes
+
+- **M3Coordinator**: ID generation scheme must now explicitly be added to configs (#1381) [Further information on migrating to 0.6.0](http://m3db.github.io/m3/how_to/query/#migration)
+
 ## New Features
 
 - **M3DB** (Config): Simplify M3 config options (#1371)
-- **M3Coordinator**: Improvements to database creation API (#1350)
-- **M3Coordinator**: Enforce ID generation scheme explicitly added to configs (#1381)
+- **M3Coordinator**: Improve database creation API (#1350)
 - **M3Query**: Add quantile_over_time (#1367) and histogram_quantile (#1372) Prometheus functions
 - **Documentation**: Additional documentation for namespace setup and configuration (#1350), etcd (#1354), and M3Coordinator ID generations schemes (#1381, #1385)
 
@@ -17,8 +20,9 @@ Changelog
 
 ## Bug fixes
 
-- **M3DB** (Index): Fix to race condition in index query (#1356)
-- **M3Coordinator**: Fix to panic responder which was previously not reporting query panics to users (#1353)
+- **M3DB** (Index): Fix race condition in index query (#1356)
+- **M3Coordinator**: Fix panic responder which was previously not reporting query panics to users (#1353)
+- **M3Query**: Fix bug in calculating temporal (over_time) functions (#1271)
 
 # 0.5.0 (2019-02-03)
 
