@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Q3-Q4 2019: M3QL support
-* Complete support for the M3 Query Language (M3QL)
+* Complete support for the [M3 Query Language (M3QL)](architecture/functions.md)
 
 ## Q1-Q2 2019: Graphite and Prometheus feature parity
 * Full support for Prometheus functions
