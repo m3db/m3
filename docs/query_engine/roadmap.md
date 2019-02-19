@@ -28,13 +28,13 @@
 
 ## Q1 2018: Launch M3 Coordinator as a bridge for the read/write path of M3DB into open source
 
+### Late Q1 2018: V2
+* Support cross datacenter calls with remote aggregations.
+* Benchmark the performance of the coordinator and M3DB using popular datasets.
+* Support for multiple M3DB clusters.
+
 ### Early Q1 2018: V1
 * Create a gRPC/Protobuf service.
 * Handlers for Prometheus remote read/write endpoints.
 * Perform fanout to M3DB nodes.
 * Tooling to set up M3 Coordinator alongside Prometheus.
-
-### Late Q1 2018: V2
-* Support cross datacenter calls with remote aggregations.
-* Benchmark the performance of the coordinator and M3DB using popular datasets.
-* Support for multiple M3DB clusters.
