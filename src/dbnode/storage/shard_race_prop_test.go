@@ -157,8 +157,9 @@ func TestShardTickWriteRace(t *testing.T) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			_, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil)
+			_, shouldWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil)
 			assert.NoError(t, err)
+			assert.True(t, shouldWrite)
 			ctx.BlockingClose()
 		}()
 	}

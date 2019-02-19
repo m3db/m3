@@ -804,7 +804,7 @@ func (s *dbShard) writeAndIndex(
 		// Retrieve the inserted entry
 		entry, err = s.writableSeries(id, tags)
 		if err != nil {
-			return ts.Series{}, err
+			return ts.Series{}, false, err
 		}
 		writable = true
 
@@ -816,7 +816,7 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID          ident.ID
 		commitLogSeriesTags        ident.Tags
 		commitLogSeriesUniqueIndex uint64
-		shouldWrite                true
+		shouldWrite                = true
 	)
 	if writable {
 		// Perform write
