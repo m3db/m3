@@ -22,6 +22,7 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -90,9 +91,40 @@ func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery)
 	}
 }
 
+var (
+	// byte representation for [1,2,3,4]
+	lookup                            = [4]byte{49, 50, 51, 52}
+	basicCache map[string]index.Query = make(map[string]index.Query, 1024)
+	mu         sync.Mutex
+)
+
+func queryKey(m models.Matchers) []byte {
+	l := len(m)
+	for _, t := range m {
+		l += len(t.Name) + len(t.Value)
+	}
+
+	key := make([]byte, l)
+	idx := 0
+	for _, t := range m {
+		idx += copy(key[idx:], t.Name)
+		key[idx] = lookup[t.Type]
+		idx += copy(key[idx+1:], t.Value)
+	}
+
+	return key
+}
+
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query
 func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 	matchers := fetchQuery.TagMatchers
+	mu.Lock()
+	defer mu.Unlock()
+	key := queryKey(matchers)
+	if q, contains := basicCache[string(key)]; contains {
+		return q, nil
+	}
+
 	// Optimization for single matcher case.
 	if len(matchers) == 1 {
 		q, err := matcherToQuery(matchers[0])
@@ -100,7 +132,9 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 			return index.Query{}, err
 		}
 
-		return index.Query{Query: q}, nil
+		qq := index.Query{Query: q}
+		basicCache[string(key)] = qq
+		return qq, nil
 	}
 
 	idxQueries := make([]idx.Query, len(matchers))
@@ -113,7 +147,9 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
-	return index.Query{Query: q}, nil
+	qq := index.Query{Query: q}
+	basicCache[string(key)] = qq
+	return qq, nil
 }
 
 func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
