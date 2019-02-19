@@ -8,12 +8,12 @@ Changelog
 - **M3DB** (Config): Simplify M3 config options (#1371)
 - **M3Coordinator**: Improvements to database creation API (#1350)
 - **M3Coordinator**: Enforce ID generation scheme explicitly added to configs (#1381)
-- **M3Query**: Add quantile_over_time (#1367) and histogram_quantile (#1372) functions
+- **M3Query**: Add quantile_over_time (#1367) and histogram_quantile (#1372) Prometheus functions
 - **Documentation**: Additional documentation for namespace setup and configuration (#1350), etcd (#1354), and M3Coordinator ID generations schemes (#1381, #1385)
 
 ## Performance
 
-- **M3DB** (Index): Add posting list cache (#1370)
+- **M3DB** (Index): Add posting list cache (#1370) that should result in a massive improvement for M3DB query performance for most workloads
 
 ## Bug fixes
 
