@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,6 +65,18 @@ var (
 			value:      1,
 			unit:       xtime.Nanosecond,
 			annotation: []byte("annotation2s"),
+		},
+		{
+			id: ident.StringID("series3"),
+			tagIter: ident.NewTagsIterator(ident.NewTags(
+				ident.Tag{
+					Name:  ident.StringID("name3"),
+					Value: ident.StringID("value3"),
+				})),
+			timestamp:  time.Now(),
+			value:      2,
+			unit:       xtime.Nanosecond,
+			annotation: []byte("annotation3s"),
 		},
 	}
 )
@@ -129,12 +142,18 @@ func TestBatchWriterSetSeries(t *testing.T) {
 	// Set the outcome
 	iter := writeBatch.Iter()
 	for i, curr := range iter {
+		if i == 0 {
+			// skip the first write.
+			writeBatch.SetSkipWrite(i)
+			continue
+		}
+
 		var (
 			currWrite  = curr.Write
 			currSeries = currWrite.Series
 			newSeries  = currSeries
 		)
-		newSeries.ID = ident.StringID(string(i))
+		newSeries.ID = ident.StringID(fmt.Sprint(i))
 
 		var err error
 		if i == len(iter)-1 {
@@ -143,15 +162,23 @@ func TestBatchWriterSetSeries(t *testing.T) {
 		writeBatch.SetOutcome(i, newSeries, err)
 	}
 
+	require.Equal(t, 3, len(writeBatch.Iter()))
+	writeBatch.Sanitize()
 	// Assert the series have been updated
 	iter = writeBatch.Iter()
-	for i, curr := range iter {
+	require.Equal(t, 2, len(iter))
+
+	for j, curr := range iter {
 		var (
 			currWrite  = curr.Write
 			currSeries = currWrite.Series
+			// the index for the expected value is one larger than the index for the
+			// written series, since the first series in the batch should be skipped.
+			i = j + 1
 		)
-		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
-		if i == len(iter)-1 {
+		require.Equal(t, fmt.Sprint(i), string(currSeries.ID.String()))
+		require.True(t, ident.StringID(fmt.Sprint(i)).Equal(currSeries.ID))
+		if i == len(iter) {
 			require.Equal(t, errors.New("some-error"), curr.Err)
 		} else {
 			require.NoError(t, curr.Err)
@@ -208,4 +235,59 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 
 		require.True(t, found, fmt.Sprintf("expected to find series: %s", write.id))
 	}
+}
+
+func TestBatchWriterSetAllSkipWrite(t *testing.T) {
+	writeBatch := NewWriteBatch(batchSize, namespace, nil)
+
+	for i, write := range writes {
+		writeBatch.AddTagged(
+			i,
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
+
+	// Set all batches to skip outcome
+	iter := writeBatch.Iter()
+	for i := range iter {
+		writeBatch.SetSkipWrite(i)
+	}
+
+	// Assert the series have been updated
+	iter = writeBatch.Iter()
+	for _, curr := range iter {
+		assert.True(t, curr.skipWrite)
+	}
+
+	require.Equal(t, 3, len(writeBatch.Iter()))
+	writeBatch.Sanitize()
+	require.Equal(t, 0, len(writeBatch.Iter()))
+}
+
+func TestBatchWriterFinalizer(t *testing.T) {
+	numFinalized := 0
+	finalizeFn := func(b WriteBatch) {
+		numFinalized++
+	}
+
+	writeBatch := NewWriteBatch(batchSize, namespace, finalizeFn)
+	for i, write := range writes {
+		writeBatch.AddTagged(
+			i,
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
+
+	require.Equal(t, 3, len(writeBatch.Iter()))
+	writeBatch.Finalize()
+	require.Equal(t, 0, len(writeBatch.Iter()))
+	require.Equal(t, 1, numFinalized)
 }

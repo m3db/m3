@@ -97,6 +97,21 @@ func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
 	b.writes[idx].Err = err
 }
 
+func (b *writeBatch) SetSkipWrite(idx int) {
+	b.writes[idx].skipWrite = true
+}
+
+func (b *writeBatch) Sanitize() {
+	writes := b.writes[:0]
+	for _, w := range b.writes {
+		if !w.skipWrite {
+			writes = append(writes, w)
+		}
+	}
+
+	b.writes = writes
+}
+
 func (b *writeBatch) Finalize() {
 	b.ns = nil
 	b.writes = b.writes[:0]

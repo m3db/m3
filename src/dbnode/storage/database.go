@@ -548,12 +548,12 @@ func (d *db) Write(
 		return err
 	}
 
-	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, shouldWrite, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() {
+	if !n.Options().WritesToCommitLog() || !shouldWrite {
 		return nil
 	}
 
@@ -585,12 +585,12 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, shouldWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() {
+	if !n.Options().WritesToCommitLog() || !shouldWrite {
 		return nil
 	}
 
@@ -661,15 +661,17 @@ func (d *db) writeBatch(
 		return err
 	}
 
+	numWritten := 0
 	iter := writes.Iter()
 	for i, write := range iter {
 		var (
-			series ts.Series
-			err    error
+			series      ts.Series
+			shouldWrite bool
+			err         error
 		)
 
 		if tagged {
-			series, err = n.WriteTagged(
+			series, shouldWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
 				write.TagIter,
@@ -679,7 +681,7 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		} else {
-			series, err = n.Write(
+			series, shouldWrite, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
 				write.Write.Datapoint.Timestamp,
@@ -694,17 +696,30 @@ func (d *db) writeBatch(
 			errHandler.HandleError(write.OriginalIndex, err)
 		}
 
-		// Need to set the outcome in the success case so the commitlog gets the updated
-		// series object which contains identifiers (like the series ID) whose lifecycle
-		// live longer than the span of this request, making them safe for use by the async
-		// commitlog. Need to set the outcome in the error case so that the commitlog knows
-		// to skip this entry.
-		writes.SetOutcome(i, series, err)
+		if !shouldWrite {
+			// This series has no additional information that needs to be written to
+			// the commit log; set this series to skip writing to the commit log.
+			writes.SetSkipWrite(i)
+		} else {
+			// Need to set the outcome in the success case so the commitlog gets the
+			// updated series object which contains identifiers (like the series ID)
+			// whose lifecycle lives longer than the span of this request, making them
+			// safe for use by the async commitlog. Need to set the outcome in the
+			// error case so that the commitlog knows to skip this entry.
+			writes.SetOutcome(i, series, err)
+			if err != nil {
+				numWritten++
+			}
+		}
 	}
 
-	if !n.Options().WritesToCommitLog() {
-		// Finalize here because we can't rely on the commitlog to do it since we're not
-		// using it.
+	// Sanitize the writes; if there are any skipping writes, they get dropped
+	// here. Ensure that there are remaining non-errored writes that need to go
+	// through remaining.
+	writes.Sanitize()
+	if !n.Options().WritesToCommitLog() || numWritten == 0 {
+		// Finalize here because we can't rely on the commitlog to do it since
+		// we're not using it.
 		writes.Finalize()
 		return nil
 	}

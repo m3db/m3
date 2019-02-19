@@ -674,13 +674,13 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		}
 	)
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(series, nil)
+		time.Time{}, 1.0, xtime.Second, nil).Return(series, true, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(series, fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil).Return(series, false, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
@@ -820,8 +820,15 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 		series string
 		t      time.Time
 		v      float64
+		skip   bool
 		err    error
 	}{
+		{
+			series: "won't appear",
+			t:      time.Time{}.Add(0 * time.Second),
+			skip:   true,
+			v:      0.0,
+		},
 		{
 			series: "foo",
 			t:      time.Time{}.Add(10 * time.Second),
@@ -843,6 +850,12 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 			v:      4.0,
 		},
 		{
+			series: "won't appear",
+			t:      time.Time{}.Add(40 * time.Second),
+			skip:   true,
+			v:      5.0,
+		},
+		{
 			series: "error-series",
 			err:    errors.New("some-error"),
 		},
@@ -858,22 +871,24 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 		// in the WriteBatch slice.
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			shouldWrite := write.err == nil
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
 				write.t, write.v, xtime.Second, nil).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
 					Tags:      ident.Tags{},
-				}, write.err)
+				}, shouldWrite, write.err)
 		} else {
 			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			shouldWrite := write.err == nil
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
 				write.t, write.v, xtime.Second, nil).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
 					Tags:      ident.Tags{},
-				}, write.err)
+				}, shouldWrite, write.err)
 		}
 		i++
 	}
@@ -892,6 +907,120 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
+	require.NoError(t, d.Close())
+}
+
+func TestDatabaseWriteBatchAllSkip(t *testing.T) {
+	testDatabaseWriteBatchAllSkip(t, false)
+}
+
+func TestDatabaseWriteBatchAllSkipTagged(t *testing.T) {
+	testDatabaseWriteBatchAllSkip(t, true)
+}
+
+func testDatabaseWriteBatchAllSkip(t *testing.T, tagged bool) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	commitlog := d.commitLog
+	// We don't mock the commitlog so set this to nil to ensure its
+	// not being used as the test will panic if any methods are called
+	// on it.
+	d.commitLog = nil
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions().
+		SetWritesToCommitLog(true)
+
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
+	ns.EXPECT().Close().Return(nil).Times(1)
+	require.NoError(t, d.Open())
+
+	var (
+		namespace = ident.StringID("testns")
+		ctx       = context.NewContext()
+		tagsIter  = ident.EmptyTagIterator
+	)
+
+	writes := []struct {
+		series string
+		t      time.Time
+		v      float64
+		skip   bool
+		err    error
+	}{
+		{
+			series: "won't appear",
+			t:      time.Time{}.Add(0 * time.Second),
+			skip:   true,
+			v:      0.0,
+		},
+		{
+			series: "won't appear",
+			t:      time.Time{}.Add(40 * time.Second),
+			skip:   true,
+			v:      5.0,
+		},
+		{
+			series: "error-series",
+			err:    errors.New("some-error"),
+		},
+	}
+
+	batchWriter, err := d.BatchWriter(namespace, 10)
+	require.NoError(t, err)
+
+	var i int
+	for _, write := range writes {
+		// Write with the provided index as i*2 so we can assert later that the
+		// ErrorHandler is called with the provided index, not the actual position
+		// in the WriteBatch slice.
+		if tagged {
+			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			shouldWrite := write.err == nil
+			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
+				write.t, write.v, xtime.Second, nil).Return(
+				ts.Series{
+					ID:        ident.StringID(write.series + "-updated"),
+					Namespace: namespace,
+					Tags:      ident.Tags{},
+				}, shouldWrite, write.err)
+		} else {
+			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			shouldWrite := write.err == nil
+			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
+				write.t, write.v, xtime.Second, nil).Return(
+				ts.Series{
+					ID:        ident.StringID(write.series + "-updated"),
+					Namespace: namespace,
+					Tags:      ident.Tags{},
+				}, shouldWrite, write.err)
+		}
+		i++
+	}
+
+	errHandler := &fakeIndexedErrorHandler{}
+	if tagged {
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+	} else {
+		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+	}
+
+	require.NoError(t, err)
+	require.Len(t, errHandler.errs, 1)
+	// Make sure it calls the error handler with the "original" provided index, not the position
+	// of the write in the WriteBatch slice.
+	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
+
 	d.commitLog = commitlog
 	require.NoError(t, d.Close())
 }
