@@ -216,7 +216,7 @@ aggregator:
     jitterEnabled: true
     maxJitters:
       - flushInterval: 5s
-      maxJitterPercent: 1.0
+        maxJitterPercent: 1.0
       - flushInterval: 10s
         maxJitterPercent: 0.5
       - flushInterval: 1m

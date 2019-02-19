@@ -53,7 +53,7 @@ If you run Statsite, m3agg, or some other aggregation tier, you will want to set
 
 ## ID generation
 
-The default generation scheme for IDs is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either `quoted` or `prepend_meta`. `quoted` generation scheme yields the most human-readable IDs, whereas `prepend_meta` is better for more compact IDS, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your coordinator configuration yaml file:
+The default generation scheme for IDs (`legacy`) is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either `quoted` or `prepend_meta`. `quoted` generation scheme yields the most human-readable IDs, whereas `prepend_meta` is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:
 
 ```yaml
 tagOptions:
@@ -69,15 +69,15 @@ prepend_meta: 4,2,2,4,2,2,2,2!"t1"v1t2"v2"t3v3t4v4
 quoted: {\"t1\"="v1",t2="\"v2\"",t3="v3",t4="v4"}
 ```
 
-If there is a chance that your metric tags will contain "control" characters, specifically `,` and `=`, it is highly recommended that one of either the `quoted` or `prepend_meta` schemes are specified, as the `legacy` scheme may cause ID collisions. As a general guideline, we suggest `quoted`, as it mirrors the more familiar Prometheus style IDs.
+If there is a chance that your metric tags will contain "control" characters (WHAT ARE THE CONTROL CHARACTERS?), specifically `,` and `=`, it is highly recommended that one of either the `quoted` or `prepend_meta` schemes are specified, as the `legacy` scheme may cause ID collisions. As a general guideline, we suggest `quoted`, as it mirrors the more familiar Prometheus style IDs.
 
 We technically have a fourth ID generation scheme that is used for Graphite IDs, but it is exclusive to the Graphite ingestion path and is not selectable as a general scheme.
 
-**WARNING:** Once a scheme is selected, be very careful about changing it. If changed, all incoming metrics will resolved to a new ID, effectively doubling the metric cardinality until all of the older-style metric IDs fall out of retention.
+**WARNING:** Once a scheme is selected, be very careful about changing it. If changed, all incoming metrics will resolve to a new ID, effectively doubling the metric cardinality until all of the older-style metric IDs fall out of retention.
 
 ### Migration
 
-We recently updated our ID generation scheme in m3coordinator to avoid the collision issues discussed above. To ease migration, we're temporarily enforcing that an ID generation scheme be explicitly provided in the m3Coordinator configuration files.
+We recently updated our ID generation scheme in m3coordinator to avoid the collision issues discussed above. To ease migration, we're temporarily enforcing that an ID generation scheme be explicitly provided in the m3coordinator configuration files.
 
 If you have been running m3query or m3coordinator already, you may want to counterintuitively select the collision-prone `legacy` scheme, as all the IDs for all of your current metrics would have already been generated with this scheme, and choosing another will effectively double your index size. If the twofold increase in cardinality is an acceptable increase (and unfortunately, this is likely to mean doubled cardinality until your longest retention cluster rotates out), it's suggested to choose a collision-resistant scheme instead.
 
