@@ -23,6 +23,7 @@ package encoding
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,4 +73,61 @@ func TestResetOStream(t *testing.T) {
 	require.True(t, os.Empty())
 	require.Equal(t, 0, os.Len())
 	require.Equal(t, 0, os.pos)
+}
+
+func BenchmarkWriteBytes(b *testing.B) {
+	var (
+		bytes     = make([]byte, 298)
+		bytesPool = NewCheckedBytesPool()
+		o         = NewOStream(nil, false, bytesPool)
+	)
+	for n := 0; n < b.N; n++ {
+		o.Reset(nil)
+		o.WriteBytes(bytes)
+	}
+}
+
+// NewCheckedBytesPool returns a configured (and initialized)
+// CheckedBytesPool with default pool values
+func NewCheckedBytesPool() pool.CheckedBytesPool {
+	bytesPoolOpts := pool.NewObjectPoolOptions()
+
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
+		pool.Bucket{
+			Capacity: 16,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 32,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 64,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 128,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 256,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 1440,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 4096,
+			Count:    128,
+		},
+		pool.Bucket{
+			Capacity: 8192,
+			Count:    128,
+		},
+	}, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, bytesPoolOpts)
+	})
+	bytesPool.Init()
+	return bytesPool
 }
