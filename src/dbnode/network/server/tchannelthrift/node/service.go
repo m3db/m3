@@ -1291,6 +1291,9 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
+			if elem.Datapoint.Annotation != nil {
+				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
+			}
 		}
 		r.writeReq = nil
 	}
@@ -1298,6 +1301,9 @@ func (r *writeBatchPooledReq) Finalize() {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
 			apachethrift.BytesPoolPut(elem.EncodedTags)
+			if elem.Datapoint.Annotation != nil {
+				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
+			}
 		}
 		r.writeTaggedReq = nil
 	}
