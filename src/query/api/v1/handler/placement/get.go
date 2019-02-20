@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -87,6 +87,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 	}
 	if placement == nil {
 		xhttp.Error(w, errPlacementDoesNotExist, http.StatusNotFound)
+		return
 	}
 
 	placementProto, err := placement.Proto()
