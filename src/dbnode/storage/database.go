@@ -661,7 +661,7 @@ func (d *db) writeBatch(
 		return err
 	}
 
-	numWritten := 0
+	numSkipped := 0
 	iter := writes.Iter()
 	for i, write := range iter {
 		var (
@@ -700,6 +700,7 @@ func (d *db) writeBatch(
 			// This series has no additional information that needs to be written to
 			// the commit log; set this series to skip writing to the commit log.
 			writes.SetSkipWrite(i)
+			numSkipped++
 		} else {
 			// Need to set the outcome in the success case so the commitlog gets the
 			// updated series object which contains identifiers (like the series ID)
@@ -707,17 +708,17 @@ func (d *db) writeBatch(
 			// safe for use by the async commitlog. Need to set the outcome in the
 			// error case so that the commitlog knows to skip this entry.
 			writes.SetOutcome(i, series, err)
-			if err != nil {
-				numWritten++
-			}
 		}
 	}
 
-	// Sanitize the writes; if there are any skipping writes, they get dropped
-	// here. Ensure that there are remaining non-errored writes that need to go
-	// through remaining.
-	writes.Sanitize()
-	if !n.Options().WritesToCommitLog() || numWritten == 0 {
+	if numSkipped > 0 {
+		// Sanitize the writes; if there are any skipping writes, they get dropped
+		// here. Ensure that there are remaining non-errored writes that need to go
+		// through remaining.
+		writes.Sanitize()
+	}
+
+	if !n.Options().WritesToCommitLog() {
 		// Finalize here because we can't rely on the commitlog to do it since
 		// we're not using it.
 		writes.Finalize()
