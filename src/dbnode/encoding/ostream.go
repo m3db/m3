@@ -71,29 +71,46 @@ func (os *ostream) hasUnusedBits() bool {
 
 // grow appends the last byte of v to checked and sets pos to np.
 func (os *ostream) grow(v byte, np int) {
-	if cap(os.rawBuffer) < len(os.rawBuffer)+1 {
-		if p := os.bytesPool; p != nil {
-			newChecked := p.Get(cap(os.rawBuffer) * 2)
-			newChecked.IncRef()
-			newChecked.AppendAll(os.rawBuffer)
-
-			os.checked.DecRef()
-			os.checked.Finalize()
-
-			os.checked = newChecked
-			os.rawBuffer = os.checked.Bytes()
-		} else {
-			newRawBuffer := make([]byte, 0, cap(os.rawBuffer)*2)
-			newRawBuffer = append(newRawBuffer, os.rawBuffer...)
-			os.rawBuffer = newRawBuffer
-
-			os.checked = checked.NewBytes(os.rawBuffer, nil)
-			os.checked.IncRef()
-		}
-	}
+	os.ensureCapacityFor(1)
 	os.rawBuffer = append(os.rawBuffer, v)
 
 	os.pos = np
+}
+
+// ensureCapacity ensures that there is at least capacity for n more bytes.
+func (os *ostream) ensureCapacityFor(n int) {
+	var (
+		currCap      = cap(os.rawBuffer)
+		currLen      = len(os.rawBuffer)
+		availableCap = currCap - currLen
+		missingCap   = n - availableCap
+	)
+	if missingCap <= 0 {
+		// Already have enough capacity.
+		return
+	}
+
+	newCap := max(cap(os.rawBuffer)*2, currCap+missingCap)
+	if p := os.bytesPool; p != nil {
+		newChecked := p.Get(newCap)
+		newChecked.IncRef()
+		newChecked.AppendAll(os.rawBuffer)
+
+		if os.checked != nil {
+			os.checked.DecRef()
+			os.checked.Finalize()
+		}
+
+		os.checked = newChecked
+		os.rawBuffer = os.checked.Bytes()
+	} else {
+		newRawBuffer := make([]byte, 0, newCap)
+		newRawBuffer = append(newRawBuffer, os.rawBuffer...)
+		os.rawBuffer = newRawBuffer
+
+		os.checked = checked.NewBytes(os.rawBuffer, nil)
+		os.checked.IncRef()
+	}
 }
 
 func (os *ostream) fillUnused(v byte) {
@@ -123,6 +140,7 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
+	os.ensureCapacityFor(len(bytes))
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}
@@ -180,9 +198,9 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 		os.checked = nil
 	}
 
-	if os.checked != nil {
+	if buffer != nil {
 		// Track ref to the new raw buffer
-		os.checked.IncRef()
+		buffer.IncRef()
 
 		os.checked = buffer
 		os.rawBuffer = os.checked.Bytes()
@@ -200,4 +218,11 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 func (os *ostream) Rawbytes() (checked.Bytes, int) {
 	os.checked.Reset(os.rawBuffer)
 	return os.checked, os.pos
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
 }
