@@ -1,5 +1,12 @@
 # Changelog
 
+# 0.6.1 (2019-02-20)
+
+## Bug fixes
+
+- **M3Coordinator**: Fix to panic caused by generating ID for series with no tags (#1392)
+- **M3Coordinator**: Fix to panic caused by reading placement when none available instead of return 404 (#1391)
+
 # 0.6.0 (2019-02-19)
 
 ## Breaking changes
