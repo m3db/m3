@@ -117,10 +117,13 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 		}
 
 		metricName := string(tagOptions.MetricName())
+		bucketName := string(tagOptions.BucketName())
 		tags := models.NewTags(len(result.Metric), tagOptions)
 		for name, val := range result.Metric {
 			if name == metricName {
 				tags = tags.SetName([]byte(val))
+			} else if name == bucketName {
+				tags = tags.SetBucket([]byte(val))
 			} else {
 				tags = tags.AddTag(models.Tag{
 					Name:  []byte(name),

@@ -351,6 +351,7 @@ func newM3DBStorage(
 			etcdCfg = &cfg.ClusterManagement.Etcd
 
 		case len(cfg.Clusters) == 1 &&
+			cfg.Clusters[0].Client.EnvironmentConfig != nil &&
 			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
 			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
 		}
@@ -829,7 +830,7 @@ func startCarbonIngestion(
 	// Start server.
 	var (
 		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		carbonListenAddress = ingesterCfg.ListenAddress
+		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)
 	if strings.TrimSpace(carbonListenAddress) == "" {

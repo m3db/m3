@@ -312,7 +312,6 @@ type testIndex struct {
 	index          namespaceIndex
 	metadata       namespace.Metadata
 	opts           Options
-	ropts          retention.Options
 	blockSize      time.Duration
 	indexBlockSize time.Duration
 	retention      time.Duration

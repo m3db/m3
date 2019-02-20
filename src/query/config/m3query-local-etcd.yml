@@ -12,6 +12,9 @@ metrics:
   samplingRate: 1.0
   extended: none
 
+tagOptions:
+  idScheme: quoted
+
 clusters:
   - namespaces:
       - namespace: default
@@ -49,4 +52,3 @@ clusters:
         jitter: true
       backgroundHealthCheckFailLimit: 4
       backgroundHealthCheckFailThrottleFactor: 0.5
-

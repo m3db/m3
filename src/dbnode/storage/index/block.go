@@ -58,7 +58,6 @@ var (
 	errUnableToBootstrapBlockClosed            = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed                 = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed                      = errors.New("unable to close, block already closed")
-	errForegroundCompactorNoBuilderDocs        = errors.New("index foreground compactor has no builder documents to compact")
 	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
@@ -91,6 +90,7 @@ func (s blockState) String() string {
 
 type newExecutorFn func() (search.Executor, error)
 
+// nolint: maligned
 type block struct {
 	sync.RWMutex
 
@@ -833,9 +833,24 @@ func (b *block) AddResults(
 			results.Fulfilled().SummaryString(), blockRange.String())
 	}
 
+	var (
+		plCache         = b.opts.PostingsListCache()
+		readThroughOpts = b.opts.ReadThroughSegmentOptions()
+		segments        = results.Segments()
+	)
+	readThroughSegments := make([]segment.Segment, 0, len(segments))
+	for _, seg := range segments {
+		readThroughSeg := seg
+		if _, ok := seg.(segment.MutableSegment); !ok {
+			// Only wrap the immutable segments with a read through cache.
+			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
+		}
+		readThroughSegments = append(readThroughSegments, readThroughSeg)
+	}
+
 	entry := blockShardRangesSegments{
 		shardTimeRanges: results.Fulfilled(),
-		segments:        results.Segments(),
+		segments:        readThroughSegments,
 	}
 
 	// First see if this block can cover all our current blocks covering shard
@@ -1070,30 +1085,6 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 		})
 		return err
 	}
-}
-
-func (b *block) unknownWriteBatchInvariantError(err error) error {
-	wrappedErr := fmt.Errorf("unexpected non-BatchPartialError from m3ninx InsertBatch: %v", err)
-	instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(wrappedErr.Error())
-	})
-	return wrappedErr
-}
-
-func (b *block) bootstrappingSealedMutableSegmentInvariant(err error) error {
-	wrapped := fmt.Errorf("internal error: bootstrapping a mutable segment already marked sealed: %v", err)
-	instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(wrapped.Error())
-	})
-	return wrapped
-}
-
-func (b *block) openBlockHasNilActiveSegmentInvariantErrorWithRLock() error {
-	err := fmt.Errorf("internal error: block has open block state [%v] has nil active segment", b.state)
-	instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(err.Error())
-	})
-	return err
 }
 
 type closable interface {

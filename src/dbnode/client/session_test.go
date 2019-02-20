@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
+	xretry "github.com/m3db/m3x/retry"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -107,6 +108,10 @@ func sessionTestHostAndShards(
 func applySessionTestOptions(opts Options) Options {
 	shardSet := sessionTestShardSet()
 	return opts.
+		// Some of the test mocks expect things to only happen once, so disable retries
+		// for the unit tests.
+		SetWriteRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
+		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetSeriesIteratorPoolSize(0).
 		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).

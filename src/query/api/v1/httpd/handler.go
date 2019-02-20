@@ -111,14 +111,14 @@ func NewHandler(
 	}
 
 	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil {
+	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
 		timeoutOpts.FetchTimeout = defaultTimeout
 	} else {
-		if embeddedDbCfg.Client.FetchTimeout < 0 {
+		if *embeddedDbCfg.Client.FetchTimeout <= 0 {
 			return nil, errors.New("m3db client fetch timeout should be > 0")
 		}
 
-		timeoutOpts.FetchTimeout = embeddedDbCfg.Client.FetchTimeout
+		timeoutOpts.FetchTimeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	h := &Handler{
@@ -164,7 +164,7 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := native.NewPromReadHandler(
 		h.engine,
 		h.tagOptions,
-		&h.config.Limits,
+		h.config.LimitsOrDefault(),
 		h.scope.Tagged(nativeSource),
 		h.timeoutOpts,
 	)

@@ -22,6 +22,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -48,13 +50,15 @@ const (
 	M3DBStorageType BackendStorageType = "m3db"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
+	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
+		"generation scheme is required in coordinator configuration settings. " +
+		"More information is available here: %s"
 )
 
 var (
 	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
-	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
@@ -112,7 +116,7 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
-	Limits LimitsConfiguration `yaml:"limits"`
+	Limits *LimitsConfiguration `yaml:"limits"`
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
@@ -178,6 +182,26 @@ func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
 	}
 
 	return v, nil
+}
+
+// LimitsOrDefault returns the specified limit configuration if provided, or the
+// default value otherwise.
+func (c Configuration) LimitsOrDefault() *LimitsConfiguration {
+	if c.Limits != nil {
+		return c.Limits
+	}
+
+	return defaultLimitsConfiguration
+}
+
+// ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
+// default value if not.
+func (c *CarbonIngesterConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable
@@ -299,6 +323,10 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 
+	// BucketName specifies the tag name that corresponds to the metric's bucket.
+	// If not provided, defaults to `le`.
+	BucketName string `yaml:"bucketName"`
+
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
@@ -311,8 +339,15 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		opts = opts.SetMetricName([]byte(name))
 	}
 
+	bucket := cfg.BucketName
+	if bucket != "" {
+		opts = opts.SetBucketName([]byte(bucket))
+	}
+
 	if cfg.Scheme == models.TypeDefault {
-		cfg.Scheme = models.TypeLegacy
+		// If no config has been set, error.
+		docLink := xdocs.Path("how_to/query#migration")
+		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)

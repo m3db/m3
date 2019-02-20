@@ -36,16 +36,10 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-const (
-	initialBufferSizeGrowthFactor = 2
-)
-
 var (
 	errNoHandlerConfiguration                   = errors.New("no handler configuration")
-	errNoWriterConfiguration                    = errors.New("no writer configuration")
 	errNoDynamicOrStaticBackendConfiguration    = errors.New("neither dynamic nor static backend was configured")
 	errBothDynamicAndStaticBackendConfiguration = errors.New("both dynamic and static backend were configured")
-	errInvalidShardingConfiguration             = errors.New("invalid sharding configuration, missing hash type or total shards")
 )
 
 // FlushHandlerConfiguration configures flush handlers.

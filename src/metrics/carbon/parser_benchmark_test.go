@@ -36,11 +36,8 @@ var (
 )
 
 var (
-	reCarbon     = regexp.MustCompile("(?i)^([^\\s]+)\\s+(-?[0-9\\.]+|\\-?nan)\\s+([0-9]+)\\s*$")
-	carbonMetric = &Metric{
-		Name: []byte("foo.bar.baz"),
-		Val:  0,
-		Time: time.Now()}
+	// nolint: gosimple
+	reCarbon = regexp.MustCompile("(?i)^([^\\s]+)\\s+(-?[0-9\\.]+|\\-?nan)\\s+([0-9]+)\\s*$")
 )
 
 func BenchmarkParse(b *testing.B) {

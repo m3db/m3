@@ -226,10 +226,16 @@ func TestUpdateName(t *testing.T) {
 	actual, found := tags.Get(name)
 	assert.False(t, found)
 	assert.Nil(t, actual)
+	actual, found = tags.Name()
+	assert.False(t, found)
+	assert.Nil(t, actual)
 
 	value := []byte("n")
 	tags = tags.SetName(value)
 	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value, actual)
+	actual, found = tags.Name()
 	assert.True(t, found)
 	assert.Equal(t, value, actual)
 
@@ -238,6 +244,47 @@ func TestUpdateName(t *testing.T) {
 	actual, found = tags.Get(name)
 	assert.True(t, found)
 	assert.Equal(t, value2, actual)
+	actual, found = tags.Name()
+	assert.True(t, found)
+	assert.Equal(t, value2, actual)
+}
+
+func TestUpdateBucket(t *testing.T) {
+	name := []byte("!")
+	tags := NewTags(1, NewTagOptions().SetBucketName(name))
+	actual, found := tags.Get(name)
+	assert.False(t, found)
+	assert.Nil(t, actual)
+	actual, found = tags.Bucket()
+	assert.False(t, found)
+	assert.Nil(t, actual)
+
+	value := []byte("n")
+	tags = tags.SetBucket(value)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value, actual)
+	actual, found = tags.Bucket()
+	assert.True(t, found)
+	assert.Equal(t, value, actual)
+
+	value2 := []byte("abc")
+	tags = tags.SetBucket(value2)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value2, actual)
+	actual, found = tags.Bucket()
+	assert.True(t, found)
+	assert.Equal(t, value2, actual)
+
+	value3 := []byte("")
+	tags = tags.SetBucket(value3)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value3, actual)
+	actual, found = tags.Bucket()
+	assert.True(t, found)
+	assert.Equal(t, value3, actual)
 }
 
 func TestAddOrUpdateTags(t *testing.T) {

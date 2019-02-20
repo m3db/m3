@@ -139,8 +139,8 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 			// NB(r): Quite gross, need to actually make it possible to plumb this
 			// through for each metric.
-			if bytes.Compare(name, MetricsOptionIDSchemeTagName) == 0 {
-				if bytes.Compare(value, GraphiteIDSchemeTagValue) == 0 &&
+			if bytes.Equal(name, MetricsOptionIDSchemeTagName) {
+				if bytes.Equal(value, GraphiteIDSchemeTagValue) &&
 					tags.Opts.IDSchemeType() != models.TypeGraphite {
 					iter.Reset(mp.ChunkedID.Data)
 					tags.Opts = w.tagOptions.SetIDSchemeType(models.TypeGraphite)

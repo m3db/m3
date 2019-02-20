@@ -79,7 +79,7 @@ var (
 			return maxBufferPast
 		}
 
-		return time.Duration(value)
+		return value
 	}
 
 	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
