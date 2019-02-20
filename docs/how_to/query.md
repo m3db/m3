@@ -81,7 +81,7 @@ We recently updated our ID generation scheme in m3coordinator to avoid the colli
 
 If you have been running m3query or m3coordinator already, you may want to counterintuitively select the collision-prone `legacy` scheme, as all the IDs for all of your current metrics would have already been generated with this scheme, and choosing another will effectively double your index size. If the twofold increase in cardinality is an acceptable increase (and unfortunately, this is likely to mean doubled cardinality until your longest retention cluster rotates out), it's suggested to choose a collision-resistant scheme instead.
 
-An example of a configuration file with the ID generation scheme can be found (here)[https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/m3coordinator.yml]
+An example of a configuration file with the ID generation scheme can be found [here](https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/m3coordinator.yml).
 
 If none of these options work for you, or you would like further clarification, please stop by our [gitter channel](https://gitter.im/m3db/Lobby) and we'll be happy to help you.
 
