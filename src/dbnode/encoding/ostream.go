@@ -31,7 +31,8 @@ const (
 
 // Ostream encapsulates a writable stream.
 type ostream struct {
-	rawBuffer checked.Bytes // raw bytes
+	rawBuffer []byte
+	checked   checked.Bytes // raw bytes
 	pos       int           // how many bits have been used in the last byte
 	bytesPool pool.CheckedBytesPool
 }
@@ -52,10 +53,7 @@ func NewOStream(
 
 // Len returns the length of the Ostream
 func (os *ostream) Len() int {
-	if os.rawBuffer == nil {
-		return 0
-	}
-	return os.rawBuffer.Len()
+	return len(os.rawBuffer)
 }
 
 // Empty returns whether the Ostream is empty
@@ -71,24 +69,35 @@ func (os *ostream) hasUnusedBits() bool {
 	return os.pos > 0 && os.pos < 8
 }
 
-// grow appends the last byte of v to rawBuffer and sets pos to np.
+// grow appends the last byte of v to checked and sets pos to np.
 func (os *ostream) grow(v byte, np int) {
-	if p := os.bytesPool; p != nil {
-		if b, swapped := pool.AppendByteChecked(os.rawBuffer, v, p); swapped {
-			os.rawBuffer.DecRef()
-			os.rawBuffer.Finalize()
-			os.rawBuffer = b
-			os.rawBuffer.IncRef()
+	if cap(os.rawBuffer) < len(os.rawBuffer)+1 {
+		if p := os.bytesPool; p != nil {
+			newChecked := p.Get(cap(os.rawBuffer) * 2)
+			newChecked.IncRef()
+			newChecked.AppendAll(os.rawBuffer)
+
+			os.checked.DecRef()
+			os.checked.Finalize()
+
+			os.checked = newChecked
+			os.rawBuffer = os.checked.Bytes()
+		} else {
+			newRawBuffer := make([]byte, 0, cap(os.rawBuffer)*2)
+			newRawBuffer = append(newRawBuffer, os.rawBuffer...)
+			os.rawBuffer = newRawBuffer
+
+			os.checked = checked.NewBytes(os.rawBuffer, nil)
+			os.checked.IncRef()
 		}
-	} else {
-		os.rawBuffer.Append(v)
 	}
+	os.rawBuffer = append(os.rawBuffer, v)
 
 	os.pos = np
 }
 
 func (os *ostream) fillUnused(v byte) {
-	os.rawBuffer.Bytes()[os.lastIndex()] |= v >> uint(os.pos)
+	os.rawBuffer[os.lastIndex()] |= v >> uint(os.pos)
 }
 
 // WriteBit writes the last bit of v.
@@ -147,27 +156,36 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 
 // Discard takes the ref to the checked bytes from the ostream
 func (os *ostream) Discard() checked.Bytes {
-	buffer := os.rawBuffer
+	os.checked.Reset(os.rawBuffer)
+
+	buffer := os.checked
 	buffer.DecRef()
-	os.pos = 0
+
 	os.rawBuffer = nil
+	os.pos = 0
+	os.checked = nil
+
 	return buffer
 }
 
 // Reset resets the ostream
 func (os *ostream) Reset(buffer checked.Bytes) {
-	if os.rawBuffer != nil {
+	// TODO: Replace with call to discard?
+	if os.checked != nil {
 		// Release ref of the current raw buffer
-		os.rawBuffer.DecRef()
-		os.rawBuffer.Finalize()
+		os.checked.DecRef()
+		os.checked.Finalize()
+
 		os.rawBuffer = nil
+		os.checked = nil
 	}
 
-	os.rawBuffer = buffer
-
-	if os.rawBuffer != nil {
+	if os.checked != nil {
 		// Track ref to the new raw buffer
-		os.rawBuffer.IncRef()
+		os.checked.IncRef()
+
+		os.checked = buffer
+		os.rawBuffer = os.checked.Bytes()
 	}
 
 	os.pos = 0
@@ -180,5 +198,6 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 
 // Rawbytes returns the Osteam's raw bytes
 func (os *ostream) Rawbytes() (checked.Bytes, int) {
-	return os.rawBuffer, os.pos
+	os.checked.Reset(os.rawBuffer)
+	return os.checked, os.pos
 }
