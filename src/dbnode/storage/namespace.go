@@ -798,7 +798,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	shardBootstrapStatesAtTickStart ShardBootstrapStates,
-	flush persist.DataFlush,
+	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
@@ -850,7 +850,7 @@ func (n *dbNamespace) Flush(
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flush); err != nil {
+		if err := shard.Flush(blockStart, flushPersist); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -887,8 +887,8 @@ func (n *dbNamespace) FlushIndex(
 func (n *dbNamespace) Snapshot(
 	blockStart,
 	snapshotTime time.Time,
-	shardBootstrapStatesAtTickStart ShardBootstrapStates,
-	flush persist.DataFlush) error {
+	snapshotPersist persist.SnapshotPreparer,
+) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -902,6 +902,10 @@ func (n *dbNamespace) Snapshot(
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
+		// Note that we keep the ability to disable snapshots at the namespace level around for
+		// debugging / performance / flexibility reasons, but disabling it can / will cause data
+		// loss due to the commitlog cleanup logic assuming that a valid snapshot checkpoint file
+		// means that all namespaces were successfully snapshotted.
 		n.metrics.snapshot.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -919,20 +923,7 @@ func (n *dbNamespace) Snapshot(
 			continue
 		}
 
-		// We don't need to perform this check for correctness, but we apply the same logic
-		// here as we do in the Flush() method so that we don't end up snapshotting a bunch
-		// of shards/blocks that would have been flushed after the next tick.
-		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
-		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
-			n.log.
-				WithFields(xlog.NewField("shard", shard.ID())).
-				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
-				WithFields(xlog.NewField("bootstrapStateExists", ok)).
-				Debug("skipping snapshot due to shard bootstrap state before tick")
-			continue
-		}
-
-		err := shard.Snapshot(blockStart, snapshotTime, flush)
+		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)

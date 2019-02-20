@@ -56,10 +56,10 @@ type Encoder struct {
 type legacyEncodingIndexInfoVersion int
 
 const (
-	// List in reverse order to ensure default value is current version.
-	legacyEncodingIndexVersionCurrent legacyEncodingIndexInfoVersion = iota
+	legacyEncodingIndexVersionCurrent                                = legacyEncodingIndexVersionV3
+	legacyEncodingIndexVersionV1      legacyEncodingIndexInfoVersion = iota
 	legacyEncodingIndexVersionV2
-	legacyEncodingIndexVersionV1
+	legacyEncodingIndexVersionV3
 )
 
 type legacyEncodingOptions struct {
@@ -266,8 +266,11 @@ func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {
 
 func (enc *Encoder) encodeLogInfo(info schema.LogInfo) {
 	enc.encodeNumObjectFieldsForFn(logInfoType)
-	enc.encodeVarintFn(info.Start)
-	enc.encodeVarintFn(info.Duration)
+
+	// Deprecated, have to encode anyways for backwards compatibility, but we ignore the values.
+	enc.encodeVarintFn(info.DeprecatedDoNotUseStart)
+	enc.encodeVarintFn(info.DeprecatedDoNotUseDuration)
+
 	enc.encodeVarintFn(info.Index)
 }
 

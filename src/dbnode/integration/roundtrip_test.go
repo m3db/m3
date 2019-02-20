@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,7 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	blockSize := testOpts.CommitLogBlockSize()
+	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()

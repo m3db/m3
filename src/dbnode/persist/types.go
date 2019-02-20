@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
+
+	"github.com/pborman/uuid"
 )
 
 // DataFn is a function that persists a m3db segment for a given ID.
@@ -41,6 +43,26 @@ type DataCloser func() error
 type PreparedDataPersist struct {
 	Persist DataFn
 	Close   DataCloser
+}
+
+// CommitlogFiles represents a slice of commitlog files.
+type CommitlogFiles []CommitlogFile
+
+// Contains returns a boolean indicating whether the CommitlogFiles slice
+// contains the provided CommitlogFile based on its path.
+func (c CommitlogFiles) Contains(path string) bool {
+	for _, f := range c {
+		if f.FilePath == path {
+			return true
+		}
+	}
+	return false
+}
+
+// CommitlogFile represents a commit log file and its associated metadata.
+type CommitlogFile struct {
+	FilePath string
+	Index    int64
 }
 
 // IndexFn is a function that persists a m3ninx MutableSegment.
@@ -59,23 +81,41 @@ type PreparedIndexPersist struct {
 
 // Manager manages the internals of persisting data onto storage layer.
 type Manager interface {
-	// StartDataPersist begins a data flush for a set of shards.
-	StartDataPersist() (DataFlush, error)
+	// StartFlushPersist begins a data flush for a set of shards.
+	StartFlushPersist() (FlushPreparer, error)
+
+	// StartSnapshotPersist begins a snapshot for a set of shards.
+	StartSnapshotPersist(snapshotID uuid.UUID) (SnapshotPreparer, error)
 
 	// StartIndexPersist begins a flush for index data.
 	StartIndexPersist() (IndexFlush, error)
 }
 
-// DataFlush is a persist flush cycle, each shard and block start permutation needs
-// to explicility be prepared.
-type DataFlush interface {
+// Preparer can generated a PreparedDataPersist object for writing data for
+// a given (shard, blockstart) combination.
+type Preparer interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedDataPersist object and any error encountered during
 	// preparation if any.
 	PrepareData(opts DataPrepareOptions) (PreparedDataPersist, error)
+}
 
-	// DoneData marks the data flush as complete.
-	DoneData() error
+// FlushPreparer is a persist flush cycle, each shard and block start permutation needs
+// to explicility be prepared.
+type FlushPreparer interface {
+	Preparer
+
+	// DoneFlush marks the data flush as complete.
+	DoneFlush() error
+}
+
+// SnapshotPreparer is a persist snapshot cycle, each shard and block start permutation needs
+// to explicility be prepared.
+type SnapshotPreparer interface {
+	Preparer
+
+	// DoneSnapshot marks the snapshot as complete.
+	DoneSnapshot(snapshotUUID uuid.UUID, commitLogIdentifier CommitlogFile) error
 }
 
 // IndexFlush is a persist flush cycle, each namespace, block combination needs
@@ -122,6 +162,7 @@ type IndexPrepareOptions struct {
 // information specific to read/writing snapshot files.
 type DataPrepareSnapshotOptions struct {
 	SnapshotTime time.Time
+	SnapshotID   uuid.UUID
 }
 
 // FileSetType is an enum that indicates what type of files a fileset contains

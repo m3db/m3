@@ -576,6 +576,11 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	defer os.RemoveAll(shardDir)
 
+	index, err := NextSnapshotFileSetVolumeIndex(
+		dir, testNs1ID, shard, blockStart)
+	require.NoError(t, err)
+	require.Equal(t, 0, index)
+
 	// Check increments properly
 	curr := -1
 	for i := 0; i <= 10; i++ {
@@ -599,8 +604,11 @@ func TestSortedSnapshotMetadataFiles(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		commitlogIdentifier = []byte("commitlog_id")
-		numMetadataFiles    = 10
+		commitlogIdentifier = persist.CommitlogFile{
+			FilePath: "some_path",
+			Index:    0,
+		}
+		numMetadataFiles = 10
 	)
 	defer func() {
 		os.RemoveAll(dir)
@@ -669,8 +677,11 @@ func TestNextSnapshotMetadataFileIndex(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		commitlogIdentifier = []byte("commitlog_id")
-		numMetadataFiles    = 10
+		commitlogIdentifier = persist.CommitlogFile{
+			FilePath: "some_path",
+			Index:    0,
+		}
+		numMetadataFiles = 10
 	)
 	defer func() {
 		os.RemoveAll(dir)
@@ -813,23 +824,18 @@ func TestSnapshotFileSetExistsAt(t *testing.T) {
 
 func TestSortedCommitLogFiles(t *testing.T) {
 	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
+	dir := createCommitLogFiles(t, iter)
 	defer os.RemoveAll(dir)
-
-	createFile(t, path.Join(dir, "abcd"), nil)
-	createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
 
 	files, err := SortedCommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
-	require.Equal(t, iter*perSlot, len(files))
+	require.Equal(t, iter, len(files))
 
 	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
-		}
+		require.Equal(
+			t,
+			path.Join(dir, "commitlogs", fmt.Sprintf("commitlog-0-%d.db", i)),
+			files[i])
 	}
 }
 
@@ -1029,6 +1035,19 @@ func TestSnapshotFileSnapshotTimeAndID(t *testing.T) {
 	require.Equal(t, testSnapshotID, snapshotID)
 }
 
+func TestSnapshotFileSnapshotTimeAndIDZeroValue(t *testing.T) {
+	f := FileSetFile{}
+	_, _, err := f.SnapshotTimeAndID()
+	require.Equal(t, errSnapshotTimeAndIDZero, err)
+}
+
+func TestSnapshotFileSnapshotTimeAndIDNotSnapshot(t *testing.T) {
+	f := FileSetFile{}
+	f.AbsoluteFilepaths = []string{"/var/lib/m3db/data/fileset-data.db"}
+	_, _, err := f.SnapshotTimeAndID()
+	require.Error(t, err)
+}
+
 func createTempFile(t *testing.T) *os.File {
 	fd, err := ioutil.TempFile("", "testfile")
 	require.NoError(t, err)
@@ -1151,28 +1170,17 @@ func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix 
 	createFile(t, filePath, b)
 }
 
-func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
+func createCommitLogFiles(t *testing.T, iter int) string {
 	dir := createTempDir(t)
 	commitLogsDir := path.Join(dir, commitLogsDirName)
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
 	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			filePath, _, err := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
-			require.NoError(t, err)
-			fd, err := os.Create(filePath)
-			assert.NoError(t, err)
-			assert.NoError(t, fd.Close())
-		}
+		filePath := CommitlogFilePath(dir, time.Unix(0, 0), i)
+		fd, err := os.Create(filePath)
+		assert.NoError(t, err)
+		assert.NoError(t, fd.Close())
 	}
 	return dir
-}
-
-func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
-	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
-	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-
-	x := (resIdx * perSlot) + index
-	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
 }
 
 func writeOutTestSnapshot(
