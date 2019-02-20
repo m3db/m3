@@ -409,9 +409,11 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 }
 
 func writeShardAndVerify(
-	t *testing.T, shard *dbShard, ctx context.Context, id string,
-	now time.Time, value float64, expectedShouldWrite bool, expectedIdx uint64) {
-	series, shouldWrite, err := shard.Write(ctx, ident.StringID(id), now, value, xtime.Second, nil)
+	ctx context.Context, t *testing.T, shard *dbShard, id string,
+	now time.Time, value float64, expectedShouldWrite bool, expectedIdx uint64,
+) {
+	series, shouldWrite, err := shard.Write(ctx, ident.StringID(id),
+		now, value, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedShouldWrite, shouldWrite)
 	assert.Equal(t, id, series.ID.String())
@@ -466,20 +468,20 @@ func TestShardTick(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeShardAndVerify(t, shard, ctx, "foo", nowFn(), 1.0, true, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, true, 0)
 	// same time, different value should write
-	writeShardAndVerify(t, shard, ctx, "foo", nowFn(), 2.0, true, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, true, 0)
 
-	writeShardAndVerify(t, shard, ctx, "bar", nowFn(), 2.0, true, 1)
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, true, 1)
 	// same tme, same value should not write
-	writeShardAndVerify(t, shard, ctx, "bar", nowFn(), 2.0, false, 1)
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, false, 1)
 
-	writeShardAndVerify(t, shard, ctx, "baz", nowFn(), 3.0, true, 2)
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, true, 2)
 	// different time, same value should write
-	writeShardAndVerify(t, shard, ctx, "baz", nowFn().Add(1), 3.0, true, 2)
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, true, 2)
 
 	// same time, same value should not write, regardless of being out of order
-	writeShardAndVerify(t, shard, ctx, "foo", nowFn(), 2.0, false, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, false, 0)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)

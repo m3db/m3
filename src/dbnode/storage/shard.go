@@ -835,10 +835,14 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID = entry.Series.ID()
 		commitLogSeriesTags = entry.Series.Tags()
 		commitLogSeriesUniqueIndex = entry.Index
-		if err == nil && shouldReverseIndex {
+		if shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
-					opts.writeNewSeriesAsync)
+				if err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+					opts.writeNewSeriesAsync); err != nil {
+					// release the reference we got on entry from `writableSeries`
+					entry.DecrementReaderWriterCount()
+					return ts.Series{}, false, err
+				}
 			}
 		}
 		// release the reference we got on entry from `writableSeries`

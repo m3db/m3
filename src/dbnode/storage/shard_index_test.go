@@ -232,6 +232,14 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now.Add(time.Second), 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
+
+	// ensure attempting to write same point yields false and does not write
+	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		now.Add(time.Second), 2.0, xtime.Second, nil)
+	assert.NoError(t, err)
+	assert.False(t, shouldWrite)
 
 	l := atomic.LoadInt32(&numCalls)
 	assert.Equal(t, int32(1), l)

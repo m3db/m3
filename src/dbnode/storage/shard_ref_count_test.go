@@ -269,12 +269,15 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 
 	_, shouldWrite, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	_, shouldWrite, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	_, shouldWrite, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -391,12 +394,15 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 
 	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
+	assert.True(t, shouldWrite)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
