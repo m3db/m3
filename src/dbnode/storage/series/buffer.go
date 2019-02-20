@@ -924,12 +924,10 @@ func (b *BufferBucket) merge() (int, error) {
 		start   = b.start
 		readers = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
 		streams = make([]xio.SegmentReader, 0, len(b.encoders))
-		iter    = b.opts.MultiReaderIteratorPool().Get()
 		ctx     = b.opts.ContextPool().Get()
 		merges  = 0
 	)
 	defer func() {
-		iter.Close()
 		ctx.Close()
 		// NB(r): Only need to close the mutable encoder streams as
 		// the context we created for reading the bootstrap blocks
