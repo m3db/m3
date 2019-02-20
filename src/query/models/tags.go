@@ -49,9 +49,17 @@ func EmptyTags() Tags {
 }
 
 // ID returns a byte slice representation of the tags, using the generation
-// strategy from .
+// strategy from the tag options.
 func (t Tags) ID() []byte {
 	schemeType := t.Opts.IDSchemeType()
+	if len(t.Tags) == 0 {
+		if schemeType == TypeQuoted {
+			return []byte("{}")
+		}
+
+		return []byte("")
+	}
+
 	switch schemeType {
 	case TypeLegacy:
 		return t.legacyID()
