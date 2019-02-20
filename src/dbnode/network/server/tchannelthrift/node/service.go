@@ -58,7 +58,7 @@ var (
 	// NB(r): pool sizes are vars to help reduce stress on tests.
 	checkedBytesPoolSize        = 65536
 	segmentArrayPoolSize        = 65536
-	writeBatchPooledReqPoolSize = 1024
+	writeBatchPooledReqPoolSize = 65536
 )
 
 const (
