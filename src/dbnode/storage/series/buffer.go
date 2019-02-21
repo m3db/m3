@@ -187,8 +187,8 @@ func (b *dbBuffer) Write(
 	}
 
 	blockStart := timestamp.Truncate(b.blockSize)
-	buckets := b.bucketsAtCreate(blockStart)
-	b.putBucketInCache(buckets)
+	buckets := b.bucketVersionsAtCreate(blockStart)
+	b.putBucketVersionsInCache(buckets)
 	return buckets.write(timestamp, value, unit, annotation, wType)
 }
 
@@ -238,7 +238,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 			// therefore invalid. This was fine while the missing data was still
 			// in memory, but once we evict it from the buffer we need to make
 			// sure that we bust the cache as well.
-			b.removeBucketsAt(tNano.ToTime())
+			b.removeBucketVersionsAt(tNano.ToTime())
 			evictedBuckets++
 			continue
 		}
@@ -262,7 +262,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
 	blockStart := bl.StartTime()
-	buckets := b.bucketsAtCreate(blockStart)
+	buckets := b.bucketVersionsAtCreate(blockStart)
 	buckets.bootstrap(bl)
 }
 
@@ -501,7 +501,7 @@ func (b *dbBuffer) bucketVersionsAt(
 	return nil, false
 }
 
-func (b *dbBuffer) bucketsAtCreate(
+func (b *dbBuffer) bucketVersionsAtCreate(
 	t time.Time,
 ) *BufferBucketVersions {
 	if buckets, exists := b.bucketVersionsAt(t); exists {
@@ -516,7 +516,7 @@ func (b *dbBuffer) bucketsAtCreate(
 	return buckets
 }
 
-func (b *dbBuffer) putBucketInCache(newBuckets *BufferBucketVersions) {
+func (b *dbBuffer) putBucketVersionsInCache(newBuckets *BufferBucketVersions) {
 	replaceIdx := bucketsCacheSize - 1
 	for i, buckets := range b.bucketVersionsCache {
 		// Check if we have the same pointer in cache.
@@ -532,16 +532,35 @@ func (b *dbBuffer) putBucketInCache(newBuckets *BufferBucketVersions) {
 	b.bucketVersionsCache[0] = newBuckets
 }
 
-func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
+func (b *dbBuffer) removeBucketVersionsInCache(oldBuckets *BufferBucketVersions) {
+	nilIdx := -1
+	for i, buckets := range b.bucketVersionsCache {
+		if buckets == oldBuckets {
+			nilIdx = i
+		}
+	}
+	if nilIdx == -1 {
+		return
+	}
+
+	for i := nilIdx; i < bucketsCacheSize-1; i++ {
+		b.bucketVersionsCache[i] = b.bucketVersionsCache[i+1]
+	}
+
+	b.bucketVersionsCache[bucketsCacheSize-1] = nil
+}
+
+func (b *dbBuffer) removeBucketVersionsAt(blockStart time.Time) {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
 		return
 	}
+	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
+	b.removeBucketVersionsInCache(buckets)
+	b.inOrderBlockStartsRemove(blockStart)
 	// nil out pointers.
 	buckets.resetTo(timeZero, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
-	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
-	b.inOrderBlockStartsRemove(blockStart)
 }
 
 func (b *dbBuffer) inOrderBlockStartsAdd(newTime time.Time) {
