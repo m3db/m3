@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -130,6 +131,7 @@ func (w testWrite) assert(
 	unit xtime.Unit,
 	annotation []byte,
 ) {
+	fmt.Println("Doing this, series", int(w.series.UniqueIndex), "no w", int(series.UniqueIndex))
 	require.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
 	require.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
 	require.Equal(t, w.series.Shard, series.Shard)
@@ -138,7 +140,7 @@ func (w testWrite) assert(
 	require.True(t, w.series.Tags.Equal(series.Tags))
 
 	require.True(t, w.t.Equal(datapoint.Timestamp))
-	require.Equal(t, datapoint.Value, datapoint.Value)
+	require.Equal(t, w.v, datapoint.Value)
 	require.Equal(t, w.u, unit)
 	require.Equal(t, w.a, annotation)
 }
@@ -919,3 +921,75 @@ var (
 	testTags2 = ident.NewTags(testTag2)
 	testTags3 = ident.NewTags(testTag3)
 )
+
+func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+
+	defer cleanup(t, opts)
+	commitLog := newTestCommitLog(t, opts)
+	finalized := 0
+	finalizeFn := func(_ ts.WriteBatch) {
+		finalized++
+	}
+
+	writes := ts.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
+
+	clock := mclock.NewMock()
+	alignedStart := clock.Now().Truncate(time.Hour)
+	for i := 0; i < 4; i++ {
+		tt := alignedStart.Add(time.Minute * time.Duration(i))
+		writes.Add(i, ident.StringID(fmt.Sprint(i)), tt, float64(i)*10.5, xtime.Second, nil)
+	}
+
+	writes.SetSkipWrite(0)
+	writes.SetOutcome(1, testSeries(1, "foo.bar", testTags1, 127), nil)
+	writes.SetOutcome(2, testSeries(2, "err.err", testTags2, 255), errors.New("oops"))
+	writes.SetOutcome(3, testSeries(3, "biz.qux", testTags3, 511), nil)
+
+	// Call write batch sync
+	wg := sync.WaitGroup{}
+
+	getAllWrites := func() int {
+		result := int64(0)
+		success, ok := snapshotCounterValue(scope, "commitlog.writes.success")
+		if ok {
+			result += success.Value()
+		}
+		errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
+		if ok {
+			result += errors.Value()
+		}
+		return int(result)
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := commitLog.WriteBatch(ctx, writes)
+		require.NoError(t, err)
+	}()
+
+	// Wait for all writes to enqueue
+	for getAllWrites() != 2 {
+		time.Sleep(time.Microsecond)
+	}
+
+	wg.Wait()
+
+	// Close the commit log and consequently flush
+	require.NoError(t, commitLog.Close())
+
+	// Assert writes occurred by reading the commit log
+	expected := []testWrite{
+		{testSeries(1, "foo.bar", testTags1, 127), alignedStart.Add(time.Minute), 10.5, xtime.Second, nil, nil},
+		{testSeries(3, "biz.qux", testTags3, 511), alignedStart.Add(time.Minute * 3), 31.5, xtime.Second, nil, nil},
+	}
+
+	assertCommitLogWritesByIterating(t, commitLog, expected)
+	require.Equal(t, 1, finalized)
+}

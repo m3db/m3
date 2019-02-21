@@ -80,11 +80,11 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shouldWrite, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
+	wasWritten, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
 		xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
-	assert.False(t, shouldWrite)
+	assert.False(t, wasWritten)
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
@@ -100,19 +100,19 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shouldWrite, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1,
+	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1,
 		xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
-	assert.False(t, shouldWrite)
+	assert.False(t, wasWritten)
 }
 
 // Writes to buffer, verifying no error and that further writes should happen.
 func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
 	ctx := context.NewContext()
-	shouldWrite, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
 	require.NoError(t, err)
-	require.True(t, shouldWrite)
+	require.True(t, wasWritten)
 	ctx.Close()
 }
 
@@ -261,12 +261,12 @@ func TestBufferDrainSamePoint(t *testing.T) {
 	for i, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		shouldWrite, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
-			assert.True(t, shouldWrite)
+			assert.True(t, wasWritten)
 		} else {
-			assert.False(t, shouldWrite)
+			assert.False(t, wasWritten)
 		}
 	}
 
@@ -639,10 +639,10 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 
 	for _, values := range data {
 		for _, value := range values {
-			shouldWrite, err := b.write(value.timestamp, value.value,
+			wasWritten, err := b.write(value.timestamp, value.value,
 				value.unit, value.annotation)
 			require.NoError(t, err)
-			require.True(t, shouldWrite)
+			require.True(t, wasWritten)
 		}
 	}
 
@@ -713,10 +713,10 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	for _, valuesWithMeta := range data {
 		for _, valueWithMeta := range valuesWithMeta {
 			value := valueWithMeta.v
-			shouldWrite, err := b.write(value.timestamp, value.value,
+			wasWritten, err := b.write(value.timestamp, value.value,
 				value.unit, value.annotation)
 			require.NoError(t, err)
-			assert.Equal(t, valueWithMeta.w, shouldWrite)
+			assert.Equal(t, valueWithMeta.w, wasWritten)
 		}
 	}
 

@@ -485,6 +485,12 @@ func (l *commitLog) write() {
 				continue
 			}
 
+			if writeBatch.SkipWrite {
+				// This entry should not be written to the commitlog as it is a duplicate
+				// datapoint.
+				continue
+			}
+
 			write := writeBatch.Write
 			err := l.writerState.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)

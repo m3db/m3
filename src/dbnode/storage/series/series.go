@@ -284,9 +284,9 @@ func (s *dbSeries) Write(
 	annotation []byte,
 ) (bool, error) {
 	s.Lock()
-	shouldWrite, err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
+	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
 	s.Unlock()
-	return shouldWrite, err
+	return wasWritten, err
 }
 
 func (s *dbSeries) ReadEncoded(

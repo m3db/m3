@@ -816,11 +816,14 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID          ident.ID
 		commitLogSeriesTags        ident.Tags
 		commitLogSeriesUniqueIndex uint64
-		shouldWrite                = true
+		// Err on the side of caution and always write to the commitlog if writing
+		// async, since there is no information about whether the write succeeded
+		// or not.
+		wasWritten = true
 	)
 	if writable {
 		// Perform write
-		shouldWrite, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
+		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
 		if err != nil {
 			// release the reference we got on entry from `writableSeries`
 			entry.DecrementReaderWriterCount()
@@ -885,7 +888,7 @@ func (s *dbShard) writeAndIndex(
 		Shard:       s.shard,
 	}
 
-	return series, shouldWrite, nil
+	return series, wasWritten, nil
 }
 
 func (s *dbShard) ReadEncoded(
@@ -1290,9 +1293,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingWrite {
 			write := inserts[i].opts.pendingWrite
-			// NB: Since this is adding a new series, it will always write a new value
-			// and thus there is no reason to check the `shouldWrite` flag returned
-			// by series.Write
+			// NB: Ignore the `wasWritten` return argument here since this is an async
+			// operation and there is nothing further to do with this value.
+			// TODO: Consider propagating the `wasWritten` argument back to the caller
+			// using waitgroup (or otherwise) in the future.
 			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, write.annotation)
 			if err != nil {

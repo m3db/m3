@@ -893,24 +893,24 @@ func testDatabaseWriteBatch(t *testing.T,
 		// in the WriteBatch slice.
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
-			shouldWrite := write.err == nil
+			wasWritten := write.err == nil
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
 				write.t, write.v, xtime.Second, nil).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
 					Tags:      ident.Tags{},
-				}, shouldWrite, write.err)
+				}, wasWritten, write.err)
 		} else {
 			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
-			shouldWrite := write.err == nil
+			wasWritten := write.err == nil
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
 				write.t, write.v, xtime.Second, nil).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
 					Tags:      ident.Tags{},
-				}, shouldWrite, write.err)
+				}, wasWritten, write.err)
 		}
 		i++
 	}

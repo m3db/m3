@@ -87,9 +87,9 @@ func TestSeriesEmpty(t *testing.T) {
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v value) {
 	ctx := context.NewContext()
-	shouldWrite, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
 	require.NoError(t, err)
-	require.True(t, shouldWrite)
+	require.True(t, wasWritten)
 	ctx.Close()
 }
 
@@ -163,12 +163,12 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	for i, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		shouldWrite, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
-			require.True(t, shouldWrite)
+			require.True(t, wasWritten)
 		} else {
-			require.False(t, shouldWrite)
+			require.False(t, wasWritten)
 		}
 		ctx.Close()
 	}
@@ -759,9 +759,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			shouldWrite, err := series.Write(ctx, start, value, xtime.Second, nil)
+			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil)
 			require.NoError(t, err)
-			assert.True(t, shouldWrite)
+			assert.True(t, wasWritten)
 			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
@@ -771,9 +771,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			shouldWrite, err := series.Write(ctx, start, value, xtime.Second, nil)
+			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil)
 			require.NoError(t, err)
-			assert.True(t, shouldWrite)
+			assert.True(t, wasWritten)
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
 		}
@@ -831,15 +831,15 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shouldWrite, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil)
+	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
-	shouldWrite, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil)
+	assert.True(t, wasWritten)
+	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
-	shouldWrite, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil)
+	assert.True(t, wasWritten)
+	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
 	require.NoError(t, err)

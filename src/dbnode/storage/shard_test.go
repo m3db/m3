@@ -412,10 +412,10 @@ func writeShardAndVerify(
 	ctx context.Context, t *testing.T, shard *dbShard, id string,
 	now time.Time, value float64, expectedShouldWrite bool, expectedIdx uint64,
 ) {
-	series, shouldWrite, err := shard.Write(ctx, ident.StringID(id),
+	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
 		now, value, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedShouldWrite, shouldWrite)
+	assert.Equal(t, expectedShouldWrite, wasWritten)
 	assert.Equal(t, id, series.ID.String())
 	assert.Equal(t, "testns1", series.Namespace.String())
 	assert.Equal(t, expectedIdx, series.UniqueIndex)

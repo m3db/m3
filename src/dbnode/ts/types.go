@@ -40,7 +40,7 @@ type Write struct {
 type BatchWrite struct {
 	// Determines if this series should be written or not. If this is false, the
 	// series at this index will be cleaned on
-	skipWrite bool
+	SkipWrite bool
 	// Used by the commitlog (series needed to be updated by the shard
 	// object first, cannot use the Series provided by the caller as it
 	// is missing important fields like Tags.)
@@ -98,7 +98,6 @@ type WriteBatch interface {
 	Iter() []BatchWrite
 	SetOutcome(idx int, series Series, err error)
 	SetSkipWrite(idx int)
-	Sanitize()
 	Reset(batchSize int, ns ident.ID)
 	Finalize()
 

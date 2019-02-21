@@ -548,12 +548,12 @@ func (d *db) Write(
 		return err
 	}
 
-	series, shouldWrite, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, wasWritten, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() || !shouldWrite {
+	if !n.Options().WritesToCommitLog() || !wasWritten {
 		return nil
 	}
 
@@ -585,12 +585,12 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, shouldWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, wasWritten, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() || !shouldWrite {
+	if !n.Options().WritesToCommitLog() || !wasWritten {
 		return nil
 	}
 
@@ -661,17 +661,16 @@ func (d *db) writeBatch(
 		return err
 	}
 
-	numSkipped := 0
 	iter := writes.Iter()
 	for i, write := range iter {
 		var (
-			series      ts.Series
-			shouldWrite bool
-			err         error
+			series     ts.Series
+			wasWritten bool
+			err        error
 		)
 
 		if tagged {
-			series, shouldWrite, err = n.WriteTagged(
+			series, wasWritten, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
 				write.TagIter,
@@ -681,7 +680,7 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		} else {
-			series, shouldWrite, err = n.Write(
+			series, wasWritten, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
 				write.Write.Datapoint.Timestamp,
@@ -696,11 +695,10 @@ func (d *db) writeBatch(
 			errHandler.HandleError(write.OriginalIndex, err)
 		}
 
-		if !shouldWrite {
+		if !wasWritten {
 			// This series has no additional information that needs to be written to
 			// the commit log; set this series to skip writing to the commit log.
 			writes.SetSkipWrite(i)
-			numSkipped++
 		} else {
 			// Need to set the outcome in the success case so the commitlog gets the
 			// updated series object which contains identifiers (like the series ID)
@@ -709,13 +707,6 @@ func (d *db) writeBatch(
 			// error case so that the commitlog knows to skip this entry.
 			writes.SetOutcome(i, series, err)
 		}
-	}
-
-	if numSkipped > 0 {
-		// Sanitize the writes; if there are any skipping writes, they get dropped
-		// here. Ensure that there are remaining non-errored writes that need to go
-		// through remaining.
-		writes.Sanitize()
 	}
 
 	if !n.Options().WritesToCommitLog() {

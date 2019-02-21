@@ -563,10 +563,10 @@ func (n *dbNamespace) Write(
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, shouldWrite, err := shard.Write(ctx, id, timestamp,
+	series, wasWritten, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, shouldWrite, err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -588,10 +588,10 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, shouldWrite, err := shard.WriteTagged(ctx, id, tags, timestamp,
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
 		value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, shouldWrite, err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) QueryIDs(

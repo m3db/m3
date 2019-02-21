@@ -54,21 +54,21 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, shouldWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
+	_, wasWritten, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.False(t, shouldWrite)
+	assert.False(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -82,17 +82,17 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -176,17 +176,17 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, shouldWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -200,17 +200,17 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -244,17 +244,17 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, shouldWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
+	_, wasWritten, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	inserted := xclock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
@@ -274,17 +274,17 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -373,20 +373,20 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, shouldWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"),
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"),
 		ident.EmptyTagIterator, now, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"),
 		ident.EmptyTagIterator, now, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	inserted := xclock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
@@ -406,17 +406,17 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
-	_, shouldWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
 	assert.NoError(t, err)
-	assert.True(t, shouldWrite)
+	assert.True(t, wasWritten)
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
