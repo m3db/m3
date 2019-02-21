@@ -156,7 +156,10 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
+	// Make sure we'll have to grow the underlying buffer at most
+	// one time before we write one by at a time in a loop.
 	os.ensureCapacityFor(len(bytes))
+
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}
