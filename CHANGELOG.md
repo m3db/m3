@@ -1,5 +1,35 @@
-Changelog
-=========
+# Changelog
+
+# 0.6.1 (2019-02-20)
+
+## Bug fixes
+
+- **M3Coordinator**: Fix to panic caused by generating ID for series with no tags (#1392)
+- **M3Coordinator**: Fix to panic caused by reading placement when none available instead of return 404 (#1391)
+
+# 0.6.0 (2019-02-19)
+
+## Breaking changes
+
+- **M3Coordinator**: ID generation scheme must be explicitly defined in configs ([Set "legacy" if unsure, further information on migrating to 0.6.0](http://m3db.github.io/m3/how_to/query/#migration)) (#1381)
+
+## New Features
+
+- **M3DB** (Config): Simplify M3 config options (#1371)
+- **M3Coordinator**: Improve database creation API (#1350)
+- **M3Query**: Add quantile_over_time and histogram_quantile Prometheus functions (#1367, #1372)
+- **Documentation**: Additional documentation for namespace setup and configuration, etcd, and M3Coordinator ID generations schemes (#1350, #1354, #1381, #1385)
+
+## Performance
+
+- **M3DB** (Index): Add posting list cache that should result in a massive improvement for M3DB query performance for most workloads (#1370)
+
+## Bug fixes
+
+- **M3DB** (Index): Fix race condition in index query (#1356)
+- **M3Coordinator**: Fix panic responder which was previously not reporting query panics to users (#1353)
+- **M3Query**: Fix bug in calculating temporal (over_time) functions (#1271)
+
 # 0.5.0 (2019-02-03)
 
 ## New Features
@@ -9,7 +39,6 @@ Changelog
 - **M3Coordinator**: Add new opt-in ID generation function that will never collide (#1286)
 - **M3DB**: Add [endpoint](https://m3db.io/openapi/#operation/databaseConfigSetBootstrappers) for setting database bootstrapers dynamically(#1239)
 
-
 ## Performance
 
 - **M3DB** (Index) Replace usage of slow "memory segment" for index segment with immutable F.S.Ts that are constantly being generated in the foreground as series are being inserted. Significantly reduces query latency (10x+) for some types of workloads that make heavy use of regex (#1197)
@@ -18,8 +47,7 @@ Changelog
 - **M3DB**: (Index) Use only one roaring bitmap library (Pilosa), and upgrade to version of Pilosa with our upstreammed `UnionInPlace` improvements that reduces memory consumption of expensive queries by over a factor of 10x (#1238), fixes: #1192
 - **M3DB**: (Index) Don't use object pool for allocating long-lived arrays of tag slices which reduces steady-state memory consumption because the default size is 16 which is much bigger than the number of tags most metrics have (#1300)
 - **M3DB**: Auto-calculate size of WriteBatchPool based on commitlog queue size and improve chance of batch being returned to pool (#1236)
-- **M3DB**: Don't allow msgpack library to allocate *bufio.Reader (reduces allocations) and mmap bloomfilters and index summaries as files instead of anonymously so they can be paged out by the O.S if necessary (#1289)
-
+- **M3DB**: Don't allow msgpack library to allocate \*bufio.Reader (reduces allocations) and mmap bloomfilters and index summaries as files instead of anonymously so they can be paged out by the O.S if necessary (#1289)
 
 ## Bug fixes
 
@@ -29,7 +57,6 @@ Changelog
 - **M3Coordinator**: Fix bug in database create API so it respects number of shards (#1188)
 - **M3Coordinator**: Fix tag propagation for temporal functions (#1307)
 - **M3Coordinator**: Properly propagate M3DB fetch timeout from config instead of using default value (#1342)
-
 
 # 0.4.8 (2018-10-20)
 
@@ -47,7 +74,7 @@ Changelog
 
 # 0.4.7 (2018-10-10)
 
-- **Aggregator, Collector**:  Add m3aggregator and m3collector for clustered downsampling (440b41657, df3999d58, #1030, #1038, #1050, #1061)
+- **Aggregator, Collector**: Add m3aggregator and m3collector for clustered downsampling (440b41657, df3999d58, #1030, #1038, #1050, #1061)
 - **Coordinator**: Add m3msg server and placement and topic APIs in m3coordinator to enable use as backend with m3aggregator (#1028, #1055, #1060)
 - DOCS **DB**: Add doc links to placement and namespace config operational guides (#1029)
 
