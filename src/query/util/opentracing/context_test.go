@@ -65,7 +65,6 @@ func TestStartSpanFromContext(t *testing.T) {
 }
 
 func TestStartSpanFromContextOrRoot(t *testing.T) {
-
 	t.Run("uses noop tracer if nothing passed in", func(t *testing.T) {
 		assert.Equal(t, opentracing.NoopTracer{}.StartSpan(""),
 			SpanFromContextOrNoop(context.

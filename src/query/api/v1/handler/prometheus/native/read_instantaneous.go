@@ -69,7 +69,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	logger := logging.WithContext(ctx)
 	params, rErr := parseInstantaneousParams(r, h.timeoutOpts)
 	if rErr != nil {
-		httperrors.ErrorWithReqID(w, r, rErr, rErr.Code())
+		httperrors.ErrorWithReqInfo(w, r, rErr.Code(), rErr)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	result, err := read(ctx, h.engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		httperrors.ErrorWithReqID(w, r, rErr, http.StatusBadRequest)
+		httperrors.ErrorWithReqInfo(w, r, http.StatusBadRequest, rErr)
 		return
 	}
 

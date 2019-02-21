@@ -1,10 +1,10 @@
 ## Metrics
 
-TODO
+TODO: document how to retrieve metrics for M3DB components.
 
 ## Logs
 
-TODO
+TODO: document how to retrieve logs for M3DB components.
 
 ## Tracing
 
@@ -12,9 +12,10 @@ M3DB is integrated with [opentracing](https://opentracing.io/) to provide
 insight into query performance and errors.
 
 ### Configuration
-Currently, only https://www.jaegertracing.io/ is supported as a backend.
+Currently, only [Jaeger](https://www.jaegertracing.io/) is supported as a backend.
 
-To enable it, set tracing.backend to "jaeger":
+To enable it, set tracing.backend to "jaeger" (see also our
+[sample local config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml):
 
 ```
 tracing:
@@ -34,6 +35,11 @@ using the all-in-one jaeger container, they will be accessible at
 
 http://localhost:16686
 
+N.B.: for production workloads, you will almost certainly want to use
+sampler.type=remote with 
+[adaptive sampling](https://www.jaegertracing.io/docs/1.10/sampling/#adaptive-sampler)
+for Jaeger, as write volumes are likely orders of magnitude higher than
+read volumes in most timeseries systems.
 
 #### Alternative backends
 

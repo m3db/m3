@@ -127,7 +127,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
 	if respErr != nil {
-		httperrors.ErrorWithReqID(w, r, respErr.Err, respErr.Code)
+		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
 	}
 

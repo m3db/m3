@@ -33,7 +33,8 @@ import (
 // alias GlobalTracer() so we can mock out the tracer without impacting tests outside the package
 var getGlobalTracer = opentracing.GlobalTracer
 
-// SpanFromContextOrRoot is the same as opentracing.SpanFromContext, but instead of returning nil,
+// SpanFromContextOrNoop is the same as opentracing.SpanFromContext,
+// but instead of returning nil,
 // it returns a NoopTracer span if ctx doesn't already have an associated span.
 // Use this over opentracing.StartSpanFromContext if you need access to the
 // current span, (e.g. if you don't want to start a child span).
@@ -56,15 +57,15 @@ func SpanFromContextOrNoop(ctx context.Context) opentracing.Span {
 // a locally set tracer to be used when needed (as in tests)--while being equivalent to the original in most contexts.
 // See https://github.com/opentracing/opentracing-go/issues/149 for more discussion.
 func StartSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
-	var span opentracing.Span
+	var tracer opentracing.Tracer
 	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
 		opts = append(opts, opentracing.ChildOf(parentSpan.Context()))
-		tracer := parentSpan.Tracer()
-		span = tracer.StartSpan(operationName, opts...)
+		tracer = parentSpan.Tracer()
 	} else {
-		tracer := getGlobalTracer()
-		span = tracer.StartSpan(operationName, opts...)
+		tracer = getGlobalTracer()
 	}
+
+	span := tracer.StartSpan(operationName, opts...)
 
 	return span, opentracing.ContextWithSpan(ctx, span)
 }

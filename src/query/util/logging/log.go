@@ -128,11 +128,11 @@ func withResponseTimeLoggingFunc(
 	return func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 		rqCtx := NewContextWithGeneratedID(r.Context())
-		rqID := ReadContextID(rqCtx)
 		logger := WithContext(rqCtx)
 
 		sp := opentracing.SpanFromContext(rqCtx)
 		if sp != nil {
+			rqID := ReadContextID(rqCtx)
 			sp.SetTag("rqID", rqID)
 		}
 

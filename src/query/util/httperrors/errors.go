@@ -32,10 +32,13 @@ type errorWithID struct {
 	RqID string `json:"rqID"`
 }
 
-// ErrorWithReqID writes an xhttp.ErrorResponse with an added request id (RqId) field read from the request
-// context. NB: RqID is currently a query specific concept, which is why this doesn't exist in xhttp proper.
+// ErrorWithReqInfo writes an xhttp.ErrorResponse with an added request id (
+// RqId) field read from the request context.
+//
+// NB: RqID is currently a query specific concept,
+// which is why this doesn't exist in xhttp proper.
 // We can add it later if we propagate the request id concept to that package as well.
-func ErrorWithReqID(w http.ResponseWriter, r *http.Request, err error, code int) {
+func ErrorWithReqInfo(w http.ResponseWriter, r *http.Request, code int, err error) {
 	ctx := r.Context()
 	w.WriteHeader(code)
 	xhttp.WriteJSONResponse(w, errorWithID{

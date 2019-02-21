@@ -105,19 +105,7 @@ func NewHandler(
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
-	// apply middleware.
-	withMiddleware := http.Handler(&cors.Handler{
-		Handler: r,
-		Info: &cors.Info{
-			"*": true,
-		},
-	})
-
-	// add jaeger tracing to our endpoints
-	withMiddleware = nethttp.Middleware(opentracing.GlobalTracer(), withMiddleware,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
-		}))
+	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 
 	var timeoutOpts = &prometheus.TimeoutOpts{}
 	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
@@ -132,7 +120,7 @@ func NewHandler(
 
 	h := &Handler{
 		router:               r,
-		handler:              withMiddleware,
+		handler:              handlerWithMiddleware,
 		storage:              downsamplerAndWriter.Storage(),
 		downsamplerAndWriter: downsamplerAndWriter,
 		engine:               engine,
@@ -146,6 +134,23 @@ func NewHandler(
 		timeoutOpts:          timeoutOpts,
 	}
 	return h, nil
+}
+
+func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
+	withMiddleware := http.Handler(&cors.Handler{
+		Handler: base,
+		Info: &cors.Info{
+			"*": true,
+		},
+	})
+
+	// apply jaeger middleware, which will start a span
+	// for each incoming request
+	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
+		nethttp.OperationNameFunc(func(r *http.Request) string {
+			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+		}))
+	return withMiddleware
 }
 
 // RegisterRoutes registers all http routes.
