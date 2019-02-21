@@ -33,18 +33,22 @@ import (
 // alias GlobalTracer() so we can mock out the tracer without impacting tests outside the package
 var getGlobalTracer = opentracing.GlobalTracer
 
-// SpanFromContextOrRoot is the same as opentracing.SpanFromContext, but instead of returning nil, it starts a
-// new root span if ctx doesn't already have an associated span, instead of returning nil. Use this over
-// opentracing.StartSpanFromContext if you need access to the current span, but don't want to start a child span.
-// NB: the span returned by this function won't really be configured, and won't be attached to the context; if you
-// want a proper span, start one at the root and pass it in.
-func SpanFromContextOrRoot(ctx context.Context) opentracing.Span {
+// SpanFromContextOrRoot is the same as opentracing.SpanFromContext, but instead of returning nil,
+// it returns a NoopTracer span if ctx doesn't already have an associated span.
+// Use this over opentracing.StartSpanFromContext if you need access to the
+// current span, (e.g. if you don't want to start a child span).
+//
+// NB: if there is no span in the context, the span returned by this function
+// is a noop, and won't be attached to the context; if you
+// want a proper span, either start one and pass it in, or start one
+// in your function.
+func SpanFromContextOrNoop(ctx context.Context) opentracing.Span {
 	sp := opentracing.SpanFromContext(ctx)
 	if sp != nil {
 		return sp
 	}
 
-	return opentracing.StartSpan("SpanFromContextOrRoot - dummy")
+	return opentracing.NoopTracer{}.StartSpan("")
 }
 
 // StartSpanFromContext is the same as opentracing.StartSpanFromContext, but instead of always using the global tracer,

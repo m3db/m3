@@ -64,6 +64,24 @@ func TestStartSpanFromContext(t *testing.T) {
 	})
 }
 
+func TestStartSpanFromContextOrRoot(t *testing.T) {
+
+	t.Run("uses noop tracer if nothing passed in", func(t *testing.T) {
+		assert.Equal(t, opentracing.NoopTracer{}.StartSpan(""),
+			SpanFromContextOrNoop(context.
+				Background()))
+	})
+
+	t.Run("returns span if span attached to context", func(t *testing.T) {
+		mt := mocktracer.New()
+		root := mt.StartSpan("root")
+		ctx := opentracing.ContextWithSpan(context.Background(), root)
+
+		assert.Equal(t, root, SpanFromContextOrNoop(ctx))
+	})
+
+}
+
 func mockoutGlobalTracer(mtr opentracing.Tracer) func() {
 	oldGGT := getGlobalTracer
 	getGlobalTracer = func() opentracing.Tracer {

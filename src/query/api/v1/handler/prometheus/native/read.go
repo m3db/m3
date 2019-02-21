@@ -170,7 +170,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
-		sp := opentracingutil.SpanFromContextOrRoot(ctx)
+		sp := opentracingutil.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))

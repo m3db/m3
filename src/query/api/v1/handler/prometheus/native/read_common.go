@@ -48,7 +48,7 @@ func read(
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
-	sp := opentracingutil.SpanFromContextOrRoot(ctx)
+	sp := opentracingutil.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
 		opentracingutil.Time("params.start", params.Start),
