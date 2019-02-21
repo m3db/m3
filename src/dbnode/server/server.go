@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"runtime"
 	"runtime/debug"
 	"syscall"
@@ -67,6 +68,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xdocs "github.com/m3db/m3/src/x/docs"
+	"github.com/m3db/m3/src/x/lockfile"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/serialize"
 	xconfig "github.com/m3db/m3x/config"
@@ -87,6 +89,7 @@ const (
 	serverGracefulCloseTimeout       = 10 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
+	filePathPrefixLockFile           = ".lock"
 )
 
 // RunOptions provides options for running the server
@@ -143,6 +146,29 @@ func Run(runOpts RunOptions) {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
+
+	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
+	if err != nil {
+		logger.Fatalf("could not parse new file mode: %v", err)
+	}
+
+	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
+	if err != nil {
+		logger.Fatalf("could not parse new directory mode: %v", err)
+	}
+
+	// Obtain a lock on `filePathPrefix`, or exit if another process already has it.
+	// The lock consists of a lock file (on the file system) and a lock in memory.
+	// When the process exits gracefully, both the lock file and the lock will be removed.
+	// If the process exits ungracefully, only the lock in memory will be removed, the lock
+	// file will remain on the file system. When a dbnode starts after an ungracefully stop,
+	// it will be able to acquire the lock despite the fact the the lock file exists.
+	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
+	fslock, err := lockfile.CreateAndAcquire(lockPath, newDirectoryMode)
+	if err != nil {
+		logger.Fatalf("could not acquire lock on %s: %v", lockPath, err)
+	}
+	defer fslock.Release()
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -289,16 +315,6 @@ func Run(runOpts RunOptions) {
 	defer runtimeOptsMgr.Close()
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
-
-	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
-	if err != nil {
-		logger.Fatalf("could not parse new file mode: %v", err)
-	}
-
-	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
-	if err != nil {
-		logger.Fatalf("could not parse new directory mode: %v", err)
-	}
 
 	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
 	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
