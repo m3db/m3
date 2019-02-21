@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 )
 
-// QueryConversionLRU implements a non-thread safe fixed size LRU cache
+// QueryConversionLRU implements a fixed size LRU cache
 type QueryConversionLRU struct {
 	sync.Mutex
 
@@ -58,12 +58,14 @@ func NewQueryConversionLRU(size int) (*QueryConversionLRU, error) {
 	return c, nil
 }
 
-// Add adds a value to the cache.  Returns true if an eviction occurred.
-func (c *QueryConversionLRU) Add(key string, value idx.Query) (evicted bool) {
+// AddWithLock adds a value to the cache. Returns true if an eviction occurred.
+func (c *QueryConversionLRU) AddWithLock(key string, value idx.Query) (evicted bool) {
 	// Check for existing item
+	c.Lock()
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
 		ent.Value.(*entry).value = value
+		c.Unlock()
 		return false
 	}
 
@@ -78,11 +80,12 @@ func (c *QueryConversionLRU) Add(key string, value idx.Query) (evicted bool) {
 		c.removeOldest()
 	}
 
+	c.Unlock()
 	return evict
 }
 
-// Get looks up a key's value from the cache.
-func (c *QueryConversionLRU) Get(key string) (value idx.Query, ok bool) {
+// GetWithLock looks up a key's value from the cache.
+func (c *QueryConversionLRU) GetWithLock(key string) (value idx.Query, ok bool) {
 	c.Lock()
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)

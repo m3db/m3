@@ -117,7 +117,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index
 	matchers := fetchQuery.TagMatchers
 	k := queryKey(matchers)
 
-	if val, ok := lru.Get(string(k)); ok {
+	if val, ok := lru.GetWithLock(string(k)); ok {
 		return index.Query{Query: val}, nil
 	}
 
@@ -128,7 +128,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index
 			return index.Query{}, err
 		}
 
-		lru.Add(string(k), q)
+		lru.AddWithLock(string(k), q)
 		return index.Query{Query: q}, nil
 	}
 
@@ -143,7 +143,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
-	lru.Add(string(k), q)
+	lru.AddWithLock(string(k), q)
 	return index.Query{Query: q}, nil
 }
 
