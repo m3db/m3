@@ -31,9 +31,24 @@ const (
 
 // Ostream encapsulates a writable stream.
 type ostream struct {
+	// We want to use a checked.Bytes when exposing or returning the buffer
+	// of the ostream. Unfortunately, the accounting overhead of going through
+	// the checked.Bytes for every write is massive. As a result, we store both
+	// the rawBuffer that backs the checked.Bytes AND the checked.Bytes themselves
+	// in this struct.
+	//
+	// That way, whenever we're writing to the buffer we can avoid the cost accounting
+	// overhead entirely, but when the data needs to be exposed outside of this datastructure
+	// or ownership of the data needs to be transfered, then we use the checked.Bytes, which
+	// is when the accounting really matters anyways.
+	//
+	// The rawBuffered and checked.Bytes may get out of sync as the rawBuffer is written to,
+	// but thats fine because we perform a "repair" by resetting the checked.Bytes underlying
+	// byte slice to be the rawBuffer whenever we expose a checked.Bytes to an external caller.
 	rawBuffer []byte
-	checked   checked.Bytes // raw bytes
-	pos       int           // how many bits have been used in the last byte
+	checked   checked.Bytes
+
+	pos       int // how many bits have been used in the last byte
 	bytesPool pool.CheckedBytesPool
 }
 
@@ -46,6 +61,7 @@ func NewOStream(
 	if bytes == nil && initAllocIfEmpty {
 		bytes = checked.NewBytes(make([]byte, 0, initAllocSize), nil)
 	}
+
 	stream := &ostream{bytesPool: bytesPool}
 	stream.Reset(bytes)
 	return stream
@@ -174,7 +190,7 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 
 // Discard takes the ref to the checked bytes from the ostream
 func (os *ostream) Discard() checked.Bytes {
-	os.checked.Reset(os.rawBuffer)
+	os.repairCheckedBytes()
 
 	buffer := os.checked
 	buffer.DecRef()
@@ -188,7 +204,6 @@ func (os *ostream) Discard() checked.Bytes {
 
 // Reset resets the ostream
 func (os *ostream) Reset(buffer checked.Bytes) {
-	// TODO: Replace with call to discard?
 	if os.checked != nil {
 		// Release ref of the current raw buffer
 		os.checked.DecRef()
@@ -216,8 +231,14 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 
 // Rawbytes returns the Osteam's raw bytes
 func (os *ostream) Rawbytes() (checked.Bytes, int) {
-	os.checked.Reset(os.rawBuffer)
+	os.repairCheckedBytes()
 	return os.checked, os.pos
+}
+
+// repairCheckedBytes makes suer that the checked.Bytes wraps the rawBuffer as
+// they may have fallen out of sync during the writing process.
+func (os *ostream) repairCheckedBytes() {
+	os.checked.Reset(os.rawBuffer)
 }
 
 func max(x, y int) int {
