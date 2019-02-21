@@ -39,7 +39,7 @@ type ostream struct {
 	//
 	// That way, whenever we're writing to the buffer we can avoid the cost accounting
 	// overhead entirely, but when the data needs to be exposed outside of this datastructure
-	// or ownership of the data needs to be transfered, then we use the checked.Bytes, which
+	// or ownership of the data needs to be transferred, then we use the checked.Bytes, which
 	// is when the accounting really matters anyways.
 	//
 	// The rawBuffered and checked.Bytes may get out of sync as the rawBuffer is written to,
