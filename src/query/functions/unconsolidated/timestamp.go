@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/ts"
 )
@@ -83,7 +84,7 @@ type timestampNode struct {
 }
 
 // Process the block
-func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *timestampNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	unconsolidatedBlock, err := b.Unconsolidated()
 	if err != nil {
 		return err
@@ -94,7 +95,7 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	builder, err := n.controller.BlockBuilder(iter.Meta(), iter.SeriesMeta())
+	builder, err := n.controller.BlockBuilder(queryCtx, iter.Meta(), iter.SeriesMeta())
 	if err != nil {
 		return err
 	}
@@ -127,5 +128,5 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
 
-	return n.controller.Process(nextBlock)
+	return n.controller.Process(queryCtx, nextBlock)
 }

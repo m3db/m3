@@ -156,7 +156,8 @@ func (e *Engine) ExecuteExpr(
 
 	result := state.resultNode
 	results <- Query{Result: result}
-	if err := state.Execute(ctx); err != nil {
+
+	if err := state.Execute(models.NewQueryContext(ctx, tally.NoopScope)); err != nil {
 		result.abort(err)
 	} else {
 		result.done()

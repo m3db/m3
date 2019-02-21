@@ -26,12 +26,14 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // UnlessType uses all values from lhs which do not exist in rhs
 const UnlessType = "unless"
 
 func makeUnlessBlock(
+	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
@@ -52,7 +54,7 @@ func makeUnlessBlock(
 	meta := lIter.Meta()
 	commonTags, dedupedSeriesMetas := utils.DedupeMetadata(distinctSeriesMeta)
 	meta.Tags = commonTags
-	builder, err := controller.BlockBuilder(meta, dedupedSeriesMetas)
+	builder, err := controller.BlockBuilder(queryCtx, meta, dedupedSeriesMetas)
 	if err != nil {
 		return nil, err
 	}

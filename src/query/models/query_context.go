@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package models
 
 import (
 	"context"
-	"fmt"
-	"testing"
-	"time"
 
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 )
 
-func TestEngine_Execute(t *testing.T) {
-	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
-	session.EXPECT().IteratorPools().Return(nil, nil)
+// QueryContext provides all external state needed to execute and track a query.
+// It acts as a hook back into the execution engine for things like
+// cost accounting.
+type QueryContext struct {
+	Ctx   context.Context
+	Scope tally.Scope
+}
 
-	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
-	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute)
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
-	res := <-results
-	assert.NotNil(t, res.Err)
+// NewQueryContext constructs a QueryContext using the given Enforcer to
+// enforce per query limits.
+func NewQueryContext(ctx context.Context, scope tally.Scope) *QueryContext {
+	return &QueryContext{
+		Ctx:   ctx,
+		Scope: scope,
+	}
+}
+
+// NoopQueryContext returns a query context with no active components.
+func NoopQueryContext() *QueryContext {
+	return NewQueryContext(context.Background(), tally.NoopScope)
+}
+
+// WithContext creates a shallow copy of this QueryContext using the new context.
+// Sample usage:
+//
+// ctx, cancel := context.WithTimeout(qc.Ctx, 5*time.Second)
+// defer cancel()
+// qc = qc.WithContext(ctx)
+func (qc *QueryContext) WithContext(ctx context.Context) *QueryContext {
+	if qc == nil {
+		return nil
+	}
+
+	clone := *qc
+	clone.Ctx = ctx
+	return &clone
 }

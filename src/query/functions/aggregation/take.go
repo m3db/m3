@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/ts"
 )
@@ -111,7 +112,7 @@ type takeNode struct {
 }
 
 // Process the block
-func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *takeNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
@@ -128,7 +129,7 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 	)
 
 	// retain original metadatas
-	builder, err := n.controller.BlockBuilder(meta, stepIter.SeriesMeta())
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, stepIter.SeriesMeta())
 	if err != nil {
 		return err
 	}
@@ -150,7 +151,7 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
-	return n.controller.Process(nextBlock)
+	return n.controller.Process(queryCtx, nextBlock)
 }
 
 // shortcut to return empty when taking <= 0 values

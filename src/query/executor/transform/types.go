@@ -37,7 +37,7 @@ type Options struct {
 
 // OpNode represents the execution node
 type OpNode interface {
-	Process(ID parser.NodeID, block block.Block) error
+	Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error
 }
 
 // TimeSpec defines the time bounds for the query execution. End is exclusive

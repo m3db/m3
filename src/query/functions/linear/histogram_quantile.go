@@ -233,7 +233,7 @@ func bucketQuantile(q float64, buckets []bucketValue) float64 {
 }
 
 // Process the block
-func (n *histogramQuantileNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *histogramQuantileNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
@@ -245,13 +245,14 @@ func (n *histogramQuantileNode) Process(ID parser.NodeID, b block.Block) error {
 
 	q := n.op.q
 	if q < 0 || q > 1 {
-		return processInvalidQuantile(q, bucketedSeries, meta, stepIter, n.controller)
+		return processInvalidQuantile(queryCtx, q, bucketedSeries, meta, stepIter, n.controller)
 	}
 
-	return processValidQuantile(q, bucketedSeries, meta, stepIter, n.controller)
+	return processValidQuantile(queryCtx, q, bucketedSeries, meta, stepIter, n.controller)
 }
 
 func setupBuilder(
+	queryCtx *models.QueryContext,
 	bucketedSeries bucketedSeries,
 	meta block.Metadata,
 	stepIter block.StepIter,
@@ -268,7 +269,7 @@ func setupBuilder(
 	}
 
 	meta.Tags, metas = utils.DedupeMetadata(metas)
-	builder, err := controller.BlockBuilder(meta, metas)
+	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err
 	}
@@ -281,6 +282,7 @@ func setupBuilder(
 }
 
 func processValidQuantile(
+	queryCtx *models.QueryContext,
 	q float64,
 	bucketedSeries bucketedSeries,
 	meta block.Metadata,
@@ -289,7 +291,7 @@ func processValidQuantile(
 ) error {
 	sanitizeBuckets(bucketedSeries)
 
-	builder, err := setupBuilder(bucketedSeries, meta, stepIter, controller)
+	builder, err := setupBuilder(queryCtx, bucketedSeries, meta, stepIter, controller)
 	if err != nil {
 		return err
 	}
@@ -331,17 +333,18 @@ func processValidQuantile(
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
-	return controller.Process(nextBlock)
+	return controller.Process(queryCtx, nextBlock)
 }
 
 func processInvalidQuantile(
+	queryCtx *models.QueryContext,
 	q float64,
 	bucketedSeries bucketedSeries,
 	meta block.Metadata,
 	stepIter block.StepIter,
 	controller *transform.Controller,
 ) error {
-	builder, err := setupBuilder(bucketedSeries, meta, stepIter, controller)
+	builder, err := setupBuilder(queryCtx, bucketedSeries, meta, stepIter, controller)
 	if err != nil {
 		return err
 	}
@@ -366,5 +369,5 @@ func processInvalidQuantile(
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
-	return controller.Process(nextBlock)
+	return controller.Process(queryCtx, nextBlock)
 }

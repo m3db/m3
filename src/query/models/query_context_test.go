@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package unconsolidated
+package models
 
 import (
+	"context"
 	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestTimestamp(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := newTimestampOp(TimestampType).Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2)
+func TestQueryContext_WithContext(t *testing.T) {
+	t.Run("passes along new context without modifying old", func(t *testing.T) {
+		qc := NoopQueryContext()
 
-	start := bounds.Start
-	step := bounds.StepSize
-	for _, vals := range sink.Values {
-		for i, val := range vals {
-			assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), val)
-		}
-	}
+		testKey := struct{}{}
+
+		newCtx := context.WithValue(qc.Ctx, testKey, "bar")
+
+		newQc := qc.WithContext(newCtx)
+
+		assert.Equal(t, "bar", newQc.Ctx.Value(testKey), "new context should be present")
+		assert.Equal(t, nil, qc.Ctx.Value(testKey), "old context should be the same")
+	})
+
+	t.Run("returns nil on nil", func(t *testing.T) {
+		var qc *QueryContext
+		assert.Nil(t, qc.WithContext(context.TODO()))
+	})
 }
