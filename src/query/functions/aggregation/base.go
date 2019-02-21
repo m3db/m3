@@ -109,11 +109,20 @@ type baseNode struct {
 	controller *transform.Controller
 }
 
+func (n *baseNode) Params() parser.Params {
+	return n.op
+}
+
 // Process the block
 func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+// ProcessBlock performs the aggregation on the input block, and returns the aggregated result.
+func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	params := n.op.params
@@ -129,11 +138,11 @@ func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err = builder.AddCols(stepIter.StepCount()); err != nil {
-		return err
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
+		return nil, err
 	}
 
 	aggregatedValues := make([]float64, len(buckets))
@@ -148,10 +157,8 @@ func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	}
 
 	if err = stepIter.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return n.controller.Process(queryCtx, nextBlock)
+	return builder.Build(), nil
 }

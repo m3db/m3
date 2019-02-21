@@ -64,7 +64,7 @@ func assertWroteJSONError(
 	code int,
 ) {
 	assert.Equal(t, code, recorder.Code)
-	var resp errorResponse
+	var resp ErrorResponse
 	err := json.NewDecoder(recorder.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.NotEqual(t, "", resp.Error)

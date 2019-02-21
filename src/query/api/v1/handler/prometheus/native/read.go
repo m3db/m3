@@ -32,9 +32,12 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	xhttp "github.com/m3db/m3/src/x/net/http"
+	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 
+	opentracingext "github.com/opentracing/opentracing-go/ext"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -124,7 +127,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
 	if respErr != nil {
-		xhttp.Error(w, respErr.Err, respErr.Code)
+		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
 	}
 
@@ -167,6 +170,9 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
+		sp := opentracingutil.SpanFromContextOrNoop(ctx)
+		sp.LogFields(opentracinglog.Error(err))
+		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}

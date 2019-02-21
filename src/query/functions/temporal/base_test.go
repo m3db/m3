@@ -396,13 +396,16 @@ func TestSingleProcessRequest(t *testing.T) {
 		},
 	})
 	bNode := node.(*baseNode)
-	err := bNode.processSingleRequest(processRequest{
+	request := processRequest{
 		blk:      block2,
 		bounds:   bounds,
 		deps:     []block.UnconsolidatedBlock{block1},
 		queryCtx: models.NoopQueryContext(),
-	})
-	assert.NoError(t, err)
+	}
+	bl, err := bNode.processSingleRequest(request)
+	require.NoError(t, err)
+
+	bNode.propagateNextBlocks([]processRequest{request}, []block.Block{bl}, 1)
 	assert.Len(t, sink.Values, 2, "block processed")
 	// Current Block:     0  1  2  3  4  5
 	// Previous Block:   10 11 12 13 14 15

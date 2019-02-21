@@ -40,8 +40,7 @@ func (t *Controller) AddTransform(node OpNode) {
 // Process performs processing on the underlying transforms
 func (t *Controller) Process(queryCtx *models.QueryContext, block block.Block) error {
 	for _, ts := range t.transforms {
-		err := ts.Process(queryCtx, t.ID, block)
-		if err != nil {
+		if err := ts.Process(queryCtx, t.ID, block); err != nil {
 			return err
 		}
 	}

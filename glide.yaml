@@ -1,7 +1,7 @@
 package: github.com/m3db/m3
 import:
   - package: github.com/m3db/m3x
-    version: e98ec326dd7b4d4bc97390c709dacf73d49a0bfc
+    version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
     vcs: git
     subpackages:
       - checked
@@ -64,7 +64,7 @@ import:
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
 
   - package: github.com/opentracing/opentracing-go
-    version: 855519783f479520497c6b3445611b05fc42f009
+    version: 1.0.2
 
   - package: github.com/spaolacci/murmur3
     version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
@@ -200,6 +200,20 @@ import:
     version: 4
     subpackages:
       - capnslog
+
+  # START_JAEGER_DEPS
+  - package: github.com/uber/jaeger-lib
+    version: ^1.5.0
+
+  - package: github.com/uber/jaeger-client-go
+    version: ^2.7.0
+
+  - package: github.com/opentracing-contrib/go-stdlib
+    # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
+    # the same code.
+    version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+
+  # END_JAEGER_DEPS
 
   # To avoid conflicting packages not resolving the latest GRPC
   - package: google.golang.org/grpc
