@@ -133,13 +133,12 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index
 	}
 
 	idxQueries := make([]idx.Query, len(matchers))
+	var err error
 	for i, matcher := range matchers {
-		q, err := matcherToQuery(matcher)
+		idxQueries[i], err = matcherToQuery(matcher)
 		if err != nil {
 			return index.Query{}, err
 		}
-
-		idxQueries[i] = q
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
