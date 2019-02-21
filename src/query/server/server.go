@@ -608,13 +608,24 @@ func newStorages(
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(
+	// Setup query conversion cache.
+	var (
+		conversionCacheConfig = cfg.Cache.QueryConversionCacheConfiguration()
+		conversionCacheSize   = conversionCacheConfig.SizeOrDefault()
+	)
+
+	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
+		conversionCacheSize,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

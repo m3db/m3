@@ -53,6 +53,8 @@ const (
 	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
+
+	defaultQueryConversionCacheSize = 100
 )
 
 var (
@@ -123,6 +125,9 @@ type Configuration struct {
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
+
+	// Cache configurations.
+	Cache CacheConfigurations `yaml:"cache"`
 }
 
 // Filter is a query filter type.
@@ -144,6 +149,37 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// CacheConfigurations is the cache configurations.
+type CacheConfigurations struct {
+	// QueryConversion cache policy.
+	QueryConversion *QueryConversionCacheConfiguration `yaml:"queryConversion"`
+}
+
+// QueryConversionCacheConfiguration is the query conversion cache configuration.
+type QueryConversionCacheConfiguration struct {
+	Size *int `yaml:"size"`
+}
+
+// QueryConversionCacheConfiguration returns the query conversion cache configuration
+// or default if none is specified.
+func (c CacheConfigurations) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
+	if c.QueryConversion == nil {
+		return QueryConversionCacheConfiguration{}
+	}
+
+	return *c.QueryConversion
+}
+
+// SizeOrDefault returns the provided size or the default value is none is
+// provided.
+func (p *QueryConversionCacheConfiguration) SizeOrDefault() int {
+	if p.Size == nil {
+		return defaultQueryConversionCacheSize
+	}
+
+	return *p.Size
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.

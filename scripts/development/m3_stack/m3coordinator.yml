@@ -55,3 +55,7 @@ carbon:
 
 tagOptions:
   idScheme: quoted
+
+cache:
+  queryConversion:
+    size: 200

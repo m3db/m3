@@ -90,9 +90,37 @@ func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery)
 	}
 }
 
+var (
+	// byte representation for [1,2,3,4]
+	lookup = [4]byte{49, 50, 51, 52}
+)
+
+func queryKey(m models.Matchers) []byte {
+	l := len(m)
+	for _, t := range m {
+		l += len(t.Name) + len(t.Value)
+	}
+
+	key := make([]byte, l)
+	idx := 0
+	for _, t := range m {
+		idx += copy(key[idx:], t.Name)
+		key[idx] = lookup[t.Type]
+		idx += copy(key[idx+1:], t.Value)
+	}
+
+	return key
+}
+
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query
-func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
+func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index.Query, error) {
 	matchers := fetchQuery.TagMatchers
+	k := queryKey(matchers)
+
+	if val, ok := lru.Get(string(k)); ok {
+		return index.Query{Query: val}, nil
+	}
+
 	// Optimization for single matcher case.
 	if len(matchers) == 1 {
 		q, err := matcherToQuery(matchers[0])
@@ -100,19 +128,22 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 			return index.Query{}, err
 		}
 
+		lru.Add(string(k), q)
 		return index.Query{Query: q}, nil
 	}
 
 	idxQueries := make([]idx.Query, len(matchers))
-	var err error
 	for i, matcher := range matchers {
-		idxQueries[i], err = matcherToQuery(matcher)
+		q, err := matcherToQuery(matcher)
 		if err != nil {
 			return index.Query{}, err
 		}
+
+		idxQueries[i] = q
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
+	lru.Add(string(k), q)
 	return index.Query{Query: q}, nil
 }
 
