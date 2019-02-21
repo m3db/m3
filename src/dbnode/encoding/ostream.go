@@ -241,7 +241,9 @@ func (os *ostream) Rawbytes() (checked.Bytes, int) {
 // repairCheckedBytes makes suer that the checked.Bytes wraps the rawBuffer as
 // they may have fallen out of sync during the writing process.
 func (os *ostream) repairCheckedBytes() {
-	os.checked.Reset(os.rawBuffer)
+	if os.checked != nil {
+		os.checked.Reset(os.rawBuffer)
+	}
 }
 
 func max(x, y int) int {
