@@ -85,7 +85,7 @@ func (os *ostream) hasUnusedBits() bool {
 	return os.pos > 0 && os.pos < 8
 }
 
-// grow appends the last byte of v to checked and sets pos to np.
+// grow appends the last byte of v to rawBuffer and sets pos to np.
 func (os *ostream) grow(v byte, np int) {
 	os.ensureCapacityFor(1)
 	os.rawBuffer = append(os.rawBuffer, v)
