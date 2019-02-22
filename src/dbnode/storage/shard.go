@@ -824,11 +824,6 @@ func (s *dbShard) writeAndIndex(
 	if writable {
 		// Perform write
 		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
-		if err != nil {
-			// release the reference we got on entry from `writableSeries`
-			entry.DecrementReaderWriterCount()
-			return ts.Series{}, false, err
-		}
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -838,18 +833,17 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID = entry.Series.ID()
 		commitLogSeriesTags = entry.Series.Tags()
 		commitLogSeriesUniqueIndex = entry.Index
-		if shouldReverseIndex {
+		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				if err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
-					opts.writeNewSeriesAsync); err != nil {
-					// release the reference we got on entry from `writableSeries`
-					entry.DecrementReaderWriterCount()
-					return ts.Series{}, false, err
-				}
+				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+					opts.writeNewSeriesAsync)
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
 		entry.DecrementReaderWriterCount()
+		if err != nil {
+			return ts.Series{}, false, err
+		}
 	} else {
 		// This is an asynchronous insert and write
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
