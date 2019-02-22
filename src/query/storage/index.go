@@ -129,7 +129,6 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConvserionCache) (i
 	defer cache.mu.Unlock()
 
 	if val, ok := cache.LRU.Get(string(k)); ok {
-		fmt.Println("get")
 		return index.Query{Query: val}, nil
 	}
 
@@ -140,7 +139,6 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConvserionCache) (i
 			return index.Query{}, err
 		}
 
-		fmt.Println("add")
 		cache.LRU.Add(string(k), q)
 		return index.Query{Query: q}, nil
 	}
@@ -154,7 +152,6 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConvserionCache) (i
 		}
 	}
 
-	fmt.Println("adding")
 	q := idx.NewConjunctionQuery(idxQueries...)
 	cache.LRU.Add(string(k), q)
 	return index.Query{Query: q}, nil
