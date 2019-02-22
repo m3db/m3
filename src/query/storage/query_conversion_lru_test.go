@@ -23,22 +23,39 @@ package storage
 import (
 	"testing"
 
-	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/idx"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func generateTestData() map[string]idx.Query {
-	return map[string]idx.Query{
-		"a": idx.NewTermQuery([]byte("foo"), []byte("bar")),
-	}
-}
 
 func TestLRU(t *testing.T) {
 	lru, err := NewQueryConversionLRU(5)
 	require.NoError(t, err)
 
+	// test add and get
 	lru.Add("a", idx.NewTermQuery([]byte("foo"), []byte("bar")))
-	_, ok := lru.Get("a")
+	lru.Add("b", idx.NewTermQuery([]byte("biz"), []byte("baz")))
+
+	var (
+		ok bool
+		q  idx.Query
+	)
+
+	q, ok = lru.Get("a")
 	require.True(t, ok)
+	assert.Equal(t, "term(foo, bar)", q.String())
+	q, ok = lru.Get("b")
+	require.True(t, ok)
+	assert.Equal(t, "term(biz, baz)", q.String())
+
+	// fill up the cache
+	lru.Add("c", idx.NewTermQuery([]byte("bar"), []byte("foo")))
+	lru.Add("d", idx.NewTermQuery([]byte("baz"), []byte("biz")))
+	lru.Add("e", idx.NewTermQuery([]byte("qux"), []byte("quz")))
+	lru.Add("f", idx.NewTermQuery([]byte("quz"), []byte("qux")))
+
+	// make sure "a" is no longer in the cache
+	_, ok = lru.Get("a")
+	require.False(t, ok)
 }
