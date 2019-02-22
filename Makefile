@@ -67,6 +67,7 @@ SUBDIRS :=    \
 	m3nsch      \
 	m3ninx      \
 	aggregator  \
+	foo
 
 TOOLS :=               \
 	read_ids             \
@@ -322,11 +323,18 @@ test-ci-integration-$(SUBDIR):
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
+# Run gometalinter, configured by .metalinter.json on the given subdirectory.
+# Env var options:
+#    METALINT_FAST: if set, run with --fast
 .PHONY: metalint-$(SUBDIR)
 metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
 	@echo "--- metalinting $(SUBDIR)"
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+		--config $(metalint_config) \
+		--tests \
+		--vendor \
+		$(if $(METALINT_FAST),"--fast","") \
+		src/$(SUBDIR)/...)
 
 endef
 
