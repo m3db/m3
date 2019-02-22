@@ -23,18 +23,15 @@ package storage
 import (
 	"container/list"
 	"fmt"
-	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/idx"
 )
 
 // QueryConversionLRU implements a fixed size LRU cache
 type QueryConversionLRU struct {
-	sync.Mutex
-
 	size      int
 	evictList *list.List
-	items     map[interface{}]*list.Element
+	items     map[string]*list.Element
 }
 
 // entry is used to hold a value in the evictList
@@ -52,20 +49,18 @@ func NewQueryConversionLRU(size int) (*QueryConversionLRU, error) {
 	c := &QueryConversionLRU{
 		size:      size,
 		evictList: list.New(),
-		items:     make(map[interface{}]*list.Element),
+		items:     make(map[string]*list.Element, size),
 	}
 
 	return c, nil
 }
 
-// AddWithLock adds a value to the cache. Returns true if an eviction occurred.
-func (c *QueryConversionLRU) AddWithLock(key string, value idx.Query) (evicted bool) {
+// Add adds a value to the cache. Returns true if an eviction occurred.
+func (c *QueryConversionLRU) Add(key string, value idx.Query) (evicted bool) {
 	// Check for existing item
-	c.Lock()
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
 		ent.Value.(*entry).value = value
-		c.Unlock()
 		return false
 	}
 
@@ -80,20 +75,16 @@ func (c *QueryConversionLRU) AddWithLock(key string, value idx.Query) (evicted b
 		c.removeOldest()
 	}
 
-	c.Unlock()
 	return evict
 }
 
-// GetWithLock looks up a key's value from the cache.
-func (c *QueryConversionLRU) GetWithLock(key string) (value idx.Query, ok bool) {
-	c.Lock()
+// Get looks up a key's value from the cache.
+func (c *QueryConversionLRU) Get(key string) (value idx.Query, ok bool) {
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
-		c.Unlock()
 		return ent.Value.(*entry).value, true
 	}
 
-	c.Unlock()
 	return
 }
 

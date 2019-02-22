@@ -62,7 +62,7 @@ type m3storage struct {
 	writeWorkerPool xsync.PooledWorkerPool
 	opts            m3db.Options
 	nowFn           func() time.Time
-	conversionCache *storage.QueryConversionLRU
+	conversionCache *storage.QueryConvserionCache
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -91,7 +91,7 @@ func NewStorage(
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
-		conversionCache: conversionLRU,
+		conversionCache: &storage.QueryConvserionCache{LRU: conversionLRU},
 	}, nil
 }
 

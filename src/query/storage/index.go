@@ -22,12 +22,20 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3x/ident"
 )
+
+// QueryConvserionCache represents the query conversion LRU cache
+type QueryConvserionCache struct {
+	mu sync.RWMutex
+
+	LRU *QueryConversionLRU
+}
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
 func FromM3IdentToMetric(
@@ -113,11 +121,15 @@ func queryKey(m models.Matchers) []byte {
 }
 
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query
-func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index.Query, error) {
+func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConvserionCache) (index.Query, error) {
 	matchers := fetchQuery.TagMatchers
 	k := queryKey(matchers)
 
-	if val, ok := lru.GetWithLock(string(k)); ok {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	if val, ok := cache.LRU.Get(string(k)); ok {
+		fmt.Println("get")
 		return index.Query{Query: val}, nil
 	}
 
@@ -128,7 +140,8 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index
 			return index.Query{}, err
 		}
 
-		lru.AddWithLock(string(k), q)
+		fmt.Println("add")
+		cache.LRU.Add(string(k), q)
 		return index.Query{Query: q}, nil
 	}
 
@@ -141,8 +154,9 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, lru *QueryConversionLRU) (index
 		}
 	}
 
+	fmt.Println("adding")
 	q := idx.NewConjunctionQuery(idxQueries...)
-	lru.AddWithLock(string(k), q)
+	cache.LRU.Add(string(k), q)
 	return index.Query{Query: q}, nil
 }
 

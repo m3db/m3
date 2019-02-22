@@ -132,6 +132,13 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 	}
 
+	lru, err := NewQueryConversionLRU(10)
+	require.NoError(t, err)
+
+	cache := &QueryConvserionCache{
+		LRU: lru,
+	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fetchQuery := &FetchQuery{
@@ -142,7 +149,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 				Interval:    15 * time.Second,
 			}
 
-			m3Query, err := FetchQueryToM3Query(fetchQuery)
+			m3Query, err := FetchQueryToM3Query(fetchQuery, cache)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, m3Query.String())
 		})
