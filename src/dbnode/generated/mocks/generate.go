@@ -40,5 +40,6 @@
 //go:generate sh -c "mockgen -package=retention -destination=$GOPATH/src/$PACKAGE/src/dbnode/retention/retention_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/retention/types.go"
 //go:generate sh -c "mockgen -package=namespace -destination=$GOPATH/src/$PACKAGE/src/dbnode/storage/namespace/namespace_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/storage/namespace/types.go"
 //go:generate sh -c "mockgen -package=runtime -destination=$GOPATH/src/$PACKAGE/src/dbnode/runtime/runtime_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/runtime/types.go"
+//go:generate sh -c "mockgen -package=ts -destination=$GOPATH/src/$PACKAGE/src/dbnode/ts/write_batch_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/ts/types.go"
 
 package mocks

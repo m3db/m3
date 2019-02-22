@@ -38,8 +38,8 @@ type Write struct {
 // BatchWrite represents a write that was added to the
 // BatchWriter.
 type BatchWrite struct {
-	// Determines if this series should be written or not. If this is false, the
-	// series at this index will be cleaned on
+	// Used by the commitlog. If this is false, the commitlog should not write
+	// the series at this index.
 	SkipWrite bool
 	// Used by the commitlog (series needed to be updated by the shard
 	// object first, cannot use the Series provided by the caller as it

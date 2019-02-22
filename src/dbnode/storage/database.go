@@ -695,7 +695,7 @@ func (d *db) writeBatch(
 			errHandler.HandleError(write.OriginalIndex, err)
 		}
 
-		if !wasWritten {
+		if !wasWritten && err == nil {
 			// This series has no additional information that needs to be written to
 			// the commit log; set this series to skip writing to the commit log.
 			writes.SetSkipWrite(i)
@@ -708,7 +708,6 @@ func (d *db) writeBatch(
 			writes.SetOutcome(i, series, err)
 		}
 	}
-
 	if !n.Options().WritesToCommitLog() {
 		// Finalize here because we can't rely on the commitlog to do it since
 		// we're not using it.

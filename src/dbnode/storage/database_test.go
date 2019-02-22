@@ -183,7 +183,11 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	return db
 }
 
-func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs BootstrapState) (*db, nsMapCh, xmetrics.TestStatsReporter) {
+func newTestDatabase(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	bs BootstrapState,
+) (*db, nsMapCh, xmetrics.TestStatsReporter) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, _ := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
@@ -1097,4 +1101,73 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 			assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
 		})
 	}
+}
+
+func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	commitlog := d.commitLog
+	d.commitLog = nil
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions().
+		SetWritesToCommitLog(false)
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
+	ns.EXPECT().Close().Return(nil).Times(1)
+	require.NoError(t, d.Open())
+
+	var (
+		namespace = ident.StringID("testns")
+		ctx       = context.NewContext()
+		series1   = ts.Series{UniqueIndex: 0}
+		series2   = ts.Series{UniqueIndex: 1}
+		series3   = ts.Series{UniqueIndex: 2}
+		series4   = ts.Series{UniqueIndex: 3}
+		err       = fmt.Errorf("err")
+	)
+
+	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any()).Return(series1, true, nil)
+	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any()).Return(series2, true, err)
+	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any()).Return(series3, false, err)
+	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any()).Return(series4, false, nil)
+
+	write := ts.Write{
+		Series: ts.Series{ID: ident.StringID("foo")},
+	}
+
+	iters := []ts.BatchWrite{
+		{Write: write},
+		{Write: write},
+		{Write: write},
+		{Write: write},
+	}
+
+	batchWriter := ts.NewMockWriteBatch(ctrl)
+	batchWriter.EXPECT().Iter().Return(iters)
+	batchWriter.EXPECT().Finalize().Times(1)
+	batchWriter.EXPECT().SetOutcome(0, series1, nil)
+	batchWriter.EXPECT().SetOutcome(1, series2, err)
+	batchWriter.EXPECT().SetOutcome(2, series3, err)
+	batchWriter.EXPECT().SetSkipWrite(3)
+
+	errHandler := &fakeIndexedErrorHandler{}
+	d.WriteBatch(ctx, namespace, batchWriter, errHandler)
+	require.Equal(t, 2, len(errHandler.errs))
+	require.Equal(t, err, errHandler.errs[0].err)
+	require.Equal(t, err, errHandler.errs[1].err)
+	d.commitLog = commitlog
+	require.NoError(t, d.Close())
 }

@@ -131,7 +131,6 @@ func (w testWrite) assert(
 	unit xtime.Unit,
 	annotation []byte,
 ) {
-	fmt.Println("Doing this, series", int(w.series.UniqueIndex), "no w", int(series.UniqueIndex))
 	require.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
 	require.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
 	require.Equal(t, w.series.Shard, series.Shard)
