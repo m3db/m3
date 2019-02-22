@@ -122,7 +122,8 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage := NewStorage(clusters, nil, writePool, opts, time.Minute)
+	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute, 100)
+	require.NoError(t, err)
 	return storage
 }
 
