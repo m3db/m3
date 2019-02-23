@@ -156,8 +156,8 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
-	// Make sure we'll have to grow the underlying buffer at most
-	// one time before we write one by at a time in a loop.
+	// Make sure we only have to grow the underlying buffer at most
+	// one time before we write one byte at a time in a loop.
 	os.ensureCapacityFor(len(bytes))
 
 	for i := 0; i < len(bytes); i++ {
@@ -238,7 +238,7 @@ func (os *ostream) Rawbytes() (checked.Bytes, int) {
 	return os.checked, os.pos
 }
 
-// repairCheckedBytes makes suer that the checked.Bytes wraps the rawBuffer as
+// repairCheckedBytes makes sure that the checked.Bytes wraps the rawBuffer as
 // they may have fallen out of sync during the writing process.
 func (os *ostream) repairCheckedBytes() {
 	if os.checked != nil {
