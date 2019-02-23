@@ -36,7 +36,7 @@ type QueryConversionLRU struct {
 
 // entry is used to hold a value in the evictList
 type entry struct {
-	key   string
+	key   []byte
 	value idx.Query
 }
 
@@ -55,10 +55,10 @@ func NewQueryConversionLRU(size int) (*QueryConversionLRU, error) {
 	return c, nil
 }
 
-// Add adds a value to the cache. Returns true if an eviction occurred.
-func (c *QueryConversionLRU) Add(key string, value idx.Query) (evicted bool) {
+// Set adds a value to the cache. Returns true if an eviction occurred.
+func (c *QueryConversionLRU) Set(key []byte, value idx.Query) (evicted bool) {
 	// Check for existing item
-	if ent, ok := c.items[key]; ok {
+	if ent, ok := c.items[string(key)]; ok {
 		c.evictList.MoveToFront(ent)
 		ent.Value.(*entry).value = value
 		return false
@@ -67,7 +67,7 @@ func (c *QueryConversionLRU) Add(key string, value idx.Query) (evicted bool) {
 	// Add new item
 	ent := &entry{key, value}
 	entry := c.evictList.PushFront(ent)
-	c.items[key] = entry
+	c.items[string(key)] = entry
 
 	evict := c.evictList.Len() > c.size
 	// Verify size not exceeded
@@ -79,8 +79,8 @@ func (c *QueryConversionLRU) Add(key string, value idx.Query) (evicted bool) {
 }
 
 // Get looks up a key's value from the cache.
-func (c *QueryConversionLRU) Get(key string) (value idx.Query, ok bool) {
-	if ent, ok := c.items[key]; ok {
+func (c *QueryConversionLRU) Get(key []byte) (value idx.Query, ok bool) {
+	if ent, ok := c.items[string(key)]; ok {
 		c.evictList.MoveToFront(ent)
 		return ent.Value.(*entry).value, true
 	}
@@ -100,5 +100,5 @@ func (c *QueryConversionLRU) removeOldest() {
 func (c *QueryConversionLRU) removeElement(e *list.Element) {
 	c.evictList.Remove(e)
 	kv := e.Value.(*entry)
-	delete(c.items, kv.key)
+	delete(c.items, string(kv.key))
 }

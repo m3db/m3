@@ -33,29 +33,40 @@ func TestLRU(t *testing.T) {
 	lru, err := NewQueryConversionLRU(5)
 	require.NoError(t, err)
 
-	// test add and get
-	lru.Add("a", idx.NewTermQuery([]byte("foo"), []byte("bar")))
-	lru.Add("b", idx.NewTermQuery([]byte("biz"), []byte("baz")))
-
 	var (
-		ok bool
-		q  idx.Query
+		ok      bool
+		evicted bool
+		q       idx.Query
 	)
 
-	q, ok = lru.Get("a")
+	// test add and get
+	evicted = lru.Set([]byte("a"), idx.NewTermQuery([]byte("foo"), []byte("bar")))
+	require.False(t, evicted)
+	evicted = lru.Set([]byte("b"), idx.NewTermQuery([]byte("biz"), []byte("baz")))
+	require.False(t, evicted)
+
+	q, ok = lru.Get([]byte("a"))
 	require.True(t, ok)
 	assert.Equal(t, "term(foo, bar)", q.String())
-	q, ok = lru.Get("b")
+	q, ok = lru.Get([]byte("b"))
 	require.True(t, ok)
 	assert.Equal(t, "term(biz, baz)", q.String())
 
 	// fill up the cache
-	lru.Add("c", idx.NewTermQuery([]byte("bar"), []byte("foo")))
-	lru.Add("d", idx.NewTermQuery([]byte("baz"), []byte("biz")))
-	lru.Add("e", idx.NewTermQuery([]byte("qux"), []byte("quz")))
-	lru.Add("f", idx.NewTermQuery([]byte("quz"), []byte("qux")))
+	evicted = lru.Set([]byte("c"), idx.NewTermQuery([]byte("bar"), []byte("foo")))
+	require.False(t, evicted)
+	evicted = lru.Set([]byte("d"), idx.NewTermQuery([]byte("baz"), []byte("biz")))
+	require.False(t, evicted)
+	evicted = lru.Set([]byte("e"), idx.NewTermQuery([]byte("qux"), []byte("quz")))
+	require.False(t, evicted)
+	evicted = lru.Set([]byte("f"), idx.NewTermQuery([]byte("quz"), []byte("qux")))
+	require.True(t, evicted)
 
 	// make sure "a" is no longer in the cache
-	_, ok = lru.Get("a")
+	_, ok = lru.Get([]byte("a"))
 	require.False(t, ok)
+
+	// make sure "b" is still in the cache
+	_, ok = lru.Get([]byte("b"))
+	require.True(t, ok)
 }

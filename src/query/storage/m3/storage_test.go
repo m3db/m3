@@ -122,7 +122,9 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute, 100)
+	queryCache, err := storage.NewQueryConversionLRU(100)
+	require.NoError(t, err)
+	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute, storage.NewQueryConversionCache(queryCache))
 	require.NoError(t, err)
 	return storage
 }

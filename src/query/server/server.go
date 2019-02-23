@@ -64,7 +64,7 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -614,13 +614,18 @@ func newStorages(
 		conversionCacheSize   = conversionCacheConfig.SizeOrDefault()
 	)
 
+	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
-		conversionCacheSize,
+		storage.NewQueryConversionCache(conversionLRU),
 	)
 	if err != nil {
 		return nil, nil, err

@@ -135,7 +135,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 	lru, err := NewQueryConversionLRU(10)
 	require.NoError(t, err)
 
-	cache := &QueryConvserionCache{
+	cache := &QueryConversionCache{
 		LRU: lru,
 	}
 
@@ -154,5 +154,17 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			assert.Equal(t, test.expected, m3Query.String())
 		})
 	}
+}
 
+func TestQueryKey(t *testing.T) {
+	matchers := models.Matchers{
+		{
+			Type:  models.MatchEqual,
+			Name:  []byte("t1"),
+			Value: []byte("v1"),
+		},
+	}
+
+	keyByte := queryKey(matchers)
+	assert.Equal(t, []byte("t11v1"), keyByte)
 }
