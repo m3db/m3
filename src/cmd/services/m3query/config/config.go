@@ -184,11 +184,14 @@ func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
 
 // Validate validates the QueryConversionCacheConfiguration settings.
 func (q *QueryConversionCacheConfiguration) Validate() error {
-	if *q.Size <= 0 {
+	switch {
+	case q.Size == nil:
+		return nil
+	case *q.Size <= 0:
 		return fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
