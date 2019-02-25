@@ -42,7 +42,7 @@ type ostream struct {
 	// or ownership of the data needs to be transferred, then we use the checked.Bytes, which
 	// is when the accounting really matters anyways.
 	//
-	// The rawBuffered and checked.Bytes may get out of sync as the rawBuffer is written to,
+	// The rawBuffer and checked.Bytes may get out of sync as the rawBuffer is written to,
 	// but thats fine because we perform a "repair" by resetting the checked.Bytes underlying
 	// byte slice to be the rawBuffer whenever we expose a checked.Bytes to an external caller.
 	rawBuffer []byte
