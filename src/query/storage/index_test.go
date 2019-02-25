@@ -152,6 +152,11 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			m3Query, err := FetchQueryToM3Query(fetchQuery, cache)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, m3Query.String())
+
+			k := queryKey(test.matchers)
+			q, ok := cache.get(k)
+			require.True(t, ok)
+			assert.Equal(t, test.expected, q.String())
 		})
 	}
 }
@@ -164,12 +169,17 @@ func TestQueryKey(t *testing.T) {
 	}{
 		{
 			name:     "exact match",
-			expected: "t11v1",
+			expected: "t11v1t22v2",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchEqual,
 					Name:  []byte("t1"),
 					Value: []byte("v1"),
+				},
+				{
+					Type:  models.MatchNotEqual,
+					Name:  []byte("t2"),
+					Value: []byte("v2"),
 				},
 			},
 		},

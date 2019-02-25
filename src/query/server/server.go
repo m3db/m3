@@ -609,15 +609,12 @@ func newStorages(
 	cleanup := func() error { return nil }
 
 	// Setup query conversion cache.
-	var (
-		conversionCacheConfig = cfg.Cache.QueryConversionCacheConfiguration()
-		conversionCacheSize   = conversionCacheConfig.SizeOrDefault()
-	)
-
+	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
 	if err := conversionCacheConfig.Validate(); err != nil {
 		return nil, nil, err
 	}
 
+	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
 	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
 	if err != nil {
 		return nil, nil, err

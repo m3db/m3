@@ -130,6 +130,7 @@ func queryKey(m models.Matchers) []byte {
 		idx += copy(key[idx:], t.Name)
 		key[idx] = lookup[t.Type]
 		idx += copy(key[idx+1:], t.Value)
+		idx++
 	}
 
 	return key
