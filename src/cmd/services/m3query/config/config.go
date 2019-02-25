@@ -54,7 +54,7 @@ const (
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
 
-	defaultQueryConversionCacheSize = 100
+	defaultQueryConversionCacheSize = 4096
 )
 
 var (
