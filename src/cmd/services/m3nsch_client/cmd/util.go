@@ -49,6 +49,9 @@ func (w *cliWorkload) validate() error {
 	if w.Namespace == "" {
 		multiErr = multiErr.Add(fmt.Errorf("namespace must be set"))
 	}
+	if w.UniqueAmplifier < 0.0 || w.UniqueAmplifier > 1.0 {
+		multiErr = multiErr.Add(fmt.Errorf("unique-amplifier must be between 0.0 and 1.0 (is %f)", w.UniqueAmplifier))
+	}
 	return multiErr.FinalError()
 }
 
@@ -68,4 +71,6 @@ func registerWorkloadFlags(flags *pflag.FlagSet, workload *cliWorkload) {
 		`aggregate workload cardinality`)
 	flags.IntVarP(&workload.IngressQPS, "ingress-qps", "i", 1000,
 		`aggregate workload ingress qps`)
+	flags.Float64VarP(&workload.UniqueAmplifier, "unique-amplifier", "u", 0.0,
+		`% of generatic metrics as float [0.0,1.0] that will be unique`)
 }
