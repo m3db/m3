@@ -136,7 +136,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 	require.NoError(t, err)
 
 	cache := &QueryConversionCache{
-		LRU: lru,
+		lru: lru,
 	}
 
 	for _, test := range tests {
@@ -157,14 +157,61 @@ func TestFetchQueryToM3Query(t *testing.T) {
 }
 
 func TestQueryKey(t *testing.T) {
-	matchers := models.Matchers{
+	tests := []struct {
+		name     string
+		expected string
+		matchers models.Matchers
+	}{
 		{
-			Type:  models.MatchEqual,
-			Name:  []byte("t1"),
-			Value: []byte("v1"),
+			name:     "exact match",
+			expected: "t11v1",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchEqual,
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
+				},
+			},
+		},
+		{
+			name:     "exact match negated",
+			expected: "t12v1",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotEqual,
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
+				},
+			},
+		},
+		{
+			name:     "regexp match",
+			expected: "t13v1",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
+				},
+			},
+		},
+		{
+			name:     "regexp match negated",
+			expected: "t14v1",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
+				},
+			},
 		},
 	}
 
-	keyByte := queryKey(matchers)
-	assert.Equal(t, []byte("t11v1"), keyByte)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			keyByte := queryKey(test.matchers)
+			assert.Equal(t, []byte(test.expected), keyByte)
+		})
+	}
 }

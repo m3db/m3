@@ -174,15 +174,21 @@ func (c CacheConfiguration) QueryConversionCacheConfiguration() QueryConversionC
 
 // SizeOrDefault returns the provided size or the default value is none is
 // provided.
-func (q *QueryConversionCacheConfiguration) SizeOrDefault() (int, error) {
-	switch {
-	case q.Size == nil:
-		return defaultQueryConversionCacheSize, nil
-	case *q.Size <= 0:
-		return -1, fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
-	default:
-		return *q.Size, nil
+func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
+	if q.Size == nil {
+		return defaultQueryConversionCacheSize
 	}
+
+	return *q.Size
+}
+
+// Validate validates the QueryConversionCacheConfiguration settings.
+func (q *QueryConversionCacheConfiguration) Validate() error {
+	if *q.Size <= 0 {
+		return fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
+	}
+
+	return nil
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.

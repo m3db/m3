@@ -67,6 +67,7 @@ func TestLRU(t *testing.T) {
 	require.False(t, ok)
 
 	// make sure "b" is still in the cache
-	_, ok = lru.Get([]byte("b"))
+	q, ok = lru.Get([]byte("b"))
 	require.True(t, ok)
+	assert.Equal(t, "term(biz, baz)", q.String())
 }

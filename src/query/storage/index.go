@@ -34,22 +34,22 @@ import (
 type QueryConversionCache struct {
 	mu sync.Mutex
 
-	LRU *QueryConversionLRU
+	lru *QueryConversionLRU
 }
 
 // NewQueryConversionCache creates a new QueryConversionCache with a provided LRU cache
 func NewQueryConversionCache(lru *QueryConversionLRU) *QueryConversionCache {
 	return &QueryConversionCache{
-		LRU: lru,
+		lru: lru,
 	}
 }
 
 func (q *QueryConversionCache) set(k []byte, v idx.Query) bool {
-	return q.LRU.Set(k, v)
+	return q.lru.Set(k, v)
 }
 
 func (q *QueryConversionCache) get(k []byte) (idx.Query, bool) {
-	return q.LRU.Get(k)
+	return q.lru.Get(k)
 }
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
