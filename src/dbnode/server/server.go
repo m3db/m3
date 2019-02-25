@@ -63,7 +63,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/tchannel"
+	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -87,7 +87,7 @@ import (
 const (
 	bootstrapConfigInitTimeout       = 10 * time.Second
 	serverGracefulCloseTimeout       = 10 * time.Second
-	bgProcessLimitInterval           = 10 * time.Second
+	bgProcessLimitInterval           = time.Minute
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 	filePathPrefixLockFile           = ".lock"
 )
