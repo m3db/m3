@@ -120,7 +120,7 @@ func (o *options) Validate() error {
 
 	if float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()) > MaximumQueueSizeQueueChannelSizeRatio {
 		return fmt.Errorf(
-			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at least: %f, but was: %f",
+			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at most: %f, but was: %f",
 			MaximumQueueSizeQueueChannelSizeRatio, float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()))
 	}
 
