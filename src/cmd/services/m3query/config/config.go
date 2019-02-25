@@ -127,7 +127,7 @@ type Configuration struct {
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
 
 	// Cache configurations.
-	Cache CacheConfigurations `yaml:"cache"`
+	Cache CacheConfiguration `yaml:"cache"`
 }
 
 // Filter is a query filter type.
