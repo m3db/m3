@@ -151,8 +151,8 @@ type FilterConfiguration struct {
 	CompleteTags Filter `yaml:"completeTags"`
 }
 
-// CacheConfigurations is the cache configurations.
-type CacheConfigurations struct {
+// CacheConfiguration is the cache configurations.
+type CacheConfiguration struct {
 	// QueryConversion cache policy.
 	QueryConversion *QueryConversionCacheConfiguration `yaml:"queryConversion"`
 }
@@ -164,7 +164,7 @@ type QueryConversionCacheConfiguration struct {
 
 // QueryConversionCacheConfiguration returns the query conversion cache configuration
 // or default if none is specified.
-func (c CacheConfigurations) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
+func (c CacheConfiguration) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
 	if c.QueryConversion == nil {
 		return QueryConversionCacheConfiguration{}
 	}
@@ -174,12 +174,15 @@ func (c CacheConfigurations) QueryConversionCacheConfiguration() QueryConversion
 
 // SizeOrDefault returns the provided size or the default value is none is
 // provided.
-func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
-	if q.Size == nil {
-		return defaultQueryConversionCacheSize
+func (q *QueryConversionCacheConfiguration) SizeOrDefault() (int, error) {
+	switch {
+	case q.Size == nil:
+		return defaultQueryConversionCacheSize, nil
+	case *q.Size <= 0:
+		return -1, fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
+	default:
+		return *q.Size, nil
 	}
-
-	return *q.Size
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.

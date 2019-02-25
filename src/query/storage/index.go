@@ -44,6 +44,14 @@ func NewQueryConversionCache(lru *QueryConversionLRU) *QueryConversionCache {
 	}
 }
 
+func (q *QueryConversionCache) set(k []byte, v idx.Query) bool {
+	return q.LRU.Set(k, v)
+}
+
+func (q *QueryConversionCache) get(k []byte) (idx.Query, bool) {
+	return q.LRU.Get(k)
+}
+
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
 func FromM3IdentToMetric(
 	identID ident.ID,
@@ -135,7 +143,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConversionCache) (i
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	if val, ok := cache.LRU.Get(k); ok {
+	if val, ok := cache.get(k); ok {
 		return index.Query{Query: val}, nil
 	}
 
@@ -146,7 +154,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConversionCache) (i
 			return index.Query{}, err
 		}
 
-		cache.LRU.Set(k, q)
+		cache.set(k, q)
 		return index.Query{Query: q}, nil
 	}
 
@@ -160,7 +168,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConversionCache) (i
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
-	cache.LRU.Set(k, q)
+	cache.set(k, q)
 	return index.Query{Query: q}, nil
 }
 

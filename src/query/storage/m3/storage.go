@@ -80,18 +80,12 @@ func NewStorage(
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
 
-	// conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	return &m3storage{
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
-		// conversionCache: &storage.QueryConversionCache{LRU: conversionLRU},
 		conversionCache: queryConversionCache,
 	}, nil
 }
