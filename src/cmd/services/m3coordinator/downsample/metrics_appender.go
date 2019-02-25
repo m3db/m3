@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/x/serialize"
@@ -39,8 +40,11 @@ type metricsAppender struct {
 	multiSamplesAppender *multiSamplesAppender
 }
 
+// metricsAppenderOptions will have one of agg or clientRemote set.
 type metricsAppenderOptions struct {
-	agg                    aggregator.Aggregator
+	agg          aggregator.Aggregator
+	clientRemote client.Client
+
 	defaultStagedMetadatas []metadata.StagedMetadatas
 	clockOpts              clock.Options
 	tagEncoder             serialize.TagEncoder
@@ -88,6 +92,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			}
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
+				clientRemote:    a.clientRemote,
 				unownedID:       unownedID,
 				stagedMetadatas: stagedMetadatas,
 			})
@@ -97,6 +102,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		for _, stagedMetadatas := range a.defaultStagedMetadatas {
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
+				clientRemote:    a.clientRemote,
 				unownedID:       unownedID,
 				stagedMetadatas: stagedMetadatas,
 			})
@@ -107,6 +113,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			// Only sample if going to actually aggregate
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
+				clientRemote:    a.clientRemote,
 				unownedID:       unownedID,
 				stagedMetadatas: stagedMetadatas,
 			})
@@ -117,6 +124,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
+				clientRemote:    a.clientRemote,
 				unownedID:       rollup.ID,
 				stagedMetadatas: rollup.Metadatas,
 			})

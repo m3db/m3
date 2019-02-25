@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -31,13 +32,25 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
+// samplesAppender must have one of agg or client set
 type samplesAppender struct {
-	agg             aggregator.Aggregator
+	agg          aggregator.Aggregator
+	clientRemote client.Client
+
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
 }
 
 func (a samplesAppender) AppendCounterSample(value int64) error {
+	if a.clientRemote != nil {
+		// Remote client write instead
+		sample := unaggregated.Counter{
+			ID:    a.unownedID,
+			Value: value,
+		}
+		return a.clientRemote.WriteUntimedCounter(sample, a.stagedMetadatas)
+	}
+
 	sample := unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		ID:         a.unownedID,
@@ -47,6 +60,15 @@ func (a samplesAppender) AppendCounterSample(value int64) error {
 }
 
 func (a samplesAppender) AppendGaugeSample(value float64) error {
+	if a.clientRemote != nil {
+		// Remote client write instead
+		sample := unaggregated.Gauge{
+			ID:    a.unownedID,
+			Value: value,
+		}
+		return a.clientRemote.WriteUntimedGauge(sample, a.stagedMetadatas)
+	}
+
 	sample := unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		ID:       a.unownedID,
@@ -82,6 +104,14 @@ func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
 					AggregationID: pipeline.AggregationID,
 					StoragePolicy: policy,
 				}
+
+				if a.clientRemote != nil {
+					// Remote client write instead
+					multiErr = multiErr.Add(a.clientRemote.WriteTimed(sample, metadata))
+					continue
+				}
+
+				// Add timed to local aggregator
 				multiErr = multiErr.Add(a.agg.AddTimed(sample, metadata))
 			}
 		}

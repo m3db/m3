@@ -492,6 +492,7 @@ func newDownsampler(
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:          storage,
+		ClusterClient:    clusterManagementClient,
 		RulesKVStore:     kvStore,
 		AutoMappingRules: autoMappingRules,
 		ClockOptions:     clock.NewOptions(),

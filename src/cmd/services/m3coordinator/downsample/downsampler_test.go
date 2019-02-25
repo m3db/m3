@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
@@ -43,6 +44,7 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -354,6 +356,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	var cfg Configuration
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:               storage,
+		ClusterClient:         clusterclient.NewMockClient(gomock.NewController(t)),
 		RulesKVStore:          rulesKVStore,
 		AutoMappingRules:      opts.autoMappingRules,
 		ClockOptions:          clockOpts,

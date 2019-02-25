@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -83,6 +84,7 @@ var (
 	}
 
 	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
+	errNoClusterClient         = errors.New("dynamic downsampling enabled with cluster client not set")
 	errNoRulesStore            = errors.New("dynamic downsampling enabled with rules store not set")
 	errNoClockOptions          = errors.New("dynamic downsampling enabled with clock options not set")
 	errNoInstrumentOptions     = errors.New("dynamic downsampling enabled with instrument options not set")
@@ -96,6 +98,7 @@ var (
 type DownsamplerOptions struct {
 	Storage                 storage.Storage
 	StorageFlushConcurrency int
+	ClusterClient           clusterclient.Client
 	RulesKVStore            kv.Store
 	AutoMappingRules        []MappingRule
 	NameTag                 string
@@ -141,6 +144,9 @@ func (o DownsamplerOptions) validate() error {
 	if o.Storage == nil {
 		return errNoStorage
 	}
+	if o.ClusterClient == nil {
+		return errNoClusterClient
+	}
 	if o.RulesKVStore == nil {
 		return errNoRulesStore
 	}
@@ -165,8 +171,12 @@ func (o DownsamplerOptions) validate() error {
 	return nil
 }
 
+// agg will have one of aggregator or clientRemote set, the
+// rest of the fields must not be nil.
 type agg struct {
-	aggregator             aggregator.Aggregator
+	aggregator   aggregator.Aggregator
+	clientRemote client.Client
+
 	defaultStagedMetadatas []metadata.StagedMetadatas
 	clockOpts              clock.Options
 	matcher                matcher.Matcher
@@ -175,6 +185,10 @@ type agg struct {
 
 // Configuration configurates a downsampler.
 type Configuration struct {
+	// RemoteAggregator specifies that downsampling should be not
+	// done locally but sent to a remote aggregator.
+	RemoteAggregator *RemoteAggregatorConfiguration `yaml:"remoteAggregator"`
+
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes *aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
@@ -186,6 +200,13 @@ type Configuration struct {
 
 	// Pool of gauge elements.
 	GaugeElemPool pool.ObjectPoolConfiguration `yaml:"gaugeElemPool"`
+}
+
+// RemoteAggregatorConfiguration specifies a remote aggregator
+// to use for downsampling.
+type RemoteAggregatorConfiguration struct {
+	// Client is the remote aggregator client.
+	Client client.Configuration `yaml:"client"`
 }
 
 // NewDownsampler returns a new downsampler.
@@ -239,6 +260,25 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		ruleSetOpts, rulesStore)
 	if err != nil {
 		return agg{}, err
+	}
+
+	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
+		// If downsampling setup to use a remote aggregator instead of local
+		// aggregator, set that up instead.
+		client, err := remoteAgg.Client.NewClient(o.ClusterClient, clockOpts,
+			instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("remote-aggregator-client")))
+		if err != nil {
+			err = fmt.Errorf("could not create remote aggregator client: %v", err)
+			return agg{}, err
+		}
+
+		return agg{
+			clientRemote:           client,
+			defaultStagedMetadatas: defaultStagedMetadatas,
+			matcher:                matcher,
+			pools:                  pools,
+		}, nil
 	}
 
 	aggClient := client.NewClient(client.NewOptions())
