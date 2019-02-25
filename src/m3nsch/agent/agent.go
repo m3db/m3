@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/datums"
-	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -58,7 +57,6 @@ type m3nschAgent struct {
 	workerWg      sync.WaitGroup      // used to track when workers are finished
 	params        workerParams        // worker params
 	lastStartTime int64               // last time a workload was started as unix epoch
-	nowFn         clock.NowFn
 }
 
 type workerParams struct {
@@ -77,7 +75,6 @@ func New(
 		registry: registry,
 		opts:     opts,
 		logger:   opts.InstrumentOptions().Logger(),
-		nowFn:    time.Now,
 		params: workerParams{
 			fn: workerWriteFn,
 		},
@@ -221,7 +218,7 @@ func (ms *m3nschAgent) Start() error {
 	concurrency := ms.opts.Concurrency()
 	ms.workerChans = newWorkerChannels(concurrency)
 	ms.agentStatus = m3nsch.StatusRunning
-	atomic.StoreInt64(&ms.lastStartTime, ms.nowFn().Unix())
+	atomic.StoreInt64(&ms.lastStartTime, time.Now().Unix())
 	ms.workerWg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
 		go ms.runWorker(i, ms.workerChans[i])
@@ -306,13 +303,13 @@ func (ms *m3nschAgent) runWorker(workerIdx int, workerCh chan workerNotification
 		case <-tickLoop.C:
 			fakeNow = fakeNow.Add(tickPeriod)
 			metric := ms.nextWorkerMetric(workerIdx)
-			start := ms.nowFn()
+			start := time.Now()
 
 			// If configured to generate uniques over time, modify the metric to add
 			// cardinality.
 			if u := ms.workload.UniqueAmplifier; u > 0 {
 				lastStart := time.Unix(atomic.LoadInt64(&ms.lastStartTime), 0)
-				suffix := "/" + metricUniqueSuffix(lastStart, ms.nowFn(), u)
+				suffix := "/" + metricUniqueSuffix(lastStart, start, u)
 				metric.name += suffix
 			}
 
