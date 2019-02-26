@@ -332,7 +332,7 @@ func transformNull(ctx *common.Context, input singlePathSpec, defaultValue float
 	)
 }
 
-// isNonNull takes a metric or wild card seriesList and counts up how many non-null values are specified.
+// isNonNull replaces datapoints that are non-null with 1, and null values with 0.
 // This is useful for understanding which metrics have data at a given point in time
 // (ie, to count which servers are alive).
 func isNonNull(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
