@@ -85,6 +85,18 @@ An example of a configuration file with the ID generation scheme can be found [h
 
 If none of these options work for you, or you would like further clarification, please stop by our [gitter channel](https://gitter.im/m3db/Lobby) and we'll be happy to help you.
 
+## Performance configurations
+
+### Query conversion LRU
+
+Before fetching data from M3DB, all queries are converted to a format that M3DB can understand. We have an LRU cache that caches the results of this conversion so that queries that are the same do not need to go through the conversion process each time. By default, the size of the cache is set to `4096`, however, this number is configurable:
+
+```yaml
+cache:
+  queryConversion:
+    size: <int>
+```
+
 ## Grafana
 
 You can also set up m3query as a [datasource in Grafana](http://docs.grafana.org/features/datasources/prometheus/). To do this, add a new datasource with a type of `Prometheus`. The URL should point to the host/port running m3query. By default, m3query runs on port `7201`.
