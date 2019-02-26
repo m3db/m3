@@ -34,8 +34,7 @@ import (
 )
 
 const (
-	batchSize    = 2
-	maxBatchSize = 10
+	batchSize = 2
 )
 
 var (

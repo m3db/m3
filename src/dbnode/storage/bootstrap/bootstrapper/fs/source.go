@@ -859,8 +859,10 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 		}
 	}()
 
-	if _, err := mutableSegment.Seal(); err != nil {
-		return err
+	if !mutableSegment.IsSealed() {
+		if err := mutableSegment.Seal(); err != nil {
+			return err
+		}
 	}
 
 	if err := preparedPersist.Persist(mutableSegment); err != nil {

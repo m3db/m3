@@ -632,11 +632,11 @@ func (l *commitLog) writeWait(
 	}
 
 	// Optimistically increment the number of enqueued writes.
-	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
+	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, numToEnqueue)
 
 	// If we exceeded the limit, decrement the number of enqueued writes and bail.
 	if numEnqueued > l.maxQueueSize {
-		atomic.AddInt64(&l.numWritesInQueue, int64(-numToEnqueue))
+		atomic.AddInt64(&l.numWritesInQueue, -numToEnqueue)
 		l.closedState.RUnlock()
 
 		if write.writeBatch != nil {
@@ -677,11 +677,11 @@ func (l *commitLog) writeBehind(
 	}
 
 	// Optimistically increment the number of enqueued writes.
-	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
+	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, numToEnqueue)
 
 	// If we exceeded the limit, decrement the number of enqueued writes and bail.
 	if numEnqueued > l.maxQueueSize {
-		atomic.AddInt64(&l.numWritesInQueue, int64(-numToEnqueue))
+		atomic.AddInt64(&l.numWritesInQueue, -numToEnqueue)
 		l.closedState.RUnlock()
 
 		if write.writeBatch != nil {

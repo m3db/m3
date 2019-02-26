@@ -28,11 +28,11 @@ import (
 type withKeysID func(tags models.Tags, matchingTags [][]byte) uint64
 
 func includeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
-	return tags.IDWithKeys(matchingTags...)
+	return tags.TagsWithKeys(matchingTags).HashedID()
 }
 
 func excludeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
-	return tags.IDWithExcludes(matchingTags...)
+	return tags.TagsWithoutKeys(matchingTags).HashedID()
 }
 
 type withKeysTags func(tags models.Tags, matchingTags [][]byte) models.Tags

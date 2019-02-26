@@ -24,70 +24,102 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# TODO(rartoul): Rewrite this test to use a docker-compose file like the others so that we can share all the
+# DB initialization logic with the setup_single_m3db_node command in common.sh like the other files. Right now
+# we can't do that because this test doesn't use the docker-compose networking so we have to specify 127.0.0.1
+# as the endpoint in the placement instead of being able to use dbnode01.
 echo "Sleeping for a bit to ensure db up"
-sleep 5 # TODO Replace sleeps with logic to determine when to proceed
+sleep 15 # TODO Replace sleeps with logic to determine when to proceed
 
-echo "Adding namespace"
-curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
-  "name": "default",
-  "options": {
-    "bootstrapEnabled": true,
-    "flushEnabled": true,
-    "writesToCommitLog": true,
-    "cleanupEnabled": true,
-    "snapshotEnabled": true,
-    "repairEnabled": false,
-    "retentionOptions": {
-      "retentionPeriodNanos": 172800000000000,
-      "blockSizeNanos": 7200000000000,
-      "bufferFutureNanos": 600000000000,
-      "bufferPastNanos": 600000000000,
-      "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
-    },
-    "indexOptions": {
-      "enabled": true,
-      "blockSizeNanos": 7200000000000
+  echo "Adding namespace"
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
+    "name": "agg",
+    "options": {
+      "bootstrapEnabled": true,
+      "flushEnabled": true,
+      "writesToCommitLog": true,
+      "cleanupEnabled": true,
+      "snapshotEnabled": true,
+      "repairEnabled": false,
+      "retentionOptions": {
+        "retentionPeriodDuration": "48h",
+        "blockSizeDuration": "2h",
+        "bufferFutureDuration": "10m",
+        "bufferPastDuration": "10m",
+        "blockDataExpiry": true,
+        "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+      },
+      "indexOptions": {
+        "enabled": true,
+        "blockSizeDuration": "2h"
+      }
     }
-  }
-}'
+  }'
 
-echo "Sleep until namespace is init'd"
-ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]'
+  echo "Sleep until namespace is init'd"
+  ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
 
-echo "Placement initialization"
-curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/placement/init -d '{
-    "num_shards": 64,
-    "replication_factor": 1,
-    "instances": [
-        {
-            "id": "m3db_local",
-            "isolation_group": "rack-a",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "127.0.0.1:9000",
-            "hostname": "127.0.0.1",
-            "port": 9000
-        }
-    ]
-}'
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
+    "name": "unagg",
+    "options": {
+      "bootstrapEnabled": true,
+      "flushEnabled": true,
+      "writesToCommitLog": true,
+      "cleanupEnabled": true,
+      "snapshotEnabled": true,
+      "repairEnabled": false,
+      "retentionOptions": {
+        "retentionPeriodDuration": "48h",
+        "blockSizeDuration": "2h",
+        "bufferFutureDuration": "10m",
+        "bufferPastDuration": "10m",
+        "blockDataExpiry": true,
+        "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+      },
+      "indexOptions": {
+        "enabled": true,
+        "blockSizeDuration": "2h"
+      }
+    }
+  }'
 
-echo "Sleep until placement is init'd"
-ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
+  echo "Sleep until namespace is init'd"
+  ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
-echo "Sleep until bootstrapped"
-ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
+  echo "Placement initialization"
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/placement/init -d '{
+      "num_shards": 64,
+      "replication_factor": 1,
+      "instances": [
+          {
+              "id": "m3db_local",
+              "isolation_group": "rack-a",
+              "zone": "embedded",
+              "weight": 1024,
+              "endpoint": "127.0.0.1::9000",
+              "hostname": "127.0.0.1:",
+              "port": 9000
+          }
+      ]
+  }'
 
-echo "Waiting until shards are marked as available"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
+  echo "Sleep until placement is init'd"
+  ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
+
+  echo "Sleep until bootstrapped"
+  ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
+
+  echo "Waiting until shards are marked as available"
+  ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 echo "Write data"
 curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
-  "namespace": "default",
+  "namespace": "unagg",
   "id": "foo",
   "tags": [
     {
@@ -107,7 +139,7 @@ curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
 
 echo "Read data"
 queryResult=$(curl -sSf -X POST 0.0.0.0:9003/query -d '{
-  "namespace": "default",
+  "namespace": "unagg",
   "query": {
     "regexp": {
       "field": "city",
@@ -129,4 +161,4 @@ echo "Deleting placement"
 curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/placement
 
 echo "Deleting namespace"
-curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/namespace/default
+curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/namespace/unagg

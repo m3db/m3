@@ -65,13 +65,13 @@ const (
 	defaultHostConnectTimeout = 5 * time.Second
 
 	// defaultClusterConnectTimeout is the default cluster connect timeout
-	defaultClusterConnectTimeout = 30 * time.Second
+	defaultClusterConnectTimeout = 20 * time.Second
 
 	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
 	defaultClusterConnectConsistencyLevel = topology.ConnectConsistencyLevelAny
 
 	// defaultWriteRequestTimeout is the default write request timeout
-	defaultWriteRequestTimeout = 5 * time.Second
+	defaultWriteRequestTimeout = 10 * time.Second
 
 	// defaultFetchRequestTimeout is the default fetch request timeout
 	defaultFetchRequestTimeout = 15 * time.Second
@@ -120,7 +120,7 @@ const (
 
 	// defaultBackgroundHealthCheckFailLimit is the default background health failure
 	// limit before connection is deemed unhealth
-	defaultBackgroundHealthCheckFailLimit = 3
+	defaultBackgroundHealthCheckFailLimit = 4
 
 	// defaultBackgroundHealthCheckFailThrottleFactor is the default throttle factor to
 	// apply when calculating how long to wait between a failed health check and a
@@ -164,10 +164,20 @@ var (
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
 	// defaulWriteRetrier is the default write retrier for write attempts
-	defaultWriteRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
+	defaultWriteRetrier = xretry.NewRetrier(
+		xretry.NewOptions().
+			SetInitialBackoff(500 * time.Millisecond).
+			SetBackoffFactor(3).
+			SetMaxRetries(2).
+			SetJitter(true))
 
 	// defaultFetchRetrier is the default fetch retrier for fetch attempts
-	defaultFetchRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
+	defaultFetchRetrier = xretry.NewRetrier(
+		xretry.NewOptions().
+			SetInitialBackoff(500 * time.Millisecond).
+			SetBackoffFactor(2).
+			SetMaxRetries(3).
+			SetJitter(true))
 
 	// defaultStreamBlocksRetrier is the default retrier for streaming blocks
 	defaultStreamBlocksRetrier = xretry.NewRetrier(

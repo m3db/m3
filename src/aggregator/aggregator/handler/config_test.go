@@ -27,6 +27,26 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+func TestStoragePolicyFilter(t *testing.T) {
+	var cfg flushHandlerConfiguration
+
+	str := `
+dynamicBackend:
+  name: test
+  storagePolicyFilters:
+    - serviceID:
+        name: name1
+        environment: env1
+        zone: zone1
+      storagePolicies:
+        - 10m:40d
+        - 1m:40d
+`
+	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+	require.Equal(t, 1, len(cfg.DynamicBackend.StoragePolicyFilters))
+	require.Equal(t, 2, len(cfg.DynamicBackend.StoragePolicyFilters[0].StoragePolicies))
+}
+
 func TestFlushHandlerConfigurationValidate(t *testing.T) {
 	var cfg flushHandlerConfiguration
 
@@ -46,156 +66,4 @@ dynamicBackend:
 	err = cfg.Validate()
 	require.Error(t, err)
 	require.Equal(t, errBothDynamicAndStaticBackendConfiguration, err)
-}
-
-func TestBackendConfigurationValidate(t *testing.T) {
-	nonSharded := `
-name: backend1
-servers:
-  - server1
-  - server2
-`
-
-	sharded := `
-name: backend2
-sharded:
-  hashType: murmur32
-  totalShards: 128
-  shards:
-    - name: shard0
-      shardSet: 0..63
-      servers:
-        - server1
-        - server2
-    - name: shard1
-      shardSet: 64..127
-      servers:
-        - server3
-        - server4
-`
-
-	for _, input := range []string{nonSharded, sharded} {
-		var cfg staticBackendConfiguration
-		require.NoError(t, yaml.Unmarshal([]byte(input), &cfg))
-		require.NoError(t, cfg.Validate())
-	}
-}
-
-func TestBackendConfigurationValidateErrors(t *testing.T) {
-	bothShardedAndNonSharded := `
-name: backend1
-servers: [foo-1, foo-2, foo-3, foo-1]
-sharded:
-  hashType: murmur32
-  totalShards: 128
-  shards:
-    - name: shard0
-      shardSet: 0..63
-      servers:
-        - server1
-        - server2
-    - name: shard1
-      shardSet: 64..127
-      servers:
-        - server3
-        - server4
-`
-
-	neitherShardedNorNonSharded := `
-name: backend1
-`
-
-	nonShardedMultipleServers := `
-name: backend1
-servers: [foo-1, foo-2, foo-3, foo-1]
-`
-
-	shardedShardOverlap := `
-name: backend1
-sharded:
-  hashType: murmur32
-  totalShards: 128
-  shards:
-    - name: shard0
-      shardSet: 0..63
-      servers:
-        - server1
-        - server2
-    - name: shard1
-      shardSet: 63..127
-      servers:
-        - server3
-        - server4
-`
-
-	shardedExceedsTotal := `
-name: backend1
-sharded:
-  hashType: murmur32
-  totalShards: 128
-  shards:
-    - name: shard0
-      shardSet: 0..63
-      servers:
-        - server1
-        - server2
-    - name: shard1
-      shardSet: 64..128
-      servers:
-        - server3
-        - server4
-`
-
-	shardedServerOverlap := `
-name: backend1
-sharded:
-  hashType: murmur32
-  totalShards: 128
-  shards:
-    - name: shard0
-      shardSet: 0..63
-      servers:
-        - server1
-        - server2
-    - name: shard1
-      shardSet: 64..127
-      servers:
-        - server1
-        - server4
-`
-
-	shardedInsufficientShards := `
-name: backend1
-sharded:
-  hashType: murmur32
-  totalShards: 128
-  shards:
-    - name: shard0
-      shardSet: 0..63
-      servers:
-        - server1
-        - server2
-`
-
-	tests := []struct {
-		config      string
-		expectedErr string
-	}{
-		{bothShardedAndNonSharded, "backend backend1 configuration has both servers and shards"},
-		{neitherShardedNorNonSharded, "backend backend1 configuration has neither servers no shards"},
-		{nonShardedMultipleServers, "server foo-1 specified more than once"},
-		{shardedShardOverlap, "shard 63 is present in multiple ranges"},
-		{shardedExceedsTotal, "shard 128 exceeds total available shards 128"},
-		{shardedServerOverlap, "server server1 is present in multiple ranges"},
-		{shardedInsufficientShards, "missing shards; expected 128 total received 64"},
-	}
-
-	for _, test := range tests {
-		var cfg staticBackendConfiguration
-		require.NoError(t, yaml.Unmarshal([]byte(test.config), &cfg), "invalid config %s", test.config)
-
-		err := cfg.Validate()
-		require.Error(t, err)
-		require.Equal(t, test.expectedErr, err.Error())
-	}
 }

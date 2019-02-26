@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
 	xerrors "github.com/m3db/m3x/errors"
+	pilosaroaring "github.com/m3db/pilosa/roaring"
 
 	"github.com/couchbase/vellum"
 )
@@ -54,29 +55,29 @@ var (
 
 // SegmentData represent the collection of required parameters to construct a Segment.
 type SegmentData struct {
-	MajorVersion  int
-	MinorVersion  int
-	Metadata      []byte
+	MajorVersion int
+	MinorVersion int
+	Metadata     []byte
+
 	DocsData      []byte
 	DocsIdxData   []byte
 	PostingsData  []byte
 	FSTTermsData  []byte
 	FSTFieldsData []byte
-	Closer        io.Closer
+
+	// DocsReader is an alternative to specifying
+	// the docs data and docs idx data if the documents
+	// already reside in memory and we want to use the
+	// in memory references instead.
+	DocsReader *docs.SliceReader
+
+	Closer io.Closer
 }
 
 // Validate validates the provided segment data, returning an error if it's not.
 func (sd SegmentData) Validate() error {
 	if sd.MajorVersion != MajorVersion {
 		return errUnsupportedMajorVersion
-	}
-
-	if sd.DocsData == nil {
-		return errDocumentsDataUnset
-	}
-
-	if sd.DocsIdxData == nil {
-		return errDocumentsIdxUnset
 	}
 
 	if sd.PostingsData == nil {
@@ -89,6 +90,16 @@ func (sd SegmentData) Validate() error {
 
 	if sd.FSTFieldsData == nil {
 		return errFSTFieldsDataUnset
+	}
+
+	if sd.DocsReader == nil {
+		if sd.DocsData == nil {
+			return errDocumentsDataUnset
+		}
+
+		if sd.DocsIdxData == nil {
+			return errDocumentsIdxUnset
+		}
 	}
 
 	return nil
@@ -116,21 +127,33 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		return nil, fmt.Errorf("unable to load fields fst: %v", err)
 	}
 
-	docsIndexReader, err := docs.NewIndexReader(data.DocsIdxData)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load documents index: %v", err)
+	var (
+		docsSliceReader = data.DocsReader
+		docsDataReader  *docs.DataReader
+		docsIndexReader *docs.IndexReader
+		startInclusive  postings.ID
+		endExclusive    postings.ID
+	)
+	if docsSliceReader != nil {
+		startInclusive = docsSliceReader.Base()
+		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
+	} else {
+		docsDataReader = docs.NewDataReader(data.DocsData)
+		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load documents index: %v", err)
+		}
+
+		// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
+		startInclusive = docsIndexReader.Base()
+		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
 	}
-
-	// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
-	startInclusive := docsIndexReader.Base()
-	endExclusive := startInclusive + postings.ID(docsIndexReader.Len())
-
-	docsDataReader := docs.NewDataReader(data.DocsData)
 
 	return &fsSegment{
 		fieldsFST:       fieldsFST,
 		docsDataReader:  docsDataReader,
 		docsIndexReader: docsIndexReader,
+		docsSliceReader: docsSliceReader,
 
 		data:           data,
 		opts:           opts,
@@ -146,6 +169,7 @@ type fsSegment struct {
 	fieldsFST       *vellum.FST
 	docsDataReader  *docs.DataReader
 	docsIndexReader *docs.IndexReader
+	docsSliceReader *docs.SliceReader
 	data            SegmentData
 	opts            Options
 
@@ -179,15 +203,13 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 		return false, fmt.Errorf("internal error while retrieving id FST: %v", err)
 	}
 
-	fstCloser := x.NewSafeCloser(termsFST)
-	defer fstCloser.Close()
-
 	_, exists, err = termsFST.Get(docID)
+	closeErr := termsFST.Close()
 	if err != nil {
 		return false, err
 	}
 
-	return exists, fstCloser.Close()
+	return exists, closeErr
 }
 
 func (r *fsSegment) Reader() (index.Reader, error) {
@@ -216,6 +238,10 @@ func (r *fsSegment) Close() error {
 	return multiErr.FinalError()
 }
 
+func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
+	return r
+}
+
 func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 	r.RLock()
 	defer r.RUnlock()
@@ -223,34 +249,68 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 		return nil, errReaderClosed
 	}
 
-	return newFSTTermsIter(newFSTTermsIterOpts{
-		opts:        r.opts,
+	iter := newFSTTermsIter()
+	iter.reset(fstTermsIterOpts{
 		fst:         r.fieldsFST,
 		finalizeFST: false,
-	}), nil
+	})
+	return iter, nil
 }
 
-func (r *fsSegment) Terms(field []byte) (sgmt.TermsIterator, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
+func (r *fsSegment) TermsIterable() sgmt.TermsIterable {
+	return &termsIterable{
+		r:            r,
+		fieldsIter:   newFSTTermsIter(),
+		postingsIter: newFSTTermsPostingsIter(),
+	}
+}
+
+// termsIterable allows multiple term lookups to share the same roaring
+// bitmap being unpacked for use when iterating over an entire segment
+type termsIterable struct {
+	r            *fsSegment
+	fieldsIter   *fstTermsIter
+	postingsIter *fstTermsPostingsIter
+}
+
+func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
+	i.r.RLock()
+	defer i.r.RUnlock()
+	if i.r.closed {
 		return nil, errReaderClosed
 	}
 
-	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
 	}
 
 	if !exists {
-		return sgmt.EmptyOrderedBytesIterator, nil
+		return sgmt.EmptyTermsIterator, nil
 	}
 
-	return newFSTTermsIter(newFSTTermsIterOpts{
-		opts:        r.opts,
+	i.fieldsIter.reset(fstTermsIterOpts{
 		fst:         termsFST,
 		finalizeFST: true,
-	}), nil
+	})
+	i.postingsIter.reset(i.r, i.fieldsIter)
+	return i.postingsIter, nil
+}
+
+func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset uint64) error {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return errReaderClosed
+	}
+
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, offset)
+	if err != nil {
+		return fmt.Errorf("unable to retrieve postings data: %v", err)
+	}
+
+	b.Reset()
+	return b.UnmarshalBinary(postingsBytes)
 }
 
 func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) {
@@ -384,6 +444,11 @@ func (r *fsSegment) Doc(id postings.ID) (doc.Document, error) {
 	defer r.RUnlock()
 	if r.closed {
 		return doc.Document{}, errReaderClosed
+	}
+
+	// If using docs slice reader, return from the in memory slice reader
+	if r.docsSliceReader != nil {
+		return r.docsSliceReader.Read(id)
 	}
 
 	offset, err := r.docsIndexReader.Read(id)

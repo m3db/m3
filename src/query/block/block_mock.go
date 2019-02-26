@@ -164,18 +164,31 @@ func (mr *MockStepIterMockRecorder) Close() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockStepIter) Current() (Step, error) {
+func (m *MockStepIter) Current() Step {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(Step)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // Current indicates an expected call of Current
 func (mr *MockStepIterMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockStepIter)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockStepIter) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockStepIterMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockStepIter)(nil).Err))
 }
 
 // Meta mocks base method
@@ -270,18 +283,31 @@ func (mr *MockSeriesIterMockRecorder) Close() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockSeriesIter) Current() (Series, error) {
+func (m *MockSeriesIter) Current() Series {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(Series)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // Current indicates an expected call of Current
 func (mr *MockSeriesIterMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockSeriesIter)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockSeriesIter) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockSeriesIterMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSeriesIter)(nil).Err))
 }
 
 // Meta mocks base method

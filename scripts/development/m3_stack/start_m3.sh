@@ -2,14 +2,14 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$(pwd)/../../docker-integration-tests/common.sh"
 
 DOCKER_ARGS="-d --renew-anon-volumes"
 if [[ "$FORCE_BUILD" = true ]] ; then
     DOCKER_ARGS="--build -d --renew-anon-volumes"
 fi
 
-echo "Bringing up nodes in the backgorund with docker compose, remember to run ./stop.sh when done"
+echo "Bringing up nodes in the background with docker compose, remember to run ./stop.sh when done"
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
@@ -170,7 +170,7 @@ echo "Validating topology"
 echo "Done validating topology"
 
 echo "Waiting until shards are marked as available"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then

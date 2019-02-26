@@ -23,14 +23,13 @@ package executor
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/opentracing"
 
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -65,24 +64,20 @@ func (s State) durationString() string {
 
 // Request represents a single request.
 type Request struct {
-	engine     *Engine
-	params     models.RequestParams
-	parentSpan *span
+	engine *Engine
+	params models.RequestParams
 }
 
 func newRequest(engine *Engine, params models.RequestParams) *Request {
-	parentSpan := startSpan(engine.metrics.activeHist, engine.metrics.all)
-	r := &Request{engine: engine, params: params, parentSpan: parentSpan}
-	return r
-
+	return &Request{engine: engine, params: params}
 }
 
 func (r *Request) compile(ctx context.Context, parser parser.Parser) (parser.Nodes, parser.Edges, error) {
-	sp := startSpan(r.engine.metrics.compilingHist, r.engine.metrics.compiling)
+	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "compile")
+	defer sp.Finish()
 	// TODO: Change DAG interface to take in a context
 	nodes, edges, err := parser.DAG()
 	if err != nil {
-		sp.finish(err)
 		return nil, nil, err
 	}
 
@@ -90,15 +85,15 @@ func (r *Request) compile(ctx context.Context, parser parser.Parser) (parser.Nod
 		logging.WithContext(ctx).Info("compiling dag", zap.Any("nodes", nodes), zap.Any("edges", edges))
 	}
 
-	sp.finish(nil)
 	return nodes, edges, nil
 }
 
 func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edges) (plan.PhysicalPlan, error) {
-	sp := startSpan(r.engine.metrics.planningHist, r.engine.metrics.planning)
+	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "plan")
+	defer sp.Finish()
+
 	lp, err := plan.NewLogicalPlan(nodes, edges)
 	if err != nil {
-		sp.finish(err)
 		return plan.PhysicalPlan{}, err
 	}
 
@@ -106,9 +101,8 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 		logging.WithContext(ctx).Info("logical plan", zap.String("plan", lp.String()))
 	}
 
-	pp, err := plan.NewPhysicalPlan(lp, r.engine.store, r.params)
+	pp, err := plan.NewPhysicalPlan(lp, r.engine.store, r.params, r.engine.lookbackDuration)
 	if err != nil {
-		sp.finish(err)
 		return plan.PhysicalPlan{}, err
 	}
 
@@ -116,16 +110,17 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 		logging.WithContext(ctx).Info("physical plan", zap.String("plan", pp.String()))
 	}
 
-	sp.finish(nil)
 	return pp, nil
 }
 
-func (r *Request) execute(ctx context.Context, pp plan.PhysicalPlan) (*ExecutionState, error) {
-	sp := startSpan(r.engine.metrics.executingHist, r.engine.metrics.executing)
+func (r *Request) generateExecutionState(ctx context.Context, pp plan.PhysicalPlan) (*ExecutionState, error) {
+	sp, ctx := opentracingutil.StartSpanFromContext(ctx,
+		"generate_execution_state")
+	defer sp.Finish()
+
 	state, err := GenerateExecutionState(pp, r.engine.store)
 	// free up resources
 	if err != nil {
-		sp.finish(err)
 		return nil, err
 	}
 
@@ -133,38 +128,5 @@ func (r *Request) execute(ctx context.Context, pp plan.PhysicalPlan) (*Execution
 		logging.WithContext(ctx).Info("execution state", zap.String("state", state.String()))
 	}
 
-	sp.finish(nil)
 	return state, nil
-}
-
-func (r *Request) finish() {
-	r.parentSpan.finish(nil)
-}
-
-// span is a simple wrapper around opentracing.Span in order to
-// get access to the duration of the span for metrics reporting.
-type span struct {
-	start        time.Time
-	durationHist tally.Histogram
-	counter      *counterWithDecrement
-}
-
-func startSpan(durationHist tally.Histogram, counter *counterWithDecrement) *span {
-	now := time.Now()
-	counter.Inc()
-	return &span{
-		durationHist: durationHist,
-		start:        now,
-		counter:      counter,
-	}
-}
-
-func (s *span) finish(err error) {
-	s.counter.Dec()
-	// Don't record duration for error cases
-	if err == nil {
-		now := time.Now()
-		duration := now.Sub(s.start)
-		s.durationHist.RecordDuration(duration)
-	}
 }

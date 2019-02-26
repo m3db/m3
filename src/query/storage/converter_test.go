@@ -40,6 +40,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLabelConversion(t *testing.T) {
+	// NB: sorted order (__name__, foo, le)
+	labels := []*prompb.Label{
+		&prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
+		&prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
+		&prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
+	}
+
+	opts := models.NewTagOptions().
+		SetMetricName([]byte("name")).
+		SetBucketName([]byte("bucket"))
+
+	tags := PromLabelsToM3Tags(labels, opts)
+	name, found := tags.Name()
+	assert.True(t, found)
+	assert.Equal(t, []byte("name-val"), name)
+	name, found = tags.Get([]byte("name"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("name-val"), name)
+
+	bucket, found := tags.Bucket()
+	assert.True(t, found)
+	assert.Equal(t, []byte("bucket-val"), bucket)
+	bucket, found = tags.Get([]byte("bucket"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("bucket-val"), bucket)
+
+	reverted := TagsToPromLabels(tags)
+	assert.Equal(t, labels, reverted)
+}
+
 func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools xsync.PooledWorkerPool) {
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)

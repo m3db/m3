@@ -71,6 +71,7 @@ clusters:
 
 tagOptions:
   metricName: "_new"
+  idScheme: quoted
 
 readWorkerPoolPolicy:
   grow: true
@@ -83,6 +84,7 @@ writeWorkerPoolPolicy:
   size: 100
   shards: 1000
   killProbability: 0.3
+
 `
 
 //TODO: Use randomly assigned port here
@@ -103,7 +105,7 @@ func TestRun(t *testing.T) {
 	session := client.NewMockSession(ctrl)
 	for _, value := range []float64{1, 2} {
 		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
-			ident.NewIDMatcher("_new=first,biz=baz,foo=bar,"),
+			ident.NewIDMatcher(`{_new="first",biz="baz",foo="bar"}`),
 			gomock.Any(),
 			gomock.Any(),
 			value,
@@ -112,7 +114,7 @@ func TestRun(t *testing.T) {
 	}
 	for _, value := range []float64{3, 4} {
 		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
-			ident.NewIDMatcher("_new=second,bar=baz,foo=qux,"),
+			ident.NewIDMatcher(`{_new="second",bar="baz",foo="qux"}`),
 			gomock.Any(),
 			gomock.Any(),
 			value,
@@ -252,6 +254,7 @@ backend: grpc
 
 tagOptions:
   metricName: "bar"
+  idScheme: prepend_meta
 
 readWorkerPoolPolicy:
   grow: true

@@ -47,6 +47,9 @@ type MultiFetchResultBuilder interface {
 		iterators encoding.SeriesIterators,
 		err error,
 	)
+	// BuildWithAttrs returns a series iterators object containing dedpuplicated
+	// series values, and their associated attributes
+	BuildWithAttrs() (encoding.SeriesIterators, []storage.Attributes, error)
 	// Build returns a series iterators object containing
 	// deduplciated series values
 	Build() (encoding.SeriesIterators, error)

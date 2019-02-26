@@ -76,6 +76,18 @@ func SetupDatabaseTest(
 }
 
 func TestLocalType(t *testing.T) {
+	testLocalType(t, "local", false)
+}
+
+func TestLocalTypePlacementAlreadyExists(t *testing.T) {
+	testLocalType(t, "local", true)
+}
+
+func TestLocalTypePlacementAlreadyExistsNoTypeProvided(t *testing.T) {
+	testLocalType(t, "", true)
+}
+
+func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -83,17 +95,17 @@ func TestLocalType(t *testing.T) {
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
+	jsonInput := fmt.Sprintf(`
 		{
 			"namespaceName": "testNamespace",
-			"type": "local"
+			"type": "%s"
 		}
-	`
+	`, providedType)
 
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -111,7 +123,13 @@ func TestLocalType(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
-	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
+
+	if placementExists {
+		mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+	} else {
+		mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
+	}
 
 	createHandler.ServeHTTP(w, req)
 
@@ -178,6 +196,50 @@ func TestLocalType(t *testing.T) {
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 
+func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "local"
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             "m3db_not_local",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	_, err = ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestLocalTypeWithNumShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -197,7 +259,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -215,6 +277,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 51, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -300,7 +363,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -318,6 +381,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -407,7 +471,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -425,6 +489,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -494,10 +559,18 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 }
 
 func TestClusterTypeHosts(t *testing.T) {
+	testClusterTypeHosts(t, false)
+}
+
+func TestClusterTypeHostsNotProvided(t *testing.T) {
+	testClusterTypeHosts(t, true)
+}
+
+func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -512,7 +585,116 @@ func TestClusterTypeHosts(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"host1": &placementpb.Instance{
+				Id:             "host1",
+				IsolationGroup: "cluster",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://host1:9000",
+				Hostname:       "host1",
+				Port:           9000,
+			},
+			"host2": &placementpb.Instance{
+				Id:             "host2",
+				IsolationGroup: "cluster",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://host2:9000",
+				Hostname:       "host2",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	_, err = ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster"
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             DefaultLocalHostID,
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	_, err = ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func testClusterTypeHosts(t *testing.T, placementExists bool) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	var jsonInput string
+
+	if placementExists {
+		jsonInput = `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster"
+		}
+	`
+	} else {
+		jsonInput = `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster",
+			"hosts": [{"id": "host1"}, {"id": "host2"}]
+		}
+	`
+	}
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -539,7 +721,13 @@ func TestClusterTypeHosts(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
-	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
+
+	if placementExists {
+		mockPlacementService.EXPECT().Placement().Return(newPlacement, nil)
+	} else {
+		mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
+	}
 
 	createHandler.ServeHTTP(w, req)
 
@@ -636,7 +824,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
 	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
 	placementProto := &placementpb.Placement{
@@ -663,6 +851,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
@@ -744,7 +933,9 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -771,7 +962,9 @@ func TestBadType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
 	w := httptest.NewRecorder()
 

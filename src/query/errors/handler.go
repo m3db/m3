@@ -38,4 +38,8 @@ var (
 	ErrNoName = errors.New("invalid path with no name present")
 	// ErrInvalidMatchers is returned when invalid matchers are provided
 	ErrInvalidMatchers = errors.New("invalid matchers")
+	// ErrNamesOnly is returned when label values results are name only
+	ErrNamesOnly = errors.New("can not render label values; result has label names only")
+	// ErrMultipleResults is returned when there are multiple label values results
+	ErrMultipleResults = errors.New("can not render label values; multiple results detected")
 )

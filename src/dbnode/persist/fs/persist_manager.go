@@ -274,7 +274,7 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 	return prepared, nil
 }
 
-func (pm *persistManager) persistIndex(seg segment.MutableSegment) error {
+func (pm *persistManager) persistIndex(builder segment.Builder) error {
 	// FOLLOWUP(prateek): need to use-rate limiting runtime options in this code path
 	markError := func(err error) {
 		pm.indexPM.writeErr = err
@@ -283,7 +283,7 @@ func (pm *persistManager) persistIndex(seg segment.MutableSegment) error {
 		return fmt.Errorf("encountered error: %v, skipping further attempts to persist data", err)
 	}
 
-	if err := pm.indexPM.segmentWriter.Reset(seg); err != nil {
+	if err := pm.indexPM.segmentWriter.Reset(builder); err != nil {
 		markError(err)
 		return err
 	}

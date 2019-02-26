@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -49,11 +49,7 @@ const (
 	stepParam         = "step"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
-
-	// NB: this will force series decompression on fetch. Will be left for a few
-	// releases to help debug any issues that may arise with compressed series
-	// block fetch
-	useLegacyParam = "legacy"
+	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -87,12 +83,12 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 }
 
 // parseParams parses all params from the GET request
-func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
 
-	t, err := prometheus.ParseRequestTimeout(r)
+	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -122,7 +118,8 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	}
 
 	params.Query = query
-	params.Debug, params.UseLegacy = parseDebugAndLegacyFlags(r)
+	params.Debug = parseDebugFlag(r)
+	params.BlockType = parseBlockType(r)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -142,10 +139,10 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	return params, nil
 }
 
-func parseDebugAndLegacyFlags(r *http.Request) (bool, bool) {
+func parseDebugFlag(r *http.Request) bool {
 	var (
-		debug, useLegacy bool
-		err              error
+		debug bool
+		err   error
 	)
 
 	// Skip debug if unable to parse debug param
@@ -157,27 +154,39 @@ func parseDebugAndLegacyFlags(r *http.Request) (bool, bool) {
 		}
 	}
 
-	// Skip useLegacy if unable to parse useLegacy param
-	useLegacyVal := r.FormValue(useLegacyParam)
+	return debug
+}
+
+func parseBlockType(r *http.Request) models.FetchedBlockType {
+	// Use default block type if unable to parse blockTypeParam.
+	useLegacyVal := r.FormValue(blockTypeParam)
 	if useLegacyVal != "" {
-		useLegacy, err = strconv.ParseBool(r.FormValue(useLegacyParam))
+		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
 		if err != nil {
 			logging.WithContext(r.Context()).Warn("unable to parse useLegacy flag", zap.Error(err))
 		}
+
+		blockType := models.FetchedBlockType(intVal)
+		// Ignore error from receiving an invalid block type, and return default.
+		if blockType.Validate() != nil {
+			return models.TypeSingleBlock
+		}
+
+		return blockType
 	}
 
-	return debug, useLegacy
+	return models.TypeSingleBlock
 }
 
 // parseInstantaneousParams parses all params from the GET request
-func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func parseInstantaneousParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now:        time.Now(),
 		Step:       time.Second,
 		IncludeEnd: true,
 	}
 
-	t, err := prometheus.ParseRequestTimeout(r)
+	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -199,7 +208,8 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
-	params.Debug, params.UseLegacy = parseDebugAndLegacyFlags(r)
+	params.Debug = parseDebugFlag(r)
+	params.BlockType = parseBlockType(r)
 	return params, nil
 }
 
@@ -340,7 +350,7 @@ func renderM3QLResultsJSON(
 	for _, s := range series {
 		jw.BeginObject()
 		jw.BeginObjectField("target")
-		jw.WriteString(s.Name())
+		jw.WriteString(string(s.Name()))
 
 		jw.BeginObjectField("tags")
 		jw.BeginObject()

@@ -24,7 +24,10 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -49,22 +52,61 @@ var (
 	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
 	errOptionsResultsPoolUnspecified    = errors.New("results pool is unset")
 	errIDGenerationDisabled             = errors.New("id generation is disabled")
+	errPostingsListCacheUnspecified     = errors.New("postings list cache is unset")
+
+	defaultForegroundCompactionOpts compaction.PlannerOptions
+	defaultBackgroundCompactionOpts compaction.PlannerOptions
 )
 
+func init() {
+	// Foreground compaction opts are the same as background compaction
+	// but with only a single level, 1/4 the size of the first level of
+	// the background compaction.
+	defaultForegroundCompactionOpts = compaction.DefaultOptions
+	defaultForegroundCompactionOpts.Levels = []compaction.Level{
+		{
+			MinSizeInclusive: 0,
+			MaxSizeExclusive: 1 << 12,
+		},
+	}
+	defaultBackgroundCompactionOpts = compaction.DefaultOptions
+	defaultBackgroundCompactionOpts.Levels = []compaction.Level{
+		{
+			MinSizeInclusive: 0,
+			MaxSizeExclusive: 1 << 18,
+		},
+		{
+			MinSizeInclusive: 1 << 18,
+			MaxSizeExclusive: 1 << 20,
+		},
+		{
+			MinSizeInclusive: 1 << 20,
+			MaxSizeExclusive: 1 << 22,
+		},
+	}
+}
+
+// nolint: maligned
 type opts struct {
-	insertMode     InsertMode
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
-	memOpts        mem.Options
-	idPool         ident.Pool
-	bytesPool      pool.CheckedBytesPool
-	resultsPool    ResultsPool
-	docArrayPool   doc.DocumentArrayPool
+	insertMode                      InsertMode
+	clockOpts                       clock.Options
+	instrumentOpts                  instrument.Options
+	builderOpts                     builder.Options
+	memOpts                         mem.Options
+	fstOpts                         fst.Options
+	idPool                          ident.Pool
+	bytesPool                       pool.CheckedBytesPool
+	resultsPool                     ResultsPool
+	docArrayPool                    doc.DocumentArrayPool
+	foregroundCompactionPlannerOpts compaction.PlannerOptions
+	backgroundCompactionPlannerOpts compaction.PlannerOptions
+	postingsListCache               *PostingsListCache
+	readThroughSegmentOptions       ReadThroughSegmentOptions
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
 
-// NewOptions returns a new index.Options object with default properties.
+// NewOptions returns a new Options object with default properties.
 func NewOptions() Options {
 	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
 
@@ -83,15 +125,20 @@ func NewOptions() Options {
 	})
 	docArrayPool.Init()
 
+	instrumentOpts := instrument.NewOptions()
 	opts := &opts{
-		insertMode:     defaultIndexInsertMode,
-		clockOpts:      clock.NewOptions(),
-		instrumentOpts: instrument.NewOptions(),
-		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
-		bytesPool:      bytesPool,
-		idPool:         idPool,
-		resultsPool:    resultsPool,
-		docArrayPool:   docArrayPool,
+		insertMode:                      defaultIndexInsertMode,
+		clockOpts:                       clock.NewOptions(),
+		instrumentOpts:                  instrumentOpts,
+		builderOpts:                     builder.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		memOpts:                         mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		fstOpts:                         fst.NewOptions().SetInstrumentOptions(instrumentOpts),
+		bytesPool:                       bytesPool,
+		idPool:                          idPool,
+		resultsPool:                     resultsPool,
+		docArrayPool:                    docArrayPool,
+		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
+		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
 	resultsPool.Init(func() Results { return NewResults(opts) })
 	return opts
@@ -106,6 +153,9 @@ func (o *opts) Validate() error {
 	}
 	if o.resultsPool == nil {
 		return errOptionsResultsPoolUnspecified
+	}
+	if o.postingsListCache == nil {
+		return errPostingsListCacheUnspecified
 	}
 	return nil
 }
@@ -133,13 +183,25 @@ func (o *opts) ClockOptions() clock.Options {
 func (o *opts) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	memOpts := opts.MemSegmentOptions().SetInstrumentOptions(value)
+	fstOpts := opts.FSTSegmentOptions().SetInstrumentOptions(value)
 	opts.instrumentOpts = value
 	opts.memOpts = memOpts
+	opts.fstOpts = fstOpts
 	return &opts
 }
 
 func (o *opts) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *opts) SetSegmentBuilderOptions(value builder.Options) Options {
+	opts := *o
+	opts.builderOpts = value
+	return &opts
+}
+
+func (o *opts) SegmentBuilderOptions() builder.Options {
+	return o.builderOpts
 }
 
 func (o *opts) SetMemSegmentOptions(value mem.Options) Options {
@@ -150,6 +212,16 @@ func (o *opts) SetMemSegmentOptions(value mem.Options) Options {
 
 func (o *opts) MemSegmentOptions() mem.Options {
 	return o.memOpts
+}
+
+func (o *opts) SetFSTSegmentOptions(value fst.Options) Options {
+	opts := *o
+	opts.fstOpts = value
+	return &opts
+}
+
+func (o *opts) FSTSegmentOptions() fst.Options {
+	return o.fstOpts
 }
 
 func (o *opts) SetIdentifierPool(value ident.Pool) Options {
@@ -190,4 +262,44 @@ func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 
 func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
+}
+
+func (o *opts) SetForegroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+	opts := *o
+	opts.foregroundCompactionPlannerOpts = value
+	return &opts
+}
+
+func (o *opts) ForegroundCompactionPlannerOptions() compaction.PlannerOptions {
+	return o.foregroundCompactionPlannerOpts
+}
+
+func (o *opts) SetBackgroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+	opts := *o
+	opts.backgroundCompactionPlannerOpts = value
+	return &opts
+}
+
+func (o *opts) BackgroundCompactionPlannerOptions() compaction.PlannerOptions {
+	return o.backgroundCompactionPlannerOpts
+}
+
+func (o *opts) SetPostingsListCache(value *PostingsListCache) Options {
+	opts := *o
+	opts.postingsListCache = value
+	return &opts
+}
+
+func (o *opts) PostingsListCache() *PostingsListCache {
+	return o.postingsListCache
+}
+
+func (o *opts) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options {
+	opts := *o
+	opts.readThroughSegmentOptions = value
+	return &opts
+}
+
+func (o *opts) ReadThroughSegmentOptions() ReadThroughSegmentOptions {
+	return o.readThroughSegmentOptions
 }

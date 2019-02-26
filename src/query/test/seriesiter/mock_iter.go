@@ -34,6 +34,7 @@ import (
 // GenerateSingleSampleTagIterator generates a new tag iterator
 func GenerateSingleSampleTagIterator(ctrl *gomock.Controller, tag ident.Tag) ident.TagIterator {
 	mockTagIterator := ident.NewMockTagIterator(ctrl)
+	mockTagIterator.EXPECT().Duplicate().Return(mockTagIterator).MaxTimes(1)
 	mockTagIterator.EXPECT().Remaining().Return(1).MaxTimes(1)
 	mockTagIterator.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTagIterator.EXPECT().Current().Return(tag).MaxTimes(1)

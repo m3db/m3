@@ -1,3 +1,4 @@
+//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -113,6 +114,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		Return(errs[0])
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, true, errs[0]).AnyTimes()
 
 	session2.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -137,16 +140,20 @@ func TestFanoutReadEmpty(t *testing.T) {
 
 func TestFanoutReadError(t *testing.T) {
 	store := setupFanoutRead(t, true)
-	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	opts := storage.NewFetchOptions()
+	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 
 func TestFanoutReadSuccess(t *testing.T) {
-	store := setupFanoutRead(t, true, &fetchResponse{result: fakeIterator(t)}, &fetchResponse{result: fakeIterator(t)})
+	store := setupFanoutRead(t, true, &fetchResponse{
+		result: fakeIterator(t)},
+		&fetchResponse{result: fakeIterator(t)},
+	)
 	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{
 		Start: time.Now().Add(-time.Hour),
 		End:   time.Now(),
-	}, &storage.FetchOptions{})
+	}, storage.NewFetchOptions())
 	require.NoError(t, err, "no error on read")
 	assert.NotNil(t, res)
 	assert.NoError(t, store.Close())
@@ -162,7 +169,8 @@ func TestFanoutSearchEmpty(t *testing.T) {
 
 func TestFanoutSearchError(t *testing.T) {
 	store := setupFanoutRead(t, true)
-	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	opts := storage.NewFetchOptions()
+	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 
@@ -178,6 +186,7 @@ func TestFanoutWriteError(t *testing.T) {
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
+		Tags:       models.NewTags(0, nil),
 	})
 	assert.Error(t, err)
 }
@@ -188,12 +197,13 @@ func TestFanoutWriteSuccess(t *testing.T) {
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
+		Tags:       models.NewTags(0, nil),
 	})
 	assert.NoError(t, err)
 }
 
 func TestCompleteTagsFailure(t *testing.T) {
-	store := setupFanoutWrite(t, true, nil)
+	store := setupFanoutWrite(t, true, fmt.Errorf("err"))
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	_, err := store.CompleteTags(

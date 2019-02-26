@@ -15,7 +15,7 @@ Below is a visual representation of a set of `Blocks`. On top is the M3QL query 
 ```
                               ┌───────────────────────────────────────────────────────────────────────┐
                               │                                                                       │
-                              │     fetch name:sign_up city_id:{new_york,san_diego,toronto} ios:*     │
+                              │     fetch name:sign_up city_id:{new_york,san_diego,toronto} os:*     │
                               │                                                                       │
                               └───────────────────────────────────────────────────────────────────────┘
                                          │                        │                         │

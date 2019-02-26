@@ -21,14 +21,20 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -42,18 +48,33 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+
+	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
+	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
+		"generation scheme is required in coordinator configuration settings. " +
+		"More information is available here: %s"
 )
 
-// defaultLimitsConfiguration is applied if `limits` isn't specified.
-var defaultLimitsConfiguration = &LimitsConfiguration{
-	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-	MaxComputedDatapoints: 86400,
-}
+var (
+	// 5m is the default lookback in Prometheus
+	defaultLookbackDuration = 5 * time.Minute
+
+	defaultCarbonIngesterAggregationType = aggregation.Mean
+
+	// defaultLimitsConfiguration is applied if `limits` isn't specified.
+	defaultLimitsConfiguration = &LimitsConfiguration{
+		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
+		MaxComputedDatapoints: 86400,
+	}
+)
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+
+	// Tracing configures opentracing. If not provided, tracing is disabled.
+	Tracing instrument.TracingConfiguration `yaml:"tracing"`
 
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
@@ -69,6 +90,9 @@ type Configuration struct {
 
 	// ListenAddress is the server listen address.
 	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
+
+	// Filter is the read/write/complete tags filter configuration.
+	Filter FilterConfiguration `yaml:"filter"`
 
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
@@ -91,8 +115,35 @@ type Configuration struct {
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
 
+	// Carbon is the carbon configuration.
+	Carbon *CarbonConfiguration `yaml:"carbon"`
+
 	// Limits specifies limits on per-query resource usage.
-	Limits LimitsConfiguration `yaml:"limits"`
+	Limits *LimitsConfiguration `yaml:"limits"`
+
+	// LookbackDuration determines the lookback duration for queries
+	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
+}
+
+// Filter is a query filter type.
+type Filter string
+
+const (
+	// FilterLocalOnly is a filter that specifies local only storage should be used.
+	FilterLocalOnly Filter = "local_only"
+	// FilterRemoteOnly is a filter that specifies remote only storage should be used.
+	FilterRemoteOnly Filter = "remote_only"
+	// FilterAllowAll is a filter that specifies all storages should be used.
+	FilterAllowAll Filter = "allow_all"
+	// FilterAllowNone is a filter that specifies no storages should be used.
+	FilterAllowNone Filter = "allow_none"
+)
+
+// FilterConfiguration is the filters for write/read/complete tags storage filters.
+type FilterConfiguration struct {
+	Read         Filter `yaml:"read"`
+	Write        Filter `yaml:"write"`
+	CompleteTags Filter `yaml:"completeTags"`
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
@@ -103,20 +154,147 @@ type LimitsConfiguration struct {
 // IngestConfiguration is the configuration for ingestion server.
 type IngestConfiguration struct {
 	// Ingester is the configuration for storage based ingester.
-	Ingester ingest.Configuration `yaml:"ingester"`
+	Ingester ingestm3msg.Configuration `yaml:"ingester"`
 
 	// M3Msg is the configuration for m3msg server.
 	M3Msg m3msg.Configuration `yaml:"m3msg"`
 }
 
+// CarbonConfiguration is the configuration for the carbon server.
+type CarbonConfiguration struct {
+	Ingester *CarbonIngesterConfiguration `yaml:"ingester"`
+}
+
+// CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
+type CarbonIngesterConfiguration struct {
+	Debug          bool                              `yaml:"debug"`
+	ListenAddress  string                            `yaml:"listenAddress"`
+	MaxConcurrency int                               `yaml:"maxConcurrency"`
+	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+}
+
+// LookbackDurationOrDefault validates the LookbackDuration
+func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
+	if c.LookbackDuration == nil {
+		return defaultLookbackDuration, nil
+	}
+
+	v := *c.LookbackDuration
+	if v < 0 {
+		return 0, errors.New("lookbackDuration must be > 0")
+	}
+
+	return v, nil
+}
+
+// LimitsOrDefault returns the specified limit configuration if provided, or the
+// default value otherwise.
+func (c Configuration) LimitsOrDefault() *LimitsConfiguration {
+	if c.Limits != nil {
+		return c.Limits
+	}
+
+	return defaultLimitsConfiguration
+}
+
+// ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
+// default value if not.
+func (c *CarbonIngesterConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
+}
+
+// RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable
+// defaults using the provided aggregated namespaces if not.
+func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamespaces) []CarbonIngesterRuleConfiguration {
+	if len(c.Rules) > 0 {
+		return c.Rules
+	}
+
+	if namespaces.NumAggregatedClusterNamespaces() == 0 {
+		return nil
+	}
+
+	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
+	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	for _, ns := range namespaces {
+		if ns.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
+			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
+				Resolution: ns.Options().Attributes().Resolution,
+				Retention:  ns.Options().Attributes().Retention,
+			})
+		}
+	}
+
+	if len(policies) == 0 {
+		return nil
+	}
+
+	// Create a single catch-all rule with a policy for each of the aggregated namespaces we
+	// enumerated above.
+	aggregationEnabled := true
+	return []CarbonIngesterRuleConfiguration{
+		{
+			Pattern: graphite.MatchAllPattern,
+			Aggregation: CarbonIngesterAggregationConfiguration{
+				Enabled: &aggregationEnabled,
+				Type:    &defaultCarbonIngesterAggregationType,
+			},
+			Policies: policies,
+		},
+	}
+}
+
+// CarbonIngesterRuleConfiguration is the configuration struct for a carbon
+// ingestion rule.
+type CarbonIngesterRuleConfiguration struct {
+	Pattern     string                                     `yaml:"pattern"`
+	Aggregation CarbonIngesterAggregationConfiguration     `yaml:"aggregation"`
+	Policies    []CarbonIngesterStoragePolicyConfiguration `yaml:"policies"`
+}
+
+// CarbonIngesterAggregationConfiguration is the configuration struct
+// for the aggregation for a carbon ingest rule's storage policy.
+type CarbonIngesterAggregationConfiguration struct {
+	Enabled *bool             `yaml:"enabled"`
+	Type    *aggregation.Type `yaml:"type"`
+}
+
+// EnabledOrDefault returns whether aggregation should be enabled based on the provided configuration,
+// or a default value otherwise.
+func (c *CarbonIngesterAggregationConfiguration) EnabledOrDefault() bool {
+	if c.Enabled != nil {
+		return *c.Enabled
+	}
+
+	return true
+}
+
+// TypeOrDefault returns the aggregation type that should be used based on the provided configuration,
+// or a default value otherwise.
+func (c *CarbonIngesterAggregationConfiguration) TypeOrDefault() aggregation.Type {
+	if c.Type != nil {
+		return *c.Type
+	}
+
+	return defaultCarbonIngesterAggregationType
+}
+
+// CarbonIngesterStoragePolicyConfiguration is the configuration struct for
+// a carbon rule's storage policies.
+type CarbonIngesterStoragePolicyConfiguration struct {
+	Resolution time.Duration `yaml:"resolution" validate:"nonzero"`
+	Retention  time.Duration `yaml:"retention" validate:"nonzero"`
+}
+
 // LocalConfiguration is the local embedded configuration if running
 // coordinator embedded in the DB.
 type LocalConfiguration struct {
-	// Namespace is the name of the local namespace to write/read from.
-	Namespace string `yaml:"namespace" validate:"nonzero"`
-
-	// Retention is the retention of the local namespace to write/read from.
-	Retention time.Duration `yaml:"retention" validate:"nonzero"`
+	// Namespaces is the list of namespaces that the local embedded DB has.
+	Namespaces []m3.ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
 // ClusterManagementConfiguration is configuration for the placemement,
@@ -145,8 +323,15 @@ type RPCConfiguration struct {
 // relevant options.
 type TagOptionsConfiguration struct {
 	// MetricName specifies the tag name that corresponds to the metric's name tag
-	// If not provided, defaults to `__name__`
+	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
+
+	// BucketName specifies the tag name that corresponds to the metric's bucket.
+	// If not provided, defaults to `le`.
+	BucketName string `yaml:"bucketName"`
+
+	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
+	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
 
 // TagOptionsFromConfig translates tag option configuration into tag options.
@@ -157,6 +342,18 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		opts = opts.SetMetricName([]byte(name))
 	}
 
+	bucket := cfg.BucketName
+	if bucket != "" {
+		opts = opts.SetBucketName([]byte(bucket))
+	}
+
+	if cfg.Scheme == models.TypeDefault {
+		// If no config has been set, error.
+		docLink := xdocs.Path("how_to/query#migration")
+		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
+	}
+
+	opts = opts.SetIDSchemeType(cfg.Scheme)
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}

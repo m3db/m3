@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
 	"github.com/gorilla/mux"
@@ -47,14 +47,17 @@ const (
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 
-	// TODO: get timeouts from configs
-	maxTimeout     = time.Minute
-	defaultTimeout = time.Second * 15
+	maxTimeout = 5 * time.Minute
 )
 
 var (
-	matchValues = []byte("*")
+	matchValues = []byte(".*")
 )
+
+// TimeoutOpts stores options related to various timeout configurations
+type TimeoutOpts struct {
+	FetchTimeout time.Duration
+}
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
 func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
@@ -83,10 +86,10 @@ func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
 }
 
 // ParseRequestTimeout parses the input request timeout with a default
-func ParseRequestTimeout(r *http.Request) (time.Duration, error) {
+func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
 	if timeout == "" {
-		return defaultTimeout, nil
+		return configFetchTimeout, nil
 	}
 
 	duration, err := time.ParseDuration(timeout)
@@ -296,6 +299,51 @@ func RenderTagCompletionResultsJSON(
 	}
 
 	return renderDefaultTagCompletionResultsJSON(w, results)
+}
+
+// RenderTagValuesResultsJSON renders tag values results to json format
+func RenderTagValuesResultsJSON(
+	w io.Writer,
+	result *storage.CompleteTagsResult,
+) error {
+	if result.CompleteNameOnly {
+		return errors.ErrNamesOnly
+	}
+
+	tagCount := len(result.CompletedTags)
+
+	if tagCount > 1 {
+		return errors.ErrMultipleResults
+	}
+
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginArray()
+
+	// if no tags found, return empty array
+	if tagCount == 0 {
+		jw.EndArray()
+
+		jw.EndObject()
+
+		return jw.Close()
+	}
+
+	values := result.CompletedTags[0].Values
+	for _, value := range values {
+		jw.WriteString(string(value))
+	}
+
+	jw.EndArray()
+
+	jw.EndObject()
+
+	return jw.Close()
 }
 
 type tag struct {

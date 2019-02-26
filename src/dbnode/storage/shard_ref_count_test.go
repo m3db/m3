@@ -98,7 +98,7 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	blockSize := namespace.NewIndexOptions().BlockSize()
+	blockSize := namespaceIndexOptions.BlockSize()
 
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
@@ -127,15 +127,22 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 
 func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 10*time.Second)()
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
-		SetIndexOptions(index.NewOptions().SetInsertMode(index.InsertSync)))
+
+	var (
+		opts      = testDatabaseOptions()
+		indexOpts = opts.IndexOptions().
+				SetInsertMode(index.InsertSync)
+	)
+	opts = opts.SetIndexOptions(indexOpts)
+
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
 	assert.NoError(t, err)
 
 	defer func() {
@@ -271,7 +278,7 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	blockSize := namespace.NewIndexOptions().BlockSize()
+	blockSize := namespaceIndexOptions.BlockSize()
 
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
@@ -296,15 +303,22 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 10*time.Second)()
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
-		SetIndexOptions(index.NewOptions().SetInsertMode(index.InsertSync)))
+
+	var (
+		opts      = testDatabaseOptions()
+		indexOpts = opts.IndexOptions().
+				SetInsertMode(index.InsertSync)
+	)
+	opts = opts.SetIndexOptions(indexOpts)
+
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
 	assert.NoError(t, err)
 
 	defer func() {

@@ -1,7 +1,7 @@
 package: github.com/m3db/m3
 import:
   - package: github.com/m3db/m3x
-    version: 912d1db087722c924d50a7bfac7ca55cf56a600e
+    version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
     vcs: git
     subpackages:
       - checked
@@ -64,7 +64,7 @@ import:
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
 
   - package: github.com/opentracing/opentracing-go
-    version: 855519783f479520497c6b3445611b05fc42f009
+    version: 1.0.2
 
   - package: github.com/spaolacci/murmur3
     version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
@@ -113,15 +113,19 @@ import:
   - package: github.com/satori/go.uuid
     version: ^1.2.0
 
+  # NB(r): make sure to use the master commit for vellum
+  # once all upstream changes are complete in github.com/couchbase/vellum.
   - package: github.com/couchbase/vellum
     repo: https://github.com/m3db/vellum
-    version: 51c732079c882f52f8e6af889d99ac2a1611d5e4
+    version: e766292d14de216c324bb60b17320af72dee59c6
 
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
     version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 
-  - package: github.com/pilosa/pilosa/roaring
-    version: 8fe32d764fd7e29ec4c24aa0ca02c4174e4a6aed
+  # NB(r): make sure to use the master commit for pilosa
+  # once all upstream changes are complete in github.com/pilosa/pilosa.
+  - package: github.com/m3db/pilosa/roaring
+    version: ac8920c6e1abe06e2b0a3deba79a9910c39700e6
 
   # NB(prateek): ideally, the following dependencies would be under testImport, but
   # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564
@@ -159,6 +163,9 @@ import:
     subpackages:
       - cmp
 
+  - package: github.com/hydrogen18/stalecucumber
+    version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
+
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
     version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
@@ -194,6 +201,20 @@ import:
     subpackages:
       - capnslog
 
+  # START_JAEGER_DEPS
+  - package: github.com/uber/jaeger-lib
+    version: ^1.5.0
+
+  - package: github.com/uber/jaeger-client-go
+    version: ^2.7.0
+
+  - package: github.com/opentracing-contrib/go-stdlib
+    # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
+    # the same code.
+    version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+
+  # END_JAEGER_DEPS
+
   # To avoid conflicting packages not resolving the latest GRPC
   - package: google.golang.org/grpc
     version: ~1.7.3
@@ -209,6 +230,9 @@ import:
     version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
     repo: https://github.com/go-playground/validator.git
     vcs: git
+
+  - package: github.com/go-playground/universal-translator
+    version: 71201497bace774495daed26a3874fd339e0b538
 
   - package: gopkg.in/yaml.v2
     version: 5420a8b6744d3b0345ab293f6fcba19c978f1183

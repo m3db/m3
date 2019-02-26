@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 	"regexp"
+	"regexp/syntax"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -85,6 +86,7 @@ type Readable interface {
 type CompiledRegex struct {
 	Simple      *regexp.Regexp
 	FST         *vregex.Regexp
+	FSTSyntax   *syntax.Regexp
 	PrefixBegin []byte
 	PrefixEnd   []byte
 }
@@ -100,7 +102,27 @@ type DocRetriever interface {
 type IDDocIterator interface {
 	doc.Iterator
 
+	// PostingsID returns the current document postings ID.
 	PostingsID() postings.ID
+}
+
+// IDIterator is a document ID iterator.
+type IDIterator interface {
+	// Next returns a bool indicating if the iterator has any more documents
+	// to return.
+	Next() bool
+
+	// Current returns the current document ID.
+	Current() []byte
+
+	// PostingsID returns the current document postings ID.
+	PostingsID() postings.ID
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Close releases any internal resources used by the iterator.
+	Close() error
 }
 
 // Reader provides a point-in-time accessor to the documents in an index.

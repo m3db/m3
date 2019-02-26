@@ -32,23 +32,6 @@ clusters:
             - zone: embedded
               endpoints:
                 - m3db_seed:2379
-      writeConsistencyLevel: majority
-      readConsistencyLevel: unstrict_majority
-      writeTimeout: 10s
-      fetchTimeout: 15s
-      connectTimeout: 20s
-      writeRetry:
-        initialBackoff: 500ms
-        backoffFactor: 3
-        maxRetries: 2
-        jitter: true
-      fetchRetry:
-        initialBackoff: 500ms
-        backoffFactor: 2
-        maxRetries: 3
-        jitter: true
-      backgroundHealthCheckFailLimit: 4
-      backgroundHealthCheckFailThrottleFactor: 0.5
 
 ingest:
   ingester:
@@ -61,7 +44,14 @@ ingest:
     logSampleRate: 0.01
   m3msg:
     server:
-      listenAddress: 0.0.0.0:7507
+      listenAddress: "0.0.0.0:7507"
       retry:
         maxBackoff: 10s
         jitter: true
+
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"
+
+tagOptions:
+  idScheme: quoted

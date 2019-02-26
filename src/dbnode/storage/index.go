@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -36,13 +37,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -67,6 +68,7 @@ var (
 
 const (
 	defaultFlushReadDataBlocksBatchSize = int64(4096)
+	nsIndexReportStatsInterval          = 10 * time.Second
 )
 
 // nolint: maligned
@@ -107,8 +109,11 @@ type nsIndexState struct {
 	sync.RWMutex // NB: guards all variables in this struct
 
 	closed         bool
+	closeCh        chan struct{}
 	bootstrapState BootstrapState
-	runtimeOpts    nsIndexRuntimeOptions
+	bootstrapsDone uint
+
+	runtimeOpts nsIndexRuntimeOptions
 
 	insertQueue namespaceIndexInsertQueue
 
@@ -220,6 +225,7 @@ func newNamespaceIndexWithOptions(
 	nowFn := indexOpts.ClockOptions().NowFn()
 	idx := &nsIndex{
 		state: nsIndexState{
+			closeCh: make(chan struct{}),
 			runtimeOpts: nsIndexRuntimeOptions{
 				insertMode:            indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
 				flushBlockNumSegments: runtime.DefaultFlushIndexBlockNumSegments,
@@ -243,14 +249,14 @@ func newNamespaceIndexWithOptions(
 		resultsPool:      indexOpts.ResultsPool(),
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 
-		metrics: newNamespaceIndexMetrics(instrumentOpts),
+		metrics: newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
 	}
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatches, nowFn, scope)
+	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
@@ -259,10 +265,14 @@ func newNamespaceIndexWithOptions(
 	// allocate the current block to ensure we're able to index as soon as we return
 	currentBlock := nowFn().Truncate(idx.blockSize)
 	idx.state.RLock()
-	defer idx.state.RUnlock()
-	if _, err := idx.ensureBlockPresentWithRLock(currentBlock); err != nil {
+	_, err := idx.ensureBlockPresentWithRLock(currentBlock)
+	idx.state.RUnlock()
+	if err != nil {
 		return nil, err
 	}
+
+	// Report stats
+	go idx.reportStatsUntilClosed()
 
 	return idx, nil
 }
@@ -272,6 +282,105 @@ func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
 	i.state.runtimeOpts.defaultQueryTimeout = value.IndexDefaultQueryTimeout()
 	i.state.runtimeOpts.flushBlockNumSegments = value.FlushIndexBlockNumSegments()
 	i.state.Unlock()
+}
+
+func (i *nsIndex) reportStatsUntilClosed() {
+	ticker := time.NewTicker(nsIndexReportStatsInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := i.reportStats()
+			if err != nil {
+				i.logger.Warnf("could not report index stats: %v", err)
+			}
+		case <-i.state.closeCh:
+			return
+		}
+	}
+}
+
+type nsIndexCompactionLevelStats struct {
+	numSegments  int64
+	numTotalDocs int64
+}
+
+func (i *nsIndex) reportStats() error {
+	i.state.RLock()
+	defer i.state.RUnlock()
+
+	foregroundLevels := i.metrics.BlockMetrics.ForegroundSegments.Levels
+	foregroundLevelStats := make([]nsIndexCompactionLevelStats, len(foregroundLevels))
+
+	backgroundLevels := i.metrics.BlockMetrics.BackgroundSegments.Levels
+	backgroundLevelStats := make([]nsIndexCompactionLevelStats, len(backgroundLevels))
+
+	flushedLevels := i.metrics.BlockMetrics.FlushedSegments.Levels
+	flushedLevelStats := make([]nsIndexCompactionLevelStats, len(flushedLevels))
+
+	// iterate known blocks in a defined order of time (newest first)
+	// for debug log ordering
+	for _, start := range i.state.blockStartsDescOrder {
+		block, ok := i.state.blocksByTime[start]
+		if !ok {
+			return i.missingBlockInvariantError(start)
+		}
+
+		err := block.Stats(
+			index.BlockStatsReporterFn(func(s index.BlockSegmentStats) {
+				var (
+					levels     []nsIndexBlocksSegmentsLevelMetrics
+					levelStats []nsIndexCompactionLevelStats
+				)
+				switch s.Type {
+				case index.ActiveForegroundSegment:
+					levels = foregroundLevels
+					levelStats = foregroundLevelStats
+				case index.ActiveBackgroundSegment:
+					levels = backgroundLevels
+					levelStats = backgroundLevelStats
+				case index.FlushedSegment:
+					levels = flushedLevels
+					levelStats = flushedLevelStats
+				}
+
+				for i, l := range levels {
+					contained := s.Size >= l.MinSizeInclusive && s.Size < l.MaxSizeExclusive
+					if !contained {
+						continue
+					}
+
+					l.SegmentsAge.Record(s.Age)
+					levelStats[i].numSegments++
+					levelStats[i].numTotalDocs += s.Size
+
+					break
+				}
+			}))
+		if err == index.ErrUnableReportStatsBlockClosed {
+			// Closed blocks are temporarily in the list still
+			continue
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, elem := range []struct {
+		levels     []nsIndexBlocksSegmentsLevelMetrics
+		levelStats []nsIndexCompactionLevelStats
+	}{
+		{foregroundLevels, foregroundLevelStats},
+		{backgroundLevels, backgroundLevelStats},
+	} {
+		for i, v := range elem.levelStats {
+			elem.levels[i].NumSegments.Update(float64(v.numSegments))
+			elem.levels[i].NumTotalDocs.Update(float64(v.numTotalDocs))
+		}
+	}
+
+	return nil
 }
 
 func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
@@ -332,7 +441,7 @@ func (i *nsIndex) WriteBatch(
 
 		// Re-sort the batch by initial enqueue order
 		if numErrs := batch.NumErrs(); numErrs > 0 {
-			// Restore the sort order from whene enqueued for the caller
+			// Restore the sort order from when enqueued for the caller.
 			batch.SortByEnqueued()
 			return fmt.Errorf("check batch: %d insert errors", numErrs)
 		}
@@ -343,28 +452,33 @@ func (i *nsIndex) WriteBatch(
 
 // WriteBatches is called by the indexInsertQueue.
 func (i *nsIndex) writeBatches(
-	batches []*index.WriteBatch,
+	batch *index.WriteBatch,
 ) {
 	// NB(prateek): we use a read lock to guard against mutation of the
 	// indexBlocks, mutations within the underlying blocks are guarded
 	// by primitives internal to it.
 	i.state.RLock()
-	defer i.state.RUnlock()
 	if !i.isOpenWithRLock() {
+		i.state.RUnlock()
 		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
 		// on the provided inserts to terminate quicker during shutdown.
 		return
 	}
-
 	now := i.nowFn()
 	futureLimit := now.Add(1 * i.bufferFuture)
 	pastLimit := now.Add(-1 * i.bufferPast)
-	writeBatchFn := i.writeBatchForBlockStartWithRLock
-	for _, batch := range batches {
-		// Ensure timestamp is not too old/new based on retention policies and that
-		// doc is valid.
-		batch.ForEach(func(idx int, entry index.WriteBatchEntry,
+	// NB(r): Release lock early to avoid writing batches impacting ticking
+	// speed, etc.
+	// Sometimes foreground compaction can take a long time during heavy inserts.
+	// Each lookup to ensureBlockPresent checks that index is still open, etc.
+	i.state.RUnlock()
+
+	// Ensure timestamp is not too old/new based on retention policies and that
+	// doc is valid.
+	batch.ForEach(
+		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
+
 			if !futureLimit.After(entry.Timestamp) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
@@ -376,25 +490,27 @@ func (i *nsIndex) writeBatches(
 			}
 		})
 
-		// Sort the inserts by which block they're applicable for, and do the inserts
-		// for each block, making sure to not try to insert any entries already marked
-		// with a result.
-		batch.ForEachUnmarkedBatchByBlockStart(writeBatchFn)
-	}
+	// Sort the inserts by which block they're applicable for, and do the inserts
+	// for each block, making sure to not try to insert any entries already marked
+	// with a result.
+	batch.ForEachUnmarkedBatchByBlockStart(i.writeBatchForBlockStart)
 }
 
-func (i *nsIndex) writeBatchForBlockStartWithRLock(
+func (i *nsIndex) writeBatchForBlockStart(
 	blockStart time.Time, batch *index.WriteBatch,
 ) {
-	// ensure we have an index block for the specified blockStart.
-	block, err := i.ensureBlockPresentWithRLock(blockStart)
+	// NB(r): Notice we acquire each lock only to take a reference to the
+	// block we release it so we don't block the tick, etc when we insert
+	// batches since writing batches can take significant time when foreground
+	// compaction occurs.
+	block, err := i.ensureBlockPresent(blockStart)
 	if err != nil {
 		batch.MarkUnmarkedEntriesError(err)
 		i.logger.WithFields(
 			xlog.NewField("blockStart", blockStart),
 			xlog.NewField("numWrites", batch.Len()),
 			xlog.NewField("err", err.Error()),
-		).Error("unable to write to index, dropping inserts.")
+		).Error("unable to write to index, dropping inserts")
 		i.metrics.AsyncInsertErrors.Inc(int64(batch.Len()))
 		return
 	}
@@ -414,8 +530,11 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
-	if numErr := result.NumError; numErr != 0 {
-		i.metrics.AsyncInsertErrors.Inc(numErr)
+	if n := result.NumSuccess; n > 0 {
+		i.metrics.AsyncInsertSuccess.Inc(n)
+	}
+	if n := result.NumError; n > 0 {
+		i.metrics.AsyncInsertErrors.Inc(n)
 	}
 
 	if err != nil {
@@ -448,6 +567,7 @@ func (i *nsIndex) Bootstrap(
 		i.state.RUnlock()
 		i.state.Lock()
 		i.state.bootstrapState = Bootstrapped
+		i.state.bootstrapsDone++
 		i.state.Unlock()
 	}()
 
@@ -464,6 +584,13 @@ func (i *nsIndex) Bootstrap(
 	}
 
 	return multiErr.FinalError()
+}
+
+func (i *nsIndex) BootstrapsDone() uint {
+	i.state.RLock()
+	result := i.state.bootstrapsDone
+	i.state.RUnlock()
+	return result
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
@@ -522,9 +649,15 @@ func (i *nsIndex) Flush(
 		return err
 	}
 
-	var evictResults index.EvictMutableSegmentResults
+	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions()
+	builder, err := builder.NewBuilderFromDocuments(builderOpts)
+	if err != nil {
+		return err
+	}
+
+	var evicted int
 	for _, block := range flushable {
-		immutableSegments, err := i.flushBlock(flush, block, shards)
+		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
 			return err
 		}
@@ -538,11 +671,12 @@ func (i *nsIndex) Flush(
 		if err := block.AddResults(results); err != nil {
 			return err
 		}
+
+		evicted++
+
 		// It's now safe to remove the mutable segments as anything the block
 		// held is covered by the owned shards we just read
-		evictResult, err := block.EvictMutableSegments()
-		evictResults.Add(evictResult)
-		if err != nil {
+		if err := block.EvictMutableSegments(); err != nil {
 			// deliberately choosing to not mark this as an error as we have successfully
 			// flushed any mutable data.
 			i.logger.WithFields(
@@ -551,7 +685,7 @@ func (i *nsIndex) Flush(
 			).Warnf("encountered error while evicting mutable segments for index block")
 		}
 	}
-	i.metrics.FlushEvictedMutableSegments.Inc(evictResults.NumMutableSegments)
+	i.metrics.BlocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
 }
 
@@ -601,6 +735,7 @@ func (i *nsIndex) flushBlock(
 	flush persist.IndexFlush,
 	indexBlock index.Block,
 	shards []databaseShard,
+	builder segment.DocumentsBuilder,
 ) ([]segment.Segment, error) {
 	i.state.RLock()
 	numSegments := i.state.runtimeOpts.flushBlockNumSegments
@@ -645,7 +780,7 @@ func (i *nsIndex) flushBlock(
 		}
 
 		// Flush a single block segment
-		err := i.flushBlockSegment(preparedPersist, indexBlock, shards)
+		err := i.flushBlockSegment(preparedPersist, indexBlock, shards, builder)
 		if err != nil {
 			return nil, err
 		}
@@ -661,14 +796,10 @@ func (i *nsIndex) flushBlockSegment(
 	preparedPersist persist.PreparedIndexPersist,
 	indexBlock index.Block,
 	shards []databaseShard,
+	builder segment.DocumentsBuilder,
 ) error {
-	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
-	postingsOffset := postings.ID(0)
-	seg, err := mem.NewSegment(postingsOffset, i.opts.IndexOptions().MemSegmentOptions())
-	if err != nil {
-		return err
-	}
-	defer seg.Close()
+	// Reset the builder
+	builder.Reset(0)
 
 	ctx := context.NewContext()
 	for _, shard := range shards {
@@ -683,6 +814,7 @@ func (i *nsIndex) flushBlockSegment(
 				opts    = block.FetchBlocksMetadataOptions{}
 				limit   = defaultFlushReadDataBlocksBatchSize
 				results block.FetchBlocksMetadataResults
+				err     error
 			)
 			ctx.Reset()
 			results, pageToken, err = shard.FetchBlocksMetadataV2(ctx,
@@ -693,21 +825,13 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			for _, result := range results.Results() {
-				id := result.ID.Bytes()
-				exists, err := seg.ContainsID(id)
-				if err != nil {
-					return err
-				}
-				if exists {
-					continue
-				}
-
 				doc, err := convert.FromMetricIter(result.ID, result.Tags)
 				if err != nil {
 					return err
 				}
 
-				if _, err := seg.Insert(doc); err != nil {
+				_, err = builder.Insert(doc)
+				if err != nil && err != m3ninxindex.ErrDuplicateID {
 					return err
 				}
 			}
@@ -717,12 +841,8 @@ func (i *nsIndex) flushBlockSegment(
 		}
 	}
 
-	if _, err := seg.Seal(); err != nil {
-		return err
-	}
-
 	// Finally flush this segment
-	return preparedPersist.Persist(seg)
+	return preparedPersist.Persist(builder)
 }
 
 func (i *nsIndex) Query(
@@ -783,7 +903,9 @@ func (i *nsIndex) Query(
 	defer func() {
 		// Ensure that during early error returns we let any aborted
 		// goroutines know not to try to modify/edit the result any longer.
+		results.Lock()
 		results.returned = true
+		results.Unlock()
 	}()
 
 	execBlockQuery := func(block index.Block) {
@@ -791,7 +913,7 @@ func (i *nsIndex) Query(
 		blockResults.Reset(i.nsMetadata.ID())
 
 		blockExhaustive, err := block.Query(query, opts, blockResults)
-		if err != index.ErrUnableToQueryBlockClosed {
+		if err == index.ErrUnableToQueryBlockClosed {
 			// NB(r): Because we query this block outside of the results lock, it's
 			// possible this block may get closed if it slides out of retention, in
 			// that case those results are no longer considered valid and outside of
@@ -948,10 +1070,10 @@ func (i *nsIndex) Query(
 	// lock/unlock cleanup to not deadlock with this locked code block.
 	exhaustive := results.exhaustive
 	mergedResults := results.merged
-	errResults := results.multiErr.FinalError()
+	err = results.multiErr.FinalError()
 	results.Unlock()
 
-	if errResults != nil {
+	if err != nil {
 		return index.QueryResults{}, err
 	}
 
@@ -1020,6 +1142,15 @@ func (i *nsIndex) blocksForQueryWithRLock(queryRange xtime.Ranges) ([]index.Bloc
 	}
 
 	return blocks, nil
+}
+
+func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (index.Block, error) {
+	i.state.RLock()
+	defer i.state.RUnlock()
+	if !i.isOpenWithRLock() {
+		return nil, errDbIndexUnableToWriteClosed
+	}
+	return i.ensureBlockPresentWithRLock(blockStart)
 }
 
 // ensureBlockPresentWithRLock guarantees an index.Block exists for the specified
@@ -1144,6 +1275,7 @@ func (i *nsIndex) Close() error {
 	}
 
 	i.state.closed = true
+	close(i.state.closeCh)
 
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(i.state.insertQueue.Stop())
@@ -1195,18 +1327,23 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertErrors           tally.Counter
-	InsertAfterClose            tally.Counter
-	QueryAfterClose             tally.Counter
-	InsertEndToEndLatency       tally.Timer
-	FlushEvictedMutableSegments tally.Counter
+	AsyncInsertSuccess           tally.Counter
+	AsyncInsertErrors            tally.Counter
+	InsertAfterClose             tally.Counter
+	QueryAfterClose              tally.Counter
+	InsertEndToEndLatency        tally.Timer
+	BlocksEvictedMutableSegments tally.Counter
+	BlockMetrics                 nsIndexBlocksMetrics
 }
 
 func newNamespaceIndexMetrics(
+	opts index.Options,
 	iopts instrument.Options,
 ) nsIndexMetrics {
 	scope := iopts.MetricsScope()
+	blocksScope := scope.SubScope("blocks")
 	return nsIndexMetrics{
+		AsyncInsertSuccess: scope.Counter("index-success"),
 		AsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
 		}).Counter("index-error"),
@@ -1219,7 +1356,74 @@ func newNamespaceIndexMetrics(
 		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
 			scope.Timer("insert-end-to-end-latency"),
 			iopts.MetricsSamplingRate()),
-		FlushEvictedMutableSegments: scope.Counter("mutable-segment-evicted"),
+		BlocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
+		BlockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
+	}
+}
+
+type nsIndexBlocksMetrics struct {
+	ForegroundSegments nsIndexBlocksSegmentsMetrics
+	BackgroundSegments nsIndexBlocksSegmentsMetrics
+	FlushedSegments    nsIndexBlocksSegmentsMetrics
+}
+
+func newNamespaceIndexBlocksMetrics(
+	opts index.Options,
+	scope tally.Scope,
+) nsIndexBlocksMetrics {
+	return nsIndexBlocksMetrics{
+		ForegroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
+			opts.ForegroundCompactionPlannerOptions(),
+			scope.Tagged(map[string]string{
+				"segment-type": "foreground",
+			})),
+		BackgroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
+			opts.BackgroundCompactionPlannerOptions(),
+			scope.Tagged(map[string]string{
+				"segment-type": "background",
+			})),
+		FlushedSegments: newNamespaceIndexBlocksSegmentsMetrics(
+			opts.BackgroundCompactionPlannerOptions(),
+			scope.Tagged(map[string]string{
+				"segment-type": "flushed",
+			})),
+	}
+}
+
+type nsIndexBlocksSegmentsMetrics struct {
+	Levels []nsIndexBlocksSegmentsLevelMetrics
+}
+
+type nsIndexBlocksSegmentsLevelMetrics struct {
+	MinSizeInclusive int64
+	MaxSizeExclusive int64
+	NumSegments      tally.Gauge
+	NumTotalDocs     tally.Gauge
+	SegmentsAge      tally.Timer
+}
+
+func newNamespaceIndexBlocksSegmentsMetrics(
+	compactionOpts compaction.PlannerOptions,
+	scope tally.Scope,
+) nsIndexBlocksSegmentsMetrics {
+	segmentLevelsScope := scope.SubScope("segment-levels")
+	levels := make([]nsIndexBlocksSegmentsLevelMetrics, 0, len(compactionOpts.Levels))
+	for _, level := range compactionOpts.Levels {
+		subScope := segmentLevelsScope.Tagged(map[string]string{
+			"level-min-size": strconv.Itoa(int(level.MinSizeInclusive)),
+			"level-max-size": strconv.Itoa(int(level.MaxSizeExclusive)),
+		})
+		levels = append(levels, nsIndexBlocksSegmentsLevelMetrics{
+			MinSizeInclusive: level.MinSizeInclusive,
+			MaxSizeExclusive: level.MaxSizeExclusive,
+			NumSegments:      subScope.Gauge("num-segments"),
+			NumTotalDocs:     subScope.Gauge("num-total-docs"),
+			SegmentsAge:      subScope.Timer("segments-age"),
+		})
+	}
+
+	return nsIndexBlocksSegmentsMetrics{
+		Levels: levels,
 	}
 }
 

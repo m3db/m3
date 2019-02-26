@@ -83,6 +83,30 @@ func (r *multiResult) Close() error {
 	return nil
 }
 
+func (r *multiResult) BuildWithAttrs() (
+	encoding.SeriesIterators, []storage.Attributes, error) {
+	iters, err := r.Build()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	attrs := make([]storage.Attributes, iters.Len())
+	// TODO: add testing around here.
+	if r.dedupeMap == nil {
+		for i := range attrs {
+			attrs[i] = r.seenFirstAttrs
+		}
+	} else {
+		i := 0
+		for _, res := range r.dedupeMap.Iter() {
+			attrs[i] = res.Value().attrs
+			i++
+		}
+	}
+
+	return iters, attrs, nil
+}
+
 func (r *multiResult) Build() (encoding.SeriesIterators, error) {
 	r.Lock()
 	defer r.Unlock()

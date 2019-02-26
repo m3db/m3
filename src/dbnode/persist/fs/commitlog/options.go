@@ -66,7 +66,6 @@ var (
 	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
 	errBlockSizePositive        = errors.New("block size must be a positive duration")
 	errReadConcurrencyPositive  = errors.New("read concurrency must be a positive integer")
-	errBacklogQueueChannelSize  = errors.New("read concurrency must be a positive integer")
 )
 
 type options struct {
@@ -121,7 +120,7 @@ func (o *options) Validate() error {
 
 	if float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()) > MaximumQueueSizeQueueChannelSizeRatio {
 		return fmt.Errorf(
-			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at least: %f, but was: %f",
+			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at most: %f, but was: %f",
 			MaximumQueueSizeQueueChannelSizeRatio, float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()))
 	}
 

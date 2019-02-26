@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3x/pool"
 )
 
 // Options describes the options for encoded block converters.
@@ -34,9 +36,6 @@ import (
 type Options interface {
 	// SetSplitSeriesByBlock determines if the converter will split the series
 	// by blocks, or if it will instead treat the entire series as a single block.
-	//
-	// NB: if a lookback duration greater than 0 has been set, the series will
-	// always be treated as a single block.
 	SetSplitSeriesByBlock(bool) Options
 	// SplittingSeriesByBlock returns true iff lookback duration is 0, and the
 	// options has not been forced to return a single block.
@@ -61,7 +60,17 @@ type Options interface {
 	SetIteratorPools(encoding.IteratorPools) Options
 	// IteratorPools returns the iterator pools for the converter.
 	IteratorPools() encoding.IteratorPools
+	// SetCheckedBytesPool sets the checked bytes pool for the converter.
+	SetCheckedBytesPool(pool.CheckedBytesPool) Options
+	// CheckedBytesPool returns the checked bytes pools for the converter.
+	CheckedBytesPool() pool.CheckedBytesPool
 
 	// Validate ensures that the given block options are valid.
 	Validate() error
+}
+
+type peekValue struct {
+	started  bool
+	finished bool
+	point    ts.Datapoint
 }

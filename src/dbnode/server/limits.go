@@ -30,7 +30,7 @@ import (
 const (
 	// TODO: determine these values based on topology/namespace configuration.
 	minNoFile     = 500000
-	minVMMapCount = 262144
+	minVMMapCount = 3000000
 	maxSwappiness = 1
 )
 

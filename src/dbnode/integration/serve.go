@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xretry "github.com/m3db/m3x/retry"
 )
 
 // newTestShardSet creates a default shard set
@@ -73,7 +74,12 @@ func newTopologyInitializerForShardSet(
 
 // defaultClientOptions creates a default m3db client options
 func defaultClientOptions(initializer topology.Initializer) client.Options {
-	return client.NewOptions().SetTopologyInitializer(initializer)
+	return client.NewOptions().
+		SetTopologyInitializer(initializer).
+		// Default to zero retries to prevent tests from taking too long in situations where
+		// errors are expected.
+		SetWriteRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
+		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0)))
 }
 
 // openAndServe opens the database, starts up the RPC servers and bootstraps

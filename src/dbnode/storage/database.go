@@ -815,7 +815,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
 	if !ok {
 		d.log.WithFields(
-			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime.String()),
 		).Debugf(
 			"not bootstrapped and durable because: no last bootstrap completion time")
 		return false
@@ -824,8 +824,8 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
 	if !ok {
 		d.log.WithFields(
-			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
-			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime.String()),
+			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime.String()),
 		).Debugf(
 			"not bootstrapped and durable because: no last snapshot start time")
 		return false
@@ -841,9 +841,9 @@ func (d *db) IsBootstrappedAndDurable() bool {
 
 	if !isBootstrappedAndDurable {
 		d.log.WithFields(
-			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
-			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
-			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards),
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime.String()),
+			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime.String()),
+			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards.String()),
 		).Debugf(
 			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards")
 		return false

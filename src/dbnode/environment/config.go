@@ -67,8 +67,9 @@ type SeedNodesConfig struct {
 
 // SeedNode represents a seed node for the cluster
 type SeedNode struct {
-	HostID   string `yaml:"hostID"`
-	Endpoint string `yaml:"endpoint"`
+	HostID       string `yaml:"hostID"`
+	Endpoint     string `yaml:"endpoint"`
+	ClusterState string `yaml:"clusterState"`
 }
 
 // SeedNodeSecurityConfig contains the data used for security in seed nodes

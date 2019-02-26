@@ -22,12 +22,16 @@ package httpd
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
@@ -36,11 +40,20 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
+	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+)
+
+var (
+	// Created by init().
+	testWorkerPool          xsync.PooledWorkerPool
+	defaultLookbackDuration = time.Minute
 )
 
 func makeTagOptions() models.TagOptions {
@@ -48,8 +61,45 @@ func makeTagOptions() models.TagOptions {
 }
 
 func setupHandler(store storage.Storage) (*Handler, error) {
-	return NewHandler(store, makeTagOptions(), nil, executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
-		config.Configuration{}, nil, tally.NewTestScope("", nil))
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
+	return NewHandler(
+		downsamplerAndWriter,
+		makeTagOptions(),
+		executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute),
+		nil,
+		nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration},
+		nil,
+		tally.NewTestScope("", nil))
+}
+
+func TestHandlerFetchTimeoutError(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+
+	negValue := -1 * time.Second
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
+	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	require.Error(t, err)
+}
+
+func TestHandlerFetchTimeout(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+
+	fourMin := 4 * time.Minute
+	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
+	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute), nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -62,6 +112,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
+	assert.Equal(t, 30*time.Second, h.timeoutOpts.FetchTimeout)
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
@@ -198,16 +249,52 @@ func TestCORSMiddleware(t *testing.T) {
 	h, err := setupHandler(s)
 	require.NoError(t, err, "unable to setup handler")
 
-	testRoute := "/foobar"
-	h.router.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
-		writer.WriteHeader(http.StatusOK)
-		writer.Write([]byte("hello!"))
-	})
-
-	req, _ := http.NewRequest("GET", testRoute, nil)
-	res := httptest.NewRecorder()
-	h.Router().ServeHTTP(res, req)
+	setupTestRoute(h.router)
+	res := doTestRequest(h.Router())
 
 	assert.Equal(t, "hello!", res.Body.String())
 	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
+
+	req, _ := http.NewRequest("GET", testRoute, nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	return res
+}
+
+func TestTracingMiddleware(t *testing.T) {
+	mtr := mocktracer.New()
+	router := mux.NewRouter()
+	setupTestRoute(router)
+
+	handler := applyMiddleware(router, mtr)
+	doTestRequest(handler)
+
+	assert.NotEmpty(t, mtr.FinishedSpans())
+}
+
+const testRoute = "/foobar"
+
+func setupTestRoute(r *mux.Router) {
+	r.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+		writer.Write([]byte("hello!"))
+	})
+}
+
+func init() {
+	var err error
+	testWorkerPool, err = xsync.NewPooledWorkerPool(
+		16,
+		xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true),
+	)
+
+	if err != nil {
+		panic(fmt.Sprintf("unable to create pooled worker pool: %v", err))
+	}
+
+	testWorkerPool.Init()
 }

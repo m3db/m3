@@ -63,10 +63,14 @@ type VectorMatching struct {
 // ignoring the provided labels. If on, then the given labels are only used instead.
 func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 	if on {
-		return func(tags models.Tags) uint64 { return tags.IDWithKeys(names...) }
+		return func(tags models.Tags) uint64 {
+			return tags.TagsWithKeys(names).HashedID()
+		}
 	}
 
-	return func(tags models.Tags) uint64 { return tags.IDWithExcludes(names...) }
+	return func(tags models.Tags) uint64 {
+		return tags.TagsWithoutKeys(names).HashedID()
+	}
 }
 
 const initIndexSliceLength = 10
@@ -166,16 +170,14 @@ func combineMetaAndSeriesMeta(
 
 func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
 	for index := 0; iter.Next(); index++ {
-		step, err := iter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := iter.Current()
 		values := step.Values()
 		for _, idx := range idxArray {
-			builder.AppendValue(index, values[idx])
+			if err := builder.AppendValue(index, values[idx]); err != nil {
+				return err
+			}
 		}
 	}
 
-	return nil
+	return iter.Err()
 }

@@ -56,7 +56,7 @@ func NewUnconsolidatedBlockFromDatapointsWithMeta(bounds models.Bounds, meta []b
 		Start:    bounds.Start,
 		End:      bounds.End(),
 		Interval: bounds.StepSize,
-	})
+	}, time.Minute)
 
 	return storage.NewMultiBlockWrapper(b)
 }

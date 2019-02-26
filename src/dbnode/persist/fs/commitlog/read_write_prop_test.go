@@ -60,7 +60,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(baseTestPath)
 
-	opts := NewOptions().SetStrategy(StrategyWriteBehind)
+	opts := testOpts.SetStrategy(StrategyWriteBehind)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(baseTestPath)
 	opts = opts.SetFilesystemOptions(fsOpts).SetFlushInterval(time.Millisecond)
 
@@ -459,7 +459,7 @@ func newInitState(
 	corruptionProbability float64,
 	seed int64,
 ) *clState {
-	opts := NewOptions().
+	opts := testOpts.
 		SetStrategy(StrategyWriteBehind).
 		SetFlushInterval(defaultTestFlushInterval).
 		// Need to set this to a relatively low value otherwise the test will

@@ -89,6 +89,7 @@ Users can validate m3query's Prometheus results for a given query against input 
 Query: `go_gc_duration_seconds{quantile="1"} * 2`
 
 Input JSON:
+
 ```
 {
   "input": {
@@ -145,6 +146,7 @@ Input JSON:
   }
 }
 ```
+
 Full request: `curl -X POST 'localhost:7201/api/v1/debug/validate_query?start=1543431465&end=1543435045&step=14s&query=go_gc_duration_seconds%7Bquantile%3D%221%22%7D*2' -d @<input_json_file> --header "Content-Type: application/json"`
 
 [doc-img]: https://godoc.org/github.com/m3db/m3/src/query?status.svg

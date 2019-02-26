@@ -500,10 +500,6 @@ func newRetryEnabledTestSession(t *testing.T, opts Options) clientSession {
 	return newTestSession(t, opts)
 }
 
-func newDefaultRetryEnabledTestSession(t *testing.T) clientSession {
-	return newRetryEnabledTestSession(t, newSessionTestOptions())
-}
-
 func newWriteStub() writeStub {
 	return writeStub{
 		ns:         ident.StringID("testNs"),

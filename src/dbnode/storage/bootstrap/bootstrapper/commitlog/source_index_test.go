@@ -36,6 +36,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var namespaceOptions = namespace.NewOptions()
+
 func TestBootstrapIndex(t *testing.T) {
 	testBootstrapIndex(t, false)
 }
@@ -46,18 +48,18 @@ func TestBootstrapIndexAfterBootstrapData(t *testing.T) {
 
 func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	var (
-		opts             = testOptions()
+		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		dataBlockSize    = 2 * time.Hour
 		indexBlockSize   = 4 * time.Hour
-		namespaceOptions = namespace.NewOptions().
+		namespaceOptions = namespaceOptions.
 					SetRetentionOptions(
-				namespace.NewOptions().
+				namespaceOptions.
 					RetentionOptions().
 					SetBlockSize(dataBlockSize),
 			).
 			SetIndexOptions(
-				namespace.NewOptions().
+				namespaceOptions.
 					IndexOptions().
 					SetBlockSize(indexBlockSize).
 					SetEnabled(true),
@@ -233,7 +235,7 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 
 func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	var (
-		opts             = testOptions()
+		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		dataBlockSize    = 2 * time.Hour
 		indexBlockSize   = 4 * time.Hour
@@ -270,7 +272,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 
 func TestBootstrapIndexNamespaceIndexNotEnabled(t *testing.T) {
 	var (
-		opts             = testOptions()
+		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		namespaceOptions = namespace.NewOptions().
 					SetIndexOptions(
