@@ -31,20 +31,20 @@
       
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
-      <link rel="shortcut icon" href="../../../assets/images/favicon.png">
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
     
     
       
-        <title>Storage - M3 Documentation</title>
+        <title>etcd - M3 Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.8d40d89b.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/application.8d40d89b.css">
       
     
     
-      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
     
     
       <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#storage" tabindex="1" class="md-skip">
+      <a href="#etcd" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -98,7 +98,7 @@
   <nav class="md-header-nav md-grid">
     <div class="md-flex">
       <div class="md-flex__cell md-flex__cell--shrink">
-        <a href="../../.." title="M3 Documentation" class="md-header-nav__button md-logo">
+        <a href="../.." title="M3 Documentation" class="md-header-nav__button md-logo">
           
             <i class="md-icon"></i>
           
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Storage
+                etcd
               </span>
             
           
@@ -232,7 +232,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../.." title="Introduction" class="md-nav__link">
+    <a href="../.." title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -302,12 +302,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
     
     <label class="md-nav__link" for="nav-3">
       M3DB
@@ -325,7 +323,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../" title="Introduction" class="md-nav__link">
+    <a href="../../m3db/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -335,12 +333,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
     
     <label class="md-nav__link" for="nav-3-2">
       Architecture
@@ -358,7 +354,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../" title="Overview" class="md-nav__link">
+    <a href="../../m3db/architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -370,7 +366,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../engine/" title="Storage Engine" class="md-nav__link">
+    <a href="../../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
       Storage Engine
     </a>
   </li>
@@ -382,7 +378,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../sharding/" title="Sharding and Replication" class="md-nav__link">
+    <a href="../../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
       Sharding and Replication
     </a>
   </li>
@@ -394,7 +390,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../consistencylevels/" title="Consistency Levels" class="md-nav__link">
+    <a href="../../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
       Consistency Levels
     </a>
   </li>
@@ -404,56 +400,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        Storage
-      </label>
-    
-    <a href="./" title="Storage" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/storage/" title="Storage" class="md-nav__link">
       Storage
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#overview" title="Overview" class="md-nav__link">
-    Overview
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#filesets" title="FileSets" class="md-nav__link">
-    FileSets
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -463,7 +414,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../commitlogs/" title="Commit Logs" class="md-nav__link">
+    <a href="../../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
       Commit Logs
     </a>
   </li>
@@ -475,7 +426,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../peer_streaming/" title="Peer Streaming" class="md-nav__link">
+    <a href="../../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
       Peer Streaming
     </a>
   </li>
@@ -487,7 +438,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../caching/" title="Caching" class="md-nav__link">
+    <a href="../../m3db/architecture/caching/" title="Caching" class="md-nav__link">
       Caching
     </a>
   </li>
@@ -528,7 +479,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../query_engine/" title="Introduction" class="md-nav__link">
+    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -559,7 +510,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../query_engine/api/" title="Query" class="md-nav__link">
+    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
       Query
     </a>
   </li>
@@ -576,7 +527,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+    <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
   </li>
@@ -607,7 +558,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../query_engine/architecture/" title="Overview" class="md-nav__link">
+    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -619,7 +570,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -631,7 +582,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
     </a>
   </li>
@@ -672,7 +623,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+    <a href="../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
       M3DB Single Node Deployment
     </a>
   </li>
@@ -684,7 +635,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
+    <a href="../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
       M3DB Cluster Deployment, Manually
     </a>
   </li>
@@ -696,7 +647,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+    <a href="../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
       M3DB on Kubernetes
     </a>
   </li>
@@ -708,7 +659,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/query/" title="M3Query" class="md-nav__link">
+    <a href="../../how_to/query/" title="M3Query" class="md-nav__link">
       M3Query
     </a>
   </li>
@@ -723,10 +674,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
     
     <label class="md-nav__link" for="nav-6">
       Operational Guides
@@ -744,7 +697,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+    <a href="../placement/" title="Placement/Topology" class="md-nav__link">
       Placement/Topology
     </a>
   </li>
@@ -756,7 +709,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+    <a href="../placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
       Placement/Topology Configuration
     </a>
   </li>
@@ -768,7 +721,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+    <a href="../namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
       Namespace Configuration
     </a>
   </li>
@@ -780,7 +733,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
+    <a href="../bootstrapping/" title="Bootstrapping" class="md-nav__link">
       Bootstrapping
     </a>
   </li>
@@ -792,7 +745,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
+    <a href="../kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
       Kernel Configuration
     </a>
   </li>
@@ -802,11 +755,103 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/etcd/" title="etcd" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        etcd
+      </label>
+    
+    <a href="./" title="etcd" class="md-nav__link md-nav__link--active">
       etcd
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-an-external-etcd-cluster" title="Configuring an External etcd Cluster" class="md-nav__link">
+    Configuring an External etcd Cluster
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#m3db" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3coordinator" title="M3Coordinator" class="md-nav__link">
+    M3Coordinator
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#etcd-operations" title="etcd Operations" class="md-nav__link">
+    etcd Operations
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#embedded-etcd" title="Embedded etcd" class="md-nav__link">
+    Embedded etcd
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-etcd" title="External etcd" class="md-nav__link">
+    External etcd
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -840,7 +885,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
+    <a href="../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
       Prometheus
     </a>
   </li>
@@ -852,7 +897,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/graphite/" title="Graphite" class="md-nav__link">
+    <a href="../../integrations/graphite/" title="Graphite" class="md-nav__link">
       Graphite
     </a>
   </li>
@@ -864,7 +909,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/grafana/" title="Grafana" class="md-nav__link">
+    <a href="../../integrations/grafana/" title="Grafana" class="md-nav__link">
       Grafana
     </a>
   </li>
@@ -881,7 +926,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
+    <a href="../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
       Troubleshooting
     </a>
   </li>
@@ -893,7 +938,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../faqs/" title="FAQs" class="md-nav__link">
+    <a href="../../faqs/" title="FAQs" class="md-nav__link">
       FAQs
     </a>
   </li>
@@ -927,9 +972,56 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filesets" title="FileSets" class="md-nav__link">
-    FileSets
+  <a href="#configuring-an-external-etcd-cluster" title="Configuring an External etcd Cluster" class="md-nav__link">
+    Configuring an External etcd Cluster
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#m3db" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3coordinator" title="M3Coordinator" class="md-nav__link">
+    M3Coordinator
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#etcd-operations" title="etcd Operations" class="md-nav__link">
+    etcd Operations
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#embedded-etcd" title="Embedded etcd" class="md-nav__link">
+    Embedded etcd
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-etcd" title="External etcd" class="md-nav__link">
+    External etcd
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -949,58 +1041,71 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/m3db/architecture/storage.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/etcd.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="storage">Storage</h1>
+                <h1 id="etcd">etcd</h1>
+<p>The M3 stack leverages <code>etcd</code> as a distributed key-value storage to:</p>
+<ol>
+<li>Update cluster configuration in realtime</li>
+<li>Manage placements for our distributed / sharded tiers like M3DB and M3Aggregator</li>
+<li>Perform leader-election in M3Aggregator</li>
+</ol>
+<p>and much more!</p>
 <h2 id="overview">Overview</h2>
-<p>The primary unit of long-term storage for M3DB are fileset files which store compressed streams of time series values, one per shard block time window size.</p>
-<p>They are flushed to disk after a block time window becomes unreachable, that is the end of the time window for which that block can no longer be written to.  If a process is killed before it has a chance to flush the data for the current time window to disk it must be restored from the commit log (or a peer that is responsible for the same shard if replication factor is larger than 1.)</p>
-<h2 id="filesets">FileSets</h2>
-<p>A fileset has the following files:</p>
-<ul>
-<li><strong>Info file:</strong> Stores the block time window start and size and other important metadata about the fileset volume.</li>
-<li><strong>Summaries file:</strong> Stores a subset of the index file for purposes of keeping the contents in memory and jumping to section of the index file that within a few pages of linear scanning can find the series that is being looked up.</li>
-<li><strong>Index file:</strong> Stores the series metadata, including tags if indexing is enabled, and location of compressed stream in the data file for retrieval.</li>
-<li><strong>Data file:</strong> Stores the series compressed data streams.</li>
-<li><strong>Bloom filter file:</strong> Stores a bloom filter bitset of all series contained in this fileset for quick knowledge of whether to attempt retrieving a series for this fileset volume.</li>
-<li><strong>Digests file:</strong> Stores the digest checksums of the info file, summaries file, index file, data file and bloom filter file in the fileset volume for integrity verification.</li>
-<li><strong>Checkpoint file:</strong> Stores a digest of the digests file and written at the succesful completion of a fileset volume being persisted, allows for quickly checking if a volume was completed.</li>
-</ul>
-<pre><code>                                                     ┌─────────────────────┐
-┌─────────────────────┐  ┌─────────────────────┐     │     Index File      │
-│      Info File      │  │   Summaries File    │     │   (sorted by ID)    │
-├─────────────────────┤  │   (sorted by ID)    │     ├─────────────────────┤
-│- Block Start        │  ├─────────────────────┤  ┌─&gt;│- Idx                │
-│- Block Size         │  │- Idx                │  │  │- ID                 │
-│- Entries (Num)      │  │- ID                 │  │  │- Size               │
-│- Major Version      │  │- Index Entry Offset ├──┘  │- Checksum           │
-│- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset  ├──┐
-│- BloomFilter (K/M)  │                              │- Encoded Tags       |  |
-│- Snapshot Time      │                              └─────────────────────┘  │
-│- Type (Flush/Snap)  │                                                       │
-└─────────────────────┘                                                       │
-                                                                              │
-                         ┌─────────────────────┐  ┌───────────────────────────┘
-┌─────────────────────┐  │  Bloom Filter File  │  │
-│    Digests File     │  ├─────────────────────┤  │  ┌─────────────────────┐
-├─────────────────────┤  │- Bitset             │  │  │      Data File      │
-│- Info file digest   │  └─────────────────────┘  │  ├─────────────────────┤
-│- Summaries digest   │                           │  │List of:             │
-│- Index digest       │                           └─&gt;│  - Marker (16 bytes)│
-│- Data digest        │                              │  - ID               │
-│- Bloom filter digest│                              │  - Data (size bytes)│
-└─────────────────────┘                              └─────────────────────┘
-
-┌─────────────────────┐
-│   Checkpoint File   │
-├─────────────────────┤
-│- Digests digest     │
-└─────────────────────┘
+<p><code>M3DB</code> ships with support for running embedded <code>etcd</code> (called <code>seed nodes</code>), and while this is convenient for testing and development, we don't recommend running with this setup in production.</p>
+<p>Both <code>M3</code> and <code>etcd</code> are complex distributed systems, and trying to operate both within the same binary is challenging and dangerous for production workloads.</p>
+<p>Instead, we recommend running an external <code>etcd</code> cluster that is isolated from the <code>M3</code> stack so that performing operations like node adds, removes, and replaces are easier.</p>
+<p>While M3 relies on <code>etcd</code> to provide strong consistency, the perations we use it for are all low-throughput so you should be able to operate a very low maintenance <code>etcd</code> cluster. <a href="https://github.com/etcd-io/etcd/blob/v3.3.11/Documentation/faq.md#what-is-failure-tolerance">A 3-node setup for high availability</a> should be more than sufficient for most workloads.</p>
+<h2 id="configuring-an-external-etcd-cluster">Configuring an External etcd Cluster</h2>
+<h3 id="m3db">M3DB</h3>
+<p>Most of our documentation demonstrates how to run <code>M3DB</code> with embedded etcd nodes. Once you're ready to switch to an external <code>etcd</code> cluster, all you need to do is modify the <code>M3DB</code> config to remove the <code>seedNodes</code> field entirely and then change the <code>endpoints</code> under <code>etcdClusters</code> to point to your external <code>etcd</code> nodes instead of the <code>M3DB</code> seed nodes.</p>
+<p>For example this portion of the config</p>
+<pre><code class="yaml">config:
+    service:
+        env: default_env
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+            - zone: embedded
+              endpoints:
+                  - http://m3db_seed1:2379
+                  - http://m3db_seed2:2379
+                  - http://m3db_seed3:2379
+    seedNodes:
+        initialCluster:
+            - hostID: m3db_seed1
+              endpoint: http://m3db_seed1:2380
+            - hostID: m3db_seed2
+              endpoint: http://m3db_seed2:2380
+            - hostID: m3db_seed3
+              endpoint: http://m3db_seed3:2380
 </code></pre>
 
-<p>In the diagram above you can see that the data file stores compressed blocks for a given shard / block start combination. The index file (which is sorted by ID and thus can be binary searched or scanned) can be used to find the offset of a specific ID.</p>
-<p>FileSet files will be kept for every shard / block start combination that is within the retention period. Once the files fall out of the period defined in the configurable namespace retention period they will be deleted.</p>
+<p>would become</p>
+<pre><code class="yaml">config:
+    service:
+        env: default_env
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+            - zone: embedded
+              endpoints:
+                  - http://external_etcd1:2379
+                  - http://external_etcd2:2379
+                  - http://external_etcd3:2379
+</code></pre>
+
+<p><strong>Note</strong>: <code>M3DB</code> placements and namespaces are stored in <code>etcd</code> so if you want to switch to an external <code>etcd</code> cluster you'll need to recreate all your placements and namespaces. You can do this manually or use <code>etcdctl</code>'s <a href="https://github.com/etcd-io/etcd/blob/v3.3.11/etcdctl/doc/mirror_maker.md">Mirror Maker</a> functionality.</p>
+<h3 id="m3coordinator">M3Coordinator</h3>
+<p><code>M3Coordinator</code> does not run embedded <code>etcd</code>, so configuring it to use an external <code>etcd</code> cluster is simple. Just replace the <code>endpoints</code> under <code>etcdClusters</code> in the YAML config to point to your external <code>etcd</code> nodes instead of the <code>M3DB</code> seed nodes. See the <code>M3DB</code> example above for a detailed before/after comparison of the YAML config.</p>
+<h2 id="etcd-operations">etcd Operations</h2>
+<h3 id="embedded-etcd">Embedded etcd</h3>
+<p>If you're running <code>M3DB seed nodes</code> with embedded <code>etcd</code> (which we do not recommend for production workloads) and need to perform a node add/replace/remove then follow our <a href="../placement_configuration/">placement configuration guide</a> and pay special attention to follow the special instructions for <code>seed nodes</code>.</p>
+<h3 id="external-etcd">External etcd</h3>
+<p>Just follow the instructions in the <a href="https://github.com/etcd-io/etcd/tree/master/Documentation">etcd docs.</a></p>
                 
                   
                 
@@ -1021,7 +1126,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../consistencylevels/" title="Consistency Levels" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../kernel_configuration/" title="Kernel Configuration" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1030,19 +1135,19 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Consistency Levels
+                Kernel Configuration
               </span>
             </div>
           </a>
         
         
-          <a href="../commitlogs/" title="Commit Logs" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../../integrations/prometheus/" title="Prometheus" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Commit Logs
+                Prometheus
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -1072,9 +1177,9 @@
       
     </div>
     
-      <script src="../../../assets/javascripts/application.b438e6c5.js"></script>
+      <script src="../../assets/javascripts/application.b438e6c5.js"></script>
       
-      <script>app.initialize({version:"0.17.3",url:{base:"../../.."}})</script>
+      <script>app.initialize({version:"0.17.3",url:{base:"../.."}})</script>
       
     
     

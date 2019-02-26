@@ -736,6 +736,26 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#id-generation" title="ID generation" class="md-nav__link">
+    ID generation
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#migration" title="Migration" class="md-nav__link">
+    Migration
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#grafana" title="Grafana" class="md-nav__link">
     Grafana
   </a>
@@ -833,6 +853,18 @@
   <li class="md-nav__item">
     <a href="../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
       Kernel Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/etcd/" title="etcd" class="md-nav__link">
+      etcd
     </a>
   </li>
 
@@ -995,6 +1027,26 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#id-generation" title="ID generation" class="md-nav__link">
+    ID generation
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#migration" title="Migration" class="md-nav__link">
+    Migration
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#grafana" title="Grafana" class="md-nav__link">
     Grafana
   </a>
@@ -1035,7 +1087,7 @@
 <h3 id="namespaces">Namespaces</h3>
 <p>All namespaces that you wish to query from must be configured when <a href="../single_node/">setting up M3DB</a>. If you wish to add or change an existing namespace, please follow the namespace operational guide <a href="../../operational_guide/namespace_configuration/">here</a>.</p>
 <h3 id="etcd">etcd</h3>
-<p>The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an external etcd cluster.</p>
+<p>The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an <a href="../../operational_guide/etcd/">external etcd</a> cluster.</p>
 <!-- TODO: link to etcd operational guide -->
 
 <h2 id="aggregation">Aggregation</h2>
@@ -1055,6 +1107,27 @@
     all: false
 </code></pre>
 
+<h2 id="id-generation">ID generation</h2>
+<p>The default generation scheme for IDs, <code>legacy</code>, is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either <code>quoted</code> or <code>prepend_meta</code>. <code>quoted</code> generation scheme yields the most human-readable IDs, whereas <code>prepend_meta</code> is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:</p>
+<pre><code class="yaml">tagOptions:
+  idScheme: &lt;name&gt;
+</code></pre>
+
+<p>As an example of how these schemes generate IDs, consider a series with the following 4 tags,
+<code>[{"t1":v1}, {t2:"v2"}, {t3:v3}, {t4:v4}]</code>. The following is an example of how different schemes will generate IDs.</p>
+<pre><code>legacy: &quot;t1&quot;=v1,t2=&quot;v2&quot;,t3=v3,t4=v4,
+prepend_meta: 4,2,2,4,2,2,2,2!&quot;t1&quot;v1t2&quot;v2&quot;t3v3t4v4
+quoted: {\&quot;t1\&quot;=&quot;v1&quot;,t2=&quot;\&quot;v2\&quot;&quot;,t3=&quot;v3&quot;,t4=&quot;v4&quot;}
+</code></pre>
+
+<p>If there is a chance that your metric tags will contain "control" characters, specifically <code>,</code> and <code>=</code>, it is highly recommended that one of either the <code>quoted</code> or <code>prepend_meta</code> schemes are specified, as the <code>legacy</code> scheme may cause ID collisions. As a general guideline, we suggest <code>quoted</code>, as it mirrors the more familiar Prometheus style IDs.</p>
+<p>We technically have a fourth ID generation scheme that is used for Graphite IDs, but it is exclusive to the Graphite ingestion path and is not selectable as a general scheme.</p>
+<p><strong>WARNING:</strong> Once a scheme is selected, be very careful about changing it. If changed, all incoming metrics will resolve to a new ID, effectively doubling the metric cardinality until all of the older-style metric IDs fall out of retention.</p>
+<h3 id="migration">Migration</h3>
+<p>We recently updated our ID generation scheme in m3coordinator to avoid the collision issues discussed above. To ease migration, we're temporarily enforcing that an ID generation scheme be explicitly provided in the m3coordinator configuration files.</p>
+<p>If you have been running m3query or m3coordinator already, you may want to counterintuitively select the collision-prone <code>legacy</code> scheme, as all the IDs for all of your current metrics would have already been generated with this scheme, and choosing another will effectively double your index size. If the twofold increase in cardinality is an acceptable increase (and unfortunately, this is likely to mean doubled cardinality until your longest retention cluster rotates out), it's suggested to choose a collision-resistant scheme instead.</p>
+<p>An example of a configuration file with the ID generation scheme can be found <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/m3coordinator.yml">here</a>.</p>
+<p>If none of these options work for you, or you would like further clarification, please stop by our <a href="https://gitter.im/m3db/Lobby">gitter channel</a> and we'll be happy to help you.</p>
 <h2 id="grafana">Grafana</h2>
 <p>You can also set up m3query as a <a href="http://docs.grafana.org/features/datasources/prometheus/">datasource in Grafana</a>. To do this, add a new datasource with a type of <code>Prometheus</code>. The URL should point to the host/port running m3query. By default, m3query runs on port <code>7201</code>.</p>
                 

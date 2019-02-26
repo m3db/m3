@@ -905,6 +905,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../etcd/" title="etcd" class="md-nav__link">
+      etcd
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1167,7 +1179,7 @@
 <li><code>commitlog</code></li>
 <li><code>peers</code></li>
 <li><code>uninitialized_topology</code></li>
-<li><code>noop_all</code></li>
+<li><code>noop-all</code></li>
 </ol>
 <p>When the bootstrapping process begins, M3DB nodes need to determine two things:</p>
 <ol>
@@ -1218,7 +1230,7 @@
 <p>The purpose of the <code>uninitialized_topology</code> bootstrapper is to succeed bootstraps for all time ranges for shards that have never been completely bootstrapped (at a cluster level). This allows us to run the default bootstrapper configuration of: <code>filesystem,commitlog,peers,topology_uninitialized</code> such that the <code>filesystem</code> and <code>commitlog</code> bootstrappers are used by default in node restarts, the <code>peers</code> bootstrapper is used for node adds/removes/replaces, and bootstraps still succeed for brand new placement where both the <code>commitlog</code> and <code>peers</code> bootstrappers will be unable to succeed any bootstraps. In other words, the <code>uninitialized_topology</code> bootstrapper allows us to place the <code>commitlog</code> bootstrapper <em>before</em> the <code>peers</code> bootstrapper and still succeed bootstraps with brand new placements without resorting to using the noop-all bootstrapper which suceeds bootstraps for all shard/time-ranges regardless of the status of the placement.</p>
 <p>The <code>uninitialized_topology</code> bootstrapper determines whether a placement is "new" for a given shard by counting the number of nodes in the <code>Initializing</code> state and <code>Leaving</code> states and there are more <code>Initializing</code> than <code>Leaving</code>, then it succeeds the bootstrap because that means the placement has never reached a state where all nodes are <code>Available</code>.</p>
 <h3 id="no-operational-all-bootstrapper">No Operational All Bootstrapper</h3>
-<p>The <code>noop_all</code> bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.</p>
+<p>The <code>noop-all</code> bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.</p>
 <h2 id="bootstrappers-configuration">Bootstrappers Configuration</h2>
 <p>Now that we've gone over the various bootstrappers, let's consider how M3DB will behave in different configurations. Note that we include <code>uninitialized_topology</code> at the end of all the lists of bootstrappers because its required to get a new placement up and running in the first place, but is not required after that (although leaving it in has no detrimental effects). Also note that any configuration that does not include the <code>peers</code> bootstrapper will not be able to handle dynamic placement changes like node adds/removes/replaces.</p>
 <h3 id="filesystemcommitlogpeersuninitialized_topology-default">filesystem,commitlog,peers,uninitialized_topology (default)</h3>

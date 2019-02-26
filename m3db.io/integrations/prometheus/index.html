@@ -749,6 +749,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/etcd/" title="etcd" class="md-nav__link">
+      etcd
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -957,7 +969,7 @@
 <h2 id="m3-coordinator-configuration">M3 Coordinator configuration</h2>
 <p>To write to a remote M3DB cluster the simplest configuration is to run <code>m3coordinator</code> as a sidecar alongside Prometheus.</p>
 <p>Start by downloading the <a href="https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-cluster-template.yml">config template</a>. Update the <code>namespaces</code> and the <code>client</code> section for a new cluster to match your cluster's configuration.</p>
-<p>You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up.  You can leave the namespace storage metrics type as <code>unaggregated</code> since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters.</p>
+<p>You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up.  You can leave the namespace storage metrics type as <code>unaggregated</code> since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality <a href="../../how_to/query/">here</a>.</p>
 <p>It should look something like:</p>
 <pre><code>listenAddress:
   type: &quot;config&quot;
@@ -1070,7 +1082,7 @@ remote_write:
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../../operational_guide/etcd/" title="etcd" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1079,7 +1091,7 @@ remote_write:
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Kernel Configuration
+                etcd
               </span>
             </div>
           </a>

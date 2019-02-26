@@ -912,6 +912,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../etcd/" title="etcd" class="md-nav__link">
+      etcd
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1269,7 +1281,7 @@ below before making changes.</p>
 
 <p>After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the <code>Available</code> state.</p>
 <h4 id="adding-removing-seed-nodes">Adding / Removing Seed Nodes</h4>
-<p>If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an external etcd cluster, as
+<p>If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an <a href="../etcd.md">external etcd</a> cluster, as
 the overhead of operating two stateful systems at once is non-trivial. As this is not a recommended production setup,
 this section is intentionally brief.</p>
 <p>To add or remove nodes to the etcd cluster, use <code>etcdctl member add</code> and <code>etcdctl member remove</code> as found in <code>Replacing
