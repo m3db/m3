@@ -172,3 +172,10 @@ func TestNegativeQueryConversionSize(t *testing.T) {
 	err := q.Validate()
 	require.Error(t, err)
 }
+
+func TestNilQueryConversionSize(t *testing.T) {
+	q := &QueryConversionCacheConfiguration{}
+
+	err := q.Validate()
+	require.NoError(t, err)
+}

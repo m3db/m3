@@ -75,4 +75,9 @@ func TestLRU(t *testing.T) {
 	// since "e" is already in the cache.
 	evicted = lru.Set([]byte("e"), idx.NewTermQuery([]byte("qux"), []byte("quz")))
 	require.False(t, evicted)
+
+	// make sure "e" is still in the cache
+	q, ok = lru.Get([]byte("e"))
+	require.True(t, ok)
+	assert.Equal(t, "term(qux, quz)", q.String())
 }
