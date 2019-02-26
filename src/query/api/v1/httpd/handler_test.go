@@ -43,6 +43,8 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
+	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -60,8 +62,15 @@ func makeTagOptions() models.TagOptions {
 
 func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
-	return NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute), nil, nil,
-		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, tally.NewTestScope("", nil))
+	return NewHandler(
+		downsamplerAndWriter,
+		makeTagOptions(),
+		executor.NewEngine(store, tally.NewTestScope("test", nil), time.Minute),
+		nil,
+		nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration},
+		nil,
+		tally.NewTestScope("", nil))
 }
 
 func TestHandlerFetchTimeoutError(t *testing.T) {
@@ -240,18 +249,39 @@ func TestCORSMiddleware(t *testing.T) {
 	h, err := setupHandler(s)
 	require.NoError(t, err, "unable to setup handler")
 
-	testRoute := "/foobar"
-	h.router.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
-		writer.WriteHeader(http.StatusOK)
-		writer.Write([]byte("hello!"))
-	})
-
-	req, _ := http.NewRequest("GET", testRoute, nil)
-	res := httptest.NewRecorder()
-	h.Router().ServeHTTP(res, req)
+	setupTestRoute(h.router)
+	res := doTestRequest(h.Router())
 
 	assert.Equal(t, "hello!", res.Body.String())
 	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
+
+	req, _ := http.NewRequest("GET", testRoute, nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	return res
+}
+
+func TestTracingMiddleware(t *testing.T) {
+	mtr := mocktracer.New()
+	router := mux.NewRouter()
+	setupTestRoute(router)
+
+	handler := applyMiddleware(router, mtr)
+	doTestRequest(handler)
+
+	assert.NotEmpty(t, mtr.FinishedSpans())
+}
+
+const testRoute = "/foobar"
+
+func setupTestRoute(r *mux.Router) {
+	r.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+		writer.Write([]byte("hello!"))
+	})
 }
 
 func init() {

@@ -232,11 +232,21 @@ func bucketQuantile(q float64, buckets []bucketValue) float64 {
 	return bucketStart + (bucketEnd-bucketStart)*rank/count
 }
 
+func (n *histogramQuantileNode) Params() parser.Params {
+	return n.op
+}
+
 // Process the block
-func (n *histogramQuantileNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *histogramQuantileNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+func (n *histogramQuantileNode) ProcessBlock(queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	meta := stepIter.Meta()
@@ -245,13 +255,14 @@ func (n *histogramQuantileNode) Process(ID parser.NodeID, b block.Block) error {
 
 	q := n.op.q
 	if q < 0 || q > 1 {
-		return processInvalidQuantile(q, bucketedSeries, meta, stepIter, n.controller)
+		return processInvalidQuantile(queryCtx, q, bucketedSeries, meta, stepIter, n.controller)
 	}
 
-	return processValidQuantile(q, bucketedSeries, meta, stepIter, n.controller)
+	return processValidQuantile(queryCtx, q, bucketedSeries, meta, stepIter, n.controller)
 }
 
 func setupBuilder(
+	queryCtx *models.QueryContext,
 	bucketedSeries bucketedSeries,
 	meta block.Metadata,
 	stepIter block.StepIter,
@@ -268,7 +279,7 @@ func setupBuilder(
 	}
 
 	meta.Tags, metas = utils.DedupeMetadata(metas)
-	builder, err := controller.BlockBuilder(meta, metas)
+	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err
 	}
@@ -281,17 +292,18 @@ func setupBuilder(
 }
 
 func processValidQuantile(
+	queryCtx *models.QueryContext,
 	q float64,
 	bucketedSeries bucketedSeries,
 	meta block.Metadata,
 	stepIter block.StepIter,
 	controller *transform.Controller,
-) error {
+) (block.Block, error) {
 	sanitizeBuckets(bucketedSeries)
 
-	builder, err := setupBuilder(bucketedSeries, meta, stepIter, controller)
+	builder, err := setupBuilder(queryCtx, bucketedSeries, meta, stepIter, controller)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
@@ -326,24 +338,23 @@ func processValidQuantile(
 	}
 
 	if err = stepIter.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return controller.Process(nextBlock)
+	return builder.Build(), nil
 }
 
 func processInvalidQuantile(
+	queryCtx *models.QueryContext,
 	q float64,
 	bucketedSeries bucketedSeries,
 	meta block.Metadata,
 	stepIter block.StepIter,
 	controller *transform.Controller,
-) error {
-	builder, err := setupBuilder(bucketedSeries, meta, stepIter, controller)
+) (block.Block, error) {
+	builder, err := setupBuilder(queryCtx, bucketedSeries, meta, stepIter, controller)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Set the values to an infinity of the appropriate sign; anything less than 0
@@ -361,10 +372,8 @@ func processInvalidQuantile(
 	}
 
 	if err = stepIter.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return controller.Process(nextBlock)
+	return builder.Build(), nil
 }

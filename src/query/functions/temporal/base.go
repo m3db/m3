@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/opentracing"
 
 	"go.uber.org/zap"
 )
@@ -93,7 +94,7 @@ type baseNode struct {
 // 4. Process all valid blocks from #3, #4 and mark them as processed
 // 5. Run a sweep phase to free up blocks which are no longer needed to be cached
 // TODO: Figure out if something else needs to be locked
-func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
+func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	unconsolidatedBlock, err := b.Unconsolidated()
 	if err != nil {
 		return err
@@ -152,7 +153,12 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	processRequests := make([]processRequest, 0, len(leftBlks))
 	// If we have all blocks for the left range in the cache, then process the current block
 	if !emptyLeftBlocks {
-		processRequests = append(processRequests, processRequest{blk: unconsolidatedBlock, deps: leftBlks, bounds: bounds})
+		processRequests = append(processRequests, processRequest{
+			blk:      unconsolidatedBlock,
+			deps:     leftBlks,
+			bounds:   bounds,
+			queryCtx: queryCtx,
+		})
 	}
 
 	leftBlks = append(leftBlks, unconsolidatedBlock)
@@ -171,7 +177,13 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 		deps := leftBlks[len(leftBlks)-lStart:]
 		deps = append(deps, rightBlks[:i]...)
-		processRequests = append(processRequests, processRequest{blk: rightBlks[i], deps: deps, bounds: bounds.Next(i + 1)})
+		processRequests = append(
+			processRequests,
+			processRequest{
+				blk:      rightBlks[i],
+				deps:     deps,
+				bounds:   bounds.Next(i + 1),
+				queryCtx: queryCtx})
 	}
 
 	// If either the left range or right range wasn't fully processed then cache the current block
@@ -181,7 +193,20 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		}
 	}
 
-	return c.processCompletedBlocks(processRequests, maxBlocks)
+	blocks, err := c.processCompletedBlocks(queryCtx, processRequests, maxBlocks)
+	defer closeBlocks(blocks)
+
+	if err != nil {
+		return err
+	}
+
+	return c.propagateNextBlocks(processRequests, blocks, maxBlocks)
+}
+
+func closeBlocks(blocks []block.Block) {
+	for _, bl := range blocks {
+		bl.Close()
+	}
 }
 
 // processCurrent processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
@@ -205,11 +230,13 @@ func (c *baseNode) processRight(bounds models.Bounds, rightRangeStart models.Bou
 	return rightBlks, len(rightBlks) != numBlocks, nil
 }
 
-// processCompletedBlocks processes all blocks for which all dependent blocks are present
-func (c *baseNode) processCompletedBlocks(processRequests []processRequest, maxBlocks int) error {
+func (c *baseNode) propagateNextBlocks(processRequests []processRequest, blocks []block.Block, maxBlocks int) error {
 	processedKeys := make([]time.Time, len(processRequests))
-	for i, req := range processRequests {
-		if err := c.processSingleRequest(req); err != nil {
+
+	// propagate blocks downstream
+	for i, nextBlock := range blocks {
+		req := processRequests[i]
+		if err := c.controller.Process(req.queryCtx, nextBlock); err != nil {
 			return err
 		}
 
@@ -224,17 +251,36 @@ func (c *baseNode) processCompletedBlocks(processRequests []processRequest, maxB
 	return nil
 }
 
-func (c *baseNode) processSingleRequest(request processRequest) error {
+// processCompletedBlocks processes all blocks for which all dependent blocks are present
+func (c *baseNode) processCompletedBlocks(queryCtx *models.QueryContext, processRequests []processRequest, maxBlocks int) ([]block.Block, error) {
+	sp, _ := opentracingutil.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
+	defer sp.Finish()
+
+	blocks := make([]block.Block, len(processRequests))
+	for i, req := range processRequests {
+		bl, err := c.processSingleRequest(req)
+		if err != nil {
+			// return processed blocks so we can close them
+			return blocks, err
+		}
+
+		blocks[i] = bl
+	}
+
+	return blocks, nil
+}
+
+func (c *baseNode) processSingleRequest(request processRequest) (block.Block, error) {
 	seriesIter, err := request.blk.SeriesIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
 	for i, blk := range request.deps {
 		iter, err := blk.SeriesIter()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		depIters[i] = iter
@@ -255,13 +301,13 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 		}
 	}
 
-	builder, err := c.controller.BlockBuilder(seriesIter.Meta(), resultSeriesMeta)
+	builder, err := c.controller.BlockBuilder(request.queryCtx, seriesIter.Meta(), resultSeriesMeta)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := builder.AddCols(bounds.Steps()); err != nil {
-		return err
+		return nil, err
 	}
 
 	aggDuration := c.op.duration
@@ -272,7 +318,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 		values = values[:0]
 		for i, iter := range depIters {
 			if !iter.Next() {
-				return fmt.Errorf("incorrect number of series for block: %d", i)
+				return nil, fmt.Errorf("incorrect number of series for block: %d", i)
 			}
 
 			s := iter.Current()
@@ -314,12 +360,10 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 	}
 
 	if err = seriesIter.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
+	return builder.Build(), nil
 }
 
 func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
@@ -359,9 +403,10 @@ type MakeProcessor interface {
 }
 
 type processRequest struct {
-	blk    block.UnconsolidatedBlock
-	bounds models.Bounds
-	deps   []block.UnconsolidatedBlock
+	queryCtx *models.QueryContext
+	blk      block.UnconsolidatedBlock
+	bounds   models.Bounds
+	deps     []block.UnconsolidatedBlock
 }
 
 // blockCache keeps track of blocks from the same parent across time

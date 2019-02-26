@@ -33,14 +33,15 @@ var (
 	ErrInvalidParams = errors.New("invalid request params")
 )
 
-type errorResponse struct {
+// ErrorResponse is a generic response for an HTTP error.
+type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
 // Error will serve an HTTP error
 func Error(w http.ResponseWriter, err error, code int) {
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(errorResponse{Error: err.Error()})
+	json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
 }
 
 // ParseError is the error from parsing requests

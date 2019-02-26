@@ -23,10 +23,24 @@ package encoding
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	testBytesPool = newTestCheckedBytesPool()
+)
+
 func TestWriteBits(t *testing.T) {
+	testWriteBits(t, NewOStream(nil, true, nil))
+}
+
+func TestWriteBitsWithPooling(t *testing.T) {
+	testWriteBits(t, NewOStream(nil, true, testBytesPool))
+}
+
+func testWriteBits(t *testing.T, o OStream) {
 	inputs := []struct {
 		value         uint64
 		numBits       int
@@ -44,32 +58,111 @@ func TestWriteBits(t *testing.T) {
 		{0x1, 65, []byte{0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80}, 1},
 	}
 
-	o := NewOStream(nil, true, nil)
 	os := o.(*ostream)
 	require.True(t, os.Empty())
 	for _, input := range inputs {
 		os.WriteBits(input.value, input.numBits)
-		require.Equal(t, input.expectedBytes, os.rawBuffer.Bytes())
+		require.Equal(t, input.expectedBytes, os.rawBuffer)
+		checked, _ := os.Rawbytes()
+		require.Equal(t, input.expectedBytes, checked.Bytes())
 		require.Equal(t, input.expectedPos, os.pos)
 	}
 	require.False(t, os.Empty())
 }
 
 func TestWriteBytes(t *testing.T) {
-	o := NewOStream(nil, true, nil)
+	testWriteBytes(t, NewOStream(nil, true, nil))
+}
+
+func TestWriteBytesWithPooling(t *testing.T) {
+	testWriteBytes(t, NewOStream(nil, true, testBytesPool))
+}
+
+func testWriteBytes(t *testing.T, o OStream) {
 	os := o.(*ostream)
 	rawBytes := []byte{0x1, 0x2}
 	os.WriteBytes(rawBytes)
-	require.Equal(t, rawBytes, os.rawBuffer.Bytes())
+
+	require.Equal(t, rawBytes, os.rawBuffer)
+
+	checked, _ := os.Rawbytes()
+	require.Equal(t, rawBytes, checked.Bytes())
+
 	require.Equal(t, 8, os.pos)
 }
 
 func TestResetOStream(t *testing.T) {
-	o := NewOStream(nil, true, nil)
+	testResetOStream(t, NewOStream(nil, true, testBytesPool))
+}
+
+func TestResetOStreamWithPooling(t *testing.T) {
+	testResetOStream(t, NewOStream(nil, true, testBytesPool))
+}
+
+func testResetOStream(t *testing.T, o OStream) {
 	os := o.(*ostream)
 	os.WriteByte(0xfe)
 	os.Reset(nil)
+
 	require.True(t, os.Empty())
 	require.Equal(t, 0, os.Len())
 	require.Equal(t, 0, os.pos)
+
+	checked, _ := os.Rawbytes()
+	require.Equal(t, nil, checked)
+}
+
+func BenchmarkWriteBytes(b *testing.B) {
+	var (
+		bytes     = make([]byte, 298)
+		bytesPool = testBytesPool
+		o         = NewOStream(nil, false, bytesPool)
+	)
+	for n := 0; n < b.N; n++ {
+		o.Reset(nil)
+		o.WriteBytes(bytes)
+	}
+}
+
+func newTestCheckedBytesPool() pool.CheckedBytesPool {
+	bytesPoolOpts := pool.NewObjectPoolOptions()
+
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
+		pool.Bucket{
+			Capacity: 16,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 32,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 64,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 1,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 256,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 1440,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 4096,
+			Count:    1,
+		},
+		pool.Bucket{
+			Capacity: 8192,
+			Count:    1,
+		},
+	}, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, bytesPoolOpts)
+	})
+	bytesPool.Init()
+	return bytesPool
 }

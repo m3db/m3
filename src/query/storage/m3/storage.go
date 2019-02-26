@@ -62,6 +62,7 @@ type m3storage struct {
 	writeWorkerPool xsync.PooledWorkerPool
 	opts            m3db.Options
 	nowFn           func() time.Time
+	conversionCache *storage.QueryConversionCache
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -72,7 +73,8 @@ func NewStorage(
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	lookbackDuration time.Duration,
-) Storage {
+	queryConversionCache *storage.QueryConversionCache,
+) (Storage, error) {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
@@ -84,7 +86,8 @@ func NewStorage(
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
-	}
+		conversionCache: queryConversionCache,
+	}, nil
 }
 
 func (s *m3storage) Fetch(
@@ -200,7 +203,7 @@ func (s *m3storage) fetchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, s.conversionCache)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +373,7 @@ func (s *m3storage) SearchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, s.conversionCache)
 	if err != nil {
 		return nil, noop, err
 	}

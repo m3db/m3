@@ -64,10 +64,15 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+)
+
+const (
+	serviceName = "m3query"
 )
 
 var (
@@ -134,9 +139,24 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
+
+	tracer, traceCloser, err := cfg.Tracing.NewTracer(serviceName, scope, logger)
+	if err != nil {
+		logger.Fatal("could not initialize tracing", zap.Error(err))
+	}
+
+	defer traceCloser.Close()
+
+	if _, ok := tracer.(opentracing.NoopTracer); ok {
+		logger.Info("tracing disabled; set `tracing.backend` to enable")
+	}
+
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger)
+		SetZapLogger(logger).
+		SetTracer(tracer)
+
+	opentracing.SetGlobalTracer(tracer)
 
 	// Close metrics scope
 	defer func() {
@@ -588,13 +608,30 @@ func newStorages(
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(
+	// Setup query conversion cache.
+	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
+	if err := conversionCacheConfig.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
+	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
+		storage.NewQueryConversionCache(conversionLRU),
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

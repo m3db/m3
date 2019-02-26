@@ -35,7 +35,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func TestExecute(t *testing.T) {
+func TestEngine_Execute(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)

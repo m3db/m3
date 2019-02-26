@@ -386,6 +386,24 @@ func buildTags(b *testing.B, count, length int, opts TagOptions, escape bool) Ta
 	return NewTags(count, opts).AddTags(tags)
 }
 
+func TestEmptyTags(t *testing.T) {
+	tests := []struct {
+		idType   IDSchemeType
+		expected string
+	}{
+		{TypeLegacy, ""},
+		{TypePrependMeta, ""},
+		{TypeGraphite, ""},
+		{TypeQuoted, "{}"},
+	}
+
+	for _, tt := range tests {
+		tags := NewTags(0, NewTagOptions().SetIDSchemeType(tt.idType))
+		id := tags.ID()
+		assert.Equal(t, []byte(tt.expected), id)
+	}
+}
+
 var tagBenchmarks = []struct {
 	name                string
 	tagCount, tagLength int

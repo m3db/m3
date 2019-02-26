@@ -52,3 +52,9 @@ clusters:
         jitter: true
       backgroundHealthCheckFailLimit: 4
       backgroundHealthCheckFailThrottleFactor: 0.5
+
+# Uncomment this to enable local jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
+# for quick local setup (which this config will send data to).
+
+# tracing:
+#  backend: jaeger

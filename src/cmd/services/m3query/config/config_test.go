@@ -162,3 +162,20 @@ func TestTagOptionsConfig(t *testing.T) {
 	assert.Equal(t, []byte("foo"), opts.BucketName())
 	assert.Equal(t, models.TypePrependMeta, opts.IDSchemeType())
 }
+
+func TestNegativeQueryConversionSize(t *testing.T) {
+	size := -2
+	q := QueryConversionCacheConfiguration{
+		Size: &size,
+	}
+
+	err := q.Validate()
+	require.Error(t, err)
+}
+
+func TestNilQueryConversionSize(t *testing.T) {
+	q := &QueryConversionCacheConfiguration{}
+
+	err := q.Validate()
+	require.NoError(t, err)
+}

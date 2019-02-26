@@ -21,7 +21,6 @@
 package executor
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -61,7 +60,7 @@ func TestValidState(t *testing.T) {
 	state, err := GenerateExecutionState(p, store)
 	require.NoError(t, err)
 	require.Len(t, state.sources, 1)
-	err = state.Execute(context.Background())
+	err = state.Execute(models.NoopQueryContext())
 	assert.NoError(t, err)
 }
 

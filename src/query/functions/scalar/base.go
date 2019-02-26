@@ -21,11 +21,11 @@
 package scalar
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -86,7 +86,7 @@ type baseNode struct {
 }
 
 // Execute runs the scalar node operation
-func (n *baseNode) Execute(ctx context.Context) error {
+func (n *baseNode) Execute(queryCtx *models.QueryContext) error {
 	bounds := n.timespec.Bounds()
 
 	block := block.NewScalar(n.op.fn, bounds)
@@ -94,11 +94,11 @@ func (n *baseNode) Execute(ctx context.Context) error {
 		// Ignore any errors
 		iter, _ := block.StepIter()
 		if iter != nil {
-			logging.WithContext(ctx).Info("scalar node", zap.Any("meta", iter.Meta()))
+			logging.WithContext(queryCtx.Ctx).Info("scalar node", zap.Any("meta", iter.Meta()))
 		}
 	}
 
-	if err := n.controller.Process(block); err != nil {
+	if err := n.controller.Process(queryCtx, block); err != nil {
 		block.Close()
 		// Fail on first error
 		return err

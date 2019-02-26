@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -317,4 +318,23 @@ func TestTransitions(t *testing.T) {
 
 	err = agent.Stop()
 	require.NoError(t, err)
+}
+
+func TestMetricUniqueSuffix(t *testing.T) {
+	start := time.Unix(0, 0)
+	for u, exp := range map[float64]int{
+		0:   1,
+		0.2: 2,
+		0.5: 5,
+		1.0: 10,
+	} {
+		uniques := make(map[string]struct{})
+		for i := 0; i < 10; i++ {
+			now := start.Add(time.Duration(i) * time.Second)
+			n := metricUniqueSuffix(start, now, u)
+			uniques[n] = struct{}{}
+		}
+		l := len(uniques)
+		assert.Equal(t, exp, l, "expected to see %d unique metrics", l)
+	}
 }

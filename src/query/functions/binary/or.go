@@ -23,6 +23,7 @@ package binary
 import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // OrType uses all values from left hand side, and appends values from the right hand side which do
@@ -30,6 +31,7 @@ import (
 const OrType = "or"
 
 func makeOrBlock(
+	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
@@ -50,7 +52,7 @@ func makeOrBlock(
 		rSeriesMetas,
 	)
 
-	builder, err := controller.BlockBuilder(meta, combinedSeriesMeta)
+	builder, err := controller.BlockBuilder(queryCtx, meta, combinedSeriesMeta)
 	if err != nil {
 		return nil, err
 	}

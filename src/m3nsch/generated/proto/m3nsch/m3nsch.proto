@@ -64,4 +64,5 @@ message Workload {
   string                    namespace       = 3;
   int32                     cardinality     = 4;
   int32                     ingressQPS      = 5;
+  double                    uniqueAmplifier = 6;
 }

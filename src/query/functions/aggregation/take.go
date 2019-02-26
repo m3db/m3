@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/ts"
 )
@@ -110,11 +111,19 @@ type takeNode struct {
 	controller *transform.Controller
 }
 
+func (n *takeNode) Params() parser.Params {
+	return n.op
+}
+
 // Process the block
-func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *takeNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	params := n.op.params
@@ -128,13 +137,13 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 	)
 
 	// retain original metadatas
-	builder, err := n.controller.BlockBuilder(meta, stepIter.SeriesMeta())
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, stepIter.SeriesMeta())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err = builder.AddCols(stepIter.StepCount()); err != nil {
-		return err
+		return nil, err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
@@ -145,12 +154,10 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	if err = stepIter.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return n.controller.Process(nextBlock)
+	return builder.Build(), nil
 }
 
 // shortcut to return empty when taking <= 0 values
