@@ -64,7 +64,7 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -608,13 +608,30 @@ func newStorages(
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(
+	// Setup query conversion cache.
+	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
+	if err := conversionCacheConfig.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
+	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
+		storage.NewQueryConversionCache(conversionLRU),
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

@@ -53,6 +53,8 @@ const (
 	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
+
+	defaultQueryConversionCacheSize = 4096
 )
 
 var (
@@ -123,6 +125,9 @@ type Configuration struct {
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
+
+	// Cache configurations.
+	Cache CacheConfiguration `yaml:"cache"`
 }
 
 // Filter is a query filter type.
@@ -144,6 +149,46 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// CacheConfiguration is the cache configurations.
+type CacheConfiguration struct {
+	// QueryConversion cache policy.
+	QueryConversion *QueryConversionCacheConfiguration `yaml:"queryConversion"`
+}
+
+// QueryConversionCacheConfiguration is the query conversion cache configuration.
+type QueryConversionCacheConfiguration struct {
+	Size *int `yaml:"size"`
+}
+
+// QueryConversionCacheConfiguration returns the query conversion cache configuration
+// or default if none is specified.
+func (c CacheConfiguration) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
+	if c.QueryConversion == nil {
+		return QueryConversionCacheConfiguration{}
+	}
+
+	return *c.QueryConversion
+}
+
+// SizeOrDefault returns the provided size or the default value is none is
+// provided.
+func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
+	if q.Size == nil {
+		return defaultQueryConversionCacheSize
+	}
+
+	return *q.Size
+}
+
+// Validate validates the QueryConversionCacheConfiguration settings.
+func (q *QueryConversionCacheConfiguration) Validate() error {
+	if q.Size != nil && *q.Size <= 0 {
+		return fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
+	}
+
+	return nil
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
