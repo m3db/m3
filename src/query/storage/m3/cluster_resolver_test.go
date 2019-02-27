@@ -182,7 +182,6 @@ var testCases = []struct {
 		expectedType: namespaceInvalid,
 		expectedErr:  errUnaggregatedAndAggregatedDisabled,
 	},
-
 	{
 		name: "unagg enabled",
 		opts: &storage.FanoutOptions{
@@ -204,7 +203,6 @@ var testCases = []struct {
 		expectedType:         namespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
-
 	{
 		name: "unagg optimized enabled",
 		opts: &storage.FanoutOptions{
@@ -226,7 +224,6 @@ var testCases = []struct {
 		expectedType:         namespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
-
 	{
 		name: "agg enabled",
 		opts: &storage.FanoutOptions{
@@ -250,7 +247,6 @@ var testCases = []struct {
 		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
 			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
-
 	{
 		name: "unagg and agg enabled",
 		opts: &storage.FanoutOptions{
@@ -273,10 +269,8 @@ var testCases = []struct {
 		expectedType:         namespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
-
 	{
 		name: "agg and optimization enabled",
-		// queryLength: time.Minute,
 		opts: &storage.FanoutOptions{
 			FanoutUnaggregated:        storage.FanoutForceDisable,
 			FanoutAggregated:          storage.FanoutForceEnable,
@@ -285,7 +279,6 @@ var testCases = []struct {
 		expectedType:         namespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
 	},
-
 	{
 		name:        "all enabled short range",
 		queryLength: time.Minute,
