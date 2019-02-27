@@ -191,7 +191,7 @@ Now you can experiment with writing tagged metrics:
 
 ```json
 curl http://localhost:9003/writetagged -s -X POST -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "id": "foo",
   "tags": [
     {
@@ -214,7 +214,7 @@ And reading the metrics you've written:
 
 ```json
 curl http://localhost:9003/query -s -X POST -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "query": {
     "regexp": {
       "field": "city",
