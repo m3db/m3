@@ -91,13 +91,13 @@ type FetchOptions struct {
 // FanoutOptions describes which namespaces should be fanned out to for
 // the query.
 type FanoutOptions struct {
-	// FanoutUnaggregated descrbies the fanout options for
+	// FanoutUnaggregated describes the fanout options for
 	// unaggregated namespaces.
 	FanoutUnaggregated FanoutOption
-	// FanoutAggregated descrbies the fanout options for
+	// FanoutAggregated describes the fanout options for
 	// aggregated namespaces.
 	FanoutAggregated FanoutOption
-	// FanoutAggregatedOptimized descrbies the fanout options for the
+	// FanoutAggregatedOptimized describes the fanout options for the
 	// aggregated namespace optimization.
 	FanoutAggregatedOptimized FanoutOption
 }
