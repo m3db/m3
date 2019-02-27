@@ -190,8 +190,8 @@ Read more about namespaces and the various knobs in the docs.
 Now you can experiment with writing tagged metrics:
 
 ```json
-curl -sSf -X POST localhost:9003/writetagged -d '{
-  "namespace": "metrics",
+curl http://localhost:9003/writetagged -s -X POST -d '{
+  "namespace": "default",
   "id": "foo",
   "tags": [
     {
@@ -204,7 +204,7 @@ curl -sSf -X POST localhost:9003/writetagged -d '{
     }
   ],
   "datapoint": {
-    "timestamp": '"$(date "+%s")"',
+    "timestamp":'"$(date +"%s")"',
     "value": 42.123456789
   }
 }'
@@ -213,8 +213,8 @@ curl -sSf -X POST localhost:9003/writetagged -d '{
 And reading the metrics you've written:
 
 ```json
-curl -sSf -X POST http://localhost:9003/query -d '{
-  "namespace": "metrics",
+curl http://localhost:9003/query -s -X POST -d '{
+  "namespace": "default",
   "query": {
     "regexp": {
       "field": "city",
@@ -222,7 +222,7 @@ curl -sSf -X POST http://localhost:9003/query -d '{
     }
   },
   "rangeStart": 0,
-  "rangeEnd": '"$(date "+%s")"'
+  "rangeEnd":'"$(date +"%s")"'
 }' | jq .
 ```
 
