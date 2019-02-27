@@ -85,7 +85,6 @@ An example of a configuration file with the ID generation scheme can be found [h
 
 If none of these options work for you, or you would like further clarification, please stop by our [gitter channel](https://gitter.im/m3db/Lobby) and we'll be happy to help you.
 
-
 ## Grafana
 
 You can also set up m3query as a [datasource in Grafana](http://docs.grafana.org/features/datasources/prometheus/). To do this, add a new datasource with a type of `Prometheus`. The URL should point to the host/port running m3query. By default, m3query runs on port `7201`.
