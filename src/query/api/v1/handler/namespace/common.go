@@ -88,20 +88,20 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 
 // RegisterRoutes registers the namespace routes
 func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
-	logged := logging.WithResponseTimeLogging
+	wrapped := logging.WithResponseTimeAndPanicErrorLogging
 
 	// Get M3DB namespaces.
-	getHandler := logged(NewGetHandler(client)).ServeHTTP
+	getHandler := wrapped(NewGetHandler(client)).ServeHTTP
 	r.HandleFunc(DeprecatedM3DBGetURL, getHandler).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getHandler).Methods(GetHTTPMethod)
 
 	// Add M3DB mamespaces
-	addHandler := logged(NewAddHandler(client)).ServeHTTP
+	addHandler := wrapped(NewAddHandler(client)).ServeHTTP
 	r.HandleFunc(DeprecatedM3DBAddURL, addHandler).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addHandler).Methods(AddHTTPMethod)
 
 	// Delete M3DB namespaces.
-	deleteHandler := logged(NewDeleteHandler(client)).ServeHTTP
+	deleteHandler := wrapped(NewDeleteHandler(client)).ServeHTTP
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
 }

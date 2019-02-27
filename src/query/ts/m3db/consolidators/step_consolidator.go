@@ -54,6 +54,9 @@ type StepLookbackConsolidator struct {
 	fn               ConsolidationFunc
 }
 
+// Ensure StepLookbackConsolidator satisfies StepCollector.
+var _ StepCollector = (*StepLookbackConsolidator)(nil)
+
 // NewStepLookbackConsolidator creates a multivalue consolidator used for
 // step iteration across a series list with a given lookback.
 func NewStepLookbackConsolidator(

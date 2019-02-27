@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -56,7 +57,7 @@ func TestAbsWithAllValues(t *testing.T) {
 	op, err := NewMathOp(AbsType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Abs)
 	assert.Len(t, sink.Values, 2)
@@ -75,7 +76,7 @@ func TestAbsWithSomeValues(t *testing.T) {
 	op, err := NewMathOp(AbsType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Abs)
 	assert.Len(t, sink.Values, 2)
@@ -90,7 +91,7 @@ func TestLn(t *testing.T) {
 	op, err := NewMathOp(LnType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log)
 	assert.Len(t, sink.Values, 2)
@@ -109,7 +110,7 @@ func TestLog10WithNoValues(t *testing.T) {
 	op, err := NewMathOp(Log10Type)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log10)
 	assert.Len(t, sink.Values, 2)
@@ -128,7 +129,7 @@ func TestLog2WithSomeValues(t *testing.T) {
 	op, err := NewMathOp(Log2Type)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log2)
 	assert.Len(t, sink.Values, 2)
@@ -147,7 +148,7 @@ func TestFloorWithSomeValues(t *testing.T) {
 	op, err := NewMathOp(FloorType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Floor)
 	assert.Len(t, sink.Values, 2)
@@ -166,7 +167,7 @@ func TestCeilWithSomeValues(t *testing.T) {
 	op, err := NewMathOp(CeilType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Ceil)
 	assert.Len(t, sink.Values, 2)
@@ -184,7 +185,7 @@ func TestExpWithSomeValues(t *testing.T) {
 	op, err := NewMathOp(ExpType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Exp)
 	assert.Len(t, sink.Values, 2)
@@ -203,7 +204,7 @@ func TestSqrtWithSomeValues(t *testing.T) {
 	op, err := NewMathOp(SqrtType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Sqrt)
 	assert.Len(t, sink.Values, 2)

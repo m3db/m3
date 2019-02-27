@@ -101,7 +101,8 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
-		seg, err := newPersistentSegment(fileset, fsOpts.FSTOptions())
+		fstOpts := fsOpts.FSTOptions()
+		seg, err := newPersistentSegment(fileset, fstOpts)
 		if err != nil {
 			return nil, err
 		}

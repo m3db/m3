@@ -903,7 +903,9 @@ func (i *nsIndex) Query(
 	defer func() {
 		// Ensure that during early error returns we let any aborted
 		// goroutines know not to try to modify/edit the result any longer.
+		results.Lock()
 		results.returned = true
+		results.Unlock()
 	}()
 
 	execBlockQuery := func(block index.Block) {
@@ -911,7 +913,7 @@ func (i *nsIndex) Query(
 		blockResults.Reset(i.nsMetadata.ID())
 
 		blockExhaustive, err := block.Query(query, opts, blockResults)
-		if err != index.ErrUnableToQueryBlockClosed {
+		if err == index.ErrUnableToQueryBlockClosed {
 			// NB(r): Because we query this block outside of the results lock, it's
 			// possible this block may get closed if it slides out of retention, in
 			// that case those results are no longer considered valid and outside of
@@ -1068,10 +1070,10 @@ func (i *nsIndex) Query(
 	// lock/unlock cleanup to not deadlock with this locked code block.
 	exhaustive := results.exhaustive
 	mergedResults := results.merged
-	errResults := results.multiErr.FinalError()
+	err = results.multiErr.FinalError()
 	results.Unlock()
 
-	if errResults != nil {
+	if err != nil {
 		return index.QueryResults{}, err
 	}
 

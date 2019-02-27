@@ -1,9 +1,14 @@
 # M3DB on Kubernetes
 
-M3DB on Kubernetes is currently in the alpha phase of development. We currently provide static manifests to bootstrap a
-cluster. In the future, we hope to create an [operator](https://coreos.com/operators/) and leverage [custom resource
-definitions](https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/) (CRDs) to automatically
-handle operations such as managing cluster topology, but for now, our manifests should be adequate to get started.
+**Please note:** If possible _[PLEASE USE THE OPERATOR](https://operator.m3db.io/)_ to deploy to Kubernetes if you
+can. It is a considerly more streamlined setup.
+
+The [operator](https://operator.m3db.io/) leverages [custom resource definitions](https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/)
+(CRDs) to automatically handle operations such as managing cluster topology.
+
+The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
+as a guide to running M3 on Kubernetes, if and only if you have significant custom requirements not satisified by
+the operator.
 
 ## Prerequisites
 

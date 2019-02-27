@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/ts"
 )
@@ -82,33 +83,37 @@ type timestampNode struct {
 	controller *transform.Controller
 }
 
+func (n *timestampNode) Params() parser.Params {
+	return n.op
+}
+
 // Process the block
-func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *timestampNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
 	unconsolidatedBlock, err := b.Unconsolidated()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	iter, err := unconsolidatedBlock.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	builder, err := n.controller.BlockBuilder(iter.Meta(), iter.SeriesMeta())
+	builder, err := n.controller.BlockBuilder(queryCtx, iter.Meta(), iter.SeriesMeta())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := builder.AddCols(iter.StepCount()); err != nil {
-		return err
+	if err = builder.AddCols(iter.StepCount()); err != nil {
+		return nil, err
 	}
 
 	for index := 0; iter.Next(); index++ {
-		step, err := iter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := iter.Current()
 		values := make([]float64, len(step.Values()))
 		ts.Memset(values, math.NaN())
 		for i, dps := range step.Values() {
@@ -124,8 +129,9 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 		}
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
+	if err = iter.Err(); err != nil {
+		return nil, err
+	}
 
-	return n.controller.Process(nextBlock)
+	return builder.Build(), nil
 }

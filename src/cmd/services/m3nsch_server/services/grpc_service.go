@@ -22,8 +22,8 @@ package services
 
 import (
 	"github.com/m3db/m3/src/m3nsch"
-	"github.com/m3db/m3/src/m3nsch/rpc"
-	convert "github.com/m3db/m3/src/m3nsch/rpc/convert"
+	"github.com/m3db/m3/src/m3nsch/generated/convert"
+	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -37,7 +37,7 @@ func NewGRPCService(
 	agent m3nsch.Agent,
 	metricsScope tally.Scope,
 	logger xlog.Logger,
-) (rpc.MenschServer, error) {
+) (proto.MenschServer, error) {
 	return &menschServer{
 		agent:  agent,
 		scope:  metricsScope.SubScope("grpc-server"),
@@ -51,10 +51,10 @@ type menschServer struct {
 	agent  m3nsch.Agent
 }
 
-func (ms *menschServer) Status(ctx context.Context, req *rpc.StatusRequest) (*rpc.StatusResponse, error) {
+func (ms *menschServer) Status(ctx context.Context, req *proto.StatusRequest) (*proto.StatusResponse, error) {
 	status := ms.agent.Status()
 	workload := convert.ToProtoWorkload(ms.agent.Workload())
-	response := &rpc.StatusResponse{
+	response := &proto.StatusResponse{
 		Token:    status.Token,
 		Status:   convert.ToProtoStatus(status.Status),
 		MaxQPS:   ms.agent.MaxQPS(),
@@ -63,7 +63,7 @@ func (ms *menschServer) Status(ctx context.Context, req *rpc.StatusRequest) (*rp
 	return response, nil
 }
 
-func (ms *menschServer) Init(ctx context.Context, req *rpc.InitRequest) (*rpc.InitResponse, error) {
+func (ms *menschServer) Init(ctx context.Context, req *proto.InitRequest) (*proto.InitResponse, error) {
 	if req == nil {
 		return nil, grpc.Errorf(codes.InvalidArgument, "nil request")
 	}
@@ -80,26 +80,26 @@ func (ms *menschServer) Init(ctx context.Context, req *rpc.InitRequest) (*rpc.In
 		return nil, grpc.Errorf(codes.Unavailable, err.Error())
 	}
 
-	return &rpc.InitResponse{}, nil
+	return &proto.InitResponse{}, nil
 }
 
-func (ms *menschServer) Start(context.Context, *rpc.StartRequest) (*rpc.StartResponse, error) {
+func (ms *menschServer) Start(context.Context, *proto.StartRequest) (*proto.StartResponse, error) {
 	ms.logger.Debugf("received Start() request")
 	if err := ms.agent.Start(); err != nil {
 		return nil, grpc.Errorf(codes.Unknown, err.Error())
 	}
-	return &rpc.StartResponse{}, nil
+	return &proto.StartResponse{}, nil
 }
 
-func (ms *menschServer) Stop(context.Context, *rpc.StopRequest) (*rpc.StopResponse, error) {
+func (ms *menschServer) Stop(context.Context, *proto.StopRequest) (*proto.StopResponse, error) {
 	ms.logger.Debugf("received Stop() request")
 	if err := ms.agent.Stop(); err != nil {
 		return nil, grpc.Errorf(codes.Unknown, err.Error())
 	}
-	return &rpc.StopResponse{}, nil
+	return &proto.StopResponse{}, nil
 }
 
-func (ms *menschServer) Modify(_ context.Context, req *rpc.ModifyRequest) (*rpc.ModifyResponse, error) {
+func (ms *menschServer) Modify(_ context.Context, req *proto.ModifyRequest) (*proto.ModifyResponse, error) {
 	ms.logger.Debugf("received Modify() request: %v", req.String())
 	if req == nil {
 		return nil, grpc.Errorf(codes.InvalidArgument, "nil request")
@@ -109,5 +109,5 @@ func (ms *menschServer) Modify(_ context.Context, req *rpc.ModifyRequest) (*rpc.
 		return nil, grpc.Errorf(codes.InvalidArgument, "unable to parse workload: %v", err)
 	}
 	ms.agent.SetWorkload(workload)
-	return &rpc.ModifyResponse{}, nil
+	return &proto.ModifyResponse{}, nil
 }

@@ -22,6 +22,8 @@ package httpd
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
@@ -37,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
@@ -50,6 +53,8 @@ import (
 	"github.com/m3db/m3/src/x/net/http/cors"
 
 	"github.com/gorilla/mux"
+	"github.com/opentracing-contrib/go-stdlib/nethttp"
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 )
 
@@ -61,6 +66,8 @@ const (
 var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
+
+	defaultTimeout = 30 * time.Second
 )
 
 // Handler represents an HTTP handler.
@@ -77,6 +84,7 @@ type Handler struct {
 	scope                tally.Scope
 	createdAt            time.Time
 	tagOptions           models.TagOptions
+	timeoutOpts          *prometheus.TimeoutOpts
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -97,17 +105,22 @@ func NewHandler(
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
-	// apply middleware. Just CORS for now, but we could add more here as needed.
-	withMiddleware := &cors.Handler{
-		Handler: r,
-		Info: &cors.Info{
-			"*": true,
-		},
+	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
+
+	var timeoutOpts = &prometheus.TimeoutOpts{}
+	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
+		timeoutOpts.FetchTimeout = defaultTimeout
+	} else {
+		if *embeddedDbCfg.Client.FetchTimeout <= 0 {
+			return nil, errors.New("m3db client fetch timeout should be > 0")
+		}
+
+		timeoutOpts.FetchTimeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	h := &Handler{
 		router:               r,
-		handler:              withMiddleware,
+		handler:              handlerWithMiddleware,
 		storage:              downsamplerAndWriter.Storage(),
 		downsamplerAndWriter: downsamplerAndWriter,
 		engine:               engine,
@@ -118,21 +131,41 @@ func NewHandler(
 		scope:                scope,
 		createdAt:            time.Now(),
 		tagOptions:           tagOptions,
+		timeoutOpts:          timeoutOpts,
 	}
 	return h, nil
 }
 
+func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
+	withMiddleware := http.Handler(&cors.Handler{
+		Handler: base,
+		Info: &cors.Info{
+			"*": true,
+		},
+	})
+
+	// apply jaeger middleware, which will start a span
+	// for each incoming request
+	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
+		nethttp.OperationNameFunc(func(r *http.Request) string {
+			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+		}))
+	return withMiddleware
+}
+
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
-	logged := logging.WithResponseTimeLogging
+	// Wrap requests with response time logging as well as panic recovery.
+	wrapped := logging.WithResponseTimeAndPanicErrorLogging
+	panicOnly := logging.WithPanicErrorResponder
 
 	h.router.HandleFunc(openapi.URL,
-		logged(&openapi.DocHandler{}).ServeHTTP,
+		wrapped(&openapi.DocHandler{}).ServeHTTP,
 	).Methods(openapi.HTTPMethod)
-	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
+	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(wrapped(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
-	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
+	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource), h.timeoutOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
 		h.downsamplerAndWriter,
 		h.tagOptions,
@@ -145,56 +178,57 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := native.NewPromReadHandler(
 		h.engine,
 		h.tagOptions,
-		&h.config.Limits,
+		h.config.LimitsOrDefault(),
 		h.scope.Tagged(nativeSource),
+		h.timeoutOpts,
 	)
 
 	h.router.HandleFunc(remote.PromReadURL,
-		logged(promRemoteReadHandler).ServeHTTP,
+		wrapped(promRemoteReadHandler).ServeHTTP,
 	).Methods(remote.PromReadHTTPMethod)
 	h.router.HandleFunc(remote.PromWriteURL,
-		promRemoteWriteHandler.ServeHTTP,
+		panicOnly(promRemoteWriteHandler).ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)
 	h.router.HandleFunc(native.PromReadURL,
-		logged(nativePromReadHandler).ServeHTTP,
+		wrapped(nativePromReadHandler).ServeHTTP,
 	).Methods(native.PromReadHTTPMethod)
 	h.router.HandleFunc(native.PromReadInstantURL,
-		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions)).ServeHTTP,
+		wrapped(native.NewPromReadInstantHandler(h.engine, h.tagOptions, h.timeoutOpts)).ServeHTTP,
 	).Methods(native.PromReadInstantHTTPMethod)
 
 	// Native M3 search and write endpoints
 	h.router.HandleFunc(handler.SearchURL,
-		logged(handler.NewSearchHandler(h.storage)).ServeHTTP,
+		wrapped(handler.NewSearchHandler(h.storage)).ServeHTTP,
 	).Methods(handler.SearchHTTPMethod)
 	h.router.HandleFunc(m3json.WriteJSONURL,
-		logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
+		wrapped(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints
 	h.router.HandleFunc(native.CompleteTagsURL,
-		logged(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+		wrapped(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
 	).Methods(native.CompleteTagsHTTPMethod)
 	h.router.HandleFunc(remote.TagValuesURL,
-		logged(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
+		wrapped(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
 	).Methods(remote.TagValuesHTTPMethod)
 
 	// Series match endpoints
 	h.router.HandleFunc(remote.PromSeriesMatchURL,
-		logged(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
+		wrapped(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
 	).Methods(remote.PromSeriesMatchHTTPMethod)
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
-		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope)).ServeHTTP,
+		wrapped(validator.NewPromDebugHandler(nativePromReadHandler, h.scope, *h.config.LookbackDuration)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
-		logged(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewRenderHandler(h.storage)).ServeHTTP,
 	).Methods(graphite.ReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.FindURL,
-		logged(graphite.NewFindHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewFindHandler(h.storage)).ServeHTTP,
 	).Methods(graphite.FindHTTPMethods...)
 
 	if h.clusterClient != nil {

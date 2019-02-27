@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -64,7 +65,7 @@ func TestDayOfMonth(t *testing.T) {
 	op, err := NewDateOp(DayOfMonthType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfMonthType])
 	assert.Len(t, sink.Values, 2)
@@ -83,7 +84,7 @@ func TestDayOfWeek(t *testing.T) {
 	op, err := NewDateOp(DayOfWeekType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfWeekType])
 	assert.Len(t, sink.Values, 2)
@@ -102,7 +103,7 @@ func TestDaysInMonth(t *testing.T) {
 	op, err := NewDateOp(DaysInMonthType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DaysInMonthType])
 	assert.Len(t, sink.Values, 2)
@@ -121,7 +122,7 @@ func TestHour(t *testing.T) {
 	op, err := NewDateOp(HourType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[HourType])
 	assert.Len(t, sink.Values, 2)
@@ -140,7 +141,7 @@ func TestMinute(t *testing.T) {
 	op, err := NewDateOp(MinuteType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MinuteType])
 	assert.Len(t, sink.Values, 2)
@@ -159,7 +160,7 @@ func TestMonth(t *testing.T) {
 	op, err := NewDateOp(MonthType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MonthType])
 	assert.Len(t, sink.Values, 2)
@@ -178,7 +179,7 @@ func TestYear(t *testing.T) {
 	op, err := NewDateOp(YearType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[YearType])
 	assert.Len(t, sink.Values, 2)

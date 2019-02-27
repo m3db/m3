@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"time"
@@ -37,6 +38,15 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	// MetricsOptionIDSchemeTagName is a meta tag
+	// that describes the ID should use a specific ID scheme.
+	MetricsOptionIDSchemeTagName = []byte("__option_id_scheme__")
+	// GraphiteIDSchemeTagValue specifies that the graphite ID
+	// scheme should be used for a metric.
+	GraphiteIDSchemeTagValue = []byte("graphite")
 )
 
 var (
@@ -126,6 +136,21 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		tags := models.NewTags(expected, w.tagOptions)
 		for iter.Next() {
 			name, value := iter.Current()
+
+			// NB(r): Quite gross, need to actually make it possible to plumb this
+			// through for each metric.
+			if bytes.Equal(name, MetricsOptionIDSchemeTagName) {
+				if bytes.Equal(value, GraphiteIDSchemeTagValue) &&
+					tags.Opts.IDSchemeType() != models.TypeGraphite {
+					iter.Reset(mp.ChunkedID.Data)
+					tags.Opts = w.tagOptions.SetIDSchemeType(models.TypeGraphite)
+					tags.Tags = tags.Tags[:0]
+				}
+				// Continue, whether we updated and need to restart iteration,
+				// or if passing for the second time
+				continue
+			}
+
 			tags = tags.AddTag(models.Tag{Name: name, Value: value}.Clone())
 		}
 

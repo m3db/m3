@@ -23,6 +23,7 @@ package temporal
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 )
@@ -39,6 +40,11 @@ func NewHoltWintersOp(args []interface{}) (transform.Params, error) {
 	// todo(braskin): move this logic to the parser.
 	if len(args) != 3 {
 		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", HoltWintersType, len(args))
+	}
+
+	duration, ok := args[0].(time.Duration)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], HoltWintersType)
 	}
 
 	sf, ok := args[1].(float64)
@@ -65,7 +71,7 @@ func NewHoltWintersOp(args []interface{}) (transform.Params, error) {
 		aggFunc: aggregationFunc,
 	}
 
-	return newBaseOp(args, HoltWintersType, a)
+	return newBaseOp(duration, HoltWintersType, a)
 }
 
 func makeHoltWintersFn(sf, tf float64) aggFunc {

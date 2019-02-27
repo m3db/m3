@@ -122,7 +122,7 @@ func NewIngester(
 	resourcePool.Init(func() interface{} {
 		return &lineResources{
 			name:       make([]byte, 0, maxResourcePoolNameSize),
-			datapoints: make([]ts.Datapoint, 1, 1),
+			datapoints: make([]ts.Datapoint, 1),
 			tags:       make([]models.Tag, 0, maxPooledTagsSize),
 		}
 	})
@@ -224,7 +224,7 @@ func (i *ingester) write(
 			if i.opts.Debug {
 				i.logger.Infof(
 					"carbon metric: %s matched by pattern: %s with mapping rules: %#v and storage policies: %#v",
-					string(resources.name), string(rule.rule.Pattern), rule.mappingRules, rule.storagePolicies)
+					string(resources.name), rule.rule.Pattern, rule.mappingRules, rule.storagePolicies)
 			}
 			// Break because we only want to apply one rule per metric based on which
 			// ever one matches first.

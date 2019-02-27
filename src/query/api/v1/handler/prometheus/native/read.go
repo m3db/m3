@@ -27,13 +27,17 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	xhttp "github.com/m3db/m3/src/x/net/http"
+	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 
+	opentracingext "github.com/opentracing/opentracing-go/ext"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -61,6 +65,7 @@ type PromReadHandler struct {
 	tagOpts         models.TagOptions
 	limitsCfg       *config.LimitsConfiguration
 	promReadMetrics promReadMetrics
+	timeoutOps      *prometheus.TimeoutOpts
 }
 
 type promReadMetrics struct {
@@ -103,12 +108,14 @@ func NewPromReadHandler(
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
 	scope tally.Scope,
+	timeoutOpts *prometheus.TimeoutOpts,
 ) *PromReadHandler {
 	h := &PromReadHandler{
 		engine:          engine,
 		tagOpts:         tagOpts,
 		limitsCfg:       limitsCfg,
 		promReadMetrics: newPromReadMetrics(scope),
+		timeoutOps:      timeoutOpts,
 	}
 
 	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints))
@@ -120,7 +127,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
 	if respErr != nil {
-		xhttp.Error(w, respErr.Err, respErr.Code)
+		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
 	}
 
@@ -139,11 +146,14 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeHTTPWithEngine returns query results from the storage
-func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Request, engine *executor.Engine) ([]*ts.Series, models.RequestParams, *RespError) {
+func (h *PromReadHandler) ServeHTTPWithEngine(
+	w http.ResponseWriter,
+	r *http.Request, engine *executor.Engine,
+) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
-	params, rErr := parseParams(r)
+	params, rErr := parseParams(r, h.timeoutOps)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
@@ -160,6 +170,9 @@ func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Req
 
 	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
+		sp := opentracingutil.SpanFromContextOrNoop(ctx)
+		sp.LogFields(opentracinglog.Error(err))
+		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}

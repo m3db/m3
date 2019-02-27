@@ -23,6 +23,7 @@ package executor
 import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -48,7 +49,7 @@ type SinkNode struct {
 }
 
 // Process processes and stores the last block output in the sink node
-func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
+func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	iter, err := block.SeriesIter()
 	if err != nil {
 		return err
@@ -57,10 +58,7 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 	anySeries := false
 	for iter.Next() {
 		anySeries = true
-		val, err := iter.Current()
-		if err != nil {
-			return err
-		}
+		val := iter.Current()
 
 		values := make([]float64, val.Len())
 		for i := 0; i < val.Len(); i++ {
@@ -68,6 +66,10 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 		}
 		s.Values = append(s.Values, values)
 		s.Metas = append(s.Metas, val.Meta)
+	}
+
+	if err = iter.Err(); err != nil {
+		return err
 	}
 
 	if !anySeries {

@@ -85,7 +85,18 @@ func init() {
 		panic(err)
 	}
 
+	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+		InstrumentOptions: opts.InstrumentOptions(),
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer stopReporting()
+
+	indexOpts := opts.IndexOptions().
+		SetPostingsListCache(plCache)
 	defaultTestDatabaseOptions = opts.
+		SetIndexOptions(indexOpts).
 		SetSeriesCachePolicy(series.CacheAll).
 		SetPersistManager(pm).
 		SetRepairEnabled(false).

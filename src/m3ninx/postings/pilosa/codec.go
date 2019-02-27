@@ -25,8 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	idxroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
-
-	"github.com/pilosa/pilosa/roaring"
+	"github.com/m3db/pilosa/roaring"
 )
 
 // Encoder helps serialize a Pilosa RoaringBitmap

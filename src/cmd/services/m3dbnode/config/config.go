@@ -58,6 +58,12 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *Configuration) InitDefaultsAndValidate() error {
+	return c.DB.InitDefaultsAndValidate()
+}
+
 // DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
 	// Index configuration.
@@ -118,7 +124,7 @@ type DBConfiguration struct {
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing in-memory data.
-	Repair RepairPolicy `yaml:"repair"`
+	Repair *RepairPolicy `yaml:"repair"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
@@ -131,6 +137,24 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+}
+
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *DBConfiguration) InitDefaultsAndValidate() error {
+	if err := c.Filesystem.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.PoolingPolicy.InitDefaultsAndValidate(); err != nil {
+		return err
+	}
+
+	if err := c.Client.Validate(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IndexConfiguration contains index-specific configuration.
@@ -256,7 +280,7 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 
 	dir := kvCfg.RootDir
 	if dir == "" {
-		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultEtcdDirSuffix)
+		dir = path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
 	}
 	newKVCfg.Dir = dir
 
@@ -272,18 +296,22 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	}
 	newKVCfg.LCUrls = LCUrls
 
-	host, err := getHostFromHostID(kvCfg.InitialCluster, hostID)
+	host, endpoint, err := getHostAndEndpointFromID(kvCfg.InitialCluster, hostID)
 	if err != nil {
 		return nil, err
 	}
 
-	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(host, defaultEtcdServerPort))
+	if host.ClusterState != "" {
+		newKVCfg.ClusterState = host.ClusterState
+	}
+
+	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, defaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.APUrls = APUrls
 
-	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(host, defaultEtcdClientPort))
+	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, defaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -339,9 +367,11 @@ func initialClusterString(initialCluster []environment.SeedNode) string {
 	return buffer.String()
 }
 
-func getHostFromHostID(initialCluster []environment.SeedNode, hostID string) (string, error) {
+func getHostAndEndpointFromID(initialCluster []environment.SeedNode, hostID string) (environment.SeedNode, string, error) {
+	emptySeedNode := environment.SeedNode{}
+
 	if len(initialCluster) == 0 {
-		return "", errors.New("zero seed nodes in initialCluster")
+		return emptySeedNode, "", errors.New("zero seed nodes in initialCluster")
 	}
 
 	for _, seedNode := range initialCluster {
@@ -350,14 +380,14 @@ func getHostFromHostID(initialCluster []environment.SeedNode, hostID string) (st
 
 			colonIdx := strings.LastIndex(endpoint, ":")
 			if colonIdx == -1 {
-				return "", errors.New("invalid initialCluster format")
+				return emptySeedNode, "", errors.New("invalid initialCluster format")
 			}
 
-			return endpoint[:colonIdx], nil
+			return seedNode, endpoint[:colonIdx], nil
 		}
 	}
 
-	return "", errors.New("host not in initialCluster list")
+	return emptySeedNode, "", errors.New("host not in initialCluster list")
 }
 
 // InitialClusterEndpoints returns the endpoints of the initial cluster

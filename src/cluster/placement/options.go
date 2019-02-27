@@ -57,15 +57,9 @@ func defaultTimeNanosFn() int64                    { return shard.UnInitializedV
 func defaultShardValidationFn(s shard.Shard) error { return nil }
 
 type options struct {
-	allowPartialReplace bool
-	addAllCandidates    bool
 	shardStateMode      ShardStateMode
-	isSharded           bool
-	isMirrored          bool
-	isStaged            bool
 	iopts               instrument.Options
 	validZone           string
-	dryrun              bool
 	placementCutOverFn  TimeNanosFn
 	shardCutOverFn      TimeNanosFn
 	shardCutOffFn       TimeNanosFn
@@ -73,6 +67,12 @@ type options struct {
 	isShardCutoffFn     ShardValidateFn
 	validateFn          ValidateFn
 	nowFn               clock.NowFn
+	allowPartialReplace bool
+	addAllCandidates    bool
+	dryrun              bool
+	isSharded           bool
+	isMirrored          bool
+	isStaged            bool
 }
 
 // NewOptions returns a default Options.

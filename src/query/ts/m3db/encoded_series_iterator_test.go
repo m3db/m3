@@ -110,11 +110,12 @@ func TestConsolidatedSeriesIteratorWithLookback(t *testing.T) {
 			require.True(t, bounds.Equals(iters.Meta().Bounds))
 			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
-				series, err := iters.Current()
-				require.NoError(t, err)
+				series := iters.Current()
 				test.EqualsWithNans(t, tt.expected[j], series.Values())
 				j++
 			}
+
+			require.NoError(t, iters.Err())
 		}
 	}
 }
@@ -140,7 +141,7 @@ var consolidatedSeriesIteratorTestsSplitByBlock = []struct {
 			},
 			{
 				{7, nan, nan, nan, nan, 8},
-				{nan, 30, nan, nan, nan, nan},
+				{nan, nan, nan, nan, nan, nan},
 				{nan, nan, nan, 300, nan, nan},
 			},
 			{
@@ -233,11 +234,12 @@ func TestConsolidatedSeriesIteratorSplitByBlock(t *testing.T) {
 			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
 			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
-				series, err := iters.Current()
-				require.NoError(t, err)
+				series := iters.Current()
 				test.EqualsWithNans(t, tt.expected[idx][j], series.Values())
 				j++
 			}
+
+			require.NoError(t, iters.Err())
 		}
 	}
 }

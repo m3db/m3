@@ -1,7 +1,7 @@
 common: &common
   timeout_in_minutes: 20
   agents:
-    queue: monorepo
+    queue: workers
   retry:
     # Automatically retry failures one time.
     automatic:
@@ -35,8 +35,15 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Integration (:docker:), Services, Tools, Metalint"
-    command: make install-vendor metalint docker-integration-test tools services
+  - name: "Services, Tools, Metalint"
+    command: make clean install-vendor services tools metalint
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - name: "Integration (:docker:)"
+    command: make clean install-vendor docker-integration-test
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.10.x
@@ -76,3 +83,4 @@ steps:
         workdir: /go/src/github.com/m3db/m3
         env:
           - FOSSA_API_KEY
+    <<: *common

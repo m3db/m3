@@ -171,7 +171,7 @@ func TestConsolidation(t *testing.T) {
 			Interval: tt.stepSize,
 		}
 
-		unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery)
+		unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery, time.Minute)
 		assert.NoError(t, err)
 
 		block, err := unconsolidated.Consolidate()
@@ -182,11 +182,12 @@ func TestConsolidation(t *testing.T) {
 
 		i := 0
 		for iter.Next() {
-			step, err := iter.Current()
-			assert.NoError(t, err)
+			step := iter.Current()
 			equalsWithNans(t, step.Values(), tt.expected[i])
 			i++
 		}
+
+		assert.NoError(t, iter.Err())
 	}
 }
 

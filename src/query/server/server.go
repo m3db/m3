@@ -36,7 +36,7 @@ import (
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
+	ingestcarbon "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -58,23 +58,32 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xserver "github.com/m3db/m3x/server"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
+const (
+	serviceName = "m3query"
+)
+
 var (
 	defaultLocalConfiguration = &config.LocalConfiguration{
-		Namespace: "default",
-		Retention: 2 * 24 * time.Hour,
+		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+			{
+				Namespace: "default",
+				Type:      storage.UnaggregatedMetricsType,
+				Retention: 2 * 24 * time.Hour,
+			},
+		},
 	}
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
@@ -130,9 +139,24 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
+
+	tracer, traceCloser, err := cfg.Tracing.NewTracer(serviceName, scope, logger)
+	if err != nil {
+		logger.Fatal("could not initialize tracing", zap.Error(err))
+	}
+
+	defer traceCloser.Close()
+
+	if _, ok := tracer.(opentracing.NoopTracer); ok {
+		logger.Info("tracing disabled; set `tracing.backend` to enable")
+	}
+
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger)
+		SetZapLogger(logger).
+		SetTracer(tracer)
+
+	opentracing.SetGlobalTracer(tracer)
 
 	// Close metrics scope
 	defer func() {
@@ -171,6 +195,12 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not create tag options", zap.Error(err))
 	}
+
+	lookbackDuration, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		logger.Fatal("error validating LookbackDuration", zap.Error(err))
+	}
+	cfg.LookbackDuration = &lookbackDuration
 
 	var (
 		m3dbClusters    m3.Clusters
@@ -218,7 +248,7 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration)
 
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
@@ -341,6 +371,7 @@ func newM3DBStorage(
 			etcdCfg = &cfg.ClusterManagement.Etcd
 
 		case len(cfg.Clusters) == 1 &&
+			cfg.Clusters[0].Client.EnvironmentConfig != nil &&
 			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
 			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
 		}
@@ -517,10 +548,9 @@ func initClusters(
 	)
 
 	if len(cfg.Clusters) > 0 {
-		opts := m3.ClustersStaticConfigurationOptions{
+		clusters, err = cfg.Clusters.NewClusters(m3.ClustersStaticConfigurationOptions{
 			AsyncSessions: true,
-		}
-		clusters, err = cfg.Clusters.NewClusters(opts)
+		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -539,12 +569,15 @@ func initClusters(
 			return <-dbClientCh, nil
 		}, sessionInitChan)
 
-		clusters, err = m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-			NamespaceID: ident.StringID(localCfg.Namespace),
-			Session:     session,
-			Retention:   localCfg.Retention,
-		})
+		clustersCfg := m3.ClustersStaticConfiguration{
+			m3.ClusterStaticConfiguration{
+				Namespaces: localCfg.Namespaces,
+			},
+		}
 
+		clusters, err = clustersCfg.NewClusters(m3.ClustersStaticConfigurationOptions{
+			ProvidedSession: session,
+		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -575,12 +608,30 @@ func newStorages(
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(
+	// Setup query conversion cache.
+	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
+	if err := conversionCacheConfig.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
+	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
+		*cfg.LookbackDuration,
+		storage.NewQueryConversionCache(conversionLRU),
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
@@ -674,6 +725,7 @@ func remoteClient(
 			poolWrapper,
 			readWorkerPool,
 			tagOptions,
+			*cfg.LookbackDuration,
 		)
 		if err != nil {
 			return nil, false, err
@@ -815,7 +867,7 @@ func startCarbonIngestion(
 	// Start server.
 	var (
 		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		carbonListenAddress = ingesterCfg.ListenAddress
+		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)
 	if strings.TrimSpace(carbonListenAddress) == "" {

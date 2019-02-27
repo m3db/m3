@@ -1,14 +1,4 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_PROMETHEUS",
-      "label": "Prometheus",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
-    }
-  ],
   "__requires": [
     {
       "type": "grafana",
@@ -78,7 +68,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "format": "none",
@@ -156,10 +146,7 @@
         }
       ],
       "valueName": "current",
-      "y_formats": [
-        "short",
-        "short"
-      ]
+      "y_formats": ["short", "short"]
     },
     {
       "cacheTimeout": null,
@@ -170,7 +157,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "format": "none",
@@ -247,10 +234,7 @@
         }
       ],
       "valueName": "current",
-      "y_formats": [
-        "short",
-        "short"
-      ]
+      "y_formats": ["short", "short"]
     },
     {
       "cacheTimeout": null,
@@ -261,7 +245,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "format": "none",
@@ -338,10 +322,7 @@
         }
       ],
       "valueName": "current",
-      "y_formats": [
-        "short",
-        "short"
-      ]
+      "y_formats": ["short", "short"]
     },
     {
       "cacheTimeout": null,
@@ -352,7 +333,7 @@
         "rgba(237, 129, 40, 0.89)",
         "rgba(50, 172, 45, 0.97)"
       ],
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "format": "none",
@@ -429,10 +410,7 @@
         }
       ],
       "valueName": "current",
-      "y_formats": [
-        "short",
-        "short"
-      ]
+      "y_formats": ["short", "short"]
     },
     {
       "collapsed": false,
@@ -453,7 +431,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -547,7 +525,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -642,7 +620,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -741,7 +719,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -863,7 +841,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -948,7 +926,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -1052,7 +1030,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1178,7 +1156,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1264,7 +1242,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1365,7 +1343,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1452,7 +1430,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1550,7 +1528,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1635,7 +1613,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1721,7 +1699,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_PROMETHEUS}",
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -1817,7 +1795,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -1903,7 +1881,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -1989,7 +1967,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2075,7 +2053,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2161,7 +2139,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -2245,7 +2223,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -2344,7 +2322,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2452,7 +2430,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2559,7 +2537,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2645,7 +2623,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2747,7 +2725,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 1,
           "gridPos": {
             "h": 5,
@@ -2843,7 +2821,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 1,
           "gridPos": {
             "h": 5,
@@ -2941,7 +2919,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3024,7 +3002,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3122,7 +3100,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3235,7 +3213,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3348,7 +3326,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3446,7 +3424,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3545,7 +3523,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3656,7 +3634,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3742,7 +3720,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3828,7 +3806,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -3914,7 +3892,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4000,7 +3978,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4086,7 +4064,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4187,7 +4165,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -4272,7 +4250,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -4379,7 +4357,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4465,7 +4443,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4551,7 +4529,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4637,7 +4615,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4738,7 +4716,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4831,7 +4809,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -4932,7 +4910,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -5018,7 +4996,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -5126,7 +5104,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -5221,7 +5199,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5319,7 +5297,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5402,7 +5380,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5485,7 +5463,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5575,7 +5553,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5658,7 +5636,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "$datasource",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -5751,9 +5729,7 @@
   "refresh": false,
   "schemaVersion": 16,
   "style": "dark",
-  "tags": [
-    "disable-sync"
-  ],
+  "tags": ["disable-sync"],
   "templating": {
     "list": [
       {
@@ -5901,7 +5877,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "${DS_PROMETHEUS}",
+        "datasource": "$datasource",
         "hide": 0,
         "includeAll": true,
         "label": "instance",
@@ -5917,6 +5893,21 @@
         "tagsQuery": "",
         "type": "query",
         "useTags": false
+      },
+      {
+        "current": {
+          "text": "M3Query - Prometheus",
+          "value": "M3Query - Prometheus"
+        },
+        "hide": 0,
+        "label": null,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
       }
     ]
   },
@@ -5938,20 +5929,10 @@
       "2h",
       "1d"
     ],
-    "time_options": [
-      "5m",
-      "15m",
-      "1h",
-      "6h",
-      "12h",
-      "24h",
-      "2d",
-      "7d",
-      "30d"
-    ]
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
   },
   "timezone": "browser",
   "title": "M3DB Node Details",
-  "uid": "99SFck0iz",
+  "uid": "99SFck0iza",
   "version": 4
 }

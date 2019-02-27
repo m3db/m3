@@ -62,6 +62,7 @@ type m3storage struct {
 	writeWorkerPool xsync.PooledWorkerPool
 	opts            m3db.Options
 	nowFn           func() time.Time
+	conversionCache *storage.QueryConversionCache
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -71,10 +72,12 @@ func NewStorage(
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
-) Storage {
+	lookbackDuration time.Duration,
+	queryConversionCache *storage.QueryConversionCache,
+) (Storage, error) {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
-		SetLookbackDuration(time.Minute).
+		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
 
 	return &m3storage{
@@ -83,7 +86,8 @@ func NewStorage(
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
-	}
+		conversionCache: queryConversionCache,
+	}, nil
 }
 
 func (s *m3storage) Fetch(
@@ -137,13 +141,12 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query)
+		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration())
 	}
 
 	// If using multiblock, update options to reflect this.
 	if options.BlockType == models.TypeMultiBlock {
 		opts = opts.
-			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
 	}
 
@@ -200,7 +203,7 @@ func (s *m3storage) fetchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, s.conversionCache)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +373,7 @@ func (s *m3storage) SearchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, s.conversionCache)
 	if err != nil {
 		return nil, noop, err
 	}

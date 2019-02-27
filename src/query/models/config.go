@@ -72,6 +72,13 @@ func (t *IDSchemeType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	for _, valid := range validIDSchemes {
+		if valid == TypeGraphite {
+			// NB: while the graphite scheme is valid, it is not available to choose
+			// as a general ID scheme; instead, it is set on any metric coming through
+			// the graphite ingestion path.
+			continue
+		}
+
 		if str == valid.String() {
 			*t = valid
 			return nil

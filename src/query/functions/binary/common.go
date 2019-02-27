@@ -157,16 +157,14 @@ func combineMetaAndSeriesMeta(
 
 func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
 	for index := 0; iter.Next(); index++ {
-		step, err := iter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := iter.Current()
 		values := step.Values()
 		for _, idx := range idxArray {
-			builder.AppendValue(index, values[idx])
+			if err := builder.AppendValue(index, values[idx]); err != nil {
+				return err
+			}
 		}
 	}
 
-	return nil
+	return iter.Err()
 }

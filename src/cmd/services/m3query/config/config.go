@@ -21,17 +21,20 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
+	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -47,10 +50,17 @@ const (
 	M3DBStorageType BackendStorageType = "m3db"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
+	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
+		"generation scheme is required in coordinator configuration settings. " +
+		"More information is available here: %s"
+
+	defaultQueryConversionCacheSize = 4096
 )
 
 var (
-	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
+	// 5m is the default lookback in Prometheus
+	defaultLookbackDuration = 5 * time.Minute
+
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
 	// defaultLimitsConfiguration is applied if `limits` isn't specified.
@@ -64,6 +74,9 @@ var (
 type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+
+	// Tracing configures opentracing. If not provided, tracing is disabled.
+	Tracing instrument.TracingConfiguration `yaml:"tracing"`
 
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
@@ -108,7 +121,13 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
-	Limits LimitsConfiguration `yaml:"limits"`
+	Limits *LimitsConfiguration `yaml:"limits"`
+
+	// LookbackDuration determines the lookback duration for queries
+	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
+
+	// Cache configurations.
+	Cache CacheConfiguration `yaml:"cache"`
 }
 
 // Filter is a query filter type.
@@ -130,6 +149,46 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// CacheConfiguration is the cache configurations.
+type CacheConfiguration struct {
+	// QueryConversion cache policy.
+	QueryConversion *QueryConversionCacheConfiguration `yaml:"queryConversion"`
+}
+
+// QueryConversionCacheConfiguration is the query conversion cache configuration.
+type QueryConversionCacheConfiguration struct {
+	Size *int `yaml:"size"`
+}
+
+// QueryConversionCacheConfiguration returns the query conversion cache configuration
+// or default if none is specified.
+func (c CacheConfiguration) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
+	if c.QueryConversion == nil {
+		return QueryConversionCacheConfiguration{}
+	}
+
+	return *c.QueryConversion
+}
+
+// SizeOrDefault returns the provided size or the default value is none is
+// provided.
+func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
+	if q.Size == nil {
+		return defaultQueryConversionCacheSize
+	}
+
+	return *q.Size
+}
+
+// Validate validates the QueryConversionCacheConfiguration settings.
+func (q *QueryConversionCacheConfiguration) Validate() error {
+	if q.Size != nil && *q.Size <= 0 {
+		return fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
+	}
+
+	return nil
 }
 
 // LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
@@ -157,6 +216,40 @@ type CarbonIngesterConfiguration struct {
 	ListenAddress  string                            `yaml:"listenAddress"`
 	MaxConcurrency int                               `yaml:"maxConcurrency"`
 	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+}
+
+// LookbackDurationOrDefault validates the LookbackDuration
+func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
+	if c.LookbackDuration == nil {
+		return defaultLookbackDuration, nil
+	}
+
+	v := *c.LookbackDuration
+	if v < 0 {
+		return 0, errors.New("lookbackDuration must be > 0")
+	}
+
+	return v, nil
+}
+
+// LimitsOrDefault returns the specified limit configuration if provided, or the
+// default value otherwise.
+func (c Configuration) LimitsOrDefault() *LimitsConfiguration {
+	if c.Limits != nil {
+		return c.Limits
+	}
+
+	return defaultLimitsConfiguration
+}
+
+// ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
+// default value if not.
+func (c *CarbonIngesterConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable
@@ -245,11 +338,8 @@ type CarbonIngesterStoragePolicyConfiguration struct {
 // LocalConfiguration is the local embedded configuration if running
 // coordinator embedded in the DB.
 type LocalConfiguration struct {
-	// Namespace is the name of the local namespace to write/read from.
-	Namespace string `yaml:"namespace" validate:"nonzero"`
-
-	// Retention is the retention of the local namespace to write/read from.
-	Retention time.Duration `yaml:"retention" validate:"nonzero"`
+	// Namespaces is the list of namespaces that the local embedded DB has.
+	Namespaces []m3.ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
 // ClusterManagementConfiguration is configuration for the placemement,
@@ -281,6 +371,10 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 
+	// BucketName specifies the tag name that corresponds to the metric's bucket.
+	// If not provided, defaults to `le`.
+	BucketName string `yaml:"bucketName"`
+
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
@@ -293,8 +387,15 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		opts = opts.SetMetricName([]byte(name))
 	}
 
+	bucket := cfg.BucketName
+	if bucket != "" {
+		opts = opts.SetBucketName([]byte(bucket))
+	}
+
 	if cfg.Scheme == models.TypeDefault {
-		cfg.Scheme = models.TypeLegacy
+		// If no config has been set, error.
+		docLink := xdocs.Path("how_to/query#migration")
+		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)

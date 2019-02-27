@@ -1,0 +1,280 @@
+# Include this field if you want to enable an embedded M3Coordinator instance.
+coordinator:
+  # Address for M3Coordinator to listen for traffic.
+  listenAddress:
+    type: "config"
+    value: "0.0.0.0:7201"
+
+  # All configured M3DB namespaces must be listed in this config if running an
+  # embedded M3Coordinator instance.
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
+  # Configuration for emitting M3Coordinator metrics.
+  metrics:
+    scope:
+      # Prefix to apply to all metrics.
+      prefix: "coordinator"
+    prometheus:
+      # Path and address to expose Prometheus scrape endpoint.
+      handlerPath: /metrics
+      listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+    sanitization: prometheus
+    # Sampling rate for metrics, use 1.0 for no sampling.
+    samplingRate: 1.0
+    extended: none
+
+  limits:
+    maxComputedDatapoints: 10000
+
+  tagOptions:
+    # Configuration setting for generating metric IDs from tags.
+    idScheme: quoted
+
+db:
+  # Minimum log level which will be emitted.
+  logging:
+    level: info
+
+  # Configuration for emitting M3DB metrics.
+  metrics:
+    prometheus:
+      # Path to expose Prometheus scrape endpoint.
+      handlerPath: /metrics
+    sanitization: prometheus
+    # Sampling rate for metrics, use 1.0 for no sampling.
+    samplingRate: 1.0
+    extended: detailed
+
+  # Address to listen on for local thrift/tchannel APIs.
+  listenAddress: 0.0.0.0:9000
+  # Address to listen on for cluster thrift/tchannel APIs.
+  clusterListenAddress: 0.0.0.0:9001
+  # Address to listen on for local json/http APIs (used for debugging primarily).
+  httpNodeListenAddress: 0.0.0.0:9002
+  # Address to listen on for cluster json/http APIs (used for debugging primarily).
+  httpClusterListenAddress: 0.0.0.0:9003
+  # Address to listen on for debug APIs (pprof, etc).
+  debugListenAddress: 0.0.0.0:9004
+
+  # Configuration for resolving the instances host ID.
+  hostID:
+    # "Config" resolver states that the host ID will be resolved from this file.
+    resolver: config
+    value: m3db_local
+
+  client:
+    # Consistency level for writes.
+    writeConsistencyLevel: majority
+    # Consistency level for reads.
+    readConsistencyLevel: unstrict_majority
+    # Timeout for writes.
+    writeTimeout: 10s
+    # Timeout for reads.
+    fetchTimeout: 15s
+    # Timeout for establishing a connection to the cluster.
+    connectTimeout: 20s
+    # Configuration for retrying writes.
+    writeRetry:
+        initialBackoff: 500ms
+        backoffFactor: 3
+        maxRetries: 2
+        jitter: true
+    # Configuration for retrying reads.
+    fetchRetry:
+        initialBackoff: 500ms
+        backoffFactor: 2
+        maxRetries: 3
+        jitter: true
+    # Number of times we background health check for a node can fail before
+    # considering the node unhealthy.
+    backgroundHealthCheckFailLimit: 4
+    backgroundHealthCheckFailThrottleFactor: 0.5
+
+  # Sets GOGC value.
+  gcPercentage: 100
+
+  # Whether new series should be created asynchronously (recommended value
+  # of true for high throughput.)
+  writeNewSeriesAsync: true
+  # Maximum number of new series that can be created per second.
+  writeNewSeriesLimitPerSecond: 1048576
+  writeNewSeriesBackoffDuration: 2ms
+
+  bootstrap:
+    # Order in which to run the bootstrappers. Don't change these values unless
+    # you know what you're doing as non-standard configurations can cause data
+    # loss or make recovery from disaster scenarios difficult.
+    bootstrappers:
+        - filesystem
+        - commitlog
+        - peers
+        - uninitialized_topology
+    fs:
+        numProcessorsPerCPU: 0.125
+
+  cache:
+    # Caching policy for database blocks.
+    series:
+      policy: lru
+
+  commitlog:
+    # Maximum number of bytes that will be buffered before flushing the commitlog.
+    flushMaxBytes: 524288
+    # Maximum amount of time data can remain buffered before flushing the commitlog.
+    flushEvery: 1s
+    # Configuration for the commitlog queue. High throughput setups may require higher
+    # values. Higher values will use more memory.
+    queue:
+        calculationType: fixed
+        size: 2097152
+    blockSize: 10m
+
+  fs:
+    # Directory to store M3DB data in.
+    filePathPrefix: /var/lib/m3db
+    # Various fixed-sized buffers used for M3DB I/O.
+    writeBufferSize: 65536
+    dataReadBufferSize: 65536
+    infoReadBufferSize: 128
+    seekReadBufferSize: 4096
+    # Maximum Mib/s that can be written to disk by background operations like flushing
+    # and snapshotting to prevent them from interfering with the commitlog. Increasing
+    # this value can make node adds significantly faster if the underlyign disk can
+    # support the throughput.
+    throughputLimitMbps: 100.0
+    throughputCheckEvery: 128
+
+  # This feature is currently not working, do not enable.
+  repair:
+    enabled: false
+    interval: 2h
+    offset: 30m
+    jitter: 1h
+    throttle: 2m
+    checkInterval: 1m
+
+  # Configuration for various different object pools that M3DB uses.
+  pooling:
+    blockAllocSize: 16
+    type: simple
+    seriesPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blockPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    encoderPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    closersPool:
+        size: 104857
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    contextPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    segmentReaderPool:
+        size: 16384
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    iteratorPool:
+        size: 2048
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    fetchBlockMetadataResultsPool:
+        size: 65536
+        capacity: 32
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    fetchBlocksMetadataResultsPool:
+        size: 32
+        capacity: 4096
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    hostBlockMetadataSlicePool:
+        size: 131072
+        capacity: 3
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blockMetadataPool:
+        size: 65536
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blockMetadataSlicePool:
+        size: 65536
+        capacity: 32
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blocksMetadataPool:
+        size: 65536
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blocksMetadataSlicePool:
+        size: 32
+        capacity: 4096
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    identifierPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    bytesPool:
+        buckets:
+            - capacity: 16
+              size: 524288
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 32
+              size: 262144
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 64
+              size: 131072
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 128
+              size: 65536
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 256
+              size: 65536
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 1440
+              size: 16384
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 4096
+              size: 8192
+              lowWatermark: 0.7
+              highWatermark: 1.0
+
+  # etcd configuration.
+  config:
+      service:
+          # KV environment, zone, and service from which to write/read KV data (placement
+          # and configuration). Leave these as the default values unless you know what
+          # you're doing.
+          env: default_env
+          zone: embedded
+          service: m3db
+          # Directory to store cached etcd data in.
+          cacheDir: /var/lib/m3kv
+          # Configuration to identify the etcd hosts this node should connect to.
+          etcdClusters:
+              - zone: embedded
+                endpoints:
+                    - 127.0.0.1:2379
+      # Should only be present if running an M3DB cluster with embedded etcd.
+      seedNodes:
+          initialCluster:
+              - hostID: m3db_local
+                endpoint: http://127.0.0.1:2380

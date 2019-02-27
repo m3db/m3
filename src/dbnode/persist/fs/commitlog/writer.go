@@ -282,11 +282,7 @@ func (w *writer) Flush(sync bool) error {
 }
 
 func (w *writer) sync() error {
-	if err := w.chunkWriter.sync(); err != nil {
-		return err
-	}
-
-	return nil
+	return w.chunkWriter.sync()
 }
 
 func (w *writer) Close() error {

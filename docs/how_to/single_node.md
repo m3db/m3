@@ -10,24 +10,17 @@ containing:
 - A "coordinator" instance (`m3coordinator`) for writing and querying tagged metrics, as well as
   managing cluster topology and runtime configuration.
 
-To begin, first start up a Docker container with port `7201` (used to manage the cluster topology)
-and port `9003` (used to read and write metrics) exposed. We recommend you create a persistent data
+To begin, first start up a Docker container with port `7201` (used to manage the cluster topology), port `7203` which is where Prometheus scrapes metrics produced by `M3DB` and `M3Coordinator`, and port `9003` (used to read and write metrics) exposed. We recommend you create a persistent data
 directory on your host for durability:
 
 ```
 docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v <PATH_TO_M3DB_CONFIG.yml>:/etc/m3dbnode/m3dbnode.yml quay.io/m3/m3dbnode:latest
 ```
 
-<!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
-placements, etc. are -->
+**Note:** For the single node case, we recommend that you start with this [sample config file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml). If you inspect the file, you'll see that all the configuration is namespaced by `coordinator` or `db`. That's because this setup runs `M3DB` and `M3Coordinator` as one application. While this is convenient for testing and development, you'll want to run clustered `M3DB` with a separate `M3Coordinator` in production. You can read more about that [here.](cluster_hard_way.md).
 
-<!-- TODO: add something about how this is in no way a recommended production deployment guide,
-and write a guide for what is considered a production-ready deployment (this is in the works) -->
-
-Next, create an initial namespace for your metrics in the database:
-
-<!-- TODO: link to config reference docs once available -->
+Next, create an initial namespace for your metrics in the database using the cURL below. Keep in mind that the provided `namespaceName` must match the namespace in the `local` section of the `M3Coordinator` YAML configuration, and if you choose to [add any additional namespaces](../operational_guide/namespace_configuration.md) you'll need to add them to the `local` section of `M3Coordinator`'s YAML config as well.
 
 ```json
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
@@ -37,8 +30,9 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
-Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
-errors related to a local cache file, such as `[W] could not load cache from file
+**Note**: The `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement.md) and [namespaces](../operational_guide/namespace_configuration.md). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now it's enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
+
+Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or errors related to a local cache file, such as `[W] could not load cache from file
 /var/lib/m3kv/m3db_embedded.json`. Those are expected for a local instance and in general any
 warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 
@@ -120,6 +114,4 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 }
 ```
 
-## Integrations
-
-[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).
+Now that you've got the M3 stack up and running, take a look at the rest of our documentation to see how you can integrate with [Prometheus](../integrations/prometheus.md) and [Graphite](../integrations/graphite.md)

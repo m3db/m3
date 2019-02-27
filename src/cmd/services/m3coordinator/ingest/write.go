@@ -66,11 +66,11 @@ type DownsamplerAndWriter interface {
 // WriteOptions contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
 type WriteOptions struct {
-	DownsampleOverride     bool
 	DownsampleMappingRules []downsample.MappingRule
+	WriteStoragePolicies   []policy.StoragePolicy
 
-	WriteOverride        bool
-	WriteStoragePolicies []policy.StoragePolicy
+	DownsampleOverride bool
+	WriteOverride      bool
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -137,6 +137,17 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
+		}
+
+		if tags.Opts.IDSchemeType() == models.TypeGraphite {
+			// NB(r): This is gross, but if this is a graphite metric then
+			// we are going to set a special tag that means the downsampler
+			// will write a graphite ID. This should really be plumbed
+			// through the downsampler in general, but right now the aggregator
+			// does not allow context to be attached to a metric so when it calls
+			// back the context is lost currently.
+			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
+				downsample.GraphiteIDSchemeTagValue)
 		}
 
 		var appenderOpts downsample.SampleAppenderOptions
@@ -316,11 +327,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	}
 	appender.Finalize()
 
-	if err := iter.Error(); err != nil {
-		return err
-	}
-
-	return nil
+	return iter.Error()
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {

@@ -21,108 +21,46 @@
 package m3db
 
 import (
-	"fmt"
-	"sync"
-	"time"
-
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
-	xts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIterUnconsolidated struct {
-	mu          sync.RWMutex
-	lastBlock   bool
-	exhausted   bool
-	err         error
-	meta        block.Metadata
-	validIters  []bool
-	seriesMeta  []block.SeriesMeta
-	seriesIters []encoding.SeriesIterator
+	accumulator *consolidators.StepLookbackAccumulator
+	encodedStepIterWithCollector
 }
 
-func (it *encodedStepIterUnconsolidated) Current() (
-	block.UnconsolidatedStep,
+func (b *encodedBlockUnconsolidated) StepIter() (
+	block.UnconsolidatedStepIter,
 	error,
 ) {
-	it.mu.RLock()
-	if it.exhausted {
-		it.mu.RUnlock()
-		return nil, fmt.Errorf("out of bounds")
-	}
+	cs := b.consolidation
+	iters := b.seriesBlockIterators
+	accumulator := consolidators.NewStepLookbackAccumulator(
+		b.lookback,
+		cs.bounds.StepSize,
+		cs.currentTime,
+		len(b.seriesBlockIterators),
+	)
 
-	if it.err != nil {
-		it.mu.RUnlock()
-		return nil, it.err
-	}
+	return &encodedStepIterUnconsolidated{
+		accumulator: accumulator,
+		encodedStepIterWithCollector: encodedStepIterWithCollector{
+			lastBlock: b.lastBlock,
 
-	var t time.Time
-	values := make([]xts.Datapoints, len(it.seriesIters))
-	for i, iter := range it.seriesIters {
-		// Skip this iterator if it's not valid
-		if !it.validIters[i] {
-			continue
-		}
+			stepTime:   cs.currentTime,
+			meta:       b.meta,
+			seriesMeta: b.seriesMetas,
 
-		dp, _, _ := iter.Current()
-		if i == 0 {
-			t = dp.Timestamp
-		}
-
-		values[i] = []xts.Datapoint{{
-			Timestamp: dp.Timestamp,
-			Value:     dp.Value,
-		}}
-	}
-
-	step := storage.NewUnconsolidatedStep(t, values)
-	it.mu.RUnlock()
-	return step, nil
+			collector:   accumulator,
+			seriesPeek:  make([]peekValue, len(iters)),
+			seriesIters: iters,
+		},
+	}, nil
 }
 
-func (it *encodedStepIterUnconsolidated) Next() bool {
-	it.mu.Lock()
-	defer it.mu.Unlock()
-	if it.exhausted {
-		return false
-	}
-
-	var anyNext bool
-	for i, iter := range it.seriesIters {
-		if iter.Next() {
-			anyNext = true
-			it.validIters[i] = true
-		} else {
-			it.validIters[i] = false
-		}
-
-		if err := iter.Err(); err != nil {
-			it.err = err
-		}
-	}
-
-	if !anyNext {
-		it.exhausted = true
-	}
-
-	return anyNext
-}
-
-func (it *encodedStepIterUnconsolidated) StepCount() int {
-	// Returns the projected step count, post-consolidation
-	return it.meta.Bounds.Steps()
-}
-
-func (it *encodedStepIterUnconsolidated) SeriesMeta() []block.SeriesMeta {
-	return it.seriesMeta
-}
-
-func (it *encodedStepIterUnconsolidated) Meta() block.Metadata {
-	return it.meta
-}
-
-func (it *encodedStepIterUnconsolidated) Close() {
-	// noop, as the resources at the step may still be in use;
-	// instead call Close() on the encodedBlock that generated this
+func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
+	points := it.accumulator.AccumulateAndMoveToNext()
+	return storage.NewUnconsolidatedStep(it.stepTime, points)
 }

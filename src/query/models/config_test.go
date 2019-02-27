@@ -50,7 +50,13 @@ func TestMetricsTypeUnmarshalYAML(t *testing.T) {
 		Type IDSchemeType `yaml:"type"`
 	}
 
-	for _, value := range validIDSchemes {
+	validParseSchemes := []IDSchemeType{
+		TypeLegacy,
+		TypeQuoted,
+		TypePrependMeta,
+	}
+
+	for _, value := range validParseSchemes {
 		str := fmt.Sprintf("type: %s\n", value.String())
 
 		var cfg config
@@ -60,6 +66,9 @@ func TestMetricsTypeUnmarshalYAML(t *testing.T) {
 	}
 
 	var cfg config
+	// Graphite fails.
+	require.Error(t, yaml.Unmarshal([]byte("type: graphite\n"), &cfg))
+	// Bad type fails.
 	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
 
 	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))

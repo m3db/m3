@@ -44,6 +44,10 @@ const (
 	TestRetention = 30 * 24 * time.Hour
 )
 
+var (
+	defaultLookbackDuration = time.Minute
+)
+
 // NewStorageAndSession generates a new m3 storage and mock session
 func NewStorageAndSession(
 	t *testing.T,
@@ -60,7 +64,10 @@ func NewStorageAndSession(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage := m3.NewStorage(clusters, nil, writePool, tagOptions)
+	queryCache, err := storage.NewQueryConversionLRU(100)
+	require.NoError(t, err)
+	storage, err := m3.NewStorage(clusters, nil, writePool, tagOptions, defaultLookbackDuration, storage.NewQueryConversionCache(queryCache))
+	require.NoError(t, err)
 	return storage, session
 }
 
@@ -87,6 +94,9 @@ func NewStorageAndSessionWithAggregatedNamespaces(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage := m3.NewStorage(clusters, nil, writePool, tagOptions)
+	queryCache, err := storage.NewQueryConversionLRU(100)
+	require.NoError(t, err)
+	storage, err := m3.NewStorage(clusters, nil, writePool, tagOptions, defaultLookbackDuration, storage.NewQueryConversionCache(queryCache))
+	require.NoError(t, err)
 	return storage, session
 }

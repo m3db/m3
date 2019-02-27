@@ -21,7 +21,7 @@
 package m3db
 
 import (
-	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -29,18 +29,47 @@ import (
 )
 
 type encodedSeriesIterUnconsolidated struct {
-	mu          sync.RWMutex
-	idx         int
-	meta        block.Metadata
-	seriesMeta  []block.SeriesMeta
-	seriesIters []encoding.SeriesIterator
+	idx              int
+	lookbackDuration time.Duration
+	err              error
+	meta             block.Metadata
+	series           block.UnconsolidatedSeries
+	seriesMeta       []block.SeriesMeta
+	seriesIters      []encoding.SeriesIterator
 }
 
-func (it *encodedSeriesIterUnconsolidated) Current() (
-	block.UnconsolidatedSeries,
+func (b *encodedBlockUnconsolidated) SeriesIter() (
+	block.UnconsolidatedSeriesIter,
 	error,
 ) {
-	it.mu.RLock()
+	return &encodedSeriesIterUnconsolidated{
+		idx:              -1,
+		meta:             b.meta,
+		seriesMeta:       b.seriesMetas,
+		seriesIters:      b.seriesBlockIterators,
+		lookbackDuration: b.lookback,
+	}, nil
+}
+
+func (it *encodedSeriesIterUnconsolidated) Current() block.UnconsolidatedSeries {
+	return it.series
+}
+
+func (it *encodedSeriesIterUnconsolidated) Err() error {
+	return it.err
+}
+
+func (it *encodedSeriesIterUnconsolidated) Next() bool {
+	if it.err != nil {
+		return false
+	}
+
+	it.idx++
+	next := it.idx < len(it.seriesIters)
+	if !next {
+		return false
+	}
+
 	iter := it.seriesIters[it.idx]
 	values := make(xts.Datapoints, 0, initBlockReplicaLength)
 	for iter.Next() {
@@ -52,22 +81,13 @@ func (it *encodedSeriesIterUnconsolidated) Current() (
 			})
 	}
 
-	if err := iter.Err(); err != nil {
-		it.mu.RUnlock()
-		return block.UnconsolidatedSeries{}, err
+	if it.err = iter.Err(); it.err != nil {
+		return false
 	}
 
-	alignedValues := values.AlignToBounds(it.meta.Bounds)
-	series := block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
-	it.mu.RUnlock()
-	return series, nil
-}
+	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
+	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
 
-func (it *encodedSeriesIterUnconsolidated) Next() bool {
-	it.mu.Lock()
-	it.idx++
-	next := it.idx < len(it.seriesIters)
-	it.mu.Unlock()
 	return next
 }
 
