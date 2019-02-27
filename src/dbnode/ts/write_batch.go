@@ -93,8 +93,13 @@ func (b *writeBatch) Iter() []BatchWrite {
 }
 
 func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
+	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
 	b.writes[idx].Err = err
+}
+
+func (b *writeBatch) SetSkipWrite(idx int) {
+	b.writes[idx].SkipWrite = true
 }
 
 func (b *writeBatch) Finalize() {

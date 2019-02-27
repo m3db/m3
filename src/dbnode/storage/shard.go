@@ -749,7 +749,7 @@ func (s *dbShard) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, true)
 }
@@ -761,7 +761,7 @@ func (s *dbShard) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
 		value, unit, annotation, false)
 }
@@ -775,11 +775,11 @@ func (s *dbShard) writeAndIndex(
 	unit xtime.Unit,
 	annotation []byte,
 	shouldReverseIndex bool,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	// Prepare write
 	entry, opts, err := s.tryRetrieveWritableSeries(id)
 	if err != nil {
-		return ts.Series{}, err
+		return ts.Series{}, false, err
 	}
 
 	writable := entry != nil
@@ -795,7 +795,7 @@ func (s *dbShard) writeAndIndex(
 			},
 		})
 		if err != nil {
-			return ts.Series{}, err
+			return ts.Series{}, false, err
 		}
 
 		// Wait for the insert to be batched together and inserted
@@ -804,7 +804,7 @@ func (s *dbShard) writeAndIndex(
 		// Retrieve the inserted entry
 		entry, err = s.writableSeries(id, tags)
 		if err != nil {
-			return ts.Series{}, err
+			return ts.Series{}, false, err
 		}
 		writable = true
 
@@ -816,10 +816,14 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID          ident.ID
 		commitLogSeriesTags        ident.Tags
 		commitLogSeriesUniqueIndex uint64
+		// Err on the side of caution and always write to the commitlog if writing
+		// async, since there is no information about whether the write succeeded
+		// or not.
+		wasWritten = true
 	)
 	if writable {
 		// Perform write
-		err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
+		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -838,7 +842,7 @@ func (s *dbShard) writeAndIndex(
 		// release the reference we got on entry from `writableSeries`
 		entry.DecrementReaderWriterCount()
 		if err != nil {
-			return ts.Series{}, err
+			return ts.Series{}, false, err
 		}
 	} else {
 		// This is an asynchronous insert and write
@@ -857,7 +861,7 @@ func (s *dbShard) writeAndIndex(
 			},
 		})
 		if err != nil {
-			return ts.Series{}, err
+			return ts.Series{}, false, err
 		}
 		// NB(r): Make sure to use the copied ID which will eventually
 		// be set to the newly series inserted ID.
@@ -878,7 +882,7 @@ func (s *dbShard) writeAndIndex(
 		Shard:       s.shard,
 	}
 
-	return series, nil
+	return series, wasWritten, nil
 }
 
 func (s *dbShard) ReadEncoded(
@@ -1283,7 +1287,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingWrite {
 			write := inserts[i].opts.pendingWrite
-			err := entry.Series.Write(ctx, write.timestamp, write.value,
+			// NB: Ignore the `wasWritten` return argument here since this is an async
+			// operation and there is nothing further to do with this value.
+			// TODO: Consider propagating the `wasWritten` argument back to the caller
+			// using waitgroup (or otherwise) in the future.
+			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, write.annotation)
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
