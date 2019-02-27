@@ -695,17 +695,16 @@ func (d *db) writeBatch(
 			errHandler.HandleError(write.OriginalIndex, err)
 		}
 
-		if !wasWritten && err == nil {
+		// Need to set the outcome in the success case so the commitlog gets the
+		// updated series object which contains identifiers (like the series ID)
+		// whose lifecycle lives longer than the span of this request, making them
+		// safe for use by the async commitlog. Need to set the outcome in the
+		// error case so that the commitlog knows to skip this entry.
+		writes.SetOutcome(i, series, err)
+		if !wasWritten || err != nil {
 			// This series has no additional information that needs to be written to
 			// the commit log; set this series to skip writing to the commit log.
 			writes.SetSkipWrite(i)
-		} else {
-			// Need to set the outcome in the success case so the commitlog gets the
-			// updated series object which contains identifiers (like the series ID)
-			// whose lifecycle lives longer than the span of this request, making them
-			// safe for use by the async commitlog. Need to set the outcome in the
-			// error case so that the commitlog knows to skip this entry.
-			writes.SetOutcome(i, series, err)
 		}
 	}
 	if !n.Options().WritesToCommitLog() {

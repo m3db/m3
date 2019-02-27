@@ -1160,7 +1160,10 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	batchWriter.EXPECT().Finalize().Times(1)
 	batchWriter.EXPECT().SetOutcome(0, series1, nil)
 	batchWriter.EXPECT().SetOutcome(1, series2, err)
+	batchWriter.EXPECT().SetSkipWrite(1)
 	batchWriter.EXPECT().SetOutcome(2, series3, err)
+	batchWriter.EXPECT().SetSkipWrite(2)
+	batchWriter.EXPECT().SetOutcome(3, series4, nil)
 	batchWriter.EXPECT().SetSkipWrite(3)
 
 	errHandler := &fakeIndexedErrorHandler{}
