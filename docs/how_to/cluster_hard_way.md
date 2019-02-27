@@ -204,7 +204,7 @@ curl http://localhost:9003/writetagged -s -X POST -d '{
     }
   ],
   "datapoint": {
-    "timestamp":'"$(date +"%s")"',
+    "timestamp": '"$(date +"%s")"',
     "value": 42.123456789
   }
 }'
@@ -222,7 +222,7 @@ curl http://localhost:9003/query -s -X POST -d '{
     }
   },
   "rangeStart": 0,
-  "rangeEnd":'"$(date +"%s")"'
+  "rangeEnd": '"$(date +"%s")"'
 }' | jq .
 ```
 
