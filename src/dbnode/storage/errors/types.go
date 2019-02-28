@@ -35,7 +35,7 @@ var (
 	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
 )
 
-// NewUnknownNamespace returns a new error indicating an unknown namespace parameter.
+// NewUnknownNamespaceError returns a new error indicating an unknown namespace parameter.
 func NewUnknownNamespaceError(namespace string) error {
 	return xerrors.NewInvalidParamsError(unknownNamespace{namespace})
 }
