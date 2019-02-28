@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
@@ -284,7 +285,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 		close(mapCh)
 	}()
 	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
-	require.Equal(t, "no such namespace nonexistent", err.Error())
+	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
 func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {

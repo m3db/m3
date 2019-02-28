@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,39 +21,13 @@
 package errors
 
 import (
-	"errors"
-	"fmt"
+	"testing"
 
-	xerrors "github.com/m3db/m3x/errors"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	// ErrTooFuture is returned for a write which is too far in the future.
-	ErrTooFuture = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the future"))
-
-	// ErrTooPast is returned for a write which is too far in the past.
-	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
-)
-
-// NewUnknownNamespace returns a new error indicating an unknown namespace parameter.
-func NewUnknownNamespaceError(namespace string) error {
-	return xerrors.NewInvalidParamsError(unknownNamespace{namespace})
-}
-
-type unknownNamespace struct {
-	namespace string
-}
-
-func (e unknownNamespace) Error() string {
-	return fmt.Sprintf("unknown namespace: %s", e.namespace)
-}
-
-// IsUnknownNamespace returns true if this is an unknown namespace.
-func IsUnknownNamespaceError(err error) bool {
-	nsErr := xerrors.GetInnerInvalidParamsError(err)
-	if nsErr == nil {
-		return false
-	}
-	_, ok := nsErr.(unknownNamespace)
-	return ok
+func TestUnknownNamespaceError(t *testing.T) {
+	err := NewUnknownNamespaceError("ns")
+	require.Equal(t, "unknown namespace: ns", err.Error())
+	require.True(t, IsUnknownNamespaceError(err))
 }

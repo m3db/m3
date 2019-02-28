@@ -295,7 +295,63 @@ func TestServiceQueryOverloaded(t *testing.T) {
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
+func TestServiceQueryUnknownNs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	enc := testStorageOpts.EncoderPool().Get()
+	enc.Reset(start, 0)
+
+	nsID := "metrics"
+	unknownErr := fmt.Errorf("unknown-error")
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	mockDB.EXPECT().QueryIDs(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+			Limit:          10,
+		}).Return(index.QueryResults{}, unknownErr)
+
+	limit := int64(10)
+	_, err = service.Query(tctx, &rpc.QueryRequest{
+		Query: &rpc.Query{
+			Regexp: &rpc.RegexpQuery{
+				Field:  "foo",
+				Regexp: "b.*",
+			},
+		},
+		RangeStart:     start.Unix(),
+		RangeEnd:       end.Unix(),
+		RangeType:      rpc.TimeType_UNIX_SECONDS,
+		NameSpace:      nsID,
+		Limit:          &limit,
+		ResultTimeType: rpc.TimeType_UNIX_SECONDS,
+	})
+	require.Error(t, err)
+	require.Equal(t, convert.ToRPCError(unknownErr), err)
+}
+
 func TestServiceFetch(t *testing.T) {
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -394,6 +450,41 @@ func TestServiceFetchIsOverloaded(t *testing.T) {
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
+func TestServiceFetchUnknownNs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	nsID := "metrics"
+	unknownErr := fmt.Errorf("unknown-err")
+
+	mockDB.EXPECT().
+		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
+		Return(nil, unknownErr)
+
+	_, err := service.Fetch(tctx, &rpc.FetchRequest{
+		RangeStart:     start.Unix(),
+		RangeEnd:       end.Unix(),
+		RangeType:      rpc.TimeType_UNIX_SECONDS,
+		NameSpace:      nsID,
+		ID:             "foo",
+		ResultTimeType: rpc.TimeType_UNIX_SECONDS,
+	})
+	require.Error(t, err)
+	require.Equal(t, convert.ToRPCError(unknownErr), err)
+}
+
 func TestServiceFetchBatchRaw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -489,6 +580,55 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		assert.Equal(t, expectHead, seg.Merged.Head)
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
+}
+
+func TestServiceFetchBatchRawUnknownError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	nsID := "metrics"
+	unknownErr := fmt.Errorf("unknown-err")
+
+	series := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"foo": {
+			{start.Add(10 * time.Second), 1.0},
+			{start.Add(20 * time.Second), 2.0},
+		},
+	}
+	for id := range series {
+		mockDB.EXPECT().
+			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			Return(nil, unknownErr)
+	}
+
+	ids := [][]byte{[]byte("foo")}
+	r, err := service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
+		RangeStart:    start.Unix(),
+		RangeEnd:      end.Unix(),
+		RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		NameSpace:     []byte(nsID),
+		Ids:           ids,
+	})
+	require.NoError(t, err)
+	require.Len(t, r.Elements, 1)
+	require.Equal(t, convert.ToRPCError(unknownErr), r.Elements[0].Err)
 }
 
 func TestServiceFetchBatchRawIsOverloaded(t *testing.T) {
@@ -1375,6 +1515,68 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestServiceWriteTaggedBatchRawUnknownError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	mockDecoder := serialize.NewMockTagDecoder(ctrl)
+	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
+	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
+	mockDecoder.EXPECT().Close().AnyTimes()
+	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
+	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
+
+	opts := tchannelthrift.NewOptions().
+		SetTagDecoderPool(mockDecoderPool)
+
+	service := NewService(mockDB, opts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+	unknownErr := fmt.Errorf("unknown-err")
+	values := []struct {
+		id        string
+		tagEncode string
+		t         time.Time
+		v         float64
+	}{
+		{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
+		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
+	}
+
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
+		Return(nil, unknownErr)
+
+	var elements []*rpc.WriteTaggedBatchRawRequestElement
+	for _, w := range values {
+		elem := &rpc.WriteTaggedBatchRawRequestElement{
+			ID:          []byte(w.id),
+			EncodedTags: []byte(w.tagEncode),
+			Datapoint: &rpc.Datapoint{
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
+		NameSpace: []byte(nsID),
+		Elements:  elements,
+	})
+	require.Error(t, err)
+	require.Equal(t, convert.ToRPCError(unknownErr), err)
+}
+
 func TestServiceRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

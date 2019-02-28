@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -894,7 +895,7 @@ func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("no such namespace %s", namespace)
+		return nil, dberrors.NewUnknownNamespaceError(namespace.String())
 	}
 	return n, nil
 }
