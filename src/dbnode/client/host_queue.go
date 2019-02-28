@@ -359,6 +359,7 @@ func (q *queue) asyncTaggedWrite(
 		}
 
 		// Entire batch failed
+
 		callAllCompletionFns(ops, q.host, err)
 		cleanup()
 	})
