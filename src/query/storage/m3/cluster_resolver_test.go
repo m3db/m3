@@ -290,9 +290,20 @@ var testCases = []struct {
 		expectedType:         namespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
+	{
+		name:        "all enabled long range",
+		queryLength: time.Hour * 1000,
+		opts: &storage.FanoutOptions{
+			FanoutUnaggregated:        storage.FanoutForceEnable,
+			FanoutAggregated:          storage.FanoutForceEnable,
+			FanoutAggregatedOptimized: storage.FanoutForceEnable,
+		},
+		expectedType:         namespaceCoversPartialQueryRange,
+		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
+	},
 }
 
-func TestCases(t *testing.T) {
+func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	clusters := generateClusters(t, ctrl)
