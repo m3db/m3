@@ -25,6 +25,7 @@ package main_test
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"text/template"
@@ -37,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/server"
+	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
 	xconfig "github.com/m3db/m3x/config"
@@ -207,6 +209,20 @@ func TestIndexEnabledServer(t *testing.T) {
 		{value: 1.0, at: start, unit: xtime.Second},
 		{value: 2.0, at: start.Add(1 * time.Second), unit: xtime.Second},
 		{value: 3.0, at: start.Add(2 * time.Second), unit: xtime.Second},
+	}
+
+	// unknown ns test
+	randomNs := "random-ns"
+	for _, v := range values {
+		err := session.WriteTagged(ident.StringID(randomNs),
+			ident.StringID("foo"),
+			ident.NewTagsIterator(ident.NewTags(
+				ident.StringTag("foo", "bar"),
+				ident.StringTag("baz", "foo"),
+			)),
+			v.at, v.value, v.unit, nil)
+		require.Error(t, err)
+		require.True(t, strings.Contains(err.Error(), dberrors.NewUnknownNamespaceError(randomNs).Error()))
 	}
 
 	for _, v := range values {

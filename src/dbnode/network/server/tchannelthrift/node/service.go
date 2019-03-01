@@ -410,7 +410,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	queryResult, err := s.db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(err)
+		return nil, convert.ToRPCError(err)
 	}
 
 	response := &rpc.FetchTaggedResult_{
@@ -844,6 +844,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
+		return convert.ToRPCError(err)
 		return err
 	}
 
@@ -875,7 +876,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 
 	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
 	if err != nil {
-		return err
+		return convert.ToRPCError(err)
 	}
 
 	nonRetryableErrors += pooledReq.numNonRetryableErrors()
@@ -917,7 +918,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
-		return err
+		return convert.ToRPCError(err)
 	}
 
 	for i, elem := range req.Elements {
@@ -955,7 +956,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 
 	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, pooledReq)
 	if err != nil {
-		return err
+		return convert.ToRPCError(err)
 	}
 
 	nonRetryableErrors += pooledReq.numNonRetryableErrors()
@@ -994,7 +995,6 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 	truncated, err := s.db.Truncate(s.newID(ctx, req.NameSpace))
-
 	if err != nil {
 		s.metrics.truncate.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
