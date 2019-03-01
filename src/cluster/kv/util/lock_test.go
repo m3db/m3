@@ -909,7 +909,12 @@ func TestWatchAndUpdateWithValidationGeneric(t *testing.T) {
 		testConfig.RLock()
 		defer testConfig.RUnlock()
 
-		return testConfig.v
+		clonedMap := make(map[string]int64, len(testconfig.v))
+		for k, v := range testConfig.v {
+			clonedMap[k] = v
+		}
+
+		return clonedMap
 	}
 
 	var (
@@ -938,7 +943,7 @@ func TestWatchAndUpdateWithValidationGeneric(t *testing.T) {
 		start := time.Now()
 		for {
 			value := valueFn()
-			if time.Now().Sub(start) >= time.Second*5 {
+			if time.Since(start) >= time.Second*5 {
 				require.FailNow(t, fmt.Sprintf("Exceeded timeout while waiting for "+
 					"generic update result; expected %v, got %v", m, value))
 			}
