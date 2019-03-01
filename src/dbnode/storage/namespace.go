@@ -556,16 +556,17 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, err
+		return ts.Series{}, false, err
 	}
-	series, err := shard.Write(ctx, id, timestamp, value, unit, annotation)
+	series, wasWritten, err := shard.Write(ctx, id, timestamp,
+		value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -576,20 +577,21 @@ func (n *dbNamespace) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, errNamespaceIndexingDisabled
+		return ts.Series{}, false, errNamespaceIndexingDisabled
 	}
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, err
+		return ts.Series{}, false, err
 	}
-	series, err := shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
+		value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) QueryIDs(

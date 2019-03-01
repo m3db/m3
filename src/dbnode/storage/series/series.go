@@ -282,11 +282,11 @@ func (s *dbSeries) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) error {
+) (bool, error) {
 	s.Lock()
-	err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
+	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
 	s.Unlock()
-	return err
+	return wasWritten, err
 }
 
 func (s *dbSeries) ReadEncoded(

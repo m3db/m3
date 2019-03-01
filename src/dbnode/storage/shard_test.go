@@ -408,6 +408,19 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 	return series
 }
 
+func writeShardAndVerify(
+	ctx context.Context, t *testing.T, shard *dbShard, id string,
+	now time.Time, value float64, expectedShouldWrite bool, expectedIdx uint64,
+) {
+	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
+		now, value, xtime.Second, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedShouldWrite, wasWritten)
+	assert.Equal(t, id, series.ID.String())
+	assert.Equal(t, "testns1", series.Namespace.String())
+	assert.Equal(t, expectedIdx, series.UniqueIndex)
+}
+
 func TestShardTick(t *testing.T) {
 	now := time.Now()
 	nowLock := sync.RWMutex{}
@@ -455,9 +468,20 @@ func TestShardTick(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, true, 0)
+	// same time, different value should write
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, true, 0)
+
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, true, 1)
+	// same tme, same value should not write
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, false, 1)
+
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, true, 2)
+	// different time, same value should write
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, true, 2)
+
+	// same time, same value should not write, regardless of being out of order
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, false, 0)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
@@ -470,7 +494,6 @@ func TestShardTick(t *testing.T) {
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
 }
-
 func TestShardWriteAsync(t *testing.T) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
@@ -748,7 +771,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
-		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		s.EXPECT().Write(gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()

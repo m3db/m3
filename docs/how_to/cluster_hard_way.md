@@ -190,7 +190,7 @@ Read more about namespaces and the various knobs in the docs.
 Now you can experiment with writing tagged metrics:
 
 ```json
-curl -sSf -X POST localhost:9003/writetagged -d '{
+curl -sS -X POST localhost:9003/writetagged -d '{
   "namespace": "metrics",
   "id": "foo",
   "tags": [
@@ -213,7 +213,7 @@ curl -sSf -X POST localhost:9003/writetagged -d '{
 And reading the metrics you've written:
 
 ```json
-curl -sSf -X POST http://localhost:9003/query -d '{
+curl -sS -X POST http://localhost:9003/query -d '{
   "namespace": "metrics",
   "query": {
     "regexp": {
