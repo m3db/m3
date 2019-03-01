@@ -32,6 +32,14 @@ type getValueFn func(kv.Value) (interface{}, error)
 
 type updateFn func(interface{})
 
+// GenericGetValueFn runs when a watched value changes to translate the KV
+// value to a concrete type.
+type GenericGetValueFn getValueFn
+
+// GenericUpdateFn runs when a watched value changes and receives the output of
+// the GenericGetValueFn.
+type GenericUpdateFn updateFn
+
 // Options is a set of options for kv utility functions.
 type Options interface {
 	// SetValidateFn sets the validation function applied to kv values.

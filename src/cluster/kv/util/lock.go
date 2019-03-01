@@ -187,3 +187,25 @@ func WatchAndUpdateTime(
 		store, key, getTime, updateFn, opts.ValidateFn(), defaultValue, opts.Logger(),
 	)
 }
+
+// WatchAndUpdateGeneric sets up a watch with validation for a generic property.
+// Any malformed, or invalid updates are not applied. The default value is
+// applied when the key does not exist in KV. The watch on the value is returned.
+func WatchAndUpdateGeneric(
+	store kv.Store,
+	key string,
+	genericGetFn GenericGetValueFn,
+	genericUpdateFn GenericUpdateFn,
+	lock sync.Locker,
+	defaultValue interface{},
+	opts Options,
+) (kv.ValueWatch, error) {
+	if opts == nil {
+		opts = NewOptions()
+	}
+
+	updateFn := lockedUpdate(updateFn(genericUpdateFn), lock)
+	return watchAndUpdate(
+		store, key, getValueFn(genericGetFn), updateFn, opts.ValidateFn(), defaultValue, opts.Logger(),
+	)
+}
