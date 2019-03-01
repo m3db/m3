@@ -53,7 +53,7 @@ going to `localhost:7201/api/v1/openapi` in your browser.
 
 Now you can experiment with writing tagged metrics:
 ```json
-curl -sSf -X POST http://localhost:9003/writetagged -d '{
+curl -sS -X POST http://localhost:9003/writetagged -d '{
   "namespace": "default",
   "id": "foo",
   "tags": [
@@ -76,7 +76,7 @@ curl -sSf -X POST http://localhost:9003/writetagged -d '{
 
 And reading the metrics you've written:
 ```json
-curl -sSf -X POST http://localhost:9003/query -d '{
+curl -sS -X POST http://localhost:9003/query -d '{
   "namespace": "default",
   "query": {
     "regexp": {
