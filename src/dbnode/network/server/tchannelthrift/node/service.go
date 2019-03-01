@@ -34,7 +34,6 @@ import (
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -409,12 +408,9 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 
 	queryResult, err := s.db.QueryIDs(ctx, ns, query, opts)
-	if dberrors.IsUnknownNamespaceError(err) {
+	if err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
-	} else if err != nil {
-		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(err)
 	}
 
 	response := &rpc.FetchTaggedResult_{
@@ -847,9 +843,8 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	)
 
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
-	if dberrors.IsUnknownNamespaceError(err) {
+	if err != nil {
 		return convert.ToRPCError(err)
-	} else if err != nil {
 		return err
 	}
 
@@ -880,10 +875,8 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	}
 
 	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
-	if dberrors.IsUnknownNamespaceError(err) {
+	if err != nil {
 		return convert.ToRPCError(err)
-	} else if err != nil {
-		return err
 	}
 
 	nonRetryableErrors += pooledReq.numNonRetryableErrors()

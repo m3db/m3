@@ -48,7 +48,7 @@ func (e unknownNamespace) Error() string {
 	return fmt.Sprintf("unknown namespace: %s", e.namespace)
 }
 
-// IsUnknownNamespace returns true if this is an unknown namespace.
+// IsUnknownNamespaceError returns true if this is an unknown namespace.
 func IsUnknownNamespaceError(err error) bool {
 	nsErr := xerrors.GetInnerInvalidParamsError(err)
 	if nsErr == nil {

@@ -295,7 +295,7 @@ func TestServiceQueryOverloaded(t *testing.T) {
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
-func TestServiceQueryUnknownNs(t *testing.T) {
+func TestServiceQueryUnknownErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -351,7 +351,6 @@ func TestServiceQueryUnknownNs(t *testing.T) {
 }
 
 func TestServiceFetch(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -450,7 +449,7 @@ func TestServiceFetchIsOverloaded(t *testing.T) {
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
-func TestServiceFetchUnknownNs(t *testing.T) {
+func TestServiceFetchUnknownErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockDB := storage.NewMockDatabase(ctrl)
