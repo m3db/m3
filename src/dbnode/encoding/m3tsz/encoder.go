@@ -382,6 +382,7 @@ func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
 		enc.os.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
 		return
 	}
+
 	enc.os.WriteBits(opcodeUncontainedValueXOR, 2)
 	enc.os.WriteBits(uint64(curLeading), 6)
 	numMeaningfulBits := 64 - curLeading - curTrailing
