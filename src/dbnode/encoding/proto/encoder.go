@@ -122,6 +122,8 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 			prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
 			curVal := m.GetFieldByNumber(int(field.GetNumber()))
 			if fieldsEqual(curVal, prevVal) {
+				fmt.Println("curVal: ", curVal)
+				fmt.Println("prevVal: ", prevVal)
 				// Clear fields that haven't changed.
 				fmt.Println("clearing field: ", field.GetNumber())
 				m.ClearFieldByNumber(int(field.GetNumber()))
@@ -131,11 +133,21 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 			}
 		}
 	}
+
+	if len(changedFields) == 0 && enc.lastEncoded != nil {
+		// Only want to skip encoding if nothing has changed AND we've already
+		// encoded the first message.
+		enc.stream.WriteBit(0)
+		return nil
+	}
+
+	fmt.Println("MARSHALING:", m.String())
 	marshaled, err := m.Marshal()
 	if err != nil {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
 	}
 
+	enc.stream.WriteBit(1)
 	enc.writeBitset(changedFields...)
 	enc.writeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)

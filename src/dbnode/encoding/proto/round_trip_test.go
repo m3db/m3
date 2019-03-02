@@ -90,7 +90,7 @@ func TestRoundtrip(t *testing.T) {
 
 		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.latitude}, xtime.Second, nil)
 		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.longitude}, xtime.Second, nil)
-		require.NoError(t, err)
+		// require.NoError(t, err)
 	}
 
 	// seg := tszEncoder.Discard()

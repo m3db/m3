@@ -80,6 +80,17 @@ func (it *iterator) readTSZValues() {
 }
 
 func (it *iterator) readProtoValues() {
+	bit, err := it.stream.ReadBit()
+	if err != nil {
+		it.err = err
+		return
+	}
+
+	if bit == 0 {
+		// No changes since previous message.
+		return
+	}
+
 	// TODO: Check error after this function call
 	// TODO: if a field exists in the changedbitset,
 	// but we don't have an explicit value for it in the unmarshaled
@@ -104,7 +115,7 @@ func (it *iterator) readProtoValues() {
 	}
 
 	currMessage := dynamic.NewMessage(it.schema)
-	err := currMessage.Unmarshal(buf)
+	err = currMessage.Unmarshal(buf)
 	if err != nil {
 		it.err = err
 		return
@@ -174,7 +185,11 @@ func (it *iterator) readVarInt() uint64 {
 }
 
 func (it *iterator) Current() *dynamic.Message {
+	if it.lastIterated == nil {
+		it.lastIterated = dynamic.NewMessage(it.schema)
+	}
 	for _, field := range it.tszFields {
+		// TODO: Change to try
 		it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float64frombits(field.prevFloatBits))
 	}
 	return it.lastIterated
