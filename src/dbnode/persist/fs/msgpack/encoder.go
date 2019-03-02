@@ -268,6 +268,7 @@ func (enc *Encoder) encodeLogInfo(info schema.LogInfo) {
 	enc.encodeNumObjectFieldsForFn(logInfoType)
 
 	// Deprecated, have to encode anyways for backwards compatibility, but we ignore the values.
+	// TODO(V1): Remove when we make backwards incompatible changes with an upgrade to V1.
 	enc.encodeVarintFn(info.DeprecatedDoNotUseStart)
 	enc.encodeVarintFn(info.DeprecatedDoNotUseDuration)
 
