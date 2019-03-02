@@ -102,14 +102,15 @@ func openAndServe(
 
 	contextPool := opts.ContextPool()
 	ttopts := tchannelthrift.NewOptions()
-	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, contextPool, nil, ttopts).ListenAndServe()
+	service := ttnode.NewService(db, ttopts)
+	nativeNodeClose, err := ttnode.NewServer(service, tchannelNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
 	}
 	defer nativeNodeClose()
 	logger.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
 
-	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, contextPool, nil, ttopts).ListenAndServe()
+	httpjsonNodeClose, err := hjnode.NewServer(service, httpNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpNodeAddr, err)
 	}
