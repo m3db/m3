@@ -1,5 +1,22 @@
 # Changelog
 
+# 0.7.0 (UNRELEASED)
+
+## Migration Disclaimer
+
+Version 0.7.0 of M3 includes a redesign of the snapshotting and commitlog components. This redesign was critical to improving M3DB's consistency guarantees, reducing the amount of disk space that is wasted by commitlogs, and enabling future feature development to support writing data at arbitrary times.
+
+The redesign is **backwards compatible** but not **forwards compatible**. This means that you should be able upgrade your < 0.7.0 clusters to 0.7.0 with no issues, but you will not be able to downgrade without taking some additional steps. Note that the first bootstrap after the upgrade may take longer than usual, but subsequent bootstraps should be just as fast as they used to be, or even faster.
+
+### Troubleshotting and Rolling Back
+
+If you run into any issues with the upgrade or need to downgrade to a previous version for any reason, follow these steps:
+
+1. Stop the node that is having trouble with the upgrade or that you're trying to downgrade.
+2. Modify the `bootstrappers` config in the M3DB YAML file from `filesystem, commitlog, peers, uninitialize_topology` to `filesystem, peers, commitlog, uninitialized_topology`. This will force the node to bootstrap from its peers instead of the local snapshot and commitlog files it has on disk, bypassing any issues related to file incompatibility between versions.
+3. Turn the node back on and wait for it to finish bootstrapping and snapshotting. Once everything looks stable, change the config back to `filesystem, commitlog, peers, uninitialize_topology` so  that the next time the node is restarted it will default to using the snapshot and commitlog files.
+
+
 # 0.6.1 (2019-02-20)
 
 ## Bug fixes
