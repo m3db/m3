@@ -75,6 +75,11 @@ func TestRoundtrip(t *testing.T) {
 			longitude:  2.5,
 			deliveryID: []byte("456"),
 		},
+		{
+			latitude:   0.6,
+			longitude:  2.6,
+			deliveryID: nil,
+		},
 	}
 
 	// tszEncoder := m3tsz.NewEncoder(time.Time{}, nil, false, testEncodingOptions)

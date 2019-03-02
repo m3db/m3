@@ -105,6 +105,7 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 }
 
 func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
+	var changedFields []int
 	if enc.lastEncoded != nil {
 		// Clone before mutating.
 		orig := m
@@ -115,18 +116,19 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		//    If same, remove.
 		//    else, leave it in
 		schemaFields := enc.schema.GetFields()
+		// TODO: Need to make sure there are no unknown fields
 		for _, field := range m.GetKnownFields() {
 			if !enc.fieldsContains(field.GetNumber(), schemaFields) {
-				fmt.Println("clearing field1: ", field.GetNumber())
+				// Clear fields that don't exist in the schema.
 				m.ClearFieldByNumber(int(field.GetNumber()))
 			} else {
 				prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
 				curVal := m.GetFieldByNumber(int(field.GetNumber()))
-				fmt.Println("prevVal: ", prevVal)
-				fmt.Println("curVal: ", curVal)
 				if fieldsEqual(curVal, prevVal) {
-					fmt.Println("clearing field2: ", field.GetNumber())
+					// Clear fields that haven't changed.
 					m.ClearFieldByNumber(int(field.GetNumber()))
+				} else {
+					changedFields = append(changedFields, int(field.GetNumber()))
 				}
 			}
 		}
@@ -136,6 +138,7 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
 	}
 
+	enc.writeBitset(changedFields...)
 	enc.writeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 

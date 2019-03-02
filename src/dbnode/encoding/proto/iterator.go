@@ -80,8 +80,15 @@ func (it *iterator) readTSZValues() {
 }
 
 func (it *iterator) readProtoValues() {
+	// TODO: Check error after this function call
+	// TODO: if a field exists in the changedbitset,
+	// but we don't have an explicit value for it in the unmarshaled
+	// message that means the caller set it to a default value.
+	// So we need to handle that here
+	changedFieldNums := it.readBitset()
+
+	// TODO: Check error after this?
 	marshalLen := it.readVarInt()
-	fmt.Println("marshalLen: ", marshalLen)
 	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
@@ -95,11 +102,54 @@ func (it *iterator) readProtoValues() {
 	if it.lastIterated == nil {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
-	err := it.lastIterated.UnmarshalMerge(buf)
+
+	currMessage := dynamic.NewMessage(it.schema)
+	err := currMessage.Unmarshal(buf)
 	if err != nil {
 		it.err = err
 		return
 	}
+	// err := it.lastIterated.UnmarshalMerge(buf)
+	// if err != nil {
+	// 	it.err = err
+	// 	return
+	// }
+	it.lastIterated.MergeFrom(currMessage)
+	// Loop through all changed fields
+	// if they are "default value" in the new unmarshaled message
+	// set them to default value in the old message
+	fmt.Println("len(changedFieldNums)", len(changedFieldNums))
+	for _, fieldNum := range changedFieldNums {
+		fmt.Println("changed fieldNum: ", fieldNum)
+		var (
+			fieldDesc         = it.schema.FindFieldByNumber(int32(fieldNum))
+			fieldDefaultValue = fieldDesc.GetDefaultValue()
+			existingVal       = currMessage.GetFieldByNumber(fieldNum)
+		)
+		if existingVal == fieldDefaultValue {
+			fmt.Println("clearing fieldNum: ", fieldNum)
+			it.lastIterated.ClearFieldByNumber(fieldNum)
+		}
+	}
+}
+
+func (it *iterator) readBitset() []int {
+	vals := []int{}
+	bitsetLengthBits := it.readVarInt()
+	for i := uint64(0); i < bitsetLengthBits; i++ {
+		bit, err := it.stream.ReadBit()
+		// TODO: This function should just return an error
+		if err != nil {
+			it.err = err
+			return nil
+		}
+
+		if bit == 1 {
+			vals = append(vals, int(i))
+		}
+	}
+
+	return vals
 }
 
 func (it *iterator) readVarInt() uint64 {
