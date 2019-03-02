@@ -24,49 +24,43 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
-	ttnode "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3x/context"
 )
 
 type server struct {
 	address string
-	db      storage.Database
+	service rpc.TChanNode
 	opts    httpjson.ServerOptions
 	ttopts  tchannelthrift.Options
 }
 
 // NewServer creates a node HTTP network service
 func NewServer(
-	db storage.Database,
+	service rpc.TChanNode,
 	address string,
 	contextPool context.Pool,
 	opts httpjson.ServerOptions,
-	ttopts tchannelthrift.Options,
 ) ns.NetworkService {
 	if opts == nil {
 		opts = httpjson.NewServerOptions()
-	}
-	if ttopts == nil {
-		ttopts = tchannelthrift.NewOptions()
 	}
 	opts = opts.
 		SetContextFn(httpjson.NewDefaultContextFn(contextPool)).
 		SetPostResponseFn(httpjson.DefaulPostResponseFn)
 	return &server{
 		address: address,
-		db:      db,
+		service: service,
 		opts:    opts,
-		ttopts:  ttopts,
 	}
 }
 
 func (s *server) ListenAndServe() (ns.Close, error) {
 	mux := http.NewServeMux()
-	if err := httpjson.RegisterHandlers(mux, ttnode.NewService(s.db, s.ttopts), s.opts); err != nil {
+	if err := httpjson.RegisterHandlers(mux, s.service, s.opts); err != nil {
 		return nil, err
 	}
 
