@@ -136,13 +136,7 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
 	}
 
-	// TODO: Reuse this
-	buf := make([]byte, 8)
-	numBytes := binary.PutUvarint(buf, uint64(len(marshaled)))
-	buf = buf[:numBytes]
-	fmt.Println("num uvarint bbytes: ", numBytes)
-	fmt.Println("len marshaled: ", len(marshaled))
-	enc.stream.WriteBytes(buf)
+	enc.writeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 
 	return nil
@@ -170,6 +164,40 @@ func (enc *encoder) writeNextTSZValue(i int, next float64) {
 	m3tsz.WriteXOR(enc.stream, enc.tszFields[i].prevXOR, curXOR)
 	enc.tszFields[i].prevFloatBits = curFloatBits
 	enc.tszFields[i].prevXOR = curXOR
+}
+
+func (enc *encoder) writeBitset(values ...int) {
+	var max int
+	for _, v := range values {
+		if v > max {
+			max = v
+		}
+	}
+
+	// Encode a varint that indicates how many of the remaining
+	// bits to interpret as a bitset.
+	enc.writeVarInt(uint64(max))
+
+	// Encode the bitset
+outer:
+	for i := 0; i < max; i++ {
+		for _, v := range values {
+			if v == i {
+				enc.stream.WriteBit(1)
+				break outer
+			}
+		}
+
+		enc.stream.WriteBit(0)
+	}
+}
+
+func (enc *encoder) writeVarInt(x uint64) {
+	// TODO: Reuse this
+	buf := make([]byte, 8)
+	numBytes := binary.PutUvarint(buf, x)
+	buf = buf[:numBytes]
+	enc.stream.WriteBytes(buf)
 }
 
 // const (

@@ -80,25 +80,9 @@ func (it *iterator) readTSZValues() {
 }
 
 func (it *iterator) readProtoValues() {
-	// it.stream.
-	// binary.LittleEndian.
-	// TODO: Reuse
-	buf := make([]byte, 0, 0)
-	for {
-		b, err := it.stream.ReadByte()
-		if err != nil {
-			it.err = err
-			return
-		}
-		buf = append(buf, b)
-		if b>>7 == 0 {
-			break
-		}
-	}
-
-	marshalLen, _ := binary.Uvarint(buf)
+	marshalLen := it.readVarInt()
 	fmt.Println("marshalLen: ", marshalLen)
-	buf = make([]byte, 0, marshalLen)
+	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
 		if err != nil {
@@ -116,6 +100,26 @@ func (it *iterator) readProtoValues() {
 		it.err = err
 		return
 	}
+}
+
+func (it *iterator) readVarInt() uint64 {
+	// TODO: Reuse
+	buf := make([]byte, 0, 0)
+	for {
+		b, err := it.stream.ReadByte()
+		if err != nil {
+			// TODO: SHOULD THIS function just return an error
+			it.err = err
+			return 0
+		}
+		buf = append(buf, b)
+		if b>>7 == 0 {
+			break
+		}
+	}
+
+	varInt, _ := binary.Uvarint(buf)
+	return varInt
 }
 
 func (it *iterator) Current() *dynamic.Message {
