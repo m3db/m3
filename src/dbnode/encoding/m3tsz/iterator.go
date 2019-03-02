@@ -290,12 +290,12 @@ func (it *readerIterator) readTimeUnit() {
 
 func (it *readerIterator) readXOR() uint64 {
 	cb := it.readBits(1)
-	if cb == opcodeZeroValueXOR {
+	if cb == OpcodeZeroValueXOR {
 		return 0
 	}
 
 	cb = (cb << 1) | it.readBits(1)
-	if cb == opcodeContainedValueXOR {
+	if cb == OpcodeContainedValueXOR {
 		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(it.xor)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing
 		return it.readBits(numMeaningfulBits) << uint(previousTrailing)

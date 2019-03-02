@@ -27,6 +27,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
 type iterator struct {
@@ -107,14 +108,12 @@ func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64) {
 
 func (it *iterator) readXOR(i int) uint64 {
 	cb := it.readBits(1)
-	// Share opcodeZeroValueXOR constant
-	if cb == 0x0 {
+	if cb == m3tsz.OpcodeZeroValueXOR {
 		return 0
 	}
 
 	cb = (cb << 1) | it.readBits(1)
-	// Share opcodeContainedValueXOR constant
-	if cb == 0x2 {
+	if cb == m3tsz.OpcodeContainedValueXOR {
 		previousXOR := it.tszFields[i].prevXOR
 		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(previousXOR)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing

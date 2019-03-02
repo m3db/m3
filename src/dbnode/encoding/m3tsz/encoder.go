@@ -372,7 +372,7 @@ func WriteXOR(
 	stream encoding.OStream,
 	prevXOR, curXOR uint64) {
 	if curXOR == 0 {
-		stream.WriteBits(opcodeZeroValueXOR, 1)
+		stream.WriteBits(OpcodeZeroValueXOR, 1)
 		return
 	}
 
@@ -380,12 +380,12 @@ func WriteXOR(
 	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
 	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(curXOR)
 	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		stream.WriteBits(opcodeContainedValueXOR, 2)
+		stream.WriteBits(OpcodeContainedValueXOR, 2)
 		stream.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
 		return
 	}
 
-	stream.WriteBits(opcodeUncontainedValueXOR, 2)
+	stream.WriteBits(OpcodeUncontainedValueXOR, 2)
 	stream.WriteBits(uint64(curLeading), 6)
 	numMeaningfulBits := 64 - curLeading - curTrailing
 	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
