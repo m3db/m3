@@ -25,11 +25,15 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,8 +50,8 @@ func TestRoundtrip(t *testing.T) {
 		deliveryID []byte
 	}{
 		{
-			latitude:   0,
-			longitude:  1,
+			latitude:   0.1,
+			longitude:  1.1,
 			deliveryID: []byte("123"),
 		},
 		{
@@ -77,16 +81,20 @@ func TestRoundtrip(t *testing.T) {
 		},
 	}
 
-	// tszEncoder := m3tsz.NewEncoder(time.Time{}, nil, false, testEncodingOptions)
+	tszEncoder := m3tsz.NewEncoder(time.Time{}, nil, false, testEncodingOptions)
 	for _, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.deliveryID)
 		err := enc.Encode(vl)
 		require.NoError(t, err)
 
-		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.latitude}, xtime.Second, nil)
-		// require.NoError(t, err)
+		err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.latitude}, xtime.Second, nil)
+		err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.longitude}, xtime.Second, nil)
+		require.NoError(t, err)
 	}
 
+	seg := tszEncoder.Discard()
+	fmt.Println("m3tsz size: ", seg.Head.Len()+seg.Tail.Len())
+	// fmt.Println(tszEncoder.)
 	// TODO: Fix this, need a discard method or w/e.
 	checkedBytes, _ := enc.stream.Rawbytes()
 	rawBytes := checkedBytes.Bytes()

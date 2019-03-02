@@ -23,6 +23,7 @@ package proto
 import (
 	"math"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -144,9 +145,8 @@ func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldStat
 	fields := schema.GetFields()
 	for _, field := range fields {
 		fieldType := field.GetType()
-		// TODO: Fix
-		if fieldType == 1 ||
-			fieldType == 2 {
+		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
 			s = append(s, tszFieldState{
 				fieldNum: int(field.GetNumber()),
 			})
@@ -164,9 +164,8 @@ func numTSZFields(schema *desc.MessageDescriptor) int {
 
 	for _, field := range fields {
 		fieldType := field.GetType()
-		// TODO: Fix
-		if fieldType == 1 ||
-			fieldType == 2 {
+		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
 			numTSZFields++
 		}
 	}
