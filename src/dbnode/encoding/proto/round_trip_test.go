@@ -25,15 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,20 +77,19 @@ func TestRoundtrip(t *testing.T) {
 		},
 	}
 
-	tszEncoder := m3tsz.NewEncoder(time.Time{}, nil, false, testEncodingOptions)
+	// tszEncoder := m3tsz.NewEncoder(time.Time{}, nil, false, testEncodingOptions)
 	for _, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.deliveryID)
 		err := enc.Encode(vl)
 		require.NoError(t, err)
 
-		err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.latitude}, xtime.Second, nil)
-		err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.longitude}, xtime.Second, nil)
+		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.latitude}, xtime.Second, nil)
+		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.longitude}, xtime.Second, nil)
 		require.NoError(t, err)
 	}
 
-	seg := tszEncoder.Discard()
-	fmt.Println("m3tsz size: ", seg.Head.Len()+seg.Tail.Len())
-	// fmt.Println(tszEncoder.)
+	// seg := tszEncoder.Discard()
+	// fmt.Println("m3tsz size: ", seg.Head.Len()+seg.Tail.Len())
 	// TODO: Fix this, need a discard method or w/e.
 	checkedBytes, _ := enc.stream.Rawbytes()
 	rawBytes := checkedBytes.Bytes()
@@ -102,11 +97,14 @@ func TestRoundtrip(t *testing.T) {
 	fmt.Println("len(rawBytes): ", len(rawBytes))
 	iter, err := NewIterator(buff, testVLSchema, testEncodingOptions)
 	require.NoError(t, err)
-	for iter.Next() {
+	for _, tc := range testCases {
+		iter.Next()
 		m := iter.Current()
+		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
+		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
 		fmt.Println("yolo:", m)
 	}
-	panic("done")
+	// panic("done")
 }
 
 func newTestEncoder() *encoder {
