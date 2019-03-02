@@ -26,6 +26,7 @@ import (
 	"time"
 
 	jsonhandler "github.com/m3db/m3/src/collector/api/v1/handler/json"
+	"github.com/m3db/m3/src/collector/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/instrument"
@@ -77,6 +78,12 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.
 		Handle(jsonhandler.ReportURL, reportHandler).
 		Methods(jsonhandler.ReportHTTPMethod)
+
+	promWriteHandler := remote.NewPromWriteHandler(h.reporter, h.encoderPool,
+		h.decoderPool, h.instrumentOpts)
+	h.router.
+		Handle(remote.WriteURL, promWriteHandler).
+		Methods(remote.ReportHTTPMethod)
 
 	h.registerHealthEndpoints()
 

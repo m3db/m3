@@ -28,6 +28,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/matcher"
+	"github.com/m3db/m3/src/metrics/metric/id"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3collector/config"
 	"github.com/m3db/m3/src/collector/api/v1/httpd"
@@ -94,32 +98,17 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create etcd client", zap.Error(err))
 	}
 
+	pools := newAggregatorPool(instrumentOpts)
+
 	logger.Info("creating reporter")
-	reporter, err := newReporter(cfg.Reporter, clusterClient, instrumentOpts)
+	reporter, err := newReporter(cfg.Reporter, pools, clusterClient, instrumentOpts)
 	if err != nil {
 		logger.Fatal("could not create reporter", zap.Error(err))
 	}
 
-	tagEncoderOptions := serialize.NewTagEncoderOptions()
-	tagDecoderOptions := serialize.NewTagDecoderOptions()
-	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("tag-encoder-pool")))
-	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("tag-decoder-pool")))
-	tagEncoderPool := serialize.NewTagEncoderPool(tagEncoderOptions,
-		tagEncoderPoolOptions)
-	tagEncoderPool.Init()
-	tagDecoderPool := serialize.NewTagDecoderPool(tagDecoderOptions,
-		tagDecoderPoolOptions)
-	tagDecoderPool.Init()
-
 	logger.Info("creating http handlers and registering routes")
-	handler, err := httpd.NewHandler(reporter, tagEncoderPool,
-		tagDecoderPool, instrumentOpts)
+	handler, err := httpd.NewHandler(reporter, pools.tagEncoderPool,
+		pools.tagDecoderPool, instrumentOpts)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
@@ -174,6 +163,7 @@ func Run(runOpts RunOptions) {
 
 func newReporter(
 	cfg config.ReporterConfiguration,
+	pools aggPools,
 	clusterClient clusterclient.Client,
 	instrumentOpts instrument.Options,
 ) (reporter.Reporter, error) {
@@ -181,13 +171,64 @@ func newReporter(
 	logger := instrumentOpts.ZapLogger()
 	clockOpts := cfg.Clock.NewOptions()
 
+	matchOpts, err := cfg.Matcher.NewOptions(clusterClient, clockOpts, instrumentOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	nameTag := []byte(cfg.Matcher.NameTagKey)
+
+	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
+		it := pools.encodedTagsIteratorPool.Get()
+		it.Reset(tagPairs)
+		return it
+	}
+
+	tagsFilterOpts := filters.TagsFilterOptions{
+		NameTagKey: nameTag,
+		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
+			name, err := resolveEncodedTagsNameTag(id, pools.encodedTagsIteratorPool, nameTag)
+			if err != nil {
+				return nil, nil, err
+			}
+			// ID is always the encoded tags for IDs in the downsampler
+			tags := id
+			return name, tags, nil
+		},
+		SortedTagIteratorFn: sortedTagIteratorFn,
+	}
+
+	isRollupIDFn := func(name []byte, tags []byte) bool {
+		return isRollupID(tags, pools.encodedTagsIteratorPool)
+	}
+
+	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,
+		pools.tagEncoderPoolOptions)
+	newRollupIDProviderPool.Init()
+
+	newRollupIDFn := func(name []byte, tagPairs []id.TagPair) []byte {
+		tagPairs = append(tagPairs, id.TagPair{Name: []byte(nameTag), Value: name})
+		rollupIDProvider := newRollupIDProviderPool.Get()
+		id, err := rollupIDProvider.provide(tagPairs)
+		if err != nil {
+			panic(err) // Encoding should never fail
+		}
+		rollupIDProvider.finalize()
+		return id
+	}
+
+	matchOpts = matchOpts.SetRuleSetOptions(matchOpts.RuleSetOptions().
+		SetTagsFilterOptions(tagsFilterOpts).
+		SetNewRollupIDFn(newRollupIDFn).
+		SetIsRollupIDFn(isRollupIDFn))
+	matchOpts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(scope.SubScope("matcher")))
+
 	logger.Info("creating metrics matcher cache")
 	cache := cfg.Cache.NewCache(clockOpts,
 		instrumentOpts.SetMetricsScope(scope.SubScope("cache")))
 
 	logger.Info("creating metrics matcher")
-	matcher, err := cfg.Matcher.NewMatcher(cache, clusterClient, clockOpts,
-		instrumentOpts.SetMetricsScope(scope.SubScope("matcher")))
+	matcher, err := matcher.NewMatcher(cache, matchOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create matcher: %v", err)
 	}
@@ -209,4 +250,42 @@ func newReporter(
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts)
 	return m3aggregator.NewReporter(matcher, aggClient, reporterOpts), nil
+}
+
+type aggPools struct {
+	tagEncoderPool          serialize.TagEncoderPool
+	tagEncoderPoolOptions   pool.ObjectPoolOptions
+	tagDecoderPool          serialize.TagDecoderPool
+	tagDecoderPoolOptions   pool.ObjectPoolOptions
+	encodedTagsIteratorPool *encodedTagsIteratorPool
+}
+
+func newAggregatorPool(instrumentOpts instrument.Options) aggPools {
+	tagEncoderOptions := serialize.NewTagEncoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("tag-encoder-pool")))
+	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("tag-decoder-pool")))
+	tagEncoderPool := serialize.NewTagEncoderPool(tagEncoderOptions,
+		tagEncoderPoolOptions)
+	tagEncoderPool.Init()
+	tagDecoderPool := serialize.NewTagDecoderPool(tagDecoderOptions,
+		tagDecoderPoolOptions)
+	tagDecoderPool.Init()
+
+	encodedTagsIteratorPool := newEncodedTagsIteratorPool(tagDecoderPool,
+		tagDecoderPoolOptions)
+	encodedTagsIteratorPool.Init()
+	return aggPools{
+		tagDecoderPool:          tagDecoderPool,
+		tagDecoderPoolOptions:   tagDecoderPoolOptions,
+		tagEncoderPool:          tagEncoderPool,
+		tagEncoderPoolOptions:   tagEncoderPoolOptions,
+		encodedTagsIteratorPool: encodedTagsIteratorPool,
+	}
 }
