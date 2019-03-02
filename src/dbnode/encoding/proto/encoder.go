@@ -26,6 +26,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3x/checked"
 )
 
@@ -92,44 +93,11 @@ func (enc *encoder) writeFirstTSZValue(i int, v float64) {
 }
 
 func (enc *encoder) writeNextTSZValue(i int, next float64) {
-	fb, xor := enc.writeXOR(i, next)
-	enc.tszFields[i].prevFloatBits = fb
-	enc.tszFields[i].prevXOR = xor
-}
-
-func (enc *encoder) writeXOR(i int, next float64) (floatBits, xor uint64) {
-	var (
-		prevFB = enc.tszFields[i].prevFloatBits
-		nextFB = math.Float64bits(next)
-
-		prevXOR = enc.tszFields[i].prevXOR
-		nextXOR = prevFB ^ nextFB
-	)
-
-	if nextXOR == 0 {
-		// TODO(rartoul): Share opcodeZeroValueXOR constant
-		enc.stream.WriteBits(0x0, 1)
-		return nextFB, nextXOR
-	}
-
-	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
-	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
-	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(nextXOR)
-	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		// TODO: Share opcodeContainedValueXOR constant
-		enc.stream.WriteBits(0x2, 2)
-		enc.stream.WriteBits(nextXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
-		return nextFB, nextXOR
-	}
-	// TODO: Share constant opcodeUncontainedValueXOR
-	enc.stream.WriteBits(0x3, 2)
-	enc.stream.WriteBits(uint64(curLeading), 6)
-	numMeaningfulBits := 64 - curLeading - curTrailing
-	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
-	enc.stream.WriteBits(uint64(numMeaningfulBits-1), 6)
-	enc.stream.WriteBits(nextXOR>>uint(curTrailing), numMeaningfulBits)
-
-	return nextFB, nextXOR
+	curFloatBits := math.Float64bits(next)
+	curXOR := enc.tszFields[i].prevFloatBits ^ curFloatBits
+	m3tsz.WriteXOR(enc.stream, enc.tszFields[i].prevXOR, curXOR)
+	enc.tszFields[i].prevFloatBits = curFloatBits
+	enc.tszFields[i].prevXOR = curXOR
 }
 
 // const (
