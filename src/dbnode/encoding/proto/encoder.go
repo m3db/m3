@@ -21,6 +21,8 @@
 package proto
 
 import (
+	"encoding/binary"
+	"fmt"
 	"math"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -33,6 +35,7 @@ import (
 
 type encoder struct {
 	stream             encoding.OStream
+	schema             *desc.MessageDescriptor
 	hasWrittenFirstTSZ bool
 	lastEncoded        *dynamic.Message
 	tszFields          []tszFieldState
@@ -55,6 +58,7 @@ func NewEncoder(
 	enc := &encoder{
 		// TODO: Pass in options, use pooling, etc.
 		stream:    encoding.NewOStream(b, initAllocIfEmpty, opts.BytesPool()),
+		schema:    schema,
 		tszFields: tszFields(nil, schema),
 	}
 
@@ -62,11 +66,22 @@ func NewEncoder(
 }
 
 func (enc *encoder) Encode(m *dynamic.Message) error {
-	// TODO: Make sure this is actually efficient compared to iterating
-	for i, tszField := range enc.tszFields {
-		iVal := m.GetFieldByNumber(tszField.fieldNum)
-		var val float64
+	enc.encodeTSZValues(m)
+	enc.encodeProtoValues(m)
+	enc.lastEncoded = m
+	return nil
+}
 
+func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
+	for i, tszField := range enc.tszFields {
+		iVal, err := m.TryGetFieldByNumber(tszField.fieldNum)
+		if err != nil {
+			return fmt.Errorf(
+				"proto encoder error trying to get field number: %d",
+				tszField.fieldNum)
+		}
+
+		var val float64
 		if typedVal, ok := iVal.(float64); ok {
 			val = typedVal
 		} else {
@@ -79,11 +94,67 @@ func (enc *encoder) Encode(m *dynamic.Message) error {
 		} else {
 			enc.writeNextTSZValue(i, val)
 		}
+
+		// Remove the field from the message so we don't include it
+		// in the proto marshal.
+		m.ClearFieldByNumber(tszField.fieldNum)
 	}
 	enc.hasWrittenFirstTSZ = true
-	enc.lastEncoded = m
 
 	return nil
+}
+
+func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
+	if enc.lastEncoded != nil {
+		// Clone before mutating.
+		orig := m
+		m = dynamic.NewMessage(enc.schema)
+		m.MergeFrom(orig)
+		// Clear everything from message that is not in schema.
+		// For everything that remains, compare with previous message.
+		//    If same, remove.
+		//    else, leave it in
+		schemaFields := enc.schema.GetFields()
+		for _, field := range m.GetKnownFields() {
+			if !enc.fieldsContains(field.GetNumber(), schemaFields) {
+				fmt.Println("clearing field1: ", field.GetNumber())
+				m.ClearFieldByNumber(int(field.GetNumber()))
+			} else {
+				prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
+				curVal := m.GetFieldByNumber(int(field.GetNumber()))
+				fmt.Println("prevVal: ", prevVal)
+				fmt.Println("curVal: ", curVal)
+				if fieldsEqual(curVal, prevVal) {
+					fmt.Println("clearing field2: ", field.GetNumber())
+					m.ClearFieldByNumber(int(field.GetNumber()))
+				}
+			}
+		}
+	}
+	marshaled, err := m.Marshal()
+	if err != nil {
+		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
+	}
+
+	// TODO: Reuse this
+	buf := make([]byte, 8)
+	numBytes := binary.PutUvarint(buf, uint64(len(marshaled)))
+	buf = buf[:numBytes]
+	fmt.Println("num uvarint bbytes: ", numBytes)
+	fmt.Println("len marshaled: ", len(marshaled))
+	enc.stream.WriteBytes(buf)
+	enc.stream.WriteBytes(marshaled)
+
+	return nil
+}
+
+func (enc *encoder) fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
+	for _, field := range fields {
+		if field.GetNumber() == fieldNum {
+			return true
+		}
+	}
+	return false
 }
 
 func (enc *encoder) writeFirstTSZValue(i int, v float64) {

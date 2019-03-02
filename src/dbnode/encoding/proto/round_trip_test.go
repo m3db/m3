@@ -63,17 +63,17 @@ func TestRoundtrip(t *testing.T) {
 		{
 			latitude:   0.3,
 			longitude:  2.3,
-			deliveryID: []byte("123"),
+			deliveryID: []byte("456"),
 		},
 		{
 			latitude:   0.4,
 			longitude:  2.4,
-			deliveryID: []byte("123"),
+			deliveryID: []byte("456"),
 		},
 		{
 			latitude:   0.5,
 			longitude:  2.5,
-			deliveryID: []byte("123"),
+			deliveryID: []byte("456"),
 		},
 	}
 
@@ -100,9 +100,10 @@ func TestRoundtrip(t *testing.T) {
 	for _, tc := range testCases {
 		iter.Next()
 		m := iter.Current()
+		fmt.Println("yolo:", m)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
-		fmt.Println("yolo:", m)
+		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
 	}
 	// panic("done")
 }

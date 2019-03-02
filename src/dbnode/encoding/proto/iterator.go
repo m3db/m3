@@ -21,6 +21,8 @@
 package proto
 
 import (
+	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 
@@ -63,21 +65,64 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
+	it.readTSZValues()
+	it.readProtoValues()
+
+	return it.hasNext()
+}
+
+func (it *iterator) readTSZValues() {
 	if !it.consumedFirstTSZ {
 		it.readFirstTSZValues()
 	} else {
 		it.readNextTSZValues()
 	}
+}
 
-	return it.hasNext()
+func (it *iterator) readProtoValues() {
+	// it.stream.
+	// binary.LittleEndian.
+	// TODO: Reuse
+	buf := make([]byte, 0, 0)
+	for {
+		b, err := it.stream.ReadByte()
+		if err != nil {
+			it.err = err
+			return
+		}
+		buf = append(buf, b)
+		if b>>7 == 0 {
+			break
+		}
+	}
+
+	marshalLen, _ := binary.Uvarint(buf)
+	fmt.Println("marshalLen: ", marshalLen)
+	buf = make([]byte, 0, marshalLen)
+	for i := uint64(0); i < marshalLen; i++ {
+		b, err := it.stream.ReadByte()
+		if err != nil {
+			it.err = err
+			return
+		}
+		buf = append(buf, b)
+	}
+
+	if it.lastIterated == nil {
+		it.lastIterated = dynamic.NewMessage(it.schema)
+	}
+	err := it.lastIterated.UnmarshalMerge(buf)
+	if err != nil {
+		it.err = err
+		return
+	}
 }
 
 func (it *iterator) Current() *dynamic.Message {
-	m := dynamic.NewMessage(it.schema)
 	for _, field := range it.tszFields {
-		m.SetFieldByNumber(field.fieldNum, math.Float64frombits(field.prevFloatBits))
+		it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float64frombits(field.prevFloatBits))
 	}
-	return m
+	return it.lastIterated
 }
 
 func (it *iterator) readFirstTSZValues() {
