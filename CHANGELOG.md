@@ -4,7 +4,7 @@
 
 ## Migration Disclaimer
 
-Version 0.7.0 of M3 includes a redesign of the snapshotting and commitlog components. This redesign was critical to improving M3DB's consistency guarantees, reducing the amount of disk space that is wasted by commitlogs, and enabling future feature development to support writing data at arbitrary times.
+Version 0.7.0 of M3 includes a redesign of the snapshotting and commitlog components. This redesign was critical to improve M3DB's consistency guarantees, reduce the amount of disk space that is wasted by commitlogs, and enable future feature development to support writing data at arbitrary times.
 
 The redesign is **backwards compatible** but not **forwards compatible**. This means that you should be able upgrade your < 0.7.0 clusters to 0.7.0 with no issues, but you will not be able to downgrade without taking some additional steps. Note that the first bootstrap after the upgrade may take longer than usual, but subsequent bootstraps should be just as fast as they used to be, or even faster.
 
