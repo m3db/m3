@@ -105,6 +105,7 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 }
 
 func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
+	fmt.Println("--------------------------")
 	var changedFields []int
 	if enc.lastEncoded != nil {
 		// Clone before mutating.
@@ -117,19 +118,16 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		//    else, leave it in
 		schemaFields := enc.schema.GetFields()
 		// TODO: Need to make sure there are no unknown fields
-		for _, field := range m.GetKnownFields() {
-			if !enc.fieldsContains(field.GetNumber(), schemaFields) {
-				// Clear fields that don't exist in the schema.
+		for _, field := range schemaFields {
+			prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
+			curVal := m.GetFieldByNumber(int(field.GetNumber()))
+			if fieldsEqual(curVal, prevVal) {
+				// Clear fields that haven't changed.
+				fmt.Println("clearing field: ", field.GetNumber())
 				m.ClearFieldByNumber(int(field.GetNumber()))
 			} else {
-				prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
-				curVal := m.GetFieldByNumber(int(field.GetNumber()))
-				if fieldsEqual(curVal, prevVal) {
-					// Clear fields that haven't changed.
-					m.ClearFieldByNumber(int(field.GetNumber()))
-				} else {
-					changedFields = append(changedFields, int(field.GetNumber()))
-				}
+				fmt.Println("changed field: ", field.GetNumber())
+				changedFields = append(changedFields, int(field.GetNumber()))
 			}
 		}
 	}
@@ -170,6 +168,7 @@ func (enc *encoder) writeNextTSZValue(i int, next float64) {
 }
 
 func (enc *encoder) writeBitset(values ...int) {
+	fmt.Println("writing bitset: ", values)
 	var max int
 	for _, v := range values {
 		if v > max {
@@ -179,11 +178,11 @@ func (enc *encoder) writeBitset(values ...int) {
 
 	// Encode a varint that indicates how many of the remaining
 	// bits to interpret as a bitset.
-	enc.writeVarInt(uint64(max))
+	enc.writeVarInt(uint64(max + 1))
 
 	// Encode the bitset
 outer:
-	for i := 0; i < max; i++ {
+	for i := 0; i < max+1; i++ {
 		for _, v := range values {
 			if v == i {
 				enc.stream.WriteBit(1)

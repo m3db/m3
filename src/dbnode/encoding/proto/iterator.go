@@ -126,7 +126,7 @@ func (it *iterator) readProtoValues() {
 			fieldDefaultValue = fieldDesc.GetDefaultValue()
 			existingVal       = currMessage.GetFieldByNumber(fieldNum)
 		)
-		if existingVal == fieldDefaultValue {
+		if fieldsEqual(existingVal, fieldDefaultValue) {
 			fmt.Println("clearing fieldNum: ", fieldNum)
 			it.lastIterated.ClearFieldByNumber(fieldNum)
 		}
@@ -136,6 +136,7 @@ func (it *iterator) readProtoValues() {
 func (it *iterator) readBitset() []int {
 	vals := []int{}
 	bitsetLengthBits := it.readVarInt()
+	fmt.Println("reading bitset length: ", bitsetLengthBits)
 	for i := uint64(0); i < bitsetLengthBits; i++ {
 		bit, err := it.stream.ReadBit()
 		// TODO: This function should just return an error
