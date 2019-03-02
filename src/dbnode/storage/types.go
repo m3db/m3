@@ -311,7 +311,7 @@ type databaseNamespace interface {
 	Flush(
 		blockStart time.Time,
 		ShardBootstrapStates ShardBootstrapStates,
-		flush persist.DataFlush,
+		flush persist.FlushPreparer,
 	) error
 
 	// FlushIndex flushes in-memory index data.
@@ -319,13 +319,8 @@ type databaseNamespace interface {
 		flush persist.IndexFlush,
 	) error
 
-	// Snapshot snapshots unflushed in-memory data.
-	Snapshot(
-		blockStart,
-		snapshotTime time.Time,
-		shardBootstrapStatesAtTickStart ShardBootstrapStates,
-		flush persist.DataFlush,
-	) error
+	// Snapshot snapshots unflushed in-memory data
+	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -434,20 +429,17 @@ type databaseShard interface {
 	// Flush flushes the series' in this shard.
 	Flush(
 		blockStart time.Time,
-		flush persist.DataFlush,
+		flush persist.FlushPreparer,
 	) error
 
 	// Snapshot snapshot's the unflushed series' in this shard.
-	Snapshot(blockStart, snapshotStart time.Time, flush persist.DataFlush) error
+	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer) error
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
 
 	// SnapshotState returns the snapshot state for this shard.
 	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
-
-	// CleanupSnapshots cleans up snapshot files.
-	CleanupSnapshots(earliestToRetain time.Time) error
 
 	// CleanupExpiredFileSets removes expired fileset files.
 	CleanupExpiredFileSets(earliestToRetain time.Time) error
@@ -784,12 +776,6 @@ type Options interface {
 
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
-
-	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots.
-	SetMinimumSnapshotInterval(value time.Duration) Options
-
-	// MinimumSnapshotInterval returns the minimum amount of time that must elapse between snapshots.
-	MinimumSnapshotInterval() time.Duration
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks

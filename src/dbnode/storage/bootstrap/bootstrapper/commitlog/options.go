@@ -31,7 +31,7 @@ import (
 const (
 	defaultEncodingConcurrency                       = 4
 	defaultMergeShardConcurrency                     = 4
-	defaultReturnUnfulfilledForCorruptCommitlogFiles = true
+	defaultReturnUnfulfilledForCorruptCommitLogFiles = true
 )
 
 var (
@@ -46,7 +46,7 @@ type options struct {
 	encodingConcurrency                       int
 	mergeShardConcurrency                     int
 	runtimeOptsMgr                            runtime.OptionsManager
-	returnUnfulfilledForCorruptCommitlogFiles bool
+	returnUnfulfilledForCorruptCommitLogFiles bool
 }
 
 // NewOptions creates new bootstrap options
@@ -56,7 +56,7 @@ func NewOptions() Options {
 		commitLogOpts:                             commitlog.NewOptions(),
 		encodingConcurrency:                       defaultEncodingConcurrency,
 		mergeShardConcurrency:                     defaultMergeShardConcurrency,
-		returnUnfulfilledForCorruptCommitlogFiles: defaultReturnUnfulfilledForCorruptCommitlogFiles,
+		returnUnfulfilledForCorruptCommitLogFiles: defaultReturnUnfulfilledForCorruptCommitLogFiles,
 	}
 }
 
@@ -123,12 +123,12 @@ func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
 	return o.runtimeOptsMgr
 }
 
-func (o *options) SetReturnUnfulfilledForCorruptCommitlogFiles(value bool) Options {
+func (o *options) SetReturnUnfulfilledForCorruptCommitLogFiles(value bool) Options {
 	opts := *o
-	opts.returnUnfulfilledForCorruptCommitlogFiles = value
+	opts.returnUnfulfilledForCorruptCommitLogFiles = value
 	return &opts
 }
 
-func (o *options) ReturnUnfulfilledForCorruptCommitlogFiles() bool {
-	return o.returnUnfulfilledForCorruptCommitlogFiles
+func (o *options) ReturnUnfulfilledForCorruptCommitLogFiles() bool {
+	return o.returnUnfulfilledForCorruptCommitLogFiles
 }

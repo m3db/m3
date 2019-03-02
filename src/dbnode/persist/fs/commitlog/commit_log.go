@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	xlog "github.com/m3db/m3x/log"
@@ -42,8 +43,6 @@ var (
 	ErrCommitLogQueueFull = errors.New("commit log queue is full")
 
 	errCommitLogClosed = errors.New("commit log is closed")
-
-	timeZero = time.Time{}
 )
 
 type newCommitLogWriterFn func(
@@ -125,9 +124,8 @@ func (f *flushState) getLastFlushAt() time.Time {
 }
 
 type writerState struct {
-	writer         commitLogWriter
-	writerExpireAt time.Time
-	activeFile     *File
+	writer     commitLogWriter
+	activeFile *persist.CommitLogFile
 }
 
 type closedState struct {
@@ -167,11 +165,11 @@ type callbackResult struct {
 }
 
 type activeLogsCallbackResult struct {
-	file *File
+	file *persist.CommitLogFile
 }
 
 type rotateLogsResult struct {
-	file File
+	file persist.CommitLogFile
 }
 
 func (r callbackResult) activeLogsCallbackResult() (activeLogsCallbackResult, error) {
@@ -253,7 +251,7 @@ func (l *commitLog) Open() error {
 	defer l.closedState.Unlock()
 
 	// Open the buffered commit log writer
-	if _, err := l.openWriter(l.nowFn()); err != nil {
+	if _, err := l.openWriter(); err != nil {
 		return err
 	}
 
@@ -282,7 +280,7 @@ func (l *commitLog) Open() error {
 	return nil
 }
 
-func (l *commitLog) ActiveLogs() ([]File, error) {
+func (l *commitLog) ActiveLogs() (persist.CommitLogFiles, error) {
 	l.closedState.RLock()
 	defer l.closedState.RUnlock()
 
@@ -292,7 +290,7 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 
 	var (
 		err   error
-		files []File
+		files []persist.CommitLogFile
 		wg    sync.WaitGroup
 	)
 	wg.Add(1)
@@ -323,17 +321,17 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 	return files, nil
 }
 
-func (l *commitLog) RotateLogs() (File, error) {
+func (l *commitLog) RotateLogs() (persist.CommitLogFile, error) {
 	l.closedState.RLock()
 	defer l.closedState.RUnlock()
 
 	if l.closedState.closed {
-		return File{}, errCommitLogClosed
+		return persist.CommitLogFile{}, errCommitLogClosed
 	}
 
 	var (
 		err  error
-		file File
+		file persist.CommitLogFile
 		wg   sync.WaitGroup
 	)
 	wg.Add(1)
@@ -351,7 +349,7 @@ func (l *commitLog) RotateLogs() (File, error) {
 	wg.Wait()
 
 	if err != nil {
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	return file, nil
@@ -427,15 +425,9 @@ func (l *commitLog) write() {
 			l.pendingFlushFns = append(l.pendingFlushFns, write.callbackFn)
 		}
 
-		var (
-			now                         = l.nowFn()
-			isWriteForNextCommitLogFile = !now.Before(l.writerState.writerExpireAt)
-			isRotateLogsEvent           = write.eventType == rotateLogsEventType
-			shouldRotate                = isRotateLogsEvent || isWriteForNextCommitLogFile
-		)
-
-		if shouldRotate {
-			file, err := l.openWriter(now)
+		isRotateLogsEvent := write.eventType == rotateLogsEventType
+		if isRotateLogsEvent {
+			file, err := l.openWriter()
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -550,7 +542,7 @@ func (l *commitLog) onFlush(err error) {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriter(now time.Time) (File, error) {
+func (l *commitLog) openWriter() (persist.CommitLogFile, error) {
 	if l.writerState.writer != nil {
 		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -565,16 +557,12 @@ func (l *commitLog) openWriter(now time.Time) (File, error) {
 		l.writerState.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
-	blockSize := l.opts.BlockSize()
-	start := now.Truncate(blockSize)
-
-	file, err := l.writerState.writer.Open(start, blockSize)
+	file, err := l.writerState.writer.Open()
 	if err != nil {
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	l.writerState.activeFile = &file
-	l.writerState.writerExpireAt = start.Add(blockSize)
 
 	return file, nil
 }

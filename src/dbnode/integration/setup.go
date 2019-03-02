@@ -137,8 +137,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit).
-		SetMinimumSnapshotInterval(opts.MinimumSnapshotInterval())
+		SetNamespaceInitializer(nsInit)
 	if strings.ToLower(os.Getenv("TEST_DEBUG_LOG")) == "true" {
 		logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelDebug)
 		storageOpts = storageOpts.SetInstrumentOptions(
@@ -274,8 +273,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
-			SetFilesystemOptions(fsOpts).
-			SetBlockSize(opts.CommitLogBlockSize()))
+			SetFilesystemOptions(fsOpts))
 
 	// Set up persistence manager
 	pm, err := fs.NewPersistManager(fsOpts)
