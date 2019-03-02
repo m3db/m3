@@ -33,6 +33,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/ts"
+	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
 func read(
@@ -44,6 +47,15 @@ func read(
 ) ([]*ts.Series, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
+
+	sp := opentracingutil.SpanFromContextOrNoop(ctx)
+	sp.LogFields(
+		opentracinglog.String("params.query", params.Query),
+		opentracingutil.Time("params.start", params.Start),
+		opentracingutil.Time("params.end", params.End),
+		opentracingutil.Time("params.now", params.Now),
+		opentracingutil.Duration("params.step", params.Step),
+	)
 
 	opts := &executor.EngineOptions{}
 	// Detect clients closing connections
@@ -58,7 +70,6 @@ func read(
 	// Results is closed by execute
 	results := make(chan executor.Query)
 	go engine.ExecuteExpr(ctx, parser, opts, params, results)
-
 	// Block slices are sorted by start time
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
@@ -110,6 +121,7 @@ func read(
 	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
 	defer func() {
 		for _, b := range sortedBlockList {
+			// FIXME: this will double close blocks that have gone through the function pipeline
 			b.block.Close()
 		}
 	}()
@@ -142,11 +154,6 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	}
 
 	firstBlock := blockList[0].block
-	firstStepIter, err := firstBlock.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
 	firstSeriesIter, err := firstBlock.SeriesIter()
 	if err != nil {
 		return nil, err
@@ -155,6 +162,7 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	numSeries := firstSeriesIter.SeriesCount()
 	seriesMeta := firstSeriesIter.SeriesMeta()
 	bounds := firstSeriesIter.Meta().Bounds
+	commonTags := firstSeriesIter.Meta().Tags.Tags
 
 	seriesList := make([]*ts.Series, numSeries)
 	seriesIters := make([]block.SeriesIter, len(blockList))
@@ -169,27 +177,41 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		seriesIters[i] = seriesIter
 	}
 
-	numValues := firstStepIter.StepCount() * len(blockList)
+	numValues := 0
+	for _, block := range blockList {
+		b, err := block.block.StepIter()
+		if err != nil {
+			return nil, err
+		}
+
+		numValues += b.StepCount()
+	}
+
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
+				if err = iter.Err(); err != nil {
+					return nil, err
+				}
+
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
-			blockSeries, err := iter.Current()
-			if err != nil {
+			if err = iter.Err(); err != nil {
 				return nil, err
 			}
 
-			for i := 0; i < blockSeries.Len(); i++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
+			blockSeries := iter.Current()
+			for j := 0; j < blockSeries.Len(); j++ {
+				values.SetValueAt(valIdx, blockSeries.ValueAtStep(j))
 				valIdx++
 			}
 		}
 
-		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
+		tags := seriesMeta[i].Tags.AddTags(commonTags)
+		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, tags)
 	}
 
 	return seriesList, nil
@@ -221,21 +243,11 @@ func insertSortedBlock(
 			"the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
 	}
 
-	blockStepIter, err := b.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	blockStepCount := blockStepIter.StepCount()
-	if stepCount != blockStepCount {
-		return nil, fmt.Errorf("mismatch in number of steps for the"+
-			"block, wanted: %d, found: %d", stepCount, blockStepCount)
-	}
-
 	// Binary search to keep the start times sorted
 	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.Before(blockMeta.Bounds.Start)
+		return blockList[i].meta.Bounds.Start.After(blockMeta.Bounds.Start)
 	})
+
 	// Append here ensures enough size in the slice
 	blockList = append(blockList, blockWithMeta{})
 	copy(blockList[index+1:], blockList[index:])
@@ -243,5 +255,6 @@ func insertSortedBlock(
 		block: b,
 		meta:  blockMeta,
 	}
+
 	return blockList, nil
 }

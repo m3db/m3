@@ -21,7 +21,7 @@
 package m3db
 
 import (
-	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -29,45 +29,65 @@ import (
 )
 
 type encodedSeriesIterUnconsolidated struct {
-	mu          sync.RWMutex
-	idx         int
-	meta        block.Metadata
-	seriesMeta  []block.SeriesMeta
-	seriesIters []encoding.SeriesIterator
+	idx              int
+	lookbackDuration time.Duration
+	err              error
+	meta             block.Metadata
+	series           block.UnconsolidatedSeries
+	seriesMeta       []block.SeriesMeta
+	seriesIters      []encoding.SeriesIterator
 }
 
-func (it *encodedSeriesIterUnconsolidated) Current() (
-	block.UnconsolidatedSeries,
+func (b *encodedBlockUnconsolidated) SeriesIter() (
+	block.UnconsolidatedSeriesIter,
 	error,
 ) {
-	it.mu.RLock()
-	iter := it.seriesIters[it.idx]
+	return &encodedSeriesIterUnconsolidated{
+		idx:              -1,
+		meta:             b.meta,
+		seriesMeta:       b.seriesMetas,
+		seriesIters:      b.seriesBlockIterators,
+		lookbackDuration: b.lookback,
+	}, nil
+}
 
-	values := make([]xts.Datapoints, 0, initBlockReplicaLength)
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		values = append(values,
-			[]xts.Datapoint{{
-				Timestamp: dp.Timestamp,
-				Value:     dp.Value,
-			}})
-	}
+func (it *encodedSeriesIterUnconsolidated) Current() block.UnconsolidatedSeries {
+	return it.series
+}
 
-	if err := iter.Err(); err != nil {
-		it.mu.RUnlock()
-		return block.UnconsolidatedSeries{}, err
-	}
-
-	series := block.NewUnconsolidatedSeries(values, it.seriesMeta[it.idx])
-	it.mu.RUnlock()
-	return series, nil
+func (it *encodedSeriesIterUnconsolidated) Err() error {
+	return it.err
 }
 
 func (it *encodedSeriesIterUnconsolidated) Next() bool {
-	it.mu.Lock()
+	if it.err != nil {
+		return false
+	}
+
 	it.idx++
 	next := it.idx < len(it.seriesIters)
-	it.mu.Unlock()
+	if !next {
+		return false
+	}
+
+	iter := it.seriesIters[it.idx]
+	values := make(xts.Datapoints, 0, initBlockReplicaLength)
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		values = append(values,
+			xts.Datapoint{
+				Timestamp: dp.Timestamp,
+				Value:     dp.Value,
+			})
+	}
+
+	if it.err = iter.Err(); it.err != nil {
+		return false
+	}
+
+	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
+	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
+
 	return next
 }
 

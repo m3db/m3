@@ -196,12 +196,6 @@ func TestMergeCompletedTagResult(t *testing.T) {
 				}
 
 				expected := mapToCompletedTag(nameOnly, exResult)
-				for _, tags := range expected.CompletedTags {
-					for _, val := range tags.Values {
-						fmt.Println(string(tags.Name), string(val))
-					}
-				}
-
 				assert.Equal(t, expected, actual)
 			})
 		}

@@ -37,30 +37,35 @@ func TestJoin(t *testing.T) {
 	query.EXPECT().String().AnyTimes().Return("query")
 
 	tests := []struct {
-		name     string
-		input    []search.Query
-		expected string
+		name             string
+		input            []search.Query
+		expected         string
+		expectedNegation string
 	}{
 		{
-			name:     "0 queries",
-			input:    nil,
-			expected: "",
+			name:             "0 queries",
+			input:            nil,
+			expected:         "",
+			expectedNegation: "",
 		},
 		{
-			name:     "1 query",
-			input:    []search.Query{query},
-			expected: "query",
+			name:             "1 query",
+			input:            []search.Query{query},
+			expected:         "query",
+			expectedNegation: "negation(query)",
 		},
 		{
-			name:     "multiple queries",
-			input:    []search.Query{query, query, query},
-			expected: "query, query, query",
+			name:             "multiple queries",
+			input:            []search.Query{query, query, query},
+			expected:         "query, query, query",
+			expectedNegation: "negation(query), negation(query), negation(query)",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, join(test.input))
+			require.Equal(t, test.expectedNegation, joinNegation(test.input))
 		})
 	}
 }

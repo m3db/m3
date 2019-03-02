@@ -77,13 +77,13 @@ type BootstrapFilesystemConfiguration struct {
 
 // BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
 type BootstrapCommitlogConfiguration struct {
-	// ReturnUnfulfilledForCorruptCommitlogFiles controls whether the commitlog bootstrapper
+	// ReturnUnfulfilledForCorruptCommitLogFiles controls whether the commitlog bootstrapper
 	// will return unfulfilled for all shard time ranges when it encounters a corrupt commit
 	// file. Note that regardless of this value, the commitlog bootstrapper will still try and
 	// read all the uncorrupted commitlog files and return as much data as it can, but setting
 	// this to true allows the node to attempt a repair if the peers bootstrapper is configured
 	// after the commitlog bootstrapper.
-	ReturnUnfulfilledForCorruptCommitlogFiles bool `yaml:"returnUnfulfilledForCorruptCommitlogFiles"`
+	ReturnUnfulfilledForCorruptCommitLogFiles bool `yaml:"returnUnfulfilledForCorruptCommitLogFiles"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.

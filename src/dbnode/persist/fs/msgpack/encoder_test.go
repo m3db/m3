@@ -109,8 +109,8 @@ func testExpectedResultForLogInfo(t *testing.T, logInfo schema.LogInfo) []interf
 		currRoot,
 		int64(logInfoType),
 		currLogInfo,
-		logInfo.Start,
-		logInfo.Duration,
+		logInfo.DeprecatedDoNotUseStart,
+		logInfo.DeprecatedDoNotUseDuration,
 		logInfo.Index,
 	}
 }

@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -32,12 +33,11 @@ import (
 	"time"
 
 	"github.com/m3db/bitset"
-	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
 	mclock "github.com/facebookgo/clock"
@@ -52,6 +52,12 @@ type overrides struct {
 	backlogQueueSize *int
 	strategy         Strategy
 }
+
+var testOpts = NewOptions().
+	SetBlockSize(2 * time.Hour).
+	SetFlushSize(4096).
+	SetFlushInterval(100 * time.Millisecond).
+	SetBacklogQueueSize(1024)
 
 func newTestOptions(
 	t *testing.T,
@@ -72,14 +78,10 @@ func newTestOptions(
 
 	scope := tally.NewTestScope("", nil)
 
-	opts := NewOptions().
-		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
-		SetBlockSize(2 * time.Hour).
-		SetFlushSize(4096).
-		SetFlushInterval(100 * time.Millisecond).
-		SetBacklogQueueSize(1024)
+	opts := testOpts.
+		SetClockOptions(testOpts.ClockOptions().SetNowFn(c.Now)).
+		SetInstrumentOptions(testOpts.InstrumentOptions().SetMetricsScope(scope)).
+		SetFilesystemOptions(testOpts.FilesystemOptions().SetFilePathPrefix(dir))
 
 	if overrides.flushInterval != nil {
 		opts = opts.SetFlushInterval(*overrides.flushInterval)
@@ -138,7 +140,7 @@ func (w testWrite) assert(
 	require.True(t, w.series.Tags.Equal(series.Tags))
 
 	require.True(t, w.t.Equal(datapoint.Timestamp))
-	require.Equal(t, datapoint.Value, datapoint.Value)
+	require.Equal(t, w.v, datapoint.Value)
 	require.Equal(t, w.u, unit)
 	require.Equal(t, w.a, annotation)
 }
@@ -153,7 +155,7 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func(start time.Time, duration time.Duration) (File, error)
+	openFn  func() (persist.CommitLogFile, error)
 	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func(sync bool) error
 	closeFn func() error
@@ -161,8 +163,8 @@ type mockCommitLogWriter struct {
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func(start time.Time, duration time.Duration) (File, error) {
-			return File{}, nil
+		openFn: func() (persist.CommitLogFile, error) {
+			return persist.CommitLogFile{}, nil
 		},
 		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
@@ -176,8 +178,8 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (File, error) {
-	return w.openFn(start, duration)
+func (w *mockCommitLogWriter) Open() (persist.CommitLogFile, error) {
+	return w.openFn()
 }
 
 func (w *mockCommitLogWriter) Write(
@@ -339,9 +341,10 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	l.commitLogFailFn = func(err error) {
-		go func() { l.closeErr <- nil }()
-		require.NoError(t, l.Close())
-		wg.Done()
+		go func() {
+			l.Close()
+			wg.Done()
+		}()
 	}
 	return &wg
 }
@@ -473,10 +476,10 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 
 	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
-	_, _, _, err = reader.Open(files[0])
+	_, err = reader.Open(files[0])
 	require.NoError(t, err)
 	reader.Close()
-	_, _, _, err = reader.Open(files[0])
+	_, err = reader.Open(files[0])
 	require.Equal(t, errCommitLogReaderIsNotReusable, err)
 }
 
@@ -487,24 +490,28 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 		strategy: StrategyWriteWait,
 	})
 
-	blockSize := opts.BlockSize()
-	alignedStart := clock.Now().Truncate(blockSize)
+	start := clock.Now()
 
-	// Writes spaced apart by block size
+	// Writes spaced apart by block size.
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), start, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), start.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), start.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
 	}
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
 
-	// Write, making sure that the clock is set properly for each write
+	// Write, making sure that the clock is set properly for each write.
 	for _, write := range writes {
+		// Modify the time to make sure we're generating commitlog files with different
+		// start times.
 		clock.Add(write.t.Sub(clock.Now()))
+		// Rotate frequently to ensure we're generating multiple files.
+		_, err := commitLog.RotateLogs()
+		require.NoError(t, err)
 		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
+		// Flush until finished, this is required as timed flusher not active when clock is mocked.
 		flushUntilDone(commitLog, wg)
 	}
 
@@ -515,11 +522,11 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.True(t, len(files) == 3)
+	require.Equal(t, 4, len(files))
 
 	// This predicate should eliminate the first commitlog file
-	commitLogPredicate := func(f File) bool {
-		return f.Start.After(alignedStart)
+	commitLogPredicate := func(f persist.CommitLogFile) bool {
+		return f.Index > 0
 	}
 
 	// Assert that the commitlog iterator honors the predicate and only uses
@@ -534,7 +541,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	require.Equal(t, 0, len(corruptFiles))
 
 	iterStruct := iter.(*iterator)
-	require.True(t, len(iterStruct.files) == 2)
+	require.Equal(t, 3, len(iterStruct.files))
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
@@ -621,50 +628,6 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	assertCommitLogWritesByIterating(t, commitLog, writes)
 }
 
-func TestCommitLogExpiresWriter(t *testing.T) {
-	clock := mclock.NewMock()
-	opts, scope := newTestOptions(t, overrides{
-		clock:    clock,
-		strategy: StrategyWriteWait,
-	})
-	defer cleanup(t, opts)
-
-	commitLog := newTestCommitLog(t, opts)
-
-	blockSize := opts.BlockSize()
-	alignedStart := clock.Now().Truncate(blockSize)
-
-	// Writes spaced apart by block size
-	writes := []testWrite{
-		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
-	}
-
-	for _, write := range writes {
-		// Set clock to align with the write
-		clock.Add(write.t.Sub(clock.Now()))
-
-		// Write entry
-		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
-
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
-		flushUntilDone(commitLog, wg)
-	}
-
-	// Ensure files present for each block size time window
-	fsopts := opts.FilesystemOptions()
-	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	require.NoError(t, err)
-	require.True(t, len(files) == len(writes))
-
-	// Close and consequently flush
-	require.NoError(t, commitLog.Close())
-
-	// Assert write flushed by reading the commit log
-	assertCommitLogWritesByIterating(t, commitLog, writes)
-}
-
 func TestCommitLogFailOnWriteError(t *testing.T) {
 	opts, scope := newTestOptions(t, overrides{
 		strategy: StrategyWriteBehind,
@@ -680,12 +643,8 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return fmt.Errorf("an error")
 	}
 
-	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
-		if atomic.AddInt64(&opens, 1) >= 2 {
-			return File{}, fmt.Errorf("an error")
-		}
-		return File{}, nil
+	writer.openFn = func() (persist.CommitLogFile, error) {
+		return persist.CommitLogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
@@ -730,11 +689,11 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
+	writer.openFn = func() (persist.CommitLogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return File{}, fmt.Errorf("an error")
+			return persist.CommitLogFile{}, fmt.Errorf("an error")
 		}
-		return File{}, nil
+		return persist.CommitLogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
@@ -753,16 +712,14 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 
 	wg := setupCloseOnFail(t, commitLog)
 
-	func() {
-		// Expire the writer so it requires a new open
-		commitLog.writerState.writerExpireAt = timeZero
-	}()
-
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
+
+	// Rotate the commitlog so that it requires a new open.
+	commitLog.RotateLogs()
 
 	wg.Wait()
 
@@ -866,17 +823,15 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	defer cleanup(t, opts)
 
 	var (
-		commitLog    = newTestCommitLog(t, opts)
-		blockSize    = opts.BlockSize()
-		alignedStart = clock.Now().Truncate(blockSize)
+		commitLog = newTestCommitLog(t, opts)
+		start     = clock.Now()
 	)
-	require.True(t, time.Second < blockSize)
 
 	// Writes spaced such that they should appear within the same commitlog block.
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), start, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), start.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), start.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
 	}
 
 	for i, write := range writes {
@@ -888,8 +843,6 @@ func TestCommitLogRotateLogs(t *testing.T) {
 
 		file, err := commitLog.RotateLogs()
 		require.NoError(t, err)
-		require.Equal(t, file.Start, alignedStart)
-		require.Equal(t, file.Duration, opts.BlockSize())
 		require.Equal(t, file.Index, int64(i+1))
 		require.Contains(t, file.FilePath, "commitlog-0")
 
@@ -919,3 +872,75 @@ var (
 	testTags2 = ident.NewTags(testTag2)
 	testTags3 = ident.NewTags(testTag3)
 )
+
+func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+
+	defer cleanup(t, opts)
+	commitLog := newTestCommitLog(t, opts)
+	finalized := 0
+	finalizeFn := func(_ ts.WriteBatch) {
+		finalized++
+	}
+
+	writes := ts.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
+
+	clock := mclock.NewMock()
+	alignedStart := clock.Now().Truncate(time.Hour)
+	for i := 0; i < 4; i++ {
+		tt := alignedStart.Add(time.Minute * time.Duration(i))
+		writes.Add(i, ident.StringID(fmt.Sprint(i)), tt, float64(i)*10.5, xtime.Second, nil)
+	}
+
+	writes.SetSkipWrite(0)
+	writes.SetOutcome(1, testSeries(1, "foo.bar", testTags1, 127), nil)
+	writes.SetOutcome(2, testSeries(2, "err.err", testTags2, 255), errors.New("oops"))
+	writes.SetOutcome(3, testSeries(3, "biz.qux", testTags3, 511), nil)
+
+	// Call write batch sync
+	wg := sync.WaitGroup{}
+
+	getAllWrites := func() int {
+		result := int64(0)
+		success, ok := snapshotCounterValue(scope, "commitlog.writes.success")
+		if ok {
+			result += success.Value()
+		}
+		errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
+		if ok {
+			result += errors.Value()
+		}
+		return int(result)
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := commitLog.WriteBatch(ctx, writes)
+		require.NoError(t, err)
+	}()
+
+	// Wait for all writes to enqueue
+	for getAllWrites() != 2 {
+		time.Sleep(time.Microsecond)
+	}
+
+	wg.Wait()
+
+	// Close the commit log and consequently flush
+	require.NoError(t, commitLog.Close())
+
+	// Assert writes occurred by reading the commit log
+	expected := []testWrite{
+		{testSeries(1, "foo.bar", testTags1, 127), alignedStart.Add(time.Minute), 10.5, xtime.Second, nil, nil},
+		{testSeries(3, "biz.qux", testTags3, 511), alignedStart.Add(time.Minute * 3), 31.5, xtime.Second, nil, nil},
+	}
+
+	assertCommitLogWritesByIterating(t, commitLog, expected)
+	require.Equal(t, 1, finalized)
+}

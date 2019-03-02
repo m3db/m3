@@ -23,6 +23,7 @@ package namespace
 import (
 	"fmt"
 	"net/http"
+	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -35,9 +36,13 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// GetURL is the url for the namespace get handler (with the GET method).
-	GetURL = handler.RoutePrefixV1 + "/namespace"
+var (
+	// DeprecatedM3DBGetURL is the deprecated url for the namespace get handler (with the GET method).
+	// Maintained for backwards compatibility.
+	DeprecatedM3DBGetURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
+
+	// M3DBGetURL is the url for the namespace get handler (with the GET method).
+	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet

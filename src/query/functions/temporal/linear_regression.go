@@ -79,6 +79,10 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 		}
 
 	case DerivType:
+		if len(args) != 1 {
+			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", DerivType, len(args))
+		}
+
 		fn = func(slope, _ float64) float64 {
 			return slope
 		}
@@ -89,12 +93,17 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 		return nil, fmt.Errorf("unknown linear regression type: %s", optype)
 	}
 
+	duration, ok := args[0].(time.Duration)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+	}
+
 	l := linearRegressionProcessor{
 		fn:      fn,
 		isDeriv: isDeriv,
 	}
 
-	return newBaseOp(args, optype, l)
+	return newBaseOp(duration, optype, l)
 }
 
 type linearRegressionNode struct {

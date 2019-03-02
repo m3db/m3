@@ -28,11 +28,11 @@ import (
 type withKeysID func(tags models.Tags, matchingTags [][]byte) uint64
 
 func includeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
-	return tags.IDWithKeys(matchingTags...)
+	return tags.TagsWithKeys(matchingTags).HashedID()
 }
 
 func excludeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
-	return tags.IDWithExcludes(matchingTags...)
+	return tags.TagsWithoutKeys(matchingTags).HashedID()
 }
 
 type withKeysTags func(tags models.Tags, matchingTags [][]byte) models.Tags
@@ -52,7 +52,7 @@ func excludeKeysTags(tags models.Tags, matchingTags [][]byte) models.Tags {
 func GroupSeries(
 	matchingTags [][]byte,
 	without bool,
-	opName string,
+	opName []byte,
 	metas []block.SeriesMeta,
 ) ([][]int, []block.SeriesMeta) {
 	var idFunc withKeysID

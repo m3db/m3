@@ -22,8 +22,6 @@ package m3db
 
 import (
 	"math"
-	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -33,24 +31,29 @@ import (
 )
 
 type encodedSeriesIter struct {
-	mu           sync.RWMutex
 	idx          int
+	err          error
 	meta         block.Metadata
 	bounds       models.Bounds
+	series       block.Series
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
 	consolidator *consolidators.SeriesLookbackConsolidator
 }
 
-func (b *encodedBlock) seriesIter() block.SeriesIter {
+func (b *encodedBlock) SeriesIter() (
+	block.SeriesIter,
+	error,
+) {
 	cs := b.consolidation
 	bounds := cs.bounds
 	consolidator := consolidators.NewSeriesLookbackConsolidator(
-		time.Minute,
+		b.lookback,
 		bounds.StepSize,
 		cs.currentTime,
 		cs.consolidationFn,
 	)
+
 	return &encodedSeriesIter{
 		idx:          -1,
 		meta:         b.meta,
@@ -58,11 +61,29 @@ func (b *encodedBlock) seriesIter() block.SeriesIter {
 		seriesMeta:   b.seriesMetas,
 		seriesIters:  b.seriesBlockIterators,
 		consolidator: consolidator,
-	}
+	}, nil
 }
 
-func (it *encodedSeriesIter) Current() (block.Series, error) {
-	it.mu.RLock()
+func (it *encodedSeriesIter) Err() error {
+	return it.err
+}
+
+func (it *encodedSeriesIter) Current() block.Series {
+	return it.series
+}
+
+func (it *encodedSeriesIter) Next() bool {
+	if it.err != nil {
+		return false
+	}
+
+	it.idx++
+	next := it.idx < len(it.seriesIters)
+	if !next {
+		return false
+	}
+
+	it.consolidator.Reset(it.bounds.Start)
 	iter := it.seriesIters[it.idx]
 	values := make([]float64, it.bounds.Steps())
 	xts.Memset(values, math.NaN())
@@ -77,7 +98,7 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 			continue
 		}
 
-		for {
+		for i < len(values) {
 			values[i] = it.consolidator.ConsolidateAndMoveToNext()
 			i++
 			currentTime = currentTime.Add(it.bounds.StepSize)
@@ -89,28 +110,17 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 		}
 	}
 
-	if err := iter.Err(); err != nil {
-		it.mu.RUnlock()
-		return block.Series{}, err
+	if it.err = iter.Err(); it.err != nil {
+		return false
 	}
 
 	// Consolidate any remaining points iff has not been finished
 	// Fill up any missing values with NaNs
-	for ; !it.consolidator.Empty(); i++ {
+	for ; i < len(values) && !it.consolidator.Empty(); i++ {
 		values[i] = it.consolidator.ConsolidateAndMoveToNext()
 	}
 
-	series := block.NewSeries(values, it.seriesMeta[it.idx])
-	it.mu.RUnlock()
-	return series, nil
-}
-
-func (it *encodedSeriesIter) Next() bool {
-	it.mu.Lock()
-	it.idx++
-	next := it.idx < len(it.seriesIters)
-	it.consolidator.Reset(it.bounds.Start)
-	it.mu.Unlock()
+	it.series = block.NewSeries(values, it.seriesMeta[it.idx])
 	return next
 }
 

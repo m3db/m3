@@ -43,7 +43,9 @@ func newTermsDict(opts Options) termsDictionary {
 	dict := &termsDict{
 		opts: opts,
 	}
-	dict.fields.fieldsMap = newFieldsMap(opts.InitialCapacity())
+	dict.fields.fieldsMap = newFieldsMap(fieldsMapOptions{
+		InitialSize: opts.InitialCapacity(),
+	})
 	return dict
 }
 
@@ -80,7 +82,7 @@ func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {
 	defer d.fields.RUnlock()
 	values, ok := d.fields.Get(field)
 	if !ok {
-		return sgmt.EmptyOrderedBytesIterator
+		return sgmt.EmptyTermsIterator
 	}
 	return values.Keys()
 }
@@ -114,6 +116,17 @@ func (d *termsDict) MatchRegexp(
 		return d.opts.PostingsListPool().Get()
 	}
 	return pl
+}
+
+func (d *termsDict) Reset() {
+	d.fields.Lock()
+	defer d.fields.Unlock()
+
+	// TODO(r): We actually want to keep the terms maps around so that they
+	// can be reused and avoid reallocation, so instead of deleting them
+	// we should just reset each one - however we were seeing some racey
+	// issues so now just deleting all entries for now
+	d.fields.Reallocate()
 }
 
 func (d *termsDict) getOrAddName(name []byte) *concurrentPostingsMap {

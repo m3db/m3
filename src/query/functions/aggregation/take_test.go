@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -62,7 +63,7 @@ func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(takeOp).Node(c, transform.Options{})
-	err := node.Process(parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 	require.NoError(t, err)
 	return sink
 }

@@ -23,9 +23,11 @@ package binary
 import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 type makeBlockFn func(
+	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
@@ -55,13 +57,14 @@ func buildLogicalFunction(
 func createLogicalProcessingStep(
 	params NodeParams,
 	fn makeBlockFn,
-) func(block.Block, block.Block, *transform.Controller) (block.Block, error) {
-	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processLogical(lhs, rhs, controller, params.VectorMatching, fn)
+) processFunc {
+	return func(queryCtx *models.QueryContext, lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
+		return processLogical(queryCtx, lhs, rhs, controller, params.VectorMatching, fn)
 	}
 }
 
 func processLogical(
+	queryCtx *models.QueryContext,
 	lhs, rhs block.Block,
 	controller *transform.Controller,
 	matching *VectorMatching,
@@ -81,5 +84,5 @@ func processLogical(
 		return nil, errMismatchedStepCounts
 	}
 
-	return makeBlock(lIter, rIter, controller, matching)
+	return makeBlock(queryCtx, lIter, rIter, controller, matching)
 }

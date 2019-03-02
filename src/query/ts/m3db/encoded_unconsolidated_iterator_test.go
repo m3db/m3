@@ -30,36 +30,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func datapointsToFloats(t *testing.T, dps []ts.Datapoints) []float64 {
-	vals := make([]float64, len(dps))
+func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
+	vals := make([][]float64, len(dps))
 	for i, dp := range dps {
-		l := len(dp)
-		require.True(t, l < 2)
-		if l == 0 {
-			vals[i] = nan
-		} else if l == 1 {
-			vals[i] = dp[0].Value
-		}
+		vals[i] = dp.Values()
 	}
 
 	return vals
 }
 
 func TestUnconsolidatedStepIterator(t *testing.T) {
-	expected := [][]float64{
-		{1, 10, 100},
-		{2, 20, 200},
-		{3, 30, 300},
-		{4, 40, 400},
-		{5, nan, 500},
-		{6, nan, nan},
-		{7, nan, nan},
-		{8, nan, nan},
-		{9, nan, nan},
+	expected := [][][]float64{
+		{{}, {}, {}},
+		{{}, {}, {}},
+		{{}, {10}, {}},
+		{{}, {20}, {100}},
+		{{}, {}, {}},
+		{{}, {}, {}},
+		{{1}, {}, {}},
+		{{}, {}, {}},
+		{{2, 3}, {}, {}},
+		{{4}, {}, {200}},
+		{{5}, {}, {}},
+		{{6}, {}, {}},
+		{{7}, {}, {}},
+		{{}, {30}, {}},
+		{{}, {}, {}},
+		{{}, {}, {300}},
+		{{}, {}, {}},
+		{{8}, {}, {}},
+		{{}, {}, {}},
+		{{}, {40}, {}},
+		{{}, {}, {}},
+		{{}, {}, {400}},
+		{{9}, {}, {}},
+		{{}, {}, {}},
+		{{}, {}, {500}},
+		{{}, {}, {}},
+		{{}, {}, {}},
+		{{}, {}, {}},
+		{{}, {}, {}},
+		{{}, {}, {}},
 	}
 
 	j := 0
-	blocks, bounds := generateBlocks(t, time.Minute)
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(false)
+
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
@@ -67,27 +86,42 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 		iters, err := unconsolidated.StepIter()
 		require.NoError(t, err)
 
-		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
+		require.True(t, bounds.Equals(iters.Meta().Bounds))
+		verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
-			step, err := iters.Current()
-			require.NoError(t, err)
+			step := iters.Current()
 			vals := step.Values()
-			actual := datapointsToFloats(t, vals)
+			actual := datapointsToFloatSlices(t, vals)
 			test.EqualsWithNans(t, expected[j], actual)
 			j++
 		}
+
+		require.Equal(t, len(expected), j)
+		require.NoError(t, iters.Err())
 	}
 }
 
 func TestUnconsolidatedSeriesIterator(t *testing.T) {
-	expected := [][]float64{
-		{1, 2, 3, 4, 5, 6, 7, 8, 9},
-		{10, 20, 30, 40},
-		{100, 200, 300, 400, 500},
+	expected := [][][]float64{
+		{
+			{}, {}, {}, {}, {}, {}, {1}, {}, {2, 3}, {4}, {5}, {6}, {7}, {},
+			{}, {}, {}, {8}, {}, {}, {}, {}, {9}, {}, {}, {}, {}, {}, {}, {},
+		},
+		{
+			{}, {}, {10}, {20}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {30},
+			{}, {}, {}, {}, {}, {40}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+		},
+		{
+			{}, {}, {}, {100}, {}, {}, {}, {}, {}, {200}, {}, {}, {}, {}, {},
+			{300}, {}, {}, {}, {}, {}, {400}, {}, {}, {500}, {}, {}, {}, {}, {},
+		},
 	}
 
 	j := 0
-	blocks, bounds := generateBlocks(t, time.Minute)
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(false)
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
@@ -95,14 +129,17 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 		iters, err := unconsolidated.SeriesIter()
 		require.NoError(t, err)
 
-		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
+		require.True(t, bounds.Equals(iters.Meta().Bounds))
+		verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
-			series, err := iters.Current()
-			require.NoError(t, err)
+			series := iters.Current()
 			vals := series.Datapoints()
-			actual := datapointsToFloats(t, vals)
+			actual := datapointsToFloatSlices(t, vals)
 			test.EqualsWithNans(t, expected[j], actual)
 			j++
 		}
+
+		require.Equal(t, len(expected), j)
+		require.NoError(t, iters.Err())
 	}
 }

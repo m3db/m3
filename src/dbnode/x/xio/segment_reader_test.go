@@ -26,30 +26,39 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestSegmentReader(t *testing.T) {
-	head := []byte{
+var (
+	head = []byte{
 		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0x1f, 0x0, 0x0, 0x0, 0x0,
 		0xa0, 0x90, 0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x28, 0x3f, 0x2f,
 		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58,
 	}
-	tail := []byte{
+	tail = []byte{
 		0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
 
-	expected := []byte{
+	expected = []byte{
 		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0x1f, 0x0, 0x0, 0x0, 0x0,
 		0xa0, 0x90, 0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x28, 0x3f, 0x2f,
 		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
+)
 
-	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	r := NewSegmentReader(ts.NewSegment(checkd(head), checkd(tail), ts.FinalizeNone))
+type byteFunc func(d []byte) checked.Bytes
+
+func testSegmentReader(
+	t *testing.T,
+	checkd byteFunc,
+	pool pool.CheckedBytesPool,
+) {
+	segment := ts.NewSegment(checkd(head), checkd(tail), ts.FinalizeNone)
+	r := NewSegmentReader(segment)
 	var b [100]byte
 	n, err := r.Read(b[:])
 	require.NoError(t, err)
@@ -64,4 +73,42 @@ func TestSegmentReader(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, head, seg.Head.Bytes())
 	require.Equal(t, tail, seg.Tail.Bytes())
+
+	// Ensure cloned segment reader does not share original head and tail.
+	cloned, err := r.Clone(pool)
+	require.NoError(t, err)
+
+	segment.Head.Reset(tail)
+	segment.Tail.Reset(head)
+
+	seg, err = cloned.Segment()
+	require.NoError(t, err)
+	require.Equal(t, head, seg.Head.Bytes())
+	require.Equal(t, tail, seg.Tail.Bytes())
+
+	cloned.Finalize()
+	segment.Finalize()
+}
+func TestSegmentReaderNoPool(t *testing.T) {
+	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
+	testSegmentReader(t, checkd, nil)
+}
+
+func TestSegmentReaderWithPool(t *testing.T) {
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+		Capacity: 1024,
+		Count:    10,
+	}}, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	bytesPool.Init()
+	checkd := func(d []byte) checked.Bytes {
+		b := bytesPool.Get(len(d))
+		b.IncRef()
+		b.Reset(d)
+		b.DecRef()
+		return b
+	}
+
+	testSegmentReader(t, checkd, bytesPool)
 }

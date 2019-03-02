@@ -36,18 +36,20 @@ import (
 )
 
 type debugStorage struct {
-	seriesList []*ts.Series
+	seriesList       []*ts.Series
+	lookbackDuration time.Duration
 }
 
 // NewStorage creates a new debug storage instance.
-func NewStorage(promReadResp prometheus.PromResp) (storage.Storage, error) {
+func NewStorage(promReadResp prometheus.PromResp, lookbackDuration time.Duration) (storage.Storage, error) {
 	seriesList, err := PromResultToSeriesList(promReadResp, models.NewTagOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	return &debugStorage{
-		seriesList: seriesList,
+		seriesList:       seriesList,
+		lookbackDuration: lookbackDuration,
 	}, nil
 }
 
@@ -71,7 +73,7 @@ func (s *debugStorage) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	return storage.FetchResultToBlockResult(fetchResult, query)
+	return storage.FetchResultToBlockResult(fetchResult, query, s.lookbackDuration)
 }
 
 // PromResultToSeriesList converts a prom result to a series list
@@ -81,6 +83,7 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 	}
 
 	results := promReadResp.Data.Result
+
 	seriesList := make([]*ts.Series, len(results))
 
 	for i, result := range results {
@@ -113,21 +116,36 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 			}
 		}
 
+		metricName := string(tagOptions.MetricName())
+		bucketName := string(tagOptions.BucketName())
 		tags := models.NewTags(len(result.Metric), tagOptions)
 		for name, val := range result.Metric {
-			tags = tags.AddTag(models.Tag{
-				Name:  []byte(name),
-				Value: []byte(val),
-			})
+			if name == metricName {
+				tags = tags.SetName([]byte(val))
+			} else if name == bucketName {
+				tags = tags.SetBucket([]byte(val))
+			} else {
+				tags = tags.AddTag(models.Tag{
+					Name:  []byte(name),
+					Value: []byte(val),
+				})
+			}
 		}
 
+		// NB: if there is no tag for series name here, the input is a Prometheus
+		// query result for a function that mutates the output tags and drops `name`
+		// which is a valid case.
+		//
+		// It's safe to set ts.Series.Name() here to a default value, as this field
+		// is used as a minor optimization for presenting grafana output, and as
+		// such, series names are not validated for equality.
 		name, exists := tags.Name()
 		if !exists {
-			return nil, errors.New("metric name does not exist")
+			name = []byte("default")
 		}
 
 		seriesList[i] = ts.NewSeries(
-			string(name),
+			name,
 			dps,
 			tags,
 		)

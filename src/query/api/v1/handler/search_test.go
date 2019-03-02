@@ -97,7 +97,7 @@ func searchServer(t *testing.T) *SearchHandler {
 
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(mockTaggedIDsIter, false, nil)
+		Return(mockTaggedIDsIter, false, nil).AnyTimes()
 
 	search := &SearchHandler{store: storage}
 	return search
@@ -110,7 +110,7 @@ func TestSearchResponse(t *testing.T) {
 	results, err := searchHandler.search(context.TODO(), generateSearchReq(), &opts)
 	require.NoError(t, err)
 
-	assert.Equal(t, testID, results.Metrics[0].ID)
+	assert.Equal(t, []byte(testID), results.Metrics[0].ID)
 	expected := test.TagSliceToTags([]models.Tag{{Name: []byte("foo"), Value: []byte("bar")}})
 	assert.Equal(t, expected.Tags, results.Metrics[0].Tags.Tags)
 }

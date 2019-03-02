@@ -32,14 +32,12 @@ type Type string
 const (
 	blackholeType Type = "blackhole"
 	loggingType   Type = "logging"
-	forwardType   Type = "forward"
 )
 
 var (
 	validHandlerTypes = []Type{
 		blackholeType,
 		loggingType,
-		forwardType,
 	}
 )
 

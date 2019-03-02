@@ -67,11 +67,16 @@ func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) 
 		return nil, fmt.Errorf("unknown function type: %s", optype)
 	}
 
+	duration, ok := args[0].(time.Duration)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+	}
+
 	f := functionProcessor{
 		compFunc: compFunc,
 	}
 
-	return newBaseOp(args, optype, f)
+	return newBaseOp(duration, optype, f)
 }
 
 type functionNode struct {

@@ -224,8 +224,8 @@ func encodeVarInt64(b []byte, v int64) []byte {
 		b, buf := growAndReturn(b, 3)
 		n := uint64(v)
 		buf[0] = codes.Int16
-		buf[1] = byte(uint64(n) >> 8)
-		buf[2] = byte(uint64(n))
+		buf[1] = byte(n >> 8)
+		buf[2] = byte(n)
 		return b
 	}
 

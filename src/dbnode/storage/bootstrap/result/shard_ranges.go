@@ -31,7 +31,7 @@ import (
 
 // NewShardTimeRanges returns a new ShardTimeRanges with provided shards and time range.
 func NewShardTimeRanges(start, end time.Time, shards ...uint32) ShardTimeRanges {
-	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	timeRange := xtime.NewRanges(xtime.Range{Start: start, End: end})
 	ranges := make(map[uint32]xtime.Ranges)
 	for _, s := range shards {
 		ranges[s] = timeRange

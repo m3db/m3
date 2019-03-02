@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -31,7 +32,7 @@ type sinkNode struct {
 	block block.Block
 }
 
-func (s *sinkNode) Process(ID parser.NodeID, block block.Block) error {
+func (s *sinkNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	s.block = block
 	return nil
 }
@@ -44,9 +45,7 @@ type lazyNode struct {
 
 // NewLazyNode creates a new wrapper around a function fNode to make it support lazy initialization
 func NewLazyNode(node OpNode, controller *Controller) (OpNode, *Controller) {
-	c := &Controller{
-		ID: controller.ID,
-	}
+	c := &Controller{ID: controller.ID}
 
 	sink := &sinkNode{}
 	controller.AddTransform(sink)
@@ -58,18 +57,21 @@ func NewLazyNode(node OpNode, controller *Controller) (OpNode, *Controller) {
 	}, c
 }
 
-func (f *lazyNode) Process(ID parser.NodeID, block block.Block) error {
+func (f *lazyNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	b := &lazyBlock{
 		rawBlock: block,
 		lazyNode: f,
+		queryCtx: queryCtx,
 		ID:       ID,
 	}
 
-	return f.controller.Process(b)
+	return f.controller.Process(queryCtx, b)
 }
 
 type stepIter struct {
+	err  error
 	node StepNode
+	step block.Step
 	iter block.StepIter
 }
 
@@ -86,25 +88,45 @@ func (s *stepIter) StepCount() int {
 }
 
 func (s *stepIter) Next() bool {
-	return s.iter.Next()
+	if s.err != nil {
+		return false
+	}
+
+	next := s.iter.Next()
+	if !next {
+		return false
+	}
+
+	step := s.iter.Current()
+	s.step, s.err = s.node.ProcessStep(step)
+	if s.err != nil {
+		return false
+	}
+
+	return next
 }
 
 func (s *stepIter) Close() {
 	s.iter.Close()
 }
 
-func (s *stepIter) Current() (block.Step, error) {
-	bStep, err := s.iter.Current()
-	if err != nil {
-		return nil, err
+func (s *stepIter) Err() error {
+	if s.err != nil {
+		return s.err
 	}
 
-	return s.node.ProcessStep(bStep)
+	return s.iter.Err()
+}
+
+func (s *stepIter) Current() block.Step {
+	return s.step
 }
 
 type seriesIter struct {
-	node SeriesNode
-	iter block.SeriesIter
+	err    error
+	series block.Series
+	node   SeriesNode
+	iter   block.SeriesIter
 }
 
 func (s *seriesIter) Meta() block.Metadata {
@@ -123,23 +145,43 @@ func (s *seriesIter) Close() {
 	s.iter.Close()
 }
 
-func (s *seriesIter) Current() (block.Series, error) {
-	bSeries, err := s.iter.Current()
-	if err != nil {
-		return block.Series{}, err
+func (s *seriesIter) Err() error {
+	if s.err != nil {
+		return s.err
 	}
 
-	return s.node.ProcessSeries(bSeries)
+	return s.iter.Err()
+}
+
+func (s *seriesIter) Current() block.Series {
+	return s.series
 }
 
 func (s *seriesIter) Next() bool {
-	return s.iter.Next()
+	if s.err != nil {
+		return false
+	}
+
+	next := s.iter.Next()
+	if !next {
+		return false
+	}
+
+	step := s.iter.Current()
+	s.series, s.err = s.node.ProcessSeries(step)
+	if s.err != nil {
+		return false
+	}
+
+	return next
 }
 
 type lazyBlock struct {
-	mu             sync.Mutex
-	rawBlock       block.Block
-	lazyNode       *lazyNode
+	mu       sync.Mutex
+	rawBlock block.Block
+	lazyNode *lazyNode
+
+	queryCtx       *models.QueryContext
 	ID             parser.NodeID
 	processedBlock block.Block
 	processError   error
@@ -243,7 +285,7 @@ func (f *lazyBlock) Close() error {
 }
 
 func (f *lazyBlock) process() error {
-	err := f.lazyNode.fNode.Process(f.ID, f.rawBlock)
+	err := f.lazyNode.fNode.Process(f.queryCtx, f.ID, f.rawBlock)
 	if err != nil {
 		f.processError = err
 		return err

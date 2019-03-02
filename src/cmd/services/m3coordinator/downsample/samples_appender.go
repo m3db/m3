@@ -21,9 +21,12 @@
 package downsample
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	xerrors "github.com/m3db/m3x/errors"
 )
@@ -50,6 +53,40 @@ func (a samplesAppender) AppendGaugeSample(value float64) error {
 		GaugeVal: value,
 	}
 	return a.agg.AddUntimed(sample, a.stagedMetadatas)
+}
+
+func (a *samplesAppender) AppendCounterTimedSample(t time.Time, value int64) error {
+	return a.appendTimedSample(aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        a.unownedID,
+		TimeNanos: t.UnixNano(),
+		Value:     float64(value),
+	})
+}
+
+func (a *samplesAppender) AppendGaugeTimedSample(t time.Time, value float64) error {
+	return a.appendTimedSample(aggregated.Metric{
+		Type:      metric.GaugeType,
+		ID:        a.unownedID,
+		TimeNanos: t.UnixNano(),
+		Value:     value,
+	})
+}
+
+func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
+	var multiErr xerrors.MultiError
+	for _, meta := range a.stagedMetadatas {
+		for _, pipeline := range meta.Pipelines {
+			for _, policy := range pipeline.StoragePolicies {
+				metadata := metadata.TimedMetadata{
+					AggregationID: pipeline.AggregationID,
+					StoragePolicy: policy,
+				}
+				multiErr = multiErr.Add(a.agg.AddTimed(sample, metadata))
+			}
+		}
+	}
+	return multiErr.FinalError()
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender
@@ -86,6 +123,22 @@ func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeSample(value))
+	}
+	return multiErr.FinalError()
+}
+
+func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value int64) error {
+	var multiErr xerrors.MultiError
+	for _, appender := range a.appenders {
+		multiErr = multiErr.Add(appender.AppendCounterTimedSample(t, value))
+	}
+	return multiErr.FinalError()
+}
+
+func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64) error {
+	var multiErr xerrors.MultiError
+	for _, appender := range a.appenders {
+		multiErr = multiErr.Add(appender.AppendGaugeTimedSample(t, value))
 	}
 	return multiErr.FinalError()
 }

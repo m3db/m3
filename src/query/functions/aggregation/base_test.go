@@ -38,12 +38,12 @@ import (
 
 var (
 	seriesMetas = []block.SeriesMeta{
-		{Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"d", "4"}})},
-		{Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"d", "4"}})},
-		{Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"b", "2"}, {"d", "4"}})},
-		{Tags: test.StringTagsToTags(test.StringTags{{"a", "2"}, {"b", "2"}, {"d", "4"}})},
-		{Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}, {"d", "4"}})},
-		{Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}, {"d", "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "1"}, {N: "d", V: "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "1"}, {N: "d", V: "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "1"}, {N: "b", V: "2"}, {N: "d", V: "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "2"}, {N: "b", V: "2"}, {N: "d", V: "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "b", V: "2"}, {N: "d", V: "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "c", V: "3"}, {N: "d", V: "4"}})},
 	}
 	v = [][]float64{
 		{0, math.NaN(), 2, 3, 4},
@@ -59,13 +59,15 @@ var (
 		Duration: time.Minute * 5,
 		StepSize: time.Minute,
 	}
+
+	typeBytes = []byte(StandardDeviationType)
 )
 
 func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(baseOp).Node(c, transform.Options{})
-	err := node.Process(parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 	require.NoError(t, err)
 	return sink
 }
@@ -86,9 +88,9 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("1")}})},
-		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("2")}})},
-		{Name: StandardDeviationType, Tags: models.EmptyTags()},
+		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("1")}})},
+		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("2")}})},
+		{Name: typeBytes, Tags: models.EmptyTags()},
 	}
 	expectedMetaTags := models.EmptyTags()
 
@@ -113,9 +115,9 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.EmptyTags()},
-		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
-		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
+		{Name: typeBytes, Tags: models.EmptyTags()},
+		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
+		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
@@ -136,7 +138,7 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.EmptyTags()},
+		{Name: typeBytes, Tags: models.EmptyTags()},
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
@@ -166,11 +168,11 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}})},
-		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"b", "2"}})},
-		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "2"}, {"b", "2"}})},
-		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}})},
-		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}})},
+		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "1"}})},
+		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "1"}, {N: "b", V: "2"}})},
+		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{N: "a", V: "2"}, {N: "b", V: "2"}})},
+		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{N: "b", V: "2"}})},
+		{Name: typeBytes, Tags: test.StringTagsToTags(test.StringTags{{N: "c", V: "3"}})},
 	}
 	expectedMetaTags := models.EmptyTags()
 

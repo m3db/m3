@@ -34,7 +34,7 @@ const (
 )
 
 // ShardFn maps a id to a shard.
-type ShardFn func(id []byte, numShards int) uint32
+type ShardFn func(id []byte, numShards uint32) uint32
 
 // AggregatedShardFn maps a chunked id to a shard.
 type AggregatedShardFn func(chunkedID id.ChunkedID, numShards int) uint32
@@ -85,8 +85,8 @@ func (t *HashType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (t HashType) ShardFn() (ShardFn, error) {
 	switch t {
 	case Murmur32Hash:
-		return func(id []byte, numShards int) uint32 {
-			return murmur3.Sum32(id) % uint32(numShards)
+		return func(id []byte, numShards uint32) uint32 {
+			return murmur3.Sum32(id) % numShards
 		}, nil
 	default:
 		return nil, fmt.Errorf("unrecognized hashing type %v", t)

@@ -189,6 +189,10 @@ func NewFunctionExpr(
 		p, err = linear.NewClampOp(argValues, name)
 		return p, true, err
 
+	case linear.HistogramQuantileType:
+		p, err = linear.NewHistogramQuantileOp(argValues, name)
+		return p, true, err
+
 	case linear.RoundType:
 		p, err = linear.NewRoundOp(argValues)
 		return p, true, err
@@ -206,6 +210,10 @@ func NewFunctionExpr(
 		temporal.MaxType, temporal.SumType, temporal.StdDevType,
 		temporal.StdVarType:
 		p, err = temporal.NewAggOp(argValues, name)
+		return p, true, err
+
+	case temporal.QuantileType:
+		p, err = temporal.NewQuantileOp(argValues, name)
 		return p, true, err
 
 	case temporal.HoltWintersType:
@@ -226,6 +234,9 @@ func NewFunctionExpr(
 		return p, true, err
 
 	case linear.SortType, linear.SortDescType:
+		return nil, false, err
+
+	case scalar.ScalarType:
 		return nil, false, err
 
 	case unconsolidated.TimestampType:

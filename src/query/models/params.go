@@ -34,24 +34,38 @@ const (
 	FormatM3QL
 )
 
-// LookbackDelta determines the time since the last sample after which a time
-// series is considered stale (inclusive).
-// TODO: Make this configurable
-var LookbackDelta = time.Minute
+// FetchedBlockType determines the type for fetched blocks, and how they are
+// transformed from storage type.
+type FetchedBlockType uint8
+
+const (
+	// TypeSingleBlock represents a single block which contains each encoded fetched
+	// series. Default block type for Prometheus queries.
+	TypeSingleBlock FetchedBlockType = iota
+	// TypeMultiBlock represents multiple blocks, each containing a time-based slice
+	// of encoded fetched series. Default block type for non-Prometheus queries.
+	TypeMultiBlock
+	// TypeDecodedBlock represents a single block which contains all fetched series
+	// which get decoded.
+	//
+	// NB: this is a legacy block type, will be deprecated once there is
+	// sufficient confidence that other block types are performing correctly.
+	TypeDecodedBlock
+)
 
 // RequestParams represents the params from the request
 type RequestParams struct {
 	Start time.Time
 	End   time.Time
 	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now          time.Time
-	Timeout      time.Duration
-	Step         time.Duration
-	Query        string
-	Debug        bool
-	UseIterators bool
-	IncludeEnd   bool
-	FormatType   FormatType
+	Now        time.Time
+	Timeout    time.Duration
+	Step       time.Duration
+	Query      string
+	Debug      bool
+	IncludeEnd bool
+	BlockType  FetchedBlockType
+	FormatType FormatType
 }
 
 // ExclusiveEnd returns the end exclusive

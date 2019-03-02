@@ -53,6 +53,8 @@ pages:
       - "Caching": "m3db/architecture/caching.md"
   - "Query Engine and Coordinator":
     - "Introduction": "query_engine/index.md"
+    - "API":
+      - "Query": "query_engine/api/index.md"
     - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
@@ -62,13 +64,23 @@ pages:
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
+    - "M3Query": "how_to/query.md"
   - "Operational Guides":
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
     - "Namespace Configuration": "operational_guide/namespace_configuration.md"
     - "Bootstrapping": "operational_guide/bootstrapping.md"
     - "Kernel Configuration": "operational_guide/kernel_configuration.md"
+    - "etcd": "operational_guide/etcd.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
+    - "Graphite": "integrations/graphite.md"
+    - "Grafana": "integrations/grafana.md"
+  - "Performance":
+    - "Introduction": "performance/index.md"
+    - "M3DB":
+      - "M3DB Performance": "performance/m3db/index.md"
+    - "m3query":
+      - "m3query Performance":  "performance/m3query/index.md"
   - "Troubleshooting": "troubleshooting/index.md"
   - "FAQs": "faqs/index.md"

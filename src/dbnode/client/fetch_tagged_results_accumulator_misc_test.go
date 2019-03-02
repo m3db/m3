@@ -237,7 +237,7 @@ func initTestFetchTaggedHelper() *testFetchTaggedHelper {
 	encPool := serialize.NewTagEncoderPool(opts, popts)
 	encPool.Init()
 
-	encoderPool := encoding.NewEncoderPool(nil)
+	encoderPool := encoding.NewEncoderPool(popts)
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)

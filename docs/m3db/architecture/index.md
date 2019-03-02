@@ -1,7 +1,5 @@
 # Architecture
 
-**Please note:** This documentation is a work in progress and more detail is required.
-
 ## Overview
 
 M3DB is written entirely in Go and does not have any required dependencies. For larger deployments, one may use an etcd cluster to manage M3DB cluster membership and topology definition.

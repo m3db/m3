@@ -138,7 +138,7 @@ var unlessTests = []struct {
 		test.NewSeriesMeta("a", 3)[1:],
 		[][]float64{{3, 4}, {30, 40}},
 		test.NewSeriesMeta("a", 1)[0].Tags,
-		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: "a0"}},
+		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: []byte("a0")}},
 		[][]float64{{1, 2}},
 		nil,
 	},
@@ -149,7 +149,7 @@ var unlessTests = []struct {
 		test.NewSeriesMeta("a", 4)[1:],
 		[][]float64{{3, 4}, {30, 40}, {300, 400}},
 		test.NewSeriesMeta("a", 1)[0].Tags,
-		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: "a0"}},
+		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: []byte("a0")}},
 		[][]float64{{1, 2}},
 		nil,
 	},
@@ -222,7 +222,7 @@ func TestUnless(t *testing.T) {
 			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-			err = node.Process(parser.NodeID(0), lhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
 			require.NoError(t, err)
 			bounds = models.Bounds{
 				Start:    now,
@@ -231,7 +231,7 @@ func TestUnless(t *testing.T) {
 			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
-			err = node.Process(parser.NodeID(1), rhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return

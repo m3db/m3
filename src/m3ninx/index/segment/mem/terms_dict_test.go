@@ -139,9 +139,9 @@ func (t *termsDictionaryTestSuite) TestIterateTerms() {
 				// for each expected combination of fieldName -> []fieldValues, ensure all are present
 				for name, expectedValues := range expectedFields {
 					valuesIter := t.termsDict.Terms([]byte(name))
-					values := toSlice(t.T(), valuesIter)
-					for _, val := range values {
-						delete(expectedValues, string(val))
+					values := toTermPostings(t.T(), valuesIter)
+					for val := range values {
+						delete(expectedValues, val)
 					}
 					if len(expectedValues) != 0 {
 						return false

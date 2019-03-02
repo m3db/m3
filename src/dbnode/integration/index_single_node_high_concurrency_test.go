@@ -131,7 +131,7 @@ func TestIndexSingleNodeHighConcurrency(t *testing.T) {
 						indexed := xclock.WaitUntil(func() bool {
 							found := isIndexed(t, session, md.ID(), id, tags)
 							return found
-						}, 5*time.Second)
+						}, 30*time.Second)
 						assert.True(t, indexed)
 						fetchWg.Done()
 					}()

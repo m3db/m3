@@ -49,11 +49,11 @@ type placement struct {
 	instancesByShard map[uint32][]Instance
 	rf               int
 	shards           []uint32
+	cutoverNanos     int64
+	version          int
+	maxShardSetID    uint32
 	isSharded        bool
 	isMirrored       bool
-	cutoverNanos     int64
-	maxShardSetID    uint32
-	version          int
 }
 
 // NewPlacement returns a ServicePlacement
@@ -446,11 +446,11 @@ type instance struct {
 	id             string
 	isolationGroup string
 	zone           string
-	weight         uint32
 	endpoint       string
 	hostname       string
-	port           uint32
 	shards         shard.Shards
+	port           uint32
+	weight         uint32
 	shardSetID     uint32
 }
 

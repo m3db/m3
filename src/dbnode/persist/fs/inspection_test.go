@@ -27,7 +27,7 @@ import (
 )
 
 func TestInspectFilesystem(t *testing.T) {
-	dir := createCommitLogFiles(t, 20, 1)
+	dir := createCommitLogFiles(t, 20)
 	opts := NewOptions().SetFilePathPrefix(dir)
 	inspection, err := InspectFilesystem(opts)
 	require.NoError(t, err)

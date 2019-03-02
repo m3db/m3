@@ -38,7 +38,6 @@ type bytesSliceIter struct {
 }
 
 var _ sgmt.FieldsIterator = &bytesSliceIter{}
-var _ sgmt.TermsIterator = &bytesSliceIter{}
 
 func newBytesSliceIter(slice [][]byte, opts Options) *bytesSliceIter {
 	sortSliceOfByteSlices(slice)

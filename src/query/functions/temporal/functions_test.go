@@ -157,7 +157,7 @@ func testTemporalFunc(t *testing.T, testCases []testCase) {
 				},
 			})
 			bNode := node.(*baseNode)
-			err = node.Process(parser.NodeID(0), block3)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block3)
 			require.NoError(t, err)
 			assert.Len(t, sink.Values, 0, "nothing processed yet")
 			b, exists := bNode.cache.get(boundStart)
@@ -174,7 +174,7 @@ func testTemporalFunc(t *testing.T, testCases []testCase) {
 			}, values)
 
 			values[0][0] = original
-			err = node.Process(parser.NodeID(0), block1)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
 			require.NoError(t, err)
 			assert.Len(t, sink.Values, 2, "output from first block only")
 			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[0], sink.Values[0], 0.0001)
@@ -190,7 +190,7 @@ func testTemporalFunc(t *testing.T, testCases []testCase) {
 				StepSize: bounds.StepSize,
 			}, values)
 
-			err = node.Process(parser.NodeID(0), block2)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block2)
 			require.NoError(t, err)
 			assert.Len(t, sink.Values, 6, "output from all 3 blocks")
 			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[0], sink.Values[0], 0.0001)

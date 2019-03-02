@@ -297,8 +297,7 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 			return nil, err
 		}
 	}
-	numShards := placement.NumShards()
-	shardID := agg.shardFn([]byte(id), numShards)
+	shardID := agg.shardFn([]byte(id), uint32(placement.NumShards()))
 	if int(shardID) >= len(agg.shards) || agg.shards[shardID] == nil {
 		return nil, errShardNotOwned
 	}

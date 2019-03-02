@@ -76,14 +76,14 @@ func (m *concurrentPostingsMap) Add(key []byte, id postings.ID) error {
 }
 
 // Keys returns the keys known to the map.
-func (m *concurrentPostingsMap) Keys() *bytesSliceIter {
+func (m *concurrentPostingsMap) Keys() *termsIter {
 	m.RLock()
 	defer m.RUnlock()
 	keys := m.opts.BytesSliceArrayPool().Get()
 	for _, entry := range m.Iter() {
 		keys = append(keys, entry.Key())
 	}
-	return newBytesSliceIter(keys, m.opts)
+	return newTermsIter(keys, m, m.opts)
 }
 
 // Get returns the postings.List backing `key`.

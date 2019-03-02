@@ -22,8 +22,16 @@ package query
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/search"
+)
+
+const (
+	separator         = ", "
+	negationPrefix    = "negation("
+	negationSeparator = "), negation("
+	negationPostfix   = ")"
 )
 
 // singular returns a bool indicating whether a given query is composed of a single
@@ -56,9 +64,30 @@ func join(qs []search.Query) string {
 	var b bytes.Buffer
 	b.WriteString(qs[0].String())
 	for _, q := range qs[1:] {
-		b.WriteString(", ")
+		b.WriteString(separator)
 		b.WriteString(q.String())
 	}
 
+	return b.String()
+}
+
+// joinNegation concatenates a slice of negated queries.
+func joinNegation(qs []search.Query) string {
+	switch len(qs) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("%s%s%s", negationPrefix, qs[0].String(), negationPostfix)
+	}
+
+	var b bytes.Buffer
+	b.WriteString(negationPrefix)
+	b.WriteString(qs[0].String())
+	for _, q := range qs[1:] {
+		b.WriteString(negationSeparator)
+		b.WriteString(q.String())
+	}
+
+	b.WriteString(negationPostfix)
 	return b.String()
 }

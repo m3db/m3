@@ -212,8 +212,13 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	health := s.health
 	s.RUnlock()
 
-	// Update bootstrapped field if not up to date
-	bootstrapped := s.db.IsBootstrapped()
+	// Update bootstrapped field if not up to date. Note that we use
+	// IsBootstrappedAndDurable instead of IsBootstrapped to make sure
+	// that in the scenario where a topology change has occurred, none of
+	// our automated tooling will assume a node is healthy until it has
+	// marked all its shards as available and is able to bootstrap all the
+	// shards it owns from its own local disk.
+	bootstrapped := s.db.IsBootstrappedAndDurable()
 
 	if health.Bootstrapped != bootstrapped {
 		newHealth := &rpc.NodeHealthResult_{}
@@ -236,7 +241,11 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 // endpoint because while the Health endpoint provides the same information, this endpoint does not
 // require parsing the response to determine if the node is bootstrapped or not.
 func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
-	if bootstrapped := s.db.IsBootstrapped(); !bootstrapped {
+	// Note that we use IsBootstrappedAndDurable instead of IsBootstrapped to make sure
+	// that in the scenario where a topology change has occurred, none of our automated
+	// tooling will assume a node is healthy until it has marked all its shards as available
+	// and is able to bootstrap all the shards it owns from its own local disk.
+	if bootstrapped := s.db.IsBootstrappedAndDurable(); !bootstrapped {
 		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
 	}
 
@@ -401,7 +410,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	queryResult, err := s.db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(err)
+		return nil, convert.ToRPCError(err)
 	}
 
 	response := &rpc.FetchTaggedResult_{
@@ -835,6 +844,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
+		return convert.ToRPCError(err)
 		return err
 	}
 
@@ -866,7 +876,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 
 	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
 	if err != nil {
-		return err
+		return convert.ToRPCError(err)
 	}
 
 	nonRetryableErrors += pooledReq.numNonRetryableErrors()
@@ -908,7 +918,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
-		return err
+		return convert.ToRPCError(err)
 	}
 
 	for i, elem := range req.Elements {
@@ -946,7 +956,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 
 	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, pooledReq)
 	if err != nil {
-		return err
+		return convert.ToRPCError(err)
 	}
 
 	nonRetryableErrors += pooledReq.numNonRetryableErrors()
@@ -985,7 +995,6 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 	truncated, err := s.db.Truncate(s.newID(ctx, req.NameSpace))
-
 	if err != nil {
 		s.metrics.truncate.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
@@ -1282,6 +1291,9 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
+			if elem.Datapoint.Annotation != nil {
+				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
+			}
 		}
 		r.writeReq = nil
 	}
@@ -1289,6 +1301,9 @@ func (r *writeBatchPooledReq) Finalize() {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
 			apachethrift.BytesPoolPut(elem.EncodedTags)
+			if elem.Datapoint.Annotation != nil {
+				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
+			}
 		}
 		r.writeTaggedReq = nil
 	}

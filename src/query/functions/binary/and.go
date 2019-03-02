@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
@@ -32,36 +33,28 @@ import (
 const AndType = "and"
 
 func makeAndBlock(
+	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
 ) (block.Block, error) {
 	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
 
-	builder, err := controller.BlockBuilder(lMeta, rSeriesMeta)
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, rSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := builder.AddCols(lIter.StepCount()); err != nil {
+	if err = builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
 
 	intersection := andIntersect(matching, lIter.SeriesMeta(), rIter.SeriesMeta())
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
-		lStep, err := lIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		lStep := lIter.Current()
 		lValues := lStep.Values()
-		rStep, err := rIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		rStep := rIter.Current()
 		rValues := rStep.Values()
-
 		for idx, value := range lValues {
 			rIdx := intersection[idx]
 			if rIdx < 0 || math.IsNaN(rValues[rIdx]) {
@@ -71,6 +64,14 @@ func makeAndBlock(
 
 			builder.AppendValue(index, value)
 		}
+	}
+
+	if err = lIter.Err(); err != nil {
+		return nil, err
+	}
+
+	if err = rIter.Err(); err != nil {
+		return nil, err
 	}
 
 	return builder.Build(), nil

@@ -88,5 +88,7 @@ func TestAsyncDownsamplerInitialized(t *testing.T) {
 
 	metricsAppender, err := asyncDownsampler.NewMetricsAppender()
 	assert.NoError(t, err)
-	assert.True(t, metricsAppender == mockMetricsAppender)
+	concreteMetricsAppender, ok := metricsAppender.(*MockMetricsAppender)
+	require.True(t, ok)
+	assert.True(t, concreteMetricsAppender == mockMetricsAppender)
 }

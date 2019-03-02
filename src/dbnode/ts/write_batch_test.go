@@ -34,8 +34,7 @@ import (
 )
 
 const (
-	batchSize    = 2
-	maxBatchSize = 10
+	batchSize = 2
 )
 
 var (
@@ -64,6 +63,18 @@ var (
 			value:      1,
 			unit:       xtime.Nanosecond,
 			annotation: []byte("annotation2s"),
+		},
+		{
+			id: ident.StringID("series3"),
+			tagIter: ident.NewTagsIterator(ident.NewTags(
+				ident.Tag{
+					Name:  ident.StringID("name3"),
+					Value: ident.StringID("value3"),
+				})),
+			timestamp:  time.Now(),
+			value:      2,
+			unit:       xtime.Nanosecond,
+			annotation: []byte("annotation3s"),
 		},
 	}
 )
@@ -129,28 +140,43 @@ func TestBatchWriterSetSeries(t *testing.T) {
 	// Set the outcome
 	iter := writeBatch.Iter()
 	for i, curr := range iter {
+		if i == 0 {
+			// skip the first write.
+			writeBatch.SetSkipWrite(i)
+			continue
+		}
+
 		var (
 			currWrite  = curr.Write
 			currSeries = currWrite.Series
 			newSeries  = currSeries
 		)
-		newSeries.ID = ident.StringID(string(i))
+		newSeries.ID = ident.StringID(fmt.Sprint(i))
 
 		var err error
 		if i == len(iter)-1 {
+			// Set skip for this to true; it should revert to not skipping after
+			// SetOutcome called below.
 			err = errors.New("some-error")
+			writeBatch.SetSkipWrite(i)
 		}
 		writeBatch.SetOutcome(i, newSeries, err)
 	}
 
-	// Assert the series have been updated
 	iter = writeBatch.Iter()
-	for i, curr := range iter {
+	require.Equal(t, 3, len(iter))
+
+	require.True(t, iter[0].SkipWrite)
+
+	for j, curr := range iter[1:] {
 		var (
 			currWrite  = curr.Write
 			currSeries = currWrite.Series
+			i          = j + 1
 		)
-		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
+		require.Equal(t, fmt.Sprint(i), string(currSeries.ID.String()))
+		require.True(t, ident.StringID(fmt.Sprint(i)).Equal(currSeries.ID))
+		require.False(t, curr.SkipWrite)
 		if i == len(iter)-1 {
 			require.Equal(t, errors.New("some-error"), curr.Err)
 		} else {
@@ -208,4 +234,28 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 
 		require.True(t, found, fmt.Sprintf("expected to find series: %s", write.id))
 	}
+}
+
+func TestBatchWriterFinalizer(t *testing.T) {
+	numFinalized := 0
+	finalizeFn := func(b WriteBatch) {
+		numFinalized++
+	}
+
+	writeBatch := NewWriteBatch(batchSize, namespace, finalizeFn)
+	for i, write := range writes {
+		writeBatch.AddTagged(
+			i,
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
+
+	require.Equal(t, 3, len(writeBatch.Iter()))
+	writeBatch.Finalize()
+	require.Equal(t, 0, len(writeBatch.Iter()))
+	require.Equal(t, 1, numFinalized)
 }

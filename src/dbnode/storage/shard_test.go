@@ -31,7 +31,6 @@ import (
 	"unsafe"
 
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -201,7 +200,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	}
 
 	var closed bool
-	flush := persist.NewMockDataFlush(ctrl)
+	flush := persist.NewMockFlushPreparer(ctrl)
 	prepared := persist.PreparedDataPersist{
 		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
@@ -266,7 +265,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}
 
 	var closed bool
-	flush := persist.NewMockDataFlush(ctrl)
+	flush := persist.NewMockFlushPreparer(ctrl)
 	prepared := persist.PreparedDataPersist{
 		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
@@ -322,8 +321,8 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapping
 
-	flush := persist.NewMockDataFlush(ctrl)
-	err := s.Snapshot(blockStart, blockStart, flush)
+	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
+	err := s.Snapshot(blockStart, blockStart, snapshotPreparer)
 	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
 }
 
@@ -338,7 +337,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	s.bootstrapState = Bootstrapped
 
 	var closed bool
-	flush := persist.NewMockDataFlush(ctrl)
+	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
 	prepared := persist.PreparedDataPersist{
 		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
@@ -353,7 +352,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 			SnapshotTime: blockStart,
 		},
 	})
-	flush.EXPECT().PrepareData(prepareOpts).Return(prepared, nil)
+	snapshotPreparer.EXPECT().PrepareData(prepareOpts).Return(prepared, nil)
 
 	snapshotted := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -370,7 +369,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		s.list.PushBack(lookup.NewEntry(series, 0))
 	}
 
-	err := s.Snapshot(blockStart, blockStart, flush)
+	err := s.Snapshot(blockStart, blockStart, snapshotPreparer)
 
 	require.Equal(t, len(snapshotted), 2)
 	for i := 0; i < 2; i++ {
@@ -406,6 +405,19 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 	shard.insertNewShardEntryWithLock(entry)
 	shard.Unlock()
 	return series
+}
+
+func writeShardAndVerify(
+	ctx context.Context, t *testing.T, shard *dbShard, id string,
+	now time.Time, value float64, expectedShouldWrite bool, expectedIdx uint64,
+) {
+	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
+		now, value, xtime.Second, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedShouldWrite, wasWritten)
+	assert.Equal(t, id, series.ID.String())
+	assert.Equal(t, "testns1", series.Namespace.String())
+	assert.Equal(t, expectedIdx, series.UniqueIndex)
 }
 
 func TestShardTick(t *testing.T) {
@@ -455,9 +467,20 @@ func TestShardTick(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, true, 0)
+	// same time, different value should write
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, true, 0)
+
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, true, 1)
+	// same tme, same value should not write
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, false, 1)
+
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, true, 2)
+	// different time, same value should write
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, true, 2)
+
+	// same time, same value should not write, regardless of being out of order
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, false, 0)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
@@ -470,7 +493,6 @@ func TestShardTick(t *testing.T) {
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
 }
-
 func TestShardWriteAsync(t *testing.T) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
@@ -748,7 +770,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
-		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		s.EXPECT().Write(gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
@@ -875,81 +898,6 @@ func TestShardCleanupExpiredFileSets(t *testing.T) {
 	}
 	require.NoError(t, shard.CleanupExpiredFileSets(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
-}
-
-func TestShardCleanupSnapshot(t *testing.T) {
-	var (
-		opts                = testDatabaseOptions()
-		shard               = testDatabaseShard(t, opts)
-		blockSize           = 2 * time.Hour
-		now                 = time.Now().Truncate(blockSize)
-		earliestToRetain    = now.Add(-4 * blockSize)
-		pastRetention       = earliestToRetain.Add(-blockSize)
-		successfullyFlushed = earliestToRetain
-		notFlushedYet       = earliestToRetain.Add(blockSize)
-	)
-
-	shard.markFlushStateSuccess(earliestToRetain)
-	defer shard.Close()
-
-	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
-		return fs.FileSetFilesSlice{
-			// Should get removed for not being in retention period
-			fs.FileSetFile{
-				ID: fs.FileSetFileIdentifier{
-					Namespace:   namespace,
-					Shard:       shard,
-					BlockStart:  pastRetention,
-					VolumeIndex: 0,
-				},
-				AbsoluteFilepaths: []string{"not-in-retention"},
-			},
-			// Should get removed for being flushed
-			fs.FileSetFile{
-				ID: fs.FileSetFileIdentifier{
-					Namespace:   namespace,
-					Shard:       shard,
-					BlockStart:  successfullyFlushed,
-					VolumeIndex: 0,
-				},
-				AbsoluteFilepaths: []string{"successfully-flushed"},
-			},
-			// Should not get removed - Note that this entry precedes the
-			// next in order to ensure that the sorting logic works correctly.
-			fs.FileSetFile{
-				ID: fs.FileSetFileIdentifier{
-					Namespace:   namespace,
-					Shard:       shard,
-					BlockStart:  notFlushedYet,
-					VolumeIndex: 1,
-				},
-				// Note this filename needs to contain the word "checkpoint" to
-				// pass the HasCheckpointFile() check
-				AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
-			},
-			// Should get removed because the next one has a higher index
-			fs.FileSetFile{
-				ID: fs.FileSetFileIdentifier{
-					Namespace:   namespace,
-					Shard:       shard,
-					BlockStart:  notFlushedYet,
-					VolumeIndex: 0,
-				},
-				AbsoluteFilepaths: []string{"not-latest-index"},
-			},
-		}, nil
-	}
-
-	deletedFiles := []string{}
-	shard.deleteFilesFn = func(files []string) error {
-		deletedFiles = append(deletedFiles, files...)
-		return nil
-	}
-	require.NoError(t, shard.CleanupSnapshots(earliestToRetain))
-
-	expectedDeletedFiles := []string{
-		"not-in-retention", "successfully-flushed", "not-latest-index"}
-	require.Equal(t, expectedDeletedFiles, deletedFiles)
 }
 
 type testCloser struct {
@@ -1097,6 +1045,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 	gomock.InOrder(
 		iter.EXPECT().Duplicate().Return(iter),
 		iter.EXPECT().CurrentIndex().Return(0),
+		iter.EXPECT().Len().Return(0),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
 		iter.EXPECT().Close(),

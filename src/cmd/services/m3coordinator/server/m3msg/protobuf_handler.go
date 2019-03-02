@@ -26,8 +26,40 @@ import (
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
+
+	"github.com/uber-go/tally"
 )
+
+// Options for the ingest handler.
+type Options struct {
+	InstrumentOptions          instrument.Options
+	WriteFn                    WriteFn
+	ProtobufDecoderPoolOptions pool.ObjectPoolOptions
+}
+
+type handlerMetrics struct {
+	messageReadError             tally.Counter
+	metricAccepted               tally.Counter
+	droppedMetricDecodeError     tally.Counter
+	droppedMetricDecodeMalformed tally.Counter
+}
+
+func newHandlerMetrics(scope tally.Scope) handlerMetrics {
+	messageScope := scope.SubScope("metric")
+	return handlerMetrics{
+		messageReadError: scope.Counter("message-read-error"),
+		metricAccepted:   messageScope.Counter("accepted"),
+		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
+			"reason": "decode-error",
+		}).Counter("dropped"),
+		droppedMetricDecodeMalformed: messageScope.Tagged(map[string]string{
+			"reason": "decode-malformed",
+		}).Counter("dropped"),
+	}
+}
 
 type pbHandler struct {
 	ctx     context.Context
@@ -54,7 +86,7 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 func (h *pbHandler) Process(msg consumer.Message) {
 	dec := h.pool.Get()
 	if err := dec.Decode(msg.Bytes()); err != nil {
-		h.logger.WithFields(log.NewErrField(err)).Error("invalid raw metric")
+		h.logger.WithFields(log.NewErrField(err)).Error("could not decode metric from message")
 		h.m.droppedMetricDecodeError.Inc(1)
 		return
 	}
@@ -67,7 +99,7 @@ func (h *pbHandler) Process(msg consumer.Message) {
 	h.m.metricAccepted.Inc(1)
 
 	h.wg.Add(1)
-	r := newProtobufCallback(msg, dec, h.wg)
+	r := NewProtobufCallback(msg, dec, h.wg)
 	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
 }
 
@@ -79,11 +111,12 @@ type protobufCallback struct {
 	wg  *sync.WaitGroup
 }
 
-func newProtobufCallback(
+// NewProtobufCallback creates a callbackable.
+func NewProtobufCallback(
 	msg consumer.Message,
 	dec *protobuf.AggregatedDecoder,
 	wg *sync.WaitGroup,
-) *protobufCallback {
+) Callbackable {
 	return &protobufCallback{
 		msg: msg,
 		dec: dec,

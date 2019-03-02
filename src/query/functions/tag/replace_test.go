@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -164,7 +165,7 @@ func TestTagReplaceOp(t *testing.T) {
 			bl := block.NewColumnBlockBuilder(meta, seriesMeta).Build()
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 			node := op.(baseOp).Node(c, transform.Options{})
-			err = node.Process(parser.NodeID(0), bl)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 			require.NoError(t, err)
 
 			assert.Equal(t, test.StringTagsToTags(tt.expectedMetaTags), sink.Meta.Tags)

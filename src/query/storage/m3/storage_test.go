@@ -122,7 +122,10 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage := NewStorage(clusters, nil, writePool, opts)
+	queryCache, err := storage.NewQueryConversionLRU(100)
+	require.NoError(t, err)
+	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute, storage.NewQueryConversionCache(queryCache))
+	require.NoError(t, err)
 	return storage
 }
 
@@ -260,7 +263,7 @@ func TestLocalRead(t *testing.T) {
 		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	assert.NoError(t, err)
 	tags := []models.Tag{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	require.NotNil(t, results)
@@ -285,9 +288,15 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
+}
+
+func buildFetchOpts() *storage.FetchOptions {
+	opts := storage.NewFetchOptions()
+	opts.Limit = 100
+	return opts
 }
 
 func TestLocalReadExceedsUnaggregatedRetentionWithinAggregatedRetention(t *testing.T) {
@@ -311,7 +320,7 @@ func TestLocalReadExceedsUnaggregatedRetentionWithinAggregatedRetention(t *testi
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * test1MonthRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -355,7 +364,7 @@ func TestLocalReadExceedsAggregatedButNotUnaggregatedAndPartialAggregated(t *tes
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * test1MonthRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -404,7 +413,7 @@ func TestLocalReadExceedsAggregatedAndPartialAggregated(t *testing.T) {
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * test6MonthRetention)
 	searchReq.End = time.Now()
-	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	results, err := store.Fetch(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 	assertFetchResult(t, results, testTag)
 }
@@ -434,7 +443,7 @@ func TestLocalSearchError(t *testing.T) {
 	})
 
 	searchReq := newFetchReq()
-	_, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	_, err := store.FetchTags(context.TODO(), searchReq, buildFetchOpts())
 	assert.Error(t, err)
 }
 
@@ -526,7 +535,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 			Return(nil, nil).AnyTimes()
 	})
 	searchReq := newFetchReq()
-	result, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	result, err := store.FetchTags(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 
 	require.Equal(t, len(fetches), len(result.Metrics))
@@ -538,14 +547,14 @@ func TestLocalSearchSuccess(t *testing.T) {
 
 	actual := make(map[string]models.Metric)
 	for _, m := range result.Metrics {
-		actual[m.ID] = m
+		actual[string(m.ID)] = m
 	}
 
 	for id, actual := range actual {
 		expected, ok := expected[id]
 		require.True(t, ok)
 
-		assert.Equal(t, expected.id, actual.ID)
+		assert.Equal(t, []byte(expected.id), actual.ID)
 		assert.Equal(t, []models.Tag{{
 			Name: []byte(expected.tagName), Value: []byte(expected.tagValue),
 		}}, actual.Tags.Tags)
@@ -567,4 +576,125 @@ func newTestIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
 	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
 
 	return pools
+}
+
+func newCompleteTagsReq() *storage.CompleteTagsQuery {
+	matchers := models.Matchers{
+		{
+			Type:  models.MatchEqual,
+			Name:  []byte("qux"),
+			Value: []byte(".*"),
+		},
+	}
+
+	return &storage.CompleteTagsQuery{
+		CompleteNameOnly: false,
+		FilterNameTags:   [][]byte{[]byte("qux")},
+		TagMatchers:      matchers,
+	}
+}
+
+func TestLocalCompleteTagsSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store, sessions := setup(t, ctrl)
+
+	type testFetchTaggedID struct {
+		id        string
+		namespace string
+		tagName   string
+		tagValue  string
+	}
+
+	fetches := []testFetchTaggedID{
+		{
+			id:        "foo",
+			namespace: "metrics_unaggregated",
+			tagName:   "qux",
+			tagValue:  "qaz",
+		},
+		{
+			id:        "bar",
+			namespace: "metrics_aggregated_1m:30d",
+			tagName:   "qel",
+			tagValue:  "quz",
+		},
+		{
+			id:        "baz",
+			namespace: "metrics_aggregated_5m:90d",
+			tagName:   "qam",
+			tagValue:  "qak",
+		},
+		{
+			id:        "qux",
+			namespace: "metrics_aggregated_10m:365d",
+			tagName:   "qux",
+			tagValue:  "qaz2",
+		},
+	}
+
+	sessions.forEach(func(session *client.MockSession) {
+		var f testFetchTaggedID
+		switch {
+		case session == sessions.unaggregated1MonthRetention:
+			f = fetches[0]
+		case session == sessions.aggregated1MonthRetention1MinuteResolution:
+			f = fetches[1]
+		case session == sessions.aggregated3MonthRetention5MinuteResolution:
+			f = fetches[2]
+		case session == sessions.aggregated1YearRetention10MinuteResolution:
+			f = fetches[3]
+		default:
+			// Not expecting from other (partial) namespaces
+			iter := client.NewMockTaggedIDsIterator(ctrl)
+			gomock.InOrder(
+				iter.EXPECT().Next().Return(false),
+				iter.EXPECT().Err().Return(nil),
+				iter.EXPECT().Finalize(),
+			)
+			session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(iter, true, nil)
+			session.EXPECT().IteratorPools().
+				Return(nil, nil).AnyTimes()
+			return
+		}
+		iter := client.NewMockTaggedIDsIterator(ctrl)
+		gomock.InOrder(
+			iter.EXPECT().Next().Return(true),
+			iter.EXPECT().Current().Return(
+				ident.StringID(f.namespace),
+				ident.StringID(f.id),
+				ident.NewTagsIterator(ident.NewTags(
+					ident.Tag{
+						Name:  ident.StringID(f.tagName),
+						Value: ident.StringID(f.tagValue),
+					})),
+			),
+			iter.EXPECT().Next().Return(false),
+			iter.EXPECT().Err().Return(nil),
+			iter.EXPECT().Finalize(),
+		)
+
+		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(iter, true, nil)
+
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
+	})
+
+	req := newCompleteTagsReq()
+	result, err := store.CompleteTags(context.TODO(), req, buildFetchOpts())
+	require.NoError(t, err)
+
+	require.False(t, result.CompleteNameOnly)
+
+	require.Equal(t, 1, len(result.CompletedTags))
+	expected := []storage.CompletedTag{
+		{
+			Name:   []byte("qux"),
+			Values: [][]byte{[]byte("qaz"), []byte("qaz2")},
+		},
+	}
+
+	assert.Equal(t, expected, result.CompletedTags)
 }

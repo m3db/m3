@@ -56,8 +56,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const maxShards = 8192
+const maxShards = 1024
 const blockSize = 2 * time.Hour
+
+var (
+	testFsOpts        = fs.NewOptions()
+	testCommitlogOpts = commitlog.NewOptions()
+)
 
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	var (
@@ -119,20 +124,16 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			)
 
-			commitLogBlockSize := 1 * time.Minute
-			require.True(t, commitLogBlockSize < blockSize)
-
 			var (
-				fsOpts = fs.NewOptions().
+				fsOpts = testFsOpts.
 					SetFilePathPrefix(dir)
-				commitLogOpts = commitlog.NewOptions().
+				commitLogOpts = testCommitlogOpts.
 						SetBlockSize(blockSize).
 						SetFilesystemOptions(fsOpts).
-						SetBlockSize(commitLogBlockSize).
 						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
-						SetClockOptions(commitlog.NewOptions().ClockOptions().SetNowFn(nowFn))
-				bootstrapOpts = testOptions().SetCommitLogOptions(commitLogOpts)
+						SetClockOptions(testCommitlogOpts.ClockOptions().SetNowFn(nowFn))
+				bootstrapOpts = testDefaultOpts.SetCommitLogOptions(commitLogOpts)
 
 				start = input.currentTime.Truncate(blockSize)
 			)
@@ -296,13 +297,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					}
 
 					if len(commitLogFiles) > 0 {
-						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
-						if err != nil {
-							return false, err
-						}
-
-						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
-							fsOpts.FilePathPrefix(), lastCommitLogFile.Start)
+						nextCommitLogFile, _, err := commitlog.NextFile(commitLogOpts)
 						if err != nil {
 							return false, err
 						}

@@ -46,7 +46,6 @@ func TestDiskCleanup(t *testing.T) {
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Create some fileset files and commit logs
 	var (
@@ -99,5 +98,5 @@ func TestDiskCleanup(t *testing.T) {
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(commitLogOpts, testNamespaces[0], shard, now, waitTimeout))
 }

@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -56,7 +57,7 @@ func TestClampMin(t *testing.T) {
 	op, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Max)
 	assert.Len(t, sink.Values, 2)
@@ -72,7 +73,7 @@ func TestClampMax(t *testing.T) {
 	op, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
 	require.NoError(t, err)
 	node := op.Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Min)
 	assert.Len(t, sink.Values, 2)

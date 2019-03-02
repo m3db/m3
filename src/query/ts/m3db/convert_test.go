@@ -134,21 +134,29 @@ func buildCustomIterator(
 	return iter, bounds
 }
 
+// verifies that given sub-bounds are valid, and returns the index of the
+// generated block being checked.
+func verifyBoundsAndGetBlockIndex(t *testing.T, bounds, sub models.Bounds) int {
+	require.Equal(t, bounds.StepSize, sub.StepSize)
+	require.Equal(t, blockSize, sub.Duration)
+	diff := sub.Start.Sub(bounds.Start)
+	require.Equal(t, 0, int(diff%blockSize))
+	return int(diff / blockSize)
+}
+
 func verifyMetas(
 	t *testing.T,
 	i int,
-	bounds models.Bounds,
 	meta block.Metadata,
 	metas []block.SeriesMeta,
 ) {
-	assert.True(t, meta.Bounds.Equals(bounds))
 	require.Equal(t, 1, meta.Tags.Len())
 	val, found := meta.Tags.Get([]byte("a"))
 	assert.True(t, found)
 	assert.Equal(t, []byte("b"), val)
 
 	for i, m := range metas {
-		assert.Equal(t, fmt.Sprintf("abc%d", i), m.Name)
+		assert.Equal(t, []byte(fmt.Sprintf("abc%d", i)), m.Name)
 		require.Equal(t, 1, m.Tags.Len())
 		val, found := m.Tags.Get([]byte("c"))
 		assert.True(t, found)
@@ -156,18 +164,114 @@ func verifyMetas(
 	}
 }
 
+// NB: blocks are not necessarily generated in order; last block may be the first
+// one in the returned array. This is fine since they are processed independently
+// and are put back together at the read step, or at any temporal functions in
+// the execution pipeline.
 func generateBlocks(
 	t *testing.T,
 	stepSize time.Duration,
+	opts Options,
 ) ([]block.Block, models.Bounds) {
 	iterators, bounds := generateIterators(t, stepSize)
 	blocks, err := ConvertM3DBSeriesIterators(
 		iterators,
-		models.NewTagOptions(),
 		bounds,
+		opts,
 	)
-
 	require.NoError(t, err)
-
 	return blocks, bounds
+}
+
+func TestUpdateTimeBySteps(t *testing.T) {
+	var tests = []struct {
+		stepSize, blockSize, expected time.Duration
+	}{
+		{time.Minute * 15, time.Hour, time.Hour},
+		{time.Minute * 14, time.Hour, time.Minute * 70},
+		{time.Minute * 13, time.Hour, time.Minute * 65},
+		{time.Minute * 59, time.Hour, time.Minute * 118},
+	}
+
+	for _, tt := range tests {
+		updateDuration := blockDuration(tt.blockSize, tt.stepSize)
+		assert.Equal(t, tt.expected/time.Minute, updateDuration/time.Minute)
+	}
+}
+
+func TestPadSeriesBlocks(t *testing.T) {
+	blockSize := time.Hour
+	start := time.Now().Truncate(blockSize)
+	readOffset := time.Minute
+	itStart := start.Add(readOffset)
+
+	var tests = []struct {
+		blockStart       time.Time
+		stepSize         time.Duration
+		expectedStart    time.Time
+		expectedStartTwo time.Time
+	}{
+		{start, time.Minute * 30, itStart, start.Add(61 * time.Minute)},
+		{
+			start.Add(blockSize),
+			time.Minute * 30,
+			start.Add(61 * time.Minute),
+			start.Add(121 * time.Minute),
+		},
+		// step 0: start + 1  , start + 37
+		// step 1: start + 73 , start + 109
+		// step 2: start + 145
+		// step 3: start + 181, start + 217
+		// step 4: start + 253, ...
+		{
+			start.Add(blockSize * 3),
+			time.Minute * 36,
+			start.Add(181 * time.Minute),
+			start.Add(253 * time.Minute),
+		},
+		// step 0: start + 1  , start + 38
+		// step 1: start + 75 , start + 112
+		// step 2: start + 149
+		// step 3: start + 186
+		{
+			start.Add(blockSize * 2),
+			time.Minute * 37,
+			start.Add(149 * time.Minute),
+			start.Add(186 * time.Minute),
+		},
+		// step 0: start + 1  , start + 12 , start + 23,
+		//         start + 34 , start + 45 , start + 56
+		// step 1: start + 67 , start + 78 , start + 89
+		//         start + 100, start + 111
+		// step 2: start + 122 ...
+		{
+			start.Add(blockSize * 1),
+			time.Minute * 11,
+			start.Add(67 * time.Minute),
+			start.Add(122 * time.Minute),
+		},
+	}
+
+	for _, tt := range tests {
+		blocks := seriesBlocks{
+			{
+				blockStart: tt.blockStart,
+				blockSize:  blockSize,
+				replicas:   []encoding.MultiReaderIterator{},
+			},
+			{
+				blockStart: tt.blockStart.Add(blockSize),
+				blockSize:  blockSize,
+				replicas:   []encoding.MultiReaderIterator{},
+			},
+		}
+
+		updated := updateSeriesBlockStarts(blocks, tt.stepSize, itStart)
+		require.Equal(t, 2, len(updated))
+		assert.Equal(t, tt.blockStart, updated[0].blockStart)
+		assert.Equal(t, tt.expectedStart, updated[0].readStart)
+
+		assert.Equal(t, tt.blockStart.Add(blockSize), updated[1].blockStart)
+		assert.Equal(t, tt.expectedStartTwo, updated[1].readStart)
+	}
 }

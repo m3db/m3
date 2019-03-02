@@ -4,11 +4,11 @@ Kernel Configuration
 This document lists the Kernel tweaks M3DB needs to run well.
 
 ## vm.max_map_count
-M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump `vm.max_map_count`. We suggest setting this value to `262144`, so you don’t have to come back and debug issues later.
+M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump `vm.max_map_count`. We suggest setting this value to `3000000`, so you don’t have to come back and debug issues later.
 
 On Linux, you can increase the limits by running the following command as root:
 ```
-sysctl -w vm.max_map_count=262144
+sysctl -w vm.max_map_count=3000000
 ```
 
 To set this value permanently, update the `vm.max_map_count` setting in `/etc/sysctl.conf`.
