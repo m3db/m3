@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 
@@ -123,5 +124,31 @@ func TestPlacementInitHandler(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		assert.Equal(t, "{\"error\":\"unable to build initial placement\"}\n", string(body))
+
+		// Test error response
+		w = httptest.NewRecorder()
+		if serviceName == M3AggregatorServiceName {
+			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(`{"instances": [{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "host1:1234","hostname": "host1","port": 1234},{"id": "host2","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host2:1234","hostname": "host2","port": 1234}],"num_shards": 64,"replication_factor": 2}`))
+		} else {
+			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(`{"instances": [{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "host1:1234","hostname": "host1","port": 1234},{"id": "host2","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host2:1234","hostname": "host2","port": 1234}],"num_shards": 64,"replication_factor": 2}`))
+		}
+		require.NotNil(t, req)
+
+		switch serviceName {
+		case M3CoordinatorServiceName:
+			mockPlacementService.EXPECT().
+				BuildInitialPlacement(gomock.Not(nil), 64, 1).
+				Return(nil, kv.ErrAlreadyExists)
+		default:
+			mockPlacementService.EXPECT().
+				BuildInitialPlacement(gomock.Not(nil), 64, 2).
+				Return(nil, kv.ErrAlreadyExists)
+		}
+
+		handler.ServeHTTP(serviceName, w, req)
+		resp = w.Result()
+		body, err = ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
 	})
 }
