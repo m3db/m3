@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3x/context"
 )
 
@@ -35,7 +34,6 @@ type server struct {
 	address string
 	service rpc.TChanNode
 	opts    httpjson.ServerOptions
-	ttopts  tchannelthrift.Options
 }
 
 // NewServer creates a node HTTP network service
