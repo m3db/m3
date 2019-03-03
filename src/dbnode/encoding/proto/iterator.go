@@ -80,6 +80,7 @@ func (it *iterator) readTSZValues() {
 }
 
 func (it *iterator) readProtoValues() {
+	fmt.Println("----------reading proto----------")
 	bit, err := it.stream.ReadBit()
 	if err != nil {
 		it.err = err
@@ -87,6 +88,8 @@ func (it *iterator) readProtoValues() {
 	}
 
 	if bit == 0 {
+		fmt.Println("no changes, skipping")
+		fmt.Println(it.lastIterated.String())
 		// No changes since previous message.
 		return
 	}
@@ -97,14 +100,16 @@ func (it *iterator) readProtoValues() {
 	// message that means the caller set it to a default value.
 	// So we need to handle that here
 	changedFieldNums := it.readBitset()
+	fmt.Println("changedFieldNums: ", changedFieldNums)
 
 	// TODO: Check error after this?
 	marshalLen := it.readVarInt()
+	fmt.Println("marshalLen: ", marshalLen)
 	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
 		if err != nil {
-			it.err = err
+			it.err = fmt.Errorf("error reading marshaled proto bytes: %v", err)
 			return
 		}
 		buf = append(buf, b)
@@ -117,15 +122,20 @@ func (it *iterator) readProtoValues() {
 	currMessage := dynamic.NewMessage(it.schema)
 	err = currMessage.Unmarshal(buf)
 	if err != nil {
-		it.err = err
+		it.err = fmt.Errorf("error unmarshaling protobuf: %v", err)
 		return
 	}
+
+	fmt.Println("unmarshaled: ", currMessage.String())
 	// err := it.lastIterated.UnmarshalMerge(buf)
 	// if err != nil {
 	// 	it.err = err
 	// 	return
 	// }
+	fmt.Println("before merge: ", it.lastIterated.String())
 	it.lastIterated.MergeFrom(currMessage)
+	fmt.Println("after merge: ", it.lastIterated.String())
+
 	// Loop through all changed fields
 	// if they are "default value" in the new unmarshaled message
 	// set them to default value in the old message
@@ -152,7 +162,7 @@ func (it *iterator) readBitset() []int {
 		bit, err := it.stream.ReadBit()
 		// TODO: This function should just return an error
 		if err != nil {
-			it.err = err
+			it.err = fmt.Errorf("error reading bitset: %v", err)
 			return nil
 		}
 
@@ -171,7 +181,7 @@ func (it *iterator) readVarInt() uint64 {
 		b, err := it.stream.ReadByte()
 		if err != nil {
 			// TODO: SHOULD THIS function just return an error
-			it.err = err
+			it.err = fmt.Errorf("error reading var int: %v", err)
 			return 0
 		}
 		buf = append(buf, b)

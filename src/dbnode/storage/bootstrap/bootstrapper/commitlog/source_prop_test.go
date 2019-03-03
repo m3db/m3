@@ -533,13 +533,13 @@ func genPropTestInput(
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
 			return propTestInput{
-				currentTime:     start,
-				bufferFuture:    bufferFuture,
-				bufferPast:      bufferPast,
-				snapshotTime:    snapshotTime,
-				snapshotExists:  snapshotExists,
-				commitLogExists: commitLogExists,
-				writes:          val,
+				currentTime:                   start,
+				bufferFuture:                  bufferFuture,
+				bufferPast:                    bufferPast,
+				snapshotTime:                  snapshotTime,
+				snapshotExists:                snapshotExists,
+				commitLogExists:               commitLogExists,
+				writes:                        val,
 				includeCorruptedCommitlogFile: includeCorruptedCommitlogFile,
 				multiNodeCluster:              multiNodeCluster,
 			}

@@ -112,7 +112,7 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		orig := m
 		m = dynamic.NewMessage(enc.schema)
 		m.MergeFrom(orig)
-		// Clear everything from message that is not in schema.
+		// TODO: Clear everything from message that is not in schema.
 		// For everything that remains, compare with previous message.
 		//    If same, remove.
 		//    else, leave it in
@@ -121,9 +121,8 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		for _, field := range schemaFields {
 			prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
 			curVal := m.GetFieldByNumber(int(field.GetNumber()))
+			fmt.Printf("field %d: %v ->  %v\n", field.GetNumber(), prevVal, curVal)
 			if fieldsEqual(curVal, prevVal) {
-				fmt.Println("curVal: ", curVal)
-				fmt.Println("prevVal: ", prevVal)
 				// Clear fields that haven't changed.
 				fmt.Println("clearing field: ", field.GetNumber())
 				m.ClearFieldByNumber(int(field.GetNumber()))
@@ -149,6 +148,7 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 
 	enc.stream.WriteBit(1)
 	enc.writeBitset(changedFields...)
+	fmt.Println("encoding marshal len: ", len(marshaled))
 	enc.writeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 
@@ -190,16 +190,23 @@ func (enc *encoder) writeBitset(values ...int) {
 
 	// Encode a varint that indicates how many of the remaining
 	// bits to interpret as a bitset.
+	fmt.Println("encoding bitset length: ", max+1)
 	enc.writeVarInt(uint64(max + 1))
 
 	// Encode the bitset
-outer:
 	for i := 0; i < max+1; i++ {
+		wroteExists := false
+
 		for _, v := range values {
-			if v == i {
+			if i == v {
 				enc.stream.WriteBit(1)
-				break outer
+				wroteExists = true
+				break
 			}
+		}
+
+		if wroteExists {
+			continue
 		}
 
 		enc.stream.WriteBit(0)
