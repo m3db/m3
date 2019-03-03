@@ -147,7 +147,7 @@ func TestPlacementInitHandler(t *testing.T) {
 
 		handler.ServeHTTP(serviceName, w, req)
 		resp = w.Result()
-		body, err = ioutil.ReadAll(resp.Body)
+		_, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusConflict, resp.StatusCode)
 	})
