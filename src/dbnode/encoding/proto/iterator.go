@@ -200,11 +200,14 @@ func (it *iterator) Current() *dynamic.Message {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
 	for _, field := range it.tszFields {
+		val := math.Float64frombits(field.prevFloatBits)
+		fieldNum := field.fieldNum
 		// TODO: Change to try
-		if it.schema.FindFieldByNumber(int32(field.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
-			it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float64frombits(field.prevFloatBits))
+		// TODO: Move this to happen in call to Next()
+		if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+			it.lastIterated.SetFieldByNumber(fieldNum, val)
 		} else {
-			it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float32frombits(uint32(field.prevFloatBits)))
+			it.lastIterated.SetFieldByNumber(fieldNum, float32(val))
 		}
 	}
 	return it.lastIterated

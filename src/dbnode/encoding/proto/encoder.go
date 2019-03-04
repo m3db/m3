@@ -165,24 +165,14 @@ func (enc *encoder) fieldsContains(fieldNum int32, fields []*desc.FieldDescripto
 }
 
 func (enc *encoder) writeFirstTSZValue(i int, v float64) {
-	var fb uint64
-	if enc.schema.FindFieldByNumber(int32(enc.tszFields[i].fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
-		fb = math.Float64bits(v)
-	} else {
-		fb = uint64(math.Float32bits(float32(v)))
-	}
+	fb := math.Float64bits(v)
 	enc.stream.WriteBits(fb, 64)
 	enc.tszFields[i].prevFloatBits = fb
 	enc.tszFields[i].prevXOR = fb
 }
 
 func (enc *encoder) writeNextTSZValue(i int, next float64) {
-	var curFloatBits uint64
-	if enc.schema.FindFieldByNumber(int32(enc.tszFields[i].fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
-		curFloatBits = math.Float64bits(next)
-	} else {
-		curFloatBits = uint64(math.Float32bits(float32(next)))
-	}
+	curFloatBits := math.Float64bits(next)
 	curXOR := enc.tszFields[i].prevFloatBits ^ curFloatBits
 	m3tsz.WriteXOR(enc.stream, enc.tszFields[i].prevXOR, curXOR)
 	enc.tszFields[i].prevFloatBits = curFloatBits
