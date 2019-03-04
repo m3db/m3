@@ -71,7 +71,7 @@ func TestRoundtripProp(t *testing.T) {
 		checkedBytes, _ := enc.stream.Rawbytes()
 		rawBytes := checkedBytes.Bytes()
 		buff := bytes.NewBuffer(rawBytes)
-		iter, err := NewIterator(buff, input.schema, testEncodingOptions)
+		iter, err := NewIterator(buff, input.schema)
 		if err != nil {
 			return false, fmt.Errorf("error constructing iterator: %v", err)
 		}

@@ -37,7 +37,6 @@ type iterator struct {
 	err              error
 	schema           *desc.MessageDescriptor
 	stream           encoding.IStream
-	opts             encoding.Options
 	consumedFirstTSZ bool
 	lastIterated     *dynamic.Message
 	tszFields        []tszFieldState
@@ -48,12 +47,10 @@ type iterator struct {
 func NewIterator(
 	reader io.Reader,
 	schema *desc.MessageDescriptor,
-	opts encoding.Options,
 ) (*iterator, error) {
 	iter := &iterator{
 		schema: schema,
 		stream: encoding.NewIStream(reader),
-		opts:   opts,
 		// TODO: These need to be possibly updated as we traverse a stream
 		tszFields: tszFields(nil, schema),
 	}

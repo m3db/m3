@@ -93,7 +93,7 @@ func TestRoundtrip(t *testing.T) {
 	checkedBytes, _ := enc.stream.Rawbytes()
 	rawBytes := checkedBytes.Bytes()
 	buff := bytes.NewBuffer(rawBytes)
-	iter, err := NewIterator(buff, testVLSchema, testEncodingOptions)
+	iter, err := NewIterator(buff, testVLSchema)
 	require.NoError(t, err)
 	for _, tc := range testCases {
 		iter.Next()
