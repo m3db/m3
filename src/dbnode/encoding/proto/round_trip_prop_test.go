@@ -44,9 +44,8 @@ func TestRoundtripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
 		seed       = time.Now().UnixNano()
-		// seed     = int64(1551649544821181000)
-		props    = gopter.NewProperties(parameters)
-		reporter = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
@@ -177,6 +176,18 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 				message.SetFieldByNumber(fieldNumber, input.uint32s[i])
 			case dpb.FieldDescriptorProto_TYPE_UINT64:
 				message.SetFieldByNumber(fieldNumber, input.uint64s[i])
+			case dpb.FieldDescriptorProto_TYPE_FIXED64:
+				message.SetFieldByNumber(fieldNumber, input.uint64s[i])
+			case dpb.FieldDescriptorProto_TYPE_FIXED32:
+				message.SetFieldByNumber(fieldNumber, input.uint32s[i])
+			case dpb.FieldDescriptorProto_TYPE_SFIXED64:
+				message.SetFieldByNumber(fieldNumber, input.int64s[i])
+			case dpb.FieldDescriptorProto_TYPE_SFIXED32:
+				message.SetFieldByNumber(fieldNumber, input.int32s[i])
+			case dpb.FieldDescriptorProto_TYPE_SINT64:
+				message.SetFieldByNumber(fieldNumber, input.int64s[i])
+			case dpb.FieldDescriptorProto_TYPE_SINT32:
+				message.SetFieldByNumber(fieldNumber, input.int32s[i])
 			default:
 				panic(fmt.Sprintf("invalid field type in schema: %v", fieldType))
 			}
@@ -247,17 +258,17 @@ func genFieldType() gopter.Gen {
 		dpb.FieldDescriptorProto_TYPE_INT64,
 		dpb.FieldDescriptorProto_TYPE_UINT64,
 		dpb.FieldDescriptorProto_TYPE_INT32,
-		// dpb.FieldDescriptorProto_TYPE_FIXED64,
-		// dpb.FieldDescriptorProto_TYPE_FIXED32,
+		dpb.FieldDescriptorProto_TYPE_FIXED64,
+		dpb.FieldDescriptorProto_TYPE_FIXED32,
 		dpb.FieldDescriptorProto_TYPE_BOOL,
 		dpb.FieldDescriptorProto_TYPE_STRING,
 		// FieldDescriptorProto_TYPE_MESSAGE,
 		dpb.FieldDescriptorProto_TYPE_BYTES,
 		dpb.FieldDescriptorProto_TYPE_UINT32,
 		// FieldDescriptorProto_TYPE_ENUM,
-		// dpb.FieldDescriptorProto_TYPE_SFIXED32,
-		// dpb.FieldDescriptorProto_TYPE_SFIXED64,
-		// dpb.FieldDescriptorProto_TYPE_SINT32,
-		// dpb.FieldDescriptorProto_TYPE_SINT64,
+		dpb.FieldDescriptorProto_TYPE_SFIXED32,
+		dpb.FieldDescriptorProto_TYPE_SFIXED64,
+		dpb.FieldDescriptorProto_TYPE_SINT32,
+		dpb.FieldDescriptorProto_TYPE_SINT64,
 	)
 }
