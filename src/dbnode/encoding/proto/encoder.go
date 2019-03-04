@@ -165,7 +165,12 @@ func (enc *encoder) fieldsContains(fieldNum int32, fields []*desc.FieldDescripto
 }
 
 func (enc *encoder) writeFirstTSZValue(i int, v float64) {
-	fb := math.Float64bits(v)
+	var fb uint64
+	if enc.schema.FindFieldByNumber(int32(enc.tszFields[i].fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+		fb = math.Float64bits(v)
+	} else {
+		fb = uint64(math.Float32bits(float32(v)))
+	}
 	enc.stream.WriteBits(fb, 64)
 	enc.tszFields[i].prevFloatBits = fb
 	enc.tszFields[i].prevXOR = fb

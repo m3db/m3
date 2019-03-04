@@ -161,8 +161,22 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 			switch fieldType {
 			case dpb.FieldDescriptorProto_TYPE_BOOL:
 				message.SetFieldByNumber(fieldNumber, input.bools[i])
+			case dpb.FieldDescriptorProto_TYPE_BYTES:
+				message.SetFieldByNumber(fieldNumber, []byte(input.strings[i]))
+			case dpb.FieldDescriptorProto_TYPE_STRING:
+				message.SetFieldByNumber(fieldNumber, input.strings[i])
 			case dpb.FieldDescriptorProto_TYPE_DOUBLE:
 				message.SetFieldByNumber(fieldNumber, input.float64s[i])
+			case dpb.FieldDescriptorProto_TYPE_FLOAT:
+				message.SetFieldByNumber(fieldNumber, input.float32s[i])
+			case dpb.FieldDescriptorProto_TYPE_INT32:
+				message.SetFieldByNumber(fieldNumber, input.int32s[i])
+			case dpb.FieldDescriptorProto_TYPE_INT64:
+				message.SetFieldByNumber(fieldNumber, input.int64s[i])
+			case dpb.FieldDescriptorProto_TYPE_UINT32:
+				message.SetFieldByNumber(fieldNumber, input.uint32s[i])
+			case dpb.FieldDescriptorProto_TYPE_UINT64:
+				message.SetFieldByNumber(fieldNumber, input.uint64s[i])
 			default:
 				panic(fmt.Sprintf("invalid field type in schema: %v", fieldType))
 			}
@@ -229,17 +243,17 @@ func genFieldType() gopter.Gen {
 	return gen.OneConstOf(
 		// TODO: Use allowed values for this
 		dpb.FieldDescriptorProto_TYPE_DOUBLE,
-		// dpb.FieldDescriptorProto_TYPE_FLOAT,
-		// dpb.FieldDescriptorProto_TYPE_INT64,
-		// dpb.FieldDescriptorProto_TYPE_UINT64,
-		// dpb.FieldDescriptorProto_TYPE_INT32,
+		dpb.FieldDescriptorProto_TYPE_FLOAT,
+		dpb.FieldDescriptorProto_TYPE_INT64,
+		dpb.FieldDescriptorProto_TYPE_UINT64,
+		dpb.FieldDescriptorProto_TYPE_INT32,
 		// dpb.FieldDescriptorProto_TYPE_FIXED64,
 		// dpb.FieldDescriptorProto_TYPE_FIXED32,
 		dpb.FieldDescriptorProto_TYPE_BOOL,
-		// dpb.FieldDescriptorProto_TYPE_STRING,
+		dpb.FieldDescriptorProto_TYPE_STRING,
 		// FieldDescriptorProto_TYPE_MESSAGE,
-		// dpb.FieldDescriptorProto_TYPE_BYTES,
-		// dpb.FieldDescriptorProto_TYPE_UINT32,
+		dpb.FieldDescriptorProto_TYPE_BYTES,
+		dpb.FieldDescriptorProto_TYPE_UINT32,
 		// FieldDescriptorProto_TYPE_ENUM,
 		// dpb.FieldDescriptorProto_TYPE_SFIXED32,
 		// dpb.FieldDescriptorProto_TYPE_SFIXED64,

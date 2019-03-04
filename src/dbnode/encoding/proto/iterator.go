@@ -26,6 +26,7 @@ import (
 	"io"
 	"math"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -200,7 +201,11 @@ func (it *iterator) Current() *dynamic.Message {
 	}
 	for _, field := range it.tszFields {
 		// TODO: Change to try
-		it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float64frombits(field.prevFloatBits))
+		if it.schema.FindFieldByNumber(int32(field.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+			it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float64frombits(field.prevFloatBits))
+		} else {
+			it.lastIterated.SetFieldByNumber(field.fieldNum, math.Float32frombits(uint32(field.prevFloatBits)))
+		}
 	}
 	return it.lastIterated
 }
