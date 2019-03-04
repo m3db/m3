@@ -49,6 +49,7 @@ type iterator struct {
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
+	varIntBuf    [8]byte
 	bitsetValues []int
 }
 
@@ -187,19 +188,26 @@ func (it *iterator) readBitset() error {
 }
 
 func (it *iterator) readVarInt() (uint64, error) {
-	// TODO: Reuse
-	buf := make([]byte, 0, 0)
+	var (
+		// Convert array to slice we can reuse the buffer.
+		buf      = it.varIntBuf[:0]
+		numBytes = 0
+	)
 	for {
 		b, err := it.stream.ReadByte()
 		if err != nil {
 			return 0, fmt.Errorf("error reading var int: %v", err)
 		}
+
 		buf = append(buf, b)
+		numBytes++
+
 		if b>>7 == 0 {
 			break
 		}
 	}
 
+	buf = buf[:numBytes]
 	varInt, _ := binary.Uvarint(buf)
 	return varInt, nil
 }
