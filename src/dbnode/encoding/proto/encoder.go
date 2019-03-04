@@ -117,7 +117,7 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 			val = float64(typedVal)
 		default:
 			return fmt.Errorf(
-				"proto encoder: found unknown type in fieldNum %d of message %s"
+				"proto encoder: found unknown type in fieldNum %d of message %s",
 				tszField.fieldNum, m.String())
 		}
 
