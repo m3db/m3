@@ -129,13 +129,19 @@ func genPropTestInputs() gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
 			inputs      = input.([]interface{})
-			schema      = inputs[0].(*desc.MessageDescriptor)
+			numFields   = inputs[0].(int)
 			numMessages = inputs[1].(int)
 		)
-		return genPropTestInput(schema, numMessages)
+
+		return genSchema(numFields).FlatMap(
+			func(input interface{}) gopter.Gen {
+				schema := input.(*desc.MessageDescriptor)
+				return genPropTestInput(schema, numMessages)
+			}, reflect.TypeOf(propTestInput{}))
 	}
+
 	return gopter.CombineGens(
-		genSchema(),
+		gen.IntRange(0, maxNumFields),
 		gen.IntRange(0, maxNumMessages),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
@@ -230,10 +236,9 @@ func genWrite() gopter.Gen {
 	})
 }
 
-func genSchema() gopter.Gen {
-	// TODO: Make number of fields variable
+func genSchema(numFields int) gopter.Gen {
 	return gen.
-		SliceOfN(maxNumFields, genFieldType()).
+		SliceOfN(numFields, genFieldType()).
 		Map(func(fieldTypes []dpb.FieldDescriptorProto_Type) *desc.MessageDescriptor {
 			schemaBuilder := builder.NewMessage("schema")
 			for i, fieldType := range fieldTypes {
