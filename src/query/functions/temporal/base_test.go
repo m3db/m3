@@ -21,6 +21,7 @@
 package temporal
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -60,7 +61,7 @@ func compareCacheState(t *testing.T, node *baseNode, bounds models.Bounds, state
 		actualState[i] = exists
 	}
 
-	assert.Equal(t, actualState, state, debugMsg)
+	assert.Equal(t, state, actualState, debugMsg)
 }
 
 func TestBaseWithB0(t *testing.T) {
@@ -319,6 +320,69 @@ func TestBaseWithSize3B0B1B2B3B4(t *testing.T) {
 	assert.Len(t, tc.Sink.Values, 10, "all 5 blocks processed")
 	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false, false, false}, "nothing cached")
 }
+
+// TestBaseWithDownstreamError checks that we handle errors from blocks correctly
+func TestBaseWithDownstreamError(t *testing.T) {
+	numBlocks := 2
+	tc := setup(numBlocks, 5*time.Minute, 1)
+
+	testErr := errors.New("test err")
+	errBlock, err := newBlockWithDownstreamErr(tc.Blocks[1], testErr)
+	require.NoError(t, err)
+
+	require.NoError(t, tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), errBlock))
+
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
+	require.EqualError(t, err, testErr.Error())
+}
+
+// Types for TestBaseWithDownstreamError
+
+// blockWithDownstreamErr overrides only Unconsolidated() for purposes of returning a
+// an UnconsolidatedBlock which errors on SeriesIter() (unconsolidatedBlockWithSeriesIterErr)
+type blockWithDownstreamErr struct {
+	block.Block
+	Err error
+
+	unconsolidated unconsolidatedBlockWithSeriesIterErr
+}
+
+func newBlockWithDownstreamErr(bl block.Block, downstreamErr error) (blockWithDownstreamErr, error) {
+	unconsolidated, err := bl.Unconsolidated()
+	if err != nil {
+		return blockWithDownstreamErr{}, err
+	}
+
+	return blockWithDownstreamErr{
+		Block: bl,
+		unconsolidated: unconsolidatedBlockWithSeriesIterErr{
+			Err:                 downstreamErr,
+			UnconsolidatedBlock: unconsolidated,
+		},
+	}, nil
+}
+
+func (mbu blockWithDownstreamErr) Unconsolidated() (block.UnconsolidatedBlock, error) {
+	return &mbu.unconsolidated, nil
+}
+
+type unconsolidatedBlockWithSeriesIterErr struct {
+	block.UnconsolidatedBlock
+
+	Err    error
+	closed bool
+}
+
+func (mbuc unconsolidatedBlockWithSeriesIterErr) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
+	return nil, mbuc.Err
+}
+
+func (mbuc *unconsolidatedBlockWithSeriesIterErr) Close() error {
+	mbuc.closed = true
+	return nil
+}
+
+// End types for TestBaseWithDownstreamError
 
 type testContext struct {
 	Bounds models.Bounds

@@ -194,11 +194,10 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	}
 
 	blocks, err := c.processCompletedBlocks(queryCtx, processRequests, maxBlocks)
-	defer closeBlocks(blocks)
-
 	if err != nil {
 		return err
 	}
+	defer closeBlocks(blocks)
 
 	return c.propagateNextBlocks(processRequests, blocks, maxBlocks)
 }
@@ -256,15 +255,16 @@ func (c *baseNode) processCompletedBlocks(queryCtx *models.QueryContext, process
 	sp, _ := opentracingutil.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
-	blocks := make([]block.Block, len(processRequests))
-	for i, req := range processRequests {
+	blocks := make([]block.Block, 0, len(processRequests))
+	for _, req := range processRequests {
 		bl, err := c.processSingleRequest(req)
 		if err != nil {
-			// return processed blocks so we can close them
+			// cleanup any blocks we opened
+			closeBlocks(blocks)
 			return blocks, err
 		}
 
-		blocks[i] = bl
+		blocks = append(blocks, bl)
 	}
 
 	return blocks, nil
