@@ -81,7 +81,6 @@ func (it *iterator) readTSZValues() {
 }
 
 func (it *iterator) readProtoValues() {
-	fmt.Println("----------reading proto----------")
 	bit, err := it.stream.ReadBit()
 	if err != nil {
 		it.err = err
@@ -89,8 +88,6 @@ func (it *iterator) readProtoValues() {
 	}
 
 	if bit == 0 {
-		fmt.Println("no changes, skipping")
-		fmt.Println(it.lastIterated.String())
 		// No changes since previous message.
 		return
 	}
@@ -101,11 +98,9 @@ func (it *iterator) readProtoValues() {
 	// message that means the caller set it to a default value.
 	// So we need to handle that here
 	changedFieldNums := it.readBitset()
-	fmt.Println("changedFieldNums: ", changedFieldNums)
 
 	// TODO: Check error after this?
 	marshalLen := it.readVarInt()
-	fmt.Println("marshalLen: ", marshalLen)
 	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
@@ -127,29 +122,23 @@ func (it *iterator) readProtoValues() {
 		return
 	}
 
-	fmt.Println("unmarshaled: ", currMessage.String())
 	// err := it.lastIterated.UnmarshalMerge(buf)
 	// if err != nil {
 	// 	it.err = err
 	// 	return
 	// }
-	fmt.Println("before merge: ", it.lastIterated.String())
 	it.lastIterated.MergeFrom(currMessage)
-	fmt.Println("after merge: ", it.lastIterated.String())
 
 	// Loop through all changed fields
 	// if they are "default value" in the new unmarshaled message
 	// set them to default value in the old message
-	fmt.Println("len(changedFieldNums)", len(changedFieldNums))
 	for _, fieldNum := range changedFieldNums {
-		fmt.Println("changed fieldNum: ", fieldNum)
 		var (
 			fieldDesc         = it.schema.FindFieldByNumber(int32(fieldNum))
 			fieldDefaultValue = fieldDesc.GetDefaultValue()
 			existingVal       = currMessage.GetFieldByNumber(fieldNum)
 		)
 		if fieldsEqual(existingVal, fieldDefaultValue) {
-			fmt.Println("clearing fieldNum: ", fieldNum)
 			it.lastIterated.ClearFieldByNumber(fieldNum)
 		}
 	}
@@ -158,7 +147,6 @@ func (it *iterator) readProtoValues() {
 func (it *iterator) readBitset() []int {
 	vals := []int{}
 	bitsetLengthBits := it.readVarInt()
-	fmt.Println("reading bitset length: ", bitsetLengthBits)
 	for i := uint64(0); i < bitsetLengthBits; i++ {
 		bit, err := it.stream.ReadBit()
 		// TODO: This function should just return an error

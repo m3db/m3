@@ -105,7 +105,6 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 }
 
 func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
-	fmt.Println("--------------------------")
 	var changedFields []int
 	if enc.lastEncoded != nil {
 		// Clone before mutating.
@@ -121,13 +120,10 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		for _, field := range schemaFields {
 			prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
 			curVal := m.GetFieldByNumber(int(field.GetNumber()))
-			fmt.Printf("field %d: %v ->  %v\n", field.GetNumber(), prevVal, curVal)
 			if fieldsEqual(curVal, prevVal) {
 				// Clear fields that haven't changed.
-				fmt.Println("clearing field: ", field.GetNumber())
 				m.ClearFieldByNumber(int(field.GetNumber()))
 			} else {
-				fmt.Println("changed field: ", field.GetNumber())
 				changedFields = append(changedFields, int(field.GetNumber()))
 			}
 		}
@@ -140,7 +136,6 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	fmt.Println("MARSHALING:", m.String())
 	marshaled, err := m.Marshal()
 	if err != nil {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
@@ -148,7 +143,6 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 
 	enc.stream.WriteBit(1)
 	enc.writeBitset(changedFields...)
-	fmt.Println("encoding marshal len: ", len(marshaled))
 	enc.writeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 
@@ -180,7 +174,6 @@ func (enc *encoder) writeNextTSZValue(i int, next float64) {
 }
 
 func (enc *encoder) writeBitset(values ...int) {
-	fmt.Println("writing bitset: ", values)
 	var max int
 	for _, v := range values {
 		if v > max {
@@ -190,7 +183,6 @@ func (enc *encoder) writeBitset(values ...int) {
 
 	// Encode a varint that indicates how many of the remaining
 	// bits to interpret as a bitset.
-	fmt.Println("encoding bitset length: ", max+1)
 	enc.writeVarInt(uint64(max + 1))
 
 	// Encode the bitset
@@ -221,41 +213,11 @@ func (enc *encoder) writeVarInt(x uint64) {
 	enc.stream.WriteBytes(buf)
 }
 
-// const (
-// 	// 0 is reserved for errors.
-// 	// Order is weird for historical reasons.
-// 	FieldDescriptorProto_TYPE_DOUBLE FieldDescriptorProto_Type = 1
-// 	FieldDescriptorProto_TYPE_FLOAT  FieldDescriptorProto_Type = 2
-// 	// Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT64 if
-// 	// negative values are likely.
-// 	FieldDescriptorProto_TYPE_INT64  FieldDescriptorProto_Type = 3
-// 	FieldDescriptorProto_TYPE_UINT64 FieldDescriptorProto_Type = 4
-// 	// Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT32 if
-// 	// negative values are likely.
-// 	FieldDescriptorProto_TYPE_INT32   FieldDescriptorProto_Type = 5
-// 	FieldDescriptorProto_TYPE_FIXED64 FieldDescriptorProto_Type = 6
-// 	FieldDescriptorProto_TYPE_FIXED32 FieldDescriptorProto_Type = 7
-// 	FieldDescriptorProto_TYPE_BOOL    FieldDescriptorProto_Type = 8
-// 	FieldDescriptorProto_TYPE_STRING  FieldDescriptorProto_Type = 9
-// 	// Tag-delimited aggregate.
-// 	// Group type is deprecated and not supported in proto3. However, Proto3
-// 	// implementations should still be able to parse the group wire format and
-// 	// treat group fields as unknown fields.
-// 	FieldDescriptorProto_TYPE_GROUP   FieldDescriptorProto_Type = 10
-// 	FieldDescriptorProto_TYPE_MESSAGE FieldDescriptorProto_Type = 11
-// 	// New in version 2.
-// 	FieldDescriptorProto_TYPE_BYTES    FieldDescriptorProto_Type = 12
-// 	FieldDescriptorProto_TYPE_UINT32   FieldDescriptorProto_Type = 13
-// 	FieldDescriptorProto_TYPE_ENUM     FieldDescriptorProto_Type = 14
-// 	FieldDescriptorProto_TYPE_SFIXED32 FieldDescriptorProto_Type = 15
-// 	FieldDescriptorProto_TYPE_SFIXED64 FieldDescriptorProto_Type = 16
-// 	FieldDescriptorProto_TYPE_SINT32   FieldDescriptorProto_Type = 17
-// 	FieldDescriptorProto_TYPE_SINT64   FieldDescriptorProto_Type = 18
-// )
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
 // repeated or nested messages / maps.
-// TODO(rartoul): Should handled integers as TSZ as well, can just do XOR on the regular
-// bits after converting to uint64
+// TODO(rartoul): Should handle integers as TSZ as well, can just do XOR on the regular
+// bits after converting to uint64. Just need to check type on encode/iterate to determine
+// how to interpret bits.
 func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldState {
 	numTSZFields := numTSZFields(schema)
 	if cap(s) >= numTSZFields {

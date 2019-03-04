@@ -38,7 +38,7 @@ import (
 )
 
 var maxNumFields = 10
-var maxNumMessages = 100
+var maxNumMessages = 1000
 
 func TestRoundtripProp(t *testing.T) {
 	var (
@@ -49,6 +49,7 @@ func TestRoundtripProp(t *testing.T) {
 	)
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
+
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		enc, err := NewEncoder(nil, input.schema, testEncodingOptions)
 		if err != nil {

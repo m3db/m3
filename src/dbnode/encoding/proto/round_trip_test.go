@@ -23,7 +23,6 @@ package proto
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/jhump/protoreflect/desc"
@@ -38,6 +37,7 @@ var (
 	testEncodingOptions = encoding.NewOptions()
 )
 
+// TODO: Add test for schema changes mid stream
 func TestRoundtrip(t *testing.T) {
 	enc := newTestEncoder()
 	testCases := []struct {
@@ -82,35 +82,26 @@ func TestRoundtrip(t *testing.T) {
 		},
 	}
 
-	// tszEncoder := m3tsz.NewEncoder(time.Time{}, nil, false, testEncodingOptions)
 	for _, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.deliveryID)
 		err := enc.Encode(vl)
 		require.NoError(t, err)
 
-		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.latitude}, xtime.Second, nil)
-		// err = tszEncoder.Encode(ts.Datapoint{Timestamp: time.Time{}, Value: tc.longitude}, xtime.Second, nil)
-		// require.NoError(t, err)
 	}
 
-	// seg := tszEncoder.Discard()
-	// fmt.Println("m3tsz size: ", seg.Head.Len()+seg.Tail.Len())
 	// TODO: Fix this, need a discard method or w/e.
 	checkedBytes, _ := enc.stream.Rawbytes()
 	rawBytes := checkedBytes.Bytes()
 	buff := bytes.NewBuffer(rawBytes)
-	fmt.Println("len(rawBytes): ", len(rawBytes))
 	iter, err := NewIterator(buff, testVLSchema, testEncodingOptions)
 	require.NoError(t, err)
 	for _, tc := range testCases {
 		iter.Next()
 		m := iter.Current()
-		fmt.Println("yolo:", m)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
 	}
-	// panic("done")
 }
 
 func newTestEncoder() *encoder {
