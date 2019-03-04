@@ -36,6 +36,7 @@ import (
 var (
 	errSchemaIsRequired           = errors.New("proto encoder: schema is required")
 	errEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
+	errMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
 )
 
 type encoder struct {
@@ -87,6 +88,10 @@ func NewEncoder(
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
 func (enc *encoder) Encode(m *dynamic.Message) error {
+	if len(m.GetUnknownFields()) > 0 {
+		return errMessageHasUnknownFields
+	}
+
 	if err := enc.encodeTSZValues(m); err != nil {
 		return err
 	}
@@ -135,11 +140,6 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	changedFields := enc.changesValues
 
 	if enc.lastEncoded != nil {
-		// Clone before mutating.
-		orig := m
-		m = dynamic.NewMessage(enc.schema)
-		m.MergeFrom(orig)
-
 		schemaFields := enc.schema.GetFields()
 		for _, field := range m.GetKnownFields() {
 			// Clear out any fields that were provided but are not in the schema
