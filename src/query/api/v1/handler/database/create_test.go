@@ -92,6 +92,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -245,6 +246,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -349,6 +351,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -454,6 +457,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -571,6 +575,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -669,6 +674,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -810,6 +816,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 

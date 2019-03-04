@@ -115,7 +115,7 @@ func (h *GetHandler) Get(
 		headers = httpReq.Header
 	}
 
-	opts := NewServiceOptions(
+	opts := handler.NewServiceOptions(
 		serviceName, headers, h.M3AggServiceOptions)
 
 	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)

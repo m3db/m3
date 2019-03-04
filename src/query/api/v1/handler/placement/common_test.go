@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,7 @@ func TestPlacementService(t *testing.T) {
 		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
 		placementService, algo, err := ServiceWithAlgo(
-			mockClient, NewServiceOptions(M3DBServiceName, nil, nil), time.Time{}, nil)
+			mockClient, handler.NewServiceOptions(handler.M3DBServiceName, nil, nil), time.Time{}, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, placementService)
 		assert.NotNil(t, algo)
@@ -60,7 +61,7 @@ func TestPlacementService(t *testing.T) {
 		// Test Services returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
 		placementService, err = Service(
-			mockClient, NewServiceOptions(M3DBServiceName, nil, nil), time.Time{}, nil)
+			mockClient, handler.NewServiceOptions(handler.M3DBServiceName, nil, nil), time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy service error")
 
@@ -68,7 +69,7 @@ func TestPlacementService(t *testing.T) {
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
 		placementService, err = Service(
-			mockClient, NewServiceOptions(M3DBServiceName, nil, nil), time.Time{}, nil)
+			mockClient, handler.NewServiceOptions(handler.M3DBServiceName, nil, nil), time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy placement error")
 	})
@@ -99,10 +100,10 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 			})
 
 		var (
-			serviceValue     = M3DBServiceName
+			serviceValue     = handler.M3DBServiceName
 			environmentValue = "bar_env"
 			zoneValue        = "baz_zone"
-			opts             = NewServiceOptions(serviceValue, nil, nil)
+			opts             = handler.NewServiceOptions(serviceValue, nil, nil)
 		)
 		opts.ServiceEnvironment = environmentValue
 		opts.ServiceZone = zoneValue
@@ -287,14 +288,14 @@ func runForAllAllowedServices(f func(service string)) {
 
 func TestIsStateless(t *testing.T) {
 	for _, s := range []string{
-		M3CoordinatorServiceName,
+		handler.M3CoordinatorServiceName,
 	} {
 		assert.True(t, isStateless(s))
 	}
 
 	for _, s := range []string{
-		M3AggregatorServiceName,
-		M3DBServiceName,
+		handler.M3AggregatorServiceName,
+		handler.M3DBServiceName,
 	} {
 		assert.False(t, isStateless(s))
 	}

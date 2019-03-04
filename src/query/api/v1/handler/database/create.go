@@ -41,7 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -162,7 +162,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger = logging.WithContext(ctx)
 	)
 
-	currPlacement, _, err := h.placementGetHandler.Get(placement.M3DBServiceName, nil)
+	currPlacement, _, err := h.placementGetHandler.Get(handler.M3DBServiceName, nil)
 	if err != nil {
 		logger.Error("unable to get placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -205,7 +205,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest)
+	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -241,7 +242,7 @@ func (h *createHandler) maybeInitPlacement(
 		// If we're here then there is no existing placement, so just create it. This is safe because in
 		// the case where a placement did not already exist, the parse function above validated that we
 		// have all the required information to create a placement.
-		newPlacement, err := h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
+		newPlacement, err := h.placementInitHandler.Init(handler.M3DBServiceName, r, placementRequest)
 		if err != nil {
 			return nil, false, err
 		}
