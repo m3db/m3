@@ -66,47 +66,58 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	it.readTSZValues()
-	it.readProtoValues()
+	if err := it.readTSZValues(); err != nil {
+		it.err = err
+		return false
+	}
+
+	if err := it.readProtoValues(); err != nil {
+		it.err = err
+		return false
+	}
 
 	return it.hasNext()
 }
 
-func (it *iterator) readTSZValues() {
+func (it *iterator) readTSZValues() error {
+	var err error
+
 	if !it.consumedFirstTSZ {
-		it.readFirstTSZValues()
+		err = it.readFirstTSZValues()
 	} else {
-		it.readNextTSZValues()
+		err = it.readNextTSZValues()
 	}
+
+	return err
 }
 
-func (it *iterator) readProtoValues() {
+func (it *iterator) readProtoValues() error {
 	bit, err := it.stream.ReadBit()
 	if err != nil {
-		it.err = err
-		return
+		return err
 	}
 
 	if bit == 0 {
 		// No changes since previous message.
-		return
+		return nil
 	}
 
-	// TODO: Check error after this function call
-	// TODO: if a field exists in the changedbitset,
-	// but we don't have an explicit value for it in the unmarshaled
-	// message that means the caller set it to a default value.
-	// So we need to handle that here
-	changedFieldNums := it.readBitset()
+	changedFieldNums, err := it.readBitset()
+	if err != nil {
+		return fmt.Errorf(
+			"error readining changed proto field numbers bitset: %v", err)
+	}
 
-	// TODO: Check error after this?
-	marshalLen := it.readVarInt()
+	marshalLen, err := it.readVarInt()
+	if err != nil {
+		return err
+	}
+
 	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
 		if err != nil {
-			it.err = fmt.Errorf("error reading marshaled proto bytes: %v", err)
-			return
+			return fmt.Errorf("error reading marshaled proto bytes: %v", err)
 		}
 		buf = append(buf, b)
 	}
@@ -118,8 +129,7 @@ func (it *iterator) readProtoValues() {
 	currMessage := dynamic.NewMessage(it.schema)
 	err = currMessage.Unmarshal(buf)
 	if err != nil {
-		it.err = fmt.Errorf("error unmarshaling protobuf: %v", err)
-		return
+		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
 
 	it.lastIterated.MergeFrom(currMessage)
@@ -137,17 +147,22 @@ func (it *iterator) readProtoValues() {
 			it.lastIterated.ClearFieldByNumber(fieldNum)
 		}
 	}
+
+	return nil
 }
 
-func (it *iterator) readBitset() []int {
+func (it *iterator) readBitset() ([]int, error) {
+	// TODO: Reuse
 	vals := []int{}
-	bitsetLengthBits := it.readVarInt()
+	bitsetLengthBits, err := it.readVarInt()
+	if err != nil {
+		return nil, err
+	}
+
 	for i := uint64(0); i < bitsetLengthBits; i++ {
 		bit, err := it.stream.ReadBit()
-		// TODO: This function should just return an error
 		if err != nil {
-			it.err = fmt.Errorf("error reading bitset: %v", err)
-			return nil
+			return nil, fmt.Errorf("error reading bitset: %v", err)
 		}
 
 		if bit == 1 {
@@ -156,18 +171,16 @@ func (it *iterator) readBitset() []int {
 		}
 	}
 
-	return vals
+	return vals, nil
 }
 
-func (it *iterator) readVarInt() uint64 {
+func (it *iterator) readVarInt() (uint64, error) {
 	// TODO: Reuse
 	buf := make([]byte, 0, 0)
 	for {
 		b, err := it.stream.ReadByte()
 		if err != nil {
-			// TODO: SHOULD THIS function just return an error
-			it.err = fmt.Errorf("error reading var int: %v", err)
-			return 0
+			return 0, fmt.Errorf("error reading var int: %v", err)
 		}
 		buf = append(buf, b)
 		if b>>7 == 0 {
@@ -176,40 +189,53 @@ func (it *iterator) readVarInt() uint64 {
 	}
 
 	varInt, _ := binary.Uvarint(buf)
-	return varInt
+	return varInt, nil
 }
 
 func (it *iterator) Current() *dynamic.Message {
 	return it.lastIterated
 }
 
-func (it *iterator) readFirstTSZValues() {
+func (it *iterator) readFirstTSZValues() error {
 	for i := range it.tszFields {
-		// Check for error here?
-		fb, xor := it.readFullFloatVal()
+		fb, xor, err := it.readFullFloatVal()
+		if err != nil {
+			return err
+		}
+
 		it.tszFields[i].prevFloatBits = fb
 		it.tszFields[i].prevXOR = xor
-		it.updateLastIteratedWithTSZValues(i)
+		if err := it.updateLastIteratedWithTSZValues(i); err != nil {
+			return err
+		}
 	}
 
 	it.consumedFirstTSZ = true
+	return nil
 }
 
-func (it *iterator) readNextTSZValues() {
+func (it *iterator) readNextTSZValues() error {
 	for i := range it.tszFields {
-		// Check for error here?
-		fb, xor := it.readFloatXOR(i)
+		fb, xor, err := it.readFloatXOR(i)
+		if err != nil {
+			return err
+		}
+
 		it.tszFields[i].prevFloatBits = fb
 		it.tszFields[i].prevXOR = xor
-		it.updateLastIteratedWithTSZValues(i)
+		if err := it.updateLastIteratedWithTSZValues(i); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // updateLastIteratedWithTSZValues updates lastIterated with the current
 // value of the TSZ field in it.tszFields at index i. This ensures that
 // when we return it.lastIterated in the call to Current() that all the
 // most recent values are present.
-func (it *iterator) updateLastIteratedWithTSZValues(i int) {
+func (it *iterator) updateLastIteratedWithTSZValues(i int) error {
 	if it.lastIterated == nil {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
@@ -224,53 +250,90 @@ func (it *iterator) updateLastIteratedWithTSZValues(i int) {
 	} else {
 		err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
 	}
+	return err
+}
+
+func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
+	xor, err = it.readXOR(i)
 	if err != nil {
-		// TODO: Fix me
-		it.err = err
+		return 0, 0, err
 	}
-}
-
-func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64) {
-	xor = it.readXOR(i)
 	prevFloatBits := it.tszFields[i].prevFloatBits
-	return prevFloatBits ^ xor, xor
+	return prevFloatBits ^ xor, xor, nil
 }
 
-func (it *iterator) readXOR(i int) uint64 {
-	cb := it.readBits(1)
+func (it *iterator) readXOR(i int) (uint64, error) {
+	cb, err := it.readBits(1)
+	if err != nil {
+		return 0, err
+	}
 	if cb == m3tsz.OpcodeZeroValueXOR {
-		return 0
+		return 0, nil
 	}
 
-	cb = (cb << 1) | it.readBits(1)
+	cb2, err := it.readBits(1)
+	if err != nil {
+		return 0, err
+	}
+
+	cb = (cb << 1) | cb2
 	if cb == m3tsz.OpcodeContainedValueXOR {
-		previousXOR := it.tszFields[i].prevXOR
-		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(previousXOR)
-		numMeaningfulBits := 64 - previousLeading - previousTrailing
-		return it.readBits(numMeaningfulBits) << uint(previousTrailing)
+		var (
+			previousXOR                       = it.tszFields[i].prevXOR
+			previousLeading, previousTrailing = encoding.LeadingAndTrailingZeros(previousXOR)
+			numMeaningfulBits                 = 64 - previousLeading - previousTrailing
+		)
+		meaningfulBits, err := it.readBits(numMeaningfulBits)
+		if err != nil {
+			return 0, err
+		}
+
+		return meaningfulBits << uint(previousTrailing), nil
 	}
 
-	numLeadingZeros := int(it.readBits(6))
-	numMeaningfulBits := int(it.readBits(6)) + 1
-	numTrailingZeros := 64 - numLeadingZeros - numMeaningfulBits
-	meaningfulBits := it.readBits(numMeaningfulBits)
-	return meaningfulBits << uint(numTrailingZeros)
+	numLeadingZerosBits, err := it.readBits(6)
+	if err != nil {
+		return 0, err
+	}
+	numMeaningfulBitsBits, err := it.readBits(6)
+	if err != nil {
+		return 0, err
+	}
+
+	var (
+		numLeadingZeros   = int(numLeadingZerosBits)
+		numMeaningfulBits = int(numMeaningfulBitsBits) + 1
+		numTrailingZeros  = 64 - numLeadingZeros - numMeaningfulBits
+	)
+	meaningfulBits, err := it.readBits(numMeaningfulBits)
+	if err != nil {
+		return 0, err
+	}
+
+	return meaningfulBits << uint(numTrailingZeros), nil
 }
 
-func (it *iterator) readFullFloatVal() (floatBits uint64, xor uint64) {
-	floatBits = it.readBits(64)
-	return floatBits, floatBits
+func (it *iterator) readFullFloatVal() (floatBits uint64, xor uint64, err error) {
+	floatBits, err = it.readBits(64)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return floatBits, floatBits, nil
 }
 
-func (it *iterator) readBits(numBits int) uint64 {
+func (it *iterator) readBits(numBits int) (uint64, error) {
+	// TODO: Delete
 	if !it.hasNext() {
-		return 0
+		return 0, nil
 	}
+
 	res, err := it.stream.ReadBits(numBits)
-	if it.err == nil && err != nil {
-		it.err = err
+	if err != nil {
+		return 0, err
 	}
-	return res
+
+	return res, nil
 }
 
 func (it *iterator) hasNext() bool {
