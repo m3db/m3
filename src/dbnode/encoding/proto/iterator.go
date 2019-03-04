@@ -122,11 +122,6 @@ func (it *iterator) readProtoValues() {
 		return
 	}
 
-	// err := it.lastIterated.UnmarshalMerge(buf)
-	// if err != nil {
-	// 	it.err = err
-	// 	return
-	// }
 	it.lastIterated.MergeFrom(currMessage)
 
 	// Loop through all changed fields
@@ -156,7 +151,8 @@ func (it *iterator) readBitset() []int {
 		}
 
 		if bit == 1 {
-			vals = append(vals, int(i))
+			// Add 1 because protobuf fields are 1-indexed not 0-indexed.
+			vals = append(vals, int(i)+1)
 		}
 	}
 
@@ -184,20 +180,6 @@ func (it *iterator) readVarInt() uint64 {
 }
 
 func (it *iterator) Current() *dynamic.Message {
-	if it.lastIterated == nil {
-		it.lastIterated = dynamic.NewMessage(it.schema)
-	}
-	for _, field := range it.tszFields {
-		val := math.Float64frombits(field.prevFloatBits)
-		fieldNum := field.fieldNum
-		// TODO: Change to try
-		// TODO: Move this to happen in call to Next()
-		if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
-			it.lastIterated.SetFieldByNumber(fieldNum, val)
-		} else {
-			it.lastIterated.SetFieldByNumber(fieldNum, float32(val))
-		}
-	}
 	return it.lastIterated
 }
 
@@ -207,6 +189,7 @@ func (it *iterator) readFirstTSZValues() {
 		fb, xor := it.readFullFloatVal()
 		it.tszFields[i].prevFloatBits = fb
 		it.tszFields[i].prevXOR = xor
+		it.updateLastIteratedWithTSZValues(i)
 	}
 
 	it.consumedFirstTSZ = true
@@ -218,6 +201,32 @@ func (it *iterator) readNextTSZValues() {
 		fb, xor := it.readFloatXOR(i)
 		it.tszFields[i].prevFloatBits = fb
 		it.tszFields[i].prevXOR = xor
+		it.updateLastIteratedWithTSZValues(i)
+	}
+}
+
+// updateLastIteratedWithTSZValues updates lastIterated with the current
+// value of the TSZ field in it.tszFields at index i. This ensures that
+// when we return it.lastIterated in the call to Current() that all the
+// most recent values are present.
+func (it *iterator) updateLastIteratedWithTSZValues(i int) {
+	if it.lastIterated == nil {
+		it.lastIterated = dynamic.NewMessage(it.schema)
+	}
+
+	var (
+		fieldNum = it.tszFields[i].fieldNum
+		val      = math.Float64frombits(it.tszFields[i].prevFloatBits)
+		err      error
+	)
+	if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+		err = it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+	} else {
+		err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
+	}
+	if err != nil {
+		// TODO: Fix me
+		it.err = err
 	}
 }
 

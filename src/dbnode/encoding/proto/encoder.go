@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 
-	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -37,8 +36,14 @@ type encoder struct {
 	stream             encoding.OStream
 	schema             *desc.MessageDescriptor
 	hasWrittenFirstTSZ bool
-	lastEncoded        *dynamic.Message
-	tszFields          []tszFieldState
+
+	lastEncoded *dynamic.Message
+	tszFields   []tszFieldState
+
+	// Fields that are reused between function calls to
+	// avoid allocations.
+	varIntBuf     [8]byte
+	changesValues []int32
 }
 
 type tszFieldState struct {
@@ -49,6 +54,7 @@ type tszFieldState struct {
 
 // NewEncoder creates a new encoder.
 // TODO: Make sure b and schema not nil.
+// TODO: Reject messages with unknown fields in ENCODE
 func NewEncoder(
 	b checked.Bytes,
 	schema *desc.MessageDescriptor,
@@ -60,15 +66,22 @@ func NewEncoder(
 		stream:    encoding.NewOStream(b, initAllocIfEmpty, opts.BytesPool()),
 		schema:    schema,
 		tszFields: tszFields(nil, schema),
+		varIntBuf: [8]byte{},
 	}
 
 	return enc, nil
 }
 
+// TODO: Add concept of hard/soft error and if there is a hard error
+// then the encoder cant be used anymore.
 func (enc *encoder) Encode(m *dynamic.Message) error {
-	enc.encodeTSZValues(m)
-	enc.encodeProtoValues(m)
-	enc.lastEncoded = m
+	if err := enc.encodeTSZValues(m); err != nil {
+		return err
+	}
+	if err := enc.encodeProtoValues(m); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -105,26 +118,49 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 }
 
 func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
-	var changedFields []int
+	// Reset for re-use.
+	enc.changesValues = enc.changesValues[:0]
+	changedFields := enc.changesValues
+
 	if enc.lastEncoded != nil {
 		// Clone before mutating.
 		orig := m
 		m = dynamic.NewMessage(enc.schema)
 		m.MergeFrom(orig)
-		// TODO: Clear everything from message that is not in schema.
-		// For everything that remains, compare with previous message.
-		//    If same, remove.
-		//    else, leave it in
+
 		schemaFields := enc.schema.GetFields()
-		// TODO: Need to make sure there are no unknown fields
+		for _, field := range m.GetKnownFields() {
+			// Clear out any fields that were provided but are not in the schema
+			// to prevent wasting space on them.
+			// TODO(rartoul):This is an uncommon scenario and this operation might
+			// be expensive to perform each time so consider removing this if it
+			// impacts performance too much.
+			fieldNum := field.GetNumber()
+			if !fieldsContains(fieldNum, schemaFields) {
+				if err := m.TryClearFieldByNumber(int(fieldNum)); err != nil {
+					return err
+				}
+			}
+		}
+
 		for _, field := range schemaFields {
-			prevVal := enc.lastEncoded.GetFieldByNumber(int(field.GetNumber()))
-			curVal := m.GetFieldByNumber(int(field.GetNumber()))
+			var (
+				fieldNum    = field.GetNumber()
+				fieldNumInt = int(fieldNum)
+				prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
+				curVal      = m.GetFieldByNumber(fieldNumInt)
+			)
+
 			if fieldsEqual(curVal, prevVal) {
 				// Clear fields that haven't changed.
-				m.ClearFieldByNumber(int(field.GetNumber()))
+				if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
+					return err
+				}
 			} else {
-				changedFields = append(changedFields, int(field.GetNumber()))
+				changedFields = append(changedFields, fieldNum)
+				if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -142,20 +178,19 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	enc.stream.WriteBit(1)
-	enc.writeBitset(changedFields...)
+	enc.writeBitset(changedFields)
 	enc.writeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 
-	return nil
-}
-
-func (enc *encoder) fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
-	for _, field := range fields {
-		if field.GetNumber() == fieldNum {
-			return true
-		}
+	if enc.lastEncoded == nil {
+		// Set lastEncoded to m so that subsequent encoding only need to encode fields
+		// that have changed.
+		enc.lastEncoded = m
+	} else {
+		// lastEncoded has already been mutated to reflect the current state.
 	}
-	return false
+
+	return nil
 }
 
 func (enc *encoder) writeFirstTSZValue(i int, v float64) {
@@ -173,8 +208,8 @@ func (enc *encoder) writeNextTSZValue(i int, next float64) {
 	enc.tszFields[i].prevXOR = curXOR
 }
 
-func (enc *encoder) writeBitset(values ...int) {
-	var max int
+func (enc *encoder) writeBitset(values []int32) {
+	var max int32
 	for _, v := range values {
 		if v > max {
 			max = v
@@ -183,14 +218,16 @@ func (enc *encoder) writeBitset(values ...int) {
 
 	// Encode a varint that indicates how many of the remaining
 	// bits to interpret as a bitset.
-	enc.writeVarInt(uint64(max + 1))
+	enc.writeVarInt(uint64(max))
 
 	// Encode the bitset
-	for i := 0; i < max+1; i++ {
+	for i := int32(0); i < max; i++ {
 		wroteExists := false
 
 		for _, v := range values {
-			if i == v {
+			// Subtract one because the values are 1-indexed but the bitset
+			// is 0-indexed.
+			if i == v-1 {
 				enc.stream.WriteBit(1)
 				wroteExists = true
 				break
@@ -206,53 +243,14 @@ func (enc *encoder) writeBitset(values ...int) {
 }
 
 func (enc *encoder) writeVarInt(x uint64) {
-	// TODO: Reuse this
-	buf := make([]byte, 8)
-	numBytes := binary.PutUvarint(buf, x)
-	buf = buf[:numBytes]
-	enc.stream.WriteBytes(buf)
-}
-
-// TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
-// repeated or nested messages / maps.
-// TODO(rartoul): Should handle integers as TSZ as well, can just do XOR on the regular
-// bits after converting to uint64. Just need to check type on encode/iterate to determine
-// how to interpret bits.
-func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldState {
-	numTSZFields := numTSZFields(schema)
-	if cap(s) >= numTSZFields {
-		s = s[:0]
-	} else {
-		s = make([]tszFieldState, 0, numTSZFields)
-	}
-
-	fields := schema.GetFields()
-	for _, field := range fields {
-		fieldType := field.GetType()
-		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
-			s = append(s, tszFieldState{
-				fieldNum: int(field.GetNumber()),
-			})
-		}
-	}
-
-	return s
-}
-
-func numTSZFields(schema *desc.MessageDescriptor) int {
 	var (
-		fields       = schema.GetFields()
-		numTSZFields = 0
+		// Convert array to slice we can reuse the buffer.
+		buf      = enc.varIntBuf[:]
+		numBytes = binary.PutUvarint(buf, x)
 	)
 
-	for _, field := range fields {
-		fieldType := field.GetType()
-		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
-			numTSZFields++
-		}
-	}
-
-	return numTSZFields
+	// Reslice so we only write out as many bytes as is required
+	// to represent the number.
+	buf = buf[:numBytes]
+	enc.stream.WriteBytes(buf)
 }

@@ -111,7 +111,21 @@ type propTestInput struct {
 	messages []*dynamic.Message
 }
 
+// generatedWrite contains numFields values for every type of ProtoBuf
+// field. This allows us to generate data independent of the schema itself
+// which we may not have seen in the input generation section yet. For example,
+// if the maximum number of fields that a message can contain is 10, then this
+// struct will generate a slice of size 10 for each of the scalar types and populate
+// them with random values.
+//
+// If we receive a schema where the message has 5 boolean fields and then 5 string
+// fields, then we will populate the first 5 booleans fields with generatedWrite.bools[:5]
+// and the next 5 string fields with generatedWrite.strings[:5].
 type generatedWrite struct {
+	// Whether we should use one of the randomly generated values in the slice below,
+	// or just the default value for the given type.S
+	useDefaultValue []bool
+
 	bools    []bool
 	strings  []string
 	float32s []float32
@@ -162,9 +176,20 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
 		message := dynamic.NewMessage(schema)
 		for i, field := range message.GetKnownFields() {
-			fieldType := field.GetType()
-			fieldNumber := int(field.GetNumber())
+			if input.useDefaultValue[i] {
+				// Due to the way ProtoBuf encoding works where there is no way to
+				// distinguish between an "unset" field and a field set to its default
+				// value, we intentionally force some of the values to their default values
+				// to exercise those code paths. This is important because the probabily of
+				// randomly generating a uint64 with the default value of zero is so unlikely
+				// that it will basically never happen.
+				continue
+			}
 
+			var (
+				fieldType   = field.GetType()
+				fieldNumber = int(field.GetNumber())
+			)
 			switch fieldType {
 			case dpb.FieldDescriptorProto_TYPE_BOOL:
 				message.SetFieldByNumber(fieldNumber, input.bools[i])
@@ -208,6 +233,7 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 func genWrite() gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(maxNumFields, gen.Bool()),
+		gen.SliceOfN(maxNumFields, gen.Bool()),
 		gen.SliceOfN(maxNumFields, gen.Identifier()),
 		gen.SliceOfN(maxNumFields, gen.Float32()),
 		gen.SliceOfN(maxNumFields, gen.Float64()),
@@ -221,18 +247,19 @@ func genWrite() gopter.Gen {
 		gen.SliceOfN(maxNumFields, gen.UInt64()),
 	).Map(func(input []interface{}) generatedWrite {
 		return generatedWrite{
-			bools:    input[0].([]bool),
-			strings:  input[1].([]string),
-			float32s: input[2].([]float32),
-			float64s: input[3].([]float64),
-			int8s:    input[4].([]int8),
-			int16s:   input[5].([]int16),
-			int32s:   input[6].([]int32),
-			int64s:   input[7].([]int64),
-			uint8s:   input[8].([]uint8),
-			uint16s:  input[9].([]uint16),
-			uint32s:  input[10].([]uint32),
-			uint64s:  input[11].([]uint64),
+			useDefaultValue: input[0].([]bool),
+			bools:           input[1].([]bool),
+			strings:         input[2].([]string),
+			float32s:        input[3].([]float32),
+			float64s:        input[4].([]float64),
+			int8s:           input[5].([]int8),
+			int16s:          input[6].([]int16),
+			int32s:          input[7].([]int32),
+			int64s:          input[8].([]int64),
+			uint8s:          input[9].([]uint8),
+			uint16s:         input[10].([]uint16),
+			uint32s:         input[11].([]uint32),
+			uint64s:         input[12].([]uint64),
 		}
 	})
 }
