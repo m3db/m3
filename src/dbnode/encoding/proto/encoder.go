@@ -39,6 +39,8 @@ var (
 	errMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
 )
 
+// TODO(rartoul): Need to support schema changes by updating the ordering
+// of the TSZ encoded fields on demand.
 type encoder struct {
 	stream             encoding.OStream
 	schema             *desc.MessageDescriptor
