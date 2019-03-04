@@ -74,7 +74,6 @@ func NewEncoder(
 
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	enc := &encoder{
-		// TODO: Pass in options, use pooling, etc.
 		stream:    encoding.NewOStream(b, initAllocIfEmpty, opts.BytesPool()),
 		schema:    schema,
 		tszFields: tszFields(nil, schema),
@@ -111,11 +110,15 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 		}
 
 		var val float64
-		if typedVal, ok := iVal.(float64); ok {
+		switch typedVal := iVal.(type) {
+		case float64:
 			val = typedVal
-		} else {
-			// TODO: Better error handling here
-			val = float64(iVal.(float32))
+		case float32:
+			val = float64(typedVal)
+		default:
+			return fmt.Errorf(
+				"proto encoder: found unknown type in fieldNum %d of message %s"
+				tszField.fieldNum, m.String())
 		}
 
 		if !enc.hasWrittenFirstTSZ {
