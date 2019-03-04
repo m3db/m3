@@ -254,6 +254,8 @@ func (enc *encoder) writeVarInt(x uint64) {
 // )
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
 // repeated or nested messages / maps.
+// TODO(rartoul): Should handled integers as TSZ as well, can just do XOR on the regular
+// bits after converting to uint64
 func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldState {
 	numTSZFields := numTSZFields(schema)
 	if cap(s) >= numTSZFields {
