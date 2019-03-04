@@ -52,7 +52,7 @@ type encoder struct {
 	// Fields that are reused between function calls to
 	// avoid allocations.
 	varIntBuf     [8]byte
-	changesValues []int32
+	changedValues []int32
 }
 
 type tszFieldState struct {
@@ -140,8 +140,8 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 
 func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	// Reset for re-use.
-	enc.changesValues = enc.changesValues[:0]
-	changedFields := enc.changesValues
+	enc.changedValues = enc.changedValues[:0]
+	changedFields := enc.changedValues
 
 	if enc.lastEncoded != nil {
 		schemaFields := enc.schema.GetFields()

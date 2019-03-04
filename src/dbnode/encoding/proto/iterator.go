@@ -46,6 +46,10 @@ type iterator struct {
 	consumedFirstTSZ bool
 	lastIterated     *dynamic.Message
 	tszFields        []tszFieldState
+
+	// Fields that are reused between function calls to
+	// avoid allocations.
+	bitsetValues []int
 }
 
 // NewIterator creates a new iterator.
@@ -111,7 +115,7 @@ func (it *iterator) readProtoValues() error {
 		return nil
 	}
 
-	changedFieldNums, err := it.readBitset()
+	err = it.readBitset()
 	if err != nil {
 		return fmt.Errorf(
 			"error readining changed proto field numbers bitset: %v", err)
@@ -146,7 +150,7 @@ func (it *iterator) readProtoValues() error {
 	// Loop through all changed fields
 	// if they are "default value" in the new unmarshaled message
 	// set them to default value in the old message
-	for _, fieldNum := range changedFieldNums {
+	for _, fieldNum := range it.bitsetValues {
 		var (
 			fieldDesc         = it.schema.FindFieldByNumber(int32(fieldNum))
 			fieldDefaultValue = fieldDesc.GetDefaultValue()
@@ -160,27 +164,26 @@ func (it *iterator) readProtoValues() error {
 	return nil
 }
 
-func (it *iterator) readBitset() ([]int, error) {
-	// TODO: Reuse
-	vals := []int{}
+func (it *iterator) readBitset() error {
+	it.bitsetValues = it.bitsetValues[:0]
 	bitsetLengthBits, err := it.readVarInt()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for i := uint64(0); i < bitsetLengthBits; i++ {
 		bit, err := it.stream.ReadBit()
 		if err != nil {
-			return nil, fmt.Errorf("error reading bitset: %v", err)
+			return fmt.Errorf("error reading bitset: %v", err)
 		}
 
 		if bit == 1 {
 			// Add 1 because protobuf fields are 1-indexed not 0-indexed.
-			vals = append(vals, int(i)+1)
+			it.bitsetValues = append(it.bitsetValues, int(i)+1)
 		}
 	}
 
-	return vals, nil
+	return nil
 }
 
 func (it *iterator) readVarInt() (uint64, error) {
