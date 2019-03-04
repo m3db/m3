@@ -128,20 +128,21 @@ type generatedWrite struct {
 func genPropTestInputs() gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
-			inputs = input.([]interface{})
-			schema = inputs[0].(*desc.MessageDescriptor)
+			inputs      = input.([]interface{})
+			schema      = inputs[0].(*desc.MessageDescriptor)
+			numMessages = inputs[1].(int)
 		)
-		return genPropTestInput(schema)
+		return genPropTestInput(schema, numMessages)
 	}
 	return gopter.CombineGens(
 		genSchema(),
+		gen.IntRange(0, maxNumMessages),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
-func genPropTestInput(schema *desc.MessageDescriptor) gopter.Gen {
+func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Gen {
 	return gopter.CombineGens(
-		// Make this variable
-		gen.SliceOfN(maxNumMessages, genMessage(schema)),
+		gen.SliceOfN(numMessages, genMessage(schema)),
 	).Map(func(input []interface{}) propTestInput {
 		return propTestInput{
 			schema:   schema,
