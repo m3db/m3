@@ -127,6 +127,7 @@ func (it *iterator) readProtoValues() error {
 		return err
 	}
 
+	// TODO(rartoul): Probably want to use a bytes pool for this.
 	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
