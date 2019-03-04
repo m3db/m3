@@ -25,11 +25,12 @@ import (
 	"path"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -77,6 +78,11 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 
 	placement, err := h.Init(serviceName, r, req)
 	if err != nil {
+		if err == kv.ErrAlreadyExists {
+			logger.Error("placement already exists", zap.Error(err))
+			xhttp.Error(w, err, http.StatusConflict)
+			return
+		}
 		logger.Error("unable to initialize placement", zap.Any("error", err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
