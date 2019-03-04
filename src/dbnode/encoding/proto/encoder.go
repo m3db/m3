@@ -197,7 +197,7 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	enc.stream.WriteBytes(marshaled)
 
 	if enc.lastEncoded == nil {
-		// Set lastEncoded to m so that subsequent encoding only need to encode fields
+		// Set lastEncoded to m so that subsequent encodings only need to encode fields
 		// that have changed.
 		enc.lastEncoded = m
 	} else {
