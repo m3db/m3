@@ -189,7 +189,8 @@ func (it *iterator) readBitset() error {
 
 func (it *iterator) readVarInt() (uint64, error) {
 	var (
-		// Convert array to slice we can reuse the buffer.
+		// Convert array to slice and reset size to zero so
+		// we can reuse the buffer.
 		buf      = it.varIntBuf[:0]
 		numBytes = 0
 	)
