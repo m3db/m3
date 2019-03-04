@@ -437,32 +437,32 @@ func TestProcessCompletedBlocks_ClosesBlocksOnError(t *testing.T) {
 	require.EqualError(t, err, testErr.Error())
 
 	for _, bl := range blocks {
-		assert.True(t, bl.(*blockWithClose).Closed)
+		assert.True(t, bl.(*closeSpyBlock).Closed)
 	}
 }
 
 type closeableBlockBuilderContext struct {
 	MockController    *Mockcontroller
-	MockBlockBuilders []*blockBuilderBlockWithClose
+	MockBlockBuilders []*closeSpyBlockBuilder
 }
 
 // setupCloseableBlock mocks out node.controller to return a block builder which
-// builds blockWithClose instances, so that you can inspect whether
-// or not a block was closed (using blockWithClose.Closed). See TestBaseClosesBlocks
+// builds closeSpyBlock instances, so that you can inspect whether
+// or not a block was closed (using closeSpyBlock.Closed). See TestBaseClosesBlocks
 // for an example.
 func setupCloseableBlock(ctrl *gomock.Controller, node *baseNode) closeableBlockBuilderContext {
 	mockController := NewMockcontroller(ctrl)
-	mockBuilders := make([]*blockBuilderBlockWithClose, 0)
+	mockBuilders := make([]*closeSpyBlockBuilder, 0)
 
 	mockController.EXPECT().Process(gomock.Any(), gomock.Any()).Return(nil)
 
-	// return a regular ColumnBlockBuilder, wrapped with blockBuilderBlockWithClose
+	// return a regular ColumnBlockBuilder, wrapped with closeSpyBlockBuilder
 	mockController.EXPECT().BlockBuilder(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(
 			queryCtx *models.QueryContext,
 			blockMeta block.Metadata,
 			seriesMeta []block.SeriesMeta) (block.Builder, error) {
-			mb := &blockBuilderBlockWithClose{
+			mb := &closeSpyBlockBuilder{
 				Builder: block.NewColumnBlockBuilder(blockMeta, seriesMeta),
 			}
 			mockBuilders = append(mockBuilders, mb)
@@ -477,26 +477,30 @@ func setupCloseableBlock(ctrl *gomock.Controller, node *baseNode) closeableBlock
 	}
 }
 
-type blockBuilderBlockWithClose struct {
+// closeSpyBlockBuilder wraps a block.Builder to build a closeSpyBlock
+// instead of a regular block. It is otherwise equivalent to the wrapped Builder.
+type closeSpyBlockBuilder struct {
 	block.Builder
 
-	BuiltBlock *blockWithClose
+	BuiltBlock *closeSpyBlock
 }
 
-func (bbc *blockBuilderBlockWithClose) Build() block.Block {
-	bbc.BuiltBlock = &blockWithClose{
+func (bbc *closeSpyBlockBuilder) Build() block.Block {
+	bbc.BuiltBlock = &closeSpyBlock{
 		Block: bbc.Builder.Build(),
 	}
 	return bbc.BuiltBlock
 }
 
-type blockWithClose struct {
+// closeSpyBlock wraps a block.Block to allow assertions on the Close()
+// method.
+type closeSpyBlock struct {
 	block.Block
 
 	Closed bool
 }
 
-func (bwc *blockWithClose) Close() error {
+func (bwc *closeSpyBlock) Close() error {
 	bwc.Closed = true
 	return nil
 }

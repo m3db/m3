@@ -2,7 +2,6 @@
 _gen.go
 _gen_test.go
 _mock.go
-_mock_test.go
 _string.go
 generated/
 mocks/

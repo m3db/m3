@@ -273,7 +273,7 @@ func (c *baseNode) processCompletedBlocks(queryCtx *models.QueryContext, process
 		if err != nil {
 			// cleanup any blocks we opened
 			closeBlocks(blocks)
-			return blocks, err
+			return nil, err
 		}
 
 		blocks = append(blocks, bl)
