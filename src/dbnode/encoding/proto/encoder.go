@@ -60,7 +60,6 @@ type tszFieldState struct {
 }
 
 // NewEncoder creates a new encoder.
-// TODO: Reject messages with unknown fields in ENCODE
 func NewEncoder(
 	b checked.Bytes,
 	schema *desc.MessageDescriptor,
