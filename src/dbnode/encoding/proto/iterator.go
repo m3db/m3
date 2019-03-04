@@ -49,7 +49,6 @@ type iterator struct {
 }
 
 // NewIterator creates a new iterator.
-// TODO: Make sure b and schema not nil.
 func NewIterator(
 	reader io.Reader,
 	schema *desc.MessageDescriptor,
