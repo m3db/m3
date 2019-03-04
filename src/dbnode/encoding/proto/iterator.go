@@ -323,11 +323,6 @@ func (it *iterator) readFullFloatVal() (floatBits uint64, xor uint64, err error)
 }
 
 func (it *iterator) readBits(numBits int) (uint64, error) {
-	// TODO: Delete
-	if !it.hasNext() {
-		return 0, nil
-	}
-
 	res, err := it.stream.ReadBits(numBits)
 	if err != nil {
 		return 0, err
