@@ -27,6 +27,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewEncoderSchemaRequired(t *testing.T) {
+	_, err := NewEncoder(nil, nil, testEncodingOptions)
+	require.Equal(t, errSchemaIsRequired, err)
+}
+
+func TestNewEncoderEncodingOptionsRequired(t *testing.T) {
+	_, err := NewEncoder(nil, testVLSchema, nil)
+	require.Equal(t, errEncodingOptionsAreRequired, err)
+}
+
 func TestTSZFields(t *testing.T) {
 	testCases := []struct {
 		schema   *desc.MessageDescriptor

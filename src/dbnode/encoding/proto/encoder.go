@@ -22,6 +22,7 @@ package proto
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 
@@ -30,6 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3x/checked"
+)
+
+var (
+	errSchemaIsRequired           = errors.New("proto encoder: schema is required")
+	errEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
 )
 
 type encoder struct {
@@ -53,13 +59,19 @@ type tszFieldState struct {
 }
 
 // NewEncoder creates a new encoder.
-// TODO: Make sure b and schema not nil.
 // TODO: Reject messages with unknown fields in ENCODE
 func NewEncoder(
 	b checked.Bytes,
 	schema *desc.MessageDescriptor,
 	opts encoding.Options,
 ) (*encoder, error) {
+	if schema == nil {
+		return nil, errSchemaIsRequired
+	}
+	if opts == nil {
+		return nil, errEncodingOptionsAreRequired
+	}
+
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	enc := &encoder{
 		// TODO: Pass in options, use pooling, etc.
