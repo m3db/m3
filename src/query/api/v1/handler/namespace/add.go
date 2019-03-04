@@ -22,6 +22,7 @@ package namespace
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -32,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -48,6 +49,8 @@ var (
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
+
+	errNamespaceExists = errors.New("namespace with same ID already exists")
 )
 
 // AddHandler is the handler for namespace adds.
@@ -71,6 +74,12 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	nsRegistry, err := h.Add(md)
 	if err != nil {
+		if err == errNamespaceExists {
+			logger.Error("namespace already exists", zap.Error(err))
+			xhttp.Error(w, err, http.StatusConflict)
+			return
+		}
+
 		logger.Error("unable to get namespace", zap.Any("error", err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
@@ -115,6 +124,16 @@ func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, e
 	currentMetadata, version, err := Metadata(store)
 	if err != nil {
 		return emptyReg, err
+	}
+
+	// Since this endpoint is `/add` and not in-place update, return an error if
+	// the NS already exists. NewMap will return an error if there's duplicate
+	// entries with the same name, but it's abstracted away behind a MultiError so
+	// we can't easily check that it's a conflict in the handler.
+	for _, ns := range currentMetadata {
+		if ns.ID().Equal(md.ID()) {
+			return emptyReg, errNamespaceExists
+		}
 	}
 
 	nsMap, err := namespace.NewMap(append(currentMetadata, md))
