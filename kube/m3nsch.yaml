@@ -74,6 +74,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: m3nsch-agent
+  labels:
+    app: m3nsch
+    component: agent
 spec:
   replicas: 3
   selector:
@@ -112,6 +115,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: m3nsch-client
+  labels:
+    app: m3nsch
+    component: client
 spec:
   replicas: 1
   selector:
