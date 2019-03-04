@@ -21,38 +21,18 @@
 package proto
 
 import (
+	"bytes"
 	"testing"
 
-	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewEncoderSchemaRequired(t *testing.T) {
-	_, err := NewEncoder(nil, nil, testEncodingOptions)
-	require.Equal(t, errEncoderSchemaIsRequired, err)
+func TestNewIteratorReaderRequired(t *testing.T) {
+	_, err := NewIterator(nil, testVLSchema)
+	require.Equal(t, errIteratorReaderIsRequired, err)
 }
 
-func TestNewEncoderEncodingOptionsRequired(t *testing.T) {
-	_, err := NewEncoder(nil, testVLSchema, nil)
-	require.Equal(t, errEncoderEncodingOptionsAreRequired, err)
-}
-
-func TestTSZFields(t *testing.T) {
-	testCases := []struct {
-		schema   *desc.MessageDescriptor
-		expected []tszFieldState
-	}{
-		{
-			schema: newVLMessageDescriptor(),
-			expected: []tszFieldState{
-				{fieldNum: 0}, // latitude
-				{fieldNum: 1}, // longitude
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		tszFields := tszFields(nil, tc.schema)
-		require.Equal(t, tc.expected, tszFields)
-	}
+func TestNewIteratorSchemaRequired(t *testing.T) {
+	_, err := NewIterator(bytes.NewBuffer(nil), nil)
+	require.Equal(t, errIteratorSchemaIsRequired, err)
 }

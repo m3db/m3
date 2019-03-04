@@ -34,9 +34,9 @@ import (
 )
 
 var (
-	errSchemaIsRequired           = errors.New("proto encoder: schema is required")
-	errEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
-	errMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
+	errEncoderSchemaIsRequired           = errors.New("proto encoder: schema is required")
+	errEncoderEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
+	errEncoderMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
 )
 
 // TODO(rartoul): Need to support schema changes by updating the ordering
@@ -68,10 +68,10 @@ func NewEncoder(
 	opts encoding.Options,
 ) (*encoder, error) {
 	if schema == nil {
-		return nil, errSchemaIsRequired
+		return nil, errEncoderSchemaIsRequired
 	}
 	if opts == nil {
-		return nil, errEncodingOptionsAreRequired
+		return nil, errEncoderEncodingOptionsAreRequired
 	}
 
 	initAllocIfEmpty := opts.EncoderPool() == nil
@@ -89,7 +89,7 @@ func NewEncoder(
 // then the encoder cant be used anymore.
 func (enc *encoder) Encode(m *dynamic.Message) error {
 	if len(m.GetUnknownFields()) > 0 {
-		return errMessageHasUnknownFields
+		return errEncoderMessageHasUnknownFields
 	}
 
 	if err := enc.encodeTSZValues(m); err != nil {

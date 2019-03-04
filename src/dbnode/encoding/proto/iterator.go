@@ -22,6 +22,7 @@ package proto
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -31,6 +32,11 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+)
+
+var (
+	errIteratorReaderIsRequired = errors.New("proto iterator: reader is required")
+	errIteratorSchemaIsRequired = errors.New("proto iterator: schema is required")
 )
 
 type iterator struct {
@@ -48,6 +54,13 @@ func NewIterator(
 	reader io.Reader,
 	schema *desc.MessageDescriptor,
 ) (*iterator, error) {
+	if reader == nil {
+		return nil, errIteratorReaderIsRequired
+	}
+	if schema == nil {
+		return nil, errIteratorSchemaIsRequired
+	}
+
 	iter := &iterator{
 		schema: schema,
 		stream: encoding.NewIStream(reader),
