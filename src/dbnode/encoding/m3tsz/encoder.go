@@ -156,6 +156,7 @@ func (enc *encoder) shouldWriteAnnotation(ant ts.Annotation) bool {
 	if numAnnotationBytes != len(enc.ant) {
 		return true
 	}
+	// TODO(rartoul): Use bytes.Equal()
 	for i := 0; i < numAnnotationBytes; i++ {
 		if enc.ant[i] != ant[i] {
 			return true
@@ -174,6 +175,7 @@ func (enc *encoder) writeAnnotation(ant ts.Annotation) {
 	var buf [binary.MaxVarintLen32]byte
 	// NB: we subtract 1 for possible varint encoding savings
 	annotationLength := binary.PutVarint(buf[:], int64(len(ant)-1))
+
 	enc.os.WriteBytes(buf[:annotationLength])
 	enc.os.WriteBytes(ant)
 	enc.ant = ant
