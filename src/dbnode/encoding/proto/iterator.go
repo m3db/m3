@@ -41,12 +41,12 @@ var (
 
 // TODO: Need to add support for the iterator detecting the end of the stream.
 type iterator struct {
-	err              error
-	schema           *desc.MessageDescriptor
-	stream           encoding.IStream
-	consumedFirstTSZ bool
-	lastIterated     *dynamic.Message
-	tszFields        []tszFieldState
+	err                  error
+	schema               *desc.MessageDescriptor
+	stream               encoding.IStream
+	consumedFirstMessage bool
+	lastIterated         *dynamic.Message
+	tszFields            []tszFieldState
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -91,6 +91,7 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
+	it.consumedFirstMessage = true
 	return it.hasNext()
 }
 
@@ -105,7 +106,7 @@ func (it *iterator) Err() error {
 func (it *iterator) readTSZValues() error {
 	var err error
 
-	if !it.consumedFirstTSZ {
+	if !it.consumedFirstMessage {
 		err = it.readFirstTSZValues()
 	} else {
 		err = it.readNextTSZValues()
@@ -156,20 +157,21 @@ func (it *iterator) readProtoValues() error {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
 
-	it.lastIterated.MergeFrom(currMessage)
-
-	// Loop through all changed fields
-	// if they are "default value" in the new unmarshaled message
-	// set them to default value in the old message
-	for _, fieldNum := range it.bitsetValues {
-		var (
-			fieldDesc         = it.schema.FindFieldByNumber(int32(fieldNum))
-			fieldDefaultValue = fieldDesc.GetDefaultValue()
-			existingVal       = currMessage.GetFieldByNumber(fieldNum)
-		)
-		if fieldsEqual(existingVal, fieldDefaultValue) {
-			it.lastIterated.ClearFieldByNumber(fieldNum)
+	if !it.consumedFirstMessage {
+		// If this is the first message in the stream then the list of changed
+		// fields will be empty (even though some of the fields may have data)
+		// so we need to do a full merge and ignore the empty list of changed
+		// fields.
+		err := it.lastIterated.MergeFrom(currMessage)
+		if err != nil {
+			return fmt.Errorf(
+				"error merging current message into previous, err: %v, message: %s",
+				err, currMessage.String())
 		}
+	}
+
+	for _, fieldNum := range it.bitsetValues {
+		it.lastIterated.SetFieldByNumber(fieldNum, currMessage.GetFieldByNumber(fieldNum))
 	}
 
 	return nil
@@ -189,7 +191,6 @@ func (it *iterator) readFirstTSZValues() error {
 		}
 	}
 
-	it.consumedFirstTSZ = true
 	return nil
 }
 
