@@ -124,9 +124,9 @@ func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
 		}
 
 		if !enc.hasWrittenFirstTSZ {
-			enc.writeFirstTSZValue(i, val)
+			enc.encodeFirstTSZValue(i, val)
 		} else {
-			enc.writeNextTSZValue(i, val)
+			enc.encodeNextTSZValue(i, val)
 		}
 
 		// Remove the field from the message so we don't include it
@@ -209,14 +209,14 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	return nil
 }
 
-func (enc *encoder) writeFirstTSZValue(i int, v float64) {
+func (enc *encoder) encodeFirstTSZValue(i int, v float64) {
 	fb := math.Float64bits(v)
 	enc.stream.WriteBits(fb, 64)
 	enc.tszFields[i].prevFloatBits = fb
 	enc.tszFields[i].prevXOR = fb
 }
 
-func (enc *encoder) writeNextTSZValue(i int, next float64) {
+func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	curFloatBits := math.Float64bits(next)
 	curXOR := enc.tszFields[i].prevFloatBits ^ curFloatBits
 	m3tsz.WriteXOR(enc.stream, enc.tszFields[i].prevXOR, curXOR)
