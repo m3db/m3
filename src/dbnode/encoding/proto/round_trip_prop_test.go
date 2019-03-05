@@ -86,7 +86,11 @@ func TestRoundtripProp(t *testing.T) {
 		checkedBytes, err := enc.Bytes()
 		require.NoError(t, err)
 
-		rawBytes := checkedBytes.Bytes()
+		var rawBytes []byte
+		if checkedBytes != nil {
+			rawBytes = checkedBytes.Bytes()
+		}
+
 		buff := bytes.NewBuffer(rawBytes)
 		iter, err := NewIterator(buff, input.schema)
 		if err != nil {
