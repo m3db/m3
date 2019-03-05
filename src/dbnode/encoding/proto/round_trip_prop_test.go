@@ -97,12 +97,12 @@ func TestRoundtripProp(t *testing.T) {
 			return false, fmt.Errorf("error constructing iterator: %v", err)
 		}
 
-		for i, m := range input.messages {
-			iter.Next()
-			decodedM := iter.Current()
-			if iter.Err() != nil {
-				return false, fmt.Errorf("iteration error: %v", iter.Err())
-			}
+		i := 0
+		for iter.Next() {
+			var (
+				m        = input.messages[i]
+				decodedM = iter.Current()
+			)
 
 			for _, field := range m.GetKnownFields() {
 				var (
@@ -117,6 +117,12 @@ func TestRoundtripProp(t *testing.T) {
 						expectedVal, actualVal, i, fieldNum)
 				}
 			}
+
+			i++
+		}
+
+		if iter.Err() != nil {
+			return false, fmt.Errorf("iteration error: %v", iter.Err())
 		}
 
 		return true, nil

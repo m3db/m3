@@ -97,12 +97,16 @@ func TestRoundtrip(t *testing.T) {
 	iter, err := NewIterator(buff, testVLSchema)
 	require.NoError(t, err)
 
-	for _, tc := range testCases {
-		iter.Next()
-		m := iter.Current()
+	i := 0
+	for iter.Next() {
+		var (
+			tc = testCases[i]
+			m  = iter.Current()
+		)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
+		i++
 	}
 }
 

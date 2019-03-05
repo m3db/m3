@@ -39,7 +39,6 @@ var (
 	errIteratorSchemaIsRequired = errors.New("proto iterator: schema is required")
 )
 
-// TODO: Need to add support for the iterator detecting the end of the stream.
 type iterator struct {
 	err                  error
 	schema               *desc.MessageDescriptor
@@ -52,6 +51,8 @@ type iterator struct {
 	// avoid allocations.
 	varIntBuf    [8]byte
 	bitsetValues []int
+
+	done bool
 }
 
 // NewIterator creates a new iterator.
@@ -78,6 +79,17 @@ func NewIterator(
 
 func (it *iterator) Next() bool {
 	if !it.hasNext() {
+		return false
+	}
+
+	moreDataControlBit, err := it.stream.ReadBit()
+	if err == io.EOF || (err == nil && moreDataControlBit == 0) {
+		it.done = true
+		return false
+	}
+
+	if err != nil {
+		it.err = err
 		return false
 	}
 
@@ -370,8 +382,7 @@ func (it *iterator) hasError() bool {
 }
 
 func (i *iterator) isDone() bool {
-	// TODO: Fix me
-	return false
+	return i.done
 }
 
 func (i *iterator) isClosed() bool {

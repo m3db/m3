@@ -98,6 +98,9 @@ func (enc *encoder) Encode(m *dynamic.Message) error {
 		return errEncoderMessageHasUnknownFields
 	}
 
+	// Control bit that indicates the stream has more data.
+	enc.stream.WriteBit(1)
+
 	if err := enc.encodeTSZValues(m); err != nil {
 		return err
 	}
