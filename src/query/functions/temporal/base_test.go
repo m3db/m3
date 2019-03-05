@@ -407,7 +407,7 @@ func TestBaseClosesBlocks(t *testing.T) {
 	require.NoError(t, tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0]))
 
 	for _, mockBuilder := range builderCtx.MockBlockBuilders {
-		assert.True(t, mockBuilder.BuiltBlock.Closed)
+		assert.Equal(t, 1, mockBuilder.BuiltBlock.ClosedCalls)
 	}
 }
 
@@ -437,7 +437,8 @@ func TestProcessCompletedBlocks_ClosesBlocksOnError(t *testing.T) {
 	require.EqualError(t, err, testErr.Error())
 
 	for _, bl := range blocks {
-		assert.True(t, bl.(*closeSpyBlock).Closed)
+		require.NotNil(t, bl)
+		assert.Equal(t, 1, bl.(*closeSpyBlock).ClosedCalls)
 	}
 }
 
@@ -448,7 +449,7 @@ type closeableBlockBuilderContext struct {
 
 // setupCloseableBlock mocks out node.controller to return a block builder which
 // builds closeSpyBlock instances, so that you can inspect whether
-// or not a block was closed (using closeSpyBlock.Closed). See TestBaseClosesBlocks
+// or not a block was closed (using closeSpyBlock.ClosedCalls). See TestBaseClosesBlocks
 // for an example.
 func setupCloseableBlock(ctrl *gomock.Controller, node *baseNode) closeableBlockBuilderContext {
 	mockController := NewMockcontroller(ctrl)
@@ -485,11 +486,11 @@ type closeSpyBlockBuilder struct {
 	BuiltBlock *closeSpyBlock
 }
 
-func (bbc *closeSpyBlockBuilder) Build() block.Block {
-	bbc.BuiltBlock = &closeSpyBlock{
-		Block: bbc.Builder.Build(),
+func (bb *closeSpyBlockBuilder) Build() block.Block {
+	bb.BuiltBlock = &closeSpyBlock{
+		Block: bb.Builder.Build(),
 	}
-	return bbc.BuiltBlock
+	return bb.BuiltBlock
 }
 
 // closeSpyBlock wraps a block.Block to allow assertions on the Close()
@@ -497,11 +498,11 @@ func (bbc *closeSpyBlockBuilder) Build() block.Block {
 type closeSpyBlock struct {
 	block.Block
 
-	Closed bool
+	ClosedCalls int
 }
 
-func (bwc *closeSpyBlock) Close() error {
-	bwc.Closed = true
+func (b *closeSpyBlock) Close() error {
+	b.ClosedCalls++
 	return nil
 }
 

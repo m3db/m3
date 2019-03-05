@@ -80,22 +80,14 @@ func (o baseOp) Node(controller *transform.Controller, opts transform.Options) t
 
 // baseNode is an execution node
 type baseNode struct {
-	op            baseOp
+	op baseOp
+	// controller uses an interface here so we can mock it out in tests.
+	// TODO: use an exported interface everywhere instead of *transform.Controller.
+	// https://github.com/m3db/m3/issues/1430
 	controller    controller
 	cache         *blockCache
 	processor     Processor
 	transformOpts transform.Options
-}
-
-// controller is a minimal interface of transform.Controller, used exclusively
-// for mocking in tests.
-type controller interface {
-	BlockBuilder(
-		queryCtx *models.QueryContext,
-		blockMeta block.Metadata,
-		seriesMeta []block.SeriesMeta) (block.Builder, error)
-
-	Process(queryCtx *models.QueryContext, block block.Block) error
 }
 
 // Process processes a block. The processing steps are as follows:
