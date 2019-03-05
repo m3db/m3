@@ -39,6 +39,7 @@ var (
 	errIteratorSchemaIsRequired = errors.New("proto iterator: schema is required")
 )
 
+// TODO: Need to add support for the iterator detecting the end of the stream.
 type iterator struct {
 	err              error
 	schema           *desc.MessageDescriptor
@@ -91,6 +92,14 @@ func (it *iterator) Next() bool {
 	}
 
 	return it.hasNext()
+}
+
+func (it *iterator) Current() *dynamic.Message {
+	return it.lastIterated
+}
+
+func (it *iterator) Err() error {
+	return it.err
 }
 
 func (it *iterator) readTSZValues() error {
@@ -166,58 +175,6 @@ func (it *iterator) readProtoValues() error {
 	return nil
 }
 
-func (it *iterator) readBitset() error {
-	it.bitsetValues = it.bitsetValues[:0]
-	bitsetLengthBits, err := it.readVarInt()
-	if err != nil {
-		return err
-	}
-
-	for i := uint64(0); i < bitsetLengthBits; i++ {
-		bit, err := it.stream.ReadBit()
-		if err != nil {
-			return fmt.Errorf("error reading bitset: %v", err)
-		}
-
-		if bit == 1 {
-			// Add 1 because protobuf fields are 1-indexed not 0-indexed.
-			it.bitsetValues = append(it.bitsetValues, int(i)+1)
-		}
-	}
-
-	return nil
-}
-
-func (it *iterator) readVarInt() (uint64, error) {
-	var (
-		// Convert array to slice and reset size to zero so
-		// we can reuse the buffer.
-		buf      = it.varIntBuf[:0]
-		numBytes = 0
-	)
-	for {
-		b, err := it.stream.ReadByte()
-		if err != nil {
-			return 0, fmt.Errorf("error reading var int: %v", err)
-		}
-
-		buf = append(buf, b)
-		numBytes++
-
-		if b>>7 == 0 {
-			break
-		}
-	}
-
-	buf = buf[:numBytes]
-	varInt, _ := binary.Uvarint(buf)
-	return varInt, nil
-}
-
-func (it *iterator) Current() *dynamic.Message {
-	return it.lastIterated
-}
-
 func (it *iterator) readFirstTSZValues() error {
 	for i := range it.tszFields {
 		fb, xor, err := it.readFullFloatVal()
@@ -273,6 +230,54 @@ func (it *iterator) updateLastIteratedWithTSZValues(i int) error {
 		err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
 	}
 	return err
+}
+
+func (it *iterator) readBitset() error {
+	it.bitsetValues = it.bitsetValues[:0]
+	bitsetLengthBits, err := it.readVarInt()
+	if err != nil {
+		return err
+	}
+
+	for i := uint64(0); i < bitsetLengthBits; i++ {
+		bit, err := it.stream.ReadBit()
+		if err != nil {
+			return fmt.Errorf("error reading bitset: %v", err)
+		}
+
+		if bit == 1 {
+			// Add 1 because protobuf fields are 1-indexed not 0-indexed.
+			it.bitsetValues = append(it.bitsetValues, int(i)+1)
+		}
+	}
+
+	return nil
+}
+
+func (it *iterator) readVarInt() (uint64, error) {
+	var (
+		// Convert array to slice and reset size to zero so
+		// we can reuse the buffer.
+		buf      = it.varIntBuf[:0]
+		numBytes = 0
+	)
+	for {
+		b, err := it.stream.ReadByte()
+		if err != nil {
+			return 0, fmt.Errorf("error reading var int: %v", err)
+		}
+
+		buf = append(buf, b)
+		numBytes++
+
+		if b>>7 == 0 {
+			break
+		}
+	}
+
+	buf = buf[:numBytes]
+	varInt, _ := binary.Uvarint(buf)
+	return varInt, nil
 }
 
 func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {

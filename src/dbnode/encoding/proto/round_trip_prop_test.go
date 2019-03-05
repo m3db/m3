@@ -38,9 +38,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	// Generated from allowedProtoTypesSlice by init().
+	allowedProtoTypesSliceIface = []interface{}{}
+)
+
+func init() {
+	for key := range allowedProtoTypes {
+		allowedProtoTypesSliceIface = append(allowedProtoTypesSliceIface, key)
+	}
+}
+
 var maxNumFields = 10
 var maxNumMessages = 1000
+var maxNumEnumValues = 10
 
+// TODO(rartoul): Modify this prop test to generate schemas with repeated fields and maps
+// (which are basically the same thing) as well as nested messages once we add support for
+// those features.
 func TestRoundtripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
@@ -81,10 +96,10 @@ func TestRoundtripProp(t *testing.T) {
 		for i, m := range input.messages {
 			iter.Next()
 			decodedM := iter.Current()
-			if iter.err != nil {
-				// TODO: Expose iteration errors?
-				return false, fmt.Errorf("iteration error: %v", iter.err)
+			if iter.Err() != nil {
+				return false, fmt.Errorf("iteration error: %v", iter.Err())
 			}
+
 			for _, field := range m.GetKnownFields() {
 				var (
 					fieldNum    = int(field.GetNumber())
@@ -129,6 +144,7 @@ type generatedWrite struct {
 	useDefaultValue []bool
 
 	bools    []bool
+	enums    []int32
 	strings  []string
 	float32s []float32
 	float64s []float64
@@ -195,6 +211,8 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 			switch fieldType {
 			case dpb.FieldDescriptorProto_TYPE_BOOL:
 				message.SetFieldByNumber(fieldNumber, input.bools[i])
+			case dpb.FieldDescriptorProto_TYPE_ENUM:
+				message.SetFieldByNumber(fieldNumber, input.enums[i])
 			case dpb.FieldDescriptorProto_TYPE_BYTES:
 				message.SetFieldByNumber(fieldNumber, []byte(input.strings[i]))
 			case dpb.FieldDescriptorProto_TYPE_STRING:
@@ -236,6 +254,7 @@ func genWrite() gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(maxNumFields, gen.Bool()),
 		gen.SliceOfN(maxNumFields, gen.Bool()),
+		gen.SliceOfN(maxNumFields, gen.Int32Range(0, int32(maxNumEnumValues)-1)),
 		gen.SliceOfN(maxNumFields, gen.Identifier()),
 		gen.SliceOfN(maxNumFields, gen.Float32()),
 		gen.SliceOfN(maxNumFields, gen.Float64()),
@@ -251,17 +270,18 @@ func genWrite() gopter.Gen {
 		return generatedWrite{
 			useDefaultValue: input[0].([]bool),
 			bools:           input[1].([]bool),
-			strings:         input[2].([]string),
-			float32s:        input[3].([]float32),
-			float64s:        input[4].([]float64),
-			int8s:           input[5].([]int8),
-			int16s:          input[6].([]int16),
-			int32s:          input[7].([]int32),
-			int64s:          input[8].([]int64),
-			uint8s:          input[9].([]uint8),
-			uint16s:         input[10].([]uint16),
-			uint32s:         input[11].([]uint32),
-			uint64s:         input[12].([]uint64),
+			enums:           input[2].([]int32),
+			strings:         input[3].([]string),
+			float32s:        input[4].([]float32),
+			float64s:        input[5].([]float64),
+			int8s:           input[6].([]int8),
+			int16s:          input[7].([]int16),
+			int32s:          input[8].([]int32),
+			int64s:          input[9].([]int64),
+			uint8s:          input[10].([]uint8),
+			uint16s:         input[11].([]uint16),
+			uint32s:         input[12].([]uint32),
+			uint64s:         input[13].([]uint64),
 		}
 	})
 }
@@ -272,11 +292,30 @@ func genSchema(numFields int) gopter.Gen {
 		Map(func(fieldTypes []dpb.FieldDescriptorProto_Type) *desc.MessageDescriptor {
 			schemaBuilder := builder.NewMessage("schema")
 			for i, fieldType := range fieldTypes {
-				fieldNum := i + 1 // Zero not valid.
-				field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builder.FieldTypeScalar(fieldType)).
+				var (
+					fieldNum         = i + 1 // Zero not valid.
+					builderFieldType *builder.FieldType
+				)
+
+				if fieldType == dpb.FieldDescriptorProto_TYPE_ENUM {
+					var (
+						enumFieldName = fmt.Sprintf("_enum_%d", fieldNum)
+						enumBuilder   = builder.NewEnum(enumFieldName)
+					)
+					for j := 0; j < maxNumEnumValues; j++ {
+						enumValueName := fmt.Sprintf("_enum_value_%d", j)
+						enumBuilder.AddValue(builder.NewEnumValue(enumValueName))
+					}
+					builderFieldType = builder.FieldTypeEnum(enumBuilder)
+				} else {
+					builderFieldType = builder.FieldTypeScalar(fieldType)
+				}
+
+				field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
 					SetNumber(int32(fieldNum))
 				schemaBuilder = schemaBuilder.AddField(field)
 			}
+
 			schema, err := schemaBuilder.Build()
 			if err != nil {
 				panic(fmt.Errorf("error building dynamic schema message: %v", err))
@@ -287,24 +326,5 @@ func genSchema(numFields int) gopter.Gen {
 }
 
 func genFieldType() gopter.Gen {
-	return gen.OneConstOf(
-		// TODO: Use allowed values for this
-		dpb.FieldDescriptorProto_TYPE_DOUBLE,
-		dpb.FieldDescriptorProto_TYPE_FLOAT,
-		dpb.FieldDescriptorProto_TYPE_INT64,
-		dpb.FieldDescriptorProto_TYPE_UINT64,
-		dpb.FieldDescriptorProto_TYPE_INT32,
-		dpb.FieldDescriptorProto_TYPE_FIXED64,
-		dpb.FieldDescriptorProto_TYPE_FIXED32,
-		dpb.FieldDescriptorProto_TYPE_BOOL,
-		dpb.FieldDescriptorProto_TYPE_STRING,
-		// FieldDescriptorProto_TYPE_MESSAGE,
-		dpb.FieldDescriptorProto_TYPE_BYTES,
-		dpb.FieldDescriptorProto_TYPE_UINT32,
-		// FieldDescriptorProto_TYPE_ENUM,
-		dpb.FieldDescriptorProto_TYPE_SFIXED32,
-		dpb.FieldDescriptorProto_TYPE_SFIXED64,
-		dpb.FieldDescriptorProto_TYPE_SINT32,
-		dpb.FieldDescriptorProto_TYPE_SINT64,
-	)
+	return gen.OneConstOf(allowedProtoTypesSliceIface...)
 }

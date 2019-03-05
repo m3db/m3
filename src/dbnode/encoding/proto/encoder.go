@@ -230,6 +230,7 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
+	// TODO: Probably need to add a MarshalInto() in the underlying library.
 	marshaled, err := m.Marshal()
 	if err != nil {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)

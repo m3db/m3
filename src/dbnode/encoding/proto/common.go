@@ -10,6 +10,26 @@ import (
 
 var (
 	typeOfBytes = reflect.TypeOf(([]byte)(nil))
+
+	allowedProtoTypes = map[dpb.FieldDescriptorProto_Type]struct{}{
+		dpb.FieldDescriptorProto_TYPE_DOUBLE:  struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FLOAT:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT64:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_UINT64:  struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT32:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FIXED64: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FIXED32: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_BOOL:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_STRING:  struct{}{},
+		// FieldDescriptorProto_TYPE_MESSAGE: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_BYTES:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
+	}
 )
 
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
@@ -65,6 +85,9 @@ func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
 	return false
 }
 
+// Mostly copy-pasta of a non-exported helper method from the protoreflect
+// library.
+// https://github.com/jhump/protoreflect/blob/87f824e0b908132b2501fe5652f8ee75a2e8cf06/dynamic/equal.go#L60
 func fieldsEqual(aval, bval interface{}) bool {
 	arv := reflect.ValueOf(aval)
 	brv := reflect.ValueOf(bval)
