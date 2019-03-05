@@ -27,13 +27,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewEncoderSchemaRequired(t *testing.T) {
-	_, err := NewEncoder(nil, nil, testEncodingOptions)
+func TestEncoderEncodeSchemaRequired(t *testing.T) {
+	enc, err := NewEncoder(testEncodingOptions)
+	require.NoError(t, err)
+
+	err = enc.Encode(newVL(0, 0, nil))
 	require.Equal(t, errEncoderSchemaIsRequired, err)
 }
 
 func TestNewEncoderEncodingOptionsRequired(t *testing.T) {
-	_, err := NewEncoder(nil, testVLSchema, nil)
+	_, err := NewEncoder(nil)
 	require.Equal(t, errEncoderEncodingOptionsAreRequired, err)
 }
 

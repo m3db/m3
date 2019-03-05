@@ -35,6 +35,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
 )
 
 var maxNumFields = 10
@@ -50,11 +51,11 @@ func TestRoundtripProp(t *testing.T) {
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
 
+	enc, err := NewEncoder(testEncodingOptions)
+	require.NoError(t, err)
+
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
-		enc, err := NewEncoder(nil, input.schema, testEncodingOptions)
-		if err != nil {
-			return false, fmt.Errorf("error constructing encoder: %v", err)
-		}
+		enc.Reset(nil, input.schema)
 
 		for _, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -67,8 +68,9 @@ func TestRoundtripProp(t *testing.T) {
 			}
 		}
 
-		// TODO: Fix this, need a discard method or w/e.
-		checkedBytes, _ := enc.stream.Rawbytes()
+		checkedBytes, err := enc.Bytes()
+		require.NoError(t, err)
+
 		rawBytes := checkedBytes.Bytes()
 		buff := bytes.NewBuffer(rawBytes)
 		iter, err := NewIterator(buff, input.schema)

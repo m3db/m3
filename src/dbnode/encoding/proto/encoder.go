@@ -33,18 +33,23 @@ import (
 	"github.com/m3db/m3x/checked"
 )
 
+const (
+	// Maximum capacity of a slice of TSZ fields that will be retained between resets.
+	maxTSZFieldsCapacityRetain = 24
+)
+
 var (
 	errEncoderSchemaIsRequired           = errors.New("proto encoder: schema is required")
 	errEncoderEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
 	errEncoderMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
+	errEncoderClosed                     = errors.New("proto encoder: encoder is closed")
 )
 
 // TODO(rartoul): Need to support schema changes by updating the ordering
 // of the TSZ encoded fields on demand.
 type encoder struct {
-	stream             encoding.OStream
-	schema             *desc.MessageDescriptor
-	hasWrittenFirstTSZ bool
+	stream encoding.OStream
+	schema *desc.MessageDescriptor
 
 	lastEncoded *dynamic.Message
 	tszFields   []tszFieldState
@@ -53,6 +58,9 @@ type encoder struct {
 	// avoid allocations.
 	varIntBuf     [8]byte
 	changedValues []int32
+
+	hasWrittenFirstTSZ bool
+	closed             bool
 }
 
 type tszFieldState struct {
@@ -62,23 +70,14 @@ type tszFieldState struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(
-	b checked.Bytes,
-	schema *desc.MessageDescriptor,
-	opts encoding.Options,
-) (*encoder, error) {
-	if schema == nil {
-		return nil, errEncoderSchemaIsRequired
-	}
+func NewEncoder(opts encoding.Options) (*encoder, error) {
 	if opts == nil {
 		return nil, errEncoderEncodingOptionsAreRequired
 	}
 
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	enc := &encoder{
-		stream:    encoding.NewOStream(b, initAllocIfEmpty, opts.BytesPool()),
-		schema:    schema,
-		tszFields: tszFields(nil, schema),
+		stream:    encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool()),
 		varIntBuf: [8]byte{},
 	}
 
@@ -88,6 +87,13 @@ func NewEncoder(
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
 func (enc *encoder) Encode(m *dynamic.Message) error {
+	if enc.closed {
+		return errEncoderClosed
+	}
+	if enc.schema == nil {
+		return errEncoderSchemaIsRequired
+	}
+
 	if len(m.GetUnknownFields()) > 0 {
 		return errEncoderMessageHasUnknownFields
 	}
@@ -100,6 +106,42 @@ func (enc *encoder) Encode(m *dynamic.Message) error {
 	}
 
 	return nil
+}
+
+func (enc *encoder) Reset(
+	b checked.Bytes,
+	schema *desc.MessageDescriptor,
+) {
+	enc.stream.Reset(b)
+	enc.schema = schema
+	enc.lastEncoded = nil
+	if cap(enc.tszFields) <= maxTSZFieldsCapacityRetain {
+		enc.tszFields = tszFields(enc.tszFields, schema)
+	} else {
+		enc.tszFields = tszFields(nil, schema)
+	}
+
+	enc.hasWrittenFirstTSZ = false
+	enc.closed = false
+}
+
+func (enc *encoder) Bytes() (checked.Bytes, error) {
+	if enc.closed {
+		return nil, errEncoderClosed
+	}
+
+	bytes, _ := enc.stream.Rawbytes()
+	return bytes, nil
+}
+
+func (enc *encoder) Close() (checked.Bytes, error) {
+	if enc.closed {
+		return nil, errEncoderClosed
+	}
+
+	bytes := enc.stream.Discard()
+	enc.closed = true
+	return bytes, nil
 }
 
 func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
@@ -222,6 +264,11 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	m3tsz.WriteXOR(enc.stream, enc.tszFields[i].prevXOR, curXOR)
 	enc.tszFields[i].prevFloatBits = curFloatBits
 	enc.tszFields[i].prevXOR = curXOR
+}
+
+func (enc *encoder) bytes(i int, next float64) checked.Bytes {
+	bytes, _ := enc.stream.Rawbytes()
+	return bytes
 }
 
 // encodeBitset writes out a bitset in the form of:

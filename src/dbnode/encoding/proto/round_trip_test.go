@@ -89,12 +89,14 @@ func TestRoundtrip(t *testing.T) {
 
 	}
 
-	// TODO: Fix this, need a discard method or w/e.
-	checkedBytes, _ := enc.stream.Rawbytes()
+	checkedBytes, err := enc.Bytes()
+	require.NoError(t, err)
+
 	rawBytes := checkedBytes.Bytes()
 	buff := bytes.NewBuffer(rawBytes)
 	iter, err := NewIterator(buff, testVLSchema)
 	require.NoError(t, err)
+
 	for _, tc := range testCases {
 		iter.Next()
 		m := iter.Current()
@@ -105,10 +107,11 @@ func TestRoundtrip(t *testing.T) {
 }
 
 func newTestEncoder() *encoder {
-	e, err := NewEncoder(nil, testVLSchema, testEncodingOptions)
+	e, err := NewEncoder(testEncodingOptions)
 	if err != nil {
 		panic(err)
 	}
+	e.Reset(nil, testVLSchema)
 
 	return e
 }
