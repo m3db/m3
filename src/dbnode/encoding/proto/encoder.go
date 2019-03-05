@@ -194,8 +194,8 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	enc.stream.WriteBit(1)
-	enc.writeBitset(changedFields)
-	enc.writeVarInt(uint64(len(marshaled)))
+	enc.encodeBitset(changedFields)
+	enc.encodeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 
 	if enc.lastEncoded == nil {
@@ -224,7 +224,14 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	enc.tszFields[i].prevXOR = curXOR
 }
 
-func (enc *encoder) writeBitset(values []int32) {
+// encodeBitset writes out a bitset in the form of:
+//
+//      varint(number of bits)|bitset
+//
+// I.E first it encodes a varint which specifies the number of following
+// bits to interpret as a bitset and then it encodes the provided values
+// as zero-indexed bitset.
+func (enc *encoder) encodeBitset(values []int32) {
 	var max int32
 	for _, v := range values {
 		if v > max {
@@ -234,7 +241,7 @@ func (enc *encoder) writeBitset(values []int32) {
 
 	// Encode a varint that indicates how many of the remaining
 	// bits to interpret as a bitset.
-	enc.writeVarInt(uint64(max))
+	enc.encodeVarInt(uint64(max))
 
 	// Encode the bitset
 	for i := int32(0); i < max; i++ {
@@ -258,7 +265,7 @@ func (enc *encoder) writeBitset(values []int32) {
 	}
 }
 
-func (enc *encoder) writeVarInt(x uint64) {
+func (enc *encoder) encodeVarInt(x uint64) {
 	var (
 		// Convert array to slice we can reuse the buffer.
 		buf      = enc.varIntBuf[:]
