@@ -205,7 +205,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handler.NewServiceOptions(handler.M3DBServiceName, r.Header, nil)
 	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Error(err))

@@ -42,16 +42,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type allowedServicesSet map[string]bool
-
-func (a allowedServicesSet) String() []string {
-	s := make([]string, 0, len(a))
-	for key := range a {
-		s = append(s, key)
-	}
-	return s
-}
-
 const (
 	// ServicesPathName is the services part of the API path.
 	ServicesPathName = "services"
@@ -70,12 +60,6 @@ var (
 	M3CoordinatorServicePlacementPathName = path.Join(ServicesPathName, handler.M3CoordinatorServiceName, PlacementPathName)
 
 	errUnableToParseService = errors.New("unable to parse service")
-
-	allowedServices = allowedServicesSet{
-		handler.M3DBServiceName:          true,
-		handler.M3AggregatorServiceName:  true,
-		handler.M3CoordinatorServiceName: true,
-	}
 )
 
 // HandlerOptions is the options struct for the handler.
@@ -148,10 +132,10 @@ func ServiceWithAlgo(
 		return nil, nil, err
 	}
 
-	if _, ok := allowedServices[opts.ServiceName]; !ok {
+	if !handler.IsAllowedService(opts.ServiceName) {
 		return nil, nil, fmt.Errorf(
-			"invalid service name: %s, must be one of: %s",
-			opts.ServiceName, allowedServices.String())
+			"invalid service name: %s, must be one of: %v",
+			opts.ServiceName, handler.AllowedServices())
 	}
 
 	sid := opts.ServiceID()
@@ -438,7 +422,7 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 	for i, c := range components {
 		if c == "services" && i+1 < len(components) {
 			service := components[i+1]
-			if _, ok := allowedServices[service]; ok {
+			if handler.IsAllowedService(service) {
 				return service, nil
 			}
 			return "", fmt.Errorf("unknown service: %s", service)

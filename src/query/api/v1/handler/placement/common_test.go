@@ -281,7 +281,7 @@ func TestValidateAllAvailable(t *testing.T) {
 }
 
 func runForAllAllowedServices(f func(service string)) {
-	for service := range allowedServices {
+	for _, service := range handler.AllowedServices() {
 		f(service)
 	}
 }
