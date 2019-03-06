@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,30 +20,35 @@
 
 package handler
 
-const (
-	// WarningsHeader is the M3 warnings header when to display a warning to a user
-	WarningsHeader = "M3-Warnings"
+type allowedServicesSet map[string]struct{}
 
-	// RetryHeader is the M3 retry header to display when it is safe to retry
-	RetryHeader = "M3-Retry"
+func (a allowedServicesSet) String() []string {
+	s := make([]string, 0, len(a))
+	for key := range a {
+		s = append(s, key)
+	}
+	return s
+}
 
-	// ServedByHeader is the M3 query storage execution breakdown
-	ServedByHeader = "M3-Storage-By"
-
-	// DeprecatedHeader is the M3 deprecated header
-	DeprecatedHeader = "M3-Deprecated"
-
-	// DefaultServiceEnvironment is the default service ID environment.
-	DefaultServiceEnvironment = "default_env"
-	// DefaultServiceZone is the default service ID zone.
-	DefaultServiceZone = "embedded"
-
-	// HeaderClusterEnvironmentName is the header used to specify the environment
-	// name.
-	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
-	// HeaderClusterZoneName is the header used to specify the zone name.
-	HeaderClusterZoneName = "Cluster-Zone-Name"
-	// HeaderDryRun is the header used to specify whether this should be a dry
-	// run.
-	HeaderDryRun = "Dry-Run"
+var (
+	allowedServices = allowedServicesSet{
+		M3DBServiceName:          struct{}{},
+		M3AggregatorServiceName:  struct{}{},
+		M3CoordinatorServiceName: struct{}{},
+	}
 )
+
+// IsAllowedService returns whether a service name is a valid M3 service.
+func IsAllowedService(svc string) bool {
+	_, ok := allowedServices[svc]
+	return ok
+}
+
+// AllowedServices returns the list of valid M3 services.
+func AllowedServices() []string {
+	svcs := make([]string, 0, len(allowedServices))
+	for svc := range allowedServices {
+		svcs = append(svcs, svc)
+	}
+	return svcs
+}

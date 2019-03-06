@@ -54,7 +54,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 )
 
@@ -251,7 +251,7 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
+func (h *Handler) m3AggServiceOptions() *handler.M3AggServiceOptions {
 	if h.clusters == nil {
 		return nil
 	}
@@ -268,7 +268,7 @@ func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
 		return nil
 	}
 
-	return &placement.M3AggServiceOptions{
+	return &handler.M3AggServiceOptions{
 		MaxAggregationWindowSize: maxResolution,
 	}
 }

@@ -123,7 +123,7 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
-	serviceOpts := NewServiceOptions(
+	serviceOpts := handler.NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
 
 	service, err := Service(h.ClusterClient, serviceOpts, h.nowFn(), nil)
@@ -133,7 +133,7 @@ func (h *InitHandler) Init(
 
 	replicationFactor := int(req.ReplicationFactor)
 	switch serviceName {
-	case M3CoordinatorServiceName:
+	case handler.M3CoordinatorServiceName:
 		// M3Coordinator placements are stateless
 		replicationFactor = 1
 	}

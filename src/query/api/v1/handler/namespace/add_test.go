@@ -64,6 +64,7 @@ const testAddJSON = `
 func TestNamespaceAddHandler(t *testing.T) {
 	mockClient, mockKV, _ := SetupNamespaceTest(t)
 	addHandler := NewAddHandler(mockClient)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
@@ -108,6 +109,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
 	addHandler := NewAddHandler(mockClient)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Ensure adding an existing namespace returns 409
 	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))

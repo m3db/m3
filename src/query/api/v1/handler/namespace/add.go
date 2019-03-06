@@ -28,6 +28,7 @@ import (
 	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -72,7 +73,8 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nsRegistry, err := h.Add(md)
+	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	nsRegistry, err := h.Add(md, opts)
 	if err != nil {
 		if err == errNamespaceExists {
 			logger.Error("namespace already exists", zap.Error(err))
@@ -108,7 +110,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, 
 }
 
 // Add adds a namespace.
-func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, error) {
+func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest, opts handler.ServiceOptions) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
@@ -116,7 +118,11 @@ func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, e
 		return emptyReg, fmt.Errorf("unable to get metadata: %v", err)
 	}
 
-	store, err := h.client.KV()
+	kvOpts := kv.NewOverrideOptions().
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+
+	store, err := h.client.Store(kvOpts)
 	if err != nil {
 		return emptyReg, err
 	}

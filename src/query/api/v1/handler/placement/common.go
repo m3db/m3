@@ -35,74 +35,31 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 )
 
-type allowedServicesSet map[string]bool
-
-func (a allowedServicesSet) String() []string {
-	s := make([]string, 0, len(a))
-	for key := range a {
-		s = append(s, key)
-	}
-	return s
-}
-
 const (
-	// M3DBServiceName is the service name for M3DB.
-	M3DBServiceName = "m3db"
-	// M3AggregatorServiceName is the service name for M3Aggregator.
-	M3AggregatorServiceName = "m3aggregator"
-	// M3CoordinatorServiceName is the service name for M3Coordinator.
-	M3CoordinatorServiceName = "m3coordinator"
 	// ServicesPathName is the services part of the API path.
 	ServicesPathName = "services"
 	// PlacementPathName is the placement part of the API path.
 	PlacementPathName = "placement"
 
-	// DefaultServiceEnvironment is the default service ID environment.
-	DefaultServiceEnvironment = "default_env"
-	// DefaultServiceZone is the default service ID zone.
-	DefaultServiceZone = "embedded"
-
-	// HeaderClusterEnvironmentName is the header used to specify the environment name.
-	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
-	// HeaderClusterZoneName is the header used to specify the zone name.
-	HeaderClusterZoneName = "Cluster-Zone-Name"
-	// HeaderDryRun is the header used to specify whether this should be a dry run.
-	HeaderDryRun = "Dry-Run"
-
-	defaultM3AggMaxAggregationWindowSize = time.Minute
-	// defaultM3AggWarmupDuration configures the buffer to account for the delay
-	// of propagating aggregator placement to clients, usually needed when there is
-	// a large amount of clients sending traffic to m3aggregator.
-	defaultM3AggWarmupDuration = 0
-
 	m3AggregatorPlacementNamespace = "/placement"
 )
 
 var (
-	errServiceNameIsRequired        = errors.New("service name is required")
-	errServiceEnvironmentIsRequired = errors.New("service environment is required")
-	errServiceZoneIsRequired        = errors.New("service zone is required")
-	errUnableToParseService         = errors.New("unable to parse service")
-	errM3AggServiceOptionsRequired  = errors.New("m3agg service options are required")
-
-	allowedServices = allowedServicesSet{
-		M3DBServiceName:          true,
-		M3AggregatorServiceName:  true,
-		M3CoordinatorServiceName: true,
-	}
-
 	// M3DBServicePlacementPathName is the M3DB service placement API path.
-	M3DBServicePlacementPathName = path.Join(ServicesPathName, M3DBServiceName, PlacementPathName)
+	M3DBServicePlacementPathName = path.Join(ServicesPathName, handler.M3DBServiceName, PlacementPathName)
 	// M3AggServicePlacementPathName is the M3Agg service placement API path.
-	M3AggServicePlacementPathName = path.Join(ServicesPathName, M3AggregatorServiceName, PlacementPathName)
+	M3AggServicePlacementPathName = path.Join(ServicesPathName, handler.M3AggregatorServiceName, PlacementPathName)
 	// M3CoordinatorServicePlacementPathName is the M3Coordinator service placement API path.
-	M3CoordinatorServicePlacementPathName = path.Join(ServicesPathName, M3CoordinatorServiceName, PlacementPathName)
+	M3CoordinatorServicePlacementPathName = path.Join(ServicesPathName, handler.M3CoordinatorServiceName, PlacementPathName)
+
+	errUnableToParseService = errors.New("unable to parse service")
 )
 
 // HandlerOptions is the options struct for the handler.
@@ -112,14 +69,14 @@ type HandlerOptions struct {
 	ClusterClient clusterclient.Client
 	Config        config.Configuration
 
-	M3AggServiceOptions *M3AggServiceOptions
+	M3AggServiceOptions *handler.M3AggServiceOptions
 }
 
 // NewHandlerOptions is the constructor function for HandlerOptions.
 func NewHandlerOptions(
 	client clusterclient.Client,
 	cfg config.Configuration,
-	m3AggOpts *M3AggServiceOptions,
+	m3AggOpts *handler.M3AggServiceOptions,
 ) HandlerOptions {
 	return HandlerOptions{
 		ClusterClient:       client,
@@ -136,68 +93,10 @@ type Handler struct {
 	nowFn func() time.Time
 }
 
-// ServiceOptions are the options for Service.
-type ServiceOptions struct {
-	ServiceName        string
-	ServiceEnvironment string
-	ServiceZone        string
-
-	M3Agg *M3AggServiceOptions
-
-	DryRun bool
-}
-
-// M3AggServiceOptions contains the service options that are
-// specific to the M3Agg service.
-type M3AggServiceOptions struct {
-	MaxAggregationWindowSize time.Duration
-	WarmupDuration           time.Duration
-}
-
-// NewServiceOptions returns a ServiceOptions based on the provided
-// values.
-func NewServiceOptions(
-	serviceName string, headers http.Header, m3AggOpts *M3AggServiceOptions) ServiceOptions {
-	opts := ServiceOptions{
-		ServiceName:        serviceName,
-		ServiceEnvironment: DefaultServiceEnvironment,
-		ServiceZone:        DefaultServiceZone,
-
-		DryRun: false,
-
-		M3Agg: &M3AggServiceOptions{
-			MaxAggregationWindowSize: defaultM3AggMaxAggregationWindowSize,
-			WarmupDuration:           defaultM3AggWarmupDuration,
-		},
-	}
-
-	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
-		opts.ServiceEnvironment = v
-	}
-	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
-		opts.ServiceZone = v
-	}
-	if v := strings.TrimSpace(headers.Get(HeaderDryRun)); v == "true" {
-		opts.DryRun = true
-	}
-
-	if m3AggOpts != nil {
-		if m3AggOpts.MaxAggregationWindowSize > 0 {
-			opts.M3Agg.MaxAggregationWindowSize = m3AggOpts.MaxAggregationWindowSize
-		}
-
-		if m3AggOpts.WarmupDuration > 0 {
-			opts.M3Agg.WarmupDuration = m3AggOpts.MaxAggregationWindowSize
-		}
-	}
-
-	return opts
-}
-
 // Service gets a placement service from m3cluster client
 func Service(
 	clusterClient clusterclient.Client,
-	opts ServiceOptions,
+	opts handler.ServiceOptions,
 	now time.Time,
 	validationFn placement.ValidateFn,
 ) (placement.Service, error) {
@@ -210,13 +109,13 @@ func Service(
 // control over placement updates.
 func ServiceWithAlgo(
 	clusterClient clusterclient.Client,
-	opts ServiceOptions,
+	opts handler.ServiceOptions,
 	now time.Time,
 	validationFn placement.ValidateFn,
 ) (placement.Service, placement.Algorithm, error) {
 	overrides := services.NewOverrideOptions()
 	switch opts.ServiceName {
-	case M3AggregatorServiceName:
+	case handler.M3AggregatorServiceName:
 		overrides = overrides.
 			SetNamespaceOptions(
 				overrides.NamespaceOptions().
@@ -229,39 +128,27 @@ func ServiceWithAlgo(
 		return nil, nil, err
 	}
 
-	if _, ok := allowedServices[opts.ServiceName]; !ok {
+	if err := opts.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	if !handler.IsAllowedService(opts.ServiceName) {
 		return nil, nil, fmt.Errorf(
-			"invalid service name: %s, must be one of: %s",
-			opts.ServiceName, allowedServices.String())
-	}
-	if opts.ServiceName == "" {
-		return nil, nil, errServiceNameIsRequired
-	}
-	if opts.ServiceEnvironment == "" {
-		return nil, nil, errServiceEnvironmentIsRequired
-	}
-	if opts.ServiceZone == "" {
-		return nil, nil, errServiceZoneIsRequired
-	}
-	if opts.ServiceName == M3AggregatorServiceName && opts.M3Agg == nil {
-		return nil, nil, errM3AggServiceOptionsRequired
+			"invalid service name: %s, must be one of: %v",
+			opts.ServiceName, handler.AllowedServices())
 	}
 
-	sid := services.NewServiceID().
-		SetName(opts.ServiceName).
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
+	sid := opts.ServiceID()
 	pOpts := placement.NewOptions().
 		SetValidZone(opts.ServiceZone).
 		SetIsSharded(true).
 		SetDryrun(opts.DryRun)
 
 	switch opts.ServiceName {
-	case M3CoordinatorServiceName:
+	case handler.M3CoordinatorServiceName:
 		pOpts = pOpts.
 			SetIsSharded(false)
-	case M3AggregatorServiceName:
+	case handler.M3AggregatorServiceName:
 		var (
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
 			warmupDuration           = opts.M3Agg.WarmupDuration
@@ -510,7 +397,7 @@ func applyDeprecatedMiddleware(
 ) func(w http.ResponseWriter, r *http.Request) {
 	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			f(M3DBServiceName, w, r)
+			f(handler.M3DBServiceName, w, r)
 		},
 	).ServeHTTP
 }
@@ -535,7 +422,7 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 	for i, c := range components {
 		if c == "services" && i+1 < len(components) {
 			service := components[i+1]
-			if _, ok := allowedServices[service]; ok {
+			if handler.IsAllowedService(service) {
 				return service, nil
 			}
 			return "", fmt.Errorf("unknown service: %s", service)
@@ -547,7 +434,7 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 
 func isStateless(serviceName string) bool {
 	switch serviceName {
-	case M3CoordinatorServiceName:
+	case handler.M3CoordinatorServiceName:
 		return true
 	}
 	return false

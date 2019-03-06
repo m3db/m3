@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -87,7 +87,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	var (
 		force = r.FormValue(placementForceVar) == "true"
-		opts  = NewServiceOptions(
+		opts  = handler.NewServiceOptions(
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 

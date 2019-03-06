@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,30 +20,26 @@
 
 package handler
 
-const (
-	// WarningsHeader is the M3 warnings header when to display a warning to a user
-	WarningsHeader = "M3-Warnings"
+import (
+	"sort"
+	"testing"
 
-	// RetryHeader is the M3 retry header to display when it is safe to retry
-	RetryHeader = "M3-Retry"
-
-	// ServedByHeader is the M3 query storage execution breakdown
-	ServedByHeader = "M3-Storage-By"
-
-	// DeprecatedHeader is the M3 deprecated header
-	DeprecatedHeader = "M3-Deprecated"
-
-	// DefaultServiceEnvironment is the default service ID environment.
-	DefaultServiceEnvironment = "default_env"
-	// DefaultServiceZone is the default service ID zone.
-	DefaultServiceZone = "embedded"
-
-	// HeaderClusterEnvironmentName is the header used to specify the environment
-	// name.
-	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
-	// HeaderClusterZoneName is the header used to specify the zone name.
-	HeaderClusterZoneName = "Cluster-Zone-Name"
-	// HeaderDryRun is the header used to specify whether this should be a dry
-	// run.
-	HeaderDryRun = "Dry-Run"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestIsAllowedService(t *testing.T) {
+	assert.True(t, IsAllowedService("m3db"))
+	assert.False(t, IsAllowedService("foo"))
+}
+
+func TestAllowedServices(t *testing.T) {
+	exp := []string{
+		"m3aggregator",
+		"m3coordinator",
+		"m3db",
+	}
+
+	svcs := AllowedServices()
+	sort.Strings(svcs)
+	assert.Equal(t, exp, svcs)
+}
