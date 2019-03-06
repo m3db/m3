@@ -80,8 +80,11 @@ func (o baseOp) Node(controller *transform.Controller, opts transform.Options) t
 
 // baseNode is an execution node
 type baseNode struct {
-	op            baseOp
-	controller    *transform.Controller
+	op baseOp
+	// controller uses an interface here so we can mock it out in tests.
+	// TODO: use an exported interface everywhere instead of *transform.Controller.
+	// https://github.com/m3db/m3/issues/1430
+	controller    controller
 	cache         *blockCache
 	processor     Processor
 	transformOpts transform.Options
@@ -194,11 +197,11 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	}
 
 	blocks, err := c.processCompletedBlocks(queryCtx, processRequests, maxBlocks)
-	defer closeBlocks(blocks)
-
 	if err != nil {
 		return err
 	}
+
+	defer closeBlocks(blocks)
 
 	return c.propagateNextBlocks(processRequests, blocks, maxBlocks)
 }
@@ -256,15 +259,16 @@ func (c *baseNode) processCompletedBlocks(queryCtx *models.QueryContext, process
 	sp, _ := opentracingutil.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
-	blocks := make([]block.Block, len(processRequests))
-	for i, req := range processRequests {
+	blocks := make([]block.Block, 0, len(processRequests))
+	for _, req := range processRequests {
 		bl, err := c.processSingleRequest(req)
 		if err != nil {
-			// return processed blocks so we can close them
-			return blocks, err
+			// cleanup any blocks we opened
+			closeBlocks(blocks)
+			return nil, err
 		}
 
-		blocks[i] = bl
+		blocks = append(blocks, bl)
 	}
 
 	return blocks, nil

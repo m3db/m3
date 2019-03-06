@@ -27,5 +27,6 @@
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=m3ql -destination=$GOPATH/src/github.com/m3db/m3/src/query/parser/m3ql/types_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/parser/m3ql/types.go"
 //go:generate sh -c "mockgen -package=transform -destination=$GOPATH/src/github.com/m3db/m3/src/query/executor/transform/exec_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/executor/transform/exec.go"
+//go:generate sh -c "mockgen -package=temporal -destination=$GOPATH/src/github.com/m3db/m3/src/query/functions/temporal/dependencies_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/functions/temporal/dependencies.go" controller
 
 package mocks
