@@ -79,6 +79,11 @@ metadata:
     component: agent
 spec:
   replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 100%
   selector:
     matchLabels:
       app: m3nsch

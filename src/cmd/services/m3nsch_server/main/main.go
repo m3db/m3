@@ -97,9 +97,7 @@ func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.Ne
 		if zone != svc.Zone {
 			return nil, fmt.Errorf("request zone %s did not match config zone %s", zone, svc.Zone)
 		}
-		if env != svc.Env {
-			return nil, fmt.Errorf("request env %s did not match config zone %s", env, svc.Env)
-		}
+		svc.Env = env
 		cl, err := conf.DBClient.NewClient(client.ConfigurationParameters{
 			InstrumentOptions: iopts,
 		})
