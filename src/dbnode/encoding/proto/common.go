@@ -21,9 +21,11 @@
 package proto
 
 import (
+	"bytes"
 	"reflect"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/golang/snappy"
 	"github.com/jhump/protoreflect/desc"
 )
 
@@ -52,10 +54,17 @@ var (
 )
 
 type customFieldState struct {
-	fieldNum      int
-	fieldType     dpb.FieldDescriptorProto_Type
+	fieldNum  int
+	fieldType dpb.FieldDescriptorProto_Type
+
+	// Float state
 	prevXOR       uint64
 	prevFloatBits uint64
+
+	// Bytes State
+	prevBytes   []byte
+	bytesWriter *snappy.Writer
+	bytesBuf    *bytes.Buffer
 }
 
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle

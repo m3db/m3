@@ -21,10 +21,13 @@
 package proto
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/golang/snappy"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
@@ -152,9 +155,18 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 				customField.fieldNum)
 		}
 
+		customEncoded := false
 		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
 			enc.encodeTSZValue(i, customField, iVal)
+			customEncoded = true
+		}
 
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+			enc.encodeBytesValue(i, customField, iVal)
+			customEncoded = true
+		}
+
+		if customEncoded {
 			// Remove the field from the message so we don't include it
 			// in the proto marshal.
 			m.ClearFieldByNumber(customField.fieldNum)
@@ -181,6 +193,40 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 		enc.encodeFirstTSZValue(i, val)
 	} else {
 		enc.encodeNextTSZValue(i, val)
+	}
+
+	return nil
+}
+
+func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
+	currBytes, ok := iVal.([]byte)
+	if !ok {
+		return fmt.Errorf(
+			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+	}
+
+	if bytes.Equal(customField.prevBytes, currBytes) {
+		// No changes control bit.
+		enc.stream.WriteBit(0)
+		return nil
+	}
+
+	if customField.bytesWriter == nil {
+		customField.bytesWriter = snappy.NewWriter(enc.stream)
+		enc.customFields[i] = customField
+	}
+
+	// Bytes changed control bit.
+	enc.stream.WriteBit(1)
+	enc.encodeVarInt((uint64(len(currBytes))))
+	n, err := customField.bytesWriter.Write(currBytes)
+	if err != nil {
+		return fmt.Errorf("proto encoder: error snappy compressing bytes: %v", err)
+	}
+	if n != len(currBytes) {
+		return fmt.Errorf(
+			"proto encoder: tried to snappy compress %d bytes but only compressed: %d",
+			len(currBytes), n)
 	}
 
 	return nil

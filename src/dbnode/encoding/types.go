@@ -261,6 +261,7 @@ type OStream interface {
 	WriteBits(v uint64, numBits int)
 	WriteByte(v byte)
 	WriteBytes(bytes []byte)
+	Write(bytes []byte) (int, error)
 	Reset(buffer checked.Bytes)
 	Discard() checked.Bytes
 	Rawbytes() ([]byte, int)
