@@ -52,4 +52,4 @@ $ curl -sSf localhost:12580/metrics | rg write.+success
 write_req_success 146000
 ```
 
-[dash]: https://github.com/m3db/m3/blob/75661bc2e7fc806ee3424c068db6812455ba0878/integrations/grafana/m3nsch_dashboard.json
+[dash]: https://raw.githubusercontent.com/m3db/m3/master/integrations/grafana/m3nsch_dashboard.json
