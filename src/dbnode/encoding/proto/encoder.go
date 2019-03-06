@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -51,8 +52,8 @@ type encoder struct {
 	stream encoding.OStream
 	schema *desc.MessageDescriptor
 
-	lastEncoded *dynamic.Message
-	tszFields   []tszFieldState
+	lastEncoded  *dynamic.Message
+	customFields []customFieldState
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -62,12 +63,6 @@ type encoder struct {
 
 	hasWrittenFirstTSZ bool
 	closed             bool
-}
-
-type tszFieldState struct {
-	fieldNum      int
-	prevXOR       uint64
-	prevFloatBits uint64
 }
 
 // NewEncoder creates a new encoder.
@@ -102,7 +97,7 @@ func (enc *encoder) Encode(m *dynamic.Message) error {
 	// Control bit that indicates the stream has more data.
 	enc.stream.WriteBit(1)
 
-	if err := enc.encodeTSZValues(m); err != nil {
+	if err := enc.encodeCustomValues(m); err != nil {
 		return err
 	}
 	if err := enc.encodeProtoValues(m); err != nil {
@@ -119,10 +114,10 @@ func (enc *encoder) Reset(
 	enc.stream.Reset(b)
 	enc.schema = schema
 	enc.lastEncoded = nil
-	if cap(enc.tszFields) <= maxTSZFieldsCapacityRetain {
-		enc.tszFields = tszFields(enc.tszFields, schema)
+	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
+		enc.customFields = customFields(enc.customFields, schema)
 	} else {
-		enc.tszFields = tszFields(nil, schema)
+		enc.customFields = customFields(nil, schema)
 	}
 
 	enc.hasWrittenFirstTSZ = false
@@ -148,38 +143,45 @@ func (enc *encoder) Close() (checked.Bytes, error) {
 	return bytes, nil
 }
 
-func (enc *encoder) encodeTSZValues(m *dynamic.Message) error {
-	for i, tszField := range enc.tszFields {
-		iVal, err := m.TryGetFieldByNumber(tszField.fieldNum)
+func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
+	for i, customField := range enc.customFields {
+		iVal, err := m.TryGetFieldByNumber(customField.fieldNum)
 		if err != nil {
 			return fmt.Errorf(
 				"proto encoder error trying to get field number: %d",
-				tszField.fieldNum)
+				customField.fieldNum)
 		}
 
-		var val float64
-		switch typedVal := iVal.(type) {
-		case float64:
-			val = typedVal
-		case float32:
-			val = float64(typedVal)
-		default:
-			return fmt.Errorf(
-				"proto encoder: found unknown type in fieldNum %d of message %s",
-				tszField.fieldNum, m.String())
-		}
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+			enc.encodeTSZValue(i, customField, iVal)
 
-		if !enc.hasWrittenFirstTSZ {
-			enc.encodeFirstTSZValue(i, val)
-		} else {
-			enc.encodeNextTSZValue(i, val)
+			// Remove the field from the message so we don't include it
+			// in the proto marshal.
+			m.ClearFieldByNumber(customField.fieldNum)
 		}
-
-		// Remove the field from the message so we don't include it
-		// in the proto marshal.
-		m.ClearFieldByNumber(tszField.fieldNum)
 	}
 	enc.hasWrittenFirstTSZ = true
+
+	return nil
+}
+
+func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal interface{}) error {
+	var val float64
+	switch typedVal := iVal.(type) {
+	case float64:
+		val = typedVal
+	case float32:
+		val = float64(typedVal)
+	default:
+		return fmt.Errorf(
+			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+	}
+
+	if !enc.hasWrittenFirstTSZ {
+		enc.encodeFirstTSZValue(i, val)
+	} else {
+		enc.encodeNextTSZValue(i, val)
+	}
 
 	return nil
 }
@@ -275,16 +277,16 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 func (enc *encoder) encodeFirstTSZValue(i int, v float64) {
 	fb := math.Float64bits(v)
 	enc.stream.WriteBits(fb, 64)
-	enc.tszFields[i].prevFloatBits = fb
-	enc.tszFields[i].prevXOR = fb
+	enc.customFields[i].prevFloatBits = fb
+	enc.customFields[i].prevXOR = fb
 }
 
 func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	curFloatBits := math.Float64bits(next)
-	curXOR := enc.tszFields[i].prevFloatBits ^ curFloatBits
-	m3tsz.WriteXOR(enc.stream, enc.tszFields[i].prevXOR, curXOR)
-	enc.tszFields[i].prevFloatBits = curFloatBits
-	enc.tszFields[i].prevXOR = curXOR
+	curXOR := enc.customFields[i].prevFloatBits ^ curFloatBits
+	m3tsz.WriteXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
+	enc.customFields[i].prevFloatBits = curFloatBits
+	enc.customFields[i].prevXOR = curXOR
 }
 
 func (enc *encoder) bytes(i int, next float64) checked.Bytes {

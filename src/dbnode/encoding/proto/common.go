@@ -51,17 +51,24 @@ var (
 	}
 )
 
+type customFieldState struct {
+	fieldNum      int
+	fieldType     dpb.FieldDescriptorProto_Type
+	prevXOR       uint64
+	prevFloatBits uint64
+}
+
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
 // repeated or nested messages / maps.
 // TODO(rartoul): Should handle integers as TSZ as well, can just do XOR on the regular
 // bits after converting to uint64. Just need to check type on encode/iterate to determine
 // how to interpret bits.
-func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldState {
-	numTSZFields := numTSZFields(schema)
-	if cap(s) >= numTSZFields {
+func customFields(s []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
+	numCustomFields := numCustomFields(schema)
+	if cap(s) >= numCustomFields {
 		s = s[:0]
 	} else {
-		s = make([]tszFieldState, 0, numTSZFields)
+		s = make([]customFieldState, 0, numCustomFields)
 	}
 
 	fields := schema.GetFields()
@@ -69,8 +76,17 @@ func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldStat
 		fieldType := field.GetType()
 		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
 			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
-			s = append(s, tszFieldState{
-				fieldNum: int(field.GetNumber()),
+			s = append(s, customFieldState{
+				fieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				fieldNum:  int(field.GetNumber()),
+			})
+		}
+
+		if fieldType == dpb.FieldDescriptorProto_TYPE_BYTES ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_STRING {
+			s = append(s, customFieldState{
+				fieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
+				fieldNum:  int(field.GetNumber()),
 			})
 		}
 	}
@@ -78,21 +94,24 @@ func tszFields(s []tszFieldState, schema *desc.MessageDescriptor) []tszFieldStat
 	return s
 }
 
-func numTSZFields(schema *desc.MessageDescriptor) int {
+func numCustomFields(schema *desc.MessageDescriptor) int {
 	var (
-		fields       = schema.GetFields()
-		numTSZFields = 0
+		fields          = schema.GetFields()
+		numCustomFields = 0
 	)
 
 	for _, field := range fields {
 		fieldType := field.GetType()
+		// TODO: Put in a map or make a helper function
 		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
-			numTSZFields++
+			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_BYTES ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_STRING {
+			numCustomFields++
 		}
 	}
 
-	return numTSZFields
+	return numCustomFields
 }
 
 func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {

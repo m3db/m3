@@ -45,7 +45,7 @@ type iterator struct {
 	stream               encoding.IStream
 	consumedFirstMessage bool
 	lastIterated         *dynamic.Message
-	tszFields            []tszFieldState
+	customFields         []customFieldState
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -71,7 +71,7 @@ func NewIterator(
 		schema: schema,
 		stream: encoding.NewIStream(reader),
 		// TODO: These need to be possibly updated as we traverse a stream
-		tszFields: tszFields(nil, schema),
+		customFields: customFields(nil, schema),
 	}
 
 	return iter, nil
@@ -93,7 +93,7 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	if err := it.readTSZValues(); err != nil {
+	if err := it.readCustomValues(); err != nil {
 		it.err = err
 		return false
 	}
@@ -115,13 +115,13 @@ func (it *iterator) Err() error {
 	return it.err
 }
 
-func (it *iterator) readTSZValues() error {
+func (it *iterator) readCustomValues() error {
 	var err error
 
 	if !it.consumedFirstMessage {
-		err = it.readFirstTSZValues()
+		err = it.readFirstCustomValues()
 	} else {
-		err = it.readNextTSZValues()
+		err = it.readNextCustomValues()
 	}
 
 	return err
@@ -185,35 +185,55 @@ func (it *iterator) readProtoValues() error {
 	return nil
 }
 
-func (it *iterator) readFirstTSZValues() error {
-	for i := range it.tszFields {
-		fb, xor, err := it.readFullFloatVal()
-		if err != nil {
-			return err
-		}
-
-		it.tszFields[i].prevFloatBits = fb
-		it.tszFields[i].prevXOR = xor
-		if err := it.updateLastIteratedWithTSZValues(i); err != nil {
-			return err
+func (it *iterator) readFirstCustomValues() error {
+	for i, customField := range it.customFields {
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+			if err := it.readFirstTSZValue(i, customField); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (it *iterator) readNextTSZValues() error {
-	for i := range it.tszFields {
-		fb, xor, err := it.readFloatXOR(i)
-		if err != nil {
-			return err
-		}
+func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error {
+	fb, xor, err := it.readFullFloatVal()
+	if err != nil {
+		return err
+	}
 
-		it.tszFields[i].prevFloatBits = fb
-		it.tszFields[i].prevXOR = xor
-		if err := it.updateLastIteratedWithTSZValues(i); err != nil {
-			return err
+	it.customFields[i].prevFloatBits = fb
+	it.customFields[i].prevXOR = xor
+	if err := it.updateLastIteratedWithTSZValues(i); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (it *iterator) readNextCustomValues() error {
+	for i, customField := range it.customFields {
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+			if err := it.readNextTSZValue(i, customField); err != nil {
+				return err
+			}
 		}
+	}
+
+	return nil
+}
+
+func (it *iterator) readNextTSZValue(i int, customField customFieldState) error {
+	fb, xor, err := it.readFloatXOR(i)
+	if err != nil {
+		return err
+	}
+
+	it.customFields[i].prevFloatBits = fb
+	it.customFields[i].prevXOR = xor
+	if err := it.updateLastIteratedWithTSZValues(i); err != nil {
+		return err
 	}
 
 	return nil
@@ -229,8 +249,8 @@ func (it *iterator) updateLastIteratedWithTSZValues(i int) error {
 	}
 
 	var (
-		fieldNum = it.tszFields[i].fieldNum
-		val      = math.Float64frombits(it.tszFields[i].prevFloatBits)
+		fieldNum = it.customFields[i].fieldNum
+		val      = math.Float64frombits(it.customFields[i].prevFloatBits)
 		err      error
 	)
 	if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
@@ -246,7 +266,7 @@ func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	prevFloatBits := it.tszFields[i].prevFloatBits
+	prevFloatBits := it.customFields[i].prevFloatBits
 	return prevFloatBits ^ xor, xor, nil
 }
 
@@ -267,7 +287,7 @@ func (it *iterator) readXOR(i int) (uint64, error) {
 	cb = (cb << 1) | cb2
 	if cb == m3tsz.OpcodeContainedValueXOR {
 		var (
-			previousXOR                       = it.tszFields[i].prevXOR
+			previousXOR                       = it.customFields[i].prevXOR
 			previousLeading, previousTrailing = encoding.LeadingAndTrailingZeros(previousXOR)
 			numMeaningfulBits                 = 64 - previousLeading - previousTrailing
 		)

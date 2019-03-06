@@ -43,11 +43,11 @@ func TestNewEncoderEncodingOptionsRequired(t *testing.T) {
 func TestTSZFields(t *testing.T) {
 	testCases := []struct {
 		schema   *desc.MessageDescriptor
-		expected []tszFieldState
+		expected []customFieldState
 	}{
 		{
 			schema: newVLMessageDescriptor(),
-			expected: []tszFieldState{
+			expected: []customFieldState{
 				{fieldNum: 0}, // latitude
 				{fieldNum: 1}, // longitude
 			},
@@ -55,7 +55,7 @@ func TestTSZFields(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tszFields := tszFields(nil, tc.schema)
+		tszFields := customFields(nil, tc.schema)
 		require.Equal(t, tc.expected, tszFields)
 	}
 }
