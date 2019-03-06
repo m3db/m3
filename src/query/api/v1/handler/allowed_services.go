@@ -20,7 +20,7 @@
 
 package handler
 
-type allowedServicesSet map[string]bool
+type allowedServicesSet map[string]struct{}
 
 func (a allowedServicesSet) String() []string {
 	s := make([]string, 0, len(a))
@@ -32,9 +32,9 @@ func (a allowedServicesSet) String() []string {
 
 var (
 	allowedServices = allowedServicesSet{
-		M3DBServiceName:          true,
-		M3AggregatorServiceName:  true,
-		M3CoordinatorServiceName: true,
+		M3DBServiceName:          struct{}{},
+		M3AggregatorServiceName:  struct{}{},
+		M3CoordinatorServiceName: struct{}{},
 	}
 )
 
@@ -47,10 +47,8 @@ func IsAllowedService(svc string) bool {
 // AllowedServices returns the list of valid M3 services.
 func AllowedServices() []string {
 	svcs := make([]string, 0, len(allowedServices))
-	for svc, allowed := range allowedServices {
-		if allowed {
-			svcs = append(svcs, svc)
-		}
+	for svc := range allowedServices {
+		svcs = append(svcs, svc)
 	}
 	return svcs
 }
