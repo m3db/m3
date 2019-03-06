@@ -56,8 +56,9 @@ type encoder struct {
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
-	varIntBuf     [8]byte
-	changedValues []int32
+	varIntBuf              [8]byte
+	changedValues          []int32
+	fieldsChangedToDefault []int32
 
 	hasWrittenFirstTSZ bool
 	closed             bool
@@ -188,6 +189,9 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
 
+	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
+	fieldsChangedToDefault := enc.fieldsChangedToDefault
+
 	if enc.lastEncoded != nil {
 		schemaFields := enc.schema.GetFields()
 		for _, field := range m.GetKnownFields() {
@@ -218,6 +222,9 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 					return err
 				}
 			} else {
+				if fieldsEqual(field.GetDefaultValue(), curVal) {
+					fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+				}
 				changedFields = append(changedFields, fieldNum)
 				if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
 					return err
@@ -239,8 +246,18 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
 	}
 
+	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(1)
-	enc.encodeBitset(changedFields)
+	if len(fieldsChangedToDefault) > 0 {
+		// Control bit indicating that some fields have been set to default values
+		// and that a bitset will follow specifying which fields have changed.
+		enc.stream.WriteBit(1)
+		enc.encodeBitset(fieldsChangedToDefault)
+	} else {
+		// Control bit indicating that none of the changed fields have been set to
+		// their default values so we can do a clean merge on read.
+		enc.stream.WriteBit(0)
+	}
 	enc.encodeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
 

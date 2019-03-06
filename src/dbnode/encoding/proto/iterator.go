@@ -128,20 +128,28 @@ func (it *iterator) readTSZValues() error {
 }
 
 func (it *iterator) readProtoValues() error {
-	bit, err := it.stream.ReadBit()
+	protoChangesControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return err
 	}
 
-	if bit == 0 {
+	if protoChangesControlBit == 0 {
 		// No changes since previous message.
 		return nil
 	}
 
-	err = it.readBitset()
+	fieldsSetToDefaultControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return fmt.Errorf(
-			"error readining changed proto field numbers bitset: %v", err)
+		return err
+	}
+
+	if fieldsSetToDefaultControlBit == 1 {
+		// Some fields set to default value, need to read bitset.
+		err = it.readBitset()
+		if err != nil {
+			return fmt.Errorf(
+				"error readining changed proto field numbers bitset: %v", err)
+		}
 	}
 
 	marshalLen, err := it.readVarInt()
@@ -163,27 +171,15 @@ func (it *iterator) readProtoValues() error {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
 
-	currMessage := dynamic.NewMessage(it.schema)
-	err = currMessage.Unmarshal(buf)
+	err = it.lastIterated.UnmarshalMerge(buf)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
 
-	if !it.consumedFirstMessage {
-		// If this is the first message in the stream then the list of changed
-		// fields will be empty (even though some of the fields may have data)
-		// so we need to do a full merge and ignore the empty list of changed
-		// fields.
-		err := it.lastIterated.MergeFrom(currMessage)
-		if err != nil {
-			return fmt.Errorf(
-				"error merging current message into previous, err: %v, message: %s",
-				err, currMessage.String())
+	if fieldsSetToDefaultControlBit == 1 {
+		for _, fieldNum := range it.bitsetValues {
+			it.lastIterated.ClearFieldByNumber(fieldNum)
 		}
-	}
-
-	for _, fieldNum := range it.bitsetValues {
-		it.lastIterated.SetFieldByNumber(fieldNum, currMessage.GetFieldByNumber(fieldNum))
 	}
 
 	return nil
