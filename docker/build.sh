@@ -27,7 +27,8 @@ function push() {
 CONFIG="docker/images.json"
 
 IMAGES="$(<$CONFIG jq -er '.images | to_entries | map(.key)[]')"
-TAG_BASE="$(<$CONFIG jq -er .image_base)"
+REPOSITORIES="$(<$CONFIG jq -er .repositories)"
+CLEANUP_REGEX="$(<$CONFIG jq -r '.repositories | join("|")')"
 TAGS_TO_PUSH=""
 
 # If this commit matches an exact tag, push a tagged build and "latest".
@@ -53,23 +54,25 @@ for IMAGE in $IMAGES; do
   SHA_TMP=$(mktemp --suffix m3-docker)
   docker build --iidfile "$SHA_TMP" -f "$(<$CONFIG jq -er ".images[\"${IMAGE}\"].dockerfile")" .
   IMAGE_SHA=$(cat "$SHA_TMP")
-  for TAG in $TAGS_TO_PUSH; do
-    FULL_TAG="${TAG_BASE}/${IMAGE}:${TAG}"
-    docker tag "$IMAGE_SHA" "$FULL_TAG"
-    push "$FULL_TAG"
+  for TAG_BASE in $REPOSITORIES; do
+    for TAG in $TAGS_TO_PUSH; do
+      FULL_TAG="${TAG_BASE}/${IMAGE}:${TAG}"
+      docker tag "$IMAGE_SHA" "$FULL_TAG"
+      push "$FULL_TAG"
 
-    # If the image has aliases, tag them too.
-    ALIASES="$(<$CONFIG jq -r "(.images[\"${IMAGE}\"].aliases | if . == null then [] else . end)[]")"
-    for ALIAS in $ALIASES; do
-      DUAL_TAG="${TAG_BASE}/${ALIAS}:${TAG}"
-      docker tag "$IMAGE_SHA" "$DUAL_TAG"
-      push "$DUAL_TAG"
+      # If the image has aliases, tag them too.
+      ALIASES="$(<$CONFIG jq -r "(.images[\"${IMAGE}\"].aliases | if . == null then [] else . end)[]")"
+      for ALIAS in $ALIASES; do
+        DUAL_TAG="${TAG_BASE}/${ALIAS}:${TAG}"
+        docker tag "$IMAGE_SHA" "$DUAL_TAG"
+        push "$DUAL_TAG"
+      done
     done
   done
 done
 
 # Clean up
-CLEANUP_IMAGES=$(docker images | grep "$TAG_BASE" | awk '{print $3}' | sort | uniq)
+CLEANUP_IMAGES=$(docker images | grep -E "$CLEANUP_REGEX" | awk '{print $3}' | sort | uniq)
 for IMG in $CLEANUP_IMAGES; do
   docker rmi -f "$IMG"
 done
