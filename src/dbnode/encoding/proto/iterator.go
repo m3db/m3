@@ -27,6 +27,8 @@ import (
 	"io"
 	"math"
 
+	"github.com/golang/snappy"
+
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -130,7 +132,7 @@ func (it *iterator) readCustomValues() error {
 func (it *iterator) readProtoValues() error {
 	protoChangesControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return err
+		return fmt.Errorf("proto iterator: err reading proto changes control bit: %v", err)
 	}
 
 	if protoChangesControlBit == 0 {
@@ -140,7 +142,7 @@ func (it *iterator) readProtoValues() error {
 
 	fieldsSetToDefaultControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return err
+		return fmt.Errorf("proto iterator: err reading field set to default control bit: %v", err)
 	}
 
 	if fieldsSetToDefaultControlBit == 1 {
@@ -154,10 +156,12 @@ func (it *iterator) readProtoValues() error {
 
 	marshalLen, err := it.readVarInt()
 	if err != nil {
+		return fmt.Errorf("proto iterator: err reading proto length varint: %v", err)
 		return err
 	}
 
 	// TODO(rartoul): Probably want to use a bytes pool for this.
+	// TODO: Use it.stream.Read()
 	buf := make([]byte, 0, marshalLen)
 	for i := uint64(0); i < marshalLen; i++ {
 		b, err := it.stream.ReadByte()
@@ -178,6 +182,7 @@ func (it *iterator) readProtoValues() error {
 
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
+			// TODO: Try
 			it.lastIterated.ClearFieldByNumber(fieldNum)
 		}
 	}
@@ -189,6 +194,12 @@ func (it *iterator) readFirstCustomValues() error {
 	for i, customField := range it.customFields {
 		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
 			if err := it.readFirstTSZValue(i, customField); err != nil {
+				return err
+			}
+		}
+
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
 		}
@@ -219,6 +230,12 @@ func (it *iterator) readNextCustomValues() error {
 				return err
 			}
 		}
+
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+			if err := it.readBytesValue(i, customField); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -235,6 +252,53 @@ func (it *iterator) readNextTSZValue(i int, customField customFieldState) error 
 	if err := it.updateLastIteratedWithTSZValues(i); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (it *iterator) readBytesValue(i int, customField customFieldState) error {
+	bytesChangedControlBit, err := it.stream.ReadBit()
+	if err != nil {
+		return fmt.Errorf(
+			"proto decoder: error trying to read bytes changed control bit: %v", err)
+	}
+
+	if bytesChangedControlBit == 0 {
+		// No changes to the bytes value.
+		return nil
+	}
+
+	bytesLen, err := it.readVarInt()
+	if err != nil {
+		return fmt.Errorf(
+			"proto decoder: error trying to read bytes length: %v", err)
+	}
+
+	if customField.bytesReader == nil {
+		customField.bytesReader = snappy.NewReader(it.stream)
+		it.customFields[i] = customField
+	}
+
+	buf := make([]byte, bytesLen)
+	n, err := customField.bytesReader.Read(buf)
+	if err != nil {
+		return fmt.Errorf(
+			"proto decoder: error trying to read snappy compressed bytes: %v", err)
+	}
+	if uint64(n) != bytesLen {
+		return fmt.Errorf(
+			"proto decoder: tried to read %d snappy compressed bytes but read %d",
+			bytesLen, n)
+	}
+	fmt.Println("iterated: ", string(buf))
+	// TODO: Can re-use this instead of allocating the temporary buffer.
+	it.customFields[i].prevBytes = buf
+	// TODO: switch to try
+	// TODO: Handle lastIterated == nil?
+	if it.lastIterated == nil {
+		it.lastIterated = dynamic.NewMessage(it.schema)
+	}
+	it.lastIterated.SetFieldByNumber(customField.fieldNum, buf)
 
 	return nil
 }

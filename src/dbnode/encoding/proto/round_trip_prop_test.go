@@ -26,7 +26,6 @@ import (
 	"os"
 	"reflect"
 	"testing"
-	"time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
@@ -59,9 +58,10 @@ var maxNumEnumValues = 10
 func TestRoundtripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
-		seed       = time.Now().UnixNano()
-		props      = gopter.NewProperties(parameters)
-		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		// seed       = time.Now().UnixNano()
+		seed     = int64(1551913120894939000)
+		props    = gopter.NewProperties(parameters)
+		reporter = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
@@ -204,7 +204,10 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
 		message := dynamic.NewMessage(schema)
 		for i, field := range message.GetKnownFields() {
-			if input.useDefaultValue[i] {
+			fieldType := field.GetType()
+			isStringOrBytes := fieldType == dpb.FieldDescriptorProto_TYPE_BYTES ||
+				fieldType == dpb.FieldDescriptorProto_TYPE_STRING
+			if input.useDefaultValue[i] && !isStringOrBytes {
 				// Due to the way ProtoBuf encoding works where there is no way to
 				// distinguish between an "unset" field and a field set to its default
 				// value, we intentionally force some of the values to their default values
@@ -215,9 +218,12 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 			}
 
 			var (
-				fieldType   = field.GetType()
+				// fieldType   = field.GetType()
 				fieldNumber = int(field.GetNumber())
 			)
+			if len(input.strings[i]) == 0 {
+				input.strings[i] = "a"
+			}
 			switch fieldType {
 			case dpb.FieldDescriptorProto_TYPE_BOOL:
 				message.SetFieldByNumber(fieldNumber, input.bools[i])

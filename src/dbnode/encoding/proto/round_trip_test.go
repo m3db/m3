@@ -80,6 +80,11 @@ func TestRoundtrip(t *testing.T) {
 			longitude:  2.6,
 			deliveryID: nil,
 		},
+		{
+			latitude:   0.5,
+			longitude:  2.5,
+			deliveryID: []byte("ASDFAJSDFHAJKSFHK"),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -108,6 +113,7 @@ func TestRoundtrip(t *testing.T) {
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
 		i++
 	}
+	require.NoError(t, iter.Err())
 }
 
 func newTestEncoder() *encoder {

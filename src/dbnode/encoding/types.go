@@ -246,6 +246,7 @@ type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
 
 // IStream encapsulates a readable stream.
 type IStream interface {
+	Read([]byte) (int, error)
 	ReadBit() (Bit, error)
 	ReadByte() (byte, error)
 	ReadBits(numBits int) (uint64, error)

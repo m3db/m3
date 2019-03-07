@@ -58,6 +58,22 @@ func (is *istream) ReadBit() (Bit, error) {
 	return Bit(is.consumeBuffer(1)), nil
 }
 
+// Read reads len(b) bytes.
+func (is *istream) Read(b []byte) (int, error) {
+	var (
+		i   int
+		err error
+	)
+
+	for ; i < len(b); i++ {
+		b[i], err = is.ReadByte()
+		if err != nil {
+			return i, err
+		}
+	}
+	return i, nil
+}
+
 // ReadByte reads the next Byte
 func (is *istream) ReadByte() (byte, error) {
 	if is.err != nil {
