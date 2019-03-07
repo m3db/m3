@@ -159,10 +159,11 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
 			enc.encodeTSZValue(i, customField, iVal)
 			customEncoded = true
-		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-			enc.encodeBytesValue(i, customField, iVal)
-			customEncoded = true
 		}
+		// } else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+		// 	enc.encodeBytesValue(i, customField, iVal)
+		// 	customEncoded = true
+		// }
 
 		if customEncoded {
 			// Remove the field from the message so we don't include it
@@ -202,9 +203,6 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 		return fmt.Errorf(
 			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
 	}
-	if len(currBytes) == 0 {
-		panic("WHAT")
-	}
 
 	if bytes.Equal(customField.prevBytes, currBytes) {
 		// No changes control bit.
@@ -212,7 +210,6 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 		return nil
 	}
 
-	fmt.Println("encoding: ", string(currBytes))
 	if customField.bytesWriter == nil {
 		customField.bytesWriter = snappy.NewWriter(enc.stream)
 		enc.customFields[i] = customField
@@ -296,7 +293,6 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	fmt.Println("marshaling: ", m)
 	// TODO: Probably need to add a MarshalInto() in the underlying library.
 	marshaled, err := m.Marshal()
 	if err != nil {

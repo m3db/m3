@@ -204,10 +204,7 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
 		message := dynamic.NewMessage(schema)
 		for i, field := range message.GetKnownFields() {
-			fieldType := field.GetType()
-			isStringOrBytes := fieldType == dpb.FieldDescriptorProto_TYPE_BYTES ||
-				fieldType == dpb.FieldDescriptorProto_TYPE_STRING
-			if input.useDefaultValue[i] && !isStringOrBytes {
+			if input.useDefaultValue[i] {
 				// Due to the way ProtoBuf encoding works where there is no way to
 				// distinguish between an "unset" field and a field set to its default
 				// value, we intentionally force some of the values to their default values
@@ -218,7 +215,7 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 			}
 
 			var (
-				// fieldType   = field.GetType()
+				fieldType   = field.GetType()
 				fieldNumber = int(field.GetNumber())
 			)
 			if len(input.strings[i]) == 0 {

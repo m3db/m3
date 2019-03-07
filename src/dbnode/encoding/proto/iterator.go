@@ -198,11 +198,11 @@ func (it *iterator) readFirstCustomValues() error {
 			}
 		}
 
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-			if err := it.readBytesValue(i, customField); err != nil {
-				return err
-			}
-		}
+		// if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+		// 	if err := it.readBytesValue(i, customField); err != nil {
+		// 		return err
+		// 	}
+		// }
 	}
 
 	return nil
@@ -231,11 +231,11 @@ func (it *iterator) readNextCustomValues() error {
 			}
 		}
 
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-			if err := it.readBytesValue(i, customField); err != nil {
-				return err
-			}
-		}
+		// if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+		// 	if err := it.readBytesValue(i, customField); err != nil {
+		// 		return err
+		// 	}
+		// }
 	}
 
 	return nil
@@ -290,7 +290,6 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: tried to read %d snappy compressed bytes but read %d",
 			bytesLen, n)
 	}
-	fmt.Println("iterated: ", string(buf))
 	// TODO: Can re-use this instead of allocating the temporary buffer.
 	it.customFields[i].prevBytes = buf
 	// TODO: switch to try
