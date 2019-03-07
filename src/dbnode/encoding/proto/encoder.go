@@ -198,10 +198,19 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 }
 
 func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
+	var val uint64
+	switch typedVal := iVal.(type) {
+	case int64:
+		val = uint64(typedVal)
+	default:
+		return fmt.Errorf(
+			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+	}
+
 	if !enc.hasWrittenFirstTSZ {
 		enc.encodeFirstIntValue(i, val)
 	} else {
-		enc.encodeNextTSZValue(i, val)
+		enc.encodeNextIntValue(i, val)
 	}
 
 	return nil
@@ -350,12 +359,24 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	enc.customFields[i].prevXOR = curXOR
 }
 
-func (enc *encoder) encodeFirstIntValue(i int, v float64) {
+func (enc *encoder) encodeFirstIntValue(i int, v uint64) {
+	enc.customFields[i].prevFloatBits = v
+}
+
+func (enc *encoder) encodeNextIntValue(i int, next uint64) {
 
 }
 
-func (enc *encoder) encodeNextIntValue(i int, next float64) {
+func writeIntValDiff(stream encoding.OStream, valBits uint64, neg bool, numSig uint8) {
+	if neg {
+		// opCodeNegative
+		stream.WriteBit(0x1)
+	} else {
+		// opCodePositive
+		stream.WriteBit(0x0)
+	}
 
+	stream.WriteBits(valBits, int(numSig))
 }
 
 func (enc *encoder) bytes(i int, next float64) checked.Bytes {
