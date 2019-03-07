@@ -7,7 +7,7 @@
 #
 # This script is a noop if HEAD is not origin/master OR tagged.
 
-set -exuo pipefail
+set -exo pipefail
 
 function cleanup() {
   docker system prune -f
