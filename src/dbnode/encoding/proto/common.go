@@ -65,6 +65,9 @@ type customFieldState struct {
 	prevBytes   []byte
 	bytesWriter *snappy.Writer
 	bytesReader *snappy.Reader
+
+	// Int state
+	prevSig uint8
 }
 
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle

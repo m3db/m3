@@ -198,10 +198,10 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 }
 
 func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
-	var val uint64
+	var val int64
 	switch typedVal := iVal.(type) {
 	case int64:
-		val = uint64(typedVal)
+		val = typedVal
 	default:
 		return fmt.Errorf(
 			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
@@ -359,24 +359,86 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	enc.customFields[i].prevXOR = curXOR
 }
 
-func (enc *encoder) encodeFirstIntValue(i int, v uint64) {
-	enc.customFields[i].prevFloatBits = v
-}
-
-func (enc *encoder) encodeNextIntValue(i int, next uint64) {
-
-}
-
-func writeIntValDiff(stream encoding.OStream, valBits uint64, neg bool, numSig uint8) {
-	if neg {
-		// opCodeNegative
-		stream.WriteBit(0x1)
-	} else {
-		// opCodePositive
-		stream.WriteBit(0x0)
+func (enc *encoder) encodeFirstIntValue(i int, v int64) {
+	fmt.Println("--------------------------------------------")
+	fmt.Println("encoding first: ", v)
+	neg := true
+	if v < 0 {
+		fmt.Println("is negative, multiplying by -1: ", v)
+		neg = false
+		v = -1 * v
 	}
 
-	stream.WriteBits(valBits, int(numSig))
+	vBits := uint64(v)
+	numSig := encoding.NumSig(vBits)
+
+	fmt.Println("numSig: ", numSig)
+	enc.encodeIntSig(i, numSig)
+	enc.encodeIntValDiff(vBits, neg, numSig)
+	// TODO: Rename
+	enc.customFields[i].prevFloatBits = vBits
+}
+
+func (enc *encoder) encodeNextIntValue(i int, next int64) {
+	fmt.Println("--------------------------------------------")
+	fmt.Println("encoding next: ", next)
+	prev := int64(enc.customFields[i].prevFloatBits)
+	fmt.Println("prev: ", prev)
+	diff := prev - next
+	fmt.Println("diff: ", diff)
+	if diff == 0 {
+		fmt.Println("no change")
+		// NoChangeControlBit
+		enc.stream.WriteBit(0)
+	} else {
+		fmt.Println("change")
+		enc.stream.WriteBit(1)
+	}
+
+	neg := false
+	if diff < 0 {
+		fmt.Println("value is negative, converting to positive")
+		neg = true
+		diff = -1 * diff
+	}
+
+	nextBits := uint64(next)
+	numSig := encoding.NumSig(nextBits)
+	// TODO: newSig tracking bullshit
+	enc.encodeIntSig(i, numSig)
+	enc.encodeIntValDiff(nextBits, neg, numSig)
+}
+
+func (enc *encoder) encodeIntSig(i int, currSig uint8) {
+	prevSig := enc.customFields[i].prevSig
+	if currSig != prevSig {
+		// opcodeUpdateSig
+		enc.stream.WriteBit(0x1)
+		if currSig == 0 {
+			// opcodeZeroSig
+			enc.stream.WriteBit(0x0)
+		} else {
+			// opcodeNonZeroSig
+			enc.stream.WriteBit(0x1)
+			enc.stream.WriteBits(uint64(currSig-1), 6) // 2^6 == 64
+		}
+	} else {
+		// opcodeNoUpdateSig
+		enc.stream.WriteBit(0x0)
+	}
+	enc.customFields[i].prevSig = currSig
+}
+
+func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
+	if neg {
+		// opCodeNegative
+		enc.stream.WriteBit(0x1)
+	} else {
+		// opCodePositive
+		enc.stream.WriteBit(0x0)
+	}
+
+	enc.stream.WriteBits(valBits, int(numSig))
 }
 
 func (enc *encoder) bytes(i int, next float64) checked.Bytes {
