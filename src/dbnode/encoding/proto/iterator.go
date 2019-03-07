@@ -203,6 +203,12 @@ func (it *iterator) readFirstCustomValues() error {
 		// 		return err
 		// 	}
 		// }
+
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+			if err := it.readIntValue(i, customField, true); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -216,7 +222,7 @@ func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error
 
 	it.customFields[i].prevFloatBits = fb
 	it.customFields[i].prevXOR = xor
-	if err := it.updateLastIteratedWithTSZValues(i); err != nil {
+	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
 		return err
 	}
 
@@ -236,6 +242,12 @@ func (it *iterator) readNextCustomValues() error {
 		// 		return err
 		// 	}
 		// }
+
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+			if err := it.readIntValue(i, customField, false); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -249,10 +261,39 @@ func (it *iterator) readNextTSZValue(i int, customField customFieldState) error 
 
 	it.customFields[i].prevFloatBits = fb
 	it.customFields[i].prevXOR = xor
-	if err := it.updateLastIteratedWithTSZValues(i); err != nil {
+	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (it *iterator) readIntValue(i int, customField customFieldState, first bool) error {
+	fmt.Println("reading int value")
+	if !first {
+		changeExistsControlBit, err := it.stream.ReadBit()
+		if err != nil {
+			return fmt.Errorf("proto decoder: error trying to read int change exists control bit: %v", err)
+		}
+
+		if changeExistsControlBit == 0 {
+			fmt.Println("next, no change.")
+			// No change.
+			return nil
+		}
+	}
+
+	if err := it.readIntSig(i); err != nil {
+		return fmt.Errorf("proto decoder: error trying to read number of significant digits: %v", err)
+	}
+
+	if err := it.readIntValDiff(i); err != nil {
+		return fmt.Errorf("proto decoder: error trying to read int diff: %v", err)
+	}
+
+	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
+		return fmt.Errorf("proto decoder: error updating last iterated with int value: %v", err)
+	}
 	return nil
 }
 
@@ -302,26 +343,40 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	return nil
 }
 
-// updateLastIteratedWithTSZValues updates lastIterated with the current
-// value of the TSZ field in it.tszFields at index i. This ensures that
+// updateLastIteratedWithCustomValues updates lastIterated with the current
+// value of the custom field in it.customFields at index i. This ensures that
 // when we return it.lastIterated in the call to Current() that all the
 // most recent values are present.
-func (it *iterator) updateLastIteratedWithTSZValues(i int) error {
+func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	if it.lastIterated == nil {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
 
 	var (
-		fieldNum = it.customFields[i].fieldNum
-		val      = math.Float64frombits(it.customFields[i].prevFloatBits)
-		err      error
+		fieldNum  = it.customFields[i].fieldNum
+		fieldType = it.customFields[i].fieldType
 	)
-	if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
-		err = it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+	// TODO: Not sure I need to handle both cases here. Might be ok to just check for double.
+	if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
+		fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
+		var (
+			val = math.Float64frombits(it.customFields[i].prevFloatBits)
+			err error
+		)
+		// TODO: Should I be looking at schema here or field types?
+		if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+			err = it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+		} else {
+			err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
+		}
+		return err
+	} else if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+		// TODO: same comment here
+		val := int64(it.customFields[i].prevFloatBits)
+		return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 	} else {
-		err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
+		return fmt.Errorf("proto decoder: unhandled fieldType: %v", fieldType)
 	}
-	return err
 }
 
 func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
@@ -440,6 +495,70 @@ func (it *iterator) readVarInt() (uint64, error) {
 	buf = buf[:numBytes]
 	varInt, _ := binary.Uvarint(buf)
 	return varInt, nil
+}
+
+func (it *iterator) readIntSig(i int) error {
+	updateControlBit, err := it.stream.ReadBit()
+	if err != nil {
+		return fmt.Errorf(
+			"proto iterator: error reading int significant digits update control bit: %v", err)
+	}
+	if updateControlBit == 0 {
+		fmt.Println("no change in nums sig digits")
+		// No change.
+		return nil
+	}
+
+	nonZeroSignificantDigitsControlBit, err := it.stream.ReadBit()
+	if err != nil {
+		return fmt.Errorf(
+			"proto iterator: error reading zero significant digits control bit: %v", err)
+	}
+	if nonZeroSignificantDigitsControlBit == 0 {
+		fmt.Println("0 sig digits")
+		it.customFields[i].prevSig = 0
+	} else {
+		numSigBits, err := it.readBits(6)
+		if err != nil {
+			return fmt.Errorf(
+				"proto iterator: error reading number of significant digits: %v", err)
+		}
+
+		fmt.Printf("%d sig digits\n", uint8(numSigBits)+1)
+		it.customFields[i].prevSig = uint8(numSigBits) + 1
+	}
+
+	return nil
+}
+
+func (it *iterator) readIntValDiff(i int) error {
+	negativeControlBit, err := it.stream.ReadBit()
+	if err != nil {
+		return fmt.Errorf(
+			"proto iterator: error reading negative control bit: %v", err)
+	}
+
+	numSig := int(it.customFields[i].prevSig)
+	fmt.Printf("reading %d sig digits\n", numSig)
+
+	diffSigBits, err := it.readBits(numSig)
+	if err != nil {
+		return fmt.Errorf(
+			"proto iterator: error reading significant digits: %v", err)
+	}
+
+	diff := int64(diffSigBits)
+	fmt.Println("diff: ", diff)
+	sign := int64(-1)
+	if negativeControlBit == 1 {
+		fmt.Println("negative control bit, flipping sign")
+		sign = 1.0
+	}
+
+	prev := int64(it.customFields[i].prevFloatBits)
+	it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
+	fmt.Println("read latest: ", uint64(prev+(sign*diff)))
+	return nil
 }
 
 func (it *iterator) readBits(numBits int) (uint64, error) {

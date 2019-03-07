@@ -3,5 +3,6 @@ syntax = "proto3";
 message VehicleLocation {
   double latitude = 0;
   double longitude = 1;
-  bytes deliveryID = 2;
+  int64 numTrips = 3;
+  bytes deliveryID = 4;
 }

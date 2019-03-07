@@ -34,7 +34,7 @@ func TestEncoderEncodeSchemaRequired(t *testing.T) {
 	enc, err := NewEncoder(testEncodingOptions)
 	require.NoError(t, err)
 
-	err = enc.Encode(newVL(0, 0, nil))
+	err = enc.Encode(newVL(0, 0, 0, nil))
 	require.Equal(t, errEncoderSchemaIsRequired, err)
 }
 

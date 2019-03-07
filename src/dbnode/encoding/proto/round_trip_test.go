@@ -43,36 +43,43 @@ func TestRoundtrip(t *testing.T) {
 	testCases := []struct {
 		latitude   float64
 		longitude  float64
+		numTrips   int64
 		deliveryID []byte
 	}{
 		{
 			latitude:   0.1,
 			longitude:  1.1,
+			numTrips:   -1,
 			deliveryID: []byte("123"),
 		},
 		{
 			latitude:   0.1,
 			longitude:  1.1,
+			numTrips:   0,
 			deliveryID: []byte("123"),
 		},
 		{
 			latitude:   0.2,
 			longitude:  2.2,
+			numTrips:   1,
 			deliveryID: []byte("123"),
 		},
 		{
 			latitude:   0.3,
 			longitude:  2.3,
+			numTrips:   2,
 			deliveryID: []byte("456"),
 		},
 		{
 			latitude:   0.4,
 			longitude:  2.4,
+			numTrips:   3,
 			deliveryID: []byte("456"),
 		},
 		{
 			latitude:   0.5,
 			longitude:  2.5,
+			numTrips:   4,
 			deliveryID: []byte("456"),
 		},
 		{
@@ -88,7 +95,7 @@ func TestRoundtrip(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		vl := newVL(tc.latitude, tc.longitude, tc.deliveryID)
+		vl := newVL(tc.latitude, tc.longitude, tc.numTrips, tc.deliveryID)
 		err := enc.Encode(vl)
 		require.NoError(t, err)
 
@@ -110,6 +117,7 @@ func TestRoundtrip(t *testing.T) {
 		)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
+		require.Equal(t, tc.numTrips, m.GetFieldByName("numTrips"))
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
 		i++
 	}
@@ -135,11 +143,12 @@ func marshalVL(m *dynamic.Message) []byte {
 	return marshaled
 }
 
-func newVL(lat, long float64, deliveryID []byte) *dynamic.Message {
+func newVL(lat, long float64, numTrips int64, deliveryID []byte) *dynamic.Message {
 	newMessage := dynamic.NewMessage(testVLSchema)
 	newMessage.SetFieldByName("latitude", lat)
 	newMessage.SetFieldByName("longitude", long)
 	newMessage.SetFieldByName("deliveryID", deliveryID)
+	newMessage.SetFieldByName("numTrips", numTrips)
 
 	return newMessage
 }
