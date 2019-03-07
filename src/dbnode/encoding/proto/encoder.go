@@ -363,46 +363,34 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 }
 
 func (enc *encoder) encodeFirstIntValue(i int, v int64) {
-	fmt.Println("--------------------------------------------")
-	fmt.Println("encoding first: ", v)
 	neg := true
 	// TODO: Rename
 	enc.customFields[i].prevFloatBits = uint64(v)
 	if v < 0 {
 		neg = false
 		v = -1 * v
-		fmt.Println("is negative, multiplying by -1: ", v)
 	}
 
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	fmt.Println("numSig: ", numSig)
 	enc.encodeIntSig(i, numSig)
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
 func (enc *encoder) encodeNextIntValue(i int, next int64) {
-	fmt.Println("--------------------------------------------")
-	fmt.Println("encoding next: ", next)
 	prev := int64(enc.customFields[i].prevFloatBits)
-	fmt.Println("prev: ", prev)
-	fmt.Println("next: ", next)
 	diff := prev - next
-	fmt.Println("diff: ", diff)
 	if diff == 0 {
-		fmt.Println("no change")
 		// NoChangeControlBit
 		enc.stream.WriteBit(0)
 		return
 	}
 
-	fmt.Println("change")
 	enc.stream.WriteBit(1)
 
 	neg := false
 	if diff < 0 {
-		fmt.Println("value is negative, converting to positive")
 		neg = true
 		diff = -1 * diff
 	}
@@ -419,21 +407,16 @@ func (enc *encoder) encodeIntSig(i int, currSig uint8) {
 	prevSig := enc.customFields[i].prevSig
 	if currSig != prevSig {
 		// opcodeUpdateSig
-		fmt.Println("encoding update sig digits control bit")
 		enc.stream.WriteBit(0x1)
 		if currSig == 0 {
-			fmt.Println("encoding 0 sig digits control bit")
 			// opcodeZeroSig
 			enc.stream.WriteBit(0x0)
 		} else {
-			fmt.Println("encoding non-zero sig digits control bit")
 			// opcodeNonZeroSig
 			enc.stream.WriteBit(0x1)
-			fmt.Println("encoding num sig digits: ", currSig)
 			enc.stream.WriteBits(uint64(currSig-1), 6) // 2^6 == 64
 		}
 	} else {
-		fmt.Println("encoding no update sig digits control bit")
 		// opcodeNoUpdateSig
 		enc.stream.WriteBit(0x0)
 	}

@@ -269,7 +269,6 @@ func (it *iterator) readNextTSZValue(i int, customField customFieldState) error 
 }
 
 func (it *iterator) readIntValue(i int, customField customFieldState, first bool) error {
-	fmt.Println("reading int value")
 	if !first {
 		changeExistsControlBit, err := it.stream.ReadBit()
 		if err != nil {
@@ -277,7 +276,6 @@ func (it *iterator) readIntValue(i int, customField customFieldState, first bool
 		}
 
 		if changeExistsControlBit == 0 {
-			fmt.Println("next, no change.")
 			// No change.
 			return nil
 		}
@@ -504,7 +502,6 @@ func (it *iterator) readIntSig(i int) error {
 			"proto iterator: error reading int significant digits update control bit: %v", err)
 	}
 	if updateControlBit == 0 {
-		fmt.Println("no change in nums sig digits")
 		// No change.
 		return nil
 	}
@@ -515,7 +512,6 @@ func (it *iterator) readIntSig(i int) error {
 			"proto iterator: error reading zero significant digits control bit: %v", err)
 	}
 	if nonZeroSignificantDigitsControlBit == 0 {
-		fmt.Println("0 sig digits")
 		it.customFields[i].prevSig = 0
 	} else {
 		numSigBits, err := it.readBits(6)
@@ -524,7 +520,6 @@ func (it *iterator) readIntSig(i int) error {
 				"proto iterator: error reading number of significant digits: %v", err)
 		}
 
-		fmt.Printf("%d sig digits\n", uint8(numSigBits)+1)
 		it.customFields[i].prevSig = uint8(numSigBits) + 1
 	}
 
@@ -539,7 +534,6 @@ func (it *iterator) readIntValDiff(i int) error {
 	}
 
 	numSig := int(it.customFields[i].prevSig)
-	fmt.Printf("reading %d sig digits\n", numSig)
 
 	diffSigBits, err := it.readBits(numSig)
 	if err != nil {
@@ -548,16 +542,13 @@ func (it *iterator) readIntValDiff(i int) error {
 	}
 
 	diff := int64(diffSigBits)
-	fmt.Println("diff: ", diff)
 	sign := int64(-1)
 	if negativeControlBit == 1 {
-		fmt.Println("negative control bit, flipping sign")
 		sign = 1.0
 	}
 
 	prev := int64(it.customFields[i].prevFloatBits)
 	it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
-	fmt.Println("read latest: ", uint64(prev+(sign*diff)))
 	return nil
 }
 
