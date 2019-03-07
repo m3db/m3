@@ -413,12 +413,12 @@ test-all-gen: all-gen
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(retool_bin_path):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+	PATH=$(retool_bin_path):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
-	PATH=$(retool_bin_path):$(PATH) fossa test
+	PATH=$(retool_bin_path):$(PATH) fossa --no-ansi test
 
 .PHONY: clean
 clean:
