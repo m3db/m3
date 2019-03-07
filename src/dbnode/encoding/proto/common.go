@@ -53,7 +53,8 @@ var (
 )
 
 type customFieldState struct {
-	fieldNum  int
+	fieldNum int
+	// TODO: This should be a custom enum.
 	fieldType dpb.FieldDescriptorProto_Type
 
 	// Float state
@@ -90,10 +91,19 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 			})
 		}
 
+		// TODO(rartoul): May end up deleting this.
 		if fieldType == dpb.FieldDescriptorProto_TYPE_BYTES ||
 			fieldType == dpb.FieldDescriptorProto_TYPE_STRING {
 			s = append(s, customFieldState{
 				fieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
+				fieldNum:  int(field.GetNumber()),
+			})
+		}
+
+		// TODO(rartoul): More int types
+		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+			s = append(s, customFieldState{
+				fieldType: dpb.FieldDescriptorProto_TYPE_INT64,
 				fieldNum:  int(field.GetNumber()),
 			})
 		}

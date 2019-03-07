@@ -197,6 +197,16 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 	return nil
 }
 
+func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
+	if !enc.hasWrittenFirstTSZ {
+		enc.encodeFirstIntValue(i, val)
+	} else {
+		enc.encodeNextTSZValue(i, val)
+	}
+
+	return nil
+}
+
 func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
 	currBytes, ok := iVal.([]byte)
 	if !ok {
@@ -338,6 +348,14 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	m3tsz.WriteXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
 	enc.customFields[i].prevFloatBits = curFloatBits
 	enc.customFields[i].prevXOR = curXOR
+}
+
+func (enc *encoder) encodeFirstIntValue(i int, v float64) {
+
+}
+
+func (enc *encoder) encodeNextIntValue(i int, next float64) {
+
 }
 
 func (enc *encoder) bytes(i int, next float64) checked.Bytes {
