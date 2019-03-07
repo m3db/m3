@@ -27,7 +27,7 @@ function push() {
 CONFIG="docker/images.json"
 
 IMAGES="$(<$CONFIG jq -er '.images | to_entries | map(.key)[]')"
-REPOSITORIES="$(<$CONFIG jq -er .repositories)"
+REPOSITORIES="$(<$CONFIG jq -er .repositories[])"
 CLEANUP_REGEX="$(<$CONFIG jq -r '.repositories | join("|")')"
 TAGS_TO_PUSH=""
 
