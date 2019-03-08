@@ -31,7 +31,7 @@ const (
 
 // Ostream encapsulates a writable stream.
 type ostream struct {
-	// We want to use a checked.Bytes when transfering ownership of the buffer
+	// We want to use a checked.Bytes when transferring ownership of the buffer
 	// of the ostream. Unfortunately, the accounting overhead of going through
 	// the checked.Bytes for every write is massive. As a result, we store both
 	// the rawBuffer that backs the checked.Bytes AND the checked.Bytes themselves
