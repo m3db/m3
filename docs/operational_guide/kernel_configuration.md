@@ -1,7 +1,9 @@
 Kernel Configuration
 ====================
 
-This document lists the Kernel tweaks M3DB needs to run well.
+This document lists the Kernel tweaks M3DB needs to run well. If you are running on Kubernetes, you may use our
+`sysctl-setter` [DaemonSet](https://github.com/m3db/m3/blob/master/kube/sysctl-daemonset.yaml) that will set these
+values for you.
 
 ## vm.max_map_count
 M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump `vm.max_map_count`. We suggest setting this value to `3000000`, so you don’t have to come back and debug issues later.
