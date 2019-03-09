@@ -27,8 +27,6 @@ import (
 	"io"
 	"math"
 
-	"github.com/golang/snappy"
-
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -70,8 +68,9 @@ func NewIterator(
 	}
 
 	iter := &iterator{
-		schema: schema,
-		stream: encoding.NewIStream(reader),
+		schema:       schema,
+		stream:       encoding.NewIStream(reader),
+		lastIterated: dynamic.NewMessage(schema),
 		// TODO: These need to be possibly updated as we traverse a stream
 		customFields: customFields(nil, schema),
 	}
@@ -198,11 +197,11 @@ func (it *iterator) readFirstCustomValues() error {
 			}
 		}
 
-		// if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-		// 	if err := it.readBytesValue(i, customField); err != nil {
-		// 		return err
-		// 	}
-		// }
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+			if err := it.readBytesValue(i, customField); err != nil {
+				return err
+			}
+		}
 
 		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
 			if err := it.readIntValue(i, customField, true); err != nil {
@@ -237,11 +236,11 @@ func (it *iterator) readNextCustomValues() error {
 			}
 		}
 
-		// if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-		// 	if err := it.readBytesValue(i, customField); err != nil {
-		// 		return err
-		// 	}
-		// }
+		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+			if err := it.readBytesValue(i, customField); err != nil {
+				return err
+			}
+		}
 
 		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
 			if err := it.readIntValue(i, customField, false); err != nil {
@@ -296,6 +295,7 @@ func (it *iterator) readIntValue(i int, customField customFieldState, first bool
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
+	fmt.Println("iterator---------------------")
 	bytesChangedControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -303,40 +303,72 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	}
 
 	if bytesChangedControlBit == 0 {
+		fmt.Println("no change in bytes")
 		// No changes to the bytes value.
 		return nil
 	}
 
+	// Bytes have changed since the previous value.
+	valueInDictControlBit, err := it.stream.ReadBit()
+	if err != nil {
+		return fmt.Errorf(
+			"proto decoder: error trying to read bytes changed control bit: %v", err)
+	}
+	if valueInDictControlBit == 0 {
+		// TODO: Make number of bits auto-detect from size
+		dictIdx, err := it.stream.ReadBits(2)
+		if err != nil {
+			return fmt.Errorf(
+				"proto decoder: error trying to read bytes dict idx: %v", err)
+		}
+
+		fmt.Println("dictIdx: ", dictIdx)
+		bytesVal := customField.iteratorBytesFieldDict[int(dictIdx)]
+		if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
+			it.lastIterated.SetFieldByNumber(customField.fieldNum, string(bytesVal))
+		} else {
+			it.lastIterated.SetFieldByNumber(customField.fieldNum, bytesVal)
+		}
+		fmt.Printf("value was in dict at idx: %d, val: %s\n", int(dictIdx), bytesVal)
+		// TODO: Handle out of bounds error or anything here?
+		it.moveToEndOfBytesDict(i, int(dictIdx))
+		fmt.Println("bytes dict after: ", it.customFields[i].iteratorBytesFieldDict)
+		return nil
+	}
+
+	// New value that was not in the dict already.
 	bytesLen, err := it.readVarInt()
 	if err != nil {
 		return fmt.Errorf(
 			"proto decoder: error trying to read bytes length: %v", err)
 	}
 
-	if customField.bytesReader == nil {
-		customField.bytesReader = snappy.NewReader(it.stream)
-		it.customFields[i] = customField
-	}
-
-	buf := make([]byte, bytesLen)
-	n, err := customField.bytesReader.Read(buf)
-	if err != nil {
-		return fmt.Errorf(
-			"proto decoder: error trying to read snappy compressed bytes: %v", err)
-	}
-	if uint64(n) != bytesLen {
-		return fmt.Errorf(
-			"proto decoder: tried to read %d snappy compressed bytes but read %d",
-			bytesLen, n)
+	fmt.Println("new value of size: ", bytesLen)
+	// TODO: Corrupt data could cause a panic here by doing a massive alloc
+	buf := make([]byte, 0, bytesLen)
+	for j := 0; j < int(bytesLen); j++ {
+		b, err := it.stream.ReadByte()
+		if err != nil {
+			return fmt.Errorf("proto decoder: error trying to read byte in readBytes: %v", err)
+		}
+		buf = append(buf, b)
 	}
 	// TODO: Can re-use this instead of allocating the temporary buffer.
 	it.customFields[i].prevBytes = buf
+	fmt.Println("new value: ", buf)
 	// TODO: switch to try
 	// TODO: Handle lastIterated == nil?
-	if it.lastIterated == nil {
-		it.lastIterated = dynamic.NewMessage(it.schema)
+	// if it.lastIterated == nil {
+	// 	it.lastIterated = dynamic.NewMessage(it.schema)
+	// }
+	// TODO: Make this less gross by pre-processing schemas to only have bytes
+	if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
+		it.lastIterated.SetFieldByNumber(customField.fieldNum, string(buf))
+	} else {
+		it.lastIterated.SetFieldByNumber(customField.fieldNum, buf)
 	}
-	it.lastIterated.SetFieldByNumber(customField.fieldNum, buf)
+	it.addToBytesDict(i, buf)
+	fmt.Println("bytes dict after: ", it.customFields[i].iteratorBytesFieldDict)
 
 	return nil
 }
@@ -550,6 +582,54 @@ func (it *iterator) readIntValDiff(i int) error {
 	prev := int64(it.customFields[i].prevFloatBits)
 	it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
 	return nil
+}
+
+// TODO: Share logic with encoder if possible
+func (it *iterator) moveToEndOfBytesDict(fieldIdx, i int) {
+	existing := it.customFields[fieldIdx].iteratorBytesFieldDict
+	for j := i; j < len(existing); j++ {
+		nextIdx := j + 1
+		if nextIdx >= len(existing) {
+			break
+		}
+
+		currVal := existing[j]
+		nextVal := existing[nextIdx]
+		existing[j] = nextVal
+		existing[nextIdx] = currVal
+	}
+	// TODO: Not necessary
+	it.customFields[fieldIdx].iteratorBytesFieldDict = existing
+}
+
+// TODO: Share logic with encoder if possible
+func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
+	existing := it.customFields[fieldIdx].iteratorBytesFieldDict
+	if len(existing) < byteFieldDictSize {
+		it.customFields[fieldIdx].iteratorBytesFieldDict = append(existing, b)
+		return
+	}
+
+	// Shift everything down 1 and replace the last value to evict the
+	// least recently used entry and add the newest one.
+	//     [1,2,3]
+	// becomes
+	//     [2,3,3]
+	// after shift, and then becomes
+	//     [2,3,4]
+	// after replacing the last value.
+	for i := range existing {
+		nextIdx := i + 1
+		if nextIdx >= len(existing) {
+			break
+		}
+
+		existing[i] = existing[nextIdx]
+	}
+
+	existing[len(existing)-1] = b
+	// TODO: Not necessary
+	it.customFields[fieldIdx].iteratorBytesFieldDict = existing
 }
 
 func (it *iterator) readBits(numBits int) (uint64, error) {

@@ -47,10 +47,10 @@ func TestRoundtrip(t *testing.T) {
 		deliveryID []byte
 	}{
 		{
-			latitude:   0.1,
-			longitude:  1.1,
-			numTrips:   -1,
-			deliveryID: []byte("123"),
+			latitude:  0.1,
+			longitude: 1.1,
+			numTrips:  -1,
+			// deliveryID: []byte("123"),
 		},
 		{
 			latitude:   0.1,
@@ -62,19 +62,18 @@ func TestRoundtrip(t *testing.T) {
 			latitude:   0.2,
 			longitude:  2.2,
 			numTrips:   1,
-			deliveryID: []byte("123"),
+			deliveryID: []byte("789"),
 		},
 		{
 			latitude:   0.3,
 			longitude:  2.3,
 			numTrips:   2,
-			deliveryID: []byte("456"),
+			deliveryID: []byte("123"),
 		},
 		{
-			latitude:   0.4,
-			longitude:  2.4,
-			numTrips:   3,
-			deliveryID: []byte("456"),
+			latitude:  0.4,
+			longitude: 2.4,
+			numTrips:  3,
 		},
 		{
 			latitude:   0.5,

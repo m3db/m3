@@ -157,13 +157,19 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 
 		customEncoded := false
 		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
-			enc.encodeTSZValue(i, customField, iVal)
+			if err := enc.encodeTSZValue(i, customField, iVal); err != nil {
+				return err
+			}
 			customEncoded = true
 		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
-			enc.encodeIntValue(i, customField, iVal)
+			if err := enc.encodeIntValue(i, customField, iVal); err != nil {
+				return err
+			}
 			customEncoded = true
 		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-			enc.encodeBytesValue(i, customField, iVal)
+			if err := enc.encodeBytesValue(i, customField, iVal); err != nil {
+				return err
+			}
 			customEncoded = true
 		}
 
@@ -219,10 +225,15 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 }
 
 func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
+	fmt.Println("encoder---------------------")
 	currBytes, ok := iVal.([]byte)
 	if !ok {
-		return fmt.Errorf(
-			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+		currString, ok := iVal.(string)
+		if !ok {
+			return fmt.Errorf(
+				"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+		}
+		currBytes = []byte(currString)
 	}
 
 	if bytes.Equal(customField.prevBytes, currBytes) {
@@ -244,8 +255,9 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 			// TODO: Make this auto-determine number of bits based on size of dict.
 			fmt.Println("bytes match bytes in dict, encoding zero control bit and idx: ", i)
 			enc.stream.WriteBit(0)
-			enc.stream.WriteBits(uint64(i), 2)
+			enc.stream.WriteBits(uint64(j), 2)
 			enc.moveToEndOfBytesDict(i, j)
+			enc.customFields[i].prevBytes = currBytes
 			fmt.Println("bytes dict after: ", enc.customFields[i].bytesFieldDict)
 			return nil
 		}
@@ -260,6 +272,7 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 		enc.stream.WriteByte(b)
 	}
 	enc.addToBytesDict(i, hash)
+	enc.customFields[i].prevBytes = currBytes
 	fmt.Println("bytes dict after: ", enc.customFields[i].bytesFieldDict)
 	return nil
 }
@@ -440,9 +453,6 @@ func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 
 	enc.stream.WriteBits(valBits, int(numSig))
 }
-
-// [1,2,3]
-//
 
 func (enc *encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict

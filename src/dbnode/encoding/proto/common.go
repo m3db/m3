@@ -65,8 +65,9 @@ type customFieldState struct {
 	prevFloatBits uint64
 
 	// Bytes State
-	prevBytes      []byte
-	bytesFieldDict []uint64
+	prevBytes              []byte
+	bytesFieldDict         []uint64
+	iteratorBytesFieldDict [][]byte
 
 	// Int state
 	prevSig uint8
