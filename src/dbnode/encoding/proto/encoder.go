@@ -225,7 +225,6 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 }
 
 func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
-	fmt.Println("encoder---------------------")
 	currBytes, ok := iVal.([]byte)
 	if !ok {
 		currString, ok := iVal.(string)
@@ -238,13 +237,11 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 
 	if bytes.Equal(customField.prevBytes, currBytes) {
 		// No changes control bit.
-		fmt.Println("no changes in bytes value, encoding zero control bit.")
 		enc.stream.WriteBit(0)
 		return nil
 	}
 
 	// Bytes changed control bit.
-	fmt.Println("changes in bytes value, encoding one control bit.")
 	enc.stream.WriteBit(1)
 
 	hash := murmur3.Sum64(currBytes)
@@ -253,19 +250,16 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 			// Control bit means interpret next 2 bits as the index for the previous write
 			// that this matches.
 			// TODO: Make this auto-determine number of bits based on size of dict.
-			fmt.Println("bytes match bytes in dict, encoding zero control bit and idx: ", i)
 			enc.stream.WriteBit(0)
 			enc.stream.WriteBits(uint64(j), 2)
 			enc.moveToEndOfBytesDict(i, j)
 			enc.customFields[i].prevBytes = currBytes
-			fmt.Println("bytes dict after: ", enc.customFields[i].bytesFieldDict)
 			return nil
 		}
 	}
 
 	// Control bit means interpret subsequent bits as varInt encoding length of a new
 	// []byte we haven't seen before.
-	fmt.Println("bytes dont match bytes in dict, encoding one control bit varInt: ", uint64(len(currBytes)))
 	enc.stream.WriteBit(1)
 	enc.encodeVarInt((uint64(len(currBytes))))
 	for _, b := range currBytes {
@@ -273,7 +267,6 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 	}
 	enc.addToBytesDict(i, hash)
 	enc.customFields[i].prevBytes = currBytes
-	fmt.Println("bytes dict after: ", enc.customFields[i].bytesFieldDict)
 	return nil
 }
 

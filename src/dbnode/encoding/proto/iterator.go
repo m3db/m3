@@ -295,7 +295,6 @@ func (it *iterator) readIntValue(i int, customField customFieldState, first bool
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
-	fmt.Println("iterator---------------------")
 	bytesChangedControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -303,7 +302,6 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	}
 
 	if bytesChangedControlBit == 0 {
-		fmt.Println("no change in bytes")
 		// No changes to the bytes value.
 		return nil
 	}
@@ -322,17 +320,14 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 				"proto decoder: error trying to read bytes dict idx: %v", err)
 		}
 
-		fmt.Println("dictIdx: ", dictIdx)
 		bytesVal := customField.iteratorBytesFieldDict[int(dictIdx)]
 		if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, string(bytesVal))
 		} else {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, bytesVal)
 		}
-		fmt.Printf("value was in dict at idx: %d, val: %s\n", int(dictIdx), bytesVal)
 		// TODO: Handle out of bounds error or anything here?
 		it.moveToEndOfBytesDict(i, int(dictIdx))
-		fmt.Println("bytes dict after: ", it.customFields[i].iteratorBytesFieldDict)
 		return nil
 	}
 
@@ -343,7 +338,6 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes length: %v", err)
 	}
 
-	fmt.Println("new value of size: ", bytesLen)
 	// TODO: Corrupt data could cause a panic here by doing a massive alloc
 	buf := make([]byte, 0, bytesLen)
 	for j := 0; j < int(bytesLen); j++ {
@@ -355,12 +349,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	}
 	// TODO: Can re-use this instead of allocating the temporary buffer.
 	it.customFields[i].prevBytes = buf
-	fmt.Println("new value: ", buf)
 	// TODO: switch to try
-	// TODO: Handle lastIterated == nil?
-	// if it.lastIterated == nil {
-	// 	it.lastIterated = dynamic.NewMessage(it.schema)
-	// }
 	// TODO: Make this less gross by pre-processing schemas to only have bytes
 	if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
 		it.lastIterated.SetFieldByNumber(customField.fieldNum, string(buf))
@@ -368,7 +357,6 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		it.lastIterated.SetFieldByNumber(customField.fieldNum, buf)
 	}
 	it.addToBytesDict(i, buf)
-	fmt.Println("bytes dict after: ", it.customFields[i].iteratorBytesFieldDict)
 
 	return nil
 }
