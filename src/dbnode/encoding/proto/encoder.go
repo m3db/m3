@@ -162,7 +162,6 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
 			enc.encodeIntValue(i, customField, iVal)
 			customEncoded = true
-		}
 		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
 			enc.encodeBytesValue(i, customField, iVal)
 			customEncoded = true
