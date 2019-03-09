@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/golang/snappy"
+	murmur3 "github.com/m3db/stackmurmur3"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
@@ -163,10 +163,10 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 			enc.encodeIntValue(i, customField, iVal)
 			customEncoded = true
 		}
-		// } else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
-		// 	enc.encodeBytesValue(i, customField, iVal)
-		// 	customEncoded = true
-		// }
+		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+			enc.encodeBytesValue(i, customField, iVal)
+			customEncoded = true
+		}
 
 		if customEncoded {
 			// Remove the field from the message so we don't include it
@@ -228,34 +228,40 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 
 	if bytes.Equal(customField.prevBytes, currBytes) {
 		// No changes control bit.
+		fmt.Println("no changes in bytes value, encoding zero control bit.")
 		enc.stream.WriteBit(0)
 		return nil
 	}
 
-	if customField.bytesWriter == nil {
-		customField.bytesWriter = snappy.NewWriter(enc.stream)
-		enc.customFields[i] = customField
+	// Bytes changed control bit.
+	fmt.Println("changes in bytes value, encoding one control bit.")
+	enc.stream.WriteBit(1)
+
+	hash := murmur3.Sum64(currBytes)
+	for j, prevHash := range customField.bytesFieldDict {
+		if hash == prevHash {
+			// Control bit means interpret next 2 bits as the index for the previous write
+			// that this matches.
+			// TODO: Make this auto-determine number of bits based on size of dict.
+			fmt.Println("bytes match bytes in dict, encoding zero control bit and idx: ", i)
+			enc.stream.WriteBit(0)
+			enc.stream.WriteBits(uint64(i), 2)
+			enc.moveToEndOfBytesDict(i, j)
+			fmt.Println("bytes dict after: ", enc.customFields[i].bytesFieldDict)
+			return nil
+		}
 	}
 
-	// Bytes changed control bit.
+	// Control bit means interpret subsequent bits as varInt encoding length of a new
+	// []byte we haven't seen before.
+	fmt.Println("bytes dont match bytes in dict, encoding one control bit varInt: ", uint64(len(currBytes)))
 	enc.stream.WriteBit(1)
 	enc.encodeVarInt((uint64(len(currBytes))))
-	n, err := customField.bytesWriter.Write(currBytes)
-	if err != nil {
-		return fmt.Errorf("proto encoder: error snappy compressing bytes: %v", err)
+	for _, b := range currBytes {
+		enc.stream.WriteByte(b)
 	}
-	if n != len(currBytes) {
-		return fmt.Errorf(
-			"proto encoder: tried to snappy compress %d bytes but only compressed: %d",
-			len(currBytes), n)
-	}
-	if err := customField.bytesWriter.Flush(); err != nil {
-		// TODO: Not sure if this is necessary?
-		return fmt.Errorf(
-			"proto encoder: error flushing snappy writer: %v", err)
-	}
-	enc.customFields[i].prevBytes = currBytes
-
+	enc.addToBytesDict(i, hash)
+	fmt.Println("bytes dict after: ", enc.customFields[i].bytesFieldDict)
 	return nil
 }
 
@@ -434,6 +440,53 @@ func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 	}
 
 	enc.stream.WriteBits(valBits, int(numSig))
+}
+
+// [1,2,3]
+//
+
+func (enc *encoder) moveToEndOfBytesDict(fieldIdx, i int) {
+	existing := enc.customFields[fieldIdx].bytesFieldDict
+	for j := i; j < len(existing); j++ {
+		nextIdx := j + 1
+		if nextIdx >= len(existing) {
+			break
+		}
+
+		currVal := existing[j]
+		nextVal := existing[nextIdx]
+		existing[j] = nextVal
+		existing[nextIdx] = currVal
+	}
+	// TODO: Not necessary
+	enc.customFields[fieldIdx].bytesFieldDict = existing
+}
+
+func (enc *encoder) addToBytesDict(fieldIdx int, hash uint64) {
+	existing := enc.customFields[fieldIdx].bytesFieldDict
+	if len(existing) < byteFieldDictSize {
+		enc.customFields[fieldIdx].bytesFieldDict = append(existing, hash)
+		return
+	}
+
+	// Shift everything down 1 and replace the last value to evict the
+	// least recently used entry and add the newest one.
+	//     [1,2,3]
+	// becomes
+	//     [2,3,3]
+	// after shift, and then becomes
+	//     [2,3,4]
+	// after replacing the last value.
+	for i := range existing {
+		nextIdx := i + 1
+		if nextIdx >= len(existing) {
+			break
+		}
+
+		existing[i] = existing[nextIdx]
+	}
+
+	existing[len(existing)-1] = hash
 }
 
 func (enc *encoder) bytes(i int, next float64) checked.Bytes {

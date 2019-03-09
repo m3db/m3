@@ -24,8 +24,11 @@ import (
 	"reflect"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
-	"github.com/golang/snappy"
 	"github.com/jhump/protoreflect/desc"
+)
+
+const (
+	byteFieldDictSize = 4
 )
 
 var (
@@ -62,9 +65,8 @@ type customFieldState struct {
 	prevFloatBits uint64
 
 	// Bytes State
-	prevBytes   []byte
-	bytesWriter *snappy.Writer
-	bytesReader *snappy.Reader
+	prevBytes      []byte
+	bytesFieldDict []uint64
 
 	// Int state
 	prevSig uint8
