@@ -75,12 +75,3 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - label: "FOSSA license scan"
-    command: make clean install-vendor fossa
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-        env:
-          - FOSSA_API_KEY
-    <<: *common
