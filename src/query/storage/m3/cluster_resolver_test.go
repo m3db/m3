@@ -403,3 +403,49 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 	assert.Equal(t, expected, actualNames)
 	assert.Equal(t, namespaceCoversPartialQueryRange, fanoutType)
 }
+
+func TestExampleCase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := client.NewMockSession(ctrl)
+	ns, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("metrics_10s_24h"),
+			Retention:   24 * time.Hour,
+			Session:     session,
+		}, AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("metrics_180s_360h"),
+			Retention:   360 * time.Hour,
+			Resolution:  120 * time.Second,
+			Downsample:  &ClusterNamespaceDownsampleOptions{All: false},
+			Session:     session,
+		}, AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("metrics_600s_17520h"),
+			Retention:   17520 * time.Hour,
+			Resolution:  600 * time.Second,
+			Downsample:  &ClusterNamespaceDownsampleOptions{All: false},
+			Session:     session,
+		},
+	)
+	require.NoError(t, err)
+
+	now := time.Now()
+	end := now
+	start := now.Add(time.Hour * -27)
+
+	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
+		ns, start, end, &storage.FanoutOptions{})
+
+	require.NoError(t, err)
+	actualNames := make([]string, len(clusters))
+	for i, c := range clusters {
+		actualNames[i] = c.NamespaceID().String()
+	}
+
+	// NB: order does not matter.
+	sort.Sort(sort.StringSlice(actualNames))
+	assert.Equal(t, []string{"metrics_10s_24h",
+		"metrics_1800s_17520h", "metrics_180s_360h"}, actualNames)
+	assert.Equal(t, namespaceCoversPartialQueryRange, fanoutType)
+}
