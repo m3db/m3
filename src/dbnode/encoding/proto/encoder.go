@@ -375,7 +375,6 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 
 func (enc *encoder) encodeFirstIntValue(i int, v int64) {
 	neg := true
-	// TODO: Rename
 	enc.customFields[i].prevFloatBits = uint64(v)
 	if v < 0 {
 		neg = false
@@ -460,8 +459,6 @@ func (enc *encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 		existing[j] = nextVal
 		existing[nextIdx] = currVal
 	}
-	// TODO: Not necessary
-	enc.customFields[fieldIdx].bytesFieldDict = existing
 }
 
 func (enc *encoder) addToBytesDict(fieldIdx int, hash uint64) {
