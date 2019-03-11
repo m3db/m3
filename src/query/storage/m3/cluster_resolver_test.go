@@ -432,20 +432,22 @@ func TestExampleCase(t *testing.T) {
 
 	now := time.Now()
 	end := now
-	start := now.Add(time.Hour * -27)
 
-	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-		ns, start, end, &storage.FanoutOptions{})
+	for i := 27; i < 17520; i++ {
+		start := now.Add(time.Hour * -1 * time.Duration(i))
+		fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
+			ns, start, end, &storage.FanoutOptions{})
 
-	require.NoError(t, err)
-	actualNames := make([]string, len(clusters))
-	for i, c := range clusters {
-		actualNames[i] = c.NamespaceID().String()
+		require.NoError(t, err)
+		actualNames := make([]string, len(clusters))
+		for i, c := range clusters {
+			actualNames[i] = c.NamespaceID().String()
+		}
+
+		// NB: order does not matter.
+		sort.Sort(sort.StringSlice(actualNames))
+		assert.Equal(t, []string{"metrics_10s_24h",
+			"metrics_180s_360h", "metrics_600s_17520h"}, actualNames)
+		assert.Equal(t, namespaceCoversPartialQueryRange, fanoutType)
 	}
-
-	// NB: order does not matter.
-	sort.Sort(sort.StringSlice(actualNames))
-	assert.Equal(t, []string{"metrics_10s_24h",
-		"metrics_1800s_17520h", "metrics_180s_360h"}, actualNames)
-	assert.Equal(t, namespaceCoversPartialQueryRange, fanoutType)
 }
