@@ -203,7 +203,7 @@ func (it *iterator) readFirstCustomValues() error {
 			}
 		}
 
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+		if isCustomIntEncodedField(customField.fieldType) {
 			if err := it.readIntValue(i, customField, true); err != nil {
 				return err
 			}

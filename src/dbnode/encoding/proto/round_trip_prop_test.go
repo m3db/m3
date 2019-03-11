@@ -114,8 +114,8 @@ func TestRoundtripProp(t *testing.T) {
 
 				if !fieldsEqual(expectedVal, actualVal) {
 					return false, fmt.Errorf(
-						"expected %v but got %v on iteration number %d and fieldNum %d",
-						expectedVal, actualVal, i, fieldNum)
+						"expected %v but got %v on iteration number %d and fieldNum %d, schema %s",
+						expectedVal, actualVal, i, fieldNum, input.schema)
 				}
 			}
 

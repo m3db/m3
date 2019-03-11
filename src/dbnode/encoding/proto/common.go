@@ -40,21 +40,21 @@ var (
 	}
 
 	customEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
-		dpb.FieldDescriptorProto_TYPE_DOUBLE:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FLOAT:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT64:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT64:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT32:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED64:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED32:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_STRING:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_BYTES:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_DOUBLE: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FLOAT:  struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT64:  struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_UINT64:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT32: struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_FIXED64:  struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_FIXED32:  struct{}{},
+		dpb.FieldDescriptorProto_TYPE_STRING: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_BYTES:  struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
+		// dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
 	}
 
 	allowedProtoTypes = map[dpb.FieldDescriptorProto_Type]struct{}{
@@ -140,8 +140,7 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 		// dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
 		// dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
 		// dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
-		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_INT32 {
+		if isCustomIntEncodedField(fieldType) {
 			s = append(s, customFieldState{
 				fieldType: fieldType,
 				fieldNum:  int(field.GetNumber()),
