@@ -35,8 +35,12 @@ var (
 	typeOfBytes = reflect.TypeOf(([]byte)(nil))
 
 	customIntEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
-		dpb.FieldDescriptorProto_TYPE_INT64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT32: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT64:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT32:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
 	}
 
 	customEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
@@ -51,10 +55,10 @@ var (
 		dpb.FieldDescriptorProto_TYPE_BYTES:  struct{}{},
 		// dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
 		// dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
 	}
 
 	allowedProtoTypes = map[dpb.FieldDescriptorProto_Type]struct{}{

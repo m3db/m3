@@ -391,7 +391,9 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	} else if isCustomIntEncodedField(fieldType) {
 		// TODO: same comment here
 		fmt.Println("hmm: ", fieldType)
-		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
 			fmt.Println(1)
 			val := int64(it.customFields[i].prevFloatBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
