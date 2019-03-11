@@ -206,21 +206,34 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 }
 
 func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
-	var val int64
+	var (
+		signedVal   int64
+		unsignedVal uint64
+	)
 	switch typedVal := iVal.(type) {
+	case uint64:
+		unsignedVal = typedVal
 	case int64:
-		val = typedVal
+		signedVal = typedVal
 	case int32:
-		val = int64(typedVal)
+		signedVal = int64(typedVal)
 	default:
 		return fmt.Errorf(
 			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
 	}
 
-	if !enc.hasWrittenFirstTSZ {
-		enc.encodeFirstSignedIntValue(i, val)
+	if customField.fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 {
+		if !enc.hasWrittenFirstTSZ {
+			enc.encodeFirstUnsignedIntValue(i, unsignedVal)
+		} else {
+			enc.encodeNextUnsignedIntValue(i, unsignedVal)
+		}
 	} else {
-		enc.encodeNextSignedIntValue(i, val)
+		if !enc.hasWrittenFirstTSZ {
+			enc.encodeFirstSignedIntValue(i, signedVal)
+		} else {
+			enc.encodeNextSignedIntValue(i, signedVal)
+		}
 	}
 
 	return nil

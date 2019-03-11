@@ -393,8 +393,12 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 ||
 			fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 ||
 			fieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
-			fmt.Println(1)
 			val := int64(it.customFields[i].prevFloatBits)
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+		}
+
+		if fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 {
+			val := it.customFields[i].prevFloatBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		}
 
@@ -569,14 +573,30 @@ func (it *iterator) readIntValDiff(i int) error {
 			"proto iterator: error reading significant digits: %v", err)
 	}
 
-	diff := int64(diffSigBits)
-	sign := int64(1)
-	if negativeControlBit == 1 {
-		sign = -1.0
+	if it.customFields[i].fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 {
+		diff := uint64(diffSigBits)
+		shouldSubtract := false
+		if negativeControlBit == 1 {
+			shouldSubtract = true
+		}
+
+		prev := uint64(it.customFields[i].prevFloatBits)
+		if shouldSubtract {
+			it.customFields[i].prevFloatBits = prev - diff
+		} else {
+			it.customFields[i].prevFloatBits = prev + diff
+		}
+	} else {
+		diff := int64(diffSigBits)
+		sign := int64(1)
+		if negativeControlBit == 1 {
+			sign = -1.0
+		}
+
+		prev := int64(it.customFields[i].prevFloatBits)
+		it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
 	}
 
-	prev := int64(it.customFields[i].prevFloatBits)
-	it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
 	return nil
 }
 

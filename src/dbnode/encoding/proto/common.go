@@ -35,20 +35,24 @@ var (
 	typeOfBytes = reflect.TypeOf(([]byte)(nil))
 
 	customIntEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
+		// Signed.
 		dpb.FieldDescriptorProto_TYPE_INT64:    struct{}{},
 		dpb.FieldDescriptorProto_TYPE_INT32:    struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
+
+		// Unsigned.
+		dpb.FieldDescriptorProto_TYPE_UINT64: struct{}{},
 	}
 
 	customEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
 		dpb.FieldDescriptorProto_TYPE_DOUBLE: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_FLOAT:  struct{}{},
 		dpb.FieldDescriptorProto_TYPE_INT64:  struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_UINT64:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT32: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_UINT64: struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT32:  struct{}{},
 		// dpb.FieldDescriptorProto_TYPE_FIXED64:  struct{}{},
 		// dpb.FieldDescriptorProto_TYPE_FIXED32:  struct{}{},
 		dpb.FieldDescriptorProto_TYPE_STRING: struct{}{},
