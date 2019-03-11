@@ -389,6 +389,8 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		}
 		return err
 	} else if isCustomIntEncodedField(fieldType) {
+		// TODO: Use a switch statement here.
+		// TODO: use my own type instead of proto type here.
 		// TODO: same comment here
 		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 ||
 			fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 ||
@@ -397,8 +399,15 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		}
 
-		if fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 {
+		if fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_FIXED64 {
 			val := it.customFields[i].prevFloatBits
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+		}
+
+		if fieldType == dpb.FieldDescriptorProto_TYPE_UINT32 ||
+			fieldType == dpb.FieldDescriptorProto_TYPE_FIXED32 {
+			val := uint32(it.customFields[i].prevFloatBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		}
 
