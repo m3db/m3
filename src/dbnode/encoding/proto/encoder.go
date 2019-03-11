@@ -210,6 +210,8 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 	switch typedVal := iVal.(type) {
 	case int64:
 		val = typedVal
+	case int32:
+		val = int64(typedVal)
 	default:
 		return fmt.Errorf(
 			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)

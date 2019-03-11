@@ -26,6 +26,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
@@ -58,10 +59,9 @@ var maxNumEnumValues = 10
 func TestRoundtripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
-		// seed       = time.Now().UnixNano()
-		seed     = int64(1551913120894939000)
-		props    = gopter.NewProperties(parameters)
-		reporter = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		seed       = time.Now().UnixNano()
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
@@ -79,7 +79,8 @@ func TestRoundtripProp(t *testing.T) {
 
 			err := enc.Encode(clone)
 			if err != nil {
-				return false, fmt.Errorf("error encoding message: %v", err)
+				return false, fmt.Errorf(
+					"error encoding message: %v, schema: %s", err, input.schema.String())
 			}
 		}
 
@@ -122,7 +123,8 @@ func TestRoundtripProp(t *testing.T) {
 		}
 
 		if iter.Err() != nil {
-			return false, fmt.Errorf("iteration error: %v", iter.Err())
+			return false, fmt.Errorf(
+				"iteration error: %v, schema: %s", iter.Err(), input.schema.String())
 		}
 
 		return true, nil

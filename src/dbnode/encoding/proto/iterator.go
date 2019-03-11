@@ -242,7 +242,7 @@ func (it *iterator) readNextCustomValues() error {
 			}
 		}
 
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+		if isCustomIntEncodedField(customField.fieldType) {
 			if err := it.readIntValue(i, customField, false); err != nil {
 				return err
 			}
@@ -388,9 +388,17 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 			err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
 		}
 		return err
-	} else if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+	} else if isCustomIntEncodedField(fieldType) {
 		// TODO: same comment here
-		val := int64(it.customFields[i].prevFloatBits)
+		fmt.Println("hmm: ", fieldType)
+		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 {
+			fmt.Println(1)
+			val := int64(it.customFields[i].prevFloatBits)
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+		}
+
+		fmt.Println(2)
+		val := int32(it.customFields[i].prevFloatBits)
 		return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 	} else {
 		return fmt.Errorf("proto decoder: unhandled fieldType: %v", fieldType)
