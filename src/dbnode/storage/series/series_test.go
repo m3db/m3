@@ -855,7 +855,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 func TestSeriesWriteReadParallel(t *testing.T) {
 	var (
 		numWorkers        = 100
-		numStepsPerWorker = 100
+		numStepsPerWorker = numWorkers * 100
 		opts              = newSeriesTestOptions()
 		curr              = time.Now()
 		series            = NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
