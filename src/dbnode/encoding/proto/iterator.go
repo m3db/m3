@@ -570,9 +570,9 @@ func (it *iterator) readIntValDiff(i int) error {
 	}
 
 	diff := int64(diffSigBits)
-	sign := int64(-1)
+	sign := int64(1)
 	if negativeControlBit == 1 {
-		sign = 1.0
+		sign = -1.0
 	}
 
 	prev := int64(it.customFields[i].prevFloatBits)
