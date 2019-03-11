@@ -218,9 +218,9 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 	}
 
 	if !enc.hasWrittenFirstTSZ {
-		enc.encodeFirstIntValue(i, val)
+		enc.encodeFirstSignedIntValue(i, val)
 	} else {
-		enc.encodeNextIntValue(i, val)
+		enc.encodeNextSignedIntValue(i, val)
 	}
 
 	return nil
@@ -375,7 +375,7 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	enc.customFields[i].prevXOR = curXOR
 }
 
-func (enc *encoder) encodeFirstIntValue(i int, v int64) {
+func (enc *encoder) encodeFirstSignedIntValue(i int, v int64) {
 	neg := false
 	enc.customFields[i].prevFloatBits = uint64(v)
 	if v < 0 {
@@ -390,7 +390,17 @@ func (enc *encoder) encodeFirstIntValue(i int, v int64) {
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
-func (enc *encoder) encodeNextIntValue(i int, next int64) {
+func (enc *encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
+	enc.customFields[i].prevFloatBits = uint64(v)
+
+	vBits := uint64(v)
+	numSig := encoding.NumSig(vBits)
+
+	enc.encodeIntSig(i, numSig)
+	enc.encodeIntValDiff(vBits, false, numSig)
+}
+
+func (enc *encoder) encodeNextSignedIntValue(i int, next int64) {
 	prev := int64(enc.customFields[i].prevFloatBits)
 	diff := next - prev
 	if diff == 0 {
@@ -412,6 +422,36 @@ func (enc *encoder) encodeNextIntValue(i int, next int64) {
 	// TODO: newSig tracking bullshit
 	enc.encodeIntSig(i, numSig)
 	enc.encodeIntValDiff(diffBits, neg, numSig)
+	enc.customFields[i].prevFloatBits = uint64(next)
+}
+
+func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
+	var (
+		neg  = false
+		prev = uint64(enc.customFields[i].prevFloatBits)
+		diff uint64
+	)
+
+	// Avoid overflows.
+	if next > prev {
+		diff = next - prev
+	} else {
+		neg = true
+		diff = prev - next
+	}
+
+	if diff == 0 {
+		// NoChangeControlBit
+		enc.stream.WriteBit(0)
+		return
+	}
+
+	enc.stream.WriteBit(1)
+
+	numSig := encoding.NumSig(diff)
+	// TODO: newSig tracking bullshit
+	enc.encodeIntSig(i, numSig)
+	enc.encodeIntValDiff(diff, neg, numSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
 
