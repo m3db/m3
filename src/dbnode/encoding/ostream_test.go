@@ -29,6 +29,7 @@ import (
 )
 
 var (
+	nilBytes      []byte
 	testBytesPool = newTestCheckedBytesPool()
 )
 
@@ -63,8 +64,8 @@ func testWriteBits(t *testing.T, o OStream) {
 	for _, input := range inputs {
 		os.WriteBits(input.value, input.numBits)
 		require.Equal(t, input.expectedBytes, os.rawBuffer)
-		checked, _ := os.Rawbytes()
-		require.Equal(t, input.expectedBytes, checked.Bytes())
+		b, _ := os.Rawbytes()
+		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, os.pos)
 	}
 	require.False(t, os.Empty())
@@ -85,8 +86,8 @@ func testWriteBytes(t *testing.T, o OStream) {
 
 	require.Equal(t, rawBytes, os.rawBuffer)
 
-	checked, _ := os.Rawbytes()
-	require.Equal(t, rawBytes, checked.Bytes())
+	b, _ := os.Rawbytes()
+	require.Equal(t, rawBytes, b)
 
 	require.Equal(t, 8, os.pos)
 }
@@ -108,8 +109,8 @@ func testResetOStream(t *testing.T, o OStream) {
 	require.Equal(t, 0, os.Len())
 	require.Equal(t, 0, os.pos)
 
-	checked, _ := os.Rawbytes()
-	require.Equal(t, nil, checked)
+	b, _ := os.Rawbytes()
+	require.Equal(t, nilBytes, b)
 }
 
 func BenchmarkWriteBytes(b *testing.B) {

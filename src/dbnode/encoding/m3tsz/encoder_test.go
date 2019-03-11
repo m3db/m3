@@ -70,7 +70,7 @@ func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeDeltaOfDeltaTimeUnitUnchanged(0, input.delta, input.timeUnit)
 		b, p := encoder.os.Rawbytes()
-		require.Equal(t, input.expectedBytes, b.Bytes())
+		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
 }
@@ -90,7 +90,7 @@ func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeDeltaOfDeltaTimeUnitChanged(0, input.delta)
 		b, p := encoder.os.Rawbytes()
-		require.Equal(t, input.expectedBytes, b.Bytes())
+		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
 }
@@ -111,7 +111,7 @@ func TestWriteValue(t *testing.T) {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeXOR(input.previousXOR, input.currentXOR)
 		b, p := encoder.os.Rawbytes()
-		require.Equal(t, input.expectedBytes, b.Bytes())
+		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
 }
@@ -144,7 +144,7 @@ func TestWriteAnnotation(t *testing.T) {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeAnnotation(input.annotation)
 		b, p := encoder.os.Rawbytes()
-		require.Equal(t, input.expectedBytes, b.Bytes())
+		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
 }
@@ -192,7 +192,7 @@ func TestWriteTimeUnit(t *testing.T) {
 		encoder.tu = xtime.None
 		assert.Equal(t, input.expectedResult, encoder.writeTimeUnit(input.timeUnit))
 		b, p := encoder.os.Rawbytes()
-		assert.Equal(t, input.expectedBytes, b.Bytes())
+		assert.Equal(t, input.expectedBytes, b)
 		assert.Equal(t, input.expectedPos, p)
 	}
 }
@@ -229,7 +229,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 	}
 
 	b, p := encoder.os.Rawbytes()
-	require.Equal(t, expectedBuffer, b.Bytes())
+	require.Equal(t, expectedBuffer, b)
 	require.Equal(t, 6, p)
 }
 
@@ -262,7 +262,7 @@ func TestEncodeWithAnnotation(t *testing.T) {
 	}
 
 	b, p := encoder.os.Rawbytes()
-	require.Equal(t, expectedBuffer, b.Bytes())
+	require.Equal(t, expectedBuffer, b)
 	require.Equal(t, 4, p)
 
 	expectedBytes := []byte{
@@ -373,7 +373,7 @@ func TestEncoderResets(t *testing.T) {
 	require.Equal(t, 0, enc.os.Len())
 	require.Equal(t, nil, enc.Stream())
 	b, _ := enc.os.Rawbytes()
-	require.Equal(t, []byte{}, b.Bytes())
+	require.Equal(t, []byte{}, b)
 
 	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
@@ -382,7 +382,7 @@ func TestEncoderResets(t *testing.T) {
 	require.Equal(t, 0, enc.os.Len())
 	require.Equal(t, nil, enc.Stream())
 	b, _ = enc.os.Rawbytes()
-	require.Equal(t, []byte{}, b.Bytes())
+	require.Equal(t, []byte{}, b)
 }
 
 func TestEncoderNumEncoded(t *testing.T) {

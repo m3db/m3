@@ -31,16 +31,15 @@ const (
 
 // Ostream encapsulates a writable stream.
 type ostream struct {
-	// We want to use a checked.Bytes when exposing or returning the buffer
+	// We want to use a checked.Bytes when transferring ownership of the buffer
 	// of the ostream. Unfortunately, the accounting overhead of going through
 	// the checked.Bytes for every write is massive. As a result, we store both
 	// the rawBuffer that backs the checked.Bytes AND the checked.Bytes themselves
 	// in this struct.
 	//
 	// That way, whenever we're writing to the buffer we can avoid the cost accounting
-	// overhead entirely, but when the data needs to be exposed outside of this datastructure
-	// or ownership of the data needs to be transferred, then we use the checked.Bytes, which
-	// is when the accounting really matters anyways.
+	// overhead entirely, but when the data needs to be transffered to another owner
+	// we use the checked.Bytes, which is when the accounting really matters anyways.
 	//
 	// The rawBuffer and checked.Bytes may get out of sync as the rawBuffer is written to,
 	// but thats fine because we perform a "repair" by resetting the checked.Bytes underlying
@@ -232,10 +231,13 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 	}
 }
 
-// Rawbytes returns the Osteam's raw bytes
-func (os *ostream) Rawbytes() (checked.Bytes, int) {
-	os.repairCheckedBytes()
-	return os.checked, os.pos
+// Rawbytes returns the Osteam's raw bytes. Note that this does not transfer ownership
+// of the data and bypasses the checked.Bytes accounting so callers should:
+//     1. Only use the returned slice as a "read-only" snapshot of the data in a context
+//        where the caller has at least a read lock on the ostream itself.
+//     2. Use this function with care.
+func (os *ostream) Rawbytes() ([]byte, int) {
+	return os.rawBuffer, os.pos
 }
 
 // repairCheckedBytes makes sure that the checked.Bytes wraps the rawBuffer as
