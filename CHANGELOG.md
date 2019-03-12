@@ -1,6 +1,6 @@
 # Changelog
 
-# 0.7.0 (UNRELEASED)
+# 0.7.0 (2019-03-12)
 
 ## Migration Disclaimer
 
@@ -15,6 +15,25 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 1. Stop the node that is having trouble with the upgrade or that you're trying to downgrade.
 2. Modify the `bootstrappers` config in the M3DB YAML file from `filesystem, commitlog, peers, uninitialized_topology` to `filesystem, peers, commitlog, uninitialized_topology`. This will force the node to bootstrap from its peers instead of the local snapshot and commitlog files it has on disk, bypassing any issues related to file incompatibility between versions.
 3. Turn the node back on and wait for it to finish bootstrapping and snapshotting. Once everything looks stable, change the config back to `filesystem, commitlog, peers, uninitialized_topology` so  that the next time the node is restarted it will default to using the snapshot and commitlog files.
+
+## New Features
+
+- **M3DB**: Restructuring of commitlog and snapshotting feature as described above (#1384)
+- **M3DB**: Obtain a lock on data directory on startup (#1376)
+- **M3Coordinator**: Add support for zone / environment override heads in namespace APIs so multiple M3DB clusters can be administered from the same M3Coordinator instance / etcd cluster (#1427)
+- **M3Query**: Add Jaeger/opentracing tracy to M3Query (#1321)
+- **M3nsch**: Add Grafana dashboard (#1401)
+- **M3nsch**: Support generating new unique metrics (#1397)
+
+## Performance
+- **M3DB**: Optimize OStream implementation which reduces CPU synchronization for each write. Should result in modest improvement in load average for metrics workloads and a massive improvement in load average for any workload using large annotations (#1399, #1437)
+- **M3DB**: Prevent duplicate writes from being written to the commitlog more than one time (#1375)
+- **M3DB**: Construct RPC service once and share it with TChannel and HTTP servers to prevent pools from being initialized multiple times reducing memory footprint (#1420)
+- **M3Query**: Add LRU cache for query conversion
+
+## Bug Fixes
+- **M3Coordinator**: Better error responses from namespace APIs when namespace is unknown
+- **M3Query**: Fix panic in temporal functions
 
 
 # 0.6.1 (2019-02-20)
