@@ -1,6 +1,6 @@
 project_name: m3
 builds:
-  - main: github.com/m3db/m3/src/cmd/services/m3dbnode/main
+  - main: ./src/cmd/services/m3dbnode/main/main.go
     binary: m3dbnode
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
@@ -16,7 +16,7 @@ builds:
       # - windows
     goarch:
       - amd64
-  - main: github.com/m3db/m3/src/cmd/services/m3coordinator/main
+  - main: ./src/cmd/services/m3coordinator/main/main.go
     binary: m3coordinator
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
@@ -32,7 +32,7 @@ builds:
       # - windows
     goarch:
       - amd64
-  - main: github.com/m3db/m3/src/cmd/services/m3query/main
+  - main: ./src/cmd/services/m3query/main/main.go
     binary: m3query
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
