@@ -206,18 +206,13 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 
 func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
 	var (
-		// TODO: Replace this bool by looking at the custom type we're gonna
-		// declare on the customField.
-		was64Bit    bool
 		signedVal   int64
 		unsignedVal uint64
 	)
 	switch typedVal := iVal.(type) {
 	case uint64:
-		was64Bit = true
 		unsignedVal = typedVal
 	case uint32:
-		was64Bit = true
 		unsignedVal = uint64(typedVal)
 	case int64:
 		signedVal = typedVal
@@ -228,7 +223,7 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
 	}
 
-	if was64Bit {
+	if isUnsignedInt(customField.fieldType) {
 		if !enc.hasWrittenFirstTSZ {
 			enc.encodeFirstUnsignedIntValue(i, unsignedVal)
 		} else {

@@ -185,6 +185,10 @@ func isCustomIntEncodedField(t customFieldType) bool {
 		t == cUnsignedInt32
 }
 
+func isUnsignedInt(t customFieldType) bool {
+	return t == cUnsignedInt64 || t == cUnsignedInt32
+}
+
 func numCustomFields(schema *desc.MessageDescriptor) int {
 	var (
 		fields          = schema.GetFields()
