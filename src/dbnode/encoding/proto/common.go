@@ -21,6 +21,7 @@
 package proto
 
 import (
+	"math"
 	"reflect"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -212,4 +213,19 @@ func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
 		}
 	}
 	return false
+}
+
+// numBitsRequiredToRepresentArrayIndex returns the number of bits that are required
+// to represent all the possible indices of an array of size arrSize as a uint64. Its
+// used to calculate the number of bits required to encode the index in the LRU for
+// fields using streaming LRU dictionary compression like byte arrays and strings.
+//
+// 4   --> 2
+// 8   --> 3
+// 16  --> 4
+// 32  --> 5
+// 64  --> 6
+// 128 --> 7
+func numBitsRequiredToRepresentArrayIndex(arrSize int) int {
+	return int(math.Log2(float64(arrSize)))
 }

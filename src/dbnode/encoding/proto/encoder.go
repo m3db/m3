@@ -50,6 +50,7 @@ var (
 
 // TODO(rartoul): Need to support schema changes by updating the ordering
 // of the TSZ encoded fields on demand.
+// TODO: Encode the LRU size into the stream
 type encoder struct {
 	stream encoding.OStream
 	schema *desc.MessageDescriptor
@@ -263,11 +264,11 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 	hash := murmur3.Sum64(currBytes)
 	for j, prevHash := range customField.bytesFieldDict {
 		if hash == prevHash {
-			// Control bit means interpret next 2 bits as the index for the previous write
-			// that this matches.
-			// TODO: Make this auto-determine number of bits based on size of dict.
+			// Control bit means interpret next n bits as the index for the previous write
+			// that this matches where n is the number of bits required to represent all
+			// possible array indices in the configured LRU size.
 			enc.stream.WriteBit(0)
-			enc.stream.WriteBits(uint64(j), 2)
+			enc.stream.WriteBits(uint64(j), numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
 			enc.moveToEndOfBytesDict(i, j)
 			enc.customFields[i].prevBytes = currBytes
 			return nil
