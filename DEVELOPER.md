@@ -90,4 +90,4 @@ there is a push to master.
 4. Push the tag. Ex: `git push origin v0.7.0`
 5. Run `make GITHUB_TOKEN=<GITHUB_API_ACCESS_TOKEN> release`
 6. Update `CHANGELOG.md` and commit it to master
-7. Copy and paste the text from `CHANGELOG.md` into the release notes on Github
+7. Copy and paste the text from `CHANGELOG.md` into the release notes [on Github](https://github.com/m3db/m3/releases)
