@@ -61,7 +61,7 @@ func TestConvertMetricPartToMatcher(t *testing.T) {
 	}
 }
 
-func TestGetMatcherTerminator(t *testing.T) {
+func TestMatcherTerminator(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		expected := models.Matcher{
 			Type:  models.MatchNotRegexp,

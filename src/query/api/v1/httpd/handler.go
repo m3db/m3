@@ -103,7 +103,7 @@ func NewHandler(
 	embeddedDbCfg *dbconfig.DBConfiguration,
 	scope tally.Scope,
 ) (*Handler, error) {
-	r := mux.NewRouter()
+	r := mux.NewRouter().StrictSlash(true)
 
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 

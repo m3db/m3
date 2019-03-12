@@ -192,6 +192,6 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	err = WriteRenderResponse(w, response)
+	err = WriteRenderResponse(w, response, p.Format)
 	return respError{err: err, code: http.StatusOK}
 }
