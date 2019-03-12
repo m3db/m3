@@ -177,7 +177,7 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	$(GO_BUILD_LDFLAGS_CMD) && docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e GIT_REVISION -e GIT_BRANCH -e GIT_VERSION -e BUILD_DATE -e BUILD_TS_UNIX -e BASE_PACKAGE -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release
+	$(GO_BUILD_LDFLAGS_CMD) && docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e GIT_REVISION -e GIT_BRANCH -e GIT_VERSION -e BUILD_DATE -e BUILD_TS_UNIX -e BASE_PACKAGE -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
