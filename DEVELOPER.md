@@ -85,7 +85,7 @@ there is a push to master.
 ## Cutting a release
 
 1. Ensure you have a Github API access token with the `repo` scope
-2. Checkout the commit you want to release
+2. Checkout the commit you want to release (do not release commits that don't exist on master)
 3. Create a tag with the version you would like to release. Ex: `git tag -a v0.7.0 -m "v0.7.0"`
 4. Push the tag. Ex: `git push origin v0.7.0`
 5. Run `make GITHUB_TOKEN=<GITHUB_API_ACCESS_TOKEN> release`
