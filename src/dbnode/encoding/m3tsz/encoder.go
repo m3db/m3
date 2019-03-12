@@ -56,15 +56,14 @@ type encoder struct {
 
 	ant ts.Annotation // current annotation
 
-	intVal             float64    // current int val
-	tu                 xtime.Unit // current time unit
-	intOptimized       bool       // whether the encoding scheme is optimized for ints
-	isFloat            bool       // whether we are encoding ints/floats
-	numEncoded         uint32     // whether any datapoints have been written yet
-	maxMult            uint8      // current max multiplier for int vals
-	numSig             uint8      // current largest number of significant places for int diffs
-	curHighestLowerSig uint8
-	numLowerSig        uint8
+	intVal       float64    // current int val
+	tu           xtime.Unit // current time unit
+	intOptimized bool       // whether the encoding scheme is optimized for ints
+	isFloat      bool       // whether we are encoding ints/floats
+	numEncoded   uint32     // whether any datapoints have been written yet
+	maxMult      uint8      // current max multiplier for int vals
+
+	sigTracker IntSigBitsTracker
 
 	closed bool
 }
@@ -370,6 +369,8 @@ func (enc *encoder) writeFloatXOR(val uint64) {
 	enc.vb = val
 }
 
+// WriteXOR writes the TSZ XOR into the provided stream given the previous
+// XOR and the current XOR.
 func WriteXOR(
 	stream encoding.OStream,
 	prevXOR, curXOR uint64) {
@@ -412,9 +413,9 @@ func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff f
 
 	valDiffBits := uint64(int64(valDiff))
 	numSig := encoding.NumSig(valDiffBits)
-	newSig := enc.trackNewSig(numSig)
+	newSig := enc.sigTracker.TrackNewSig(numSig)
 	isFloatChanged := isFloat != enc.isFloat
-	if mult > enc.maxMult || enc.numSig != newSig || isFloatChanged {
+	if mult > enc.maxMult || enc.sigTracker.NumSig != newSig || isFloatChanged {
 		enc.os.WriteBit(opcodeUpdate)
 		enc.os.WriteBit(opcodeNoRepeat)
 		enc.os.WriteBit(opcodeIntMode)
@@ -438,13 +439,13 @@ func (enc *encoder) writeIntValDiff(valBits uint64, neg bool) {
 		enc.os.WriteBit(opcodePositive)
 	}
 
-	enc.os.WriteBits(valBits, int(enc.numSig))
+	enc.os.WriteBits(valBits, int(enc.sigTracker.NumSig))
 }
 
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
 func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
-	if enc.numSig != sig {
+	if enc.sigTracker.NumSig != sig {
 		enc.os.WriteBit(opcodeUpdateSig)
 		if sig == 0 {
 			enc.os.WriteBit(opcodeZeroSig)
@@ -453,7 +454,7 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 			enc.os.WriteBits(uint64(sig-1), numSigBits)
 		}
 
-		enc.numSig = sig
+		enc.sigTracker.NumSig = sig
 	} else {
 		enc.os.WriteBit(opcodeNoUpdateSig)
 	}
@@ -462,7 +463,7 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 		enc.os.WriteBit(opcodeUpdateMult)
 		enc.os.WriteBits(uint64(mult), numMultBits)
 		enc.maxMult = mult
-	} else if enc.numSig == sig && enc.maxMult == mult && floatChanged {
+	} else if enc.sigTracker.NumSig == sig && enc.maxMult == mult && floatChanged {
 		// If only the float mode has changed, update the Mult regardless
 		// so that we can support the annotation peek
 		enc.os.WriteBit(opcodeUpdateMult)
@@ -470,35 +471,6 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 	} else {
 		enc.os.WriteBit(opcodeNoUpdateMult)
 	}
-}
-
-// trackNewSig gets the new number of significant bits given the
-// number of significant bits of the current diff. It takes into
-// account thresholds to try and find a value that's best for the
-// current data
-func (enc *encoder) trackNewSig(numSig uint8) uint8 {
-	newSig := enc.numSig
-
-	if numSig > enc.numSig {
-		newSig = numSig
-	} else if enc.numSig-numSig >= sigDiffThreshold {
-		if enc.numLowerSig == 0 {
-			enc.curHighestLowerSig = numSig
-		} else if numSig > enc.curHighestLowerSig {
-			enc.curHighestLowerSig = numSig
-		}
-
-		enc.numLowerSig++
-		if enc.numLowerSig >= sigRepeatThreshold {
-			newSig = enc.curHighestLowerSig
-			enc.numLowerSig = 0
-		}
-
-	} else {
-		enc.numLowerSig = 0
-	}
-
-	return newSig
 }
 
 func (enc *encoder) newBuffer(capacity int) checked.Bytes {
@@ -521,9 +493,7 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.intVal = 0
 	enc.isFloat = false
 	enc.maxMult = 0
-	enc.numSig = 0
-	enc.curHighestLowerSig = 0
-	enc.numLowerSig = 0
+	enc.sigTracker.Reset()
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.numEncoded = 0
@@ -638,6 +608,50 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
 	return ts.NewSegment(head, tail, ts.FinalizeHead)
+}
+
+// IntSigBitsTracker is used to track the number of significant bits
+// which should be used to encode the delta between two integers.
+type IntSigBitsTracker struct {
+	NumSig             uint8 // current largest number of significant places for int diffs
+	CurHighestLowerSig uint8
+	NumLowerSig        uint8
+}
+
+// TrackNewSig gets the new number of significant bits given the
+// number of significant bits of the current diff. It takes into
+// account thresholds to try and find a value that's best for the
+// current data
+func (t *IntSigBitsTracker) TrackNewSig(numSig uint8) uint8 {
+	newSig := t.NumSig
+
+	if numSig > t.NumSig {
+		newSig = numSig
+	} else if t.NumSig-numSig >= sigDiffThreshold {
+		if t.NumLowerSig == 0 {
+			t.CurHighestLowerSig = numSig
+		} else if numSig > t.CurHighestLowerSig {
+			t.CurHighestLowerSig = numSig
+		}
+
+		t.NumLowerSig++
+		if t.NumLowerSig >= sigRepeatThreshold {
+			newSig = t.CurHighestLowerSig
+			t.NumLowerSig = 0
+		}
+
+	} else {
+		t.NumLowerSig = 0
+	}
+
+	return newSig
+}
+
+// Reset resets the IntSigBitsTracker for reuse.
+func (t *IntSigBitsTracker) Reset() {
+	t.NumSig = 0
+	t.CurHighestLowerSig = 0
+	t.NumLowerSig = 0
 }
 
 type resultType int
