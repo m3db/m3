@@ -63,8 +63,8 @@ type encoder struct {
 	changedValues          []int32
 	fieldsChangedToDefault []int32
 
-	hasWrittenFirstTSZ bool
-	closed             bool
+	hasEncodedFirstSetOfCustomValues bool
+	closed                           bool
 }
 
 // NewEncoder creates a new encoder.
@@ -122,7 +122,7 @@ func (enc *encoder) Reset(
 		enc.customFields = customFields(nil, schema)
 	}
 
-	enc.hasWrittenFirstTSZ = false
+	enc.hasEncodedFirstSetOfCustomValues = false
 	enc.closed = false
 }
 
@@ -178,7 +178,7 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 			m.ClearFieldByNumber(customField.fieldNum)
 		}
 	}
-	enc.hasWrittenFirstTSZ = true
+	enc.hasEncodedFirstSetOfCustomValues = true
 
 	return nil
 }
@@ -195,7 +195,7 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
 	}
 
-	if !enc.hasWrittenFirstTSZ {
+	if !enc.hasEncodedFirstSetOfCustomValues {
 		enc.encodeFirstTSZValue(i, val)
 	} else {
 		enc.encodeNextTSZValue(i, val)
@@ -224,13 +224,13 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 	}
 
 	if isUnsignedInt(customField.fieldType) {
-		if !enc.hasWrittenFirstTSZ {
+		if !enc.hasEncodedFirstSetOfCustomValues {
 			enc.encodeFirstUnsignedIntValue(i, unsignedVal)
 		} else {
 			enc.encodeNextUnsignedIntValue(i, unsignedVal)
 		}
 	} else {
-		if !enc.hasWrittenFirstTSZ {
+		if !enc.hasEncodedFirstSetOfCustomValues {
 			enc.encodeFirstSignedIntValue(i, signedVal)
 		} else {
 			enc.encodeNextSignedIntValue(i, signedVal)
