@@ -154,23 +154,22 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 				customField.fieldNum)
 		}
 
-		// TODO: Switch?
-		customEncoded := false
-		if isCustomFloatEncodedField(customField.fieldType) {
+		customEncoded := true
+		switch {
+		case isCustomFloatEncodedField(customField.fieldType):
 			if err := enc.encodeTSZValue(i, customField, iVal); err != nil {
 				return err
 			}
-			customEncoded = true
-		} else if isCustomIntEncodedField(customField.fieldType) {
+		case isCustomIntEncodedField(customField.fieldType):
 			if err := enc.encodeIntValue(i, customField, iVal); err != nil {
 				return err
 			}
-			customEncoded = true
-		} else if customField.fieldType == cBytes {
+		case customField.fieldType == cBytes:
 			if err := enc.encodeBytesValue(i, customField, iVal); err != nil {
 				return err
 			}
-			customEncoded = true
+		default:
+			customEncoded = false
 		}
 
 		if customEncoded {
