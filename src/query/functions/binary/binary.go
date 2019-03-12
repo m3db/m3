@@ -147,7 +147,9 @@ func processSingleBlock(
 		step := it.Current()
 		values := step.Values()
 		for _, value := range values {
-			builder.AppendValue(index, fn(value))
+			if err := builder.AppendValue(index, fn(value)); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -199,7 +201,9 @@ func processBothSeries(
 			lVal := lValues[lIdx]
 			rVal := rValues[rIdx]
 
-			builder.AppendValue(index, fn(lVal, rVal))
+			if err := builder.AppendValue(index, fn(lVal, rVal)); err != nil {
+				return nil, err
+			}
 		}
 	}
 

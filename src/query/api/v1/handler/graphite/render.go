@@ -125,7 +125,7 @@ func (h *renderHandler) serveHTTP(
 
 			childCtx := ctx.NewChildContext(common.NewChildContextOptions())
 			defer func() {
-				childCtx.Close()
+				_ = childCtx.Close()
 				wg.Done()
 			}()
 

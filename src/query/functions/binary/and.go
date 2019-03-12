@@ -58,11 +58,16 @@ func makeAndBlock(
 		for idx, value := range lValues {
 			rIdx := intersection[idx]
 			if rIdx < 0 || math.IsNaN(rValues[rIdx]) {
-				builder.AppendValue(index, math.NaN())
+				if err := builder.AppendValue(index, math.NaN()); err != nil {
+					return nil, err
+				}
+
 				continue
 			}
 
-			builder.AppendValue(index, value)
+			if err := builder.AppendValue(index, value); err != nil {
+				return nil, err
+			}
 		}
 	}
 

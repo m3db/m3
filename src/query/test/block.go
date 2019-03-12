@@ -124,16 +124,23 @@ func NewBlockFromValuesWithSeriesMeta(
 }
 
 // NewBlockFromValuesWithMetaAndSeriesMeta creates a new block using the provided values
+// Note: panics on errors, since this is a testutil
 func NewBlockFromValuesWithMetaAndSeriesMeta(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,
 ) block.Block {
 	columnBuilder := block.NewColumnBlockBuilder(meta, seriesMeta)
-	columnBuilder.AddCols(len(seriesValues[0]))
+
+	if err := columnBuilder.AddCols(len(seriesValues[0])); err != nil {
+		panic(err)
+	}
+
 	for _, seriesVal := range seriesValues {
 		for idx, val := range seriesVal {
-			columnBuilder.AppendValue(idx, val)
+			if err := columnBuilder.AppendValue(idx, val); err != nil {
+				panic(err)
+			}
 		}
 	}
 
