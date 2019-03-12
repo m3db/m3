@@ -348,8 +348,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		}
 		buf = append(buf, b)
 	}
-	// TODO: Can re-use this instead of allocating the temporary buffer.
-	it.customFields[i].prevBytes = buf
+
 	// TODO: switch to try
 	// TODO: Make this less gross by pre-processing schemas to only have bytes
 	if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {

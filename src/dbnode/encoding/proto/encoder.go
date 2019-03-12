@@ -21,7 +21,6 @@
 package proto
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -252,7 +251,12 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 		currBytes = []byte(currString)
 	}
 
-	if bytes.Equal(customField.prevBytes, currBytes) {
+	var (
+		hash             = murmur3.Sum64(currBytes)
+		numPreviousBytes = len(customField.bytesFieldDict)
+		lastHashIdx      = numPreviousBytes - 1
+	)
+	if numPreviousBytes > 0 && hash == customField.bytesFieldDict[lastHashIdx] {
 		// No changes control bit.
 		enc.stream.WriteBit(0)
 		return nil
@@ -261,7 +265,6 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 	// Bytes changed control bit.
 	enc.stream.WriteBit(1)
 
-	hash := murmur3.Sum64(currBytes)
 	for j, prevHash := range customField.bytesFieldDict {
 		if hash == prevHash {
 			// Control bit means interpret next n bits as the index for the previous write
@@ -270,7 +273,6 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 			enc.stream.WriteBit(0)
 			enc.stream.WriteBits(uint64(j), numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
 			enc.moveToEndOfBytesDict(i, j)
-			enc.customFields[i].prevBytes = currBytes
 			return nil
 		}
 	}
@@ -283,7 +285,6 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 		enc.stream.WriteByte(b)
 	}
 	enc.addToBytesDict(i, hash)
-	enc.customFields[i].prevBytes = currBytes
 	return nil
 }
 
