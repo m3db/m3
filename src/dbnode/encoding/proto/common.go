@@ -31,8 +31,46 @@ const (
 	byteFieldDictSize = 4
 )
 
+type customFieldType int
+
+const (
+	cSignedInt64 customFieldType = iota
+	cSignedInt32
+	cUnsignedInt64
+	cUnsignedInt32
+	cFloat64
+	cFloat32
+	cBytes
+)
+
 var (
 	typeOfBytes = reflect.TypeOf(([]byte)(nil))
+
+	mapProtoTypeToCustomFieldType = map[dpb.FieldDescriptorProto_Type]customFieldType{
+		dpb.FieldDescriptorProto_TYPE_DOUBLE: cFloat64,
+		dpb.FieldDescriptorProto_TYPE_FLOAT:  cFloat32,
+
+		dpb.FieldDescriptorProto_TYPE_INT64:    cSignedInt64,
+		dpb.FieldDescriptorProto_TYPE_SFIXED64: cSignedInt64,
+
+		dpb.FieldDescriptorProto_TYPE_UINT64:  cUnsignedInt64,
+		dpb.FieldDescriptorProto_TYPE_FIXED64: cUnsignedInt64,
+
+		dpb.FieldDescriptorProto_TYPE_INT32:    cSignedInt32,
+		dpb.FieldDescriptorProto_TYPE_SFIXED32: cSignedInt32,
+
+		dpb.FieldDescriptorProto_TYPE_UINT32:  cUnsignedInt32,
+		dpb.FieldDescriptorProto_TYPE_FIXED32: cUnsignedInt32,
+
+		dpb.FieldDescriptorProto_TYPE_SINT32: cSignedInt32,
+		dpb.FieldDescriptorProto_TYPE_SINT64: cSignedInt64,
+
+		dpb.FieldDescriptorProto_TYPE_STRING: cBytes,
+		dpb.FieldDescriptorProto_TYPE_BYTES:  cBytes,
+
+		// dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
+
+	}
 
 	customIntEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
 		// Signed.
@@ -90,9 +128,8 @@ var (
 )
 
 type customFieldState struct {
-	fieldNum int
-	// TODO: This should be a custom enum.
-	fieldType dpb.FieldDescriptorProto_Type
+	fieldNum  int
+	fieldType customFieldType
 
 	// Float state
 	prevXOR       uint64
@@ -123,48 +160,29 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 	fields := schema.GetFields()
 	for _, field := range fields {
 		fieldType := field.GetType()
-		if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
-			s = append(s, customFieldState{
-				fieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
-				fieldNum:  int(field.GetNumber()),
-			})
+		customFieldType, ok := mapProtoTypeToCustomFieldType[fieldType]
+		if !ok {
+			continue
 		}
 
-		if fieldType == dpb.FieldDescriptorProto_TYPE_BYTES ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-			s = append(s, customFieldState{
-				fieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
-				fieldNum:  int(field.GetNumber()),
-			})
-		}
-
-		// TODO(rartoul): More int types
-		// dpb.FieldDescriptorProto_TYPE_INT64:    struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_UINT64:   struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_INT32:    struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_FIXED64:  struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_FIXED32:  struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
-		if isCustomIntEncodedField(fieldType) {
-			s = append(s, customFieldState{
-				fieldType: fieldType,
-				fieldNum:  int(field.GetNumber()),
-			})
-		}
+		s = append(s, customFieldState{
+			fieldType: customFieldType,
+			fieldNum:  int(field.GetNumber()),
+		})
 	}
 
 	return s
 }
 
-func isCustomIntEncodedField(t dpb.FieldDescriptorProto_Type) bool {
-	_, ok := customIntEncodedFields[t]
-	return ok
+func isCustomFloatEncodedField(t customFieldType) bool {
+	return t == cFloat64 || t == cFloat32
+}
+
+func isCustomIntEncodedField(t customFieldType) bool {
+	return t == cSignedInt64 ||
+		t == cUnsignedInt64 ||
+		t == cSignedInt32 ||
+		t == cUnsignedInt32
 }
 
 func numCustomFields(schema *desc.MessageDescriptor) int {

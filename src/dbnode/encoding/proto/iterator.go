@@ -191,13 +191,13 @@ func (it *iterator) readProtoValues() error {
 
 func (it *iterator) readFirstCustomValues() error {
 	for i, customField := range it.customFields {
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+		if isCustomFloatEncodedField(customField.fieldType) {
 			if err := it.readFirstTSZValue(i, customField); err != nil {
 				return err
 			}
 		}
 
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+		if customField.fieldType == cBytes {
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
@@ -230,13 +230,15 @@ func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error
 
 func (it *iterator) readNextCustomValues() error {
 	for i, customField := range it.customFields {
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+		// TODO: Early returns all the way here
+		// or switch?
+		if isCustomFloatEncodedField(customField.fieldType) {
 			if err := it.readNextTSZValue(i, customField); err != nil {
 				return err
 			}
 		}
 
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+		if customField.fieldType == cBytes {
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
@@ -375,8 +377,7 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		fieldType = it.customFields[i].fieldType
 	)
 	// TODO: Not sure I need to handle both cases here. Might be ok to just check for double.
-	if fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE ||
-		fieldType == dpb.FieldDescriptorProto_TYPE_FLOAT {
+	if isCustomFloatEncodedField(fieldType) {
 		var (
 			val = math.Float64frombits(it.customFields[i].prevFloatBits)
 			err error
@@ -392,25 +393,22 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		// TODO: Use a switch statement here.
 		// TODO: use my own type instead of proto type here.
 		// TODO: same comment here
-		if fieldType == dpb.FieldDescriptorProto_TYPE_INT64 ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
+		if fieldType == cSignedInt64 {
 			val := int64(it.customFields[i].prevFloatBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		}
 
-		if fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_FIXED64 {
+		if fieldType == cUnsignedInt64 {
 			val := it.customFields[i].prevFloatBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		}
 
-		if fieldType == dpb.FieldDescriptorProto_TYPE_UINT32 ||
-			fieldType == dpb.FieldDescriptorProto_TYPE_FIXED32 {
+		if fieldType == cUnsignedInt32 {
 			val := uint32(it.customFields[i].prevFloatBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		}
 
+		// TODO: Switch instead?
 		val := int32(it.customFields[i].prevFloatBits)
 		return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 	} else {
@@ -582,7 +580,7 @@ func (it *iterator) readIntValDiff(i int) error {
 			"proto iterator: error reading significant digits: %v", err)
 	}
 
-	if it.customFields[i].fieldType == dpb.FieldDescriptorProto_TYPE_UINT64 {
+	if it.customFields[i].fieldType == cUnsignedInt64 {
 		diff := uint64(diffSigBits)
 		shouldSubtract := false
 		if negativeControlBit == 1 {

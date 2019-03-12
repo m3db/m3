@@ -29,7 +29,6 @@ import (
 
 	murmur3 "github.com/m3db/stackmurmur3"
 
-	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -155,8 +154,9 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 				customField.fieldNum)
 		}
 
+		// TODO: Switch?
 		customEncoded := false
-		if customField.fieldType == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+		if isCustomFloatEncodedField(customField.fieldType) {
 			if err := enc.encodeTSZValue(i, customField, iVal); err != nil {
 				return err
 			}
@@ -166,7 +166,7 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 				return err
 			}
 			customEncoded = true
-		} else if customField.fieldType == dpb.FieldDescriptorProto_TYPE_BYTES {
+		} else if customField.fieldType == cBytes {
 			if err := enc.encodeBytesValue(i, customField, iVal); err != nil {
 				return err
 			}
