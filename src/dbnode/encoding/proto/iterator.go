@@ -315,8 +315,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes changed control bit: %v", err)
 	}
 	if valueInDictControlBit == 0 {
-		// TODO: Make number of bits auto-detect from size
-		dictIdx, err := it.stream.ReadBits(2)
+		dictIdx, err := it.stream.ReadBits(numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
 		if err != nil {
 			return fmt.Errorf(
 				"proto decoder: error trying to read bytes dict idx: %v", err)
