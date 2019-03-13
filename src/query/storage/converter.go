@@ -268,7 +268,7 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
-	enforcer enforcer,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*ts.Series, error) {
 	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
@@ -298,7 +298,7 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
-	enforcer enforcer,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
@@ -319,7 +319,7 @@ func decompressConcurrently(
 	iterLength int,
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
-	enforcer enforcer,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -371,23 +371,6 @@ func decompressConcurrently(
 	}, nil
 }
 
-// Wrap enforcer in a
-type enforcer interface {
-	Add(xcost.Cost) xcost.Report
-}
-
-type syncEnforcer struct {
-	enforcer cost.ChainedEnforcer
-	mu       sync.Mutex
-}
-
-func (e *syncEnforcer) Add(c xcost.Cost) xcost.Report {
-	e.mu.Lock()
-	r := e.enforcer.Add(c)
-	e.mu.Unlock()
-	return r
-}
-
 // SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
 func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
@@ -406,7 +389,6 @@ func SeriesIteratorsToFetchResult(
 		return decompressSequentially(iterLength, iters, enforcer, tagOptions)
 	}
 
-	syncedEnforcer := &syncEnforcer{enforcer: enforcer}
 	return decompressConcurrently(iterLength, iters, readWorkerPool,
-		syncedEnforcer, tagOptions)
+		enforcer, tagOptions)
 }
