@@ -9,10 +9,6 @@
 
 set -exo pipefail
 
-# TEMP TEST
-export DRYRUN=1
-git tag -f docker-test
-
 function cleanup() {
   docker system prune -f
   find /tmp -name '*m3-docker' -print0 | xargs -0 rm -fv
