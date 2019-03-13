@@ -171,10 +171,6 @@ func (it *iterator) readProtoValues() error {
 			int(marshalLen), n)
 	}
 
-	if it.lastIterated == nil {
-		it.lastIterated = dynamic.NewMessage(it.schema)
-	}
-
 	err = it.lastIterated.UnmarshalMerge(buf)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
@@ -182,8 +178,12 @@ func (it *iterator) readProtoValues() error {
 
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
-			// TODO: Try
-			it.lastIterated.ClearFieldByNumber(fieldNum)
+			err := it.lastIterated.TryClearFieldByNumber(fieldNum)
+			if err != nil {
+				return fmt.Errorf(
+					"proto iterator: error clearing field number: %d, err: %v",
+					fieldNum, err)
+			}
 		}
 	}
 
@@ -231,24 +231,24 @@ func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error
 
 func (it *iterator) readNextCustomValues() error {
 	for i, customField := range it.customFields {
-		// TODO: Early returns all the way here
-		// or switch?
-		if isCustomFloatEncodedField(customField.fieldType) {
+		switch {
+		case isCustomFloatEncodedField(customField.fieldType):
 			if err := it.readNextTSZValue(i, customField); err != nil {
 				return err
 			}
-		}
 
-		if customField.fieldType == cBytes {
+		case customField.fieldType == cBytes:
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
-		}
 
-		if isCustomIntEncodedField(customField.fieldType) {
+		case isCustomIntEncodedField(customField.fieldType):
 			if err := it.readIntValue(i, customField, false); err != nil {
 				return err
 			}
+
+		default:
+			return fmt.Errorf("proto iterator: unknown custom field type: %v", customField.fieldType)
 		}
 	}
 
@@ -356,15 +356,21 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		buf = append(buf, b)
 	}
 
-	// TODO: switch to try
-	// TODO: Make this less gross by pre-processing schemas to only have bytes
-	if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
-		it.lastIterated.SetFieldByNumber(customField.fieldNum, string(buf))
+	// TODO: Could make this more efficient with unsafe string converion or by pre-processing
+	// schemas to only have bytes.
+	schemaFieldType := it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType()
+	if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
+		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, string(buf))
 	} else {
-		it.lastIterated.SetFieldByNumber(customField.fieldNum, buf)
+		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, buf)
 	}
-	it.addToBytesDict(i, buf)
+	if err != nil {
+		return fmt.Errorf(
+			"proto decoder: error trying to set field number: %d, err: %v",
+			customField.fieldNum, err)
+	}
 
+	it.addToBytesDict(i, buf)
 	return nil
 }
 
@@ -381,42 +387,43 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		fieldNum  = it.customFields[i].fieldNum
 		fieldType = it.customFields[i].fieldType
 	)
-	// TODO: Not sure I need to handle both cases here. Might be ok to just check for double.
-	if isCustomFloatEncodedField(fieldType) {
+
+	switch {
+	case isCustomFloatEncodedField(fieldType):
 		var (
 			val = math.Float64frombits(it.customFields[i].prevFloatBits)
 			err error
 		)
-		// TODO: Should I be looking at schema here or field types?
-		if it.schema.FindFieldByNumber(int32(fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_DOUBLE {
+		if fieldType == cFloat64 {
 			err = it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		} else {
 			err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
 		}
 		return err
-	} else if isCustomIntEncodedField(fieldType) {
-		// TODO: Use a switch statement here.
-		// TODO: use my own type instead of proto type here.
-		// TODO: same comment here
-		if fieldType == cSignedInt64 {
+
+	case isCustomIntEncodedField(fieldType):
+		switch fieldType {
+		case cSignedInt64:
 			val := int64(it.customFields[i].prevFloatBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
-		}
 
-		if fieldType == cUnsignedInt64 {
+		case cUnsignedInt64:
 			val := it.customFields[i].prevFloatBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
-		}
 
-		if fieldType == cUnsignedInt32 {
+		case cSignedInt32:
+			val := int32(it.customFields[i].prevFloatBits)
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+
+		case cUnsignedInt32:
 			val := uint32(it.customFields[i].prevFloatBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
-		}
 
-		// TODO: Switch instead?
-		val := int32(it.customFields[i].prevFloatBits)
-		return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
-	} else {
+		default:
+			return fmt.Errorf(
+				"proto iterator: expected custom int encoded field but field type was: %v", fieldType)
+		}
+	default:
 		return fmt.Errorf("proto decoder: unhandled fieldType: %v", fieldType)
 	}
 }
@@ -655,8 +662,6 @@ func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	}
 
 	existing[len(existing)-1] = b
-	// TODO: Not necessary
-	it.customFields[fieldIdx].iteratorBytesFieldDict = existing
 }
 
 func (it *iterator) readBits(numBits int) (uint64, error) {
