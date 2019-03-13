@@ -16,8 +16,15 @@ function cleanup() {
 
 trap cleanup EXIT
 
-function push() {
+# The logs for builds have a ton of output from set -x, Docker builds, etc. Need
+# an easy way to find our own messages in the logs.
+function log_info() {
+  echo "[INFO] $1"
+}
+
+function push_image() {
   if [[ -z "$DRYRUN" ]]; then
+    log_info "pushing $1"
     docker push "$1"
   else
     echo "would push $1"
@@ -25,6 +32,11 @@ function push() {
 }
 
 CONFIG="docker/images.json"
+
+if [[ ! -f "$CONFIG" ]]; then
+  echo "could not find docker images config $CONFIG"
+  exit 1
+fi
 
 IMAGES="$(<$CONFIG jq -er '.images | to_entries | map(.key)[]')"
 REPOSITORIES="$(<$CONFIG jq -er .repositories[])"
@@ -49,23 +61,26 @@ if [[ -z "$TAGS_TO_PUSH" ]]; then
   exit 0
 fi
 
+log_info "will push [$TAGS_TO_PUSH]"
+
 for IMAGE in $IMAGES; do
   # Do one build, then push all the necessary tags.
   SHA_TMP=$(mktemp --suffix m3-docker)
+  log_info "building $IMAGE"
   docker build --iidfile "$SHA_TMP" -f "$(<$CONFIG jq -er ".images[\"${IMAGE}\"].dockerfile")" .
   IMAGE_SHA=$(cat "$SHA_TMP")
   for TAG_BASE in $REPOSITORIES; do
     for TAG in $TAGS_TO_PUSH; do
       FULL_TAG="${TAG_BASE}/${IMAGE}:${TAG}"
       docker tag "$IMAGE_SHA" "$FULL_TAG"
-      push "$FULL_TAG"
+      push_image "$FULL_TAG"
 
       # If the image has aliases, tag them too.
       ALIASES="$(<$CONFIG jq -r "(.images[\"${IMAGE}\"].aliases | if . == null then [] else . end)[]")"
       for ALIAS in $ALIASES; do
         DUAL_TAG="${TAG_BASE}/${ALIAS}:${TAG}"
         docker tag "$IMAGE_SHA" "$DUAL_TAG"
-        push "$DUAL_TAG"
+        push_image "$DUAL_TAG"
       done
     done
   done
@@ -74,5 +89,6 @@ done
 # Clean up
 CLEANUP_IMAGES=$(docker images | grep -E "$CLEANUP_REGEX" | awk '{print $3}' | sort | uniq)
 for IMG in $CLEANUP_IMAGES; do
+  log_info "removing $IMG"
   docker rmi -f "$IMG"
 done

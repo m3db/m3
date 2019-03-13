@@ -14,7 +14,9 @@ This directory contains the Dockerfiles, configs, and build scripts for building
 
 ```json
 {
-  "image_base": "quay.io/m3db",
+  "repositories": [
+    "quay.io/m3"
+  ],
   "images": {
     "m3dbnode": {
       "dockerfile": "docker/m3dbnode/Dockerfile",
