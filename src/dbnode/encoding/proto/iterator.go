@@ -159,15 +159,16 @@ func (it *iterator) readProtoValues() error {
 		return err
 	}
 
-	// TODO(rartoul): Probably want to use a bytes pool for this.
-	// TODO: Use it.stream.Read()
-	buf := make([]byte, 0, marshalLen)
-	for i := uint64(0); i < marshalLen; i++ {
-		b, err := it.stream.ReadByte()
-		if err != nil {
-			return fmt.Errorf("error reading marshaled proto bytes: %v", err)
-		}
-		buf = append(buf, b)
+	// TODO(rartoul): Probably want to use a bytes pool for this or recycle it at least.
+	buf := make([]byte, marshalLen)
+	n, err := it.stream.Read(buf)
+	if err != nil {
+		return fmt.Errorf("proto iterator: error reading marshaled proto bytes: %v", err)
+	}
+	if n != int(marshalLen) {
+		return fmt.Errorf(
+			"proto iterator: tried to read %d marshaled proto bytes but only read %d",
+			int(marshalLen), n)
 	}
 
 	if it.lastIterated == nil {
@@ -346,7 +347,6 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes length: %v", err)
 	}
 
-	// TODO: Corrupt data could cause a panic here by doing a massive alloc
 	buf := make([]byte, 0, bytesLen)
 	for j := 0; j < int(bytesLen); j++ {
 		b, err := it.stream.ReadByte()

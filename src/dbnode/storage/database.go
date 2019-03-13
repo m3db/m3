@@ -143,6 +143,10 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	}
 }
 
+// Whenever constructed or receive new shardset, check if all shards are in INITIALIZING state
+//     If all shards are in INITIALIZING state then we know its safe to disable the commitlog
+//     Otherwise, need to make sure commitlog is enabled.
+
 // NewDatabase creates a new time series database.
 func NewDatabase(
 	shardSet sharding.ShardSet,
