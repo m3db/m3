@@ -26,12 +26,13 @@ import (
 	"fmt"
 	"math"
 
-	murmur3 "github.com/m3db/stackmurmur3"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3x/checked"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3x/checked"
+	murmur3 "github.com/m3db/stackmurmur3"
 )
 
 const (
@@ -64,6 +65,8 @@ type encoder struct {
 
 	hasEncodedFirstSetOfCustomValues bool
 	closed                           bool
+
+	m3tszEncoder *m3tsz.Encoder
 }
 
 // NewEncoder creates a new encoder.
@@ -81,9 +84,13 @@ func NewEncoder(opts encoding.Options) (*encoder, error) {
 	return enc, nil
 }
 
+func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+
+}
+
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
-func (enc *encoder) Encode(m *dynamic.Message) error {
+func (enc *encoder) EncodeProto(m *dynamic.Message) error {
 	if enc.closed {
 		return errEncoderClosed
 	}
