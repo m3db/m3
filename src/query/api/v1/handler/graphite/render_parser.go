@@ -240,7 +240,7 @@ func renderResultsPickle(w io.Writer, series []*ts.Series) error {
 		pw.WriteInt(int(s.EndTime().UTC().Unix()))
 
 		pw.WriteDictKey("step")
-		pw.WriteInt(int(s.MillisPerStep() / 1000))
+		pw.WriteInt(s.MillisPerStep() / 1000)
 
 		pw.WriteDictKey("values")
 		pw.BeginList()
