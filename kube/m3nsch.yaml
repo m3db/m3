@@ -96,7 +96,7 @@ spec:
     spec:
       containers:
       - name: m3nsch-agent
-        image: quay.io/m3db/m3nsch:latest
+        image: quay.io/m3/m3nsch:latest
         args:
         - "-f"
         - "/etc/m3nsch/m3nsch_server.yaml"
@@ -137,7 +137,7 @@ spec:
     spec:
       containers:
       - name: m3nsch-client
-        image: quay.io/m3db/m3nsch:latest
+        image: quay.io/m3/m3nsch:latest
         command:
         - "/bin/ash"
         args: ["-c", "while true; do sleep 300; done"]
