@@ -2,7 +2,7 @@
 
 set -exuo pipefail
 
-if [[ -n "$BUILDKITE" ]]; then
+if [[ -z "$BUILDKITE" ]]; then
   echo "not running in CI, nothing to do"
   exit 0
 fi
