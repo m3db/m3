@@ -377,20 +377,3 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		benchResult = FetchResultToPromResult(fr)
 	}
 }
-
-func TestIteratorToTsSeries(t *testing.T) {
-	t.Run("errors on iterator error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockIter := encoding.NewMockSeriesIterator(ctrl)
-
-		expectedErr := errors.New("expected")
-		mockIter.EXPECT().Err().Return(expectedErr)
-
-		mockIter = seriesiter.NewMockSeriesIteratorFromBase(mockIter, seriesiter.NewMockValidTagGenerator(ctrl), 1)
-
-		dps, err := iteratorToTsSeries(mockIter, models.NewTagOptions())
-
-		assert.Nil(t, dps)
-		assert.EqualError(t, err, expectedErr.Error())
-	})
-}
