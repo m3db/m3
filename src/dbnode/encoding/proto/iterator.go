@@ -156,7 +156,6 @@ func (it *iterator) readProtoValues() error {
 	marshalLen, err := it.readVarInt()
 	if err != nil {
 		return fmt.Errorf("proto iterator: err reading proto length varint: %v", err)
-		return err
 	}
 
 	// TODO(rartoul): Probably want to use a bytes pool for this or recycle it at least.
