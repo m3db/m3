@@ -31,7 +31,6 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3x/checked"
 )
 
@@ -126,7 +125,7 @@ func (enc *encoder) Reset(
 	enc.closed = false
 }
 
-func (enc *encoder) Bytes() (checked.Bytes, error) {
+func (enc *encoder) Bytes() ([]byte, error) {
 	if enc.closed {
 		return nil, errEncoderClosed
 	}
@@ -386,7 +385,7 @@ func (enc *encoder) encodeFirstTSZValue(i int, v float64) {
 func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	curFloatBits := math.Float64bits(next)
 	curXOR := enc.customFields[i].prevFloatBits ^ curFloatBits
-	m3tsz.WriteXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
+	encoding.WriteTSZXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
 	enc.customFields[i].prevFloatBits = curFloatBits
 	enc.customFields[i].prevXOR = curXOR
 }
@@ -402,7 +401,7 @@ func (enc *encoder) encodeFirstSignedIntValue(i int, v int64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
+	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
@@ -412,7 +411,7 @@ func (enc *encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
+	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
 	enc.encodeIntValDiff(vBits, false, numSig)
 }
 
@@ -440,7 +439,7 @@ func (enc *encoder) encodeNextSignedIntValue(i int, next int64) {
 	)
 	// Can't use an intermediary variable for the intSigBitsTracker because we need to
 	// modify the value in the slice, not a copy of it.
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
+	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diffBits, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
@@ -472,7 +471,7 @@ func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
 	// Can't use an intermediary variable for the intSigBitsTracker because we need to
 	// modify the value in the slice, not a copy of it.
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
+	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diff, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
@@ -529,11 +528,6 @@ func (enc *encoder) addToBytesDict(fieldIdx int, hash uint64) {
 	}
 
 	existing[len(existing)-1] = hash
-}
-
-func (enc *encoder) bytes(i int, next float64) checked.Bytes {
-	bytes, _ := enc.stream.Rawbytes()
-	return bytes
 }
 
 // encodeBitset writes out a bitset in the form of:

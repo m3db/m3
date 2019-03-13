@@ -100,10 +100,9 @@ func TestRoundtrip(t *testing.T) {
 
 	}
 
-	checkedBytes, err := enc.Bytes()
+	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
 
-	rawBytes := checkedBytes.Bytes()
 	buff := bytes.NewBuffer(rawBytes)
 	iter, err := NewIterator(buff, testVLSchema)
 	require.NoError(t, err)

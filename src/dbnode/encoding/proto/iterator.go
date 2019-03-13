@@ -31,7 +31,6 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
 var (
@@ -441,7 +440,7 @@ func (it *iterator) readXOR(i int) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if cb == m3tsz.OpcodeZeroValueXOR {
+	if cb == encoding.TSZOpcodeZeroValueXOR {
 		return 0, nil
 	}
 
@@ -451,7 +450,7 @@ func (it *iterator) readXOR(i int) (uint64, error) {
 	}
 
 	cb = (cb << 1) | cb2
-	if cb == m3tsz.OpcodeContainedValueXOR {
+	if cb == encoding.TSZOpcodeContainedValueXOR {
 		var (
 			previousXOR                       = it.customFields[i].prevXOR
 			previousLeading, previousTrailing = encoding.LeadingAndTrailingZeros(previousXOR)
