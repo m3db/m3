@@ -1,10 +1,7 @@
 {
   "images": {
     "m3dbnode": {
-      "dockerfile": "docker/m3dbnode/Dockerfile",
-      "aliases": [
-        "m3db"
-      ]
+      "dockerfile": "docker/m3dbnode/Dockerfile"
     },
     "m3coordinator": {
       "dockerfile": "docker/m3coordinator/Dockerfile"
