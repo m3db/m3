@@ -13,7 +13,7 @@ steps:
   - name: "Check for :docker: build"
     command: ".ci/docker/check_do_docker.sh"
     agents:
-      queue: builders
+      queue: init
     timeout_in_minutes: 10
     retry:
       automatic:
