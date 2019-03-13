@@ -88,6 +88,7 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
 		cfg, dbconfig, nil, tally.NewTestScope("", nil))
+
 	require.Error(t, err)
 }
 
