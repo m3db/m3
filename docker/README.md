@@ -10,13 +10,16 @@ M3 docker images are built according to the following policy:
 
 ## Builds
 
-This directory contains the Dockerfiles, configs, and build scripts for building images according to the above policy. `images.json` contains the base repo that will be used to tag images, as well as the config for each image. For example, with the following config:
+This directory contains the Dockerfiles, configs, and build scripts for building images according to the above policy.
+`images.json` has the config for each image, and the base repository comes from the environment variable
+`M3_DOCKER_REPO`. For example, with the following config:
+
+```
+export M3_DOCKER_REPO=quay.io/m3
+```
 
 ```json
 {
-  "repositories": [
-    "quay.io/m3"
-  ],
   "images": {
     "m3dbnode": {
       "dockerfile": "docker/m3dbnode/Dockerfile",
@@ -28,5 +31,5 @@ This directory contains the Dockerfiles, configs, and build scripts for building
 }
 ```
 
-`quay.io/m3db/m3dbnode` will be dual-published under `quay.io/m3db/m3dbnode:latest` and `quay.io/m3db/m3db:latest` for
+`quay.io/m3/m3dbnode` will be dual-published under `quay.io/m3/m3dbnode:latest` and `quay.io/m3/m3db:latest` for
 the latest release.

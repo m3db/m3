@@ -1,8 +1,4 @@
 {
-  "repositories": [
-    "quay.io/m3db",
-    "quay.io/m3"
-  ],
   "images": {
     "m3dbnode": {
       "dockerfile": "docker/m3dbnode/Dockerfile",
