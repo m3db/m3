@@ -34,11 +34,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const (
-	sigDiffThreshold   = uint8(3)
-	sigRepeatThreshold = uint8(5)
-)
-
 var (
 	errEncoderClosed       = errors.New("encoder is closed")
 	errNoEncodedDatapoints = errors.New("encoder has no encoded datapoints")
@@ -63,7 +58,7 @@ type encoder struct {
 	numEncoded   uint32     // whether any datapoints have been written yet
 	maxMult      uint8      // current max multiplier for int vals
 
-	sigTracker IntSigBitsTracker
+	sigTracker encoding.IntSigBitsTracker
 
 	closed bool
 }
@@ -418,7 +413,7 @@ func (enc *encoder) writeIntValDiff(valBits uint64, neg bool) {
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
 func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
-	WriteIntSig(enc.os, &enc.sigTracker, sig)
+	encoding.WriteIntSig(enc.os, &enc.sigTracker, sig)
 
 	if mult > enc.maxMult {
 		enc.os.WriteBit(opcodeUpdateMult)
@@ -432,24 +427,6 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 	} else {
 		enc.os.WriteBit(opcodeNoUpdateMult)
 	}
-}
-
-// WriteIntSig writes the number of significant bits of the diff if it has changed and
-// updates the IntSigBitsTracker.
-func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) {
-	if sigTracker.NumSig != sig {
-		os.WriteBit(opcodeUpdateSig)
-		if sig == 0 {
-			os.WriteBit(opcodeZeroSig)
-		} else {
-			os.WriteBit(opcodeNonZeroSig)
-			os.WriteBits(uint64(sig-1), numSigBits)
-		}
-	} else {
-		os.WriteBit(opcodeNoUpdateSig)
-	}
-
-	sigTracker.NumSig = sig
 }
 
 func (enc *encoder) newBuffer(capacity int) checked.Bytes {
@@ -587,50 +564,6 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
 	return ts.NewSegment(head, tail, ts.FinalizeHead)
-}
-
-// IntSigBitsTracker is used to track the number of significant bits
-// which should be used to encode the delta between two integers.
-type IntSigBitsTracker struct {
-	NumSig             uint8 // current largest number of significant places for int diffs
-	CurHighestLowerSig uint8
-	NumLowerSig        uint8
-}
-
-// TrackNewSig gets the new number of significant bits given the
-// number of significant bits of the current diff. It takes into
-// account thresholds to try and find a value that's best for the
-// current data
-func (t *IntSigBitsTracker) TrackNewSig(numSig uint8) uint8 {
-	newSig := t.NumSig
-
-	if numSig > t.NumSig {
-		newSig = numSig
-	} else if t.NumSig-numSig >= sigDiffThreshold {
-		if t.NumLowerSig == 0 {
-			t.CurHighestLowerSig = numSig
-		} else if numSig > t.CurHighestLowerSig {
-			t.CurHighestLowerSig = numSig
-		}
-
-		t.NumLowerSig++
-		if t.NumLowerSig >= sigRepeatThreshold {
-			newSig = t.CurHighestLowerSig
-			t.NumLowerSig = 0
-		}
-
-	} else {
-		t.NumLowerSig = 0
-	}
-
-	return newSig
-}
-
-// Reset resets the IntSigBitsTracker for reuse.
-func (t *IntSigBitsTracker) Reset() {
-	t.NumSig = 0
-	t.CurHighestLowerSig = 0
-	t.NumLowerSig = 0
 }
 
 type resultType int

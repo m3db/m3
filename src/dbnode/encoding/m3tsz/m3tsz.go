@@ -31,8 +31,6 @@ const (
 
 	opcodeUpdate       = 0x0
 	opcodeNoUpdate     = 0x1
-	opcodeUpdateSig    = 0x1
-	opcodeNoUpdateSig  = 0x0
 	opcodeUpdateMult   = 0x1
 	opcodeNoUpdateMult = 0x0
 	opcodePositive     = 0x0
@@ -41,12 +39,9 @@ const (
 	opcodeNoRepeat     = 0x0
 	opcodeFloatMode    = 0x1
 	opcodeIntMode      = 0x0
-	opcodeZeroSig      = 0x0
-	opcodeNonZeroSig   = 0x1
 
 	maxMult     = uint8(6)
 	numMultBits = 3
-	numSigBits  = 6
 )
 
 var (

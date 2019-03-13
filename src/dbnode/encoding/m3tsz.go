@@ -21,9 +21,19 @@
 package encoding
 
 const (
-	OpcodeZeroValueXOR        = 0x0
-	OpcodeContainedValueXOR   = 0x2
-	OpcodeUncontainedValueXOR = 0x3
+	TSZOpcodeZeroValueXOR        = 0x0
+	TSZOpcodeContainedValueXOR   = 0x2
+	TSZOpcodeUncontainedValueXOR = 0x3
+
+	TSZOpcodeNoUpdateSig = 0x0
+	TSZOpcodeUpdateSig   = 0x1
+	TSZOpcodeZeroSig     = 0x0
+	TSZOpcodeNonZeroSig  = 0x1
+
+	TSZNumSigBits = 6
+
+	sigDiffThreshold   = uint8(3)
+	sigRepeatThreshold = uint8(5)
 )
 
 // WriteTSZXOR writes the TSZ XOR into the provided stream given the previous
@@ -32,7 +42,7 @@ func WriteTSZXOR(
 	stream OStream,
 	prevXOR, curXOR uint64) {
 	if curXOR == 0 {
-		stream.WriteBits(OpcodeZeroValueXOR, 1)
+		stream.WriteBits(TSZOpcodeZeroValueXOR, 1)
 		return
 	}
 
@@ -40,15 +50,77 @@ func WriteTSZXOR(
 	prevLeading, prevTrailing := LeadingAndTrailingZeros(prevXOR)
 	curLeading, curTrailing := LeadingAndTrailingZeros(curXOR)
 	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		stream.WriteBits(OpcodeContainedValueXOR, 2)
+		stream.WriteBits(TSZOpcodeContainedValueXOR, 2)
 		stream.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
 		return
 	}
 
-	stream.WriteBits(OpcodeUncontainedValueXOR, 2)
+	stream.WriteBits(TSZOpcodeUncontainedValueXOR, 2)
 	stream.WriteBits(uint64(curLeading), 6)
 	numMeaningfulBits := 64 - curLeading - curTrailing
 	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
 	stream.WriteBits(uint64(numMeaningfulBits-1), 6)
 	stream.WriteBits(curXOR>>uint(curTrailing), numMeaningfulBits)
+}
+
+// WriteIntSig writes the number of significant bits of the diff if it has changed and
+// updates the IntSigBitsTracker.
+func WriteIntSig(os OStream, sigTracker *IntSigBitsTracker, sig uint8) {
+	if sigTracker.NumSig != sig {
+		os.WriteBit(TSZOpcodeUpdateSig)
+		if sig == 0 {
+			os.WriteBit(TSZOpcodeZeroSig)
+		} else {
+			os.WriteBit(TSZOpcodeNonZeroSig)
+			os.WriteBits(uint64(sig-1), TSZNumSigBits)
+		}
+	} else {
+		os.WriteBit(TSZOpcodeNoUpdateSig)
+	}
+
+	sigTracker.NumSig = sig
+}
+
+// IntSigBitsTracker is used to track the number of significant bits
+// which should be used to encode the delta between two integers.
+type IntSigBitsTracker struct {
+	NumSig             uint8 // current largest number of significant places for int diffs
+	CurHighestLowerSig uint8
+	NumLowerSig        uint8
+}
+
+// TrackNewSig gets the new number of significant bits given the
+// number of significant bits of the current diff. It takes into
+// account thresholds to try and find a value that's best for the
+// current data
+func (t *IntSigBitsTracker) TrackNewSig(numSig uint8) uint8 {
+	newSig := t.NumSig
+
+	if numSig > t.NumSig {
+		newSig = numSig
+	} else if t.NumSig-numSig >= sigDiffThreshold {
+		if t.NumLowerSig == 0 {
+			t.CurHighestLowerSig = numSig
+		} else if numSig > t.CurHighestLowerSig {
+			t.CurHighestLowerSig = numSig
+		}
+
+		t.NumLowerSig++
+		if t.NumLowerSig >= sigRepeatThreshold {
+			newSig = t.CurHighestLowerSig
+			t.NumLowerSig = 0
+		}
+
+	} else {
+		t.NumLowerSig = 0
+	}
+
+	return newSig
+}
+
+// Reset resets the IntSigBitsTracker for reuse.
+func (t *IntSigBitsTracker) Reset() {
+	t.NumSig = 0
+	t.CurHighestLowerSig = 0
+	t.NumLowerSig = 0
 }

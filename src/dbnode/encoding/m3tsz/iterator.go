@@ -237,11 +237,11 @@ func (it *readerIterator) readFloatXOR() {
 }
 
 func (it *readerIterator) readIntSigMult() {
-	if it.readBits(1) == opcodeUpdateSig {
-		if it.readBits(1) == opcodeZeroSig {
+	if it.readBits(1) == encoding.TSZOpcodeUpdateSig {
+		if it.readBits(1) == encoding.TSZOpcodeZeroSig {
 			it.sig = 0
 		} else {
-			it.sig = uint8(it.readBits(numSigBits)) + 1
+			it.sig = uint8(it.readBits(encoding.TSZNumSigBits)) + 1
 		}
 	}
 
@@ -290,12 +290,12 @@ func (it *readerIterator) readTimeUnit() {
 
 func (it *readerIterator) readXOR() uint64 {
 	cb := it.readBits(1)
-	if cb == encoding.OpcodeZeroValueXOR {
+	if cb == encoding.TSZOpcodeZeroValueXOR {
 		return 0
 	}
 
 	cb = (cb << 1) | it.readBits(1)
-	if cb == encoding.OpcodeContainedValueXOR {
+	if cb == encoding.TSZOpcodeContainedValueXOR {
 		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(it.xor)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing
 		return it.readBits(numMeaningfulBits) << uint(previousTrailing)
