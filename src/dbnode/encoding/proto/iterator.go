@@ -335,7 +335,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		} else {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, bytesVal)
 		}
-		// TODO: Handle out of bounds error or anything here?
+
 		it.moveToEndOfBytesDict(i, int(dictIdx))
 		return nil
 	}
@@ -632,8 +632,6 @@ func (it *iterator) moveToEndOfBytesDict(fieldIdx, i int) {
 		existing[j] = nextVal
 		existing[nextIdx] = currVal
 	}
-	// TODO: Not necessary
-	it.customFields[fieldIdx].iteratorBytesFieldDict = existing
 }
 
 // TODO: Share logic with encoder if possible
