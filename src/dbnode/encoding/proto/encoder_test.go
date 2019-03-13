@@ -21,11 +21,8 @@
 package proto
 
 import (
-	"bytes"
-	"fmt"
 	"testing"
 
-	"github.com/golang/snappy"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
@@ -60,46 +57,5 @@ func TestTSZFields(t *testing.T) {
 	for _, tc := range testCases {
 		tszFields := customFields(nil, tc.schema)
 		require.Equal(t, tc.expected, tszFields)
-	}
-}
-
-func TestSnappy(t *testing.T) {
-	yoloString := []byte{}
-	for i := 0; i < 100; i++ {
-		yoloString = append(yoloString, 'a')
-	}
-
-	buf := bytes.NewBuffer(nil)
-	writer := snappy.NewWriter(buf)
-
-	for i := 0; i < 100; i++ {
-		_, err := writer.Write(yoloString)
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, writer.Close())
-	fmt.Println(buf.Len())
-	panic("yolo")
-}
-
-func TestSnappyChunking(t *testing.T) {
-	strings := []string{"1232345", "452346", "789vxzvas"}
-
-	compressedBuf := bytes.NewBuffer(nil)
-	writer := snappy.NewWriter(compressedBuf)
-
-	for _, str := range strings {
-		_, err := writer.Write([]byte(str))
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, writer.Close())
-
-	reader := snappy.NewReader(compressedBuf)
-	for _, str := range strings {
-		buf := make([]byte, len(str))
-		_, err := reader.Read(buf)
-		require.NoError(t, err)
-		require.Equal(t, str, string(buf))
 	}
 }
