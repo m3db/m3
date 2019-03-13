@@ -2,6 +2,10 @@
 
 set -exuo pipefail
 
+# TEMP TEST
+export DRYRUN=1
+git tag -f docker-test
+
 if [[ -z "$BUILDKITE" ]]; then
   echo "not running in CI, nothing to do"
   exit 0

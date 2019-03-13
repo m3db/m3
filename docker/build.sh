@@ -9,6 +9,10 @@
 
 set -exo pipefail
 
+# TEMP TEST
+export DRYRUN=1
+git tag -f docker-test
+
 function cleanup() {
   docker system prune -f
   find /tmp -name '*m3-docker' -print0 | xargs -0 rm -fv
@@ -38,9 +42,13 @@ if [[ ! -f "$CONFIG" ]]; then
   exit 1
 fi
 
+if [[ -z "$M3_DOCKER_REPO" ]]; then
+  echo "must set M3_DOCKER_REPO to repository base (i.e quay.io/m3)"
+  exit 1
+fi
+
 IMAGES="$(<$CONFIG jq -er '.images | to_entries | map(.key)[]')"
-REPOSITORIES="$(<$CONFIG jq -er .repositories[])"
-CLEANUP_REGEX="$(<$CONFIG jq -r '.repositories | join("|")')"
+REPO=$M3_DOCKER_REPO
 TAGS_TO_PUSH=""
 
 # If this commit matches an exact tag, push a tagged build and "latest".
@@ -69,25 +77,23 @@ for IMAGE in $IMAGES; do
   log_info "building $IMAGE"
   docker build --iidfile "$SHA_TMP" -f "$(<$CONFIG jq -er ".images[\"${IMAGE}\"].dockerfile")" .
   IMAGE_SHA=$(cat "$SHA_TMP")
-  for TAG_BASE in $REPOSITORIES; do
-    for TAG in $TAGS_TO_PUSH; do
-      FULL_TAG="${TAG_BASE}/${IMAGE}:${TAG}"
-      docker tag "$IMAGE_SHA" "$FULL_TAG"
-      push_image "$FULL_TAG"
+  for TAG in $TAGS_TO_PUSH; do
+    FULL_TAG="${REPO}/${IMAGE}:${TAG}"
+    docker tag "$IMAGE_SHA" "$FULL_TAG"
+    push_image "$FULL_TAG"
 
-      # If the image has aliases, tag them too.
-      ALIASES="$(<$CONFIG jq -r "(.images[\"${IMAGE}\"].aliases | if . == null then [] else . end)[]")"
-      for ALIAS in $ALIASES; do
-        DUAL_TAG="${TAG_BASE}/${ALIAS}:${TAG}"
-        docker tag "$IMAGE_SHA" "$DUAL_TAG"
-        push_image "$DUAL_TAG"
-      done
+    # If the image has aliases, tag them too.
+    ALIASES="$(<$CONFIG jq -r "(.images[\"${IMAGE}\"].aliases | if . == null then [] else . end)[]")"
+    for ALIAS in $ALIASES; do
+      DUAL_TAG="${REPO}/${ALIAS}:${TAG}"
+      docker tag "$IMAGE_SHA" "$DUAL_TAG"
+      push_image "$DUAL_TAG"
     done
   done
 done
 
 # Clean up
-CLEANUP_IMAGES=$(docker images | grep -E "$CLEANUP_REGEX" | awk '{print $3}' | sort | uniq)
+CLEANUP_IMAGES=$(docker images | grep "$REPO" | awk '{print $3}' | sort | uniq)
 for IMG in $CLEANUP_IMAGES; do
   log_info "removing $IMG"
   docker rmi -f "$IMG"

@@ -1,7 +1,9 @@
 steps:
   - wait
-  - name: ":docker: build"
+  - name: ":docker: build quay.io/m3db"
     command: "docker/build.sh"
+    env:
+      M3_DOCKER_REPO: quay.io/m3db
     agents:
       queue: builders
     timeout_in_minutes: 60
@@ -14,6 +16,18 @@ steps:
           server: quay.io
           username: m3db+buildkite
           password-env: QUAY_M3DB_TOKEN
+  - name: ":docker: build quay.io/m3"
+    command: "docker/build.sh quay.io/m3"
+    env:
+      M3_DOCKER_REPO: quay.io/m3
+    agents:
+      queue: builders
+    timeout_in_minutes: 60
+    retry:
+      automatic:
+        limit: 1
+      manual: true
+    plugins:
       - docker-login#v2.0.1:
           server: quay.io
           username: m3+buildkite
