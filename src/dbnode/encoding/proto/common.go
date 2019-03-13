@@ -146,9 +146,6 @@ type customFieldState struct {
 
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
 // repeated or nested messages / maps.
-// TODO(rartoul): Should handle integers as TSZ as well, can just do XOR on the regular
-// bits after converting to uint64. Just need to check type on encode/iterate to determine
-// how to interpret bits.
 func customFields(s []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
 	numCustomFields := numCustomFields(schema)
 	if cap(s) >= numCustomFields {
