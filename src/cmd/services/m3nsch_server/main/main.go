@@ -21,7 +21,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -94,12 +93,8 @@ func main() {
 func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.NewSessionFn {
 	return m3nsch.NewSessionFn(func(zone, env string) (client.Session, error) {
 		svc := conf.DBClient.EnvironmentConfig.Service
-		if zone != svc.Zone {
-			return nil, fmt.Errorf("request zone %s did not match config zone %s", zone, svc.Zone)
-		}
-		if env != svc.Env {
-			return nil, fmt.Errorf("request env %s did not match config zone %s", env, svc.Env)
-		}
+		svc.Env = env
+		svc.Zone = zone
 		cl, err := conf.DBClient.NewClient(client.ConfigurationParameters{
 			InstrumentOptions: iopts,
 		})

@@ -55,6 +55,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: m3nsch-agent
+  labels:
+    app: m3nsch
+    component: agent
 spec:
   type: ClusterIP
   clusterIP: None
@@ -68,12 +71,19 @@ spec:
     component: agent
 ---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: m3nsch-agent
+  labels:
+    app: m3nsch
+    component: agent
 spec:
-  serviceName: m3nsch-agent
   replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 100%
   selector:
     matchLabels:
       app: m3nsch
@@ -86,7 +96,7 @@ spec:
     spec:
       containers:
       - name: m3nsch-agent
-        image: quay.io/m3db/m3nsch:latest
+        image: quay.io/m3/m3nsch:latest
         args:
         - "-f"
         - "/etc/m3nsch/m3nsch_server.yaml"
@@ -110,6 +120,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: m3nsch-client
+  labels:
+    app: m3nsch
+    component: client
 spec:
   replicas: 1
   selector:
@@ -124,7 +137,7 @@ spec:
     spec:
       containers:
       - name: m3nsch-client
-        image: quay.io/m3db/m3nsch:latest
+        image: quay.io/m3/m3nsch:latest
         command:
         - "/bin/ash"
         args: ["-c", "while true; do sleep 300; done"]
