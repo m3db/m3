@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package block
 
 import (
-	"fmt"
-	"path/filepath"
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3/src/query/cost"
 
-	"github.com/stretchr/testify/require"
+	"github.com/golang/mock/gomock"
 )
 
-// TestProvidedConfigFiles ensures that the files in this directly are all valid, and will load.
-func TestProvidedConfigFiles(t *testing.T) {
-	cfgFiles, err := filepath.Glob("./*.yml")
-	require.NoError(t, err)
-	require.True(t, len(cfgFiles) > 0,
-		"expected some config files in this directory. Move or remove this test if this is no longer true.")
+func TestAccountedBlock_Close(t *testing.T) {
+	ctrl := gomock.NewController(t)
 
-	for _, fname := range cfgFiles {
-		t.Run(fmt.Sprintf("load %s", filepath.Base(fname)), func(t *testing.T) {
-			var cfg config.Configuration
-			require.NoError(t, xconfig.LoadFile(&cfg, fname, xconfig.Options{
-				DisableValidate: false,
-			}))
-		})
-	}
+	wrapped := NewMockBlock(ctrl)
+	wrapped.EXPECT().Close()
+
+	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
+	mockEnforcer.EXPECT().Close()
+
+	NewAccountedBlock(wrapped, mockEnforcer).Close()
 }

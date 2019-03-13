@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+// Package test contains testing utilities for the cost package.
+package test
 
 import (
-	"fmt"
-	"path/filepath"
-	"testing"
+	"github.com/m3db/m3/src/x/cost"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	xconfig "github.com/m3db/m3x/config"
-
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-// TestProvidedConfigFiles ensures that the files in this directly are all valid, and will load.
-func TestProvidedConfigFiles(t *testing.T) {
-	cfgFiles, err := filepath.Glob("./*.yml")
-	require.NoError(t, err)
-	require.True(t, len(cfgFiles) > 0,
-		"expected some config files in this directory. Move or remove this test if this is no longer true.")
+// AssertCurrentCost is a helper assertion to check that an enforcer has the
+// given cost.
+func AssertCurrentCost(t assert.TestingT, expectedCost cost.Cost, ef cost.Enforcer) {
+	actual, _ := ef.State()
+	assert.Equal(t, expectedCost, actual.Cost)
+}
 
-	for _, fname := range cfgFiles {
-		t.Run(fmt.Sprintf("load %s", filepath.Base(fname)), func(t *testing.T) {
-			var cfg config.Configuration
-			require.NoError(t, xconfig.LoadFile(&cfg, fname, xconfig.Options{
-				DisableValidate: false,
-			}))
-		})
-	}
+// AssertLimitError checks that err is a limit error with the given parameters
+func AssertLimitError(t assert.TestingT, err error, current, threshold cost.Cost) {
+	AssertLimitErrorWithMsg(t, err, "", current, threshold)
+}
+
+// AssertLimitErrorWithMsg checks that err is a limit error with the given parameters
+func AssertLimitErrorWithMsg(t assert.TestingT, err error, msg string, current, threshold cost.Cost) {
+	assert.EqualError(t, err, cost.NewCostExceededError(msg, current, threshold).Error())
 }

@@ -464,7 +464,7 @@ func setupCloseableBlock(ctrl *gomock.Controller, node *baseNode) closeableBlock
 			blockMeta block.Metadata,
 			seriesMeta []block.SeriesMeta) (block.Builder, error) {
 			mb := &closeSpyBlockBuilder{
-				Builder: block.NewColumnBlockBuilder(blockMeta, seriesMeta),
+				Builder: block.NewColumnBlockBuilder(models.NoopQueryContext(), blockMeta, seriesMeta),
 			}
 			mockBuilders = append(mockBuilders, mb)
 			return mb, nil
