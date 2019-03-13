@@ -26,12 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
+	xcost "github.com/m3db/m3/src/x/cost"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -137,7 +139,10 @@ func TestFetchByQuery(t *testing.T) {
 	}
 
 	store.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	wrapper := NewM3WrappedStorage(store)
+	enforcers := []xcost.Enforcer{xcost.NewEnforcer(nil, nil, nil)}
+	enforcer, err := cost.NewChainedEnforcer("name", enforcers)
+	require.NoError(t, err)
+	wrapper := NewM3WrappedStorage(store, enforcer)
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
 	end := time.Now()
@@ -156,4 +161,7 @@ func TestFetchByQuery(t *testing.T) {
 	series := result.SeriesList[0]
 	assert.Equal(t, "a", series.Name())
 	assert.Equal(t, []float64{3, 3, 3}, series.SafeValues())
+
+	// NB: ensure the fetch was called with enforcer propagated correctly
+	assert.Equal(t, enforcer, store.LastFetchOptions().Enforcer)
 }

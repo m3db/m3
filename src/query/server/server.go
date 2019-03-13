@@ -261,7 +261,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
-		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
+		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, perQueryEnforcer, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
