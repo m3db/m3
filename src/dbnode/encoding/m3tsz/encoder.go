@@ -364,36 +364,9 @@ func (enc *encoder) writeFullFloatVal(val uint64) {
 // writeFloatXOR writes the XOR of the 64bits of the float
 func (enc *encoder) writeFloatXOR(val uint64) {
 	xor := enc.vb ^ val
-	WriteXOR(enc.os, enc.xor, xor)
+	encoding.WriteTSZXOR(enc.os, enc.xor, xor)
 	enc.xor = xor
 	enc.vb = val
-}
-
-// WriteXOR writes the TSZ XOR into the provided stream given the previous
-// XOR and the current XOR.
-func WriteXOR(
-	stream encoding.OStream,
-	prevXOR, curXOR uint64) {
-	if curXOR == 0 {
-		stream.WriteBits(OpcodeZeroValueXOR, 1)
-		return
-	}
-
-	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
-	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
-	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(curXOR)
-	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		stream.WriteBits(OpcodeContainedValueXOR, 2)
-		stream.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
-		return
-	}
-
-	stream.WriteBits(OpcodeUncontainedValueXOR, 2)
-	stream.WriteBits(uint64(curLeading), 6)
-	numMeaningfulBits := 64 - curLeading - curTrailing
-	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
-	stream.WriteBits(uint64(numMeaningfulBits-1), 6)
-	stream.WriteBits(curXOR>>uint(curTrailing), numMeaningfulBits)
 }
 
 // writeIntVal writes the val as a diff of ints

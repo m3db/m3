@@ -29,10 +29,6 @@ const (
 	// DefaultIntOptimizationEnabled is the default switch for m3tsz int optimization
 	DefaultIntOptimizationEnabled = true
 
-	OpcodeZeroValueXOR        = 0x0
-	OpcodeContainedValueXOR   = 0x2
-	OpcodeUncontainedValueXOR = 0x3
-
 	opcodeUpdate       = 0x0
 	opcodeNoUpdate     = 0x1
 	opcodeUpdateSig    = 0x1
