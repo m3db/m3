@@ -150,7 +150,9 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		step := stepIter.Current()
 		values := step.Values()
 		aggregatedValues := n.op.takeFunc(values, buckets)
-		builder.AppendValues(index, aggregatedValues)
+		if err := builder.AppendValues(index, aggregatedValues); err != nil {
+			return nil, err
+		}
 	}
 
 	if err = stepIter.Err(); err != nil {

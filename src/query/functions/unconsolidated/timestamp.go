@@ -125,7 +125,9 @@ func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.No
 		}
 
 		for _, value := range values {
-			builder.AppendValue(index, value)
+			if err := builder.AppendValue(index, value); err != nil {
+				return nil, err
+			}
 		}
 	}
 
