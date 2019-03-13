@@ -315,13 +315,19 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes changed control bit: %v", err)
 	}
 	if valueInDictControlBit == 0 {
-		dictIdx, err := it.stream.ReadBits(numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
+		dictIdxBits, err := it.stream.ReadBits(numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
 		if err != nil {
 			return fmt.Errorf(
 				"proto decoder: error trying to read bytes dict idx: %v", err)
 		}
 
-		// TODO: Check panic here
+		dictIdx := int(dictIdxBits)
+		if dictIdx >= len(customField.iteratorBytesFieldDict) || dictIdx < 0 {
+			return fmt.Errorf(
+				"proto decoder: read bytes field dictionary index: %d, but dictionary is size: %d",
+				dictIdx, len(customField.iteratorBytesFieldDict))
+		}
+
 		bytesVal := customField.iteratorBytesFieldDict[int(dictIdx)]
 		if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, string(bytesVal))
