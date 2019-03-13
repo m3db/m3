@@ -433,11 +433,13 @@ func (enc *encoder) encodeNextSignedIntValue(i int, next int64) {
 		diff = -1 * diff
 	}
 
-	diffBits := uint64(diff)
-	numSig := encoding.NumSig(diffBits)
-	// TODO: newSig tracking bullshit
-	enc.encodeIntSig(i, numSig)
-	enc.encodeIntValDiff(diffBits, neg, numSig)
+	var (
+		diffBits = uint64(diff)
+		numSig   = encoding.NumSig(diffBits)
+		newSig   = enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
+	)
+	enc.encodeIntSig(i, newSig)
+	enc.encodeIntValDiff(diffBits, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
 
@@ -465,13 +467,12 @@ func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	enc.stream.WriteBit(1)
 
 	numSig := encoding.NumSig(diff)
-	// TODO: newSig tracking bullshit
-	enc.encodeIntSig(i, numSig)
-	enc.encodeIntValDiff(diff, neg, numSig)
+	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
+	enc.encodeIntSig(i, newSig)
+	enc.encodeIntValDiff(diff, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
 
-// TODO: HERE
 func (enc *encoder) encodeIntSig(i int, currSig uint8) {
 	prevSig := enc.customFields[i].intSigBitsTracker.NumSig
 	if currSig != prevSig {
