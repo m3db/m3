@@ -471,8 +471,9 @@ func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
 
+// TODO: HERE
 func (enc *encoder) encodeIntSig(i int, currSig uint8) {
-	prevSig := enc.customFields[i].prevSig
+	prevSig := enc.customFields[i].intSigBitsTracker.NumSig
 	if currSig != prevSig {
 		// opcodeUpdateSig
 		enc.stream.WriteBit(0x1)
@@ -489,7 +490,7 @@ func (enc *encoder) encodeIntSig(i int, currSig uint8) {
 		enc.stream.WriteBit(0x0)
 	}
 
-	enc.customFields[i].prevSig = currSig
+	enc.customFields[i].intSigBitsTracker.NumSig = currSig
 }
 
 func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {

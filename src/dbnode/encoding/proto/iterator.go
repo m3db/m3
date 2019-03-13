@@ -549,7 +549,8 @@ func (it *iterator) readIntSig(i int) error {
 			"proto iterator: error reading zero significant digits control bit: %v", err)
 	}
 	if nonZeroSignificantDigitsControlBit == 0 {
-		it.customFields[i].prevSig = 0
+		// TODO: HERE
+		it.customFields[i].intSigBitsTracker.NumSig = 0
 	} else {
 		numSigBits, err := it.readBits(6)
 		if err != nil {
@@ -557,7 +558,8 @@ func (it *iterator) readIntSig(i int) error {
 				"proto iterator: error reading number of significant digits: %v", err)
 		}
 
-		it.customFields[i].prevSig = uint8(numSigBits) + 1
+		// TODO: HERE
+		it.customFields[i].intSigBitsTracker.NumSig = uint8(numSigBits) + 1
 	}
 
 	return nil
@@ -570,7 +572,8 @@ func (it *iterator) readIntValDiff(i int) error {
 			"proto iterator: error reading negative control bit: %v", err)
 	}
 
-	numSig := int(it.customFields[i].prevSig)
+	// TODO: HERE
+	numSig := int(it.customFields[i].intSigBitsTracker.NumSig)
 
 	diffSigBits, err := it.readBits(numSig)
 	if err != nil {

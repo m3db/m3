@@ -26,6 +26,7 @@ import (
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
 const (
@@ -140,8 +141,7 @@ type customFieldState struct {
 	bytesFieldDict         []uint64
 	iteratorBytesFieldDict [][]byte
 
-	// Int state
-	prevSig uint8
+	intSigBitsTracker m3tsz.IntSigBitsTracker
 }
 
 // TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
