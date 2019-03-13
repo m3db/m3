@@ -107,7 +107,7 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 }
 
 func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
-	encoder := NewEncoder(testStartTime, nil, intOpt, nil)
+	encoder := NewEncoder(testStartTime, nil, nil, intOpt, nil)
 	for j, v := range input {
 		if j == 0 {
 			encoder.Encode(v, xtime.Millisecond, proto.EncodeVarint(10))

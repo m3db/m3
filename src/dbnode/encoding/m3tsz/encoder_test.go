@@ -38,12 +38,12 @@ var (
 	testDeterministicSeed = testStartTime.Unix()
 )
 
-func getTestEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, false, nil).(*encoder)
+func getTestEncoder(startTime time.Time) *Encoder {
+	return NewEncoder(startTime, nil, nil, false, nil).(*Encoder)
 }
 
-func getTestOptEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, true, nil).(*encoder)
+func getTestOptEncoder(startTime time.Time) *Encoder {
+	return NewEncoder(startTime, nil, nil, true, nil).(*Encoder)
 }
 
 func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
@@ -387,7 +387,7 @@ func TestEncoderResets(t *testing.T) {
 
 func TestEncoderNumEncoded(t *testing.T) {
 	testMultiplePasses(t, multiplePassesTest{
-		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+		postEncodeAll: func(enc *Encoder, numDatapointsEncoded int) {
 			assert.Equal(t, numDatapointsEncoded, enc.NumEncoded())
 		},
 	})
@@ -395,7 +395,7 @@ func TestEncoderNumEncoded(t *testing.T) {
 
 func TestEncoderLastEncoded(t *testing.T) {
 	testMultiplePasses(t, multiplePassesTest{
-		postEncodeDatapoint: func(enc *encoder, datapoint ts.Datapoint) {
+		postEncodeDatapoint: func(enc *Encoder, datapoint ts.Datapoint) {
 			last, err := enc.LastEncoded()
 			require.NoError(t, err)
 			assert.True(t, datapoint.Timestamp.Equal(last.Timestamp))
@@ -405,10 +405,10 @@ func TestEncoderLastEncoded(t *testing.T) {
 }
 
 type multiplePassesTest struct {
-	preEncodeAll        func(enc *encoder, numDatapointsToEncode int)
-	preEncodeDatapoint  func(enc *encoder, datapoint ts.Datapoint)
-	postEncodeDatapoint func(enc *encoder, datapoint ts.Datapoint)
-	postEncodeAll       func(enc *encoder, numDatapointsEncoded int)
+	preEncodeAll        func(enc *Encoder, numDatapointsToEncode int)
+	preEncodeDatapoint  func(enc *Encoder, datapoint ts.Datapoint)
+	postEncodeDatapoint func(enc *Encoder, datapoint ts.Datapoint)
+	postEncodeAll       func(enc *Encoder, numDatapointsEncoded int)
 }
 
 func testMultiplePasses(t *testing.T, test multiplePassesTest) {

@@ -67,6 +67,7 @@ type Encoder struct {
 func NewEncoder(
 	start time.Time,
 	bytes checked.Bytes,
+	os encoding.OStream,
 	intOptimized bool,
 	opts encoding.Options,
 ) encoding.Encoder {
@@ -78,8 +79,12 @@ func NewEncoder(
 	// `Reset` method is called.
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	tu := initialTimeUnit(start, opts.DefaultTimeUnit())
+
+	if os == nil {
+		os = encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool())
+	}
 	return &Encoder{
-		os:           encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
+		os:           os,
 		opts:         opts,
 		t:            start,
 		tu:           tu,

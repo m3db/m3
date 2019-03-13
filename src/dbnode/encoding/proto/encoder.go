@@ -25,10 +25,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/checked"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -62,6 +65,7 @@ type encoder struct {
 	varIntBuf              [8]byte
 	changedValues          []int32
 	fieldsChangedToDefault []int32
+	unmarshaled            *dynamic.Message
 
 	hasEncodedFirstSetOfCustomValues bool
 	closed                           bool
@@ -70,22 +74,42 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(opts encoding.Options) (*encoder, error) {
+func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
 	if opts == nil {
 		return nil, errEncoderEncodingOptionsAreRequired
 	}
 
 	initAllocIfEmpty := opts.EncoderPool() == nil
+	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
 	enc := &encoder{
-		stream:    encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool()),
-		varIntBuf: [8]byte{},
+		stream:       encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool()),
+		m3tszEncoder: m3tsz.NewEncoder(start, nil, stream, false, opts).(*m3tsz.Encoder),
+		varIntBuf:    [8]byte{},
 	}
 
 	return enc, nil
 }
 
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+	if err := enc.encodeTimestamp(dp.Timestamp, tu); err != nil {
+		return fmt.Errorf(
+			"proto encoder: error encoding timestamp: %v", err)
+	}
 
+	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
+		return fmt.Errorf(
+			"proto encoder: error unmarshaling annotation into proto message: %v", err)
+	}
+
+	enc.EncodeProto(enc.unmarshaled)
+	return nil
+}
+
+func (enc *encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
+	if !enc.hasEncodedFirstSetOfCustomValues {
+		return enc.m3tszEncoder.WriteFirstTime(t, nil, tu)
+	}
+	return enc.m3tszEncoder.WriteNextTime(t, nil, tu)
 }
 
 // TODO: Add concept of hard/soft error and if there is a hard error
