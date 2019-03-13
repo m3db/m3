@@ -402,7 +402,7 @@ func (enc *encoder) encodeFirstSignedIntValue(i int, v int64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	enc.encodeIntSig(i, numSig)
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
@@ -412,7 +412,7 @@ func (enc *encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	enc.encodeIntSig(i, numSig)
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
 	enc.encodeIntValDiff(vBits, false, numSig)
 }
 
@@ -438,7 +438,9 @@ func (enc *encoder) encodeNextSignedIntValue(i int, next int64) {
 		numSig   = encoding.NumSig(diffBits)
 		newSig   = enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
 	)
-	enc.encodeIntSig(i, newSig)
+	// Can't use an intermediary variable for the intSigBitsTracker because we need to
+	// modify the value in the slice, not a copy of it.
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diffBits, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
@@ -468,30 +470,11 @@ func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 
 	numSig := encoding.NumSig(diff)
 	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
-	enc.encodeIntSig(i, newSig)
+	// Can't use an intermediary variable for the intSigBitsTracker because we need to
+	// modify the value in the slice, not a copy of it.
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diff, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
-}
-
-func (enc *encoder) encodeIntSig(i int, currSig uint8) {
-	prevSig := enc.customFields[i].intSigBitsTracker.NumSig
-	if currSig != prevSig {
-		// opcodeUpdateSig
-		enc.stream.WriteBit(0x1)
-		if currSig == 0 {
-			// opcodeZeroSig
-			enc.stream.WriteBit(0x0)
-		} else {
-			// opcodeNonZeroSig
-			enc.stream.WriteBit(0x1)
-			enc.stream.WriteBits(uint64(currSig-1), 6) // 2^6 == 64
-		}
-	} else {
-		// opcodeNoUpdateSig
-		enc.stream.WriteBit(0x0)
-	}
-
-	enc.customFields[i].intSigBitsTracker.NumSig = currSig
 }
 
 func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {

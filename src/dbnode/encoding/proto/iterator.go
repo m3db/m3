@@ -321,6 +321,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 				"proto decoder: error trying to read bytes dict idx: %v", err)
 		}
 
+		// TODO: Check panic here
 		bytesVal := customField.iteratorBytesFieldDict[int(dictIdx)]
 		if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, string(bytesVal))

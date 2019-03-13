@@ -445,19 +445,7 @@ func (enc *encoder) writeIntValDiff(valBits uint64, neg bool) {
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
 func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
-	if enc.sigTracker.NumSig != sig {
-		enc.os.WriteBit(opcodeUpdateSig)
-		if sig == 0 {
-			enc.os.WriteBit(opcodeZeroSig)
-		} else {
-			enc.os.WriteBit(opcodeNonZeroSig)
-			enc.os.WriteBits(uint64(sig-1), numSigBits)
-		}
-
-		enc.sigTracker.NumSig = sig
-	} else {
-		enc.os.WriteBit(opcodeNoUpdateSig)
-	}
+	WriteIntSig(enc.os, &enc.sigTracker, sig)
 
 	if mult > enc.maxMult {
 		enc.os.WriteBit(opcodeUpdateMult)
@@ -471,6 +459,24 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 	} else {
 		enc.os.WriteBit(opcodeNoUpdateMult)
 	}
+}
+
+// WriteIntSig writes the number of significant bits of the diff if it has changed and
+// updates the IntSigBitsTracker.
+func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) {
+	if sigTracker.NumSig != sig {
+		os.WriteBit(opcodeUpdateSig)
+		if sig == 0 {
+			os.WriteBit(opcodeZeroSig)
+		} else {
+			os.WriteBit(opcodeNonZeroSig)
+			os.WriteBits(uint64(sig-1), numSigBits)
+		}
+	} else {
+		os.WriteBit(opcodeNoUpdateSig)
+	}
+
+	sigTracker.NumSig = sig
 }
 
 func (enc *encoder) newBuffer(capacity int) checked.Bytes {
