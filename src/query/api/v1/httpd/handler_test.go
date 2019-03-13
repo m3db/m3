@@ -71,6 +71,7 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
+		nil,
 		tally.NewTestScope("", nil))
 }
 
@@ -83,8 +84,11 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 
 	negValue := -1 * time.Second
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
-	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil), nil, nil,
-		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	engine := executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
+	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
+	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
+		cfg, dbconfig, nil, tally.NewTestScope("", nil))
+
 	require.Error(t, err)
 }
 
@@ -97,8 +101,10 @@ func TestHandlerFetchTimeout(t *testing.T) {
 
 	fourMin := 4 * time.Minute
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
-	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil), nil, nil,
-		config.Configuration{LookbackDuration: &defaultLookbackDuration}, dbconfig, tally.NewTestScope("", nil))
+	engine := executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
+	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
+	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
+		nil, nil, cfg, dbconfig, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err)
 	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }

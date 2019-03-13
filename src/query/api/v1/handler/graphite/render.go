@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
@@ -62,8 +63,9 @@ type respError struct {
 // NewRenderHandler returns a new render handler around the given storage.
 func NewRenderHandler(
 	storage storage.Storage,
+	enforcer cost.ChainedEnforcer,
 ) http.Handler {
-	wrappedStore := graphite.NewM3WrappedStorage(storage)
+	wrappedStore := graphite.NewM3WrappedStorage(storage, enforcer)
 	return &renderHandler{
 		engine: native.NewEngine(wrappedStore),
 	}

@@ -34,6 +34,7 @@ type Storage interface {
 	storage.Storage
 
 	SetTypeResult(storage.Type)
+	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
 	SetFetchTagsResult(*storage.SearchResults, error)
 	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
@@ -48,7 +49,8 @@ type mockStorage struct {
 	typeResult struct {
 		result storage.Type
 	}
-	fetchResult struct {
+	lastFetchOptions *storage.FetchOptions
+	fetchResult      struct {
 		result *storage.FetchResult
 		err    error
 	}
@@ -130,13 +132,20 @@ func (s *mockStorage) Writes() []*storage.WriteQuery {
 	return s.writes
 }
 
+func (s *mockStorage) LastFetchOptions() *storage.FetchOptions {
+	s.RLock()
+	defer s.RUnlock()
+	return s.lastFetchOptions
+}
+
 func (s *mockStorage) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	_ *storage.FetchOptions,
+	opts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
+	s.lastFetchOptions = opts
 	return s.fetchResult.result, s.fetchResult.err
 }
 

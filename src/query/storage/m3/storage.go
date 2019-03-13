@@ -107,10 +107,16 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
 	fetchResult, err := storage.SeriesIteratorsToFetchResult(
 		iters,
 		s.readWorkerPool,
 		false,
+		enforcer,
 		s.opts.TagOptions(),
 	)
 
