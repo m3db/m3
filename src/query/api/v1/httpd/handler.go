@@ -162,10 +162,12 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.HandleFunc(openapi.URL,
 		wrapped(&openapi.DocHandler{}).ServeHTTP,
 	).Methods(openapi.HTTPMethod)
-	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(wrapped(openapi.StaticHandler()))
+	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(
+		wrapped(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
-	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource), h.timeoutOpts)
+	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
+		h.scope.Tagged(remoteSource), h.timeoutOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
 		h.downsamplerAndWriter,
 		h.tagOptions,
@@ -175,10 +177,11 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
+	limits := h.config.LimitsOrDefault()
 	nativePromReadHandler := native.NewPromReadHandler(
 		h.engine,
 		h.tagOptions,
-		h.config.LimitsOrDefault(),
+		limits,
 		h.scope.Tagged(nativeSource),
 		h.timeoutOpts,
 	)
@@ -219,12 +222,13 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
-		wrapped(validator.NewPromDebugHandler(nativePromReadHandler, h.scope, *h.config.LookbackDuration)).ServeHTTP,
+		wrapped(validator.NewPromDebugHandler(nativePromReadHandler, h.scope,
+			*h.config.LookbackDuration)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
-		wrapped(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewRenderHandler(h.storage, h.clusters, limits)).ServeHTTP,
 	).Methods(graphite.ReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.FindURL,

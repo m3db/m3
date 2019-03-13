@@ -27,7 +27,9 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
@@ -35,6 +37,7 @@ import (
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/x/net/http"
 )
 
@@ -51,7 +54,9 @@ var (
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
 type renderHandler struct {
-	engine *native.Engine
+	engine        *native.Engine
+	clusterLimits limits
+	limitCfg      *config.LimitsConfiguration
 }
 
 type respError struct {
@@ -59,13 +64,122 @@ type respError struct {
 	code int
 }
 
+type limit struct {
+	retention  time.Duration
+	resolution time.Duration
+}
+
+type limits []limit
+
+func (ls limits) Len() int           { return len(ls) }
+func (ls limits) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
+func (ls limits) Less(i, j int) bool { return ls[i].retention < ls[j].retention }
+
+func (ls limits) validateLimits(
+	start time.Time,
+	end time.Time,
+	limits *config.LimitsConfiguration,
+) error {
+	// no limits configured; skip validation.
+	if limits == nil || limits.MaxComputedDatapoints == 0 {
+		return nil
+	}
+
+	if len(ls) == 0 {
+		return errors.New("no aggregated namespaces configured")
+	}
+
+	longestPeriod := time.Since(start)
+
+	var (
+		shortestRes time.Duration
+		found       bool
+	)
+
+	period := end.Sub(start)
+	for _, l := range ls {
+		if l.retention > longestPeriod {
+			res := l.resolution
+			if !found {
+				found = true
+				shortestRes = res
+			} else if res < shortestRes {
+				shortestRes = res
+			}
+		}
+	}
+
+	// if no cluster has a long enough retention, take the resolution of the
+	// longest available cluster to estimate limits.
+	if !found || shortestRes <= 0 {
+		shortestRes = ls[len(ls)-1].resolution
+	}
+
+	// NB: this is a sanity check, as ot should never hit here; this is the case
+	// where a cluster has a 0 or negative resolution
+	if shortestRes <= 0 {
+		return fmt.Errorf("detected resolution is invalid: %d should be greater "+
+			"than 0", shortestRes)
+	}
+
+	approximateDatapointCount := int64(period / shortestRes)
+	if approximateDatapointCount > limits.MaxComputedDatapoints {
+		return fmt.Errorf("expected datapoint count %d is higher than maximum "+
+			"limit: %d", approximateDatapointCount, limits.MaxComputedDatapoints)
+	}
+
+	return nil
+}
+
+// NB: it's difficult to determine the datapoint count pre-emptively with great
+// accuracy here since it's hard to know if the particular cluster will be used
+// to satisfy the query. Can do a rough guess by finding the cluster which has
+// the shortest resolution while having a retention that covers the query range.
+//
+// Keep in mind that this is a rough guess at upper bound range and likely far
+// too permissive.
+func generateApproximateLimits(clusters m3.Clusters) limits {
+	namespaces := clusters.ClusterNamespaces()
+	limits := make(limits, 0, len(namespaces))
+	i := 0
+	for _, ns := range namespaces {
+		attrs := ns.Options().Attributes()
+		if attrs.MetricsType != storage.AggregatedMetricsType {
+			continue
+		}
+
+		i++
+		limits = append(limits, limit{
+			retention:  attrs.Retention,
+			resolution: attrs.Resolution,
+		})
+	}
+
+	limits = limits[:i]
+	sort.Sort(limits)
+	return limits
+}
+
 // NewRenderHandler returns a new render handler around the given storage.
 func NewRenderHandler(
 	storage storage.Storage,
+	clusters m3.Clusters,
+	limitCfg *config.LimitsConfiguration,
 ) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(storage)
+	var (
+		clusterLimits limits
+	)
+	if clusters != nil {
+		clusterLimits = generateApproximateLimits(clusters)
+	} else {
+		clusterLimits = limits{}
+	}
+
 	return &renderHandler{
-		engine: native.NewEngine(wrappedStore),
+		engine:        native.NewEngine(wrappedStore),
+		clusterLimits: clusterLimits,
+		limitCfg:      limitCfg,
 	}
 }
 
@@ -90,6 +204,11 @@ func (h *renderHandler) serveHTTP(
 ) respError {
 	reqCtx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	p, err := ParseRenderRequest(r)
+	if err != nil {
+		return respError{err: err, code: http.StatusBadRequest}
+	}
+
+	err = h.clusterLimits.validateLimits(p.From, p.Until, h.limitCfg)
 	if err != nil {
 		return respError{err: err, code: http.StatusBadRequest}
 	}

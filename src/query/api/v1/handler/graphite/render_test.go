@@ -28,18 +28,46 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3x/ident"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
+func generateClusters(t *testing.T) m3.Clusters {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	c, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_unagg"),
+		Session:     client.NewMockSession(ctrl),
+		Retention:   2 * 24 * time.Hour,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_agg0"),
+		Session:     client.NewMockSession(ctrl),
+		Retention:   time.Hour,
+		Resolution:  time.Minute,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_agg1"),
+		Session:     client.NewMockSession(ctrl),
+		Retention:   7 * time.Hour,
+		Resolution:  time.Second,
+	})
+
+	require.NoError(t, err)
+	return c
+}
+
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
-	handler := NewRenderHandler(mockStorage)
+	handler := NewRenderHandler(mockStorage, generateClusters(t), nil)
 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, newGraphiteReadHTTPRequest(t))
@@ -51,7 +79,7 @@ func TestParseNoQuery(t *testing.T) {
 func TestParseQueryNoResults(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchResult(&storage.FetchResult{}, nil)
-	handler := NewRenderHandler(mockStorage)
+	handler := NewRenderHandler(mockStorage, generateClusters(t), nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=-2h&until=now"
@@ -82,7 +110,7 @@ func TestParseQueryResults(t *testing.T) {
 	}
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	handler := NewRenderHandler(mockStorage)
+	handler := NewRenderHandler(mockStorage, generateClusters(t), nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
@@ -123,7 +151,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	}
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	handler := NewRenderHandler(mockStorage)
+	handler := NewRenderHandler(mockStorage, generateClusters(t), nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=" + startStr + "&until=" + endStr + "&maxDataPoints=1"
@@ -158,7 +186,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	}
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	handler := NewRenderHandler(mockStorage)
+	handler := NewRenderHandler(mockStorage, generateClusters(t), nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=baz.qux&from=%d&until=%d",
