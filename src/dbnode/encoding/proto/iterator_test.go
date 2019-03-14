@@ -28,11 +28,11 @@ import (
 )
 
 func TestNewIteratorReaderRequired(t *testing.T) {
-	_, err := NewIterator(nil, testVLSchema)
+	_, err := NewIterator(nil, testVLSchema, testEncodingOptions)
 	require.Equal(t, errIteratorReaderIsRequired, err)
 }
 
 func TestNewIteratorSchemaRequired(t *testing.T) {
-	_, err := NewIterator(bytes.NewBuffer(nil), nil)
+	_, err := NewIterator(bytes.NewBuffer(nil), nil, testEncodingOptions)
 	require.Equal(t, errIteratorSchemaIsRequired, err)
 }

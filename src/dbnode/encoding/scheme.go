@@ -21,8 +21,8 @@
 package encoding
 
 import (
-	"github.com/m3db/m3/src/x/checked"
-	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3x/checked"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -35,6 +35,11 @@ const (
 	defaultMarkerOpcode        = 0x100
 	defaultNumMarkerOpcodeBits = 9
 	defaultNumMarkerValueBits  = 2
+)
+
+var (
+	panicOnRead  bool
+	panicOnWrite bool
 )
 
 var (
@@ -224,6 +229,9 @@ func newMarkerEncodingScheme(
 			scheme.tails[i][j] = tail
 		}
 	}
+
+	panicOnWrite = true
+	panicOnRead = true
 	return scheme
 }
 

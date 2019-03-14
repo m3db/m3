@@ -79,10 +79,11 @@ func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
 		return nil, errEncoderEncodingOptionsAreRequired
 	}
 
+	fmt.Println("start: ", start.String())
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
 	enc := &encoder{
-		stream:       encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool()),
+		stream:       stream,
 		m3tszEncoder: m3tsz.NewEncoder(start, nil, stream, false, opts).(*m3tsz.Encoder),
 		varIntBuf:    [8]byte{},
 	}
@@ -91,17 +92,27 @@ func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
 }
 
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+	// Control bit that indicates the stream has more data.
+	enc.stream.WriteBit(1)
+
 	if err := enc.encodeTimestamp(dp.Timestamp, tu); err != nil {
 		return fmt.Errorf(
 			"proto encoder: error encoding timestamp: %v", err)
 	}
 
+	if enc.unmarshaled == nil {
+		// Lazy init.
+		enc.unmarshaled = dynamic.NewMessage(enc.schema)
+	}
 	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
 		return fmt.Errorf(
 			"proto encoder: error unmarshaling annotation into proto message: %v", err)
 	}
 
 	enc.EncodeProto(enc.unmarshaled)
+
+	rawBytes, _ := enc.stream.Rawbytes()
+	fmt.Println("stream: ", rawBytes)
 	return nil
 }
 
@@ -125,9 +136,6 @@ func (enc *encoder) EncodeProto(m *dynamic.Message) error {
 	if len(m.GetUnknownFields()) > 0 {
 		return errEncoderMessageHasUnknownFields
 	}
-
-	// Control bit that indicates the stream has more data.
-	enc.stream.WriteBit(1)
 
 	if err := enc.encodeCustomValues(m); err != nil {
 		return err

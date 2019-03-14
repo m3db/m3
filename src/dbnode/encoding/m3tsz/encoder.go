@@ -103,6 +103,7 @@ func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
 	startInNano := xtime.ToNormalizedTime(start, time.Nanosecond)
 	tvInNano := xtime.ToNormalizedDuration(tv, time.Nanosecond)
 	if startInNano%tvInNano == 0 {
+		fmt.Println("hmm")
 		return tu
 	}
 	return xtime.None
@@ -138,6 +139,7 @@ func (enc *Encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit
 
 // writeNext writes the next datapoint with annotation.
 func (enc *Encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
+	enc.writeAnnotation(ant)
 	if err := enc.WriteNextTime(dp.Timestamp, ant, tu); err != nil {
 		return err
 	}
@@ -193,8 +195,10 @@ func (enc *Encoder) shouldWriteTimeUnit(tu xtime.Unit) bool {
 // changed, and false otherwise.
 func (enc *Encoder) writeTimeUnit(tu xtime.Unit) bool {
 	if !enc.shouldWriteTimeUnit(tu) {
+		fmt.Println("not writing time unit")
 		return false
 	}
+	fmt.Println("writing", tu)
 	scheme := enc.opts.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(enc.os, scheme, scheme.TimeUnit())
 	enc.os.WriteByte(byte(tu))
@@ -203,15 +207,20 @@ func (enc *Encoder) writeTimeUnit(tu xtime.Unit) bool {
 }
 
 func (enc *Encoder) WriteFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
+	fmt.Println("writing first time: ", enc.t.String())
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
 	nt := xtime.ToNormalizedTime(enc.t, time.Nanosecond)
+	fmt.Println("writing first bits: ", uint64(nt))
+	fmt.Println("writing first bits: ", int64(nt))
+	fmt.Printf("%064b\n", int64(nt))
 	enc.os.WriteBits(uint64(nt), 64)
+	enc.writeAnnotation(ant)
 	return enc.WriteNextTime(t, ant, tu)
 }
 
 func (enc *Encoder) WriteNextTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
-	enc.writeAnnotation(ant)
+	fmt.Println("writing next time: ", t.String())
 	tuChanged := enc.writeTimeUnit(tu)
 
 	dt := t.Sub(enc.t)

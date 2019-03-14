@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), false, encoding.NewOptions()).(*readerIterator)
+func getTestReaderIterator(rawBytes []byte) *ReaderIterator {
+	return NewReaderIterator(bytes.NewReader(rawBytes), nil, false, encoding.NewOptions()).(*ReaderIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {
@@ -60,15 +60,15 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 		it := getTestReaderIterator(input.rawBytes)
 		it.tu = input.timeUnit
 		it.dt = input.previousTimeDelta
-		it.readNextTimestamp()
+		it.ReadNextTimestamp()
 		require.Equal(t, input.expectedTimeDelta, it.dt)
 		require.NoError(t, it.Err())
 	}
 
 	it := getTestReaderIterator([]byte{0x1})
-	it.readNextTimestamp()
+	it.ReadNextTimestamp()
 	require.Error(t, it.Err())
-	it.readNextTimestamp()
+	it.ReadNextTimestamp()
 	require.Error(t, it.Err())
 }
 

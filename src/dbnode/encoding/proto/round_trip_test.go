@@ -23,12 +23,17 @@ package proto
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +44,7 @@ var (
 
 // TODO: Add test for schema changes mid stream
 func TestRoundtrip(t *testing.T) {
-	enc := newTestEncoder()
+	enc := newTestEncoder(time.Now())
 	testCases := []struct {
 		latitude   float64
 		longitude  float64
@@ -95,20 +100,24 @@ func TestRoundtrip(t *testing.T) {
 
 	for _, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.numTrips, tc.deliveryID)
-		err := enc.Encode(vl)
+		marshaledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
+		err = enc.Encode(ts.Datapoint{Timestamp: time.Now()}, xtime.Nanosecond, marshaledVL)
+		require.NoError(t, err)
 	}
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
 
+	fmt.Println("iterating over: ", rawBytes)
 	buff := bytes.NewBuffer(rawBytes)
-	iter, err := NewIterator(buff, testVLSchema)
+	iter, err := NewIterator(buff, testVLSchema, testEncodingOptions)
 	require.NoError(t, err)
 
 	i := 0
 	for iter.Next() {
+		fmt.Println("boop")
 		var (
 			tc = testCases[i]
 			m  = iter.Current()
@@ -122,8 +131,8 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, iter.Err())
 }
 
-func newTestEncoder() *encoder {
-	e, err := NewEncoder(testEncodingOptions)
+func newTestEncoder(t time.Time) *encoder {
+	e, err := NewEncoder(t, testEncodingOptions)
 	if err != nil {
 		panic(err)
 	}

@@ -34,7 +34,7 @@ import (
 
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
-type readerIterator struct {
+type ReaderIterator struct {
 	is   encoding.IStream
 	opts encoding.Options
 	tess encoding.TimeEncodingSchemes
@@ -64,9 +64,12 @@ type readerIterator struct {
 }
 
 // NewReaderIterator returns a new iterator for a given reader
-func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
-	return &readerIterator{
-		is:           encoding.NewIStream(reader),
+func NewReaderIterator(reader io.Reader, is encoding.IStream, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
+	if is == nil {
+		is = encoding.NewIStream(reader)
+	}
+	return &ReaderIterator{
+		is:           is,
 		opts:         opts,
 		tess:         opts.TimeEncodingSchemes(),
 		mes:          opts.MarkerEncodingScheme(),
@@ -75,17 +78,16 @@ func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Option
 }
 
 // Next moves to the next item
-func (it *readerIterator) Next() bool {
+func (it *ReaderIterator) Next() bool {
 	if !it.hasNext() {
 		return false
 	}
-	it.ant = nil
-	it.tuChanged = false
+
 	if it.t.IsZero() {
-		it.readFirstTimestamp()
+		it.ReadFirstTimestamp()
 		it.readFirstValue()
 	} else {
-		it.readNextTimestamp()
+		it.ReadNextTimestamp()
 		it.readNextValue()
 	}
 	// NB(xichen): reset time delta to 0 when there is a time unit change to be
@@ -97,21 +99,29 @@ func (it *readerIterator) Next() bool {
 	return it.hasNext()
 }
 
-func (it *readerIterator) readFirstTimestamp() {
+func (it *ReaderIterator) ReadFirstTimestamp() {
+	it.ant = nil
+	it.tuChanged = false
 	nt := int64(it.readBits(64))
+	fmt.Println("read first bits: ", nt)
+	fmt.Println("iterErr: ", it.err)
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
+	fmt.Println(st.String())
 	it.tu = initialTimeUnit(st, it.opts.DefaultTimeUnit())
-	it.readNextTimestamp()
+	fmt.Println("tu: ", it.tu)
+	it.ReadNextTimestamp()
 	it.t = st.Add(it.dt)
 }
 
-func (it *readerIterator) readNextTimestamp() {
+func (it *ReaderIterator) ReadNextTimestamp() {
+	it.ant = nil
+	it.tuChanged = false
 	it.dt += it.readMarkerOrDeltaOfDelta()
 	it.t = it.t.Add(it.dt)
 }
 
-func (it *readerIterator) tryReadMarker() (time.Duration, bool) {
+func (it *ReaderIterator) tryReadMarker() (time.Duration, bool) {
 	numBits := it.mes.NumOpcodeBits() + it.mes.NumValueBits()
 	opcodeAndValue, success := it.tryPeekBits(numBits)
 	if !success {
@@ -142,8 +152,9 @@ func (it *readerIterator) tryReadMarker() (time.Duration, bool) {
 	}
 }
 
-func (it *readerIterator) readMarkerOrDeltaOfDelta() time.Duration {
+func (it *ReaderIterator) readMarkerOrDeltaOfDelta() time.Duration {
 	if dod, success := it.tryReadMarker(); success {
+		fmt.Println(3)
 		return dod
 	}
 	tes, exists := it.tess[it.tu]
@@ -154,21 +165,26 @@ func (it *readerIterator) readMarkerOrDeltaOfDelta() time.Duration {
 	return it.readDeltaOfDelta(tes)
 }
 
-func (it *readerIterator) readDeltaOfDelta(tes encoding.TimeEncodingScheme) (d time.Duration) {
+func (it *ReaderIterator) readDeltaOfDelta(tes encoding.TimeEncodingScheme) (d time.Duration) {
+	fmt.Println(4)
 	if it.tuChanged {
+		fmt.Println("5")
 		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
 		// dod in nanoseconds.
 		dod := encoding.SignExtend(it.readBits(64), 64)
 		return time.Duration(dod)
 	}
 
+	fmt.Println("1", it.err)
 	cb := it.readBits(1)
+	fmt.Println("2", it.err)
 	if cb == tes.ZeroBucket().Opcode() {
 		return 0
 	}
 	buckets := tes.Buckets()
 	for i := 0; i < len(buckets); i++ {
 		cb = (cb << 1) | it.readBits(1)
+		fmt.Println("3", it.err)
 		if cb == buckets[i].Opcode() {
 			dod := encoding.SignExtend(it.readBits(buckets[i].NumValueBits()), buckets[i].NumValueBits())
 			return xtime.FromNormalizedDuration(dod, it.timeUnit())
@@ -179,7 +195,7 @@ func (it *readerIterator) readDeltaOfDelta(tes encoding.TimeEncodingScheme) (d t
 	return xtime.FromNormalizedDuration(dod, it.timeUnit())
 }
 
-func (it *readerIterator) readFirstValue() {
+func (it *ReaderIterator) readFirstValue() {
 	if !it.intOptimized {
 		it.readFullFloatVal()
 		return
@@ -195,7 +211,7 @@ func (it *readerIterator) readFirstValue() {
 	it.readIntValDiff()
 }
 
-func (it *readerIterator) readNextValue() {
+func (it *ReaderIterator) readNextValue() {
 	if !it.intOptimized {
 		it.readFloatXOR()
 		return
@@ -226,17 +242,17 @@ func (it *readerIterator) readNextValue() {
 	}
 }
 
-func (it *readerIterator) readFullFloatVal() {
+func (it *ReaderIterator) readFullFloatVal() {
 	it.vb = it.readBits(64)
 	it.xor = it.vb
 }
 
-func (it *readerIterator) readFloatXOR() {
+func (it *ReaderIterator) readFloatXOR() {
 	it.xor = it.readXOR()
 	it.vb ^= it.xor
 }
 
-func (it *readerIterator) readIntSigMult() {
+func (it *ReaderIterator) readIntSigMult() {
 	if it.readBits(1) == encoding.TSZOpcodeUpdateSig {
 		if it.readBits(1) == encoding.TSZOpcodeZeroSig {
 			it.sig = 0
@@ -253,7 +269,7 @@ func (it *readerIterator) readIntSigMult() {
 	}
 }
 
-func (it *readerIterator) readIntValDiff() {
+func (it *ReaderIterator) readIntValDiff() {
 	sign := -1.0
 	if it.readBits(1) == opcodeNegative {
 		sign = 1.0
@@ -262,7 +278,7 @@ func (it *readerIterator) readIntValDiff() {
 	it.intVal += sign * float64(it.readBits(int(it.sig)))
 }
 
-func (it *readerIterator) readAnnotation() {
+func (it *ReaderIterator) readAnnotation() {
 	// NB: we add 1 here to offset the 1 we subtracted during encoding
 	antLen := it.readVarint() + 1
 	if it.hasError() {
@@ -280,7 +296,7 @@ func (it *readerIterator) readAnnotation() {
 	it.ant = buf
 }
 
-func (it *readerIterator) readTimeUnit() {
+func (it *ReaderIterator) readTimeUnit() {
 	tu := xtime.Unit(it.readBits(8))
 	if tu.IsValid() && tu != it.tu {
 		it.tuChanged = true
@@ -288,7 +304,7 @@ func (it *readerIterator) readTimeUnit() {
 	it.tu = tu
 }
 
-func (it *readerIterator) readXOR() uint64 {
+func (it *ReaderIterator) readXOR() uint64 {
 	cb := it.readBits(1)
 	if cb == encoding.TSZOpcodeZeroValueXOR {
 		return 0
@@ -308,7 +324,7 @@ func (it *readerIterator) readXOR() uint64 {
 	return meaningfulBits << uint(numTrailingZeros)
 }
 
-func (it *readerIterator) readBits(numBits int) uint64 {
+func (it *ReaderIterator) readBits(numBits int) uint64 {
 	if !it.hasNext() {
 		return 0
 	}
@@ -317,7 +333,7 @@ func (it *readerIterator) readBits(numBits int) uint64 {
 	return res
 }
 
-func (it *readerIterator) readVarint() int {
+func (it *ReaderIterator) readVarint() int {
 	if !it.hasNext() {
 		return 0
 	}
@@ -326,7 +342,7 @@ func (it *readerIterator) readVarint() int {
 	return int(res)
 }
 
-func (it *readerIterator) tryPeekBits(numBits int) (uint64, bool) {
+func (it *ReaderIterator) tryPeekBits(numBits int) (uint64, bool) {
 	if !it.hasNext() {
 		return 0, false
 	}
@@ -337,7 +353,7 @@ func (it *readerIterator) tryPeekBits(numBits int) (uint64, bool) {
 	return res, true
 }
 
-func (it *readerIterator) timeUnit() time.Duration {
+func (it *ReaderIterator) timeUnit() time.Duration {
 	if it.hasError() {
 		return 0
 	}
@@ -349,7 +365,7 @@ func (it *readerIterator) timeUnit() time.Duration {
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
-func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (it *ReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	if !it.intOptimized || it.isFloat {
 		return ts.Datapoint{
 			Timestamp: it.t,
@@ -364,27 +380,27 @@ func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 }
 
 // Err returns the error encountered
-func (it *readerIterator) Err() error {
+func (it *ReaderIterator) Err() error {
 	return it.err
 }
 
-func (it *readerIterator) hasError() bool {
+func (it *ReaderIterator) hasError() bool {
 	return it.err != nil
 }
 
-func (it *readerIterator) isDone() bool {
+func (it *ReaderIterator) isDone() bool {
 	return it.done
 }
 
-func (it *readerIterator) isClosed() bool {
+func (it *ReaderIterator) isClosed() bool {
 	return it.closed
 }
 
-func (it *readerIterator) hasNext() bool {
+func (it *ReaderIterator) hasNext() bool {
 	return !it.hasError() && !it.isDone() && !it.isClosed()
 }
 
-func (it *readerIterator) Reset(reader io.Reader) {
+func (it *ReaderIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
 	it.t = time.Time{}
 	it.dt = 0
@@ -401,7 +417,7 @@ func (it *readerIterator) Reset(reader io.Reader) {
 	it.closed = false
 }
 
-func (it *readerIterator) Close() {
+func (it *ReaderIterator) Close() {
 	if it.closed {
 		return
 	}

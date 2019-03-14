@@ -41,5 +41,5 @@ func NewDecoder(intOptimized bool, opts encoding.Options) encoding.Decoder {
 
 // Decode decodes the encoded data captured by the reader.
 func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
-	return NewReaderIterator(reader, dec.intOptimized, dec.opts)
+	return NewReaderIterator(reader, nil, dec.intOptimized, dec.opts)
 }

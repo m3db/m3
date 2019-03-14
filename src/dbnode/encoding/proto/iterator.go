@@ -31,6 +31,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
 var (
@@ -52,12 +53,15 @@ type iterator struct {
 	bitsetValues []int
 
 	done bool
+
+	m3tszIterator *m3tsz.ReaderIterator
 }
 
 // NewIterator creates a new iterator.
 func NewIterator(
 	reader io.Reader,
 	schema *desc.MessageDescriptor,
+	opts encoding.Options,
 ) (*iterator, error) {
 	if reader == nil {
 		return nil, errIteratorReaderIsRequired
@@ -66,12 +70,15 @@ func NewIterator(
 		return nil, errIteratorSchemaIsRequired
 	}
 
+	stream := encoding.NewIStream(reader)
 	iter := &iterator{
 		schema:       schema,
-		stream:       encoding.NewIStream(reader),
+		stream:       stream,
 		lastIterated: dynamic.NewMessage(schema),
 		// TODO: These need to be possibly updated as we traverse a stream
 		customFields: customFields(nil, schema),
+
+		m3tszIterator: m3tsz.NewReaderIterator(nil, stream, false, opts).(*m3tsz.ReaderIterator),
 	}
 
 	return iter, nil
@@ -82,14 +89,28 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
+	fmt.Println("reading control bit")
 	moreDataControlBit, err := it.stream.ReadBit()
 	if err == io.EOF || (err == nil && moreDataControlBit == 0) {
 		it.done = true
 		return false
 	}
-
 	if err != nil {
 		it.err = err
+		return false
+	}
+	fmt.Println("has more data")
+
+	if !it.consumedFirstMessage {
+		fmt.Println("1")
+		it.m3tszIterator.ReadFirstTimestamp()
+	} else {
+		fmt.Println(2)
+		it.m3tszIterator.ReadNextTimestamp()
+	}
+	if it.m3tszIterator.Err() != nil {
+		fmt.Println("iter err :(")
+		it.err = it.m3tszIterator.Err()
 		return false
 	}
 
