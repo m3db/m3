@@ -143,10 +143,7 @@ func (e *Engine) ExecuteExpr(
 	defer close(results)
 
 	perQueryEnforcer := e.globalEnforcer.Child(qcost.QueryLevel)
-	defer func() {
-		perQueryEnforcer.Close()
-	}()
-
+	defer perQueryEnforcer.Close()
 	req := newRequest(e, params)
 
 	nodes, edges, err := req.compile(ctx, parser)
