@@ -20,7 +20,7 @@
 
 package pickle
 
-// op list
+// op list.
 const (
 	opNone       = 0x4e
 	opMark       = 0x28

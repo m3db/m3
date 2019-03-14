@@ -36,7 +36,7 @@ var (
 
 // A Writer is capable writing out the opcodes required by the pickle format.
 // Note that this is a very limited implementation of pickling; just enough for
-// us to implement the opcodes required by graphite /render
+// us to implement the opcodes required by graphite /render.
 type Writer struct {
 	w   *bufio.Writer
 	buf [8]byte
@@ -45,7 +45,6 @@ type Writer struct {
 
 // NewWriter creates a new pickle writer.
 func NewWriter(w io.Writer) *Writer {
-	// TODO(mmihic): Consider pooling
 	pw := &Writer{
 		w: bufio.NewWriter(w),
 	}
@@ -54,7 +53,7 @@ func NewWriter(w io.Writer) *Writer {
 	return pw
 }
 
-// BeginDict starts marshalling a python dict
+// BeginDict starts marshalling a python dict.
 func (p *Writer) BeginDict() {
 	if p.err != nil {
 		return
@@ -65,12 +64,12 @@ func (p *Writer) BeginDict() {
 	}
 }
 
-// WriteDictKey writes a dictionary key
+// WriteDictKey writes a dictionary key.
 func (p *Writer) WriteDictKey(s string) {
 	p.WriteString(s)
 }
 
-// EndDict ends marshalling a python dict
+// EndDict ends marshalling a python dict.
 func (p *Writer) EndDict() {
 	if p.err != nil {
 		return
@@ -79,7 +78,7 @@ func (p *Writer) EndDict() {
 	p.err = p.w.WriteByte(opSetItems)
 }
 
-// BeginList begins writing a new python list
+// BeginList begins writing a new python list.
 func (p *Writer) BeginList() {
 	if p.err != nil {
 		return
@@ -88,7 +87,7 @@ func (p *Writer) BeginList() {
 	_, p.err = p.w.Write(listStart)
 }
 
-// EndList ends writing a python list
+// EndList ends writing a python list.
 func (p *Writer) EndList() {
 	if p.err != nil {
 		return
@@ -97,7 +96,7 @@ func (p *Writer) EndList() {
 	p.w.WriteByte(opAppends)
 }
 
-// WriteNone writes a python None
+// WriteNone writes a python `None`.
 func (p *Writer) WriteNone() {
 	if p.err != nil {
 		return
@@ -106,7 +105,7 @@ func (p *Writer) WriteNone() {
 	p.err = p.w.WriteByte(opNone)
 }
 
-// WriteFloat64 writes a float64 value.  NaNs are converted in None
+// WriteFloat64 writes a float64 value. NaNs are converted in `None`.
 func (p *Writer) WriteFloat64(v float64) {
 	if math.IsNaN(v) {
 		p.WriteNone()
@@ -125,7 +124,7 @@ func (p *Writer) WriteFloat64(v float64) {
 	_, p.err = p.w.Write(p.buf[:])
 }
 
-// WriteString writes a python string
+// WriteString writes a python string.
 func (p *Writer) WriteString(s string) {
 	if p.err != nil {
 		return
@@ -143,7 +142,7 @@ func (p *Writer) WriteString(s string) {
 	_, p.err = p.w.WriteString(s)
 }
 
-// WriteInt writes an int value
+// WriteInt writes an int value.
 func (p *Writer) WriteInt(n int) {
 	if p.err != nil {
 		return
@@ -157,7 +156,8 @@ func (p *Writer) WriteInt(n int) {
 	_, p.err = p.w.Write(p.buf[:4])
 }
 
-// Close closes the writer, marking the end of the stream and flushing any pending values
+// Close closes the writer, marking the end of the stream and flushing any
+// pending values.
 func (p *Writer) Close() error {
 	if p.err != nil {
 		return p.err
