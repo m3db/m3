@@ -123,6 +123,10 @@ type Configuration struct {
 
 	// Cache configurations.
 	Cache CacheConfiguration `yaml:"cache"`
+
+	// DropNaNs drops NaNs before returning query results.
+	// If you want to simulate Promtheus exactly, set this to true.
+	DropNaNs bool `yaml:"dropNaNs"`
 }
 
 // Filter is a query filter type.

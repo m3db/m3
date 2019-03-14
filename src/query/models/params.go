@@ -66,6 +66,7 @@ type RequestParams struct {
 	IncludeEnd bool
 	BlockType  FetchedBlockType
 	FormatType FormatType
+	DropNaNs   bool
 }
 
 // ExclusiveEnd returns the end exclusive
