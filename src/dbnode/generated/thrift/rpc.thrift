@@ -44,6 +44,8 @@ exception WriteBatchRawErrors {
 service Node {
 	// Friendly not highly performant read/write endpoints
 	QueryResult query(1: QueryRequest req) throws (1: Error err)
+	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
+	AggregateQueryResult aggregate(1: AggregateQueryRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
@@ -302,14 +304,76 @@ service Cluster {
 	void write(1: WriteRequest req) throws (1: Error err)
 	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 	QueryResult query(1: QueryRequest req) throws (1: Error err)
+	AggregateQueryResult aggregate(1: AggregateQueryRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 }
 
 struct HealthResult {
 	1: required bool ok
 	2: required string status
+}
+
+enum AggregateQueryType {
+	AGGREGATE_BY_TAG_NAME,
+	AGGREGATE_BY_TAG_NAME_VALUE,
+}
+
+// AggregateQueryRawRequest comes from our desire to aggregate on incoming data.
+// We currently only support retrieval of facets, but could extend this based on
+// requirements in the future. Currently, the predominant use-cases are:
+// (1) Given a filter query (optionally), return all known tag keys matching this restriction
+// (2) Given a filter query (optionally), return all know tag key+values matching this restriction
+// (3) For (1), (2) - filter results to a given set of keys
+struct AggregateQueryRawRequest {
+	1: optional Query query
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
+	4: required binary nameSpace
+	5: optional i64 limit
+	6: optional list<binary> tagNameFilter
+	7: optional AggregateQueryType aggregateQueryType = AggregateQueryType.AGGREGATE_BY_TAG_NAME_VALUE
+	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
+}
+
+struct AggregateQueryRawResult {
+	1: required list<AggregateQueryRawResultTagNameElement> results
+	2: required bool exhaustive
+}
+
+struct AggregateQueryRawResultTagNameElement {
+	1: required binary tagName
+	2: optional list<AggregateQueryRawResultTagValueElement> tagValues
+}
+
+struct AggregateQueryRawResultTagValueElement {
+	1: required binary tagValue
+}
+
+// AggregateQueryRequest is identical to AggregateQueryRawRequest save for using string instead of binary for types.
+struct AggregateQueryRequest {
+	1: optional Query query
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
+	4: required string nameSpace
+	5: optional i64 limit
+	6: optional list<string> tagNameFilter
+	7: optional AggregateQueryType aggregateQueryType = AggregateQueryType.AGGREGATE_BY_TAG_NAME_VALUE
+	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
+}
+
+struct AggregateQueryResult {
+	1: required list<AggregateQueryResultTagNameElement> results
+	2: required bool exhaustive
+}
+
+struct AggregateQueryResultTagNameElement {
+	1: required string tagName
+	2: optional list<AggregateQueryResultTagValueElement> tagValues
+}
+
+struct AggregateQueryResultTagValueElement {
+	1: required string tagValue
 }
 
 // Query wrapper types for simple non-optimized query use
