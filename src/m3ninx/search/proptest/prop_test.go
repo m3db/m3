@@ -84,7 +84,7 @@ func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {
 			return true, nil
 		},
 		genPropTestInput(len(lotsTestDocuments)),
-		genQuery(lotsTestDocuments),
+		GenQuery(lotsTestDocuments),
 	))
 
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)

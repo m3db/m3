@@ -148,16 +148,18 @@ func (s *readThroughSegmentReader) MatchRegexp(
 		return s.Reader.MatchRegexp(field, c)
 	}
 
-	// TODO(rartoul): Would be nice not to allocate a string here.
-	pattern := c.FSTSyntax.String()
-	pl, ok := s.postingsListCache.GetRegexp(s.uuid, pattern)
+	plCacheQuery := PostingsListCacheQuery{
+		Field:   string(field),
+		Pattern: c.FSTSyntax.String(),
+	}
+	pl, ok := s.postingsListCache.GetRegexp(s.uuid, plCacheQuery)
 	if ok {
 		return pl, nil
 	}
 
 	pl, err := s.Reader.MatchRegexp(field, c)
 	if err == nil {
-		s.postingsListCache.PutRegexp(s.uuid, pattern, pl)
+		s.postingsListCache.PutRegexp(s.uuid, plCacheQuery, pl)
 	}
 	return pl, err
 }
@@ -171,16 +173,18 @@ func (s *readThroughSegmentReader) MatchTerm(
 		return s.Reader.MatchTerm(field, term)
 	}
 
-	// TODO(rartoul): Would be nice to not allocate a string here.
-	termString := string(term)
-	pl, ok := s.postingsListCache.GetTerm(s.uuid, termString)
+	plCacheQuery := PostingsListCacheQuery{
+		Field:   string(field),
+		Pattern: string(term),
+	}
+	pl, ok := s.postingsListCache.GetTerm(s.uuid, plCacheQuery)
 	if ok {
 		return pl, nil
 	}
 
 	pl, err := s.Reader.MatchTerm(field, term)
 	if err == nil {
-		s.postingsListCache.PutTerm(s.uuid, termString, pl)
+		s.postingsListCache.PutTerm(s.uuid, plCacheQuery, pl)
 	}
 	return pl, err
 }
