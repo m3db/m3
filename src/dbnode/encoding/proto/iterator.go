@@ -89,7 +89,6 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	fmt.Println("reading control bit")
 	moreDataControlBit, err := it.stream.ReadBit()
 	if err == io.EOF || (err == nil && moreDataControlBit == 0) {
 		it.done = true
@@ -99,17 +98,13 @@ func (it *iterator) Next() bool {
 		it.err = err
 		return false
 	}
-	fmt.Println("has more data")
 
 	if !it.consumedFirstMessage {
-		fmt.Println("1")
 		it.m3tszIterator.ReadFirstTimestamp()
 	} else {
-		fmt.Println(2)
 		it.m3tszIterator.ReadNextTimestamp()
 	}
 	if it.m3tszIterator.Err() != nil {
-		fmt.Println("iter err :(")
 		it.err = it.m3tszIterator.Err()
 		return false
 	}

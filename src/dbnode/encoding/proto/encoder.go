@@ -79,7 +79,6 @@ func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
 		return nil, errEncoderEncodingOptionsAreRequired
 	}
 
-	fmt.Println("start: ", start.String())
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
 	enc := &encoder{
@@ -109,10 +108,8 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 			"proto encoder: error unmarshaling annotation into proto message: %v", err)
 	}
 
+	// TODO: Does not need to be public?
 	enc.EncodeProto(enc.unmarshaled)
-
-	rawBytes, _ := enc.stream.Rawbytes()
-	fmt.Println("stream: ", rawBytes)
 	return nil
 }
 

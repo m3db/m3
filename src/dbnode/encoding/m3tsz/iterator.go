@@ -103,13 +103,9 @@ func (it *ReaderIterator) ReadFirstTimestamp() {
 	it.ant = nil
 	it.tuChanged = false
 	nt := int64(it.readBits(64))
-	fmt.Println("read first bits: ", nt)
-	fmt.Println("iterErr: ", it.err)
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
-	fmt.Println(st.String())
 	it.tu = initialTimeUnit(st, it.opts.DefaultTimeUnit())
-	fmt.Println("tu: ", it.tu)
 	it.ReadNextTimestamp()
 	it.t = st.Add(it.dt)
 }
@@ -154,7 +150,6 @@ func (it *ReaderIterator) tryReadMarker() (time.Duration, bool) {
 
 func (it *ReaderIterator) readMarkerOrDeltaOfDelta() time.Duration {
 	if dod, success := it.tryReadMarker(); success {
-		fmt.Println(3)
 		return dod
 	}
 	tes, exists := it.tess[it.tu]
@@ -166,25 +161,20 @@ func (it *ReaderIterator) readMarkerOrDeltaOfDelta() time.Duration {
 }
 
 func (it *ReaderIterator) readDeltaOfDelta(tes encoding.TimeEncodingScheme) (d time.Duration) {
-	fmt.Println(4)
 	if it.tuChanged {
-		fmt.Println("5")
 		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
 		// dod in nanoseconds.
 		dod := encoding.SignExtend(it.readBits(64), 64)
 		return time.Duration(dod)
 	}
 
-	fmt.Println("1", it.err)
 	cb := it.readBits(1)
-	fmt.Println("2", it.err)
 	if cb == tes.ZeroBucket().Opcode() {
 		return 0
 	}
 	buckets := tes.Buckets()
 	for i := 0; i < len(buckets); i++ {
 		cb = (cb << 1) | it.readBits(1)
-		fmt.Println("3", it.err)
 		if cb == buckets[i].Opcode() {
 			dod := encoding.SignExtend(it.readBits(buckets[i].NumValueBits()), buckets[i].NumValueBits())
 			return xtime.FromNormalizedDuration(dod, it.timeUnit())

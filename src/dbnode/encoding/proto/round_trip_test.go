@@ -23,7 +23,6 @@ package proto
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -110,14 +109,12 @@ func TestRoundtrip(t *testing.T) {
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
 
-	fmt.Println("iterating over: ", rawBytes)
 	buff := bytes.NewBuffer(rawBytes)
 	iter, err := NewIterator(buff, testVLSchema, testEncodingOptions)
 	require.NoError(t, err)
 
 	i := 0
 	for iter.Next() {
-		fmt.Println("boop")
 		var (
 			tc = testCases[i]
 			m  = iter.Current()
