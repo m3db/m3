@@ -253,9 +253,10 @@ define SUBDIR_RULES
 ifeq ($(SUBDIR), kube)
 
 # Builds the single kube bundle from individual manifest files.
-all-gen-kube:
+all-gen-kube: install-tools
 	@echo "--- Generating kube bundle"
 	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(retool_bin_path):$(PATH) xargs -0 kubeval -v=1.12.0
 
 else
 
