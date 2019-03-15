@@ -159,12 +159,12 @@ type ResultOptions struct {
 }
 
 // DropNaNsOrDefault returns the provided input or default if none is provided
-func (c ResultOptions) DropNaNsOrDefault() *bool {
+func (c ResultOptions) DropNaNsOrDefault() bool {
 	if c.DropNaNsInResults == nil {
-		return &dropNaNsDefault
+		return dropNaNsDefault
 	}
 
-	return c.DropNaNsInResults
+	return *c.DropNaNsInResults
 }
 
 // CacheConfiguration is the cache configurations.

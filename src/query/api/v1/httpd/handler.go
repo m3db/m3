@@ -185,7 +185,7 @@ func (h *Handler) RegisterRoutes() error {
 		&h.config.Limits,
 		h.scope.Tagged(nativeSource),
 		h.timeoutOpts,
-		*h.config.ResultOptions.DropNaNsOrDefault(),
+		h.config.ResultOptions.DropNaNsOrDefault(),
 	)
 
 	h.router.HandleFunc(remote.PromReadURL,
