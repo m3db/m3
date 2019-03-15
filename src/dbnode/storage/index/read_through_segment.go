@@ -148,6 +148,7 @@ func (s *readThroughSegmentReader) MatchRegexp(
 		return s.Reader.MatchRegexp(field, c)
 	}
 
+	// TODO(rartoul): Would be nice to not allocate strings here.
 	plCacheQuery := PostingsListCacheQuery{
 		Field:   string(field),
 		Pattern: c.FSTSyntax.String(),
@@ -173,6 +174,7 @@ func (s *readThroughSegmentReader) MatchTerm(
 		return s.Reader.MatchTerm(field, term)
 	}
 
+	// TODO(rartoul): Would be nice to not allocate strings here.
 	plCacheQuery := PostingsListCacheQuery{
 		Field:   string(field),
 		Pattern: string(term),
