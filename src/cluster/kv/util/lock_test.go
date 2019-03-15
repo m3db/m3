@@ -909,7 +909,7 @@ func TestWatchAndUpdateWithValidationGeneric(t *testing.T) {
 		testConfig.RLock()
 		defer testConfig.RUnlock()
 
-		clonedMap := make(map[string]int64, len(testconfig.v))
+		clonedMap := make(map[string]int64, len(testConfig.v))
 		for k, v := range testConfig.v {
 			clonedMap[k] = v
 		}
