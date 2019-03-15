@@ -99,17 +99,22 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 			"proto encoder: error encoding timestamp: %v", err)
 	}
 
-	if enc.unmarshaled == nil {
-		// Lazy init.
-		enc.unmarshaled = dynamic.NewMessage(enc.schema)
-	}
-	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
+	// if enc.unmarshaled == nil {
+	// 	// Lazy init.
+	// 	enc.unmarshaled = dynamic.NewMessage(enc.schema)
+	// }
+	m := dynamic.NewMessage(enc.schema)
+	// if err := enc.unmarshaled.Unmarshal(ant); err != nil {
+	// 	return fmt.Errorf(
+	// 		"proto encoder: error unmarshaling annotation into proto message: %v", err)
+	// }
+	if err := m.Unmarshal(ant); err != nil {
 		return fmt.Errorf(
 			"proto encoder: error unmarshaling annotation into proto message: %v", err)
 	}
 
 	// TODO: Does not need to be public?
-	enc.EncodeProto(enc.unmarshaled)
+	enc.EncodeProto(m)
 	return nil
 }
 
@@ -151,6 +156,7 @@ func (enc *encoder) Reset(
 	enc.stream.Reset(b)
 	enc.schema = schema
 	enc.lastEncoded = nil
+	enc.unmarshaled = nil
 	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
 		enc.customFields = customFields(enc.customFields, schema)
 	} else {
