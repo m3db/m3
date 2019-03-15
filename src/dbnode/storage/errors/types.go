@@ -22,6 +22,7 @@ package errors
 
 import (
 	"errors"
+	"fmt"
 
 	xerrors "github.com/m3db/m3x/errors"
 )
@@ -33,3 +34,26 @@ var (
 	// ErrTooPast is returned for a write which is too far in the past.
 	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
 )
+
+// NewUnknownNamespaceError returns a new error indicating an unknown namespace parameter.
+func NewUnknownNamespaceError(namespace string) error {
+	return xerrors.NewInvalidParamsError(unknownNamespace{namespace})
+}
+
+type unknownNamespace struct {
+	namespace string
+}
+
+func (e unknownNamespace) Error() string {
+	return fmt.Sprintf("unknown namespace: %s", e.namespace)
+}
+
+// IsUnknownNamespaceError returns true if this is an unknown namespace.
+func IsUnknownNamespaceError(err error) bool {
+	nsErr := xerrors.GetInnerInvalidParamsError(err)
+	if nsErr == nil {
+		return false
+	}
+	_, ok := nsErr.(unknownNamespace)
+	return ok
+}

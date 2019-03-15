@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
@@ -63,10 +64,9 @@ var (
 					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
 					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestCommitlogBlockSize = 2 * time.Hour
-	defaultTestNs1Opts            = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	defaultTestNs2Opts            = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-	defaultTestDatabaseOptions    Options
+	defaultTestNs1Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	defaultTestDatabaseOptions Options
 )
 
 func init() {
@@ -100,8 +100,7 @@ func init() {
 		SetSeriesCachePolicy(series.CacheAll).
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
-		SetCommitLogOptions(opts.CommitLogOptions().
-			SetBlockSize(defaultTestCommitlogBlockSize))
+		SetCommitLogOptions(opts.CommitLogOptions())
 }
 
 type nsMapCh chan namespace.Map
@@ -284,7 +283,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 		close(mapCh)
 	}()
 	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
-	require.Equal(t, "no such namespace nonexistent", err.Error())
+	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
 func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {

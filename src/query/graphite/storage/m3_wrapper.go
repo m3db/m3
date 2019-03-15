@@ -25,6 +25,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -38,13 +39,21 @@ var (
 )
 
 type m3WrappedStore struct {
-	m3 storage.Storage
+	m3       storage.Storage
+	enforcer cost.ChainedEnforcer
 }
 
 // NewM3WrappedStorage creates a graphite storage wrapper around an m3query
 // storage instance.
-func NewM3WrappedStorage(m3storage storage.Storage) Storage {
-	return &m3WrappedStore{m3: m3storage}
+func NewM3WrappedStorage(
+	m3storage storage.Storage,
+	enforcer cost.ChainedEnforcer,
+) Storage {
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	return &m3WrappedStore{m3: m3storage, enforcer: enforcer}
 }
 
 // TranslateQueryToMatchers converts a graphite query to tag matcher pairs.
@@ -130,6 +139,10 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
+	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
+	defer perQueryEnforcer.Close()
+
+	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,
 		FanoutAggregated:          storage.FanoutDefault,

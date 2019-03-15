@@ -1,5 +1,3 @@
-// +build integration
-
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,10 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package block
 
-import "testing"
+import "github.com/m3db/m3/src/query/cost"
 
-func TestFsCommitLogSnapshotsMixedModeReadWrite(t *testing.T) {
-	testMixedModeReadWrite(t, true)
+// AccountedBlock is a wrapper for a block which enforces limits on the number of datapoints used by the block.
+type AccountedBlock struct {
+	Block
+
+	enforcer cost.ChainedEnforcer
+}
+
+// NewAccountedBlock wraps the given block and enforces datapoint limits.
+func NewAccountedBlock(wrapped Block, enforcer cost.ChainedEnforcer) *AccountedBlock {
+	return &AccountedBlock{
+		Block:    wrapped,
+		enforcer: enforcer,
+	}
+}
+
+// Close closes the block, and marks the number of datapoints used by this block as finished.
+func (ab *AccountedBlock) Close() error {
+	ab.enforcer.Close()
+	return ab.Block.Close()
 }

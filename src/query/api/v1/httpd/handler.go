@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -54,7 +55,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 )
 
@@ -85,6 +86,7 @@ type Handler struct {
 	createdAt            time.Time
 	tagOptions           models.TagOptions
 	timeoutOpts          *prometheus.TimeoutOpts
+	enforcer             cost.ChainedEnforcer
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -101,6 +103,7 @@ func NewHandler(
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
+	enforcer cost.ChainedEnforcer,
 	scope tally.Scope,
 ) (*Handler, error) {
 	r := mux.NewRouter()
@@ -132,6 +135,7 @@ func NewHandler(
 		createdAt:            time.Now(),
 		tagOptions:           tagOptions,
 		timeoutOpts:          timeoutOpts,
+		enforcer:             enforcer,
 	}
 	return h, nil
 }
@@ -178,7 +182,7 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := native.NewPromReadHandler(
 		h.engine,
 		h.tagOptions,
-		h.config.LimitsOrDefault(),
+		&h.config.Limits,
 		h.scope.Tagged(nativeSource),
 		h.timeoutOpts,
 	)
@@ -224,7 +228,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
-		wrapped(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewRenderHandler(h.storage, h.enforcer)).ServeHTTP,
 	).Methods(graphite.ReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.FindURL,
@@ -251,7 +255,7 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
+func (h *Handler) m3AggServiceOptions() *handler.M3AggServiceOptions {
 	if h.clusters == nil {
 		return nil
 	}
@@ -268,7 +272,7 @@ func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
 		return nil
 	}
 
-	return &placement.M3AggServiceOptions{
+	return &handler.M3AggServiceOptions{
 		MaxAggregationWindowSize: maxResolution,
 	}
 }

@@ -398,8 +398,7 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
-		SetBacklogQueueChannelSize(commitLogQueueChannelSize).
-		SetBlockSize(cfg.CommitLog.BlockSize))
+		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
 
 	// Set the series cache policy
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
@@ -566,8 +565,10 @@ func Run(runOpts RunOptions) {
 	contextPool := opts.ContextPool()
 
 	tchannelOpts := xtchannel.NewDefaultChannelOptions()
-	tchannelthriftNodeClose, err := ttnode.NewServer(db,
-		cfg.ListenAddress, contextPool, tchannelOpts, ttopts).ListenAndServe()
+	service := ttnode.NewService(db, ttopts)
+
+	tchannelthriftNodeClose, err := ttnode.NewServer(service,
+		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open tchannelthrift interface on %s: %v",
 			cfg.ListenAddress, err)
@@ -584,8 +585,8 @@ func Run(runOpts RunOptions) {
 	defer tchannelthriftClusterClose()
 	logger.Infof("cluster tchannelthrift: listening on %v", cfg.ClusterListenAddress)
 
-	httpjsonNodeClose, err := hjnode.NewServer(db,
-		cfg.HTTPNodeListenAddress, contextPool, nil, ttopts).ListenAndServe()
+	httpjsonNodeClose, err := hjnode.NewServer(service,
+		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open httpjson interface on %s: %v",
 			cfg.HTTPNodeListenAddress, err)

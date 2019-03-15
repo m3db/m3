@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -123,7 +123,7 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	serviceOpts := NewServiceOptions(
+	serviceOpts := handler.NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
 	var validateFn placement.ValidateFn
 	if !req.Force {

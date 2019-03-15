@@ -26,11 +26,11 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -67,7 +67,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time, duration time.Duration) (File, error)
+	Open() (persist.CommitLogFile, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -101,8 +101,6 @@ type writer struct {
 	newFileMode         os.FileMode
 	newDirectoryMode    os.FileMode
 	nowFn               clock.NowFn
-	start               time.Time
-	duration            time.Duration
 	chunkWriter         chunkWriter
 	chunkReserveHeader  []byte
 	buffer              *bufio.Writer
@@ -113,6 +111,7 @@ type writer struct {
 	metadataEncoderBuff []byte
 	tagEncoder          serialize.TagEncoder
 	tagSliceIter        ident.TagsIterator
+	opts                Options
 }
 
 func newCommitLogWriter(
@@ -136,12 +135,13 @@ func newCommitLogWriter(
 		metadataEncoderBuff: make([]byte, 0, defaultEncoderBuffSize),
 		tagEncoder:          opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:        ident.NewTagsIterator(ident.Tags{}),
+		opts:                opts,
 	}
 }
 
-func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
+func (w *writer) Open() (persist.CommitLogFile, error) {
 	if w.isOpen() {
-		return File{}, errCommitLogWriterAlreadyOpen
+		return persist.CommitLogFile{}, errCommitLogWriterAlreadyOpen
 	}
 
 	// Reset buffers since they will grow 2x on demand so we want to make sure that
@@ -155,40 +155,34 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 
-	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
+	filePath, index, err := NextFile(w.opts)
 	if err != nil {
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 	logInfo := schema.LogInfo{
-		Start:    start.UnixNano(),
-		Duration: int64(duration),
-		Index:    int64(index),
+		Index: int64(index),
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
-		return File{}, err
+		return persist.CommitLogFile{}, err
 	}
 
-	w.start = start
-	w.duration = duration
-	return File{
+	return persist.CommitLogFile{
 		FilePath: filePath,
-		Start:    start,
-		Duration: duration,
 		Index:    int64(index),
 	}, nil
 }
@@ -297,8 +291,6 @@ func (w *writer) Close() error {
 		return err
 	}
 
-	w.start = timeZero
-	w.duration = 0
 	w.seen.ClearAll()
 	return nil
 }

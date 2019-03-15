@@ -117,7 +117,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	// this by measuring the current highest snapshot volume index and then updating
 	// the time (to allow another snapshot process to occur due to the configurable
 	// minimum time between snapshots), and then waiting for the snapshot files with
-	// the measure volume index + 1.
+	// the measured volume index + 1.
 	var (
 		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.namespaces))
 		filePathPrefix         = testSetup.storageOpts.

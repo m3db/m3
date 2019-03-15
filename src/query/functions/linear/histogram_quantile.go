@@ -334,7 +334,9 @@ func processValidQuantile(
 			idx++
 		}
 
-		builder.AppendValues(index, aggregatedValues)
+		if err := builder.AppendValues(index, aggregatedValues); err != nil {
+			return nil, err
+		}
 	}
 
 	if err = stepIter.Err(); err != nil {
@@ -368,7 +370,9 @@ func processInvalidQuantile(
 	outValues := make([]float64, len(bucketedSeries))
 	ts.Memset(outValues, setValue)
 	for index := 0; stepIter.Next(); index++ {
-		builder.AppendValues(index, outValues)
+		if err := builder.AppendValues(index, outValues); err != nil {
+			return nil, err
+		}
 	}
 
 	if err = stepIter.Err(); err != nil {

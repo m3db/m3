@@ -219,7 +219,8 @@ func newMarkerEncodingScheme(
 			tmp := NewOStream(checked.NewBytes(nil, nil), false, nil)
 			tmp.WriteBits(uint64(i)>>uint(8-pos), pos)
 			WriteSpecialMarker(tmp, scheme, endOfStream)
-			tail, _ := tmp.Rawbytes()
+			rawBytes, _ := tmp.Rawbytes()
+			tail := checked.NewBytes(rawBytes, nil)
 			scheme.tails[i][j] = tail
 		}
 	}
