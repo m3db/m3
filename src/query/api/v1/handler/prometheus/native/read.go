@@ -66,6 +66,7 @@ type PromReadHandler struct {
 	limitsCfg       *config.LimitsConfiguration
 	promReadMetrics promReadMetrics
 	timeoutOps      *prometheus.TimeoutOpts
+	keepNans        bool
 }
 
 type promReadMetrics struct {
@@ -109,6 +110,7 @@ func NewPromReadHandler(
 	limitsCfg *config.LimitsConfiguration,
 	scope tally.Scope,
 	timeoutOpts *prometheus.TimeoutOpts,
+	keepNans bool,
 ) *PromReadHandler {
 	h := &PromReadHandler{
 		engine:          engine,
@@ -116,6 +118,7 @@ func NewPromReadHandler(
 		limitsCfg:       limitsCfg,
 		promReadMetrics: newPromReadMetrics(scope),
 		timeoutOps:      timeoutOpts,
+		keepNans:        keepNans,
 	}
 
 	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
@@ -142,7 +145,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	timer.Stop()
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, params)
+	renderResultsJSON(w, result, params, h.keepNans)
 }
 
 // ServeHTTPWithEngine returns query results from the storage

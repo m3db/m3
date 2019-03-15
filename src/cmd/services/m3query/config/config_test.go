@@ -275,3 +275,13 @@ func TestNilQueryConversionSize(t *testing.T) {
 	err := q.Validate()
 	require.NoError(t, err)
 }
+
+func TestKeepNaNsDefault(t *testing.T) {
+	r := ResultOptions{
+		KeepNans: true,
+	}
+	assert.Equal(t, true, r.KeepNans)
+
+	r = ResultOptions{}
+	assert.Equal(t, false, r.KeepNans)
+}

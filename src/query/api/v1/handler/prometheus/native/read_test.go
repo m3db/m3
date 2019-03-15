@@ -131,6 +131,7 @@ func newTestSetup() *testSetup {
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("", nil),
 			timeoutOpts,
+			false,
 		),
 	}
 }

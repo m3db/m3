@@ -23,6 +23,7 @@ package native
 import (
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -231,6 +232,7 @@ func renderResultsJSON(
 	w io.Writer,
 	series []*ts.Series,
 	params models.RequestParams,
+	keepNans bool,
 ) {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -262,6 +264,12 @@ func renderResultsJSON(
 		length := s.Len()
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
+
+			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			if !keepNans && math.IsNaN(dp.Value) {
+				continue
+			}
+
 			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
 			// since we would need to create another block just for the sake of restricting the bounds.
 			// Each series have the same start time so we just need to calculate the correct startIdx once

@@ -123,6 +123,9 @@ type Configuration struct {
 
 	// Cache configurations.
 	Cache CacheConfiguration `yaml:"cache"`
+
+	// ResultOptions are the results options for query.
+	ResultOptions ResultOptions `yaml:"resultOptions"`
 }
 
 // Filter is a query filter type.
@@ -144,6 +147,13 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// ResultOptions are the result options for query.
+type ResultOptions struct {
+	// KeepNans keeps NaNs before returning query results.
+	// The default is false, which matches Prometheus
+	KeepNans bool `yaml:"keepNans"`
 }
 
 // CacheConfiguration is the cache configurations.
