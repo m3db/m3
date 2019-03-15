@@ -275,3 +275,14 @@ func TestNilQueryConversionSize(t *testing.T) {
 	err := q.Validate()
 	require.NoError(t, err)
 }
+
+func TestDropNaNsDefault(t *testing.T) {
+	dropNaNs := false
+	r := ResultOptions{
+		DropNaNsInResults: &dropNaNs,
+	}
+	assert.Equal(t, false, *r.DropNaNsOrDefault())
+
+	r = ResultOptions{}
+	assert.Equal(t, true, *r.DropNaNsOrDefault())
+}

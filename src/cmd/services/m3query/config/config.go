@@ -63,6 +63,8 @@ var (
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
+
+	dropNaNsDefault = true
 )
 
 // Configuration is the configuration for the query service.
@@ -124,9 +126,8 @@ type Configuration struct {
 	// Cache configurations.
 	Cache CacheConfiguration `yaml:"cache"`
 
-	// DropNaNs drops NaNs before returning query results.
-	// If you want to simulate Promtheus exactly, set this to true.
-	DropNaNs bool `yaml:"dropNaNs"`
+	// ResultOptions are the results options for query.
+	ResultOptions ResultOptions `yaml:"resultOptions"`
 }
 
 // Filter is a query filter type.
@@ -148,6 +149,22 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// ResultOptions are the result options for query.
+type ResultOptions struct {
+	// DropNaNsInResults drops NaNs before returning query results.
+	// The default is true, which matches Prometheus
+	DropNaNsInResults *bool `yaml:"dropNaNs"`
+}
+
+// DropNaNsOrDefault returns the provided input or default if none is provided
+func (c ResultOptions) DropNaNsOrDefault() *bool {
+	if c.DropNaNsInResults == nil {
+		return &dropNaNsDefault
+	}
+
+	return c.DropNaNsInResults
 }
 
 // CacheConfiguration is the cache configurations.
