@@ -441,7 +441,7 @@ imports:
   - metrics
   - metrics/tally
 - name: github.com/uber/tchannel-go
-  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+  version: 162ecb0dc97845a0c42aae3899651dba111085e5
   subpackages:
   - internal/argreader
   - relay
