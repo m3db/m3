@@ -23,12 +23,10 @@ package index
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
-
-// FIXME: delete this cast when figure out how to rename the genny map
-// type AggregationResultsMap Map
 
 // AggregateResultsForTerm is a list of tag values which are valid for a particular
 // tag name.
@@ -49,49 +47,46 @@ type aggregatedResults struct {
 	noFinalize bool
 }
 
-// FIXME: delete this when genny map working
-// func newAggregateResultsMap(idPool ident.Pool) *Map {
-// 	return Map{}
-// }
+// NewAggregateResults returns a new AggregateResults object.
+func NewAggregateResults(opts Options) AggregateResults {
+	return &aggregatedResults{
+		// FIXME: fix the constructor here
+		//  newAggregateResultsMap(opts.IdentifierPool()),
+		resultsMap: newAggregateResultsMap(aggregateResultsMapOptions{}),
+		idPool:     opts.IdentifierPool(),
+		bytesPool:  opts.CheckedBytesPool(),
+		pool:       opts.AggregateResultsPool(),
+	}
+}
 
-// // NewAggregateResults returns a new AggregateResults object.
-// func NewAggregateResults(opts Options) AggregateResults {
-// 	return &aggregatedResults{
-// 		resultsMap: newResultsMap(opts.IdentifierPool()),
-// 		idPool:     opts.IdentifierPool(),
-// 		bytesPool:  opts.CheckedBytesPool(),
-// 		pool:       opts.ResultsPool(),
-// 	}
-// }
+func (r *aggregatedResults) AggregateDocument(
+	d doc.Document,
+) (added bool, size int, err error) {
+	added = false
+	if len(d.ID) == 0 {
+		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
+	}
 
-// func (r *results) AddDocument(
-// 	d doc.Document,
-// ) (added bool, size int, err error) {
-// 	added = false
-// 	if len(d.ID) == 0 {
-// 		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
-// 	}
+	// NB: can cast the []byte -> ident.ID to avoid an alloc
+	// before we're sure we need it.
+	tsID := ident.BytesID(d.ID)
 
-// 	// NB: can cast the []byte -> ident.ID to avoid an alloc
-// 	// before we're sure we need it.
-// 	tsID := ident.BytesID(d.ID)
+	// check if it already exists in the map.
+	if r.resultsMap.Contains(tsID) {
+		return added, r.resultsMap.Len(), nil
+	}
 
-// 	// check if it already exists in the map.
-// 	if r.resultsMap.Contains(tsID) {
-// 		return added, r.resultsMap.Len(), nil
-// 	}
+	// i.e. it doesn't exist in the map, so we create the tags wrapping
+	// fields prodided by the document.
+	tags := r.cloneTagsFromFields(d.Fields)
 
-// 	// i.e. it doesn't exist in the map, so we create the tags wrapping
-// 	// fields prodided by the document.
-// 	tags := r.cloneTagsFromFields(d.Fields)
+	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
+	// the tsID's bytes.
+	r.resultsMap.Set(tsID, tags)
 
-// 	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
-// 	// the tsID's bytes.
-// 	r.resultsMap.Set(tsID, tags)
-
-// 	added = true
-// 	return added, r.resultsMap.Len(), nil
-// }
+	added = true
+	return added, r.resultsMap.Len(), nil
+}
 
 // func (r *results) AddIDAndTags(
 // 	id ident.ID,
@@ -131,62 +126,66 @@ type aggregatedResults struct {
 // 	return tags
 // }
 
-// func (r *results) Namespace() ident.ID {
-// 	return r.nsID
-// }
+func (r *aggregatedResults) Namespace() ident.ID {
+	return r.nsID
+}
 
-// func (r *results) Map() *ResultsMap {
-// 	return r.resultsMap
-// }
+func (r *aggregatedResults) Map() *aggregateResultsMap {
+	return r.resultsMap
+}
 
-// func (r *results) Size() int {
-// 	return r.resultsMap.Len()
-// }
+func (r *aggregatedResults) Size() int {
+	return r.resultsMap.Len()
+}
 
-// func (r *results) Reset(nsID ident.ID) {
-// 	// finalize existing held nsID
-// 	if r.nsID != nil {
-// 		r.nsID.Finalize()
-// 	}
-// 	// make an independent copy of the new nsID
-// 	if nsID != nil {
-// 		nsID = r.idPool.Clone(nsID)
-// 	}
-// 	r.nsID = nsID
+func (r *aggregatedResults) Reset(nsID ident.ID) {
+	// finalize existing held nsID
+	if r.nsID != nil {
+		r.nsID.Finalize()
+	}
+	// make an independent copy of the new nsID
+	if nsID != nil {
+		nsID = r.idPool.Clone(nsID)
+	}
+	r.nsID = nsID
 
-// 	// reset all values from map first
-// 	for _, entry := range r.resultsMap.Iter() {
-// 		tags := entry.Value()
-// 		tags.Finalize()
-// 	}
+	// reset all values from map first
+	for _, entry := range r.resultsMap.Iter() {
+		tags := entry.Value()
+		for _, tag := range tags {
+			tag.Finalize()
+		}
+	}
 
-// 	// reset all keys in the map next
-// 	r.resultsMap.Reset()
+	// reset all keys in the map next
+	r.resultsMap.Reset()
 
-// 	// NB: could do keys+value in one step but I'm trying to avoid
-// 	// using an internal method of a code-gen'd type.
-// }
+	// NB: could do keys+value in one step but I'm trying to avoid
+	// using an internal method of a code-gen'd type.
+}
 
-// func (r *results) Finalize() {
-// 	if r.noFinalize {
-// 		return
-// 	}
+func (r *aggregatedResults) Finalize() {
+	if r.noFinalize {
+		return
+	}
 
-// 	r.Reset(nil)
+	r.Reset(nil)
 
-// 	if r.pool == nil {
-// 		return
-// 	}
-// 	r.pool.Put(r)
-// }
+	if r.pool == nil {
+		return
+	}
+	r.pool.Put(r)
+}
 
-// func (r *results) NoFinalize() {
-// 	// Ensure neither the results object itself, or any of its underlying
-// 	// IDs and tags will be finalized.
-// 	r.noFinalize = true
-// 	for _, entry := range r.resultsMap.Iter() {
-// 		id, tags := entry.Key(), entry.Value()
-// 		id.NoFinalize()
-// 		tags.NoFinalize()
-// 	}
-// }
+func (r *aggregatedResults) NoFinalize() {
+	// Ensure neither the results object itself, or any of its underlying
+	// IDs and tags will be finalized.
+	r.noFinalize = true
+	for _, entry := range r.resultsMap.Iter() {
+		id, tags := entry.Key(), entry.Value()
+		id.NoFinalize()
+		for _, tag := range tags {
+			tag.NoFinalize()
+		}
+	}
+}
