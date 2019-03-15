@@ -102,17 +102,10 @@ func TestSimpleLRUBehavior(t *testing.T) {
 	putEntry(plCache, 0)
 	putEntry(plCache, 1)
 	putEntry(plCache, 2)
-
-	expectedOrder := []testEntry{e0, e1, e2}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
-	}
+	requireExpectedOrder(t, plCache, []testEntry{e0, e1, e2})
 
 	putEntry(plCache, 3)
-	expectedOrder = []testEntry{e1, e2, e3}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
-	}
+	requireExpectedOrder(t, plCache, []testEntry{e1, e2, e3})
 
 	putEntry(plCache, 4)
 	putEntry(plCache, 4)
@@ -120,34 +113,22 @@ func TestSimpleLRUBehavior(t *testing.T) {
 	putEntry(plCache, 5)
 	putEntry(plCache, 0)
 	putEntry(plCache, 0)
-
-	expectedOrder = []testEntry{e4, e5, e0}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
-	}
+	requireExpectedOrder(t, plCache, []testEntry{e4, e5, e0})
 
 	// Miss, no expected change.
 	getEntry(plCache, 100)
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
-	}
+	requireExpectedOrder(t, plCache, []testEntry{e4, e5, e0})
 
 	// Hit.
 	getEntry(plCache, 4)
-	expectedOrder = []testEntry{e5, e0, e4}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
-	}
+	requireExpectedOrder(t, plCache, []testEntry{e5, e0, e4})
 
 	// Multiple hits.
 	getEntry(plCache, 4)
 	getEntry(plCache, 0)
 	getEntry(plCache, 5)
 	getEntry(plCache, 5)
-	expectedOrder = []testEntry{e4, e0, e5}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
-	}
+	requireExpectedOrder(t, plCache, []testEntry{e4, e0, e5})
 }
 
 func TestPurgeSegment(t *testing.T) {
@@ -330,6 +311,12 @@ func getEntry(cache *PostingsListCache, i int) (postings.List, bool) {
 		testPlEntries[i].segmentUUID,
 		testPlEntries[i].query,
 	)
+}
+
+func requireExpectedOrder(t *testing.T, plCache *PostingsListCache, expectedOrder []testEntry) {
+	for i, key := range plCache.lru.keys() {
+		require.Equal(t, expectedOrder[i].toKey(), key)
+	}
 }
 
 func printSortedKeys(t *testing.T, cache *PostingsListCache) {

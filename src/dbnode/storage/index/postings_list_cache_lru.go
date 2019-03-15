@@ -65,8 +65,7 @@ type postingsListLRU struct {
 // entry is used to hold a value in the evictList.
 type entry struct {
 	uuid         uuid.UUID
-	query        PostingsListCacheQuery
-	patternType  PatternType
+	key          key
 	postingsList postings.List
 }
 
@@ -114,8 +113,7 @@ func (c *postingsListLRU) Add(
 	var (
 		ent = &entry{
 			uuid:         segmentUUID,
-			query:        query,
-			patternType:  patternType,
+			key:          newKey,
 			postingsList: pl,
 		}
 		entry = c.evictList.PushFront(ent)
@@ -200,7 +198,7 @@ func (c *postingsListLRU) removeElement(e *list.Element) {
 	entry := e.Value.(*entry)
 
 	if patterns, ok := c.items[entry.uuid.Array()]; ok {
-		delete(patterns, newKey(entry.query, entry.patternType))
+		delete(patterns, entry.key)
 		if len(patterns) == 0 {
 			delete(c.items, entry.uuid.Array())
 		}
