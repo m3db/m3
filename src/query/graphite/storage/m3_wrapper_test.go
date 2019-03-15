@@ -211,7 +211,7 @@ func TestFetchByInvalidQuery(t *testing.T) {
 
 	query := "a."
 	ctx := xctx.New()
-	wrapper := NewM3WrappedStorage(store)
+	wrapper := NewM3WrappedStorage(store, nil)
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
 	assert.NoError(t, err)
 	require.Equal(t, 0, len(result.SeriesList))
