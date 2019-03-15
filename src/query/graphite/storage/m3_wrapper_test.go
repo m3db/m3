@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ import (
 )
 
 func TestTranslateQuery(t *testing.T) {
-	query := `foo.ba[rz].q*x.terminator.will.be.back?`
+	query := `foo.ba[rz].q*x.terminator.will.be.*.back?`
 	end := time.Now()
 	start := end.Add(time.Hour * -2)
 	opts := FetchOptions{
@@ -51,7 +52,8 @@ func TestTranslateQuery(t *testing.T) {
 		},
 	}
 
-	translated := translateQuery(query, opts)
+	translated, err := translateQuery(query, opts)
+	assert.NoError(t, err)
 	assert.Equal(t, end, translated.End)
 	assert.Equal(t, start, translated.Start)
 	assert.Equal(t, time.Duration(0), translated.Interval)
@@ -64,11 +66,33 @@ func TestTranslateQuery(t *testing.T) {
 		{Type: models.MatchRegexp, Name: graphite.TagName(3), Value: []byte("terminator")},
 		{Type: models.MatchRegexp, Name: graphite.TagName(4), Value: []byte("will")},
 		{Type: models.MatchRegexp, Name: graphite.TagName(5), Value: []byte("be")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(6), Value: []byte("back?")},
-		{Type: models.MatchNotRegexp, Name: graphite.TagName(7), Value: []byte(".*")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(6), Value: []byte(".*")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(7), Value: []byte("back?")},
+		{Type: models.MatchNotRegexp, Name: graphite.TagName(8), Value: []byte(".*")},
 	}
 
 	assert.Equal(t, expected, matchers)
+}
+
+func TestTranslateQueryTrailingDot(t *testing.T) {
+	query := `foo.`
+	end := time.Now()
+	start := end.Add(time.Hour * -2)
+	opts := FetchOptions{
+		StartTime: start,
+		EndTime:   end,
+		DataOptions: DataOptions{
+			Timeout: time.Minute,
+		},
+	}
+
+	translated, err := translateQuery(query, opts)
+	assert.Nil(t, translated)
+	assert.Error(t, err)
+
+	matchers, err := TranslateQueryToMatchers(query)
+	assert.Nil(t, matchers)
+	assert.Error(t, err)
 }
 
 func TestTranslateTimeseries(t *testing.T) {
@@ -170,4 +194,25 @@ func TestFetchByQuery(t *testing.T) {
 
 	// NB: ensure the fetch was called with the base enforcer's child correctly
 	assert.Equal(t, childEnforcer, store.LastFetchOptions().Enforcer)
+}
+
+func TestFetchByInvalidQuery(t *testing.T) {
+	logging.InitWithCores(nil)
+	store := mock.NewMockStorage()
+	start := time.Now().Add(time.Hour * -1)
+	end := time.Now()
+	opts := FetchOptions{
+		StartTime: start,
+		EndTime:   end,
+		DataOptions: DataOptions{
+			Timeout: time.Minute,
+		},
+	}
+
+	query := "a."
+	ctx := xctx.New()
+	wrapper := NewM3WrappedStorage(store, nil)
+	result, err := wrapper.FetchByQuery(ctx, query, opts)
+	assert.NoError(t, err)
+	require.Equal(t, 0, len(result.SeriesList))
 }
