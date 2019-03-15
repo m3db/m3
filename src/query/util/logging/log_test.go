@@ -140,7 +140,7 @@ func TestPanicErrorResponder(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 4, count)
+	assert.Equal(t, 3, count)
 
 	// `log_test` should appear in the output twice, once for the call in the
 	// deadbeef method, and once for the ServeHttp call.
@@ -187,7 +187,7 @@ func assertPanicLogsWritten(t *testing.T, stdout, stderr *os.File) {
 		}
 	}
 
-	assert.Equal(t, 5, count)
+	assert.Equal(t, 4, count)
 
 	// `log_test` should appear in the output twice, once for the call in the
 	// deadbeef method, and once for the ServeHttp call.
@@ -197,6 +197,8 @@ func assertPanicLogsWritten(t *testing.T, stdout, stderr *os.File) {
 			count++
 		}
 	}
+
+	assert.Equal(t, 2, count)
 }
 
 func TestPanicErrorResponderOnlyIfNotWrittenRequest(t *testing.T) {
