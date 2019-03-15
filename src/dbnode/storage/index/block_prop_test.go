@@ -53,7 +53,7 @@ var (
 
 // TestPostingsListCacheDoesNotAffectBlockQueryResults verifies that the postings list
 // cache does not affect the results of querying a block by creating two blocks, one with
-// the postings list cache enable and one without. It then generates a bunch of queries
+// the postings list cache enabled and one without. It then generates a bunch of queries
 // and executes them against both blocks, ensuring that both blocks return the exact same
 // results. It was added as a regression test when we encountered a bug that caused the
 // postings list cache to cause the block to return incorrect results.
@@ -90,7 +90,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	cachedBlock, err := newPropTestBlock(t, blockStart, testMD, cachedOptions)
 	require.NoError(t, err)
 
-	properties.Property("Any distribution of test documents in segments does not affect query results", prop.ForAll(
+	properties.Property("Index block with and without postings list cache always return the same results", prop.ForAll(
 		func(q search.Query) (bool, error) {
 			indexQuery := Query{
 				idx.NewQueryFromSearchQuery(q),
@@ -108,10 +108,10 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 			cachedResults := NewResults(testOpts)
 			exhaustive, err = cachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, cachedResults)
 			if err != nil {
-				return false, fmt.Errorf("error querying uncached block: %v", err)
+				return false, fmt.Errorf("error querying cached block: %v", err)
 			}
 			if !exhaustive {
-				return false, errors.New("querying uncached block was not exhaustive")
+				return false, errors.New("querying cached block was not exhaustive")
 			}
 
 			uncachedMap := uncachedResults.Map()
@@ -145,11 +145,15 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 	blk, err := NewBlock(blockStart, nsMeta, opts)
 	require.NoError(t, err)
 
-	memSeg := testSegment(t, lotsTestDocuments...).(segment.MutableSegment)
-	fstSeg := fst.ToTestSegment(t, memSeg, testFstOptions)
-	// Need at least one shard to look fulfilled.
-	fulfilled := result.NewShardTimeRanges(blockStart, blockStart.Add(testBlockSize), uint32(1))
-	indexBlock := result.NewIndexBlock(blockStart, []segment.Segment{fstSeg}, fulfilled)
+	var (
+		memSeg = testSegment(t, lotsTestDocuments...).(segment.MutableSegment)
+		fstSeg = fst.ToTestSegment(t, memSeg, testFstOptions)
+		// Need at least one shard to look fulfilled.
+		fulfilled  = result.NewShardTimeRanges(blockStart, blockStart.Add(testBlockSize), uint32(1))
+		indexBlock = result.NewIndexBlock(blockStart, []segment.Segment{fstSeg}, fulfilled)
+	)
+	// Use the AddResults API because thats the only scenario in which we'll wrap a segment
+	// in a ReadThroughSegment to use the postings list cache.
 	err = blk.AddResults(indexBlock)
 	require.NoError(t, err)
 	return blk, nil
