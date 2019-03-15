@@ -132,7 +132,7 @@ func TestFSTSimpleSegmentsQueryTheSame(t *testing.T) {
 
 			return true, nil
 		},
-		genQuery(lotsTestDocuments),
+		GenQuery(lotsTestDocuments),
 	))
 
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
