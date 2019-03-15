@@ -14,7 +14,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 
 1. Stop the node that is having trouble with the upgrade or that you're trying to downgrade.
 2. Modify the `bootstrappers` config in the M3DB YAML file from `filesystem, commitlog, peers, uninitialized_topology` to `filesystem, peers, commitlog, uninitialized_topology`. This will force the node to bootstrap from its peers instead of the local snapshot and commitlog files it has on disk, bypassing any issues related to file incompatibility between versions.
-3. Turn the node back on and wait for it to finish bootstrapping and snapshotting. Once everything looks stable, change the config back to `filesystem, commitlog, peers, uninitialized_topology` so  that the next time the node is restarted it will default to using the snapshot and commitlog files.
+3. Turn the node back on and wait for it to finish bootstrapping and snapshotting. Once everything looks stable, change the config back to `filesystem, commitlog, peers, uninitialized_topology` so that the next time the node is restarted it will default to using the snapshot and commitlog files.
 
 ## New Features
 
@@ -26,15 +26,16 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 - **M3nsch**: Support generating new unique metrics (#1397)
 
 ## Performance
+
 - **M3DB**: Optimize OStream implementation which reduces CPU synchronization for each write. Should result in modest improvement in load average for metrics workloads and a massive improvement in load average for any workload using large annotations (#1399, #1437)
 - **M3DB**: Prevent duplicate writes from being written to the commitlog (#1375)
 - **M3DB**: Construct RPC service once and share it with TChannel and HTTP servers to prevent pools from being initialized multiple times reducing memory footprint (#1420)
 - **M3Query**: Add LRU cache for query conversion. Should help dashboards with expensive regex query in particular (#1398)
 
 ## Bug Fixes
+
 - **M3Coordinator**: Better error responses from namespace APIs when namespace is unknown (#1412)
 - **M3Query**: Fix panic in temporal functions (#1429)
-
 
 # 0.6.1 (2019-02-20)
 
@@ -53,7 +54,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 
 - **M3DB** (Config): Simplify M3 config options (#1371)
 - **M3Coordinator**: Improve database creation API (#1350)
-- **M3Query**: Add quantile_over_time and histogram_quantile Prometheus functions (#1367, #1372)
+- **M3Query**: Add quantile_over_time and histogram_quantile Prometheus functions (#1367, #1373)
 - **Documentation**: Additional documentation for namespace setup and configuration, etcd, and M3Coordinator ID generations schemes (#1350, #1354, #1381, #1385)
 
 ## Performance

@@ -11,9 +11,9 @@ common: &common
 
 steps:
   - name: "Check for :docker: build"
-    command: ".buildkite/scripts/check_do_docker.sh"
+    command: ".ci/docker/check_do_docker.sh"
     agents:
-      queue: builders
+      queue: init
     timeout_in_minutes: 10
     retry:
       automatic:

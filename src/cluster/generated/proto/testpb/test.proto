@@ -17,58 +17,10 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+syntax = "proto3";
 
-package storage
+package testpb;
 
-import (
-	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/models"
-)
-
-const (
-	carbonSeparatorByte = byte('.')
-	carbonGlobRune      = '*'
-)
-
-var (
-	wildcard = []byte(".*")
-)
-
-func glob(metric string) []byte {
-	globLen := len(metric)
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			globLen++
-		}
-	}
-
-	glob := make([]byte, globLen)
-	i := 0
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			glob[i] = carbonSeparatorByte
-			i++
-		}
-
-		glob[i] = byte(c)
-		i++
-	}
-
-	return glob
-}
-
-func convertMetricPartToMatcher(count int, metric string) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchRegexp,
-		Name:  graphite.TagName(count),
-		Value: glob(metric),
-	}
-}
-
-func matcherTerminator(count int) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: wildcard,
-	}
+message MapProto {
+	map<string, int64> value = 1;
 }

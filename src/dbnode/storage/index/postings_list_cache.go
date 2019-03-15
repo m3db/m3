@@ -89,10 +89,12 @@ func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsLis
 // GetRegexp returns the cached results for the provided regexp query, if any.
 func (q *PostingsListCache) GetRegexp(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 ) (postings.List, bool) {
 	return q.get(
 		segmentUUID,
+		field,
 		pattern,
 		PatternTypeRegexp)
 }
@@ -100,22 +102,25 @@ func (q *PostingsListCache) GetRegexp(
 // GetTerm returns the cached results for the provided term query, if any.
 func (q *PostingsListCache) GetTerm(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 ) (postings.List, bool) {
 	return q.get(
 		segmentUUID,
+		field,
 		pattern,
 		PatternTypeTerm)
 }
 
 func (q *PostingsListCache) get(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
 	// No RLock because a Get() operation mutates the LRU.
 	q.Lock()
-	p, ok := q.lru.Get(segmentUUID, pattern, patternType)
+	p, ok := q.lru.Get(segmentUUID, field, pattern, patternType)
 	q.Unlock()
 
 	q.emitCacheGetMetrics(patternType, ok)
@@ -130,23 +135,26 @@ func (q *PostingsListCache) get(
 // PutRegexp updates the LRU with the result of the regexp query.
 func (q *PostingsListCache) PutRegexp(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, pattern, PatternTypeRegexp, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeRegexp, pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
 func (q *PostingsListCache) PutTerm(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, pattern, PatternTypeTerm, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeTerm, pl)
 }
 
 func (q *PostingsListCache) put(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	patternType PatternType,
 	pl postings.List,
@@ -154,6 +162,7 @@ func (q *PostingsListCache) put(
 	q.Lock()
 	q.lru.Add(
 		segmentUUID,
+		field,
 		pattern,
 		patternType,
 		pl,
