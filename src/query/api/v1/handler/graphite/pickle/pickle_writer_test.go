@@ -70,7 +70,7 @@ func TestWriteComplex(t *testing.T) {
 	w.WriteString("hello world")
 	w.WriteDictKey("nested")
 	w.BeginDict()
-	w.WriteDictKey("monkeyFoods")
+	w.WriteDictKey("fooBar")
 	w.BeginList()
 	w.WriteFloat64(349439.3494)
 	w.WriteInt(-9459450)
@@ -86,7 +86,7 @@ func TestWriteComplex(t *testing.T) {
 		NoNumber *float64
 		Skey     string
 		Nested   struct {
-			MonkeyFoods []interface{}
+			FooBar []interface{}
 		}
 	}{}
 
@@ -97,7 +97,7 @@ func TestWriteComplex(t *testing.T) {
 	assert.Equal(t, "hello world", s.Skey)
 	assert.Equal(t, []interface{}{
 		349439.3494, int64(-9459450), "A Nested String",
-	}, s.Nested.MonkeyFoods)
+	}, s.Nested.FooBar)
 }
 
 func unpickle(b []byte, data interface{}) error {

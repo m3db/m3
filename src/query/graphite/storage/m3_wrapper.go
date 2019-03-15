@@ -32,6 +32,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	m3ts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/logging"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -48,7 +51,7 @@ func NewM3WrappedStorage(m3storage storage.Storage) Storage {
 	return &m3WrappedStore{m3: m3storage}
 }
 
-// translates a graphite query to tag matcher pairs
+// translates a graphite query to tag matcher pairs.
 func translateQueryToMatchers(
 	query string,
 	withTerminator bool,
@@ -146,6 +149,9 @@ func (s *m3WrappedStore) FetchByQuery(
 	if err != nil {
 		// NB: error here implies the query cannot be translated; empty set expected
 		// rather than propagating an error.
+		logger := logging.WithContext(ctx.RequestContext())
+		logger.Info("could not translate query, returning empty results",
+			zap.String("query", query))
 		return &FetchResult{
 			SeriesList: []*ts.Series{},
 		}, nil

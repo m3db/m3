@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,6 +183,7 @@ func TestFetchByQuery(t *testing.T) {
 }
 
 func TestFetchByInvalidQuery(t *testing.T) {
+	logging.InitWithCores(nil)
 	store := mock.NewMockStorage()
 	start := time.Now().Add(time.Hour * -1)
 	end := time.Now()

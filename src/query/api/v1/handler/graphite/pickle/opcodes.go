@@ -20,7 +20,7 @@
 
 package pickle
 
-// op list.
+// list of opcodes required for pickling graphite query results.
 const (
 	opNone       = 0x4e
 	opMark       = 0x28
