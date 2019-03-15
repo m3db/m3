@@ -63,14 +63,6 @@ type PostingsListCache struct {
 	metrics *postingsListCacheMetrics
 }
 
-// PostingsListCacheQuery represents a query that we want to cache the result of
-// for a given segment. Note that it include the field in the segment that the
-// query was executed on, as well as the pattern of the query itself.
-type PostingsListCacheQuery struct {
-	Field   string
-	Pattern string
-}
-
 // NewPostingsListCache creates a new query cache.
 func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsListCache, Closer, error) {
 	lru, err := newPostingsListLRU(size)
@@ -97,33 +89,38 @@ func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsLis
 // GetRegexp returns the cached results for the provided regexp query, if any.
 func (q *PostingsListCache) GetRegexp(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 ) (postings.List, bool) {
 	return q.get(
 		segmentUUID,
-		query,
+		field,
+		pattern,
 		PatternTypeRegexp)
 }
 
 // GetTerm returns the cached results for the provided term query, if any.
 func (q *PostingsListCache) GetTerm(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 ) (postings.List, bool) {
 	return q.get(
 		segmentUUID,
-		query,
+		field,
+		pattern,
 		PatternTypeTerm)
 }
 
 func (q *PostingsListCache) get(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
 	// No RLock because a Get() operation mutates the LRU.
 	q.Lock()
-	p, ok := q.lru.Get(segmentUUID, query, patternType)
+	p, ok := q.lru.Get(segmentUUID, field, pattern, patternType)
 	q.Unlock()
 
 	q.emitCacheGetMetrics(patternType, ok)
@@ -138,31 +135,35 @@ func (q *PostingsListCache) get(
 // PutRegexp updates the LRU with the result of the regexp query.
 func (q *PostingsListCache) PutRegexp(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, query, PatternTypeRegexp, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeRegexp, pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
 func (q *PostingsListCache) PutTerm(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, query, PatternTypeTerm, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeTerm, pl)
 }
 
 func (q *PostingsListCache) put(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	patternType PatternType,
 	pl postings.List,
 ) {
 	q.Lock()
 	q.lru.Add(
 		segmentUUID,
-		query,
+		field,
+		pattern,
 		patternType,
 		pl,
 	)

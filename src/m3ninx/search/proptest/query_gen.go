@@ -35,23 +35,41 @@ import (
 // GenTermQuery generates a term query.
 func GenTermQuery(docs []doc.Document) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-		docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
-		if !ok {
-			panic("unable to generate term query") // should never happen
-		}
-		docID := docIDRes.(int)
-
-		doc := docs[docID]
-		fieldRes, ok := gen.IntRange(0, len(doc.Fields)-1)(genParams).Retrieve()
-		if !ok {
-			panic("unable to generate term query fields") // should never happen
-		}
-
-		fieldID := fieldRes.(int)
-		field := doc.Fields[fieldID]
-
-		q := query.NewTermQuery(field.Name, field.Value)
+		fieldName, fieldValue := fieldNameAndValue(genParams, docs)
+		q := query.NewTermQuery(fieldName, fieldValue)
 		return gopter.NewGenResult(q, gopter.NoShrinker)
+	}
+}
+
+func fieldNameAndValue(genParams *gopter.GenParameters, docs []doc.Document) ([]byte, []byte) {
+	docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
+	if !ok {
+		panic("unable to generate term query") // should never happen
+	}
+	docID := docIDRes.(int)
+
+	doc := docs[docID]
+	fieldRes, ok := gen.IntRange(0, len(doc.Fields)-1)(genParams).Retrieve()
+	if !ok {
+		panic("unable to generate term query fields") // should never happen
+	}
+
+	fieldID := fieldRes.(int)
+	field := doc.Fields[fieldID]
+	return field.Name, field.Value
+}
+
+// GenIdenticalTermAndRegexpQuery generates a term query and regexp query with
+// the exact same underlying field and pattern.
+func GenIdenticalTermAndRegexpQuery(docs []doc.Document) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		fieldName, fieldValue := fieldNameAndValue(genParams, docs)
+		termQ := query.NewTermQuery(fieldName, fieldValue)
+		regexpQ, err := query.NewRegexpQuery(fieldName, fieldValue)
+		if err != nil {
+			panic(err)
+		}
+		return gopter.NewGenResult([]search.Query{termQ, regexpQ}, gopter.NoShrinker)
 	}
 }
 
@@ -150,3 +168,5 @@ func GenQuery(docs []doc.Document) gopter.Gen {
 		GenConjunctionQuery(docs),
 		GenDisjunctionQuery(docs))
 }
+
+// Ge

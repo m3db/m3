@@ -53,11 +53,10 @@ func init() {
 		var (
 			segmentUUID = uuid.Parse(
 				fmt.Sprintf("00000000-0000-0000-0000-000000000%03d", i))
-			query = PostingsListCacheQuery{
-				Field:   fmt.Sprintf("field_%d", i),
-				Pattern: fmt.Sprintf("pattern_%d", i),
-			}
-			pl = roaring.NewPostingsList()
+
+			field   = fmt.Sprintf("field_%d", i)
+			pattern = fmt.Sprintf("pattern_%d", i)
+			pl      = roaring.NewPostingsList()
 		)
 		pl.Insert(postings.ID(i))
 
@@ -67,8 +66,7 @@ func init() {
 		}
 		testPlEntries = append(testPlEntries, testEntry{
 			segmentUUID:  segmentUUID,
-			query:        query,
-			patternType:  patternType,
+			key:          newKey(field, pattern, patternType),
 			postingsList: pl,
 		})
 	}
@@ -76,13 +74,8 @@ func init() {
 
 type testEntry struct {
 	segmentUUID  uuid.UUID
-	query        PostingsListCacheQuery
-	patternType  PatternType
+	key          key
 	postingsList postings.List
-}
-
-func (t testEntry) toKey() key {
-	return newKey(t.query, t.patternType)
 }
 
 func TestSimpleLRUBehavior(t *testing.T) {
@@ -139,16 +132,18 @@ func TestPurgeSegment(t *testing.T) {
 
 	// Write many entries with the same segment UUID.
 	for i := 0; i < 100; i++ {
-		if testPlEntries[i].patternType == PatternTypeRegexp {
+		if testPlEntries[i].key.patternType == PatternTypeRegexp {
 			plCache.PutRegexp(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].query,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 				testPlEntries[i].postingsList,
 			)
 		} else {
 			plCache.PutTerm(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].query,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 				testPlEntries[i].postingsList,
 			)
 		}
@@ -165,16 +160,18 @@ func TestPurgeSegment(t *testing.T) {
 	// All entries related to the purged segment should be gone.
 	require.Equal(t, size-100, plCache.lru.Len())
 	for i := 0; i < 100; i++ {
-		if testPlEntries[i].patternType == PatternTypeRegexp {
+		if testPlEntries[i].key.patternType == PatternTypeRegexp {
 			_, ok := plCache.GetRegexp(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].query,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 			)
 			require.False(t, ok)
 		} else {
 			_, ok := plCache.GetTerm(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].query,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 			)
 			require.False(t, ok)
 		}
@@ -274,68 +271,74 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 func putEntry(cache *PostingsListCache, i int) {
 	// Do each put twice to test the logic that avoids storing
 	// multiple entries for the same value.
-	if testPlEntries[i].patternType == PatternTypeRegexp {
+	if testPlEntries[i].key.patternType == PatternTypeRegexp {
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].query,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].query,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
 	} else {
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].query,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].query,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
 	}
 }
 
 func getEntry(cache *PostingsListCache, i int) (postings.List, bool) {
-	if testPlEntries[i].patternType == PatternTypeRegexp {
+	if testPlEntries[i].key.patternType == PatternTypeRegexp {
 		return cache.GetRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].query,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 		)
 	}
 
 	return cache.GetTerm(
 		testPlEntries[i].segmentUUID,
-		testPlEntries[i].query,
+		testPlEntries[i].key.field,
+		testPlEntries[i].key.pattern,
 	)
 }
 
 func requireExpectedOrder(t *testing.T, plCache *PostingsListCache, expectedOrder []testEntry) {
 	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].toKey(), key)
+		require.Equal(t, expectedOrder[i].key, key)
 	}
 }
 
 func printSortedKeys(t *testing.T, cache *PostingsListCache) {
 	keys := cache.lru.keys()
 	sort.Slice(keys, func(i, j int) bool {
-		iIdx, err := strconv.ParseInt(keys[i].query.Field, 10, 64)
+		iIdx, err := strconv.ParseInt(keys[i].field, 10, 64)
 		if err != nil {
-			t.Fatalf("unable to parse: %s into int", keys[i].query.Field)
+			t.Fatalf("unable to parse: %s into int", keys[i].field)
 		}
 
-		jIdx, err := strconv.ParseInt(keys[j].query.Field, 10, 64)
+		jIdx, err := strconv.ParseInt(keys[j].field, 10, 64)
 		if err != nil {
-			t.Fatalf("unable to parse: %s into int", keys[i].query.Field)
+			t.Fatalf("unable to parse: %s into int", keys[i].field)
 		}
 
 		return iIdx < jIdx
 	})
 
 	for _, key := range keys {
-		fmt.Println("key: ", key.query)
+		fmt.Println("key: ", key)
 	}
 }

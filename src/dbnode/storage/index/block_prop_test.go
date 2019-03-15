@@ -57,6 +57,10 @@ var (
 // and executes them against both blocks, ensuring that both blocks return the exact same
 // results. It was added as a regression test when we encountered a bug that caused the
 // postings list cache to cause the block to return incorrect results.
+//
+// It also generates term and regexp queries where the field and pattern are the same to
+// ensure that the postings list cache correctly handles caching the results of these
+// different types of queries (despite having the same field and "pattern") separately.
 func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
@@ -91,48 +95,57 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	require.NoError(t, err)
 
 	properties.Property("Index block with and without postings list cache always return the same results", prop.ForAll(
-		func(q search.Query) (bool, error) {
-			indexQuery := Query{
-				idx.NewQueryFromSearchQuery(q),
+		func(q search.Query, identicalTermAndRegexp []search.Query) (bool, error) {
+			queries := []search.Query{
+				q,
+				identicalTermAndRegexp[0],
+				identicalTermAndRegexp[1],
 			}
 
-			uncachedResults := NewResults(testOpts)
-			exhaustive, err := uncachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, uncachedResults)
-			if err != nil {
-				return false, fmt.Errorf("error querying uncached block: %v", err)
-			}
-			if !exhaustive {
-				return false, errors.New("querying uncached block was not exhaustive")
-			}
+			for _, q := range queries {
+				indexQuery := Query{
+					idx.NewQueryFromSearchQuery(q),
+				}
 
-			cachedResults := NewResults(testOpts)
-			exhaustive, err = cachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, cachedResults)
-			if err != nil {
-				return false, fmt.Errorf("error querying cached block: %v", err)
-			}
-			if !exhaustive {
-				return false, errors.New("querying cached block was not exhaustive")
-			}
+				uncachedResults := NewResults(testOpts)
+				exhaustive, err := uncachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, uncachedResults)
+				if err != nil {
+					return false, fmt.Errorf("error querying uncached block: %v", err)
+				}
+				if !exhaustive {
+					return false, errors.New("querying uncached block was not exhaustive")
+				}
 
-			uncachedMap := uncachedResults.Map()
-			cachedMap := cachedResults.Map()
-			if uncachedMap.Len() != cachedMap.Len() {
-				return false, fmt.Errorf(
-					"uncached map size was: %d, but cached map sized was: %d",
-					uncachedMap.Len(), cachedMap.Len())
-			}
+				cachedResults := NewResults(testOpts)
+				exhaustive, err = cachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, cachedResults)
+				if err != nil {
+					return false, fmt.Errorf("error querying cached block: %v", err)
+				}
+				if !exhaustive {
+					return false, errors.New("querying cached block was not exhaustive")
+				}
 
-			for _, entry := range uncachedMap.Iter() {
-				key := entry.Key()
-				_, ok := cachedMap.Get(key)
-				if !ok {
-					return false, fmt.Errorf("cached map did not contain: %v", key)
+				uncachedMap := uncachedResults.Map()
+				cachedMap := cachedResults.Map()
+				if uncachedMap.Len() != cachedMap.Len() {
+					return false, fmt.Errorf(
+						"uncached map size was: %d, but cached map sized was: %d",
+						uncachedMap.Len(), cachedMap.Len())
+				}
+
+				for _, entry := range uncachedMap.Iter() {
+					key := entry.Key()
+					_, ok := cachedMap.Get(key)
+					if !ok {
+						return false, fmt.Errorf("cached map did not contain: %v", key)
+					}
 				}
 			}
 
 			return true, nil
 		},
 		proptest.GenQuery(lotsTestDocuments),
+		proptest.GenIdenticalTermAndRegexpQuery(lotsTestDocuments),
 	))
 
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)

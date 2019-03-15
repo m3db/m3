@@ -70,7 +70,8 @@ type entry struct {
 }
 
 type key struct {
-	query       PostingsListCacheQuery
+	field       string
+	pattern     string
 	patternType PatternType
 }
 
@@ -90,11 +91,12 @@ func newPostingsListLRU(size int) (*postingsListLRU, error) {
 // Add adds a value to the cache. Returns true if an eviction occurred.
 func (c *postingsListLRU) Add(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	patternType PatternType,
 	pl postings.List,
 ) (evicted bool) {
-	newKey := newKey(query, patternType)
+	newKey := newKey(field, pattern, patternType)
 	// Check for existing item.
 	uuidArray := segmentUUID.Array()
 	if uuidEntries, ok := c.items[uuidArray]; ok {
@@ -137,10 +139,11 @@ func (c *postingsListLRU) Add(
 // Get looks up a key's value from the cache.
 func (c *postingsListLRU) Get(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
-	newKey := newKey(query, patternType)
+	newKey := newKey(field, pattern, patternType)
 	uuidArray := segmentUUID.Array()
 	if uuidEntries, ok := c.items[uuidArray]; ok {
 		if ent, ok := uuidEntries[newKey]; ok {
@@ -156,10 +159,11 @@ func (c *postingsListLRU) Get(
 // key was contained.
 func (c *postingsListLRU) Remove(
 	segmentUUID uuid.UUID,
-	query PostingsListCacheQuery,
+	field string,
+	pattern string,
 	patternType PatternType,
 ) bool {
-	newKey := newKey(query, patternType)
+	newKey := newKey(field, pattern, patternType)
 	uuidArray := segmentUUID.Array()
 	if uuidEntries, ok := c.items[uuidArray]; ok {
 		if ent, ok := uuidEntries[newKey]; ok {
@@ -205,6 +209,6 @@ func (c *postingsListLRU) removeElement(e *list.Element) {
 	}
 }
 
-func newKey(query PostingsListCacheQuery, patternType PatternType) key {
-	return key{query: query, patternType: patternType}
+func newKey(field, pattern string, patternType PatternType) key {
+	return key{field: field, pattern: pattern, patternType: patternType}
 }
