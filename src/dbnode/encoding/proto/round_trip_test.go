@@ -45,52 +45,61 @@ var (
 func TestRoundtrip(t *testing.T) {
 	enc := newTestEncoder(time.Now())
 	testCases := []struct {
+		timestamp  time.Time
 		latitude   float64
 		longitude  float64
 		numTrips   int64
 		deliveryID []byte
 	}{
 		{
+			timestamp: time.Now(),
 			latitude:  0.1,
 			longitude: 1.1,
 			numTrips:  -1,
 			// deliveryID: []byte("123"),
 		},
 		{
+			timestamp:  time.Now(),
 			latitude:   0.1,
 			longitude:  1.1,
 			numTrips:   0,
 			deliveryID: []byte("123"),
 		},
 		{
+			timestamp:  time.Now(),
 			latitude:   0.2,
 			longitude:  2.2,
 			numTrips:   1,
 			deliveryID: []byte("789"),
 		},
 		{
+			timestamp:  time.Now(),
 			latitude:   0.3,
 			longitude:  2.3,
 			numTrips:   2,
 			deliveryID: []byte("123"),
 		},
 		{
+			timestamp: time.Now(),
 			latitude:  0.4,
 			longitude: 2.4,
 			numTrips:  3,
 		},
 		{
+			timestamp:  time.Now(),
 			latitude:   0.5,
 			longitude:  2.5,
 			numTrips:   4,
 			deliveryID: []byte("456"),
 		},
 		{
+			timestamp:  time.Now(),
 			latitude:   0.6,
 			longitude:  2.6,
 			deliveryID: nil,
 		},
 		{
+			timestamp:  time.Now(),
 			latitude:   0.5,
 			longitude:  2.5,
 			deliveryID: []byte("ASDFAJSDFHAJKSFHK"),
