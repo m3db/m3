@@ -1,0 +1,82 @@
+# Annotated Config
+
+```json
+listenAddress:
+  type: "config"
+  value: "0.0.0.0:7201"
+
+# metrics configuration
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+clusters:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - 127.0.0.1:2379
+        seedNodes:
+          initialCluster:
+            - hostID: m3db_local
+              endpoint: http://127.0.0.1:2380
+      writeConsistencyLevel: majority
+      readConsistencyLevel: unstrict_majority
+      writeTimeout: 10s
+      fetchTimeout: 15s
+      connectTimeout: 20s
+      writeRetry:
+        initialBackoff: 500ms
+        backoffFactor: 3
+        maxRetries: 2
+        jitter: true
+      fetchRetry:
+        initialBackoff: 500ms
+        backoffFactor: 2
+        maxRetries: 3
+        jitter: true
+      backgroundHealthCheckFailLimit: 4
+      backgroundHealthCheckFailThrottleFactor: 0.5
+
+readWorkerPoolPolicy:
+  grow: false
+  size: 10
+
+writeWorkerPoolPolicy:
+  grow: false
+  size: 10
+
+tagOptions:
+  idScheme: quoted
+
+cache:
+  queryConversion:
+    size: <int>
+
+lookbackDuration: <duration>
+
+resultOptions:
+  keepNans: <bool>
+
+# Uncomment this to enable local jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
+# for quick local setup (which this config will send data to).
+
+tracing:
+  backend: jaeger
+```
