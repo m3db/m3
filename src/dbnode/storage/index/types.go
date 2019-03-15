@@ -126,6 +126,21 @@ type ResultsOptions struct {
 	SizeLimit int
 }
 
+// ResultsAllocator allocates Results types.
+type ResultsAllocator func() Results
+
+// ResultsPool allows users to pool `Results` types.
+type ResultsPool interface {
+	// Init initializes the results pool.
+	Init(alloc ResultsAllocator)
+
+	// Get retrieves a Results object for use.
+	Get() Results
+
+	// Put returns the provided Results to the pool.
+	Put(value Results)
+}
+
 // AggregateResults is a collection of results for an aggregation query.
 type AggregateResults interface {
 	// Namespace returns the namespace associated with the result.
@@ -133,7 +148,7 @@ type AggregateResults interface {
 
 	// Map returns a map from tag name -> possible tag values,
 	// comprising search results.
-	// Map() *AggregationResultsMap
+	Map() *AggregationResultsMap
 
 	// Reset resets the AggregateResults object to initial state.
 	Reset(nsID ident.ID)
@@ -162,19 +177,19 @@ type AggregateResults interface {
 	) (added bool, size int, err error)
 }
 
-// ResultsAllocator allocates Results types.
-type ResultsAllocator func() Results
+// AggregateResultsAllocator allocates AggregateResults types.
+type AggregateResultsAllocator func() Results
 
-// ResultsPool allows users to pool `Results` types.
-type ResultsPool interface {
-	// Init initialized the results pool.
-	Init(alloc ResultsAllocator)
+// AggregateResultsPool allows users to pool `AggregateResults` types.
+type AggregateResultsPool interface {
+	// Init initializes the AggregateResults pool.
+	Init(alloc AggregateResultsAllocator)
 
-	// Get retrieves a Results object for use.
-	Get() Results
+	// Get retrieves a AggregateResults object for use.
+	Get() AggregateResults
 
-	// Put returns the provide value to the pool.
-	Put(value Results)
+	// Put returns the provided AggregateResults to the pool.
+	Put(value AggregateResults)
 }
 
 // OnIndexSeries provides a set of callback hooks to allow the reverse index

@@ -35,7 +35,6 @@ genny-map-all:                                \
 	genny-map-storage-namespace-metadata        \
 	genny-map-storage-repair                    \
 	genny-map-storage-index-results             \
-	genny-map-storage-index-search-results      \
 	genny-map-storage-index-aggregation-results \
 	genny-map-storage-bootstrap-bootstrapper-commitlog
 
@@ -160,16 +159,18 @@ genny-map-storage-index-results: install-m3x-repo
 # Map generation rule for storage/index/AggregationResultsMap
 .PHONY: genny-map-storage-index-aggregation-results
 genny-map-storage-index-aggregation-results: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen                \
+	cd $(m3x_package_path) && make idhashmap-gen              \
 		pkg=index                                               \
-		key_type=ident.ID                                       \
 		value_type=AggregateResultsForTerm                      \
 		target_package=$(m3db_package)/src/dbnode/storage/index \
-		rename_nogen_key=true                                   \
-		rename_nogen_value=true                                 \
-		rename_type_prefix=AggregateResults
-	# Rename generated map file
+		rename_type_prefix=aggregateResults                     \
+		rename_constructor=newAggregateResultsMap               \
+		rename_constructor_options=aggregateResultsMapOptions
+	# Rename both generated map and constructor files
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_results_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/storage/index/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_new_results_map_gen.go
+
+
 
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
