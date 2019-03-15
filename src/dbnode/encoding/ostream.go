@@ -31,8 +31,23 @@ const (
 
 // Ostream encapsulates a writable stream.
 type ostream struct {
-	rawBuffer checked.Bytes // raw bytes
-	pos       int           // how many bits have been used in the last byte
+	// We want to use a checked.Bytes when transferring ownership of the buffer
+	// of the ostream. Unfortunately, the accounting overhead of going through
+	// the checked.Bytes for every write is massive. As a result, we store both
+	// the rawBuffer that backs the checked.Bytes AND the checked.Bytes themselves
+	// in this struct.
+	//
+	// That way, whenever we're writing to the buffer we can avoid the cost accounting
+	// overhead entirely, but when the data needs to be transffered to another owner
+	// we use the checked.Bytes, which is when the accounting really matters anyways.
+	//
+	// The rawBuffer and checked.Bytes may get out of sync as the rawBuffer is written to,
+	// but thats fine because we perform a "repair" by resetting the checked.Bytes underlying
+	// byte slice to be the rawBuffer whenever we expose a checked.Bytes to an external caller.
+	rawBuffer []byte
+	checked   checked.Bytes
+
+	pos       int // how many bits have been used in the last byte
 	bytesPool pool.CheckedBytesPool
 }
 
@@ -45,6 +60,7 @@ func NewOStream(
 	if bytes == nil && initAllocIfEmpty {
 		bytes = checked.NewBytes(make([]byte, 0, initAllocSize), nil)
 	}
+
 	stream := &ostream{bytesPool: bytesPool}
 	stream.Reset(bytes)
 	return stream
@@ -52,10 +68,7 @@ func NewOStream(
 
 // Len returns the length of the Ostream
 func (os *ostream) Len() int {
-	if os.rawBuffer == nil {
-		return 0
-	}
-	return os.rawBuffer.Len()
+	return len(os.rawBuffer)
 }
 
 // Empty returns whether the Ostream is empty
@@ -73,22 +86,50 @@ func (os *ostream) hasUnusedBits() bool {
 
 // grow appends the last byte of v to rawBuffer and sets pos to np.
 func (os *ostream) grow(v byte, np int) {
-	if p := os.bytesPool; p != nil {
-		if b, swapped := pool.AppendByteChecked(os.rawBuffer, v, p); swapped {
-			os.rawBuffer.DecRef()
-			os.rawBuffer.Finalize()
-			os.rawBuffer = b
-			os.rawBuffer.IncRef()
-		}
-	} else {
-		os.rawBuffer.Append(v)
-	}
+	os.ensureCapacityFor(1)
+	os.rawBuffer = append(os.rawBuffer, v)
 
 	os.pos = np
 }
 
+// ensureCapacity ensures that there is at least capacity for n more bytes.
+func (os *ostream) ensureCapacityFor(n int) {
+	var (
+		currCap      = cap(os.rawBuffer)
+		currLen      = len(os.rawBuffer)
+		availableCap = currCap - currLen
+		missingCap   = n - availableCap
+	)
+	if missingCap <= 0 {
+		// Already have enough capacity.
+		return
+	}
+
+	newCap := max(cap(os.rawBuffer)*2, currCap+missingCap)
+	if p := os.bytesPool; p != nil {
+		newChecked := p.Get(newCap)
+		newChecked.IncRef()
+		newChecked.AppendAll(os.rawBuffer)
+
+		if os.checked != nil {
+			os.checked.DecRef()
+			os.checked.Finalize()
+		}
+
+		os.checked = newChecked
+		os.rawBuffer = os.checked.Bytes()
+	} else {
+		newRawBuffer := make([]byte, 0, newCap)
+		newRawBuffer = append(newRawBuffer, os.rawBuffer...)
+		os.rawBuffer = newRawBuffer
+
+		os.checked = checked.NewBytes(os.rawBuffer, nil)
+		os.checked.IncRef()
+	}
+}
+
 func (os *ostream) fillUnused(v byte) {
-	os.rawBuffer.Bytes()[os.lastIndex()] |= v >> uint(os.pos)
+	os.rawBuffer[os.lastIndex()] |= v >> uint(os.pos)
 }
 
 // WriteBit writes the last bit of v.
@@ -114,6 +155,10 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
+	// Make sure we only have to grow the underlying buffer at most
+	// one time before we write one byte at a time in a loop.
+	os.ensureCapacityFor(len(bytes))
+
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}
@@ -147,27 +192,35 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 
 // Discard takes the ref to the checked bytes from the ostream
 func (os *ostream) Discard() checked.Bytes {
-	buffer := os.rawBuffer
+	os.repairCheckedBytes()
+
+	buffer := os.checked
 	buffer.DecRef()
-	os.pos = 0
+
 	os.rawBuffer = nil
+	os.pos = 0
+	os.checked = nil
+
 	return buffer
 }
 
 // Reset resets the ostream
 func (os *ostream) Reset(buffer checked.Bytes) {
-	if os.rawBuffer != nil {
+	if os.checked != nil {
 		// Release ref of the current raw buffer
-		os.rawBuffer.DecRef()
-		os.rawBuffer.Finalize()
+		os.checked.DecRef()
+		os.checked.Finalize()
+
 		os.rawBuffer = nil
+		os.checked = nil
 	}
 
-	os.rawBuffer = buffer
-
-	if os.rawBuffer != nil {
+	if buffer != nil {
 		// Track ref to the new raw buffer
-		os.rawBuffer.IncRef()
+		buffer.IncRef()
+
+		os.checked = buffer
+		os.rawBuffer = os.checked.Bytes()
 	}
 
 	os.pos = 0
@@ -178,7 +231,26 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 	}
 }
 
-// Rawbytes returns the Osteam's raw bytes
-func (os *ostream) Rawbytes() (checked.Bytes, int) {
+// Rawbytes returns the Osteam's raw bytes. Note that this does not transfer ownership
+// of the data and bypasses the checked.Bytes accounting so callers should:
+//     1. Only use the returned slice as a "read-only" snapshot of the data in a context
+//        where the caller has at least a read lock on the ostream itself.
+//     2. Use this function with care.
+func (os *ostream) Rawbytes() ([]byte, int) {
 	return os.rawBuffer, os.pos
+}
+
+// repairCheckedBytes makes sure that the checked.Bytes wraps the rawBuffer as
+// they may have fallen out of sync during the writing process.
+func (os *ostream) repairCheckedBytes() {
+	if os.checked != nil {
+		os.checked.Reset(os.rawBuffer)
+	}
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
 }

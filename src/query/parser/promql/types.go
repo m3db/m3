@@ -189,6 +189,10 @@ func NewFunctionExpr(
 		p, err = linear.NewClampOp(argValues, name)
 		return p, true, err
 
+	case linear.HistogramQuantileType:
+		p, err = linear.NewHistogramQuantileOp(argValues, name)
+		return p, true, err
+
 	case linear.RoundType:
 		p, err = linear.NewRoundOp(argValues)
 		return p, true, err

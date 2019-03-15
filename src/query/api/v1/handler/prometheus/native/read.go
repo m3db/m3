@@ -32,9 +32,12 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	xhttp "github.com/m3db/m3/src/x/net/http"
+	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 
+	opentracingext "github.com/opentracing/opentracing-go/ext"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -63,6 +66,7 @@ type PromReadHandler struct {
 	limitsCfg       *config.LimitsConfiguration
 	promReadMetrics promReadMetrics
 	timeoutOps      *prometheus.TimeoutOpts
+	keepNans        bool
 }
 
 type promReadMetrics struct {
@@ -106,6 +110,7 @@ func NewPromReadHandler(
 	limitsCfg *config.LimitsConfiguration,
 	scope tally.Scope,
 	timeoutOpts *prometheus.TimeoutOpts,
+	keepNans bool,
 ) *PromReadHandler {
 	h := &PromReadHandler{
 		engine:          engine,
@@ -113,9 +118,10 @@ func NewPromReadHandler(
 		limitsCfg:       limitsCfg,
 		promReadMetrics: newPromReadMetrics(scope),
 		timeoutOps:      timeoutOpts,
+		keepNans:        keepNans,
 	}
 
-	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints))
+	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
 	return h
 }
 
@@ -124,7 +130,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
 	if respErr != nil {
-		xhttp.Error(w, respErr.Err, respErr.Code)
+		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
 	}
 
@@ -139,7 +145,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	timer.Stop()
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, params)
+	renderResultsJSON(w, result, params, h.keepNans)
 }
 
 // ServeHTTPWithEngine returns query results from the storage
@@ -167,10 +173,16 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
+		sp := opentracingutil.SpanFromContextOrNoop(ctx)
+		sp.LogFields(opentracinglog.Error(err))
+		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
+
+	// TODO: Support multiple result types
+	w.Header().Set("Content-Type", "application/json")
 
 	return result, params, nil
 }
@@ -180,12 +192,13 @@ func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
 	// querying from the beginning of time with a 1s step size.
 	// Approach taken directly from prom.
 	numSteps := int64(params.End.Sub(params.Start) / params.Step)
-	if h.limitsCfg.MaxComputedDatapoints > 0 && numSteps > h.limitsCfg.MaxComputedDatapoints {
+	maxComputedDatapoints := h.limitsCfg.MaxComputedDatapoints()
+	if maxComputedDatapoints > 0 && numSteps > maxComputedDatapoints {
 		return fmt.Errorf(
 			"querying from %v to %v with step size %v would result in too many datapoints "+
 				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, "+
 				"or increase the limit (`limits.maxComputedDatapoints`)",
-			params.Start, params.End, params.Step, h.limitsCfg.MaxComputedDatapoints,
+			params.Start, params.End, params.Step, maxComputedDatapoints,
 		)
 	}
 

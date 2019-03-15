@@ -95,7 +95,7 @@ func TransformNull(value float64) TransformFunc {
 	}
 }
 
-// IsNonNull takes a series or series list and counts up how many non-null values are specified.
+// IsNonNull replaces datapoints that are non-null with 1, and null values with 0.
 // This is useful for understanding which series have data at a given point in time (i.e. to count
 // which servers are alive).
 func IsNonNull() TransformFunc {

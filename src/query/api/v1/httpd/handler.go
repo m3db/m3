@@ -23,6 +23,7 @@ package httpd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
@@ -43,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -52,6 +54,8 @@ import (
 	"github.com/m3db/m3/src/x/net/http/cors"
 
 	"github.com/gorilla/mux"
+	"github.com/opentracing-contrib/go-stdlib/nethttp"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 )
 
@@ -82,6 +86,7 @@ type Handler struct {
 	createdAt            time.Time
 	tagOptions           models.TagOptions
 	timeoutOpts          *prometheus.TimeoutOpts
+	enforcer             cost.ChainedEnforcer
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -98,32 +103,27 @@ func NewHandler(
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
+	enforcer cost.ChainedEnforcer,
 	scope tally.Scope,
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
-	// apply middleware. Just CORS for now, but we could add more here as needed.
-	withMiddleware := &cors.Handler{
-		Handler: r,
-		Info: &cors.Info{
-			"*": true,
-		},
-	}
+	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 
 	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil {
+	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
 		timeoutOpts.FetchTimeout = defaultTimeout
 	} else {
-		if embeddedDbCfg.Client.FetchTimeout < 0 {
+		if *embeddedDbCfg.Client.FetchTimeout <= 0 {
 			return nil, errors.New("m3db client fetch timeout should be > 0")
 		}
 
-		timeoutOpts.FetchTimeout = embeddedDbCfg.Client.FetchTimeout
+		timeoutOpts.FetchTimeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	h := &Handler{
 		router:               r,
-		handler:              withMiddleware,
+		handler:              handlerWithMiddleware,
 		storage:              downsamplerAndWriter.Storage(),
 		downsamplerAndWriter: downsamplerAndWriter,
 		engine:               engine,
@@ -135,8 +135,26 @@ func NewHandler(
 		createdAt:            time.Now(),
 		tagOptions:           tagOptions,
 		timeoutOpts:          timeoutOpts,
+		enforcer:             enforcer,
 	}
 	return h, nil
+}
+
+func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
+	withMiddleware := http.Handler(&cors.Handler{
+		Handler: base,
+		Info: &cors.Info{
+			"*": true,
+		},
+	})
+
+	// apply jaeger middleware, which will start a span
+	// for each incoming request
+	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
+		nethttp.OperationNameFunc(func(r *http.Request) string {
+			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+		}))
+	return withMiddleware
 }
 
 // RegisterRoutes registers all http routes.
@@ -167,6 +185,7 @@ func (h *Handler) RegisterRoutes() error {
 		&h.config.Limits,
 		h.scope.Tagged(nativeSource),
 		h.timeoutOpts,
+		h.config.ResultOptions.KeepNans,
 	)
 
 	h.router.HandleFunc(remote.PromReadURL,
@@ -210,7 +229,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
-		wrapped(graphite.NewRenderHandler(h.storage)).ServeHTTP,
+		wrapped(graphite.NewRenderHandler(h.storage, h.enforcer)).ServeHTTP,
 	).Methods(graphite.ReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.FindURL,
@@ -237,7 +256,7 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
+func (h *Handler) m3AggServiceOptions() *handler.M3AggServiceOptions {
 	if h.clusters == nil {
 		return nil
 	}
@@ -254,7 +273,7 @@ func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
 		return nil
 	}
 
-	return &placement.M3AggServiceOptions{
+	return &handler.M3AggServiceOptions{
 		MaxAggregationWindowSize: maxResolution,
 	}
 }

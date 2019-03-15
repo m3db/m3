@@ -35,6 +35,11 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-f
 If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them
 manifests.
 
+### Kernel Configuration
+
+We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][kernel] docs
+for more.
+
 ## Deploying
 
 Apply the following manifest to create your cluster:
@@ -289,3 +294,5 @@ certain nodes. Specifically:
 1. The pods tolerate the taint `"dedicated-m3db"` to run on nodes that are specifically dedicated to m3db if you so
    choose.
 2. Via `nodeAffinity` the pods prefer to run on nodes with the label `m3db.io/dedicated-m3db="true"`.
+
+[kernel]: ../operational_guide/kernel_configuration

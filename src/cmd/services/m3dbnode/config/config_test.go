@@ -40,6 +40,12 @@ db:
       level: info
       file: /var/log/m3dbnode.log
 
+  cache:
+      postingsList:
+          size: 100
+          cacheRegexp: false
+          cacheTerms: false
+
   metrics:
       prometheus:
           handlerPath: /metrics
@@ -99,7 +105,6 @@ db:
       queue:
           calculationType: fixed
           size: 2097152
-      blockSize: 10m
 
   fs:
       filePathPrefix: /var/lib/m3db
@@ -159,9 +164,9 @@ db:
           highWatermark: 0.02
       fetchBlocksMetadataResultsPool:
           size: 32
-          capacity: 4096
           lowWatermark: 0.01
           highWatermark: 0.02
+          capacity: 4096
       hostBlockMetadataSlicePool:
           size: 131072
           capacity: 3
@@ -208,12 +213,9 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
       writeBatchPool:
+          size: 8192
           initialBatchSize: 128
           maxBatchSize: 100000
-          pool:
-            size: 8192
-            lowWatermark: 0.01
-            highWatermark: 0.02
       postingsListPool:
           size: 8
           lowWatermark: 0
@@ -343,10 +345,7 @@ func TestConfiguration(t *testing.T) {
     envVarName: null
     file: null
   client:
-    config:
-      service: null
-      static: null
-      seedNodes: null
+    config: null
     writeConsistencyLevel: 2
     readConsistencyLevel: 2
     connectConsistencyLevel: 0
@@ -387,6 +386,10 @@ func TestConfiguration(t *testing.T) {
   blockRetrieve: null
   cache:
     series: null
+    postingsList:
+      size: 100
+      cacheRegexp: false
+      cacheTerms: false
   fs:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
@@ -407,7 +410,7 @@ func TestConfiguration(t *testing.T) {
       calculationType: fixed
       size: 2097152
     queueChannel: null
-    blockSize: 10m0s
+    blockSize: null
   repair:
     enabled: false
     interval: 2h0m0s
@@ -421,37 +424,37 @@ func TestConfiguration(t *testing.T) {
     bytesPool:
       buckets:
       - size: 6291456
+        lowWatermark: 0.1
+        highWatermark: 0.12
         capacity: 16
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 32
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 64
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 128
-        lowWatermark: 0.1
-        highWatermark: 0.12
       - size: 3145728
+        lowWatermark: 0.1
+        highWatermark: 0.12
         capacity: 256
+      - size: 524288
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 524288
         capacity: 1440
-        lowWatermark: 0.1
-        highWatermark: 0.12
       - size: 524288
+        lowWatermark: 0.01
+        highWatermark: 0.02
         capacity: 4096
-        lowWatermark: 0.01
-        highWatermark: 0.02
       - size: 32768
-        capacity: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
+        capacity: 8192
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -487,43 +490,43 @@ func TestConfiguration(t *testing.T) {
       highWatermark: 0.02
     fetchBlockMetadataResultsPool:
       size: 65536
-      capacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 32
     fetchBlocksMetadataResultsPool:
       size: 32
-      capacity: 4096
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 4096
     hostBlockMetadataSlicePool:
       size: 131072
-      capacity: 3
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 3
     blockMetadataPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
     blockMetadataSlicePool:
       size: 65536
-      capacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 32
     blocksMetadataPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
     blocksMetadataSlicePool:
       size: 32
-      capacity: 4096
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 4096
     tagsPool:
       size: 65536
-      capacity: 8
-      maxCapacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 8
+      maxCapacity: 32
     tagIteratorPool:
       size: 8192
       lowWatermark: 0.01
@@ -541,12 +544,9 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
     writeBatchPool:
+      size: 8192
       initialBatchSize: 128
       maxBatchSize: 100000
-      pool:
-        size: 8192
-        lowWatermark: 0.01
-        highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0

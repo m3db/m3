@@ -154,10 +154,12 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, err := ns.Write(ctx, ident.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
+	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"),
+		time.Now(), 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
+	require.False(t, wasWritten)
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
@@ -176,11 +178,20 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant).Return(ts.Series{}, nil)
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
+		Return(ts.Series{}, true, nil).Times(1)
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
+		Return(ts.Series{}, false, nil).Times(1)
+
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	_, err := ns.Write(ctx, id, now, val, unit, ant)
+	_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
 	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
+	require.NoError(t, err)
+	require.False(t, wasWritten)
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
@@ -451,7 +462,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
 }
 
 func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
@@ -508,18 +519,6 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
-func TestNamespaceSnapshotShardNotBootstrappedBeforeTick(t *testing.T) {
-	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
-			isSnapshotting:                false,
-			expectSnapshot:                false,
-			shardBootstrapStateBeforeTick: Bootstrapping,
-			shardSnapshotErr:              nil,
-		},
-	}
-	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
-}
-
 func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -560,7 +559,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
 	}
 
-	return ns.Snapshot(blockStart, now, shardBootstrapStates, nil)
+	return ns.Snapshot(blockStart, now, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {
@@ -1069,12 +1068,21 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil).Return(ts.Series{}, nil)
+		now, 1.0, xtime.Second, nil).Return(ts.Series{}, true, nil)
+	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+		now, 1.0, xtime.Second, nil).Return(ts.Series{}, false, nil)
+
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	_, err := ns.WriteTagged(ctx, ident.StringID("a"),
+	_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
 		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+	require.NoError(t, err)
+	require.False(t, wasWritten)
 
 	shard.EXPECT().Close()
 	idx.EXPECT().Close().Return(nil)
@@ -1217,7 +1225,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: testTime.Truncate(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(-1 * time.Second),
 						},
 					},
@@ -1237,7 +1245,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},
@@ -1259,7 +1267,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},
@@ -1280,7 +1288,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 						fs.FileSetFile{
@@ -1288,7 +1296,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart.Add(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},

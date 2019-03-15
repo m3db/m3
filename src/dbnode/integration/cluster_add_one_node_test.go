@@ -74,7 +74,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		// Prevent snapshotting from happening too frequently to allow for the
 		// possibility of a snapshot occurring after the shard set is assigned,
 		// but not after the node finishes bootstrapping.
-		SetMinimumSnapshotInterval(5 * time.Second)
+		SetTickMinimumInterval(5 * time.Second)
 
 	minShard := uint32(0)
 	maxShard := uint32(opts.NumShards()) - uint32(1)
@@ -273,8 +273,12 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		doneWritingWhilePeerStreaming <- struct{}{}
 	}()
 
+	log.Debug("waiting for shards to be bootstrapped")
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
+
+	log.Debug("waiting for background writes to complete")
 	<-doneWritingWhilePeerStreaming
+
 	log.Debug("waiting for shards to be marked initialized")
 
 	allMarkedAvailable := func(

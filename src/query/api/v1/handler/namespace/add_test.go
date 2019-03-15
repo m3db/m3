@@ -28,15 +28,43 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/kv"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+const testAddJSON = `
+{
+		"name": "testNamespace",
+		"options": {
+			"bootstrapEnabled": true,
+			"flushEnabled": true,
+			"writesToCommitLog": true,
+			"cleanupEnabled": true,
+			"repairEnabled": true,
+			"retentionOptions": {
+				"retentionPeriodNanos": 172800000000000,
+				"blockSizeNanos": 7200000000000,
+				"bufferFutureNanos": 600000000000,
+				"bufferPastNanos": 600000000000,
+				"blockDataExpiry": true,
+				"blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+			},
+			"snapshotEnabled": true,
+			"indexOptions": {
+				"enabled": true,
+				"blockSizeNanos": 7200000000000
+			}
+		}
+}
+`
+
 func TestNamespaceAddHandler(t *testing.T) {
 	mockClient, mockKV, _ := SetupNamespaceTest(t)
 	addHandler := NewAddHandler(mockClient)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
@@ -65,33 +93,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	// being false and it not being set by a user.
 	w = httptest.NewRecorder()
 
-	jsonInput = `
-        {
-            "name": "testNamespace",
-            "options": {
-              "bootstrapEnabled": true,
-              "flushEnabled": true,
-              "writesToCommitLog": true,
-              "cleanupEnabled": true,
-              "repairEnabled": true,
-              "retentionOptions": {
-                "retentionPeriodNanos": 172800000000000,
-                "blockSizeNanos": 7200000000000,
-                "bufferFutureNanos": 600000000000,
-                "bufferPastNanos": 600000000000,
-                "blockDataExpiry": true,
-                "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
-              },
-              "snapshotEnabled": true,
-              "indexOptions": {
-                "enabled": true,
-                "blockSizeNanos": 7200000000000
-              }
-            }
-        }
-    `
-
-	req = httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req = httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
@@ -102,4 +104,45 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":true,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"}}}}}", string(body))
+}
+
+func TestNamespaceAddHandler_Conflict(t *testing.T) {
+	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
+	addHandler := NewAddHandler(mockClient)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+
+	// Ensure adding an existing namespace returns 409
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
+	require.NotNil(t, req)
+
+	registry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"testNamespace": &nsproto.NamespaceOptions{
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				SnapshotEnabled:   true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
+				RetentionOptions: &nsproto.RetentionOptions{
+					RetentionPeriodNanos:                     172800000000000,
+					BlockSizeNanos:                           7200000000000,
+					BufferFutureNanos:                        600000000000,
+					BufferPastNanos:                          600000000000,
+					BlockDataExpiry:                          true,
+					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
+				},
+			},
+		},
+	}
+
+	mockValue := kv.NewMockValue(ctrl)
+	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+	mockValue.EXPECT().Version().Return(0)
+	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
+
+	w := httptest.NewRecorder()
+	addHandler.ServeHTTP(w, req)
+	resp := w.Result()
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }

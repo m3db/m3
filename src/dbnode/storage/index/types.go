@@ -94,6 +94,11 @@ type Results interface {
 	// including returning it to a backing pool.
 	Finalize()
 
+	// NoFinalize marks the Results such that a subsequent call to Finalize() will
+	// be a no-op and will not return the object to the pool or release any of its
+	// resources.
+	NoFinalize()
+
 	// Size returns the number of IDs tracked.
 	Size() int
 
@@ -665,4 +670,16 @@ type Options interface {
 
 	// BackgroundCompactionPlannerOptions returns the compaction planner options.
 	BackgroundCompactionPlannerOptions() compaction.PlannerOptions
+
+	// SetPostingsListCache sets the postings list cache.
+	SetPostingsListCache(value *PostingsListCache) Options
+
+	// PostingsListCache returns the postings list cache.
+	PostingsListCache() *PostingsListCache
+
+	// SetReadThroughSegmentOptions sets the read through segment cache options.
+	SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options
+
+	// ReadThroughSegmentOptions returns the read through segment cache options.
+	ReadThroughSegmentOptions() ReadThroughSegmentOptions
 }

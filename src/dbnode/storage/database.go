@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -548,12 +549,12 @@ func (d *db) Write(
 		return err
 	}
 
-	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, wasWritten, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() {
+	if !n.Options().WritesToCommitLog() || !wasWritten {
 		return nil
 	}
 
@@ -585,12 +586,12 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, wasWritten, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() {
+	if !n.Options().WritesToCommitLog() || !wasWritten {
 		return nil
 	}
 
@@ -664,12 +665,13 @@ func (d *db) writeBatch(
 	iter := writes.Iter()
 	for i, write := range iter {
 		var (
-			series ts.Series
-			err    error
+			series     ts.Series
+			wasWritten bool
+			err        error
 		)
 
 		if tagged {
-			series, err = n.WriteTagged(
+			series, wasWritten, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
 				write.TagIter,
@@ -679,7 +681,7 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		} else {
-			series, err = n.Write(
+			series, wasWritten, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
 				write.Write.Datapoint.Timestamp,
@@ -694,17 +696,21 @@ func (d *db) writeBatch(
 			errHandler.HandleError(write.OriginalIndex, err)
 		}
 
-		// Need to set the outcome in the success case so the commitlog gets the updated
-		// series object which contains identifiers (like the series ID) whose lifecycle
-		// live longer than the span of this request, making them safe for use by the async
-		// commitlog. Need to set the outcome in the error case so that the commitlog knows
-		// to skip this entry.
+		// Need to set the outcome in the success case so the commitlog gets the
+		// updated series object which contains identifiers (like the series ID)
+		// whose lifecycle lives longer than the span of this request, making them
+		// safe for use by the async commitlog. Need to set the outcome in the
+		// error case so that the commitlog knows to skip this entry.
 		writes.SetOutcome(i, series, err)
+		if !wasWritten || err != nil {
+			// This series has no additional information that needs to be written to
+			// the commit log; set this series to skip writing to the commit log.
+			writes.SetSkipWrite(i)
+		}
 	}
-
 	if !n.Options().WritesToCommitLog() {
-		// Finalize here because we can't rely on the commitlog to do it since we're not
-		// using it.
+		// Finalize here because we can't rely on the commitlog to do it since
+		// we're not using it.
 		writes.Finalize()
 		return nil
 	}
@@ -889,7 +895,7 @@ func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("no such namespace %s", namespace)
+		return nil, dberrors.NewUnknownNamespaceError(namespace.String())
 	}
 	return n, nil
 }

@@ -22,6 +22,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -33,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/x/cost"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -48,26 +51,27 @@ const (
 	M3DBStorageType BackendStorageType = "m3db"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
+	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
+		"generation scheme is required in coordinator configuration settings. " +
+		"More information is available here: %s"
+
+	defaultQueryConversionCacheSize = 4096
 )
 
 var (
 	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
-	defaultCarbonIngesterWriteTimeout    = 15 * time.Second
 	defaultCarbonIngesterAggregationType = aggregation.Mean
-
-	// defaultLimitsConfiguration is applied if `limits` isn't specified.
-	defaultLimitsConfiguration = &LimitsConfiguration{
-		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-		MaxComputedDatapoints: 86400,
-	}
 )
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+
+	// Tracing configures opentracing. If not provided, tracing is disabled.
+	Tracing instrument.TracingConfiguration `yaml:"tracing"`
 
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
@@ -116,6 +120,12 @@ type Configuration struct {
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
+
+	// Cache configurations.
+	Cache CacheConfiguration `yaml:"cache"`
+
+	// ResultOptions are the results options for query.
+	ResultOptions ResultOptions `yaml:"resultOptions"`
 }
 
 // Filter is a query filter type.
@@ -139,9 +149,116 @@ type FilterConfiguration struct {
 	CompleteTags Filter `yaml:"completeTags"`
 }
 
-// LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
+// ResultOptions are the result options for query.
+type ResultOptions struct {
+	// KeepNans keeps NaNs before returning query results.
+	// The default is false, which matches Prometheus
+	KeepNans bool `yaml:"keepNans"`
+}
+
+// CacheConfiguration is the cache configurations.
+type CacheConfiguration struct {
+	// QueryConversion cache policy.
+	QueryConversion *QueryConversionCacheConfiguration `yaml:"queryConversion"`
+}
+
+// QueryConversionCacheConfiguration is the query conversion cache configuration.
+type QueryConversionCacheConfiguration struct {
+	Size *int `yaml:"size"`
+}
+
+// QueryConversionCacheConfiguration returns the query conversion cache configuration
+// or default if none is specified.
+func (c CacheConfiguration) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
+	if c.QueryConversion == nil {
+		return QueryConversionCacheConfiguration{}
+	}
+
+	return *c.QueryConversion
+}
+
+// SizeOrDefault returns the provided size or the default value is none is
+// provided.
+func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
+	if q.Size == nil {
+		return defaultQueryConversionCacheSize
+	}
+
+	return *q.Size
+}
+
+// Validate validates the QueryConversionCacheConfiguration settings.
+func (q *QueryConversionCacheConfiguration) Validate() error {
+	if q.Size != nil && *q.Size <= 0 {
+		return fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
+	}
+
+	return nil
+}
+
+// LimitsConfiguration represents limitations on resource usage in the query instance. Limits are split between per-query
+// and global limits.
 type LimitsConfiguration struct {
-	MaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	// deprecated: use PerQuery.MaxComputedDatapoints instead.
+	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+
+	// Global configures limits which apply across all queries running on this
+	// instance.
+	Global GlobalLimitsConfiguration `yaml:"global"`
+
+	// PerQuery configures limits which apply to each query individually.
+	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
+}
+
+// MaxComputedDatapoints is a getter providing backwards compatibility between
+// LimitsConfiguration.DeprecatedMaxComputedDatapoints and
+// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
+// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
+// the semantics.
+func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
+	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
+		return lc.PerQuery.PrivateMaxComputedDatapoints
+	}
+
+	return lc.DeprecatedMaxComputedDatapoints
+}
+
+// GlobalLimitsConfiguration represents limits on resource usage across a query instance. Zero or negative values imply no limit.
+type GlobalLimitsConfiguration struct {
+	// MaxFetchedDatapoints limits the total number of datapoints actually fetched by all queries at any given time.
+	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+}
+
+// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
+	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+// PerQueryLimitsConfiguration represents limits on resource usage within a single query. Zero or negative values imply no limit.
+type PerQueryLimitsConfiguration struct {
+	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
+	// returned by a query. It's determined purely
+	// from the size of the time range and the step size (end - start / step).
+	//
+	// N.B.: the hacky "Private" prefix is to indicate that callers should use
+	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
+	// this field directly.
+	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+
+	// MaxFetchedDatapoints limits the number of datapoints actually used by a given query.
+	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+}
+
+// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
+	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
+	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
+		Threshold: cost.Cost(limit),
+		Enabled:   limit > 0,
+	})
 }
 
 // IngestConfiguration is the configuration for ingestion server.
@@ -178,6 +295,16 @@ func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
 	}
 
 	return v, nil
+}
+
+// ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the
+// default value if not.
+func (c *CarbonIngesterConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress != "" {
+		return c.ListenAddress
+	}
+
+	return defaultCarbonIngesterListenAddress
 }
 
 // RulesOrDefault returns the specified carbon ingester rules if provided, or generates reasonable
@@ -299,6 +426,10 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 
+	// BucketName specifies the tag name that corresponds to the metric's bucket.
+	// If not provided, defaults to `le`.
+	BucketName string `yaml:"bucketName"`
+
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 }
@@ -311,8 +442,15 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		opts = opts.SetMetricName([]byte(name))
 	}
 
+	bucket := cfg.BucketName
+	if bucket != "" {
+		opts = opts.SetBucketName([]byte(bucket))
+	}
+
 	if cfg.Scheme == models.TypeDefault {
-		cfg.Scheme = models.TypeLegacy
+		// If no config has been set, error.
+		docLink := xdocs.Path("how_to/query#migration")
+		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)

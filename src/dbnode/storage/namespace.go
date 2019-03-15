@@ -556,16 +556,17 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, err
+		return ts.Series{}, false, err
 	}
-	series, err := shard.Write(ctx, id, timestamp, value, unit, annotation)
+	series, wasWritten, err := shard.Write(ctx, id, timestamp,
+		value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -576,20 +577,21 @@ func (n *dbNamespace) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, error) {
+) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, errNamespaceIndexingDisabled
+		return ts.Series{}, false, errNamespaceIndexingDisabled
 	}
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, err
+		return ts.Series{}, false, err
 	}
-	series, err := shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
+		value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -798,7 +800,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	shardBootstrapStatesAtTickStart ShardBootstrapStates,
-	flush persist.DataFlush,
+	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
@@ -850,7 +852,7 @@ func (n *dbNamespace) Flush(
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flush); err != nil {
+		if err := shard.Flush(blockStart, flushPersist); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -887,8 +889,8 @@ func (n *dbNamespace) FlushIndex(
 func (n *dbNamespace) Snapshot(
 	blockStart,
 	snapshotTime time.Time,
-	shardBootstrapStatesAtTickStart ShardBootstrapStates,
-	flush persist.DataFlush) error {
+	snapshotPersist persist.SnapshotPreparer,
+) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -902,6 +904,10 @@ func (n *dbNamespace) Snapshot(
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
+		// Note that we keep the ability to disable snapshots at the namespace level around for
+		// debugging / performance / flexibility reasons, but disabling it can / will cause data
+		// loss due to the commitlog cleanup logic assuming that a valid snapshot checkpoint file
+		// means that all namespaces were successfully snapshotted.
 		n.metrics.snapshot.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -919,20 +925,7 @@ func (n *dbNamespace) Snapshot(
 			continue
 		}
 
-		// We don't need to perform this check for correctness, but we apply the same logic
-		// here as we do in the Flush() method so that we don't end up snapshotting a bunch
-		// of shards/blocks that would have been flushed after the next tick.
-		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
-		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
-			n.log.
-				WithFields(xlog.NewField("shard", shard.ID())).
-				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
-				WithFields(xlog.NewField("bootstrapStateExists", ok)).
-				Debug("skipping snapshot due to shard bootstrap state before tick")
-			continue
-		}
-
-		err := shard.Snapshot(blockStart, snapshotTime, flush)
+		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)

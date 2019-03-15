@@ -48,11 +48,11 @@ var (
 
 	// M3AggReplaceURL is the url for the m3aggregator replace handler (method
 	// POST).
-	M3AggReplaceURL = path.Join(handler.RoutePrefixV1, M3AggregatorServiceName, replacePathName)
+	M3AggReplaceURL = path.Join(handler.RoutePrefixV1, handler.M3AggregatorServiceName, replacePathName)
 
 	// M3CoordinatorReplaceURL is the url for the m3coordinator replace handler
 	// (method POST).
-	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServiceName, replacePathName)
+	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1, handler.M3CoordinatorServiceName, replacePathName)
 )
 
 // ReplaceHandler is the type for placement replaces.
@@ -121,7 +121,7 @@ func (h *ReplaceHandler) Replace(
 		return nil, err
 	}
 
-	serviceOpts := NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
+	serviceOpts := handler.NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
 	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err

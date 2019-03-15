@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+	"github.com/m3db/m3/src/dbnode/persist"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/gogo/protobuf/proto"
@@ -54,7 +55,7 @@ type SnapshotMetadataWriter struct {
 // SnapshotMetadataWriteArgs are the arguments for SnapshotMetadataWriter.Write.
 type SnapshotMetadataWriteArgs struct {
 	ID                  SnapshotMetadataIdentifier
-	CommitlogIdentifier []byte
+	CommitlogIdentifier persist.CommitLogFile
 }
 
 func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr error) {
@@ -106,7 +107,10 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr
 	metadataBytes, err := proto.Marshal(&snapshot.Metadata{
 		SnapshotIndex: args.ID.Index,
 		SnapshotUUID:  []byte(args.ID.UUID.String()),
-		CommitlogID:   args.CommitlogIdentifier,
+		CommitlogID: &snapshot.CommitLogID{
+			FilePath: args.CommitlogIdentifier.FilePath,
+			Index:    args.CommitlogIdentifier.Index,
+		},
 	})
 	if err != nil {
 		return err
@@ -148,12 +152,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr
 	}
 
 	// Ensure the file is written out.
-	err = w.sync(checkpointFile, snapshotsDirFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.sync(checkpointFile, snapshotsDirFile)
 }
 
 // sync ensures that the provided file is persisted to disk by syncing it, as well
@@ -164,10 +163,5 @@ func (w *SnapshotMetadataWriter) sync(file, parent *os.File) error {
 		return err
 	}
 
-	err = parent.Sync()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return parent.Sync()
 }

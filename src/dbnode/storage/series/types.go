@@ -37,71 +37,71 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// DatabaseSeries is a series in the database
+// DatabaseSeries is a series in the database.
 type DatabaseSeries interface {
 	block.OnRetrieveBlock
 	block.OnEvictedFromWiredList
 
-	// ID returns the ID of the series
+	// ID returns the ID of the series.
 	ID() ident.ID
 
-	// Tags return the tags of the series
+	// Tags return the tags of the series.
 	Tags() ident.Tags
 
-	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
+	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc.
 	Tick() (TickResult, error)
 
-	// Write writes a new value
+	// Write writes a new value.
 	Write(
 		ctx context.Context,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (bool, error)
 
-	// ReadEncoded reads encoded blocks
+	// ReadEncoded reads encoded blocks.
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchBlocks returns data blocks given a list of block start times
+	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
-	// FetchBlocksMetadata returns the blocks metadata
+	// FetchBlocksMetadata returns the blocks metadata.
 	FetchBlocksMetadata(
 		ctx context.Context,
 		start, end time.Time,
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResult, error)
 
-	// IsEmpty returns whether series is empty
+	// IsEmpty returns whether series is empty.
 	IsEmpty() bool
 
-	// NumActiveBlocks returns the number of active blocks the series currently holds
+	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
-	// IsBootstrapped returns whether the series is bootstrapped or not
+	// IsBootstrapped returns whether the series is bootstrapped or not.
 	IsBootstrapped() bool
 
-	// Bootstrap merges the raw series bootstrapped along with any buffered data
+	// Bootstrap merges the raw series bootstrapped along with any buffered data.
 	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
 
-	// Flush flushes the data blocks of this series for a given start time
+	// Flush flushes the data blocks of this series for a given start time.
 	Flush(ctx context.Context, blockStart time.Time, persistFn persist.DataFn) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
-	// not been rotated into a block yet
+	// not been rotated into a block yet.
 	Snapshot(ctx context.Context, blockStart time.Time, persistFn persist.DataFn) error
 
-	// Close will close the series and if pooled returned to the pool
+	// Close will close the series and if pooled returned to the pool.
 	Close()
 
-	// Reset resets the series for reuse
+	// Reset resets the series for reuse.
 	Reset(
 		id ident.ID,
 		tags ident.Tags,
@@ -128,44 +128,44 @@ type QueryableBlockRetriever interface {
 	block.DatabaseShardBlockRetriever
 
 	// IsBlockRetrievable returns whether a block is retrievable
-	// for a given block start time
+	// for a given block start time.
 	IsBlockRetrievable(blockStart time.Time) bool
 }
 
-// TickStatus is the status of a series for a given tick
+// TickStatus is the status of a series for a given tick.
 type TickStatus struct {
-	// ActiveBlocks is the number of total active blocks
+	// ActiveBlocks is the number of total active blocks.
 	ActiveBlocks int
-	// OpenBlocks is the number of blocks actively mutable can be written to
+	// OpenBlocks is the number of blocks actively mutable can be written to.
 	OpenBlocks int
-	// WiredBlocks is the number of blocks wired in memory (all data kept)
+	// WiredBlocks is the number of blocks wired in memory (all data kept).
 	WiredBlocks int
-	// UnwiredBlocks is the number of blocks unwired (data kept on disk)
+	// UnwiredBlocks is the number of blocks unwired (data kept on disk).
 	UnwiredBlocks int
-	// PendingMergeBlocks is the number of blocks pending merges
+	// PendingMergeBlocks is the number of blocks pending merges.
 	PendingMergeBlocks int
 }
 
-// TickResult is a set of results from a tick
+// TickResult is a set of results from a tick.
 type TickResult struct {
 	TickStatus
-	// MadeExpiredBlocks is count of blocks just expired
+	// MadeExpiredBlocks is count of blocks just expired.
 	MadeExpiredBlocks int
-	// MadeUnwiredBlocks is count of blocks just unwired from memory
+	// MadeUnwiredBlocks is count of blocks just unwired from memory.
 	MadeUnwiredBlocks int
-	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams
+	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams.
 	MergedOutOfOrderBlocks int
 }
 
-// DatabaseSeriesAllocate allocates a database series for a pool
+// DatabaseSeriesAllocate allocates a database series for a pool.
 type DatabaseSeriesAllocate func() DatabaseSeries
 
-// DatabaseSeriesPool provides a pool for database series
+// DatabaseSeriesPool provides a pool for database series.
 type DatabaseSeriesPool interface {
-	// Get provides a database series from the pool
+	// Get provides a database series from the pool.
 	Get() DatabaseSeries
 
-	// Put returns a database series to the pool
+	// Put returns a database series to the pool.
 	Put(block DatabaseSeries)
 }
 
@@ -174,11 +174,14 @@ type DatabaseSeriesPool interface {
 type FlushOutcome int
 
 const (
-	// FlushOutcomeErr is just a default value that can be returned when we're also returning an error
+	// FlushOutcomeErr is just a default value that can be returned when we're
+	// also returning an error.
 	FlushOutcomeErr FlushOutcome = iota
-	// FlushOutcomeBlockDoesNotExist indicates that the series did not have a block for the specified flush blockStart.
+	// FlushOutcomeBlockDoesNotExist indicates that the series did not have a
+	// block for the specified flush blockStart.
 	FlushOutcomeBlockDoesNotExist
-	// FlushOutcomeFlushedToDisk indicates that a block existed and was flushed to disk successfully.
+	// FlushOutcomeFlushedToDisk indicates that a block existed and was flushed
+	// to disk successfully.
 	FlushOutcomeFlushedToDisk
 )
 

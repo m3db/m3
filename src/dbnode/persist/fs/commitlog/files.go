@@ -27,20 +27,54 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
-// File represents a commit log file and its associated metadata.
-type File struct {
-	FilePath string
-	Start    time.Time
-	Duration time.Duration
-	Index    int64
+var (
+	timeNone = time.Unix(0, 0)
+)
+
+// NextFile returns the next commitlog file.
+func NextFile(opts Options) (string, int, error) {
+	files, _, err := Files(opts)
+	if err != nil {
+		return "", -1, err
+	}
+
+	newIndex := 0
+	for _, f := range files {
+		if int(f.Index) >= newIndex {
+			newIndex = int(f.Index + 1)
+		}
+	}
+
+	for ; ; newIndex++ {
+		var (
+			prefix = opts.FilesystemOptions().FilePathPrefix()
+			// We pass timeNone for the commitlog file block start because that field
+			// is no longer required and can just be zero.
+			// TODO(rartoul): It should actually be completely backwards compatible to
+			// change the commitlog filename structure (because we don't rely on the name
+			// for any information, we just list all the files in a directory and then
+			// read their encoded heads to obtain information about them), so in the future
+			// we can just get rid of this.
+			filePath = fs.CommitLogFilePath(prefix, timeNone, newIndex)
+		)
+		exists, err := fs.FileExists(filePath)
+		if err != nil {
+			return "", -1, err
+		}
+
+		if !exists {
+			return filePath, newIndex, nil
+		}
+	}
 }
 
 // ReadLogInfo reads the commit log info out of a commitlog file
-func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64, error) {
+func ReadLogInfo(filePath string, opts Options) (int64, error) {
 	var fd *os.File
 	var err error
 	defer func() {
@@ -51,20 +85,20 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 	fd, err = os.Open(filePath)
 	if err != nil {
-		return time.Time{}, 0, 0, fsError{err}
+		return 0, fsError{err}
 	}
 
 	chunkReader := newChunkReader(opts.FlushSize())
 	chunkReader.reset(fd)
 	size, err := binary.ReadUvarint(chunkReader)
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return 0, err
 	}
 
 	bytes := make([]byte, size)
 	_, err = chunkReader.Read(bytes)
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return 0, err
 	}
 	logDecoder := msgpack.NewDecoder(nil)
 	logDecoder.Reset(msgpack.NewDecoderStream(bytes))
@@ -73,15 +107,15 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 	err = fd.Close()
 	fd = nil
 	if err != nil {
-		return time.Time{}, 0, 0, fsError{err}
+		return 0, fsError{err}
 	}
 
-	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, decoderErr
+	return logInfo.Index, decoderErr
 }
 
 // Files returns a slice of all available commit log files on disk along with
 // their associated metadata.
-func Files(opts Options) ([]File, []ErrorWithPath, error) {
+func Files(opts Options) (persist.CommitLogFiles, []ErrorWithPath, error) {
 	commitLogsDir := fs.CommitLogsDirPath(
 		opts.FilesystemOptions().FilePathPrefix())
 	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
@@ -89,14 +123,14 @@ func Files(opts Options) ([]File, []ErrorWithPath, error) {
 		return nil, nil, err
 	}
 
-	commitLogFiles := make([]File, 0, len(filePaths))
+	commitLogFiles := make([]persist.CommitLogFile, 0, len(filePaths))
 	errorsWithPath := make([]ErrorWithPath, 0)
 	for _, filePath := range filePaths {
-		file := File{
+		file := persist.CommitLogFile{
 			FilePath: filePath,
 		}
 
-		start, duration, index, err := ReadLogInfo(filePath, opts)
+		index, err := ReadLogInfo(filePath, opts)
 		if _, ok := err.(fsError); ok {
 			return nil, nil, err
 		}
@@ -108,22 +142,18 @@ func Files(opts Options) ([]File, []ErrorWithPath, error) {
 		}
 
 		if err == nil {
-			file.Start = start
-			file.Duration = duration
 			file.Index = index
 		}
 
-		commitLogFiles = append(commitLogFiles, File{
+		commitLogFiles = append(commitLogFiles, persist.CommitLogFile{
 			FilePath: filePath,
-			Start:    start,
-			Duration: duration,
 			Index:    index,
 		})
 	}
 
 	sort.Slice(commitLogFiles, func(i, j int) bool {
 		// Sorting is best effort here since we may not know the start.
-		return commitLogFiles[i].Start.Before(commitLogFiles[j].Start)
+		return commitLogFiles[i].Index < commitLogFiles[j].Index
 	})
 
 	return commitLogFiles, errorsWithPath, nil

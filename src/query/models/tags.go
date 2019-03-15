@@ -49,9 +49,17 @@ func EmptyTags() Tags {
 }
 
 // ID returns a byte slice representation of the tags, using the generation
-// strategy from .
+// strategy from the tag options.
 func (t Tags) ID() []byte {
 	schemeType := t.Opts.IDSchemeType()
+	if len(t.Tags) == 0 {
+		if schemeType == TypeQuoted {
+			return []byte("{}")
+		}
+
+		return []byte("")
+	}
+
 	switch schemeType {
 	case TypeLegacy:
 		return t.legacyID()
@@ -344,6 +352,16 @@ func (t Tags) SetName(value []byte) Tags {
 // Name gets the metric name.
 func (t Tags) Name() ([]byte, bool) {
 	return t.Get(t.Opts.MetricName())
+}
+
+// SetBucket sets the bucket tag value.
+func (t Tags) SetBucket(value []byte) Tags {
+	return t.AddOrUpdateTag(Tag{Name: t.Opts.BucketName(), Value: value})
+}
+
+// Bucket gets the bucket tag value.
+func (t Tags) Bucket() ([]byte, bool) {
+	return t.Get(t.Opts.BucketName())
 }
 
 // AddTags is used to add a list of tags and maintain sorted order.

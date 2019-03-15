@@ -87,17 +87,17 @@ type options struct {
 	newDirectoryMode                     os.FileMode
 	indexSummariesPercent                float64
 	indexBloomFilterFalsePositivePercent float64
-	forceIndexSummariesMmapMemory        bool
-	forceBloomFilterMmapMemory           bool
 	writerBufferSize                     int
 	dataReaderBufferSize                 int
 	infoReaderBufferSize                 int
 	seekReaderBufferSize                 int
-	mmapEnableHugePages                  bool
 	mmapHugePagesThreshold               int64
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
+	forceIndexSummariesMmapMemory        bool
+	forceBloomFilterMmapMemory           bool
+	mmapEnableHugePages                  bool
 }
 
 // NewOptions creates a new set of fs options

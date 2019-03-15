@@ -173,7 +173,7 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig.Service = cfg.DB.EnvironmentConfig.Service
+	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -372,7 +372,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig.Service = cfg.DB.EnvironmentConfig.Service
+	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -498,7 +498,6 @@ db:
         queue:
             calculationType: fixed
             size: 2097152
-        blockSize: 10m
 
     fs:
         filePathPrefix: {{.DataDir}}

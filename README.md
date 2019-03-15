@@ -2,9 +2,10 @@
 
 <p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
-Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and more.
+[Distributed TSDB](http://m3db.github.io/m3/m3db/) and [Query Engine](http://m3db.github.io/m3/how_to/query/), [Prometheus Sidecar](http://m3db.github.io/m3/integrations/prometheus/), [Metrics Aggregator](http://m3db.github.io/m3/introduction/components/components/#m3-aggregator), and more. "More" now includes [Graphite storage and query engine](http://m3db.github.io/m3/integrations/graphite/)!
 
 More information:
+
 - [Documentation](https://m3db.github.io/m3/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 - [Gitter (chat channel)](https://gitter.im/m3db/Lobby)
@@ -39,7 +40,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 
 ### Test RPC
 
-To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.
+To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use. These use the DB node cluster service endpoints.
 
 Note: performance sensitive users are expected to use the more performant endpoints via either the Go `src/dbnode/client/Session` API, or the GRPC endpoints exposed via `src/coordinator`.
 

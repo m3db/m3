@@ -64,10 +64,15 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+)
+
+const (
+	serviceName = "m3query"
 )
 
 var (
@@ -134,9 +139,24 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
+
+	tracer, traceCloser, err := cfg.Tracing.NewTracer(serviceName, scope, logger)
+	if err != nil {
+		logger.Fatal("could not initialize tracing", zap.Error(err))
+	}
+
+	defer traceCloser.Close()
+
+	if _, ok := tracer.(opentracing.NoopTracer); ok {
+		logger.Info("tracing disabled; set `tracing.backend` to enable")
+	}
+
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger)
+		SetZapLogger(logger).
+		SetTracer(tracer)
+
+	opentracing.SetGlobalTracer(tracer)
 
 	// Close metrics scope
 	defer func() {
@@ -228,7 +248,12 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration)
+	perQueryEnforcer, err := newConfiguredChainedEnforcer(&cfg, instrumentOptions)
+	if err != nil {
+		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
+	}
+
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration, perQueryEnforcer)
 
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
@@ -236,7 +261,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
-		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
+		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, perQueryEnforcer, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
@@ -351,6 +376,7 @@ func newM3DBStorage(
 			etcdCfg = &cfg.ClusterManagement.Etcd
 
 		case len(cfg.Clusters) == 1 &&
+			cfg.Clusters[0].Client.EnvironmentConfig != nil &&
 			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
 			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
 		}
@@ -587,13 +613,30 @@ func newStorages(
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(
+	// Setup query conversion cache.
+	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
+	if err := conversionCacheConfig.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
+	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
+		storage.NewQueryConversionCache(conversionLRU),
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
@@ -829,7 +872,7 @@ func startCarbonIngestion(
 	// Start server.
 	var (
 		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
-		carbonListenAddress = ingesterCfg.ListenAddress
+		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)
 	if strings.TrimSpace(carbonListenAddress) == "" {

@@ -10,6 +10,15 @@ common: &common
     manual: true
 
 steps:
+  - name: "Check for :docker: build"
+    command: ".ci/docker/check_do_docker.sh"
+    agents:
+      queue: init
+    timeout_in_minutes: 10
+    retry:
+      automatic:
+        limit: 1
+      manual: true
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
     env:
@@ -35,8 +44,15 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Integration (:docker:), Services, Tools, Metalint"
-    command: make install-vendor metalint docker-integration-test tools services
+  - name: "Services, Tools, Metalint"
+    command: make clean install-vendor services tools metalint
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - name: "Integration (:docker:)"
+    command: make clean install-vendor docker-integration-test
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.10.x
@@ -67,13 +83,4 @@ steps:
       docker-compose#v2.5.1:
         run: app
         workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - label: "FOSSA license scan"
-    command: make clean install-vendor fossa
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-        env:
-          - FOSSA_API_KEY
     <<: *common

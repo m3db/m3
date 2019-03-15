@@ -24,7 +24,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/pilosa/pilosa/roaring"
+	"github.com/m3db/pilosa/roaring"
 )
 
 const (
@@ -49,19 +49,6 @@ func newRandPostingsLists(numPostingsLists, numElemsPer int) []*roaring.Bitmap {
 }
 
 func newSampledPostingsLists(numPostingsLists, numTotalElements int) []*roaring.Bitmap {
-	elems := make([][]uint64, numPostingsLists)
-	for i := 0; i < numTotalElements; i++ {
-		idx := i % numPostingsLists
-		elems[idx] = append(elems[idx], uint64(i))
-	}
-	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
-	for _, elem := range elems {
-		pls = append(pls, roaring.NewBitmap(elem...))
-	}
-	return pls
-}
-
-func newSampledPostingsListsPilosa(numPostingsLists, numTotalElements int) []*roaring.Bitmap {
 	elems := make([][]uint64, numPostingsLists)
 	for i := 0; i < numTotalElements; i++ {
 		idx := i % numPostingsLists

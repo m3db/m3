@@ -24,9 +24,11 @@ import (
 	"context"
 	"time"
 
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/opentracing"
 
 	"github.com/uber-go/tally"
 )
@@ -34,6 +36,8 @@ import (
 // Engine executes a Query.
 type Engine struct {
 	metrics          *engineMetrics
+	costScope        tally.Scope
+	globalEnforcer   qcost.ChainedEnforcer
 	store            storage.Storage
 	lookbackDuration time.Duration
 }
@@ -49,11 +53,16 @@ type Query struct {
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration) *Engine {
+func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration, factory qcost.ChainedEnforcer) *Engine {
+	if factory == nil {
+		factory = qcost.NoopChainedEnforcer()
+	}
 	return &Engine{
 		metrics:          newEngineMetrics(scope),
+		costScope:        scope,
 		store:            store,
 		lookbackDuration: lookbackDuration,
+		globalEnforcer:   factory,
 	}
 }
 
@@ -133,8 +142,10 @@ func (e *Engine) ExecuteExpr(
 ) {
 	defer close(results)
 
+	perQueryEnforcer := e.globalEnforcer.Child(qcost.QueryLevel)
+	defer perQueryEnforcer.Close()
 	req := newRequest(e, params)
-	defer req.finish()
+
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
 		results <- Query{Err: err}
@@ -147,16 +158,20 @@ func (e *Engine) ExecuteExpr(
 		return
 	}
 
-	state, err := req.execute(ctx, pp)
+	state, err := req.generateExecutionState(ctx, pp)
 	// free up resources
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
+	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "executing")
+	defer sp.Finish()
+
 	result := state.resultNode
 	results <- Query{Result: result}
-	if err := state.Execute(ctx); err != nil {
+
+	if err := state.Execute(models.NewQueryContext(ctx, e.costScope, perQueryEnforcer)); err != nil {
 		result.abort(err)
 	} else {
 		result.done()

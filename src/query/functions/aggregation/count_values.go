@@ -88,6 +88,10 @@ type countValuesNode struct {
 	controller *transform.Controller
 }
 
+func (n *countValuesNode) Params() parser.Params {
+	return n.op
+}
+
 // bucketColumn represents a column of times a particular value in a series has
 // been seen. This may expand as more unique values are seen
 type bucketColumn []float64
@@ -140,10 +144,14 @@ func processBlockBucketAtColumn(
 }
 
 // Process the block
-func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *countValuesNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+func (n *countValuesNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	params := n.op.params
@@ -177,7 +185,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	if err = stepIter.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	numSeries := 0
@@ -210,13 +218,13 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas)
 	meta.Tags = metaTags
 
-	builder, err := n.controller.BlockBuilder(meta, flattenedMeta)
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, flattenedMeta)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := builder.AddCols(stepCount); err != nil {
-		return err
+		return nil, err
 	}
 
 	for columnIndex := 0; columnIndex < stepCount; columnIndex++ {
@@ -225,13 +233,13 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 				bucketBlock.columns[columnIndex],
 				len(bucketBlock.indexMapping),
 			)
-			builder.AppendValues(columnIndex, valsToAdd)
+			if err := builder.AppendValues(columnIndex, valsToAdd); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return n.controller.Process(nextBlock)
+	return builder.Build(), nil
 }
 
 // pads vals with enough NaNs to match size

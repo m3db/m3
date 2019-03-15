@@ -58,6 +58,12 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *Configuration) InitDefaultsAndValidate() error {
+	return c.DB.InitDefaultsAndValidate()
+}
+
 // DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
 	// Index configuration.
@@ -118,7 +124,7 @@ type DBConfiguration struct {
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing in-memory data.
-	Repair RepairPolicy `yaml:"repair"`
+	Repair *RepairPolicy `yaml:"repair"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
@@ -131,6 +137,24 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+}
+
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *DBConfiguration) InitDefaultsAndValidate() error {
+	if err := c.Filesystem.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.PoolingPolicy.InitDefaultsAndValidate(); err != nil {
+		return err
+	}
+
+	if err := c.Client.Validate(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IndexConfiguration contains index-specific configuration.
@@ -193,8 +217,9 @@ type CommitLogPolicy struct {
 	// enough for almost all workloads assuming a reasonable batch size is used.
 	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel"`
 
-	// The commit log block size.
-	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`
+	// Deprecated. Left in struct to keep old YAMLs parseable.
+	// TODO(V1): remove
+	DeprecatedBlockSize *time.Duration `yaml:"blockSize"`
 }
 
 // CalculationType is a type of configuration parameter.
@@ -256,7 +281,7 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 
 	dir := kvCfg.RootDir
 	if dir == "" {
-		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultEtcdDirSuffix)
+		dir = path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
 	}
 	newKVCfg.Dir = dir
 

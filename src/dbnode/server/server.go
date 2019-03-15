@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"runtime"
 	"runtime/debug"
 	"syscall"
@@ -59,7 +60,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -68,6 +68,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xdocs "github.com/m3db/m3/src/x/docs"
+	"github.com/m3db/m3/src/x/lockfile"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/serialize"
 	xconfig "github.com/m3db/m3x/config"
@@ -88,6 +89,7 @@ const (
 	serverGracefulCloseTimeout       = 10 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
+	filePathPrefixLockFile           = ".lock"
 )
 
 // RunOptions provides options for running the server
@@ -133,11 +135,40 @@ func Run(runOpts RunOptions) {
 		cfg = runOpts.Config
 	}
 
+	err := cfg.InitDefaultsAndValidate()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error initializing config defaults and validating config: %v", err)
+		os.Exit(1)
+	}
+
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
+
+	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
+	if err != nil {
+		logger.Fatalf("could not parse new file mode: %v", err)
+	}
+
+	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
+	if err != nil {
+		logger.Fatalf("could not parse new directory mode: %v", err)
+	}
+
+	// Obtain a lock on `filePathPrefix`, or exit if another process already has it.
+	// The lock consists of a lock file (on the file system) and a lock in memory.
+	// When the process exits gracefully, both the lock file and the lock will be removed.
+	// If the process exits ungracefully, only the lock in memory will be removed, the lock
+	// file will remain on the file system. When a dbnode starts after an ungracefully stop,
+	// it will be able to acquire the lock despite the fact the the lock file exists.
+	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
+	fslock, err := lockfile.CreateAndAcquire(lockPath, newDirectoryMode)
+	if err != nil {
+		logger.Fatalf("could not acquire lock on %s: %v", lockPath, err)
+	}
+	defer fslock.Release()
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -233,13 +264,28 @@ func Run(runOpts RunOptions) {
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
 			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
+
+	// Setup postings list cache.
+	var (
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("postings-list-cache")),
+		}
+	)
+	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatalf("could not construct query cache: %s", err.Error())
+	}
+	defer stopReporting()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -247,8 +293,13 @@ func Run(runOpts RunOptions) {
 	if cfg.WriteNewSeriesAsync {
 		insertMode = index.InsertAsync
 	}
-	opts = opts.SetIndexOptions(
-		indexOpts.SetInsertMode(insertMode))
+	indexOpts = indexOpts.SetInsertMode(insertMode).
+		SetPostingsListCache(postingsListCache).
+		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
+			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+		})
+	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -265,17 +316,7 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
-	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
-	if err != nil {
-		logger.Fatalf("could not parse new file mode: %v", err)
-	}
-
-	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
-	if err != nil {
-		logger.Fatalf("could not parse new directory mode: %v", err)
-	}
-
-	mmapCfg := cfg.Filesystem.MmapConfiguration()
+	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
 	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
 	if shouldUseHugeTLB {
 		// Make sure the host supports HugeTLB before proceeding with it to prevent
@@ -292,31 +333,35 @@ func Run(runOpts RunOptions) {
 	policy := cfg.PoolingPolicy
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
-		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+		poolOptions(
+			policy.TagEncoderPool,
+			scope.SubScope("tag-encoder-pool")))
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(),
-		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+		poolOptions(
+			policy.TagDecoderPool,
+			scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope.SubScope("database.fs"))).
-		SetFilePathPrefix(cfg.Filesystem.FilePathPrefix).
+		SetFilePathPrefix(cfg.Filesystem.FilePathPrefixOrDefault()).
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
-		SetWriterBufferSize(cfg.Filesystem.WriteBufferSize).
-		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
-		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
-		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
+		SetWriterBufferSize(cfg.Filesystem.WriteBufferSizeOrDefault()).
+		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSizeOrDefault()).
+		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSizeOrDefault()).
+		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSizeOrDefault()).
 		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
-		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemory).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemory)
+		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault())
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -353,8 +398,7 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
-		SetBacklogQueueChannelSize(commitLogQueueChannelSize).
-		SetBlockSize(cfg.CommitLog.BlockSize))
+		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
 
 	// Set the series cache policy
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
@@ -461,22 +505,9 @@ func Run(runOpts RunOptions) {
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 
-	// Set repair options
-	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
-		capacityPoolOptions(policy.HostBlockMetadataSlicePool,
-			scope.SubScope("host-block-metadata-slice-pool")),
-		policy.HostBlockMetadataSlicePool.Capacity)
-
 	opts = opts.
-		SetRepairEnabled(cfg.Repair.Enabled).
-		SetRepairOptions(opts.RepairOptions().
-			SetAdminClient(m3dbClient).
-			SetRepairInterval(cfg.Repair.Interval).
-			SetRepairTimeOffset(cfg.Repair.Offset).
-			SetRepairTimeJitter(cfg.Repair.Jitter).
-			SetRepairThrottle(cfg.Repair.Throttle).
-			SetRepairCheckInterval(cfg.Repair.CheckInterval).
-			SetHostBlockMetadataSlicePool(hostBlockMetadataSlicePool))
+		// Feature currently not working.
+		SetRepairEnabled(false)
 
 	// Set tchannelthrift options
 	ttopts := tchannelthrift.NewOptions().
@@ -534,8 +565,10 @@ func Run(runOpts RunOptions) {
 	contextPool := opts.ContextPool()
 
 	tchannelOpts := xtchannel.NewDefaultChannelOptions()
-	tchannelthriftNodeClose, err := ttnode.NewServer(db,
-		cfg.ListenAddress, contextPool, tchannelOpts, ttopts).ListenAndServe()
+	service := ttnode.NewService(db, ttopts)
+
+	tchannelthriftNodeClose, err := ttnode.NewServer(service,
+		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open tchannelthrift interface on %s: %v",
 			cfg.ListenAddress, err)
@@ -552,8 +585,8 @@ func Run(runOpts RunOptions) {
 	defer tchannelthriftClusterClose()
 	logger.Infof("cluster tchannelthrift: listening on %v", cfg.ClusterListenAddress)
 
-	httpjsonNodeClose, err := hjnode.NewServer(db,
-		cfg.HTTPNodeListenAddress, contextPool, nil, ttopts).ListenAndServe()
+	httpjsonNodeClose, err := hjnode.NewServer(service,
+		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open httpjson interface on %s: %v",
 			cfg.HTTPNodeListenAddress, err)
@@ -949,11 +982,11 @@ func withEncodingAndPoolingOptions(
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
 		var b pool.Bucket
-		b.Capacity = bucket.Capacity
-		b.Count = bucket.Size
+		b.Capacity = bucket.CapacityOrDefault()
+		b.Count = bucket.SizeOrDefault()
 		b.Options = bytesPoolOpts.
-			SetRefillLowWatermark(bucket.RefillLowWaterMark).
-			SetRefillHighWatermark(bucket.RefillHighWaterMark)
+			SetRefillLowWatermark(bucket.RefillLowWaterMarkOrDefault()).
+			SetRefillHighWatermark(bucket.RefillHighWaterMarkOrDefault())
 		buckets[i] = b
 		logger.Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
@@ -962,7 +995,7 @@ func withEncodingAndPoolingOptions(
 	}
 
 	var bytesPool pool.CheckedBytesPool
-	switch policy.Type {
+	switch policy.TypeOrDefault() {
 	case config.SimplePooling:
 		bytesPool = pool.NewCheckedBytesPool(
 			buckets,
@@ -978,20 +1011,38 @@ func withEncodingAndPoolingOptions(
 	bytesPool.Init()
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
-		poolOptions(policy.SegmentReaderPool, scope.SubScope("segment-reader-pool")))
+		poolOptions(
+			policy.SegmentReaderPool,
+			scope.SubScope("segment-reader-pool")))
 	segmentReaderPool.Init()
+
 	encoderPool := encoding.NewEncoderPool(
-		poolOptions(policy.EncoderPool, scope.SubScope("encoder-pool")))
-	closersPoolOpts := poolOptions(policy.ClosersPool, scope.SubScope("closers-pool"))
-	contextPoolOpts := poolOptions(policy.ContextPool.PoolPolicy(), scope.SubScope("context-pool"))
+		poolOptions(
+			policy.EncoderPool,
+			scope.SubScope("encoder-pool")))
+
+	closersPoolOpts := poolOptions(
+		policy.ClosersPool,
+		scope.SubScope("closers-pool"))
+
+	contextPoolOpts := poolOptions(
+		policy.ContextPool.PoolPolicy,
+		scope.SubScope("context-pool"))
+
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
 		SetFinalizerPoolOptions(closersPoolOpts).
-		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityWithDefault()))
+		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityOrDefault()))
+
 	iteratorPool := encoding.NewReaderIteratorPool(
-		poolOptions(policy.IteratorPool, scope.SubScope("iterator-pool")))
+		poolOptions(
+			policy.IteratorPool,
+			scope.SubScope("iterator-pool")))
+
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
-		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
+		poolOptions(
+			policy.IteratorPool,
+			scope.SubScope("multi-iterator-pool")))
 
 	var writeBatchPoolInitialBatchSize *int
 	if policy.WriteBatchPool.InitialBatchSize != nil {
@@ -1008,39 +1059,62 @@ func withEncodingAndPoolingOptions(
 		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
 	}
 
-	writeBatchPoolPolicy := policy.WriteBatchPool.Pool
-	if writeBatchPoolPolicy.Size == 0 {
-		// If no value set, calculate a reasonabble value based on the commit log
+	var writeBatchPoolSize int
+	if policy.WriteBatchPool.Size != nil {
+		writeBatchPoolSize = *policy.WriteBatchPool.Size
+	} else {
+		// If no value set, calculate a reasonable value based on the commit log
 		// queue size. We base it off the commitlog queue size because we will
 		// want to be able to buffer at least one full commitlog queues worth of
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
 		expectedBatchSize := *writeBatchPoolInitialBatchSize
-		writeBatchPoolPolicy.Size = commitlogQueueSize / expectedBatchSize
+		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
+
+	writeBatchPoolOpts := pool.NewObjectPoolOptions()
+	writeBatchPoolOpts = writeBatchPoolOpts.
+		SetSize(writeBatchPoolSize).
+		// Set watermarks to zero because this pool is sized to be as large as we
+		// ever need it to be, so background allocations are usually wasteful.
+		SetRefillLowWatermark(0.0).
+		SetRefillHighWatermark(0.0).
+		SetInstrumentOptions(
+			writeBatchPoolOpts.
+				InstrumentOptions().
+				SetMetricsScope(scope.SubScope("write-batch-pool")))
+
 	writeBatchPool := ts.NewWriteBatchPool(
-		poolOptions(writeBatchPoolPolicy, scope.SubScope("write-batch-pool")),
+		writeBatchPoolOpts,
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
 
+	tagPoolPolicy := policy.TagsPool
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
-		IDPoolOptions:           poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")),
-		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
-		TagsCapacity:            policy.TagsPool.Capacity,
-		TagsMaxCapacity:         policy.TagsPool.MaxCapacity,
-		TagsIteratorPoolOptions: poolOptions(policy.TagsIteratorPool, scope.SubScope("tags-iterator-pool")),
+		IDPoolOptions: poolOptions(
+			policy.IdentifierPool, scope.SubScope("identifier-pool")),
+		TagsPoolOptions: maxCapacityPoolOptions(tagPoolPolicy, scope.SubScope("tags-pool")),
+		TagsCapacity:    tagPoolPolicy.CapacityOrDefault(),
+		TagsMaxCapacity: tagPoolPolicy.MaxCapacityOrDefault(),
+		TagsIteratorPoolOptions: poolOptions(
+			policy.TagsIteratorPool,
+			scope.SubScope("tags-iterator-pool")),
 	})
 
+	fetchBlockMetadataResultsPoolPolicy := policy.FetchBlockMetadataResultsPool
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlockMetadataResultsPool,
+		capacityPoolOptions(
+			fetchBlockMetadataResultsPoolPolicy,
 			scope.SubScope("fetch-block-metadata-results-pool")),
-		policy.FetchBlockMetadataResultsPool.Capacity)
+		fetchBlockMetadataResultsPoolPolicy.CapacityOrDefault())
 
+	fetchBlocksMetadataResultsPoolPolicy := policy.FetchBlocksMetadataResultsPool
 	fetchBlocksMetadataResultsPool := block.NewFetchBlocksMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool,
+		capacityPoolOptions(
+			fetchBlocksMetadataResultsPoolPolicy,
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
-		policy.FetchBlocksMetadataResultsPool.Capacity)
+		fetchBlocksMetadataResultsPoolPolicy.CapacityOrDefault())
 
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
@@ -1076,7 +1150,7 @@ func withEncodingAndPoolingOptions(
 		SetWriteBatchPool(writeBatchPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
-		SetDatabaseBlockAllocSize(policy.BlockAllocSize).
+		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
 		SetSegmentReaderPool(segmentReaderPool).
@@ -1099,8 +1173,10 @@ func withEncodingAndPoolingOptions(
 		wiredList := block.NewWiredList(wiredListOpts)
 		blockOpts = blockOpts.SetWiredList(wiredList)
 	}
-	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
-		scope.SubScope("block-pool")))
+	blockPool := block.NewDatabaseBlockPool(
+		poolOptions(
+			policy.BlockPool,
+			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
 		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
 	})
@@ -1112,7 +1188,9 @@ func withEncodingAndPoolingOptions(
 	seriesOpts := storage.NewSeriesOptionsFromOptions(opts, retentionOpts).
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
-		poolOptions(policy.SeriesPool, scope.SubScope("series-pool")))
+		poolOptions(
+			policy.SeriesPool,
+			scope.SubScope("series-pool")))
 
 	opts = opts.
 		SetSeriesOptions(seriesOpts).
@@ -1121,11 +1199,13 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetIdentifierPool(identifierPool))
 
-	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
-		scope.SubScope("index-results-pool")))
-	postingsListOpts := poolOptions(policy.PostingsListPoolPolicyWithDefaults(),
-		scope.SubScope("postingslist-pool"))
-	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+	var (
+		resultsPool = index.NewResultsPool(
+			poolOptions(policy.IndexResultsPool, scope.SubScope("index-results-pool")))
+		postingsListOpts = poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
+		postingsList     = postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+	)
+
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
@@ -1142,6 +1222,7 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetResultsPool(resultsPool)
+
 	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
 
 	return opts.SetIndexOptions(indexOpts)
@@ -1151,14 +1232,21 @@ func poolOptions(
 	policy config.PoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
-	opts := pool.NewObjectPoolOptions()
-	if policy.Size > 0 {
-		opts = opts.SetSize(policy.Size)
-		if policy.RefillLowWaterMark > 0 &&
-			policy.RefillHighWaterMark > 0 &&
-			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+	var (
+		opts                = pool.NewObjectPoolOptions()
+		size                = policy.SizeOrDefault()
+		refillLowWaterMark  = policy.RefillLowWaterMarkOrDefault()
+		refillHighWaterMark = policy.RefillHighWaterMarkOrDefault()
+	)
+
+	if size > 0 {
+		opts = opts.SetSize(size)
+		if refillLowWaterMark > 0 &&
+			refillHighWaterMark > 0 &&
+			refillHighWaterMark > refillLowWaterMark {
+			opts = opts.
+				SetRefillLowWatermark(refillLowWaterMark).
+				SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {
@@ -1172,14 +1260,20 @@ func capacityPoolOptions(
 	policy config.CapacityPoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
-	opts := pool.NewObjectPoolOptions()
-	if policy.Size > 0 {
-		opts = opts.SetSize(policy.Size)
-		if policy.RefillLowWaterMark > 0 &&
-			policy.RefillHighWaterMark > 0 &&
-			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+	var (
+		opts                = pool.NewObjectPoolOptions()
+		size                = policy.SizeOrDefault()
+		refillLowWaterMark  = policy.RefillLowWaterMarkOrDefault()
+		refillHighWaterMark = policy.RefillHighWaterMarkOrDefault()
+	)
+
+	if size > 0 {
+		opts = opts.SetSize(size)
+		if refillLowWaterMark > 0 &&
+			refillHighWaterMark > 0 &&
+			refillHighWaterMark > refillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(refillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {
@@ -1193,14 +1287,20 @@ func maxCapacityPoolOptions(
 	policy config.MaxCapacityPoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
-	opts := pool.NewObjectPoolOptions()
-	if policy.Size > 0 {
-		opts = opts.SetSize(policy.Size)
-		if policy.RefillLowWaterMark > 0 &&
-			policy.RefillHighWaterMark > 0 &&
-			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
-			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
-			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+	var (
+		opts                = pool.NewObjectPoolOptions()
+		size                = policy.SizeOrDefault()
+		refillLowWaterMark  = policy.RefillLowWaterMarkOrDefault()
+		refillHighWaterMark = policy.RefillHighWaterMarkOrDefault()
+	)
+
+	if size > 0 {
+		opts = opts.SetSize(size)
+		if refillLowWaterMark > 0 &&
+			refillHighWaterMark > 0 &&
+			refillHighWaterMark > refillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(refillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
 	if scope != nil {

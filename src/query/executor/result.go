@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/pkg/errors"
@@ -64,7 +65,7 @@ func newResultNode() *ResultNode {
 }
 
 // Process the block
-func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
+func (r *ResultNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	if r.aborted {
 		return errAborted
 	}

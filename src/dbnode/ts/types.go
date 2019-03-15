@@ -38,6 +38,9 @@ type Write struct {
 // BatchWrite represents a write that was added to the
 // BatchWriter.
 type BatchWrite struct {
+	// Used by the commitlog. If this is false, the commitlog should not write
+	// the series at this index.
+	SkipWrite bool
 	// Used by the commitlog (series needed to be updated by the shard
 	// object first, cannot use the Series provided by the caller as it
 	// is missing important fields like Tags.)
@@ -94,6 +97,7 @@ type WriteBatch interface {
 	// Can't use a real iterator pattern here as it slows things down.
 	Iter() []BatchWrite
 	SetOutcome(idx int, series Series, err error)
+	SetSkipWrite(idx int)
 	Reset(batchSize int, ns ident.ID)
 	Finalize()
 

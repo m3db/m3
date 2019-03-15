@@ -86,7 +86,7 @@ func TestEnforcer(t *testing.T) {
 			require.Equal(t, test.expected, report.Cost)
 
 			if test.exceededThreshold {
-				require.EqualError(t, report.Error, costExceededError(msg, 13, Limit{Threshold: 10}).Error())
+				require.EqualError(t, report.Error, NewCostExceededError(msg, 13, 10).Error())
 			} else {
 				require.NoError(t, report.Error)
 			}
@@ -98,10 +98,10 @@ func TestEnforcer(t *testing.T) {
 	require.Equal(t, Cost(13), report.Cost)
 	require.Equal(t, Cost(10), limit.Threshold)
 	require.True(t, limit.Enabled)
-	require.EqualError(t, report.Error, costExceededError(msg, 13, Limit{Threshold: 10}).Error())
+	require.EqualError(t, report.Error, NewCostExceededError(msg, 13, 10).Error())
 
-	// The error message should end with the message provided in the options.
-	require.True(t, strings.HasSuffix(report.Error.Error(), msg))
+	// The error message should start with the message provided in the options.
+	require.True(t, strings.HasPrefix(report.Error.Error(), msg))
 
 	// When the threshold is raised, any new operations that stay below it should be legal again.
 	store.Set(testThresholdKey, &commonpb.Float64Proto{Value: float64(20)})
@@ -120,7 +120,7 @@ func TestEnforcer(t *testing.T) {
 	report = e.Add(Cost(5))
 	require.NoError(t, err)
 	require.NoError(t, err)
-	require.EqualError(t, report.Error, costExceededError(msg, 21, Limit{Threshold: 20}).Error())
+	require.EqualError(t, report.Error, NewCostExceededError(msg, 21, 20).Error())
 	require.Equal(t, Cost(21), report.Cost)
 
 	// When the enforcer is disabled any input above the threshold should become legal.
@@ -143,6 +143,22 @@ func TestEnforcer(t *testing.T) {
 	require.Equal(t, Cost(20), limit.Threshold)
 	require.False(t, limit.Enabled)
 	require.NoError(t, report.Error)
+}
+
+func TestNewCostExceedError(t *testing.T) {
+	t.Run("with custom error message", func(t *testing.T) {
+		assert.EqualError(
+			t,
+			NewCostExceededError("custom", 1, 2),
+			"custom: limit reached (current = 1, limit = 2)")
+	})
+
+	t.Run("with default message", func(t *testing.T) {
+		assert.EqualError(
+			t,
+			NewCostExceededError("", 1, 2),
+			"limit reached (current = 1, limit = 2)")
+	})
 }
 
 func TestEnforcerClone(t *testing.T) {

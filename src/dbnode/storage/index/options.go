@@ -52,6 +52,7 @@ var (
 	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
 	errOptionsResultsPoolUnspecified    = errors.New("results pool is unset")
 	errIDGenerationDisabled             = errors.New("id generation is disabled")
+	errPostingsListCacheUnspecified     = errors.New("postings list cache is unset")
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
@@ -85,6 +86,7 @@ func init() {
 	}
 }
 
+// nolint: maligned
 type opts struct {
 	insertMode                      InsertMode
 	clockOpts                       clock.Options
@@ -98,11 +100,13 @@ type opts struct {
 	docArrayPool                    doc.DocumentArrayPool
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
+	postingsListCache               *PostingsListCache
+	readThroughSegmentOptions       ReadThroughSegmentOptions
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
 
-// NewOptions returns a new index.Options object with default properties.
+// NewOptions returns a new Options object with default properties.
 func NewOptions() Options {
 	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
 
@@ -149,6 +153,9 @@ func (o *opts) Validate() error {
 	}
 	if o.resultsPool == nil {
 		return errOptionsResultsPoolUnspecified
+	}
+	if o.postingsListCache == nil {
+		return errPostingsListCacheUnspecified
 	}
 	return nil
 }
@@ -275,4 +282,24 @@ func (o *opts) SetBackgroundCompactionPlannerOptions(value compaction.PlannerOpt
 
 func (o *opts) BackgroundCompactionPlannerOptions() compaction.PlannerOptions {
 	return o.backgroundCompactionPlannerOpts
+}
+
+func (o *opts) SetPostingsListCache(value *PostingsListCache) Options {
+	opts := *o
+	opts.postingsListCache = value
+	return &opts
+}
+
+func (o *opts) PostingsListCache() *PostingsListCache {
+	return o.postingsListCache
+}
+
+func (o *opts) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options {
+	opts := *o
+	opts.readThroughSegmentOptions = value
+	return &opts
+}
+
+func (o *opts) ReadThroughSegmentOptions() ReadThroughSegmentOptions {
+	return o.readThroughSegmentOptions
 }
