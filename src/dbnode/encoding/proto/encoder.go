@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 
@@ -54,6 +55,8 @@ var (
 // of the TSZ encoded fields on demand.
 // TODO: Encode the LRU size into the stream
 type encoder struct {
+	opts Options
+
 	stream encoding.OStream
 	schema *desc.MessageDescriptor
 
@@ -74,7 +77,7 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
+func NewEncoder(start time.Time, opts encoding.Options) (encoding.Encoder, error) {
 	if opts == nil {
 		return nil, errEncoderEncodingOptionsAreRequired
 	}
@@ -82,6 +85,7 @@ func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
 	enc := &encoder{
+		opts:         opts,
 		stream:       stream,
 		m3tszEncoder: m3tsz.NewEncoder(start, nil, stream, false, opts).(*m3tsz.Encoder),
 		varIntBuf:    [8]byte{},
@@ -112,6 +116,48 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	// TODO: Does not need to be public?
 	enc.EncodeProto(enc.unmarshaled)
 	return nil
+}
+
+func (enc *encoder) Stream() xio.SegmentReader {
+	seg := enc.segment()
+	if seg.Len() == 0 {
+		return nil
+	}
+
+	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
+		reader := readerPool.Get()
+		reader.Reset(seg)
+		return reader
+	}
+	return xio.NewSegmentReader(seg)
+}
+
+func (enc *encoder) segment() ts.Segment {
+	length := enc.stream.Len()
+	if enc.stream.Len() == 0 {
+		return ts.Segment{}
+	}
+
+	// TODO: Should this be cropping out the last byte?
+	buffer, pos := enc.stream.Rawbytes()
+	head := enc.newBuffer(length)
+	head.IncRef()
+	defer head.DecRef()
+
+	head.AppendAll(buffer)
+	return ts.NewSegment(head, nil, ts.FinalizeHead)
+}
+
+func (enc *encoder) NumEncoded() int {
+	return enc.m3tszEncoder.NumEncoded()
+}
+
+func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
+	return enc.m3tszEncoder.LastEncoded()
+}
+
+func (enc *encoder) Len() int {
+	return enc.m3tszEncoder.Len()
 }
 
 func (enc *encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
@@ -147,11 +193,28 @@ func (enc *encoder) EncodeProto(m *dynamic.Message) error {
 
 func (enc *encoder) Reset(
 	start time.Time,
-	b checked.Bytes,
-	schema *desc.MessageDescriptor,
+	capacity int,
 ) {
-	enc.stream.Reset(b)
-	enc.m3tszEncoder.Reset(start, 0)
+	enc.reset(start, capacity)
+}
+
+func (enc *Encoder) reset(start time.Time, capacity int) {
+	// TODO: Probably don't want to make these both the same capacity.
+	// TODO: Won't this be a massive alloc on the m3tsz encoder side for no reason?
+	enc.stream.Reset(enc.stream.Reset(enc.newBuffer(capacity)))
+	enc.m3tszEncoder.Reset(start, capacity)
+	enc.lastEncoded = nil
+	enc.unmarshaled = nil
+
+	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
+		enc.customFields = customFields(enc.customFields, schema)
+	} else {
+		enc.customFields = customFields(nil, schema)
+	}
+
+	enc.hasEncodedFirstSetOfCustomValues = false
+	enc.closed = false)
+	enc.m3tszEncoder.Reset(start, )
 	enc.schema = schema
 	enc.lastEncoded = nil
 	enc.unmarshaled = nil
@@ -624,4 +687,11 @@ func (enc *encoder) encodeVarInt(x uint64) {
 	// to represent the number.
 	buf = buf[:numBytes]
 	enc.stream.WriteBytes(buf)
+}
+
+func (enc *encoder) newBuffer(capacity int) checked.Bytes {
+	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
+		return bytesPool.Get(capacity)
+	}
+	return checked.NewBytes(make([]byte, 0, capacity), nil)
 }
