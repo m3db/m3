@@ -34,6 +34,13 @@ func (q Query) String() string {
 	return q.query.String()
 }
 
+// NewQueryFromSearchQuery creates a new Query from a search.Query.
+func NewQueryFromSearchQuery(q search.Query) Query {
+	return Query{
+		query: q,
+	}
+}
+
 // NewTermQuery returns a new query for finding documents which match a term exactly.
 func NewTermQuery(field, term []byte) Query {
 	return Query{
