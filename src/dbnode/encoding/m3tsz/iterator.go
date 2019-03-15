@@ -90,11 +90,6 @@ func (it *ReaderIterator) Next() bool {
 		it.ReadNextTimestamp()
 		it.readNextValue()
 	}
-	// NB(xichen): reset time delta to 0 when there is a time unit change to be
-	// consistent with the encoder.
-	if it.tuChanged {
-		it.dt = 0
-	}
 
 	return it.hasNext()
 }
@@ -108,6 +103,12 @@ func (it *ReaderIterator) ReadFirstTimestamp() {
 	it.tu = initialTimeUnit(st, it.opts.DefaultTimeUnit())
 	it.ReadNextTimestamp()
 	it.t = st.Add(it.dt)
+
+	// NB(xichen): reset time delta to 0 when there is a time unit change to be
+	// consistent with the encoder.
+	if it.tuChanged {
+		it.dt = 0
+	}
 }
 
 func (it *ReaderIterator) ReadNextTimestamp() {
@@ -115,6 +116,12 @@ func (it *ReaderIterator) ReadNextTimestamp() {
 	it.tuChanged = false
 	it.dt += it.readMarkerOrDeltaOfDelta()
 	it.t = it.t.Add(it.dt)
+
+	// NB(xichen): reset time delta to 0 when there is a time unit change to be
+	// consistent with the encoder.
+	if it.tuChanged {
+		it.dt = 0
+	}
 }
 
 func (it *ReaderIterator) tryReadMarker() (time.Duration, bool) {

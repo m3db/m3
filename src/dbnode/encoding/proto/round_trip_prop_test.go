@@ -104,9 +104,11 @@ func TestRoundtripProp(t *testing.T) {
 		i := 0
 		for iter.Next() {
 			var (
-				m        = input.messages[i]
-				decodedM = iter.Current()
+				m                = input.messages[i]
+				_, _, annotation = iter.Current()
 			)
+			decodedM := dynamic.NewMessage(testVLSchema)
+			require.NoError(t, decodedM.Unmarshal(annotation))
 
 			for _, field := range m.GetKnownFields() {
 				var (

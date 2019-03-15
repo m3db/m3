@@ -32,6 +32,8 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -123,8 +125,16 @@ func (it *iterator) Next() bool {
 	return it.hasNext()
 }
 
-func (it *iterator) Current() *dynamic.Message {
-	return it.lastIterated
+func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	dp, unit, _ := it.m3tszIterator.Current()
+	// TODO: Need to modify library to allow me to reuse this slice.
+	annotation, err := it.lastIterated.Marshal()
+	if err != nil {
+		// TODO: need to do this unmarshaling in the call to Next() so we can
+		// actually handle the error
+		panic(err)
+	}
+	return dp, unit, annotation
 }
 
 func (it *iterator) Err() error {

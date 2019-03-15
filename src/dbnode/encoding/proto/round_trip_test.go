@@ -38,12 +38,13 @@ import (
 
 var (
 	testVLSchema        = newVLMessageDescriptor()
-	testEncodingOptions = encoding.NewOptions()
+	testEncodingOptions = encoding.NewOptions().
+				SetDefaultTimeUnit(xtime.Second)
 )
 
 // TODO: Add test for schema changes mid stream
 func TestRoundtrip(t *testing.T) {
-	enc := newTestEncoder(time.Now())
+	enc := newTestEncoder(time.Now().Truncate(time.Minute))
 	testCases := []struct {
 		timestamp  time.Time
 		latitude   float64
@@ -52,66 +53,59 @@ func TestRoundtrip(t *testing.T) {
 		deliveryID []byte
 	}{
 		{
-			timestamp: time.Now(),
 			latitude:  0.1,
 			longitude: 1.1,
 			numTrips:  -1,
-			// deliveryID: []byte("123"),
 		},
 		{
-			timestamp:  time.Now(),
 			latitude:   0.1,
 			longitude:  1.1,
 			numTrips:   0,
 			deliveryID: []byte("123"),
 		},
 		{
-			timestamp:  time.Now(),
 			latitude:   0.2,
 			longitude:  2.2,
 			numTrips:   1,
 			deliveryID: []byte("789"),
 		},
 		{
-			timestamp:  time.Now(),
 			latitude:   0.3,
 			longitude:  2.3,
 			numTrips:   2,
 			deliveryID: []byte("123"),
 		},
 		{
-			timestamp: time.Now(),
 			latitude:  0.4,
 			longitude: 2.4,
 			numTrips:  3,
 		},
 		{
-			timestamp:  time.Now(),
 			latitude:   0.5,
 			longitude:  2.5,
 			numTrips:   4,
 			deliveryID: []byte("456"),
 		},
 		{
-			timestamp:  time.Now(),
 			latitude:   0.6,
 			longitude:  2.6,
 			deliveryID: nil,
 		},
 		{
-			timestamp:  time.Now(),
 			latitude:   0.5,
 			longitude:  2.5,
 			deliveryID: []byte("ASDFAJSDFHAJKSFHK"),
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.numTrips, tc.deliveryID)
 		marshaledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		err = enc.Encode(ts.Datapoint{Timestamp: time.Now()}, xtime.Nanosecond, marshaledVL)
+		currTime := time.Now().Truncate(time.Second).Add(time.Duration(i) * time.Second)
+		testCases[i].timestamp = currTime
+		err = enc.Encode(ts.Datapoint{Timestamp: currTime}, xtime.Second, marshaledVL)
 		require.NoError(t, err)
 	}
 
@@ -125,9 +119,15 @@ func TestRoundtrip(t *testing.T) {
 	i := 0
 	for iter.Next() {
 		var (
-			tc = testCases[i]
-			m  = iter.Current()
+			tc                   = testCases[i]
+			dp, unit, annotation = iter.Current()
 		)
+		m := dynamic.NewMessage(testVLSchema)
+		require.NoError(t, m.Unmarshal(annotation))
+
+		require.Equal(t, unit, xtime.Second)
+		require.True(t, tc.timestamp.Equal(dp.Timestamp))
+		require.Equal(t, xtime.Second, unit)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
 		require.Equal(t, tc.numTrips, m.GetFieldByName("numTrips"))
