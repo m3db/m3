@@ -63,8 +63,6 @@ var (
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
-
-	dropNaNsDefault = true
 )
 
 // Configuration is the configuration for the query service.
@@ -153,18 +151,9 @@ type FilterConfiguration struct {
 
 // ResultOptions are the result options for query.
 type ResultOptions struct {
-	// DropNaNsInResults drops NaNs before returning query results.
-	// The default is true, which matches Prometheus
-	DropNaNsInResults *bool `yaml:"dropNaNs"`
-}
-
-// DropNaNsOrDefault returns the provided input or default if none is provided
-func (c ResultOptions) DropNaNsOrDefault() bool {
-	if c.DropNaNsInResults == nil {
-		return dropNaNsDefault
-	}
-
-	return *c.DropNaNsInResults
+	// KeepNans keeps NaNs before returning query results.
+	// The default is false, which matches Prometheus
+	KeepNans bool `yaml:"keepNans"`
 }
 
 // CacheConfiguration is the cache configurations.

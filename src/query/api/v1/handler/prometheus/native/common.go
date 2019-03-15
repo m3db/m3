@@ -232,7 +232,7 @@ func renderResultsJSON(
 	w io.Writer,
 	series []*ts.Series,
 	params models.RequestParams,
-	dropNaNs bool,
+	keepNans bool,
 ) {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -265,8 +265,8 @@ func renderResultsJSON(
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
-			// If dropNaNs is set to true and the value is NaN, drop it from the response.
-			if dropNaNs && math.IsNaN(dp.Value) {
+			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			if !keepNans && math.IsNaN(dp.Value) {
 				continue
 			}
 

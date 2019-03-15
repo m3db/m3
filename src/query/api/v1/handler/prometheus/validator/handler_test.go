@@ -307,7 +307,7 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("test", nil),
 			timeoutOpts,
-			false,
+			true,
 		), tally.NewTestScope("test", nil),
 		defaultLookbackDuration,
 	)

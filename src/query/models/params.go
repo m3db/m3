@@ -63,7 +63,7 @@ type RequestParams struct {
 	Step       time.Duration
 	Query      string
 	Debug      bool
-	DropNaNs   bool
+	KeepNans   bool
 	IncludeEnd bool
 	BlockType  FetchedBlockType
 	FormatType FormatType
