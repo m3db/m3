@@ -65,7 +65,9 @@ func makeOrBlock(
 	for ; lIter.Next(); index++ {
 		lStep := lIter.Current()
 		lValues := lStep.Values()
-		builder.AppendValues(index, lValues)
+		if err := builder.AppendValues(index, lValues); err != nil {
+			return nil, err
+		}
 	}
 
 	if err = lIter.Err(); err != nil {

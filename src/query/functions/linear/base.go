@@ -109,7 +109,9 @@ func (c *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		step := stepIter.Current()
 		values := c.processor.Process(step.Values())
 		for _, value := range values {
-			builder.AppendValue(index, value)
+			if err := builder.AppendValue(index, value); err != nil {
+				return nil, err
+			}
 		}
 	}
 

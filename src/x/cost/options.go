@@ -97,31 +97,25 @@ func (o *limitManagerOptions) InstrumentOptions() instrument.Options {
 
 // EnforcerOptions provides a set of options for an enforcer.
 type EnforcerOptions interface {
-	// SetCostExceededMessage sets the message appended to cost limit errors to provide
-	// more context on the cost limit that was exceeded.
+	// Reporter is the reporter which will be used on Enforcer events.
+	Reporter() EnforcerReporter
+
+	// SetReporter sets Reporter()
+	SetReporter(r EnforcerReporter) EnforcerOptions
+
+	// SetCostExceededMessage sets CostExceededMessage
 	SetCostExceededMessage(val string) EnforcerOptions
 
 	// CostExceededMessage returns the message appended to cost limit errors to provide
 	// more context on the cost limit that was exceeded.
 	CostExceededMessage() string
-
-	// SetValueBuckets sets the tally buckets used in histogram metrics.
-	SetValueBuckets(val tally.ValueBuckets) EnforcerOptions
-
-	// ValueBuckets returns the tally buckets used in histogram metrics.
-	ValueBuckets() tally.ValueBuckets
-
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(val instrument.Options) EnforcerOptions
-
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
 }
 
 type enforcerOptions struct {
-	msg     string
-	buckets tally.ValueBuckets
-	iOpts   instrument.Options
+	msg      string
+	buckets  tally.ValueBuckets
+	reporter EnforcerReporter
+	iOpts    instrument.Options
 }
 
 // NewEnforcerOptions returns a new set of enforcer options.
@@ -130,6 +124,16 @@ func NewEnforcerOptions() EnforcerOptions {
 		buckets: tally.MustMakeExponentialValueBuckets(1, 2, 20),
 		iOpts:   instrument.NewOptions(),
 	}
+}
+
+func (o *enforcerOptions) Reporter() EnforcerReporter {
+	return o.reporter
+}
+
+func (o *enforcerOptions) SetReporter(r EnforcerReporter) EnforcerOptions {
+	opts := *o
+	opts.reporter = r
+	return &opts
 }
 
 func (o *enforcerOptions) SetCostExceededMessage(val string) EnforcerOptions {

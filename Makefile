@@ -77,6 +77,7 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
+	kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -247,6 +248,18 @@ test-ci-integration:
 
 define SUBDIR_RULES
 
+# We override the rules for `*-gen-kube` to just generate the kube manifest
+# bundle.
+ifeq ($(SUBDIR), kube)
+
+# Builds the single kube bundle from individual manifest files.
+all-gen-kube: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(retool_bin_path):$(PATH) xargs -0 kubeval -v=1.12.0
+
+else
+
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
@@ -341,6 +354,8 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@echo "--- metalinting $(SUBDIR)"
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+
+endif
 
 endef
 

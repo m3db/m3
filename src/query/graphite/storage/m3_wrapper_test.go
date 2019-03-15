@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
@@ -34,6 +35,7 @@ import (
 	m3ts "github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -161,7 +163,16 @@ func TestFetchByQuery(t *testing.T) {
 	}
 
 	store.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	wrapper := NewM3WrappedStorage(store)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	childEnforcer := cost.NewMockChainedEnforcer(ctrl)
+	childEnforcer.EXPECT().Close()
+
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Child(cost.QueryLevel).Return(childEnforcer).MinTimes(1)
+
+	wrapper := NewM3WrappedStorage(store, enforcer)
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
 	end := time.Now()
@@ -180,6 +191,9 @@ func TestFetchByQuery(t *testing.T) {
 	series := result.SeriesList[0]
 	assert.Equal(t, "a", series.Name())
 	assert.Equal(t, []float64{3, 3, 3}, series.SafeValues())
+
+	// NB: ensure the fetch was called with the base enforcer's child correctly
+	assert.Equal(t, childEnforcer, store.LastFetchOptions().Enforcer)
 }
 
 func TestFetchByInvalidQuery(t *testing.T) {

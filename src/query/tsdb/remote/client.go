@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -103,7 +104,13 @@ func (c *grpcClient) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool, true, c.tagOptions)
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool,
+		true, enforcer, c.tagOptions)
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -182,17 +189,23 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
 	fetchResult, err := storage.SeriesIteratorsToFetchResult(
 		iters,
 		c.readWorkerPool,
 		true,
+		enforcer,
 		c.tagOptions,
 	)
 	if err != nil {
 		return block.Result{}, err
 	}
 
-	res, err := storage.FetchResultToBlockResult(fetchResult, query, c.lookbackDuration)
+	res, err := storage.FetchResultToBlockResult(fetchResult, query, c.lookbackDuration, options.Enforcer)
 	if err != nil {
 		return block.Result{}, err
 	}

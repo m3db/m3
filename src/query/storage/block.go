@@ -26,19 +26,21 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 )
 
 // FetchResultToBlockResult converts a fetch result into coordinator blocks
-func FetchResultToBlockResult(result *FetchResult, query *FetchQuery, lookbackDuration time.Duration) (block.Result, error) {
+func FetchResultToBlockResult(result *FetchResult, query *FetchQuery, lookbackDuration time.Duration, enforcer cost.ChainedEnforcer) (block.Result, error) {
 	multiBlock, err := NewMultiSeriesBlock(result.SeriesList, query, lookbackDuration)
 	if err != nil {
 		return block.Result{}, err
 	}
 
+	accountedBlock := block.NewAccountedBlock(NewMultiBlockWrapper(multiBlock), enforcer)
 	return block.Result{
-		Blocks: []block.Block{NewMultiBlockWrapper(multiBlock)},
+		Blocks: []block.Block{accountedBlock},
 	}, nil
 }
 
