@@ -686,31 +686,25 @@ definitions:
   RetentionOptions:
     type: "object"
     properties:
-      retentionPeriodNanos:
-        type: "integer"
-        format: "int64"
-      blockSizeNanos:
-        type: "integer"
-        format: "int64"
-      bufferFutureNanos:
-        type: "integer"
-        format: "int64"
-      bufferPastNanos:
-        type: "integer"
-        format: "int64"
+      retentionPeriodDuration:
+        type: "stromg"
+      blockSizeDuration:
+        type: "string"
+      bufferFutureDuration:
+        type: "string"
+      bufferPastDuration:
+        type: "string"
       blockDataExpiry:
         type: "boolean"
-      blockDataExpiryAfterNotAccessPeriodNanos:
-        type: "integer"
-        format: "int64"
+      blockDataExpiryAfterNotAccessPeriodDuration:
+        type: "string"
   IndexOptions:
     type: "object"
     properties:
       enabled:
         type: "boolean"
-      blockSizeNanos:
-        type: "integer"
-        format: "int64"
+      blockSizeDuration:
+        type: "string"
   NamespaceGetResponse:
     type: "object"
     properties:
