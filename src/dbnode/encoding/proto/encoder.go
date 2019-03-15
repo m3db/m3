@@ -39,6 +39,9 @@ import (
 	murmur3 "github.com/m3db/stackmurmur3"
 )
 
+// Make sure encoder implements encoding.Encoder
+var _ encoding.Encoder = &encoder{}
+
 const (
 	// Maximum capacity of a slice of TSZ fields that will be retained between resets.
 	maxTSZFieldsCapacityRetain = 24
@@ -55,7 +58,7 @@ var (
 // of the TSZ encoded fields on demand.
 // TODO: Encode the LRU size into the stream
 type encoder struct {
-	opts Options
+	opts encoding.Options
 
 	stream encoding.OStream
 	schema *desc.MessageDescriptor
@@ -77,7 +80,7 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, opts encoding.Options) (encoding.Encoder, error) {
+func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
 	if opts == nil {
 		return nil, errEncoderEncodingOptionsAreRequired
 	}
@@ -119,7 +122,7 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 }
 
 func (enc *encoder) Stream() xio.SegmentReader {
-	seg := enc.segment()
+	seg := enc.segment(true)
 	if seg.Len() == 0 {
 		return nil
 	}
@@ -132,19 +135,26 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(seg)
 }
 
-func (enc *encoder) segment() ts.Segment {
+func (enc *encoder) segment(copy bool) ts.Segment {
 	length := enc.stream.Len()
 	if enc.stream.Len() == 0 {
 		return ts.Segment{}
 	}
 
 	// TODO: Should this be cropping out the last byte?
-	buffer, pos := enc.stream.Rawbytes()
-	head := enc.newBuffer(length)
-	head.IncRef()
-	defer head.DecRef()
+	var head checked.Bytes
+	buffer, _ := enc.stream.Rawbytes()
+	if !copy {
+		// Take ref from the ostream.
+		head = enc.stream.Discard()
+	} else {
+		// Copy into new buffer.
+		head = enc.newBuffer(length)
+		head.IncRef()
+		head.AppendAll(buffer)
+		head.DecRef()
+	}
 
-	head.AppendAll(buffer)
 	return ts.NewSegment(head, nil, ts.FinalizeHead)
 }
 
@@ -198,35 +208,73 @@ func (enc *encoder) Reset(
 	enc.reset(start, capacity)
 }
 
-func (enc *Encoder) reset(start time.Time, capacity int) {
+func (enc *encoder) SetSchema(schema *desc.MessageDescriptor) {
+	enc.resetSchema(schema)
+}
+
+func (enc *encoder) reset(start time.Time, capacity int) {
 	// TODO: Probably don't want to make these both the same capacity.
 	// TODO: Won't this be a massive alloc on the m3tsz encoder side for no reason?
-	enc.stream.Reset(enc.stream.Reset(enc.newBuffer(capacity)))
+	// probably need to be able to reset the encoder and also specify the OStream
+	enc.stream.Reset(enc.newBuffer(capacity))
 	enc.m3tszEncoder.Reset(start, capacity)
 	enc.lastEncoded = nil
 	enc.unmarshaled = nil
 
-	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
-		enc.customFields = customFields(enc.customFields, schema)
-	} else {
-		enc.customFields = customFields(nil, schema)
-	}
-
-	enc.hasEncodedFirstSetOfCustomValues = false
-	enc.closed = false)
-	enc.m3tszEncoder.Reset(start, )
-	enc.schema = schema
-	enc.lastEncoded = nil
-	enc.unmarshaled = nil
-
-	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
-		enc.customFields = customFields(enc.customFields, schema)
-	} else {
-		enc.customFields = customFields(nil, schema)
+	if enc.schema != nil {
+		enc.resetCustomFields(enc.schema)
 	}
 
 	enc.hasEncodedFirstSetOfCustomValues = false
 	enc.closed = false
+}
+
+func (enc *encoder) resetSchema(schema *desc.MessageDescriptor) {
+	enc.schema = schema
+	enc.resetCustomFields(schema)
+
+	enc.lastEncoded = dynamic.NewMessage(schema)
+	enc.unmarshaled = dynamic.NewMessage(schema)
+}
+
+func (enc *encoder) resetCustomFields(schema *desc.MessageDescriptor) {
+	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
+		enc.customFields = customFields(enc.customFields, schema)
+	} else {
+		enc.customFields = customFields(nil, schema)
+	}
+}
+
+func (enc *encoder) Close() {
+	if enc.closed {
+		return
+	}
+
+	enc.closed = true
+
+	enc.stream.Reset(nil)
+	enc.m3tszEncoder.Close()
+
+	if pool := enc.opts.EncoderPool(); pool != nil {
+		pool.Put(enc)
+	}
+}
+
+func (enc *encoder) Discard() ts.Segment {
+	segment := enc.discard()
+	// Close the encoder since its no longer needed
+	enc.Close()
+	return segment
+}
+
+func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+	segment := enc.discard()
+	enc.Reset(start, capacity)
+	return segment
+}
+
+func (enc *encoder) discard() ts.Segment {
+	return enc.segment(false)
 }
 
 func (enc *encoder) Bytes() ([]byte, error) {
@@ -235,16 +283,6 @@ func (enc *encoder) Bytes() ([]byte, error) {
 	}
 
 	bytes, _ := enc.stream.Rawbytes()
-	return bytes, nil
-}
-
-func (enc *encoder) Close() (checked.Bytes, error) {
-	if enc.closed {
-		return nil, errEncoderClosed
-	}
-
-	bytes := enc.stream.Discard()
-	enc.closed = true
 	return bytes, nil
 }
 

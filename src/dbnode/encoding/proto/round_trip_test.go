@@ -44,7 +44,6 @@ var (
 
 // TODO: Add test for schema changes mid stream
 func TestRoundtrip(t *testing.T) {
-	enc := newTestEncoder(time.Now().Truncate(time.Second))
 	testCases := []struct {
 		timestamp  time.Time
 		latitude   float64
@@ -98,6 +97,9 @@ func TestRoundtrip(t *testing.T) {
 		},
 	}
 
+	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	enc.SetSchema(testVLSchema)
+
 	for i, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.numTrips, tc.deliveryID)
 		marshaledVL, err := vl.Marshal()
@@ -142,7 +144,7 @@ func newTestEncoder(t time.Time) *encoder {
 	if err != nil {
 		panic(err)
 	}
-	e.Reset(t, nil, testVLSchema)
+	e.Reset(t, 0)
 
 	return e
 }

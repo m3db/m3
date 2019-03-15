@@ -82,7 +82,8 @@ func TestRoundtripProp(t *testing.T) {
 
 		// TODO: I feel like I shouldn't have to set the start time to the timestamp
 		// of the first write, but it doesn't seem to work otherwise :/.
-		enc.Reset(times[0], nil, input.schema)
+		enc.Reset(times[0], 0)
+		enc.SetSchema(input.schema)
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
