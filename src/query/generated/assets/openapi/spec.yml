@@ -687,7 +687,7 @@ definitions:
     type: "object"
     properties:
       retentionPeriodDuration:
-        type: "stromg"
+        type: "string"
       blockSizeDuration:
         type: "string"
       bufferFutureDuration:
