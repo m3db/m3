@@ -133,7 +133,7 @@ func newTestEncoder(t time.Time) *encoder {
 	if err != nil {
 		panic(err)
 	}
-	e.Reset(nil, testVLSchema)
+	e.Reset(t, nil, testVLSchema)
 
 	return e
 }

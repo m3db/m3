@@ -69,13 +69,11 @@ func TestRoundtripProp(t *testing.T) {
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
 
-	// enc, err := NewEncoder(time.Time{}, testEncodingOptions)
-	// require.NoError(t, err)
+	enc, err := NewEncoder(time.Time{}, testEncodingOptions)
+	require.NoError(t, err)
 
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
-		enc, err := NewEncoder(time.Time{}, testEncodingOptions)
-		require.NoError(t, err)
-		enc.Reset(nil, input.schema)
+		enc.Reset(time.Time{}, nil, input.schema)
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
