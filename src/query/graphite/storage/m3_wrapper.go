@@ -139,7 +139,10 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
-	fetchOptions.Enforcer = s.enforcer
+	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
+	defer perQueryEnforcer.Close()
+
+	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,
 		FanoutAggregated:          storage.FanoutDefault,
