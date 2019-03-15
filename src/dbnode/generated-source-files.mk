@@ -27,14 +27,16 @@ genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
-genny-map-all:                         \
-	genny-map-client-received-blocks     \
-	genny-map-storage-block-retriever    \
-	genny-map-storage-bootstrap-result   \
-	genny-map-storage                    \
-	genny-map-storage-namespace-metadata \
-	genny-map-storage-repair             \
-	genny-map-storage-index-results			 \
+genny-map-all:                                \
+	genny-map-client-received-blocks            \
+	genny-map-storage-block-retriever           \
+	genny-map-storage-bootstrap-result          \
+	genny-map-storage                           \
+	genny-map-storage-namespace-metadata        \
+	genny-map-storage-repair                    \
+	genny-map-storage-index-results             \
+	genny-map-storage-index-search-results      \
+	genny-map-storage-index-aggregation-results \
 	genny-map-storage-bootstrap-bootstrapper-commitlog
 
 # Map generation rule for client/receivedBlocksMap
@@ -131,11 +133,11 @@ genny-map-storage-repair: install-m3x-repo
 # Map generation rule for storage/bootstrap/bootstrapper/commitlog
 .PHONY: genny-map-storage-bootstrap-bootstrapper-commitlog
 genny-map-storage-bootstrap-bootstrapper-commitlog: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen    \
-		pkg=commitlog                                    \
-		value_type=metadataAndEncodersByTime        \
+	cd $(m3x_package_path) && make idhashmap-gen                                         \
+		pkg=commitlog                                                                      \
+		value_type=metadataAndEncodersByTime                                               \
 		target_package=$(m3db_package)/src/dbnode/storage/bootstrap/bootstrapper/commitlog \
-		rename_constructor=newMetadataAndEncodersByTimeMap \
+		rename_constructor=newMetadataAndEncodersByTimeMap                                 \
 		rename_constructor_options=newMetadataAndEncodersByTimeMapOptions
 	# Rename both generated map and constructor files
 	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_map_gen.go
@@ -155,6 +157,20 @@ genny-map-storage-index-results: install-m3x-repo
 	# Rename generated map file
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/results_map_gen.go
 
+# Map generation rule for storage/index/AggregationResultsMap
+.PHONY: genny-map-storage-index-aggregation-results
+genny-map-storage-index-aggregation-results: install-m3x-repo
+	cd $(m3x_package_path) && make hashmap-gen                \
+		pkg=index                                               \
+		key_type=ident.ID                                       \
+		value_type=AggregateResultsForTerm                      \
+		target_package=$(m3db_package)/src/dbnode/storage/index \
+		rename_nogen_key=true                                   \
+		rename_nogen_value=true                                 \
+		rename_type_prefix=AggregateResults
+	# Rename generated map file
+	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_results_map_gen.go
+
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
 genny-arraypool-all: genny-arraypool-node-segments
@@ -173,7 +189,7 @@ genny-arraypool-node-segments: install-m3x-repo
 
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all
-genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt \
+genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt        \
 	genny-leakcheckpool-fetch-state                                        \
 	genny-leakcheckpool-fetch-tagged-op
 

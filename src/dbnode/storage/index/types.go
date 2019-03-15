@@ -126,6 +126,42 @@ type ResultsOptions struct {
 	SizeLimit int
 }
 
+// AggregateResults is a collection of results for an aggregation query.
+type AggregateResults interface {
+	// Namespace returns the namespace associated with the result.
+	Namespace() ident.ID
+
+	// Map returns a map from tag name -> possible tag values,
+	// comprising search results.
+	// Map() *AggregationResultsMap
+
+	// Reset resets the AggregateResults object to initial state.
+	Reset(nsID ident.ID)
+
+	// Finalize releases any resources held by the AggregateResults object,
+	// including returning it to a backing pool.
+	Finalize()
+
+	// NoFinalize marks the AggregateResults such that a subsequent call to
+	// Finalize() will be a no-op and will not return the object to the pool or
+	// release any of its resources.
+	NoFinalize()
+
+	// Size returns the number of results discovered.
+	Size() int
+
+	// AggregateDocument converts the provided document to a set of tags
+	// fulfilling the search query and adds it to the results. This method makes
+	// a copy of the bytes backing the tags, so the original may be modified
+	// after this function returns without affecting the results map.
+	//
+	// NB: it returns a bool to indicate if the doc was added (it won't be added
+	// if it already existed in the AggregateResultsMap).
+	AggregateDocument(
+		document doc.Document,
+	) (added bool, size int, err error)
+}
+
 // ResultsAllocator allocates Results types.
 type ResultsAllocator func() Results
 
