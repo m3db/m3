@@ -31,11 +31,13 @@ import (
 
 // PostingsListLRU implements a non-thread safe fixed size LRU cache of postings lists
 // that were resolved by running a given query against a particular segment for a given
-// field. Normally a key in the LRU would look like:
+// field and pattern type (term vs regexp). Normally a key in the LRU would look like:
 //
 // type key struct {
 //    segmentUUID uuid.UUID
-//    query       PostingsListCacheQuery,
+//    field       string
+//    pattern     string
+//    patternType PatternType
 // }
 //
 // However, some of the postings lists that we will store in the LRU have a fixed lifecycle
@@ -50,7 +52,7 @@ import (
 // Instead of adding additional tracking on-top of an existing generic LRU, we've created a
 // specialized LRU that instead of having a single top-level map pointing into the linked-list,
 // has a two-level map where the top level map is keyed by segment UUID and the second level map
-// is keyed by the PostingsListCacheQuery and PatternType.
+// is keyed by the field/pattern/patternType.
 //
 // As a result, when a segment is ready to be closed, they can call into the cache with their
 // UUID and we can efficiently remove all the entries corresponding to that segment from the
