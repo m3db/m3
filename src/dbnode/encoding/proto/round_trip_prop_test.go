@@ -73,7 +73,16 @@ func TestRoundtripProp(t *testing.T) {
 	require.NoError(t, err)
 
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
-		enc.Reset(time.Time{}, nil, input.schema)
+		times := make([]time.Time, 0, len(input.messages))
+		currTime := time.Now()
+		for range input.messages {
+			currTime = currTime.Add(time.Nanosecond)
+			times = append(times, currTime)
+		}
+
+		// TODO: I feel like I shouldn't have to set the start time to the timestamp
+		// of the first write, but it doesn't seem to work otherwise :/.
+		enc.Reset(times[0], nil, input.schema)
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -84,8 +93,8 @@ func TestRoundtripProp(t *testing.T) {
 				return false, fmt.Errorf("error marshaling proto message: %v", err)
 			}
 
-			fmt.Println("prop test encoding", i, m.String())
-			err = enc.Encode(ts.Datapoint{}, xtime.Nanosecond, cloneBytes)
+			fmt.Println("prop test encoding", i, times[i].String())
+			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
 				return false, fmt.Errorf(
 					"error encoding message: %v, schema: %s", err, input.schema.String())
@@ -104,11 +113,16 @@ func TestRoundtripProp(t *testing.T) {
 		i := 0
 		for iter.Next() {
 			var (
-				m                = input.messages[i]
-				_, _, annotation = iter.Current()
+				m                    = input.messages[i]
+				dp, unit, annotation = iter.Current()
 			)
-			decodedM := dynamic.NewMessage(testVLSchema)
+			decodedM := dynamic.NewMessage(input.schema)
 			require.NoError(t, decodedM.Unmarshal(annotation))
+
+			require.Equal(t, unit, xtime.Nanosecond)
+			fmt.Println(times[i].String())
+			fmt.Println(dp.Timestamp.String())
+			require.True(t, times[i].Equal(dp.Timestamp))
 
 			for _, field := range m.GetKnownFields() {
 				var (

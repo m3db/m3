@@ -44,7 +44,7 @@ var (
 
 // TODO: Add test for schema changes mid stream
 func TestRoundtrip(t *testing.T) {
-	enc := newTestEncoder(time.Now().Truncate(time.Minute))
+	enc := newTestEncoder(time.Now().Truncate(time.Second))
 	testCases := []struct {
 		timestamp  time.Time
 		latitude   float64
