@@ -18,57 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package pickle
 
-import (
-	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/models"
-)
-
+// list of opcodes required for pickling graphite query results.
 const (
-	carbonSeparatorByte = byte('.')
-	carbonGlobRune      = '*'
+	opNone       = 0x4e
+	opMark       = 0x28
+	opStop       = 0x2e
+	opBinInt     = 0x4a
+	opBinUnicode = 0x58
+	opBinFloat   = 0x47
+	opEmptyList  = 0x5d
+	opAppends    = 0x65
+	opEmptyDict  = 0x7d
+	opSetItems   = 0x75
+	opProto      = 0x80
 )
-
-var (
-	wildcard = []byte(".*")
-)
-
-func glob(metric string) []byte {
-	globLen := len(metric)
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			globLen++
-		}
-	}
-
-	glob := make([]byte, globLen)
-	i := 0
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			glob[i] = carbonSeparatorByte
-			i++
-		}
-
-		glob[i] = byte(c)
-		i++
-	}
-
-	return glob
-}
-
-func convertMetricPartToMatcher(count int, metric string) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchRegexp,
-		Name:  graphite.TagName(count),
-		Value: glob(metric),
-	}
-}
-
-func matcherTerminator(count int) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: wildcard,
-	}
-}
