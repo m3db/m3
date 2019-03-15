@@ -63,10 +63,10 @@ type RequestParams struct {
 	Step       time.Duration
 	Query      string
 	Debug      bool
+	DropNaNs   bool
 	IncludeEnd bool
 	BlockType  FetchedBlockType
 	FormatType FormatType
-	DropNaNs   bool
 }
 
 // ExclusiveEnd returns the end exclusive
