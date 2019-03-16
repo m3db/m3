@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.7.2 (2019-03-15)
+
+## Bug Fixes
+
+- **All Binaries**: Fix LD flags in release so that version, branch, build date, etc are packaged into the binary properly.
+
 # 0.7.1 (2019-03-15)
 
 ## New Features
