@@ -1130,6 +1130,10 @@ func withEncodingAndPoolingOptions(
 	)
 	if cfg.DataMode == config.DataModeProtobuf {
 		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
+		if err != nil {
+			// TODO: Fix me
+			panic(err)
+		}
 	}
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.DataMode == config.DataModeProtobuf {
