@@ -28,6 +28,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -388,6 +390,8 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 		// the sake of being able to persist it to disk as a single encoded stream.
 		_, err = bucket.merge()
 		if err != nil {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer merge bucket error: %v", err)
 			return
 		}
 
@@ -526,7 +530,7 @@ func (b *dbBufferBucket) resetTo(
 	b.finalize()
 
 	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
+	encoder := b.newEncoder()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 
 	b.start = start
@@ -634,7 +638,7 @@ func (b *dbBufferBucket) write(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
 
-	encoder := bopts.EncoderPool().Get()
+	encoder := b.newEncoder()
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 
 	b.encoders = append(b.encoders, inOrderEncoder{
@@ -748,6 +752,31 @@ func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
 	return encodersEmpty && len(b.bootstrapped) == 1
 }
 
+func (b *dbBufferBucket) newEncoder() encoding.Encoder {
+	encoder1 := b.newEncoderFromPool(
+		"blockOptions",
+		b.opts.DatabaseBlockOptions().EncoderPool(),
+	)
+	b.newEncoderFromPool(
+		"options",
+		b.opts.EncoderPool(),
+	)
+
+	return encoder1
+}
+
+func (b *dbBufferBucket) newEncoderFromPool(poolSource string, pool encoding.EncoderPool) encoding.Encoder {
+	encoder := pool.Get()
+	if _, ok := encoder.(*proto.Encoder); !ok {
+		if _, ok = encoder.(*m3tsz.Encoder); !ok {
+			panic(fmt.Sprintf("%s: expected Proto or M3TSZ encoder but was neither!", poolSource))
+		}
+		panic(fmt.Sprintf("%s: expected Proto encoder but was M3TSZ", poolSource))
+	}
+
+	return encoder
+}
+
 type mergeResult struct {
 	merges int
 }
@@ -760,7 +789,7 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 
 	merges := 0
 	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
+	encoder := b.newEncoder()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
 	var (

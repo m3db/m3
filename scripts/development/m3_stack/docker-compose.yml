@@ -9,6 +9,7 @@ services:
     image: m3dbnode01:latest
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+      - "./schema.proto:/etc/m3dbnode/schema.proto"
     environment:
       - M3DB_HOST_ID=m3db_seed
     expose:

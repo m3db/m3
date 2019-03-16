@@ -299,6 +299,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		fetchData = false
 	}
 	for _, entry := range queryResult.Results.Map().Iter() {
+		fmt.Println("found id: ", entry.Key().String())
 		elem := &rpc.QueryResultElement{
 			ID:   entry.Key().String(),
 			Tags: make([]*rpc.Tag, 0, len(entry.Value().Values())),
@@ -363,6 +364,7 @@ func (s *service) readDatapoints(
 	start, end time.Time,
 	timeType rpc.TimeType,
 ) ([]*rpc.Datapoint, error) {
+	fmt.Println("trying to read datapoints for: ", nsID)
 	encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
 	if err != nil {
 		return nil, err
@@ -376,7 +378,9 @@ func (s *service) readDatapoints(
 	defer multiIt.Close()
 
 	for multiIt.Next() {
+		fmt.Println("looping!")
 		dp, _, annotation := multiIt.Current()
+		fmt.Println("dp:", dp)
 
 		timestamp, timestampErr := convert.ToValue(dp.Timestamp, timeType)
 		if timestampErr != nil {
@@ -392,9 +396,11 @@ func (s *service) readDatapoints(
 	}
 
 	if err := multiIt.Err(); err != nil {
+		fmt.Println("iteration error: ", err)
 		return nil, err
 	}
 
+	fmt.Println("no errors")
 	return datapoints, nil
 }
 
@@ -916,10 +922,12 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 		s.pools.id.GetStringID(ctx, req.ID),
 		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
 		dp.Value, unit, dp.Annotation); err != nil {
+		fmt.Println("error: ", err)
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
 	}
 
+	fmt.Println("no error")
 	s.metrics.writeTagged.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return nil

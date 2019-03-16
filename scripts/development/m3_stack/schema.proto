@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message Schema {
+  double latitude = 1;
+  double longitude = 2;
+  int64 numTrips = 3;
+  bytes deliveryID = 4;
+}

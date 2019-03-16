@@ -1129,6 +1129,7 @@ func withEncodingAndPoolingOptions(
 		err    error
 	)
 	if cfg.DataMode == config.DataModeProtobuf {
+		fmt.Println("Running with proto data mode enabled!")
 		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
 		if err != nil {
 			// TODO: Fix me
@@ -1176,6 +1177,7 @@ func withEncodingAndPoolingOptions(
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(iteratorPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
 

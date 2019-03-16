@@ -72,3 +72,5 @@ db:
                 endpoint: http://m3db_seed:2380
 
   dataMode: 1
+  proto:
+    schemaFilePath: /etc/m3dbnode/schema.proto

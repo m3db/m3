@@ -138,7 +138,7 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, iter.Err())
 }
 
-func newTestEncoder(t time.Time) *encoder {
+func newTestEncoder(t time.Time) *Encoder {
 	e := NewEncoder(t, testEncodingOptions)
 	e.Reset(t, 0)
 

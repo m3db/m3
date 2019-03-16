@@ -51,6 +51,7 @@ const (
 // DataMode controls what type of data will be stored.
 type DataMode int
 
+// TODO: Fix this to do proper string parsing
 const (
 	// Floats DataMode indicates that only floats will be stored.
 	DataModeFloats DataMode = iota
@@ -295,6 +296,10 @@ type ProtoConfiguration struct {
 
 // Validate validates the ProtoConfiguration.
 func (c *ProtoConfiguration) Validate() error {
+	if c == nil {
+		return nil
+	}
+
 	if c.SchemaFilePath == "" {
 		return errors.New("schemaFilePath is required for Proto data mode ")
 	}

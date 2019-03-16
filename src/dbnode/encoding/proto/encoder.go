@@ -40,7 +40,7 @@ import (
 )
 
 // Make sure encoder implements encoding.Encoder
-var _ encoding.Encoder = &encoder{}
+var _ encoding.Encoder = &Encoder{}
 
 const (
 	// Maximum capacity of a slice of TSZ fields that will be retained between resets.
@@ -52,19 +52,22 @@ var (
 	errEncoderEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
 	errEncoderMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
 	errEncoderClosed                     = errors.New("proto encoder: encoder is closed")
+	errNoEncodedDatapoints               = errors.New("encoder has no encoded datapoints")
 )
 
 // TODO(rartoul): Need to support schema changes by updating the ordering
 // of the TSZ encoded fields on demand.
 // TODO: Encode the LRU size into the stream
-type encoder struct {
+type Encoder struct {
 	opts encoding.Options
 
 	stream encoding.OStream
 	schema *desc.MessageDescriptor
 
-	lastEncoded  *dynamic.Message
-	customFields []customFieldState
+	numEncoded    int
+	lastEncodedDP ts.Datapoint
+	lastEncoded   *dynamic.Message
+	customFields  []customFieldState
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -80,10 +83,10 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, opts encoding.Options) *encoder {
+func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
-	return &encoder{
+	return &Encoder{
 		opts:         opts,
 		stream:       stream,
 		m3tszEncoder: m3tsz.NewEncoder(start, nil, stream, false, opts).(*m3tsz.Encoder),
@@ -91,7 +94,7 @@ func NewEncoder(start time.Time, opts encoding.Options) *encoder {
 	}
 }
 
-func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
 	if enc.closed {
 		return errEncoderClosed
 	}
@@ -120,10 +123,12 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 
 	// TODO: Does not need to be public?
 	enc.EncodeProto(enc.unmarshaled)
+	enc.numEncoded++
+	enc.lastEncodedDP = dp
 	return nil
 }
 
-func (enc *encoder) Stream() xio.SegmentReader {
+func (enc *Encoder) Stream() xio.SegmentReader {
 	seg := enc.segment(true)
 	if seg.Len() == 0 {
 		return nil
@@ -137,7 +142,7 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(seg)
 }
 
-func (enc *encoder) segment(copy bool) ts.Segment {
+func (enc *Encoder) segment(copy bool) ts.Segment {
 	length := enc.stream.Len()
 	if enc.stream.Len() == 0 {
 		return ts.Segment{}
@@ -160,19 +165,23 @@ func (enc *encoder) segment(copy bool) ts.Segment {
 	return ts.NewSegment(head, nil, ts.FinalizeHead)
 }
 
-func (enc *encoder) NumEncoded() int {
-	return enc.m3tszEncoder.NumEncoded()
+func (enc *Encoder) NumEncoded() int {
+	return enc.numEncoded
 }
 
-func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
-	return enc.m3tszEncoder.LastEncoded()
+func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
+	if enc.numEncoded == 0 {
+		return ts.Datapoint{}, errNoEncodedDatapoints
+	}
+
+	return enc.lastEncodedDP, nil
 }
 
-func (enc *encoder) Len() int {
+func (enc *Encoder) Len() int {
 	return enc.m3tszEncoder.Len()
 }
 
-func (enc *encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
+func (enc *Encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
 	if !enc.hasEncodedFirstSetOfCustomValues {
 		return enc.m3tszEncoder.WriteFirstTime(t, nil, tu)
 	}
@@ -181,7 +190,7 @@ func (enc *encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
 
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
-func (enc *encoder) EncodeProto(m *dynamic.Message) error {
+func (enc *Encoder) EncodeProto(m *dynamic.Message) error {
 	if len(m.GetUnknownFields()) > 0 {
 		return errEncoderMessageHasUnknownFields
 	}
@@ -196,24 +205,25 @@ func (enc *encoder) EncodeProto(m *dynamic.Message) error {
 	return nil
 }
 
-func (enc *encoder) Reset(
+func (enc *Encoder) Reset(
 	start time.Time,
 	capacity int,
 ) {
 	enc.reset(start, capacity)
 }
 
-func (enc *encoder) SetSchema(schema *desc.MessageDescriptor) {
+func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
 	enc.resetSchema(schema)
 }
 
-func (enc *encoder) reset(start time.Time, capacity int) {
+func (enc *Encoder) reset(start time.Time, capacity int) {
 	// TODO: Probably don't want to make these both the same capacity.
 	// TODO: Won't this be a massive alloc on the m3tsz encoder side for no reason?
 	// probably need to be able to reset the encoder and also specify the OStream
 	enc.stream.Reset(enc.newBuffer(capacity))
 	enc.m3tszEncoder.Reset(start, capacity)
 	enc.lastEncoded = nil
+	enc.lastEncodedDP = ts.Datapoint{}
 	enc.unmarshaled = nil
 
 	if enc.schema != nil {
@@ -222,9 +232,10 @@ func (enc *encoder) reset(start time.Time, capacity int) {
 
 	enc.hasEncodedFirstSetOfCustomValues = false
 	enc.closed = false
+	enc.numEncoded = 0
 }
 
-func (enc *encoder) resetSchema(schema *desc.MessageDescriptor) {
+func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
 	enc.resetCustomFields(schema)
 
@@ -232,7 +243,7 @@ func (enc *encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.unmarshaled = dynamic.NewMessage(schema)
 }
 
-func (enc *encoder) resetCustomFields(schema *desc.MessageDescriptor) {
+func (enc *Encoder) resetCustomFields(schema *desc.MessageDescriptor) {
 	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
 		enc.customFields = customFields(enc.customFields, schema)
 	} else {
@@ -240,7 +251,7 @@ func (enc *encoder) resetCustomFields(schema *desc.MessageDescriptor) {
 	}
 }
 
-func (enc *encoder) Close() {
+func (enc *Encoder) Close() {
 	if enc.closed {
 		return
 	}
@@ -248,31 +259,31 @@ func (enc *encoder) Close() {
 	enc.closed = true
 
 	enc.stream.Reset(nil)
-	enc.m3tszEncoder.Close()
+	enc.m3tszEncoder.Reset(time.Time{}, 0)
 
 	if pool := enc.opts.EncoderPool(); pool != nil {
 		pool.Put(enc)
 	}
 }
 
-func (enc *encoder) Discard() ts.Segment {
+func (enc *Encoder) Discard() ts.Segment {
 	segment := enc.discard()
 	// Close the encoder since its no longer needed
 	enc.Close()
 	return segment
 }
 
-func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+func (enc *Encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
 	segment := enc.discard()
 	enc.Reset(start, capacity)
 	return segment
 }
 
-func (enc *encoder) discard() ts.Segment {
+func (enc *Encoder) discard() ts.Segment {
 	return enc.segment(false)
 }
 
-func (enc *encoder) Bytes() ([]byte, error) {
+func (enc *Encoder) Bytes() ([]byte, error) {
 	if enc.closed {
 		return nil, errEncoderClosed
 	}
@@ -281,7 +292,7 @@ func (enc *encoder) Bytes() ([]byte, error) {
 	return bytes, nil
 }
 
-func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
+func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 	for i, customField := range enc.customFields {
 		iVal, err := m.TryGetFieldByNumber(customField.fieldNum)
 		if err != nil {
@@ -319,7 +330,7 @@ func (enc *encoder) encodeCustomValues(m *dynamic.Message) error {
 	return nil
 }
 
-func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal interface{}) error {
+func (enc *Encoder) encodeTSZValue(i int, customField customFieldState, iVal interface{}) error {
 	var val float64
 	switch typedVal := iVal.(type) {
 	case float64:
@@ -340,7 +351,7 @@ func (enc *encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 	return nil
 }
 
-func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
+func (enc *Encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
 	var (
 		signedVal   int64
 		unsignedVal uint64
@@ -376,7 +387,7 @@ func (enc *encoder) encodeIntValue(i int, customField customFieldState, iVal int
 	return nil
 }
 
-func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
+func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
 	currBytes, ok := iVal.([]byte)
 	if !ok {
 		currString, ok := iVal.(string)
@@ -424,7 +435,7 @@ func (enc *encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 	return nil
 }
 
-func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
+func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
@@ -513,14 +524,14 @@ func (enc *encoder) encodeProtoValues(m *dynamic.Message) error {
 	return nil
 }
 
-func (enc *encoder) encodeFirstTSZValue(i int, v float64) {
+func (enc *Encoder) encodeFirstTSZValue(i int, v float64) {
 	fb := math.Float64bits(v)
 	enc.stream.WriteBits(fb, 64)
 	enc.customFields[i].prevFloatBits = fb
 	enc.customFields[i].prevXOR = fb
 }
 
-func (enc *encoder) encodeNextTSZValue(i int, next float64) {
+func (enc *Encoder) encodeNextTSZValue(i int, next float64) {
 	curFloatBits := math.Float64bits(next)
 	curXOR := enc.customFields[i].prevFloatBits ^ curFloatBits
 	encoding.WriteTSZXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
@@ -528,7 +539,7 @@ func (enc *encoder) encodeNextTSZValue(i int, next float64) {
 	enc.customFields[i].prevXOR = curXOR
 }
 
-func (enc *encoder) encodeFirstSignedIntValue(i int, v int64) {
+func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
 	neg := false
 	enc.customFields[i].prevFloatBits = uint64(v)
 	if v < 0 {
@@ -543,7 +554,7 @@ func (enc *encoder) encodeFirstSignedIntValue(i int, v int64) {
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
-func (enc *encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
+func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 	enc.customFields[i].prevFloatBits = uint64(v)
 
 	vBits := uint64(v)
@@ -553,7 +564,7 @@ func (enc *encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 	enc.encodeIntValDiff(vBits, false, numSig)
 }
 
-func (enc *encoder) encodeNextSignedIntValue(i int, next int64) {
+func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
 	prev := int64(enc.customFields[i].prevFloatBits)
 	diff := next - prev
 	if diff == 0 {
@@ -582,7 +593,7 @@ func (enc *encoder) encodeNextSignedIntValue(i int, next int64) {
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
 
-func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
+func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	var (
 		neg  = false
 		prev = uint64(enc.customFields[i].prevFloatBits)
@@ -614,7 +625,7 @@ func (enc *encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
 
-func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
+func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 	if neg {
 		// opCodeNegative
 		enc.stream.WriteBit(0x1)
@@ -626,7 +637,7 @@ func (enc *encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 	enc.stream.WriteBits(valBits, int(numSig))
 }
 
-func (enc *encoder) moveToEndOfBytesDict(fieldIdx, i int) {
+func (enc *Encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict
 	for j := i; j < len(existing); j++ {
 		nextIdx := j + 1
@@ -641,7 +652,7 @@ func (enc *encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 	}
 }
 
-func (enc *encoder) addToBytesDict(fieldIdx int, hash uint64) {
+func (enc *Encoder) addToBytesDict(fieldIdx int, hash uint64) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict
 	if len(existing) < byteFieldDictSize {
 		enc.customFields[fieldIdx].bytesFieldDict = append(existing, hash)
@@ -675,7 +686,7 @@ func (enc *encoder) addToBytesDict(fieldIdx int, hash uint64) {
 // I.E first it encodes a varint which specifies the number of following
 // bits to interpret as a bitset and then it encodes the provided values
 // as zero-indexed bitset.
-func (enc *encoder) encodeBitset(values []int32) {
+func (enc *Encoder) encodeBitset(values []int32) {
 	var max int32
 	for _, v := range values {
 		if v > max {
@@ -709,7 +720,7 @@ func (enc *encoder) encodeBitset(values []int32) {
 	}
 }
 
-func (enc *encoder) encodeVarInt(x uint64) {
+func (enc *Encoder) encodeVarInt(x uint64) {
 	var (
 		// Convert array to slice we can reuse the buffer.
 		buf      = enc.varIntBuf[:]
@@ -722,7 +733,7 @@ func (enc *encoder) encodeVarInt(x uint64) {
 	enc.stream.WriteBytes(buf)
 }
 
-func (enc *encoder) newBuffer(capacity int) checked.Bytes {
+func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
 		return bytesPool.Get(capacity)
 	}

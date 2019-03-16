@@ -1,7 +1,7 @@
 global:
   external_labels:
     role: "remote"
-  scrape_interval:     15s
+  scrape_interval:     1s
   evaluation_interval: 15s
 
 # Alertmanager configuration

@@ -11,7 +11,7 @@ fi
 
 echo "Bringing up nodes in the background with docker compose, remember to run ./stop.sh when done"
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
-docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
+docker-compose -f docker-compose.yml up --build -d --renew-anon-volumes m3db_seed
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
 docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
 

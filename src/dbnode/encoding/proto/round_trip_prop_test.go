@@ -117,8 +117,6 @@ func TestRoundtripProp(t *testing.T) {
 			require.NoError(t, decodedM.Unmarshal(annotation))
 
 			require.Equal(t, unit, xtime.Nanosecond)
-			fmt.Println(times[i].String())
-			fmt.Println(dp.Timestamp.String())
 			require.True(t, times[i].Equal(dp.Timestamp))
 
 			for _, field := range m.GetKnownFields() {
