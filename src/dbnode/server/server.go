@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
@@ -1122,11 +1123,15 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		if cfg.DataMode == config.DataModeProtobuf {
+			return proto.NewEncoder(time.Time{}, encodingOpts)
+		}
+
+		return m3tsz.NewEncoder(time.Time{}, nil, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {

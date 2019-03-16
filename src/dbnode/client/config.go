@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/x/tchannel"
+	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 )
@@ -256,7 +256,7 @@ func (c Configuration) NewAdminClient(
 
 	v = v.SetReaderIteratorAllocate(func(r io.Reader) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
+		return m3tsz.NewReaderIterator(r, nil, intOptimized, encodingOpts)
 	})
 
 	// Apply programtic custom options last

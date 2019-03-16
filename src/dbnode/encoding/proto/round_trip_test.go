@@ -140,10 +140,7 @@ func TestRoundtrip(t *testing.T) {
 }
 
 func newTestEncoder(t time.Time) *encoder {
-	e, err := NewEncoder(t, testEncodingOptions)
-	if err != nil {
-		panic(err)
-	}
+	e := NewEncoder(t, testEncodingOptions)
 	e.Reset(t, 0)
 
 	return e

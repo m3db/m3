@@ -22,27 +22,10 @@ package proto
 
 import (
 	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
-
-func TestEncoderEncodeSchemaRequired(t *testing.T) {
-	enc, err := NewEncoder(time.Time{}, testEncodingOptions)
-	require.NoError(t, err)
-
-	err = enc.Encode(ts.Datapoint{}, xtime.Nanosecond, nil)
-	require.Equal(t, errEncoderSchemaIsRequired, err)
-}
-
-func TestNewEncoderEncodingOptionsRequired(t *testing.T) {
-	_, err := NewEncoder(time.Time{}, nil)
-	require.Equal(t, errEncoderEncodingOptionsAreRequired, err)
-}
 
 func TestTSZFields(t *testing.T) {
 	testCases := []struct {

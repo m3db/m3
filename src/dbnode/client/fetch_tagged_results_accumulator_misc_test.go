@@ -269,7 +269,7 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 
 	pools.multiReader = encoding.NewMultiReaderIteratorPool(opts)
 	pools.multiReader.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	})
 
 	pools.seriesIter = encoding.NewSeriesIteratorPool(opts)

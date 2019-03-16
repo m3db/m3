@@ -100,7 +100,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
 	p.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	})
 	return p
 }
@@ -1662,7 +1662,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	sort.Sort(testValuesByTime(all))
 
 	// Assert test values sorted match the block values
-	iter := m3tsz.NewReaderIterator(stream, intopt, eops)
+	iter := m3tsz.NewReaderIterator(stream, nil, intopt, eops)
 	defer iter.Close()
 	asserted := 0
 	for iter.Next() {

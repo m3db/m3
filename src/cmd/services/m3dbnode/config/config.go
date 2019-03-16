@@ -48,6 +48,16 @@ const (
 	defaultEtcdServerPort = 2380
 )
 
+// DataMode controls what type of data will be stored.
+type DataMode int
+
+const (
+	// Floats DataMode indicates that only floats will be stored.
+	DataModeFloats DataMode = iota
+	// Protobuf DataMode indicates that Protobufs will be stored.
+	DataModeProtobuf
+)
+
 // Configuration is the top level configuration that includes both a DB
 // node and a coordinator.
 type Configuration struct {
@@ -137,6 +147,9 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+
+	// DataMode controls what kind of data will be stored.
+	DataMode DataMode `yaml:"dataMode"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.

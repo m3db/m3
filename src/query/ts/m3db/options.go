@@ -40,7 +40,7 @@ var (
 	defaultLookbackDuration = time.Duration(0)
 	defaultConsolidationFn  = consolidators.TakeLast
 	defaultIterAlloc        = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 )
 

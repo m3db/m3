@@ -141,7 +141,7 @@ func BuildIteratorPools() encoding.IteratorPools {
 	encodingOpts := encoding.NewOptions()
 	readerIterAlloc := func(r io.Reader) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
+		return m3tsz.NewReaderIterator(r, nil, intOptimized, encodingOpts)
 	}
 
 	pools.multiReaderIterator.Init(readerIterAlloc)

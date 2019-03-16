@@ -184,7 +184,7 @@ func main() {
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, true, encodingOpts)
+		return m3tsz.NewReaderIterator(r, nil, true, encodingOpts)
 	})
 
 	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {

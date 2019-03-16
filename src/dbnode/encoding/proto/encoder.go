@@ -80,21 +80,15 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, opts encoding.Options) (*encoder, error) {
-	if opts == nil {
-		return nil, errEncoderEncodingOptionsAreRequired
-	}
-
+func NewEncoder(start time.Time, opts encoding.Options) *encoder {
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
-	enc := &encoder{
+	return &encoder{
 		opts:         opts,
 		stream:       stream,
 		m3tszEncoder: m3tsz.NewEncoder(start, nil, stream, false, opts).(*m3tsz.Encoder),
 		varIntBuf:    [8]byte{},
 	}
-
-	return enc, nil
 }
 
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {

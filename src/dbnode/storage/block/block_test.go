@@ -175,7 +175,7 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	seg, err = stream.Segment()
 	require.NoError(t, err)
 	reader := xio.NewSegmentReader(seg)
-	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+	iter := m3tsz.NewReaderIterator(reader, nil, true, encodingOpts)
 
 	i := 0
 	for iter.Next() {
@@ -273,7 +273,7 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 				seg, err = stream.Segment()
 				require.NoError(t, err)
 				reader := xio.NewSegmentReader(seg)
-				iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+				iter := m3tsz.NewReaderIterator(reader, nil, true, encodingOpts)
 
 				i := 0
 				for iter.Next() {
@@ -369,7 +369,7 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	seg, err = stream.Segment()
 	require.NoError(t, err)
 	reader := xio.NewSegmentReader(seg)
-	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+	iter := m3tsz.NewReaderIterator(reader, nil, true, encodingOpts)
 
 	i := 0
 	for iter.Next() {
@@ -478,7 +478,7 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	seg, err = stream.Segment()
 	require.NoError(t, err)
 	reader := xio.NewSegmentReader(seg)
-	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+	iter := m3tsz.NewReaderIterator(reader, nil, true, encodingOpts)
 
 	i := 0
 	for iter.Next() {
@@ -541,7 +541,7 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	seg, err = stream.Segment()
 	require.NoError(t, err)
 	reader := xio.NewSegmentReader(seg)
-	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+	iter := m3tsz.NewReaderIterator(reader, nil, true, encodingOpts)
 
 	i := 0
 	for iter.Next() {
