@@ -80,6 +80,9 @@ var (
 
 	// errNodeIsNotBootstrapped
 	errNodeIsNotBootstrapped = errors.New("node is not bootstrapped")
+
+	// errNotImplemented raised when attempting to execute an un-implemented method
+	errNotImplemented = errors.New("method is not implemented")
 )
 
 type serviceMetrics struct {
@@ -450,6 +453,14 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
+}
+
+func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
+	return nil, tterrors.NewInternalError(errNotImplemented)
+}
+
+func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
+	return nil, tterrors.NewInternalError(errNotImplemented)
 }
 
 func (s *service) encodeTags(
