@@ -186,7 +186,7 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e "GIT_REVISION=$(GIT_REVISION)" -e "GIT_BRANCH=$(GIT_BRANCH)" -e "GIT_VERSION=$(GIT_VERSION)" -e "BUILD_DATE=$(BUILD_DATE)" -e "BUILD_TS_UNIX=$(BUILD_TS_UNIX)" -e "BASE_PACKAGE=$(BASE_PACKAGE)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e "GIT_REVISION=$(GIT_REVISION)" -e "GIT_BRANCH=$(GIT_BRANCH)" -e "GIT_VERSION=$(GIT_VERSION)" -e "BUILD_DATE=$(BUILD_DATE)" -e "BUILD_TS_UNIX=$(BUILD_TS_UNIX)" -e "BASE_PACKAGE=$(BASE_PACKAGE)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
