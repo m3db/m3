@@ -418,6 +418,7 @@ func (it *ReaderIterator) Close() {
 	if it.closed {
 		return
 	}
+
 	it.closed = true
 	pool := it.opts.ReaderIteratorPool()
 	if pool != nil {
