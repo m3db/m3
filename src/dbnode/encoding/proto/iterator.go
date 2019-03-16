@@ -42,6 +42,7 @@ var (
 )
 
 type iterator struct {
+	opts                 encoding.Options
 	err                  error
 	schema               *desc.MessageDescriptor
 	stream               encoding.IStream
@@ -55,6 +56,8 @@ type iterator struct {
 	bitsetValues []int
 
 	done bool
+	// Can i just reuse done for this?
+	closed bool
 
 	m3tszIterator *m3tsz.ReaderIterator
 }
@@ -64,16 +67,10 @@ func NewIterator(
 	reader io.Reader,
 	schema *desc.MessageDescriptor,
 	opts encoding.Options,
-) (*iterator, error) {
-	if reader == nil {
-		return nil, errIteratorReaderIsRequired
-	}
-	if schema == nil {
-		return nil, errIteratorSchemaIsRequired
-	}
-
+) *iterator {
 	stream := encoding.NewIStream(reader)
-	iter := &iterator{
+	return &iterator{
+		opts:         opts,
 		schema:       schema,
 		stream:       stream,
 		lastIterated: dynamic.NewMessage(schema),
@@ -82,11 +79,13 @@ func NewIterator(
 
 		m3tszIterator: m3tsz.NewReaderIterator(nil, stream, false, opts).(*m3tsz.ReaderIterator),
 	}
-
-	return iter, nil
 }
 
 func (it *iterator) Next() bool {
+	if it.schema == nil {
+		it.err = errIteratorSchemaIsRequired
+	}
+
 	if !it.hasNext() {
 		return false
 	}
@@ -139,6 +138,30 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 
 func (it *iterator) Err() error {
 	return it.err
+}
+
+func (it *iterator) Reset(reader io.Reader) {
+	it.stream.Reset(reader)
+	it.m3tszIterator.Reset(reader)
+	it.err = nil
+	it.consumedFirstMessage = false
+	it.lastIterated = dynamic.NewMessage(it.schema)
+	// TODO: use same logic as encoder
+	it.customFields = customFields(it.customFields, it.schema)
+	it.done = false
+	it.closed = false
+}
+
+func (it *iterator) Close() {
+	if it.closed {
+		return
+	}
+
+	it.closed = true
+	pool := it.opts.ReaderIteratorPool()
+	if pool != nil {
+		pool.Put(it)
+	}
 }
 
 func (it *iterator) readCustomValues() error {
@@ -696,7 +719,6 @@ func (it *iterator) readBits(numBits int) (uint64, error) {
 }
 
 func (it *iterator) hasNext() bool {
-	// TODO(rartoul): Do I care about closed? Maybe for cleanup
 	return !it.hasError() && !it.isDone() && !it.isClosed()
 }
 
@@ -704,11 +726,10 @@ func (it *iterator) hasError() bool {
 	return it.err != nil
 }
 
-func (i *iterator) isDone() bool {
-	return i.done
+func (it *iterator) isDone() bool {
+	return it.done
 }
 
-func (i *iterator) isClosed() bool {
-	// TODO: Fix me
-	return false
+func (it *iterator) isClosed() bool {
+	return it.closed
 }

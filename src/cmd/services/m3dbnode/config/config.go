@@ -150,6 +150,9 @@ type DBConfiguration struct {
 
 	// DataMode controls what kind of data will be stored.
 	DataMode DataMode `yaml:"dataMode"`
+
+	// Proto contains the configuration specific to running in the ProtoDataMode.
+	Proto *ProtoConfiguration `yaml:"proto"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -164,6 +167,10 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 	}
 
 	if err := c.Client.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Proto.Validate(); err != nil {
 		return err
 	}
 
@@ -279,6 +286,20 @@ type RepairPolicy struct {
 type HashingConfiguration struct {
 	// Murmur32 seed value.
 	Seed uint32 `yaml:"seed"`
+}
+
+// ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
+type ProtoConfiguration struct {
+	SchemaFilePath string `yaml:"schemaFilePath"`
+}
+
+// Validate validates the ProtoConfiguration.
+func (c *ProtoConfiguration) Validate() error {
+	if c.SchemaFilePath == "" {
+		return errors.New("schemaFilePath is required for Proto data mode ")
+	}
+
+	return nil
 }
 
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.

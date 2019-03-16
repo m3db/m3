@@ -19,20 +19,3 @@
 // THE SOFTWARE.
 
 package proto
-
-import (
-	"bytes"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestNewIteratorReaderRequired(t *testing.T) {
-	_, err := NewIterator(nil, testVLSchema, testEncodingOptions)
-	require.Equal(t, errIteratorReaderIsRequired, err)
-}
-
-func TestNewIteratorSchemaRequired(t *testing.T) {
-	_, err := NewIterator(bytes.NewBuffer(nil), nil, testEncodingOptions)
-	require.Equal(t, errIteratorSchemaIsRequired, err)
-}

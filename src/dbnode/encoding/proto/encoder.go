@@ -92,6 +92,14 @@ func NewEncoder(start time.Time, opts encoding.Options) *encoder {
 }
 
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+	if enc.closed {
+		return errEncoderClosed
+	}
+
+	if enc.schema == nil {
+		return errEncoderSchemaIsRequired
+	}
+
 	// Control bit that indicates the stream has more data.
 	enc.stream.WriteBit(1)
 
@@ -174,13 +182,6 @@ func (enc *encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
 func (enc *encoder) EncodeProto(m *dynamic.Message) error {
-	if enc.closed {
-		return errEncoderClosed
-	}
-	if enc.schema == nil {
-		return errEncoderSchemaIsRequired
-	}
-
 	if len(m.GetUnknownFields()) > 0 {
 		return errEncoderMessageHasUnknownFields
 	}

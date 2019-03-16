@@ -115,8 +115,7 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer(rawBytes)
-	iter, err := NewIterator(buff, testVLSchema, testEncodingOptions)
-	require.NoError(t, err)
+	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
 
 	i := 0
 	for iter.Next() {

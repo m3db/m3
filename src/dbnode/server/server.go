@@ -82,6 +82,8 @@ import (
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/uber-go/tally"
 )
 
@@ -1122,15 +1124,28 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool)
 
+	var (
+		schema *desc.MessageDescriptor
+		err    error
+	)
+	if cfg.DataMode == config.DataModeProtobuf {
+		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
+	}
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.DataMode == config.DataModeProtobuf {
-			return proto.NewEncoder(time.Time{}, encodingOpts)
+			// TODO: should probably allow a schema to bbe passed on construction.
+			enc := proto.NewEncoder(time.Time{}, encodingOpts)
+			enc.SetSchema(schema)
+			return enc
 		}
 
 		return m3tsz.NewEncoder(time.Time{}, nil, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+		if cfg.DataMode == config.DataModeProtobuf {
+			return proto.NewIterator(r, schema, encodingOpts)
+		}
 		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
@@ -1372,4 +1387,30 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 	}
 
 	return t.t.Get(), nil
+}
+
+func parseProtoSchema(filePath string) (*desc.MessageDescriptor, error) {
+	fds, err := protoparse.Parser{}.ParseFiles(filePath)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error parsing proto schema: %s, err: %v", filePath, err)
+	}
+
+	if len(fds) != 1 {
+		return nil, fmt.Errorf(
+			"expected to parse %s into one file descriptor but parse: %s",
+			filePath, len(fds))
+	}
+
+	// TODO(rartoul): This will be more sophisticated later, but for now assume
+	// that the message will be called "Schema".
+	schema := fds[0].FindMessage("Schema")
+	if schema == nil {
+		return nil, fmt.Errorf(
+			"expected to find message with name 'Schema' in %s, but did not",
+			filePath,
+		)
+	}
+
+	return schema, nil
 }

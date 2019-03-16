@@ -69,8 +69,7 @@ func TestRoundtripProp(t *testing.T) {
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
 
-	enc, err := NewEncoder(time.Time{}, testEncodingOptions)
-	require.NoError(t, err)
+	enc := NewEncoder(time.Time{}, testEncodingOptions)
 
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		times := make([]time.Time, 0, len(input.messages))
@@ -106,10 +105,7 @@ func TestRoundtripProp(t *testing.T) {
 		require.NoError(t, err)
 
 		buff := bytes.NewBuffer(rawBytes)
-		iter, err := NewIterator(buff, input.schema, testEncodingOptions)
-		if err != nil {
-			return false, fmt.Errorf("error constructing iterator: %v", err)
-		}
+		iter := NewIterator(buff, input.schema, testEncodingOptions)
 
 		i := 0
 		for iter.Next() {
