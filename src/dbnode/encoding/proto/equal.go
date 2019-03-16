@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"reflect"
 
-	"github.com/golang/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/jhump/protoreflect/dynamic"
 )
 
