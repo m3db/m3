@@ -30,7 +30,8 @@ import (
 )
 
 const (
-	byteFieldDictSize = 4
+	// TODO: Make part of encoding options
+	byteFieldDictLRUSize = 4
 )
 
 type customFieldType int

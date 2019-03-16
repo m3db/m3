@@ -48,6 +48,7 @@ type iterator struct {
 	stream               encoding.IStream
 	consumedFirstMessage bool
 	lastIterated         *dynamic.Message
+	byteFieldDictLRUSize int
 	customFields         []customFieldState
 
 	// Fields that are reused between function calls to
@@ -88,6 +89,22 @@ func (it *iterator) Next() bool {
 
 	if !it.hasNext() {
 		return false
+	}
+
+	if !it.consumedFirstMessage {
+		// Can ignore the version number for now because we only have one.
+		_, err := it.readVarInt()
+		if err != nil {
+			it.err = err
+			return false
+		}
+
+		byteFieldDictLRUSize, err := it.readVarInt()
+		if err != nil {
+			it.err = err
+			return false
+		}
+		it.byteFieldDictLRUSize = int(byteFieldDictLRUSize)
 	}
 
 	moreDataControlBit, err := it.stream.ReadBit()
@@ -150,6 +167,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.customFields = customFields(it.customFields, it.schema)
 	it.done = false
 	it.closed = false
+	it.byteFieldDictLRUSize = 0
 }
 
 func (it *iterator) Close() {
@@ -363,7 +381,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes changed control bit: %v", err)
 	}
 	if valueInDictControlBit == 0 {
-		dictIdxBits, err := it.stream.ReadBits(numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
+		dictIdxBits, err := it.stream.ReadBits(numBitsRequiredToRepresentArrayIndex(byteFieldDictLRUSize))
 		if err != nil {
 			return fmt.Errorf(
 				"proto decoder: error trying to read bytes dict idx: %v", err)
@@ -684,7 +702,7 @@ func (it *iterator) moveToEndOfBytesDict(fieldIdx, i int) {
 // TODO: Share logic with encoder if possible
 func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	existing := it.customFields[fieldIdx].iteratorBytesFieldDict
-	if len(existing) < byteFieldDictSize {
+	if len(existing) < byteFieldDictLRUSize {
 		it.customFields[fieldIdx].iteratorBytesFieldDict = append(existing, b)
 		return
 	}

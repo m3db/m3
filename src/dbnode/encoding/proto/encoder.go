@@ -44,7 +44,8 @@ var _ encoding.Encoder = &Encoder{}
 
 const (
 	// Maximum capacity of a slice of TSZ fields that will be retained between resets.
-	maxTSZFieldsCapacityRetain = 24
+	maxTSZFieldsCapacityRetain   = 24
+	currentEncodingSchemeVersion = 1
 )
 
 var (
@@ -101,6 +102,12 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 
 	if enc.schema == nil {
 		return errEncoderSchemaIsRequired
+	}
+
+	if enc.numEncoded == 0 {
+		enc.encodeVarInt(currentEncodingSchemeVersion)
+		enc.encodeVarInt(byteFieldDictLRUSize)
+		// TODO: Types
 	}
 
 	// Control bit that indicates the stream has more data.
@@ -418,7 +425,7 @@ func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 			// that this matches where n is the number of bits required to represent all
 			// possible array indices in the configured LRU size.
 			enc.stream.WriteBit(0)
-			enc.stream.WriteBits(uint64(j), numBitsRequiredToRepresentArrayIndex(byteFieldDictSize))
+			enc.stream.WriteBits(uint64(j), numBitsRequiredToRepresentArrayIndex(byteFieldDictLRUSize))
 			enc.moveToEndOfBytesDict(i, j)
 			return nil
 		}
@@ -654,7 +661,7 @@ func (enc *Encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 
 func (enc *Encoder) addToBytesDict(fieldIdx int, hash uint64) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict
-	if len(existing) < byteFieldDictSize {
+	if len(existing) < byteFieldDictLRUSize {
 		enc.customFields[fieldIdx].bytesFieldDict = append(existing, hash)
 		return
 	}
