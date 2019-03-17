@@ -1,10 +1,15 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 hash: e37c3443cf51be0ed550078290ab6d3a3f745c71b7ef8cd879f06dfb62557a62
 updated: 2019-03-28T16:17:41.783517-04:00
 =======
 hash: d3237b672e4ee92a2a7744b9bb858923e888b1539643f96eae68ec38f3377597
 updated: 2019-03-01T17:29:06.029256-08:00
 >>>>>>> complex types wip
+=======
+hash: 3dfb3e5faf5ede6fab1b1948f41beb57a7c5c3584797ffa4933d1a9ad29d13ed
+updated: 2019-03-17T16:46:54.46084-04:00
+>>>>>>> update deps
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -163,10 +168,14 @@ imports:
   - gomock
 - name: github.com/golang/protobuf
 <<<<<<< HEAD
+<<<<<<< HEAD
   version: b5d812f8a3706043e23a9cd5babf2e5423744d30
 =======
   version: c823c79ea1570fb5ff454033735a8e68575d1d0f
 >>>>>>> complex types wip
+=======
+  version: b5d812f8a3706043e23a9cd5babf2e5423744d30
+>>>>>>> update deps
   subpackages:
   - jsonpb
   - proto
@@ -221,14 +230,19 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jhump/protoreflect
 <<<<<<< HEAD
+<<<<<<< HEAD
   version: 8bfeffd6b414f964a56d8a0118b5f80906a59def
   subpackages:
   - desc
   - desc/internal
 =======
   version: f90aa080ba36727321f2bc4c61f2a282f756bfab
+=======
+  version: 8bfeffd6b414f964a56d8a0118b5f80906a59def
+>>>>>>> update deps
   subpackages:
   - desc
+  - desc/builder
   - desc/internal
   - desc/protoparse
   - dynamic
@@ -237,9 +251,12 @@ imports:
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 - name: github.com/jroimartin/gocui
   version: c055c87ae801372cd74a0839b972db4f7697ae5f
+=======
+>>>>>>> update deps
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 >>>>>>> complex types wip
@@ -280,10 +297,6 @@ imports:
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/magiconair/properties
   version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
-- name: github.com/mattn/go-runewidth
-  version: 9e777a8366cce605130a531d2cd6363d07ad7317
-  subpackages:
-  - runewidth.go
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -298,8 +311,6 @@ imports:
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/nightlyone/lockfile
   version: 0ad87eef1443f64d3d8c50da647e2b1552851124
-- name: github.com/nsf/termbox-go
-  version: 02980233997d87bbda048393d47b4d453f7a398d
 - name: github.com/oklog/ulid
   version: 1fe95fa015d44afc8cd427914daadb0317481b71
 - name: github.com/opentracing-contrib/go-stdlib
@@ -376,8 +387,11 @@ imports:
   - fs
 - name: github.com/RoaringBitmap/roaring
   version: 8d778e47dd84f169ef4436abb474b0e0101a6dae
+<<<<<<< HEAD
 - name: github.com/russross/blackfriday
   version: d3b5b032dc8e8927d31a5071b56e14c89f045135
+=======
+>>>>>>> update deps
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
