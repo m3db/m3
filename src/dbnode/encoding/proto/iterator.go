@@ -42,14 +42,15 @@ var (
 )
 
 type iterator struct {
-	opts                 encoding.Options
-	err                  error
-	schema               *desc.MessageDescriptor
-	stream               encoding.IStream
-	consumedFirstMessage bool
-	lastIterated         *dynamic.Message
-	byteFieldDictLRUSize int
-	customFields         []customFieldState
+	opts                   encoding.Options
+	err                    error
+	schema                 *desc.MessageDescriptor
+	stream                 encoding.IStream
+	consumedFirstMessage   bool
+	lastIterated           *dynamic.Message
+	lastIteratedAnnotation []byte
+	byteFieldDictLRUSize   int
+	customFields           []customFieldState
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -138,21 +139,25 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
+	// TODO(rartoul): Add MarshalInto method to ProtoReflect library to save
+	// allocations: https://github.com/m3db/m3/issues/1471
+	// Keep the annotation version of the last iterated protobuf message up to
+	// date so we can return it in subsequent calls to Current(), otherwise we'd
+	// have to marshal it in the Current() call where we can't handle errors.
+	it.lastIteratedAnnotation, err = it.lastIterated.Marshal()
+	if err != nil {
+		it.err = fmt.Errorf(
+			"proto iterator: error marshaling last iterated proto message: %v", err)
+		return false
+	}
+
 	it.consumedFirstMessage = true
 	return it.hasNext()
 }
 
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	dp, unit, _ := it.m3tszIterator.Current()
-	// TODO(rartoul): Add MarshalInto method to ProtoReflect library to save
-	// allocations: https://github.com/m3db/m3/issues/1471
-	annotation, err := it.lastIterated.Marshal()
-	if err != nil {
-		// TODO: need to do this unmarshaling in the call to Next() so we can
-		// actually handle the error
-		panic(err)
-	}
-	return dp, unit, annotation
+	return dp, unit, it.lastIteratedAnnotation
 }
 
 func (it *iterator) Err() error {
@@ -165,6 +170,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.err = nil
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
+	it.lastIteratedAnnotation = nil
 	// TODO: use same logic as encoder
 	it.customFields = customFields(it.customFields, it.schema)
 	it.done = false
