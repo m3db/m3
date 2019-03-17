@@ -173,7 +173,7 @@ func Run(runOpts RunOptions) {
 	defer fslock.Release()
 
 	var schema *desc.MessageDescriptor
-	if cfg.DataMode == storage.DataModeProtoBuf {
+	if cfg.Proto != nil {
 		logger.Info("Probuf data mode enabled")
 		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
 		if err != nil {
@@ -503,8 +503,11 @@ func Run(runOpts RunOptions) {
 			return opts.SetOrigin(origin)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			if cfg.DataMode == storage.DataModeProtoBuf {
-				return opts.SetEncodingProto(schema, encoding.NewOptions())
+			if cfg.Proto != nil {
+				return opts.SetEncodingProto(
+					schema,
+					encoding.NewOptions(),
+				).(client.AdminOptions)
 			}
 			return opts
 		},

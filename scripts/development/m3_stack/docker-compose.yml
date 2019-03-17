@@ -72,6 +72,7 @@ services:
     image: m3coordinator01:latest
     volumes:
       - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+      - "./schema.proto:/etc/m3coordinator/schema.proto"
   m3collector01:
     expose:
       - "7206"

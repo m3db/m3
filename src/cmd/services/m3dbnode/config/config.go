@@ -29,8 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage"
-
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
@@ -139,9 +137,6 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
-
-	// DataMode controls what kind of data will be stored.
-	DataMode storage.DataMode `yaml:"dataMode"`
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`

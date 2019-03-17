@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/x/instrument"
@@ -81,9 +80,6 @@ type Configuration struct {
 
 	// HashingConfiguration is the configuration for hashing of IDs to shards.
 	HashingConfiguration *HashingConfiguration `yaml:"hashing"`
-
-	// DataMode controls what kind of data the client should expect to receive.
-	DataMode storage.DataMode
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
@@ -292,7 +288,7 @@ func (c Configuration) NewAdminClient(
 	if c.Proto != nil {
 		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath)
 		if err != nil {
-			return fmt.Errorf(
+			return nil, fmt.Errorf(
 				"unable to parse protobuf schema: %s, err: v",
 				c.Proto.SchemaFilePath, err)
 		}
