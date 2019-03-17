@@ -39,7 +39,7 @@ import (
 	murmur3 "github.com/m3db/stackmurmur3"
 )
 
-// Make sure encoder implements encoding.Encoder
+// Make sure encoder implements encoding.Encoder.
 var _ encoding.Encoder = &Encoder{}
 
 const (
@@ -56,6 +56,7 @@ var (
 	errNoEncodedDatapoints               = errors.New("encoder has no encoded datapoints")
 )
 
+// Encoder compresses arbitrary ProtoBuf streams given a schema.
 // TODO(rartoul): Add support for changing the schema (and updating the ordering
 // of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
 type Encoder struct {
@@ -82,7 +83,7 @@ type Encoder struct {
 	m3tszEncoder *m3tsz.Encoder
 }
 
-// NewEncoder creates a new encoder.
+// NewEncoder creates a new protobuf encoder.
 func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
@@ -94,13 +95,25 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 	}
 }
 
+// Encode encodes a timestamp and a protobuf message. The function signature is strange
+// in order to implement the encoding.Encoder interface. It accepts a ts.Datapoint, but
+// only the Timestamp field will be used, the Value field will be ignored and will always
+// return 0 on subsequent iteration. In addition, the provided annotation is expected to
+// be a marshaled protobuf message that matches the configured schema.
 func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
 	if enc.closed {
 		return errEncoderClosed
 	}
-
 	if enc.schema == nil {
 		return errEncoderSchemaIsRequired
+	}
+
+	// Unmarshal the ProtoBuf message first to ensure we have a valid message before
+	// we do anything else to reduce the change that we'll end up with a partially
+	// encoded message.
+	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
+		return fmt.Errorf(
+			"proto encoder: error unmarshaling annotation into proto message: %v", err)
 	}
 
 	if enc.numEncoded == 0 {
@@ -121,11 +134,6 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	if enc.unmarshaled == nil {
 		// Lazy init.
 		enc.unmarshaled = dynamic.NewMessage(enc.schema)
-	}
-
-	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
-		return fmt.Errorf(
-			"proto encoder: error unmarshaling annotation into proto message: %v", err)
 	}
 
 	enc.encodeProto(enc.unmarshaled)
