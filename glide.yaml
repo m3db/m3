@@ -41,6 +41,7 @@ import:
     subpackages:
       - proto
       - ptypes/timestamp
+      - jsonpb
 
   - package: github.com/gogo/protobuf
     version: ^1

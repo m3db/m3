@@ -1,6 +1,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 hash: e37c3443cf51be0ed550078290ab6d3a3f745c71b7ef8cd879f06dfb62557a62
 updated: 2019-03-28T16:17:41.783517-04:00
 =======
@@ -15,6 +16,10 @@ updated: 2019-03-17T16:46:54.46084-04:00
 hash: 561d704e896574e57538159b64d74691b93b3accc3aaf1a6884a2f460ba6e5ed
 updated: 2019-03-17T16:53:28.101078-04:00
 >>>>>>> point to forked vellum
+=======
+hash: 9091b10875a4b672431ead881eca698d947e726d656cd4b7d796c3b167c92a2a
+updated: 2019-03-17T16:58:19.993344-04:00
+>>>>>>> add jsonpb
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
