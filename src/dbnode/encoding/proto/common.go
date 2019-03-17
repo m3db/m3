@@ -140,8 +140,8 @@ type customFieldState struct {
 	intSigBitsTracker encoding.IntSigBitsTracker
 }
 
-// TODO(rartoul): SetTSZFields and numTSZFields are naive in that they don't handle
-// repeated or nested messages / maps.
+// TODO(rartoul): Improve this function to be less naive and actually explore nested messages
+// for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
 func customFields(s []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
 	numCustomFields := numCustomFields(schema)
 	if cap(s) >= numCustomFields {
