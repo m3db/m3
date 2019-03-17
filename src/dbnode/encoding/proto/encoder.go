@@ -58,7 +58,6 @@ var (
 
 // TODO(rartoul): Need to support schema changes by updating the ordering
 // of the TSZ encoded fields on demand.
-// TODO: Encode the LRU size into the stream
 type Encoder struct {
 	opts encoding.Options
 
