@@ -38,7 +38,7 @@ func ParseProtoSchema(filePath string) (*desc.MessageDescriptor, error) {
 
 	if len(fds) != 1 {
 		return nil, fmt.Errorf(
-			"expected to parse %s into one file descriptor but parse: %s",
+			"expected to parse %s into one file descriptor but parsed: %d",
 			filePath, len(fds))
 	}
 

@@ -108,6 +108,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 		return errEncoderSchemaIsRequired
 	}
 
+	if enc.unmarshaled == nil {
+		// Lazy init.
+		enc.unmarshaled = dynamic.NewMessage(enc.schema)
+	}
+
 	// Unmarshal the ProtoBuf message first to ensure we have a valid message before
 	// we do anything else to reduce the change that we'll end up with a partially
 	// encoded message.
@@ -129,11 +134,6 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	if err := enc.encodeTimestamp(dp.Timestamp, tu); err != nil {
 		return fmt.Errorf(
 			"proto encoder: error encoding timestamp: %v", err)
-	}
-
-	if enc.unmarshaled == nil {
-		// Lazy init.
-		enc.unmarshaled = dynamic.NewMessage(enc.schema)
 	}
 
 	enc.encodeProto(enc.unmarshaled)

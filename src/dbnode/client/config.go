@@ -289,7 +289,7 @@ func (c Configuration) NewAdminClient(
 		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"unable to parse protobuf schema: %s, err: v",
+				"unable to parse protobuf schema: %s, err: %v",
 				c.Proto.SchemaFilePath, err)
 		}
 
