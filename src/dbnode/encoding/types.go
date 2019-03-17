@@ -112,6 +112,16 @@ type Options interface {
 
 	// SegmentReaderPool returns the segment reader pool.
 	SegmentReaderPool() xio.SegmentReaderPool
+
+	// SetByteFieldDictionaryLRUSize sets theByteFieldDictionaryLRUSize which controls
+	// how many recently seen byte field values will be maintained in the compression
+	// dictionaries LRU when compressing / decompressing byte fields in ProtoBuf messages.
+	// Increasing this value can potentially lead to better compression at the cost of
+	// using more memory for storing metadata when compressing / decompressing.
+	SetByteFieldDictionaryLRUSize(value int) Options
+
+	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
+	ByteFieldDictionaryLRUSize() int
 }
 
 // Iterator is the generic interface for iterating over encoded data.

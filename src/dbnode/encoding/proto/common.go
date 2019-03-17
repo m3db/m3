@@ -29,11 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
-const (
-	// TODO: Make part of encoding options
-	byteFieldDictLRUSize = 4
-)
-
 type customFieldType int
 
 const (

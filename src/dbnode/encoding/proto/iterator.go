@@ -381,7 +381,8 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes changed control bit: %v", err)
 	}
 	if valueInDictControlBit == 0 {
-		dictIdxBits, err := it.stream.ReadBits(numBitsRequiredToRepresentArrayIndex(byteFieldDictLRUSize))
+		dictIdxBits, err := it.stream.ReadBits(
+			numBitsRequiredToRepresentArrayIndex(it.byteFieldDictLRUSize))
 		if err != nil {
 			return fmt.Errorf(
 				"proto decoder: error trying to read bytes dict idx: %v", err)
@@ -702,7 +703,7 @@ func (it *iterator) moveToEndOfBytesDict(fieldIdx, i int) {
 // TODO: Share logic with encoder if possible
 func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	existing := it.customFields[fieldIdx].iteratorBytesFieldDict
-	if len(existing) < byteFieldDictLRUSize {
+	if len(existing) < it.byteFieldDictLRUSize {
 		it.customFields[fieldIdx].iteratorBytesFieldDict = append(existing, b)
 		return
 	}

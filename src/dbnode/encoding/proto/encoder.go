@@ -106,7 +106,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 
 	if enc.numEncoded == 0 {
 		enc.encodeVarInt(currentEncodingSchemeVersion)
-		enc.encodeVarInt(byteFieldDictLRUSize)
+		enc.encodeVarInt(uint64(enc.opts.ByteFieldDictionaryLRUSize()))
 		// TODO: Types
 	}
 
@@ -425,7 +425,10 @@ func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 			// that this matches where n is the number of bits required to represent all
 			// possible array indices in the configured LRU size.
 			enc.stream.WriteBit(0)
-			enc.stream.WriteBits(uint64(j), numBitsRequiredToRepresentArrayIndex(byteFieldDictLRUSize))
+			enc.stream.WriteBits(
+				uint64(j),
+				numBitsRequiredToRepresentArrayIndex(
+					enc.opts.ByteFieldDictionaryLRUSize()))
 			enc.moveToEndOfBytesDict(i, j)
 			return nil
 		}
@@ -661,7 +664,7 @@ func (enc *Encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 
 func (enc *Encoder) addToBytesDict(fieldIdx int, hash uint64) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict
-	if len(existing) < byteFieldDictLRUSize {
+	if len(existing) < enc.opts.ByteFieldDictionaryLRUSize() {
 		enc.customFields[fieldIdx].bytesFieldDict = append(existing, hash)
 		return
 	}
