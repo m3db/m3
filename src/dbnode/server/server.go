@@ -173,10 +173,7 @@ func Run(runOpts RunOptions) {
 	}
 	defer fslock.Release()
 
-	var (
-		schema *desc.MessageDescriptor
-		err    error
-	)
+	var schema *desc.MessageDescriptor
 	if cfg.DataMode == storage.DataModeProtoBuf {
 		logger.Info("Probuf data mode enabled")
 		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
@@ -505,7 +502,14 @@ func Run(runOpts RunOptions) {
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetOrigin(origin)
-		})
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			if cfg.DataMode == storage.DataModeProtoBuf {
+				return opts.SetEncodingProto(schema, encoding.NewOptions())
+			}
+			return opts
+		},
+	)
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
 	}

@@ -27,9 +27,12 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/jhump/protoreflect/desc"
+
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/serialize"
@@ -355,6 +358,14 @@ func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
+	return &opts
+}
+
+func (o *options) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+	opts := *o
+	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
+		return proto.NewIterator(r, schema, encodingOpts)
 	}
 	return &opts
 }
