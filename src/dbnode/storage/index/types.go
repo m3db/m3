@@ -166,19 +166,14 @@ type AggregateResults interface {
 	Size() int
 
 	// AggregateDocument converts the provided document to a set of tags
-	// fulfilling the search query and adds it to the results. This method makes
-	// a copy of the bytes backing the tags, so the original may be modified
-	// after this function returns without affecting the results map.
-	//
-	// NB: it returns a bool to indicate if the doc was added (it won't be added
-	// if it already existed in the AggregateResultsMap).
-	AggregateDocument(
-		document doc.Document,
-	) (added bool, size int, err error)
+	// fulfilling the aggregate query and adds it to the results. This method makes
+	// a copy of the bytes backing the tags (TODO: does it?), so the original may
+	// be modified after this function returns without affecting the results map.
+	AggregateDocument(document doc.Document) error
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
-type AggregateResultsAllocator func() Results
+type AggregateResultsAllocator func() AggregateResults
 
 // AggregateResultsPool allows users to pool `AggregateResults` types.
 type AggregateResultsPool interface {
@@ -198,18 +193,27 @@ type AggregateValues interface {
 	// comprising search results.
 	Map() *AggregateValuesMap
 
-	reset(nsID ident.ID)
-	finalize()
-	noFinalize()
-
 	// Size returns the number of results discovered.
 	Size() int
 
-	AddValue(value ident.ID)
+	// reset resets the AggregateValues object to initial state.
+	reset()
+
+	// finalize releases any resources held by the AggregateValues object,
+	// including returning it to a backing pool.
+	finalize()
+
+	// noFinalize marks the AggregateValues such that a subsequent call to
+	// finalize() will be a no-op and will not return the object to the pool or
+	// release any of its resources.
+	noFinalize()
+
+	// addValue adds an ID to the aggregate values with deduplication.
+	addValue(value ident.ID) error
 }
 
 // AggregateValuesAllocator allocates AggregateValues types.
-type AggregateValuesAllocator func() Results
+type AggregateValuesAllocator func() AggregateValues
 
 // AggregateValuesPool allows users to pool `AggregateValues` types.
 type AggregateValuesPool interface {
@@ -747,6 +751,12 @@ type Options interface {
 
 	// AggregateResultsPool returns the aggregate results pool.
 	AggregateResultsPool() AggregateResultsPool
+
+	// SetAggregateValuesPool updates the aggregate values pool.
+	SetAggregateValuesPool(values AggregateValuesPool) Options
+
+	// AggregateValuesPool returns the aggregate values pool.
+	AggregateValuesPool() AggregateValuesPool
 
 	// SetDocumentArrayPool sets the document array pool.
 	SetDocumentArrayPool(value doc.DocumentArrayPool) Options

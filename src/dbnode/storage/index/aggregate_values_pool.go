@@ -29,7 +29,7 @@ type aggregateValuesPool struct {
 // NewAggregateValuesPool creates a new AggregateValuesPool.
 func NewAggregateValuesPool(
 	opts pool.ObjectPoolOptions) AggregateValuesPool {
-	return &resultsPool{pool: pool.NewObjectPool(opts)}
+	return &aggregateValuesPool{pool: pool.NewObjectPool(opts)}
 }
 
 func (p *aggregateValuesPool) Init(alloc AggregateValuesAllocator) {
@@ -39,7 +39,7 @@ func (p *aggregateValuesPool) Init(alloc AggregateValuesAllocator) {
 }
 
 func (p *aggregateValuesPool) Get() AggregateValues {
-	return p.pool.Get().(AggregateResults)
+	return p.pool.Get().(AggregateValues)
 }
 
 func (p *aggregateValuesPool) Put(value AggregateValues) {

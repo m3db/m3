@@ -175,7 +175,7 @@ genny-map-storage-index-aggregate-values: install-m3x-repo
 	cd $(m3x_package_path) && make hashmap-gen \
 		pkg=index                                \
 		key_type=ident.ID                        \
-		value_type=[]ident.ID                    \
+		value_type=struct{}                      \
 		rename_type_prefix=AggregateValues       \
 		rename_nogen_key=true                    \
 		rename_nogen_value=true                  \
@@ -244,7 +244,7 @@ genny-map-dependent-all:                      \
 genny-map-storage-index-aggregation-results: install-m3x-repo
 	cd $(m3x_package_path) && make idhashmap-gen  \
 		pkg=index                                   \
-		value_type=AggregateValuesMap               \
+		value_type=AggregateValues                  \
 		rename_type_prefix=AggregateResults         \
 		target_package=$(m3db_package)/src/dbnode/storage/index
 	# Rename generated map file

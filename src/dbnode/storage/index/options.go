@@ -52,6 +52,7 @@ var (
 	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
 	errOptionsResultsPoolUnspecified    = errors.New("results pool is unset")
 	errOptionsAggResultsPoolUnspecified = errors.New("aggregate results pool is unset")
+	errOptionsAggValuesPoolUnspecified  = errors.New("aggregate values pool is unset")
 	errIDGenerationDisabled             = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified     = errors.New("postings list cache is unset")
 
@@ -99,6 +100,7 @@ type opts struct {
 	bytesPool                       pool.CheckedBytesPool
 	resultsPool                     ResultsPool
 	aggResultsPool                  AggregateResultsPool
+	aggValuesPool                   AggregateValuesPool
 	docArrayPool                    doc.DocumentArrayPool
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
@@ -112,6 +114,7 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 func NewOptions() Options {
 	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
 	aggResultsPool := NewAggregateResultsPool(pool.NewObjectPoolOptions())
+	aggValuesPool := NewAggregateValuesPool(pool.NewObjectPoolOptions())
 
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
@@ -140,12 +143,14 @@ func NewOptions() Options {
 		idPool:                          idPool,
 		resultsPool:                     resultsPool,
 		aggResultsPool:                  aggResultsPool,
+		aggValuesPool:                   aggValuesPool,
 		docArrayPool:                    docArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
 	resultsPool.Init(func() Results { return NewResults(nil, ResultsOptions{}, opts) })
 	aggResultsPool.Init(func() AggregateResults { return NewAggregateResults(opts) })
+	aggValuesPool.Init(func() AggregateValues { return NewAggregateValues(opts) })
 	return opts
 }
 
@@ -161,6 +166,9 @@ func (o *opts) Validate() error {
 	}
 	if o.aggResultsPool == nil {
 		return errOptionsAggResultsPoolUnspecified
+	}
+	if o.aggResultsPool == nil {
+		return errOptionsAggValuesPoolUnspecified
 	}
 	if o.postingsListCache == nil {
 		return errPostingsListCacheUnspecified
@@ -270,6 +278,16 @@ func (o *opts) SetAggregateResultsPool(value AggregateResultsPool) Options {
 
 func (o *opts) AggregateResultsPool() AggregateResultsPool {
 	return o.aggResultsPool
+}
+
+func (o *opts) SetAggregateValuesPool(value AggregateValuesPool) Options {
+	opts := *o
+	opts.aggValuesPool = value
+	return &opts
+}
+
+func (o *opts) AggregateValuesPool() AggregateValuesPool {
+	return o.aggValuesPool
 }
 
 func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {

@@ -115,7 +115,7 @@ type AggregateValuesMapEntry struct {
 	// key is used to check equality on lookups to resolve collisions
 	key _AggregateValuesMapKey
 	// value type stored
-	value []ident.ID
+	value struct{}
 }
 
 type _AggregateValuesMapKey struct {
@@ -129,7 +129,7 @@ func (e AggregateValuesMapEntry) Key() ident.ID {
 }
 
 // Value returns the map entry value.
-func (e AggregateValuesMapEntry) Value() []ident.ID {
+func (e AggregateValuesMapEntry) Value() struct{} {
 	return e.value
 }
 
@@ -161,7 +161,7 @@ func (m *AggregateValuesMap) removeMapKey(hash AggregateValuesMapHash, key _Aggr
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *AggregateValuesMap) Get(k ident.ID) ([]ident.ID, bool) {
+func (m *AggregateValuesMap) Get(k ident.ID) (struct{}, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -170,12 +170,12 @@ func (m *AggregateValuesMap) Get(k ident.ID) ([]ident.ID, bool) {
 		// Linear probe to "next" to this entry (really a rehash)
 		hash++
 	}
-	var empty []ident.ID
+	var empty struct{}
 	return empty, false
 }
 
 // Set will set the value for an identifier.
-func (m *AggregateValuesMap) Set(k ident.ID, v []ident.ID) {
+func (m *AggregateValuesMap) Set(k ident.ID, v struct{}) {
 	m.set(k, v, _AggregateValuesMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -191,7 +191,7 @@ type AggregateValuesMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *AggregateValuesMap) SetUnsafe(k ident.ID, v []ident.ID, opts AggregateValuesMapSetUnsafeOptions) {
+func (m *AggregateValuesMap) SetUnsafe(k ident.ID, v struct{}, opts AggregateValuesMapSetUnsafeOptions) {
 	m.set(k, v, _AggregateValuesMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -203,7 +203,7 @@ type _AggregateValuesMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *AggregateValuesMap) set(k ident.ID, v []ident.ID, opts _AggregateValuesMapKeyOptions) {
+func (m *AggregateValuesMap) set(k ident.ID, v struct{}, opts _AggregateValuesMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

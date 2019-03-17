@@ -23,119 +23,81 @@ package index
 import (
 	"errors"
 
-	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
 var (
-	errUnableToAddAggregateValueMissingID = errors.New("no id for result")
+	errUnableToAddValueMissingID = errors.New("no id for value")
 )
 
 type aggregatedValues struct {
-	nsID ident.ID
-	// resultsMap *aggregateResultsMap
+	valuesMap *AggregateValuesMap
 
-	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       AggregateResultsPool
-	noFinalize bool
+	pool          AggregateValuesPool
+	noFinalizeVar bool
 }
 
-// NewAggregateResults returns a new AggregateValues object.
-func NewAggregateResults(opts Options) AggregateValues {
+// NewAggregateValues returns a new AggregateValues object.
+func NewAggregateValues(opts Options) AggregateValues {
 	return &aggregatedValues{
-		resultsMap: newAggregateResultsMap(opts.AggregateResultsPool()),
-		idPool:     opts.IdentifierPool(),
-		bytesPool:  opts.CheckedBytesPool(),
-		pool:       opts.AggregateResultsPool(),
+		valuesMap: newAggregateValuesMap(opts.IdentifierPool()),
+		bytesPool: opts.CheckedBytesPool(),
+		pool:      opts.AggregateValuesPool(),
 	}
 }
 
-func (r *aggregatedValues) AggregateDocument(
-	d doc.Document,
-) (added bool, size int, err error) {
-	added = false
-	if len(d.ID) == 0 {
-		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
-	}
-
-	// NB: can cast the []byte -> ident.ID to avoid an alloc
-	// before we're sure we need it.
-	tsID := ident.BytesID(d.ID)
-
-	// check if it already exists in the map.
-	if r.resultsMap.Contains(tsID) {
-		return added, r.resultsMap.Len(), nil
-	}
-
-	// FIXME: Add to map
-
-	added = true
-	return added, r.resultsMap.Len(), nil
+func (v *aggregatedValues) Map() *AggregateValuesMap {
+	return v.valuesMap
 }
 
-func (r *aggregatedValues) Namespace() ident.ID {
-	return r.nsID
+func (v *aggregatedValues) Size() int {
+	return v.valuesMap.Len()
 }
 
-func (r *aggregatedValues) Map() *aggregateResultsMap {
-	return r.resultsMap
-}
-
-func (r *aggregatedValues) Size() int {
-	return r.resultsMap.Len()
-}
-
-func (r *aggregatedValues) Reset(nsID ident.ID) {
-	// finalize existing held nsID
-	if r.nsID != nil {
-		r.nsID.Finalize()
-	}
-	// make an independent copy of the new nsID
-	if nsID != nil {
-		nsID = r.idPool.Clone(nsID)
-	}
-	r.nsID = nsID
-
+func (v *aggregatedValues) reset() {
 	// reset all values from map first
-	for _, entry := range r.resultsMap.Iter() {
-		tags := entry.Value()
-		for _, tag := range tags {
-			tag.Finalize()
-		}
+	for _, entry := range v.valuesMap.Iter() {
+		ident := entry.Key()
+		ident.Finalize()
 	}
 
 	// reset all keys in the map next
-	r.resultsMap.Reset()
-
-	// NB: could do keys+value in one step but I'm trying to avoid
-	// using an internal method of a code-gen'd type.
+	v.valuesMap.Reset()
 }
 
-func (r *aggregatedValues) Finalize() {
-	if r.noFinalize {
+func (v *aggregatedValues) finalize() {
+	if v.noFinalizeVar {
 		return
 	}
 
-	r.Reset(nil)
-
-	if r.pool == nil {
+	v.reset()
+	if v.pool == nil {
 		return
 	}
-	r.pool.Put(r)
+
+	v.pool.Put(v)
 }
 
-func (r *aggregatedValues) NoFinalize() {
+func (v *aggregatedValues) noFinalize() {
 	// Ensure neither the results object itself, or any of its underlying
 	// IDs and tags will be finalized.
-	r.noFinalize = true
-	for _, entry := range r.resultsMap.Iter() {
-		id, tags := entry.Key(), entry.Value()
+	v.noFinalizeVar = true
+	for _, entry := range v.valuesMap.Iter() {
+		id := entry.Key()
 		id.NoFinalize()
-		for _, tag := range tags {
-			tag.NoFinalize()
-		}
 	}
+}
+
+func (v *aggregatedValues) addValue(value ident.ID) error {
+	bytesID := ident.BytesID(value.Bytes())
+	if len(bytesID) == 0 {
+		return errUnableToAddValueMissingID
+	}
+
+	// TODO: check to see if the value should be cloned here prior to insertion.
+	v.valuesMap.Set(bytesID, struct{}{})
+	return nil
 }

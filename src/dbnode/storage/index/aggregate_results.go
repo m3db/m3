@@ -28,67 +28,64 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// AggregateResultsForTerm is a list of tag values which are valid for a particular
-// tag name.
-type AggregateResultsForTerm []ident.ID
-
-// type term ident.ID
-
 var (
 	errUnableToAddAggregateResultMissingID = errors.New("no id for result")
 )
 
 type aggregatedResults struct {
-	nsID ident.ID
-	// resultsMap *aggregateResultsMap
+	nsID       ident.ID
+	resultsMap *AggregateResultsMap
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
 	pool       AggregateResultsPool
+	valuesPool AggregateValuesPool
 	noFinalize bool
 }
 
 // NewAggregateResults returns a new AggregateResults object.
 func NewAggregateResults(opts Options) AggregateResults {
 	return &aggregatedResults{
-		// FIXME: fix the constructor here
-		//  newAggregateResultsMap(opts.IdentifierPool()),
-		resultsMap: newAggregateResultsMap(aggregateResultsMapOptions{}),
+		resultsMap: newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:     opts.IdentifierPool(),
 		bytesPool:  opts.CheckedBytesPool(),
 		pool:       opts.AggregateResultsPool(),
+		valuesPool: opts.AggregateValuesPool(),
 	}
 }
 
-func (r *aggregatedResults) AggregateDocument(
-	d doc.Document,
-) (added bool, size int, err error) {
-	added = false
-	if len(d.ID) == 0 {
-		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
+func (r *aggregatedResults) AggregateDocument(document doc.Document) error {
+	if len(document.ID) == 0 {
+		return errUnableToAddResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
 	// before we're sure we need it.
-	tsID := ident.BytesID(d.ID)
+	tsID := ident.BytesID(document.ID)
 
 	// check if it already exists in the map.
-	if r.resultsMap.Contains(tsID) {
-		return added, r.resultsMap.Len(), nil
+	value, found := r.resultsMap.Get(tsID)
+	if found {
+		return value.addValue(tsID)
 	}
 
-	// FIXME: Add to map
+	aggValues := r.valuesPool.Get()
+	if err := aggValues.addValue(tsID); err != nil {
+		// Return these values to the pool.
+		r.valuesPool.Put(aggValues)
+		return err
+	}
 
-	added = true
-	return added, r.resultsMap.Len(), nil
+	r.resultsMap.Set(tsID, aggValues)
+	return nil
 }
 
 func (r *aggregatedResults) Namespace() ident.ID {
 	return r.nsID
 }
 
-func (r *aggregatedResults) Map() *aggregateResultsMap {
+func (r *aggregatedResults) Map() *AggregateResultsMap {
 	return r.resultsMap
 }
 
@@ -109,10 +106,8 @@ func (r *aggregatedResults) Reset(nsID ident.ID) {
 
 	// reset all values from map first
 	for _, entry := range r.resultsMap.Iter() {
-		tags := entry.Value()
-		for _, tag := range tags {
-			tag.Finalize()
-		}
+		valueMap := entry.Value()
+		valueMap.reset()
 	}
 
 	// reset all keys in the map next
@@ -140,10 +135,8 @@ func (r *aggregatedResults) NoFinalize() {
 	// IDs and tags will be finalized.
 	r.noFinalize = true
 	for _, entry := range r.resultsMap.Iter() {
-		id, tags := entry.Key(), entry.Value()
+		id, values := entry.Key(), entry.Value()
 		id.NoFinalize()
-		for _, tag := range tags {
-			tag.NoFinalize()
-		}
+		values.noFinalize()
 	}
 }

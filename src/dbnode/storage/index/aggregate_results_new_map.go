@@ -31,7 +31,7 @@ const (
 )
 
 func newAggregateResultsMap(idPool ident.Pool) *AggregateResultsMap {
-	return _ResultsMapAlloc(_AggregateResultsMapOptions{
+	return _AggregateResultsMapAlloc(_AggregateResultsMapOptions{
 		hash: func(k ident.ID) AggregateResultsMapHash {
 			return AggregateResultsMapHash(xxhash.Sum64(k.Bytes()))
 		},
