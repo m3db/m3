@@ -259,11 +259,11 @@ func (it *ReaderIterator) readFloatXOR() {
 }
 
 func (it *ReaderIterator) readIntSigMult() {
-	if it.readBits(1) == encoding.TSZOpcodeUpdateSig {
-		if it.readBits(1) == encoding.TSZOpcodeZeroSig {
+	if it.readBits(1) == OpcodeUpdateSig {
+		if it.readBits(1) == OpcodeZeroSig {
 			it.sig = 0
 		} else {
-			it.sig = uint8(it.readBits(encoding.TSZNumSigBits)) + 1
+			it.sig = uint8(it.readBits(NumSigBits)) + 1
 		}
 	}
 
@@ -312,12 +312,12 @@ func (it *ReaderIterator) readTimeUnit() {
 
 func (it *ReaderIterator) readXOR() uint64 {
 	cb := it.readBits(1)
-	if cb == encoding.TSZOpcodeZeroValueXOR {
+	if cb == OpcodeZeroValueXOR {
 		return 0
 	}
 
 	cb = (cb << 1) | it.readBits(1)
-	if cb == encoding.TSZOpcodeContainedValueXOR {
+	if cb == OpcodeContainedValueXOR {
 		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(it.xor)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing
 		return it.readBits(numMeaningfulBits) << uint(previousTrailing)
@@ -406,6 +406,7 @@ func (it *ReaderIterator) hasNext() bool {
 	return !it.hasError() && !it.isDone() && !it.isClosed()
 }
 
+// Reset resets the ReadIterator for reuse.
 func (it *ReaderIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
 	it.t = time.Time{}
@@ -423,6 +424,7 @@ func (it *ReaderIterator) Reset(reader io.Reader) {
 	it.closed = false
 }
 
+// Close closes the ReaderIterator.
 func (it *ReaderIterator) Close() {
 	if it.closed {
 		return

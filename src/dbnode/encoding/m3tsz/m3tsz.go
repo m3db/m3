@@ -23,11 +23,33 @@ package m3tsz
 import (
 	"errors"
 	"math"
+
+	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
 const (
 	// DefaultIntOptimizationEnabled is the default switch for m3tsz int optimization
 	DefaultIntOptimizationEnabled = true
+
+	// OpcodeZeroValueXOR indicates the XOR was zero.
+	OpcodeZeroValueXOR = 0x0
+	// OpcodeContainedValueXOR is the OpcodeContainedValueXOR opcode.
+	OpcodeContainedValueXOR = 0x2
+	// OpcodeUncontainedValueXOR is the OpcodeUncontainedValueXOR opcode.
+	OpcodeUncontainedValueXOR = 0x3
+
+	// OpcodeNoUpdateSig indicates there was no change to the number of significant digits.
+	OpcodeNoUpdateSig = 0x0
+	// OpcodeUpdateSig indicates there was a change to the number of significant digits.
+	OpcodeUpdateSig = 0x1
+	// OpcodeZeroSig indicates that there were zero significant digits.
+	OpcodeZeroSig = 0x0
+	// OpcodeNonZeroSig indicates that there were a non-zero number of significant digits.
+	OpcodeNonZeroSig = 0x1
+
+	// NumSigBits is the number of bits required to encode the maximum possible value
+	// of significant digits.
+	NumSigBits = 6
 
 	opcodeUpdate       = 0x0
 	opcodeNoUpdate     = 0x1
@@ -40,6 +62,9 @@ const (
 	opcodeFloatMode    = 0x1
 	opcodeIntMode      = 0x0
 
+	sigDiffThreshold   = uint8(3)
+	sigRepeatThreshold = uint8(5)
+
 	maxMult     = uint8(6)
 	numMultBits = 3
 )
@@ -51,6 +76,95 @@ var (
 	multipliers          = createMultipliers()
 	errInvalidMultiplier = errors.New("supplied multiplier is invalid")
 )
+
+// WriteTSZXOR writes the TSZ XOR into the provided stream given the previous
+// XOR and the current XOR.
+func WriteXOR(
+	stream encoding.OStream,
+	prevXOR, curXOR uint64) {
+	if curXOR == 0 {
+		stream.WriteBits(OpcodeZeroValueXOR, 1)
+		return
+	}
+
+	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
+	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
+	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(curXOR)
+	if curLeading >= prevLeading && curTrailing >= prevTrailing {
+		stream.WriteBits(OpcodeContainedValueXOR, 2)
+		stream.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
+		return
+	}
+
+	stream.WriteBits(OpcodeUncontainedValueXOR, 2)
+	stream.WriteBits(uint64(curLeading), 6)
+	numMeaningfulBits := 64 - curLeading - curTrailing
+	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
+	stream.WriteBits(uint64(numMeaningfulBits-1), 6)
+	stream.WriteBits(curXOR>>uint(curTrailing), numMeaningfulBits)
+}
+
+// WriteIntSig writes the number of significant bits of the diff if it has changed and
+// updates the IntSigBitsTracker.
+func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) {
+	if sigTracker.NumSig != sig {
+		os.WriteBit(OpcodeUpdateSig)
+		if sig == 0 {
+			os.WriteBit(OpcodeZeroSig)
+		} else {
+			os.WriteBit(OpcodeNonZeroSig)
+			os.WriteBits(uint64(sig-1), NumSigBits)
+		}
+	} else {
+		os.WriteBit(OpcodeNoUpdateSig)
+	}
+
+	sigTracker.NumSig = sig
+}
+
+// IntSigBitsTracker is used to track the number of significant bits
+// which should be used to encode the delta between two integers.
+type IntSigBitsTracker struct {
+	NumSig             uint8 // current largest number of significant places for int diffs
+	CurHighestLowerSig uint8
+	NumLowerSig        uint8
+}
+
+// TrackNewSig gets the new number of significant bits given the
+// number of significant bits of the current diff. It takes into
+// account thresholds to try and find a value that's best for the
+// current data
+func (t *IntSigBitsTracker) TrackNewSig(numSig uint8) uint8 {
+	newSig := t.NumSig
+
+	if numSig > t.NumSig {
+		newSig = numSig
+	} else if t.NumSig-numSig >= sigDiffThreshold {
+		if t.NumLowerSig == 0 {
+			t.CurHighestLowerSig = numSig
+		} else if numSig > t.CurHighestLowerSig {
+			t.CurHighestLowerSig = numSig
+		}
+
+		t.NumLowerSig++
+		if t.NumLowerSig >= sigRepeatThreshold {
+			newSig = t.CurHighestLowerSig
+			t.NumLowerSig = 0
+		}
+
+	} else {
+		t.NumLowerSig = 0
+	}
+
+	return newSig
+}
+
+// Reset resets the IntSigBitsTracker for reuse.
+func (t *IntSigBitsTracker) Reset() {
+	t.NumSig = 0
+	t.CurHighestLowerSig = 0
+	t.NumLowerSig = 0
+}
 
 // convertToIntFloat takes a float64 val and the current max multiplier
 // and attempts to transform the float into an int with multiplier. There

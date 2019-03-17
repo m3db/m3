@@ -39,6 +39,7 @@ var (
 	errNoEncodedDatapoints = errors.New("encoder has no encoded datapoints")
 )
 
+// Encoder is an M3TSZ encoder that can encode a stream of data in M3TSZ format.
 type Encoder struct {
 	os   encoding.OStream
 	opts encoding.Options
@@ -58,7 +59,7 @@ type Encoder struct {
 	numEncoded   uint32     // whether any datapoints have been written yet
 	maxMult      uint8      // current max multiplier for int vals
 
-	sigTracker encoding.IntSigBitsTracker
+	sigTracker IntSigBitsTracker
 
 	closed bool
 }
@@ -203,6 +204,7 @@ func (enc *Encoder) writeTimeUnit(tu xtime.Unit) bool {
 	return true
 }
 
+// WriteFirstTime encodes the first timestamp.
 func (enc *Encoder) WriteFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
@@ -212,6 +214,7 @@ func (enc *Encoder) WriteFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit
 	return enc.WriteNextTime(t, ant, tu)
 }
 
+// WriteFirstTime encodes the next (non-first) timestamp.
 func (enc *Encoder) WriteNextTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
 	tuChanged := enc.writeTimeUnit(tu)
 
@@ -365,7 +368,7 @@ func (enc *Encoder) writeFullFloatVal(val uint64) {
 // writeFloatXOR writes the XOR of the 64bits of the float
 func (enc *Encoder) writeFloatXOR(val uint64) {
 	xor := enc.vb ^ val
-	encoding.WriteTSZXOR(enc.os, enc.xor, xor)
+	WriteXOR(enc.os, enc.xor, xor)
 	enc.xor = xor
 	enc.vb = val
 }
@@ -419,7 +422,7 @@ func (enc *Encoder) writeIntValDiff(valBits uint64, neg bool) {
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
 func (enc *Encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
-	encoding.WriteIntSig(enc.os, &enc.sigTracker, sig)
+	WriteIntSig(enc.os, &enc.sigTracker, sig)
 
 	if mult > enc.maxMult {
 		enc.os.WriteBit(opcodeUpdateMult)
@@ -442,6 +445,7 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 	return checked.NewBytes(make([]byte, 0, capacity), nil)
 }
 
+// Reset resets the encoder for reuse.
 func (enc *Encoder) Reset(start time.Time, capacity int) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
@@ -462,6 +466,7 @@ func (enc *Encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.closed = false
 }
 
+// Stream returns a copy of the underlying data stream.
 func (enc *Encoder) Stream() xio.SegmentReader {
 	segment := enc.segment(byCopyResultType)
 	if segment.Len() == 0 {
@@ -475,10 +480,12 @@ func (enc *Encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(segment)
 }
 
+// Returns the number of encoded datapoints.
 func (enc *Encoder) NumEncoded() int {
 	return int(enc.numEncoded)
 }
 
+// Returns the last encoded datapoint.
 func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	if enc.numEncoded == 0 {
 		return ts.Datapoint{}, errNoEncodedDatapoints
@@ -493,10 +500,12 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
+// Returns the length of the data stream.
 func (enc *Encoder) Len() int {
 	return enc.os.Len()
 }
 
+// Close closes the encoder.
 func (enc *Encoder) Close() {
 	if enc.closed {
 		return
@@ -516,6 +525,8 @@ func (enc *Encoder) discard() ts.Segment {
 	return enc.segment(byRefResultType)
 }
 
+// Discard closes the encoder and transfers ownership of the data stream to
+// the caller.
 func (enc *Encoder) Discard() ts.Segment {
 	segment := enc.discard()
 
@@ -525,6 +536,8 @@ func (enc *Encoder) Discard() ts.Segment {
 	return segment
 }
 
+// DiscardReset does the same thing as Discard except it also resets the encoder
+// for reuse.
 func (enc *Encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
 	segment := enc.discard()
 	enc.Reset(start, capacity)
