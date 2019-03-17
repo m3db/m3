@@ -41,6 +41,26 @@ const (
 	cBytes
 )
 
+const (
+	opCodeNoMoreData = 0
+	opCodeMoreData   = 1
+
+	opCodeNoChange = 0
+	opCodeChange   = 1
+
+	opCodeInterpretSubsequentBitsAsLRUIndex          = 0
+	opCodeInterpretSubsequentBitsAsBytesLengthVarInt = 1
+
+	opCodeNoFieldsSetToDefaultProtoMarshal = 0
+	opCodeFieldsSetToDefaultProtoMarshal   = 1
+
+	opCodeIntDeltaPositive = 0
+	opCodeIntDeltaNegative = 1
+
+	opCodeBitsetValueIsNotSet = 0
+	opCodeBitsetValueIsSet    = 1
+)
+
 var (
 	typeOfBytes = reflect.TypeOf(([]byte)(nil))
 

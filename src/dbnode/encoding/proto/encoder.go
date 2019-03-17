@@ -124,7 +124,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	}
 
 	// Control bit that indicates the stream has more data.
-	enc.stream.WriteBit(1)
+	enc.stream.WriteBit(opCodeMoreData)
 
 	if err := enc.encodeTimestamp(dp.Timestamp, tu); err != nil {
 		return fmt.Errorf(
@@ -419,19 +419,19 @@ func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 	)
 	if numPreviousBytes > 0 && hash == customField.bytesFieldDict[lastHashIdx] {
 		// No changes control bit.
-		enc.stream.WriteBit(0)
+		enc.stream.WriteBit(opCodeNoChange)
 		return nil
 	}
 
 	// Bytes changed control bit.
-	enc.stream.WriteBit(1)
+	enc.stream.WriteBit(opCodeChange)
 
 	for j, prevHash := range customField.bytesFieldDict {
 		if hash == prevHash {
 			// Control bit means interpret next n bits as the index for the previous write
 			// that this matches where n is the number of bits required to represent all
 			// possible array indices in the configured LRU size.
-			enc.stream.WriteBit(0)
+			enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsLRUIndex)
 			enc.stream.WriteBits(
 				uint64(j),
 				numBitsRequiredToRepresentArrayIndex(
@@ -443,7 +443,7 @@ func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 
 	// Control bit means interpret subsequent bits as varInt encoding length of a new
 	// []byte we haven't seen before.
-	enc.stream.WriteBit(1)
+	enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsBytesLengthVarInt)
 	enc.encodeVarInt((uint64(len(currBytes))))
 	for _, b := range currBytes {
 		enc.stream.WriteByte(b)
@@ -504,7 +504,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	if len(changedFields) == 0 && enc.lastEncoded != nil {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
-		enc.stream.WriteBit(0)
+		enc.stream.WriteBit(opCodeNoChange)
 		return nil
 	}
 
@@ -516,16 +516,16 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	// Control bit indicating that proto values have changed.
-	enc.stream.WriteBit(1)
+	enc.stream.WriteBit(opCodeChange)
 	if len(fieldsChangedToDefault) > 0 {
 		// Control bit indicating that some fields have been set to default values
 		// and that a bitset will follow specifying which fields have changed.
-		enc.stream.WriteBit(1)
+		enc.stream.WriteBit(opCodeFieldsSetToDefaultProtoMarshal)
 		enc.encodeBitset(fieldsChangedToDefault)
 	} else {
 		// Control bit indicating that none of the changed fields have been set to
 		// their default values so we can do a clean merge on read.
-		enc.stream.WriteBit(0)
+		enc.stream.WriteBit(opCodeNoFieldsSetToDefaultProtoMarshal)
 	}
 	enc.encodeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
@@ -586,12 +586,11 @@ func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
 	prev := int64(enc.customFields[i].prevFloatBits)
 	diff := next - prev
 	if diff == 0 {
-		// NoChangeControlBit
-		enc.stream.WriteBit(0)
+		enc.stream.WriteBit(opCodeNoChange)
 		return
 	}
 
-	enc.stream.WriteBit(1)
+	enc.stream.WriteBit(opCodeChange)
 
 	neg := false
 	if diff < 0 {
@@ -627,12 +626,11 @@ func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	}
 
 	if diff == 0 {
-		// NoChangeControlBit
-		enc.stream.WriteBit(0)
+		enc.stream.WriteBit(opCodeNoChange)
 		return
 	}
 
-	enc.stream.WriteBit(1)
+	enc.stream.WriteBit(opCodeChange)
 
 	numSig := encoding.NumSig(diff)
 	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
@@ -646,10 +644,10 @@ func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 	if neg {
 		// opCodeNegative
-		enc.stream.WriteBit(0x1)
+		enc.stream.WriteBit(opCodeIntDeltaNegative)
 	} else {
 		// opCodePositive
-		enc.stream.WriteBit(0x0)
+		enc.stream.WriteBit(opCodeIntDeltaPositive)
 	}
 
 	enc.stream.WriteBits(valBits, int(numSig))
@@ -724,7 +722,7 @@ func (enc *Encoder) encodeBitset(values []int32) {
 			// Subtract one because the values are 1-indexed but the bitset
 			// is 0-indexed.
 			if i == v-1 {
-				enc.stream.WriteBit(1)
+				enc.stream.WriteBit(opCodeBitsetValueIsSet)
 				wroteExists = true
 				break
 			}
@@ -734,7 +732,7 @@ func (enc *Encoder) encodeBitset(values []int32) {
 			continue
 		}
 
-		enc.stream.WriteBit(0)
+		enc.stream.WriteBit(opCodeBitsetValueIsNotSet)
 	}
 }
 
