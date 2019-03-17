@@ -28,17 +28,11 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// AggregateResultsForTerm is a list of tag values which are valid for a particular
-// tag name.
-type AggregateResultsForTerm []ident.ID
-
-// type term ident.ID
-
 var (
-	errUnableToAddAggregateResultMissingID = errors.New("no id for result")
+	errUnableToAddAggregateValueMissingID = errors.New("no id for result")
 )
 
-type aggregatedResults struct {
+type aggregatedValues struct {
 	nsID ident.ID
 	// resultsMap *aggregateResultsMap
 
@@ -49,19 +43,17 @@ type aggregatedResults struct {
 	noFinalize bool
 }
 
-// NewAggregateResults returns a new AggregateResults object.
-func NewAggregateResults(opts Options) AggregateResults {
-	return &aggregatedResults{
-		// FIXME: fix the constructor here
-		//  newAggregateResultsMap(opts.IdentifierPool()),
-		resultsMap: newAggregateResultsMap(aggregateResultsMapOptions{}),
+// NewAggregateResults returns a new AggregateValues object.
+func NewAggregateResults(opts Options) AggregateValues {
+	return &aggregatedValues{
+		resultsMap: newAggregateResultsMap(opts.AggregateResultsPool()),
 		idPool:     opts.IdentifierPool(),
 		bytesPool:  opts.CheckedBytesPool(),
 		pool:       opts.AggregateResultsPool(),
 	}
 }
 
-func (r *aggregatedResults) AggregateDocument(
+func (r *aggregatedValues) AggregateDocument(
 	d doc.Document,
 ) (added bool, size int, err error) {
 	added = false
@@ -84,19 +76,19 @@ func (r *aggregatedResults) AggregateDocument(
 	return added, r.resultsMap.Len(), nil
 }
 
-func (r *aggregatedResults) Namespace() ident.ID {
+func (r *aggregatedValues) Namespace() ident.ID {
 	return r.nsID
 }
 
-func (r *aggregatedResults) Map() *aggregateResultsMap {
+func (r *aggregatedValues) Map() *aggregateResultsMap {
 	return r.resultsMap
 }
 
-func (r *aggregatedResults) Size() int {
+func (r *aggregatedValues) Size() int {
 	return r.resultsMap.Len()
 }
 
-func (r *aggregatedResults) Reset(nsID ident.ID) {
+func (r *aggregatedValues) Reset(nsID ident.ID) {
 	// finalize existing held nsID
 	if r.nsID != nil {
 		r.nsID.Finalize()
@@ -122,7 +114,7 @@ func (r *aggregatedResults) Reset(nsID ident.ID) {
 	// using an internal method of a code-gen'd type.
 }
 
-func (r *aggregatedResults) Finalize() {
+func (r *aggregatedValues) Finalize() {
 	if r.noFinalize {
 		return
 	}
@@ -135,7 +127,7 @@ func (r *aggregatedResults) Finalize() {
 	r.pool.Put(r)
 }
 
-func (r *aggregatedResults) NoFinalize() {
+func (r *aggregatedValues) NoFinalize() {
 	// Ensure neither the results object itself, or any of its underlying
 	// IDs and tags will be finalized.
 	r.noFinalize = true

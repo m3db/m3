@@ -22,26 +22,26 @@ package index
 
 import "github.com/m3db/m3x/pool"
 
-type aggregateResultsPool struct {
+type aggregateValuesPool struct {
 	pool pool.ObjectPool
 }
 
-// NewAggregateResultsPool creates a new AggregateResultsPool.
-func NewAggregateResultsPool(
-	opts pool.ObjectPoolOptions) AggregateResultsPool {
+// NewAggregateValuesPool creates a new AggregateValuesPool.
+func NewAggregateValuesPool(
+	opts pool.ObjectPoolOptions) AggregateValuesPool {
 	return &resultsPool{pool: pool.NewObjectPool(opts)}
 }
 
-func (p *aggregateResultsPool) Init(alloc AggregateResultsAllocator) {
+func (p *aggregateValuesPool) Init(alloc AggregateValuesAllocator) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *aggregateResultsPool) Get() AggregateResults {
+func (p *aggregateValuesPool) Get() AggregateValues {
 	return p.pool.Get().(AggregateResults)
 }
 
-func (p *aggregateResultsPool) Put(value AggregateResults) {
+func (p *aggregateValuesPool) Put(value AggregateValues) {
 	p.pool.Put(value)
 }

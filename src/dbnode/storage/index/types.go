@@ -148,7 +148,7 @@ type AggregateResults interface {
 
 	// Map returns a map from tag name -> possible tag values,
 	// comprising search results.
-	// Map() *aggregationResultsMap
+	Map() *AggregateResultsMap
 
 	// Reset resets the AggregateResults object to initial state.
 	Reset(nsID ident.ID)
@@ -190,6 +190,37 @@ type AggregateResultsPool interface {
 
 	// Put returns the provided AggregateResults to the pool.
 	Put(value AggregateResults)
+}
+
+// AggregateValues is a collection of values for an aggregation query.
+type AggregateValues interface {
+	// Map returns a map from tag name -> possible tag values,
+	// comprising search results.
+	Map() *AggregateValuesMap
+
+	reset(nsID ident.ID)
+	finalize()
+	noFinalize()
+
+	// Size returns the number of results discovered.
+	Size() int
+
+	AddValue(value ident.ID)
+}
+
+// AggregateValuesAllocator allocates AggregateValues types.
+type AggregateValuesAllocator func() Results
+
+// AggregateValuesPool allows users to pool `AggregateValues` types.
+type AggregateValuesPool interface {
+	// Init initializes the AggregateValues pool.
+	Init(alloc AggregateValuesAllocator)
+
+	// Get retrieves a AggregateValues object for use.
+	Get() AggregateValues
+
+	// Put returns the provided AggregateValues to the pool.
+	Put(value AggregateValues)
 }
 
 // OnIndexSeries provides a set of callback hooks to allow the reverse index

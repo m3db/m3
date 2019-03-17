@@ -23,7 +23,7 @@ install-m3x-repo: install-glide
 
 # Generation rule for all generated types
 .PHONY: genny-all
-genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all
+genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all genny-map-dependent-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
@@ -35,8 +35,9 @@ genny-map-all:                                \
 	genny-map-storage-namespace-metadata        \
 	genny-map-storage-repair                    \
 	genny-map-storage-index-results             \
-	genny-map-storage-index-aggregation-results \
+	genny-map-storage-index-aggregate-values    \
 	genny-map-storage-bootstrap-bootstrapper-commitlog
+
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
@@ -156,21 +157,31 @@ genny-map-storage-index-results: install-m3x-repo
 	# Rename generated map file
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/results_map_gen.go
 
-# Map generation rule for storage/index/AggregationResultsMap
-.PHONY: genny-map-storage-index-aggregation-results
-genny-map-storage-index-aggregation-results: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen              \
+# Map generation rule for storage/index/AggregationValuesMap
+.PHONY: genny-map-storage-index-aggregation-values
+genny-map-storage-index-aggregation-values: install-m3x-repo
+	cd $(m3x_package_path) && make hashmap-gen                \
 		pkg=index                                               \
-		value_type=AggregateResultsForTerm                      \
+		key_type=ident.ID                                       \
+		value_type=[]ident.ID                                   \
 		target_package=$(m3db_package)/src/dbnode/storage/index \
-		rename_type_prefix=aggregateResults                     \
-		rename_constructor=newAggregateResultsMap               \
-		rename_constructor_options=aggregateResultsMapOptions
-	# Rename both generated map and constructor files
-	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_results_map_gen.go
-	mv -f $(m3db_package_path)/src/dbnode/storage/index/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_new_results_map_gen.go
+		rename_nogen_key=true                                   \
+		rename_nogen_value=true                                 \
+		rename_type_prefix=Values
+	# Rename generated map file
+	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/values_map_gen.go
 
-
+genny-map-storage-index-aggregate-values: install-m3x-repo
+	cd $(m3x_package_path) && make hashmap-gen \
+		pkg=index                                \
+		key_type=ident.ID                        \
+		value_type=[]ident.ID                    \
+		rename_type_prefix=AggregateValues       \
+		rename_nogen_key=true                    \
+		rename_nogen_value=true                  \
+		target_package=$(m3db_package)/src/dbnode/storage/index
+	# Rename generated map file
+	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_values_map_gen.go
 
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
@@ -223,3 +234,22 @@ genny-leakcheckpool-fetch-tagged-op: install-m3x-repo
 	elem_type_pool=fetchTaggedOpPool                    \
 	target_package=$(m3db_package)/src/dbnode/client    \
 	out_file=fetch_tagged_op_leakcheckpool_gen_test.go
+
+# Map generation rule for dependent generated maps which are built on top of a
+# generated map
+.PHONY: genny-map-dependent-all
+genny-map-dependent-all:                      \
+	genny-map-storage-index-aggregation-results
+
+genny-map-storage-index-aggregation-results: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen  \
+		pkg=index                                   \
+		value_type=AggregateValuesMap               \
+		rename_type_prefix=AggregateResults         \
+		target_package=$(m3db_package)/src/dbnode/storage/index
+	# Rename generated map file
+	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_results_map_gen.go
+	# This map has a custom constructor; delete the genny generated one
+	rm -f $(m3db_package_path)/src/dbnode/storage/index/new_map_gen.go
+
+
