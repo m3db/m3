@@ -50,7 +50,9 @@ type iterator struct {
 	lastIterated           *dynamic.Message
 	lastIteratedAnnotation []byte
 	byteFieldDictLRUSize   int
-	customFields           []customFieldState
+	// TODO(rartoul): Update these as we traverse the stream if we encounter
+	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
+	customFields []customFieldState
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -71,14 +73,17 @@ func NewIterator(
 	opts encoding.Options,
 ) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
+
+	var currCustomFields []customFieldState
+	if schema != nil {
+		currCustomFields = customFields(nil, schema)
+	}
 	return &iterator{
 		opts:         opts,
 		schema:       schema,
 		stream:       stream,
 		lastIterated: dynamic.NewMessage(schema),
-		// TODO(rartoul): Update these as we traverse the stream if we encounter
-		// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
-		customFields: customFields(nil, schema),
+		customFields: currCustomFields,
 
 		m3tszIterator: m3tsz.NewReaderIterator(nil, stream, false, opts).(*m3tsz.ReaderIterator),
 	}
@@ -172,6 +177,14 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
+}
+
+// SetSchema sets the encoders schema.
+func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
+	it.schema = schema
+	// TODO: use same logic as encoder
+	it.customFields = customFields(it.customFields, schema)
+	it.lastIterated = dynamic.NewMessage(schema)
 }
 
 func (it *iterator) Close() {
