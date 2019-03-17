@@ -56,8 +56,8 @@ var (
 	errNoEncodedDatapoints               = errors.New("encoder has no encoded datapoints")
 )
 
-// TODO(rartoul): Need to support schema changes by updating the ordering
-// of the TSZ encoded fields on demand.
+// TODO(rartoul): Add support for changing the schema (and updating the ordering
+// of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
 type Encoder struct {
 	opts encoding.Options
 
@@ -106,7 +106,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	if enc.numEncoded == 0 {
 		enc.encodeVarInt(currentEncodingSchemeVersion)
 		enc.encodeVarInt(uint64(enc.opts.ByteFieldDictionaryLRUSize()))
-		// TODO: Types
+		// TODO(rartoul): Optionally encode all of the schema type information into the
+		// stream here so that it can be read without the schema: https://github.com/m3db/m3/issues/1471
 	}
 
 	// Control bit that indicates the stream has more data.
@@ -127,8 +128,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 			"proto encoder: error unmarshaling annotation into proto message: %v", err)
 	}
 
-	// TODO: Does not need to be public?
-	enc.EncodeProto(enc.unmarshaled)
+	enc.encodeProto(enc.unmarshaled)
 	enc.numEncoded++
 	enc.lastEncodedDP = dp
 	return nil
@@ -196,7 +196,7 @@ func (enc *Encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
 
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
-func (enc *Encoder) EncodeProto(m *dynamic.Message) error {
+func (enc *Encoder) encodeProto(m *dynamic.Message) error {
 	if len(m.GetUnknownFields()) > 0 {
 		return errEncoderMessageHasUnknownFields
 	}
@@ -500,7 +500,8 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	// TODO: Probably need to add a MarshalInto() in the underlying library.
+	// TODO(rartoul): Need to add a MarshalInto to the ProtoReflect library to save
+	// allocations: https://github.com/m3db/m3/issues/1471
 	marshaled, err := m.Marshal()
 	if err != nil {
 		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
