@@ -430,7 +430,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		buf = append(buf, b)
 	}
 
-	// TODO: Could make this more efficient with unsafe string converion or by pre-processing
+	// TODO: Could make this more efficient with unsafe string conversion or by pre-processing
 	// schemas to only have bytes.
 	schemaFieldType := it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType()
 	if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
