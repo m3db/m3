@@ -69,7 +69,7 @@ func NewIterator(
 	reader io.Reader,
 	schema *desc.MessageDescriptor,
 	opts encoding.Options,
-) *iterator {
+) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
 	return &iterator{
 		opts:         opts,
@@ -512,7 +512,7 @@ func (it *iterator) readXOR(i int) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if cb == encoding.TSZOpcodeZeroValueXOR {
+	if cb == m3tsz.OpcodeZeroValueXOR {
 		return 0, nil
 	}
 
@@ -522,7 +522,7 @@ func (it *iterator) readXOR(i int) (uint64, error) {
 	}
 
 	cb = (cb << 1) | cb2
-	if cb == encoding.TSZOpcodeContainedValueXOR {
+	if cb == m3tsz.OpcodeContainedValueXOR {
 		var (
 			previousXOR                       = it.customFields[i].prevXOR
 			previousLeading, previousTrailing = encoding.LeadingAndTrailingZeros(previousXOR)
@@ -632,7 +632,7 @@ func (it *iterator) readIntSig(i int) error {
 		return fmt.Errorf(
 			"proto iterator: error reading zero significant digits control bit: %v", err)
 	}
-	if sigDigitsControlBit == encoding.TSZOpcodeZeroSig {
+	if sigDigitsControlBit == m3tsz.OpcodeZeroSig {
 		it.customFields[i].intSigBitsTracker.NumSig = 0
 	} else {
 		numSigBits, err := it.readBits(6)

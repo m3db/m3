@@ -480,12 +480,12 @@ func (enc *Encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(segment)
 }
 
-// Returns the number of encoded datapoints.
+// NumEncoded returns the number of encoded datapoints.
 func (enc *Encoder) NumEncoded() int {
 	return int(enc.numEncoded)
 }
 
-// Returns the last encoded datapoint.
+// LastEncoded returns the last encoded datapoint.
 func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	if enc.numEncoded == 0 {
 		return ts.Datapoint{}, errNoEncodedDatapoints
@@ -500,7 +500,7 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
-// Returns the length of the data stream.
+// Len returns the length of the data stream.
 func (enc *Encoder) Len() int {
 	return enc.os.Len()
 }

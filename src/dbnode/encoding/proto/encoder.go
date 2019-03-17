@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
+	murmur3 "github.com/m3db/stackmurmur3"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
-	murmur3 "github.com/m3db/stackmurmur3"
 )
 
 // Make sure encoder implements encoding.Encoder.
@@ -142,6 +142,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	return nil
 }
 
+// Stream returns a copy of the underlying data stream.
 func (enc *Encoder) Stream() xio.SegmentReader {
 	seg := enc.segment(true)
 	if seg.Len() == 0 {
@@ -179,10 +180,13 @@ func (enc *Encoder) segment(copy bool) ts.Segment {
 	return ts.NewSegment(head, nil, ts.FinalizeHead)
 }
 
+// NumEncoded returns the number of encoded messages.
 func (enc *Encoder) NumEncoded() int {
 	return enc.numEncoded
 }
 
+// LastEncoded returns the last encoded datapoint. Does not include
+// annotation / protobuf message for interface purposes.
 func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	if enc.numEncoded == 0 {
 		return ts.Datapoint{}, errNoEncodedDatapoints
@@ -191,6 +195,7 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	return enc.lastEncodedDP, nil
 }
 
+// Len returns the length of the data stream.
 func (enc *Encoder) Len() int {
 	return enc.m3tszEncoder.Len()
 }
@@ -219,6 +224,7 @@ func (enc *Encoder) encodeProto(m *dynamic.Message) error {
 	return nil
 }
 
+// Reset resets the encoder for reuse.
 func (enc *Encoder) Reset(
 	start time.Time,
 	capacity int,
@@ -226,6 +232,7 @@ func (enc *Encoder) Reset(
 	enc.reset(start, capacity)
 }
 
+// SetSchema sets the encoders schema.
 func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
 	enc.resetSchema(schema)
 }
@@ -265,6 +272,7 @@ func (enc *Encoder) resetCustomFields(schema *desc.MessageDescriptor) {
 	}
 }
 
+// Close closes the encoder.
 func (enc *Encoder) Close() {
 	if enc.closed {
 		return
@@ -280,6 +288,8 @@ func (enc *Encoder) Close() {
 	}
 }
 
+// Discard closes the encoder and transfers ownership of the data stream to
+// the caller.
 func (enc *Encoder) Discard() ts.Segment {
 	segment := enc.discard()
 	// Close the encoder since its no longer needed
@@ -287,6 +297,8 @@ func (enc *Encoder) Discard() ts.Segment {
 	return segment
 }
 
+// DiscardReset does the same thing as Discard except it also resets the encoder
+// for reuse.
 func (enc *Encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
 	segment := enc.discard()
 	enc.Reset(start, capacity)
@@ -297,6 +309,8 @@ func (enc *Encoder) discard() ts.Segment {
 	return enc.segment(false)
 }
 
+// Bytes returns the raw bytes of the underlying data stream. Does not
+// transfer ownership and is generally unsafe.
 func (enc *Encoder) Bytes() ([]byte, error) {
 	if enc.closed {
 		return nil, errEncoderClosed
@@ -552,7 +566,7 @@ func (enc *Encoder) encodeFirstTSZValue(i int, v float64) {
 func (enc *Encoder) encodeNextTSZValue(i int, next float64) {
 	curFloatBits := math.Float64bits(next)
 	curXOR := enc.customFields[i].prevFloatBits ^ curFloatBits
-	encoding.WriteTSZXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
+	m3tsz.WriteXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
 	enc.customFields[i].prevFloatBits = curFloatBits
 	enc.customFields[i].prevXOR = curXOR
 }
@@ -568,7 +582,7 @@ func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
@@ -578,7 +592,7 @@ func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
 	enc.encodeIntValDiff(vBits, false, numSig)
 }
 
@@ -605,7 +619,7 @@ func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
 	)
 	// Can't use an intermediary variable for the intSigBitsTracker because we need to
 	// modify the value in the slice, not a copy of it.
-	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diffBits, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }
@@ -636,7 +650,7 @@ func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
 	// Can't use an intermediary variable for the intSigBitsTracker because we need to
 	// modify the value in the slice, not a copy of it.
-	encoding.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
+	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diff, neg, newSig)
 	enc.customFields[i].prevFloatBits = uint64(next)
 }

@@ -24,9 +24,10 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
 type customFieldType int
@@ -157,7 +158,7 @@ type customFieldState struct {
 	bytesFieldDict         []uint64
 	iteratorBytesFieldDict [][]byte
 
-	intSigBitsTracker encoding.IntSigBitsTracker
+	intSigBitsTracker m3tsz.IntSigBitsTracker
 }
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages

@@ -35,8 +35,10 @@ func TestTSZFields(t *testing.T) {
 		{
 			schema: newVLMessageDescriptor(),
 			expected: []customFieldState{
-				{fieldNum: 0}, // latitude
-				{fieldNum: 1}, // longitude
+				{fieldNum: 1, fieldType: cFloat64},     // latitude
+				{fieldNum: 2, fieldType: cFloat64},     // longitude
+				{fieldNum: 3, fieldType: cSignedInt64}, // numTrips
+				{fieldNum: 4, fieldType: cBytes},       // deliveryID
 			},
 		},
 	}
