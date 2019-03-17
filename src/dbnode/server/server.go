@@ -83,7 +83,6 @@ import (
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/uber-go/tally"
 )
 
@@ -176,7 +175,7 @@ func Run(runOpts RunOptions) {
 	var schema *desc.MessageDescriptor
 	if cfg.DataMode == storage.DataModeProtoBuf {
 		logger.Info("Probuf data mode enabled")
-		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
+		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
 		if err != nil {
 			logger.Fatalf("error parsing protobuffer schema: %v", err)
 		}
@@ -1398,30 +1397,4 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 	}
 
 	return t.t.Get(), nil
-}
-
-func parseProtoSchema(filePath string) (*desc.MessageDescriptor, error) {
-	fds, err := protoparse.Parser{}.ParseFiles(filePath)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"error parsing proto schema: %s, err: %v", filePath, err)
-	}
-
-	if len(fds) != 1 {
-		return nil, fmt.Errorf(
-			"expected to parse %s into one file descriptor but parse: %s",
-			filePath, len(fds))
-	}
-
-	// TODO(rartoul): This will be more sophisticated later, but for now assume
-	// that the message will be called "Schema".
-	schema := fds[0].FindMessage("Schema")
-	if schema == nil {
-		return nil, fmt.Errorf(
-			"expected to find message with name 'Schema' in %s, but did not",
-			filePath,
-		)
-	}
-
-	return schema, nil
 }
