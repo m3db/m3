@@ -1,5 +1,6 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 hash: e37c3443cf51be0ed550078290ab6d3a3f745c71b7ef8cd879f06dfb62557a62
 updated: 2019-03-28T16:17:41.783517-04:00
 =======
@@ -10,6 +11,10 @@ updated: 2019-03-01T17:29:06.029256-08:00
 hash: 3dfb3e5faf5ede6fab1b1948f41beb57a7c5c3584797ffa4933d1a9ad29d13ed
 updated: 2019-03-17T16:46:54.46084-04:00
 >>>>>>> update deps
+=======
+hash: 561d704e896574e57538159b64d74691b93b3accc3aaf1a6884a2f460ba6e5ed
+updated: 2019-03-17T16:53:28.101078-04:00
+>>>>>>> point to forked vellum
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -119,10 +124,8 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: e766292d14de216c324bb60b17320af72dee59c6
-  repo: https://github.com/m3db/vellum
+  version: e91b68ff3efe3cc11723aa25dd315cbc9276cd65
   subpackages:
-  - regexp
   - utf8
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -295,6 +298,10 @@ imports:
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
+- name: github.com/m3db/vellum
+  version: e766292d14de216c324bb60b17320af72dee59c6
+  subpackages:
+  - regexp
 - name: github.com/magiconair/properties
   version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
 - name: github.com/matttproud/golang_protobuf_extensions

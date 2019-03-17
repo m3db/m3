@@ -102,9 +102,8 @@ import:
     version: ^1.2.0
 
   # NB(r): make sure to use the master commit for vellum
-  # once all upstream changes are complete in github.com/couchbase/vellum.
-  - package: github.com/couchbase/vellum
-    repo: https://github.com/m3db/vellum
+  # once all upstream changes are complete in github.com/m3db/vellum.
+  - package: github.com/m3db/vellum
     version: e766292d14de216c324bb60b17320af72dee59c6
 
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum

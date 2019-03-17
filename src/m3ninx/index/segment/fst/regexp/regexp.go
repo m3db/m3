@@ -25,7 +25,7 @@ package regexp
 import (
 	"regexp/syntax"
 
-	vregexp "github.com/couchbase/vellum/regexp"
+	vregexp "github.com/m3db/vellum/regexp"
 )
 
 // ParseRegexp parses the provided regexp pattern into an equivalent matching automaton, and
