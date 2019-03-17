@@ -216,6 +216,8 @@ func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Ge
 	})
 }
 
+// TODO(rartoul): Add support for embedded messages, repeated fields, and maps:
+// https://github.com/m3db/m3/issues/1471
 func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
 		message := dynamic.NewMessage(schema)
