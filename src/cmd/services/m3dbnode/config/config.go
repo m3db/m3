@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage"
+
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
@@ -46,17 +48,6 @@ const (
 	defaultEtcdListenHost = "http://0.0.0.0"
 	defaultEtcdClientPort = 2379
 	defaultEtcdServerPort = 2380
-)
-
-// DataMode controls what type of data will be stored.
-type DataMode int
-
-// TODO: Fix this to do proper string parsing
-const (
-	// Floats DataMode indicates that only floats will be stored.
-	DataModeFloats DataMode = iota
-	// Protobuf DataMode indicates that Protobufs will be stored.
-	DataModeProtobuf
 )
 
 // Configuration is the top level configuration that includes both a DB
@@ -150,7 +141,7 @@ type DBConfiguration struct {
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
 
 	// DataMode controls what kind of data will be stored.
-	DataMode DataMode `yaml:"dataMode"`
+	DataMode storage.DataMode `yaml:"dataMode"`
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`

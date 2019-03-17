@@ -173,6 +173,18 @@ func Run(runOpts RunOptions) {
 	}
 	defer fslock.Release()
 
+	var (
+		schema *desc.MessageDescriptor
+		err    error
+	)
+	if cfg.DataMode == storage.DataModeProtoBuf {
+		logger.Info("Probuf data mode enabled")
+		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
+		if err != nil {
+			logger.Fatalf("error parsing protobuffer schema: %v", err)
+		}
+	}
+
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
 
@@ -971,6 +983,7 @@ func kvWatchBootstrappers(
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
 	logger xlog.Logger,
+	schema *desc.MessageDescriptor,
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
@@ -1124,21 +1137,9 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool)
 
-	var (
-		schema *desc.MessageDescriptor
-		err    error
-	)
-	if cfg.DataMode == config.DataModeProtobuf {
-		fmt.Println("Running with proto data mode enabled!")
-		schema, err = parseProtoSchema(cfg.Proto.SchemaFilePath)
-		if err != nil {
-			// TODO: Fix me
-			panic(err)
-		}
-	}
 	encoderPool.Init(func() encoding.Encoder {
-		if cfg.DataMode == config.DataModeProtobuf {
-			// TODO: should probably allow a schema to bbe passed on construction.
+		if schema != nil {
+			// TODO: should probably allow a schema to be passed on construction.
 			enc := proto.NewEncoder(time.Time{}, encodingOpts)
 			enc.SetSchema(schema)
 			return enc
@@ -1148,7 +1149,7 @@ func withEncodingAndPoolingOptions(
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		if cfg.DataMode == config.DataModeProtobuf {
+		if schema != nil {
 			return proto.NewIterator(r, schema, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
