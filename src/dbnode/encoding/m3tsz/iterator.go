@@ -83,45 +83,54 @@ func (it *ReaderIterator) Next() bool {
 		return false
 	}
 
-	if it.t.IsZero() {
-		it.ReadFirstTimestamp()
-		it.readFirstValue()
-	} else {
-		it.ReadNextTimestamp()
-		it.readNextValue()
-	}
+	first := it.ReadTimestamp()
+	it.readValue(first)
 
 	return it.hasNext()
 }
 
-func (it *ReaderIterator) ReadFirstTimestamp() {
+// ReadTimestamp reads the first or next timestamp.
+func (it *ReaderIterator) ReadTimestamp() bool {
 	it.ant = nil
 	it.tuChanged = false
+
+	first := false
+	if it.t.IsZero() {
+		first = true
+		it.readFirstTimestamp()
+	} else {
+		it.readNextTimestamp()
+	}
+
+	// NB(xichen): reset time delta to 0 when there is a time unit change to be
+	// consistent with the encoder.
+	if it.tuChanged {
+		it.dt = 0
+	}
+
+	return first
+}
+
+func (it *ReaderIterator) readValue(first bool) {
+	if first {
+		it.readFirstValue()
+	} else {
+		it.readNextValue()
+	}
+}
+
+func (it *ReaderIterator) readFirstTimestamp() {
 	nt := int64(it.readBits(64))
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
 	it.tu = initialTimeUnit(st, it.opts.DefaultTimeUnit())
-	it.ReadNextTimestamp()
+	it.readNextTimestamp()
 	it.t = st.Add(it.dt)
-
-	// NB(xichen): reset time delta to 0 when there is a time unit change to be
-	// consistent with the encoder.
-	if it.tuChanged {
-		it.dt = 0
-	}
 }
 
-func (it *ReaderIterator) ReadNextTimestamp() {
-	it.ant = nil
-	it.tuChanged = false
+func (it *ReaderIterator) readNextTimestamp() {
 	it.dt += it.readMarkerOrDeltaOfDelta()
 	it.t = it.t.Add(it.dt)
-
-	// NB(xichen): reset time delta to 0 when there is a time unit change to be
-	// consistent with the encoder.
-	if it.tuChanged {
-		it.dt = 0
-	}
 }
 
 func (it *ReaderIterator) tryReadMarker() (time.Duration, bool) {

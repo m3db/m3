@@ -60,15 +60,15 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 		it := getTestReaderIterator(input.rawBytes)
 		it.tu = input.timeUnit
 		it.dt = input.previousTimeDelta
-		it.ReadNextTimestamp()
+		it.readNextTimestamp()
 		require.Equal(t, input.expectedTimeDelta, it.dt)
 		require.NoError(t, it.Err())
 	}
 
 	it := getTestReaderIterator([]byte{0x1})
-	it.ReadNextTimestamp()
+	it.readNextTimestamp()
 	require.Error(t, it.Err())
-	it.ReadNextTimestamp()
+	it.readNextTimestamp()
 	require.Error(t, it.Err())
 }
 

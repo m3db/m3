@@ -119,11 +119,7 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	if !it.consumedFirstMessage {
-		it.m3tszIterator.ReadFirstTimestamp()
-	} else {
-		it.m3tszIterator.ReadNextTimestamp()
-	}
+	it.m3tszIterator.ReadTimestamp()
 	if it.m3tszIterator.Err() != nil {
 		it.err = it.m3tszIterator.Err()
 		return false
