@@ -58,7 +58,7 @@ var maxNumEnumValues = 10
 
 // TODO(rartoul): Modify this prop test to generate schemas with repeated fields and maps
 // (which are basically the same thing) as well as nested messages once we add support for
-// those features.
+// those features: https://github.com/m3db/m3/issues/1471
 func TestRoundtripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
@@ -93,7 +93,6 @@ func TestRoundtripProp(t *testing.T) {
 				return false, fmt.Errorf("error marshaling proto message: %v", err)
 			}
 
-			fmt.Println("prop test encoding", i, times[i].String())
 			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
 				return false, fmt.Errorf(
@@ -216,8 +215,6 @@ func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Ge
 	})
 }
 
-// TODO(rartoul): Add support for embedded messages, repeated fields, and maps:
-// https://github.com/m3db/m3/issues/1471
 func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
 		message := dynamic.NewMessage(schema)
