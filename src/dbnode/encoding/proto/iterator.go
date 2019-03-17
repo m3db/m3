@@ -75,7 +75,8 @@ func NewIterator(
 		schema:       schema,
 		stream:       stream,
 		lastIterated: dynamic.NewMessage(schema),
-		// TODO: These need to be possibly updated as we traverse a stream
+		// TODO(rartoul): Update these as we traverse the stream if we encounter
+		// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
 		customFields: customFields(nil, schema),
 
 		m3tszIterator: m3tsz.NewReaderIterator(nil, stream, false, opts).(*m3tsz.ReaderIterator),
@@ -143,7 +144,8 @@ func (it *iterator) Next() bool {
 
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	dp, unit, _ := it.m3tszIterator.Current()
-	// TODO: Need to modify library to allow me to reuse this slice.
+	// TODO(rartoul): Add MarshalInto method to ProtoReflect library to save
+	// allocations: https://github.com/m3db/m3/issues/1471
 	annotation, err := it.lastIterated.Marshal()
 	if err != nil {
 		// TODO: need to do this unmarshaling in the call to Next() so we can
