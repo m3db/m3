@@ -110,7 +110,7 @@ func (it *iterator) Next() bool {
 	}
 
 	moreDataControlBit, err := it.stream.ReadBit()
-	if err == io.EOF || (err == nil && moreDataControlBit == 0) {
+	if err == io.EOF || (err == nil && moreDataControlBit == opCodeNoMoreData) {
 		it.done = true
 		return false
 	}
@@ -208,7 +208,7 @@ func (it *iterator) readProtoValues() error {
 		return fmt.Errorf("proto iterator: err reading proto changes control bit: %v", err)
 	}
 
-	if protoChangesControlBit == 0 {
+	if protoChangesControlBit == opCodeNoChange {
 		// No changes since previous message.
 		return nil
 	}
@@ -218,7 +218,7 @@ func (it *iterator) readProtoValues() error {
 		return fmt.Errorf("proto iterator: err reading field set to default control bit: %v", err)
 	}
 
-	if fieldsSetToDefaultControlBit == 1 {
+	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
 		// Some fields set to default value, need to read bitset.
 		err = it.readBitset()
 		if err != nil {
@@ -350,7 +350,7 @@ func (it *iterator) readIntValue(i int, customField customFieldState, first bool
 			return fmt.Errorf("proto decoder: error trying to read int change exists control bit: %v", err)
 		}
 
-		if changeExistsControlBit == 0 {
+		if changeExistsControlBit == opCodeNoChange {
 			// No change.
 			return nil
 		}
@@ -377,7 +377,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"proto decoder: error trying to read bytes changed control bit: %v", err)
 	}
 
-	if bytesChangedControlBit == 0 {
+	if bytesChangedControlBit == opCodeNoChange {
 		// No changes to the bytes value.
 		return nil
 	}
@@ -388,7 +388,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		return fmt.Errorf(
 			"proto decoder: error trying to read bytes changed control bit: %v", err)
 	}
-	if valueInDictControlBit == 0 {
+	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
 			numBitsRequiredToRepresentArrayIndex(it.byteFieldDictLRUSize))
 		if err != nil {
@@ -585,7 +585,7 @@ func (it *iterator) readBitset() error {
 			return fmt.Errorf("error reading bitset: %v", err)
 		}
 
-		if bit == 1 {
+		if bit == opCodeBitsetValueIsSet {
 			// Add 1 because protobuf fields are 1-indexed not 0-indexed.
 			it.bitsetValues = append(it.bitsetValues, int(i)+1)
 		}
@@ -626,17 +626,17 @@ func (it *iterator) readIntSig(i int) error {
 		return fmt.Errorf(
 			"proto iterator: error reading int significant digits update control bit: %v", err)
 	}
-	if updateControlBit == 0 {
+	if updateControlBit == opCodeNoChange {
 		// No change.
 		return nil
 	}
 
-	nonZeroSignificantDigitsControlBit, err := it.stream.ReadBit()
+	sigDigitsControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
 			"proto iterator: error reading zero significant digits control bit: %v", err)
 	}
-	if nonZeroSignificantDigitsControlBit == 0 {
+	if sigDigitsControlBit == encoding.TSZOpcodeZeroSig {
 		it.customFields[i].intSigBitsTracker.NumSig = 0
 	} else {
 		numSigBits, err := it.readBits(6)
@@ -668,7 +668,7 @@ func (it *iterator) readIntValDiff(i int) error {
 	if it.customFields[i].fieldType == cUnsignedInt64 {
 		diff := uint64(diffSigBits)
 		shouldSubtract := false
-		if negativeControlBit == 1 {
+		if negativeControlBit == opCodeIntDeltaNegative {
 			shouldSubtract = true
 		}
 
@@ -681,7 +681,7 @@ func (it *iterator) readIntValDiff(i int) error {
 	} else {
 		diff := int64(diffSigBits)
 		sign := int64(1)
-		if negativeControlBit == 1 {
+		if negativeControlBit == opCodeIntDeltaNegative {
 			sign = -1.0
 		}
 
