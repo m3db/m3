@@ -75,7 +75,7 @@ lookbackDuration: <duration>
 # ResultOptions are the result options for query.
 resultOptions:
   #	KeepNans keeps NaNs before returning query results.
-	# The default is false, which matches Prometheus
+  # The default is false, which matches Prometheus
   keepNans: <bool>
 
 # Enables local jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
