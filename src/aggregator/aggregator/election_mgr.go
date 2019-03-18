@@ -197,6 +197,8 @@ type electionManagerMetrics struct {
 	electionState                          tally.Gauge
 	campaignState                          tally.Gauge
 	campaigning                            tally.Gauge
+	leadersWithActiveShards                tally.Gauge
+	followersWithActiveShards              tally.Gauge
 }
 
 func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
@@ -232,6 +234,8 @@ func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
 		electionState:                          scope.Gauge("election-state"),
 		campaignState:                          scope.Gauge("campaign-state"),
 		campaigning:                            scope.Gauge("campaigning"),
+		leadersWithActiveShards:                scope.Gauge("leaders-with-active-shards"),
+		followerWithActiveShards:               scope.Gauge("follower-with-active-shards"),
 	}
 }
 
@@ -432,6 +436,28 @@ func (mgr *electionManager) Close() error {
 	mgr.electionStateWatchable.Close()
 	mgr.goalStateWatchable.Close()
 	return nil
+}
+
+func (mgr *electionManager) leadersWithActiveShards() float64 {
+	electionState := mgr.ElectionState()
+	if electionState != LeaderState {
+		return 0.0
+	}
+	if !mgr.IsCampaigning() {
+		return 0.0
+	}
+	return 1.0
+}
+
+func (mgr *electionManager) followersWithActiveShards() float64 {
+	electionState := mgr.ElectionState()
+	if electionState != FollowerState {
+		return 0.0
+	}
+	if !mgr.IsCampaigning() {
+		return 0.0
+	}
+	return 1.0
 }
 
 func (mgr *electionManager) watchGoalStateChanges(watch watch.Watch) {
@@ -859,6 +885,8 @@ func (mgr *electionManager) reportMetrics() {
 			mgr.metrics.campaignState.Update(float64(campaignState))
 			mgr.metrics.campaigning.Update(float64(campaigning))
 			mgr.metrics.resignOnClose.Update(float64(resignOnClose))
+			mgr.metrics.leadersWithActiveShards.Update(mgr.leadersWithActiveShards())
+			mgr.metrics.followersWithActiveShards.Update(mgr.followersWithActiveShards())
 		case <-mgr.doneCh:
 			ticker.Stop()
 			return
