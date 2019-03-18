@@ -438,28 +438,6 @@ func (mgr *electionManager) Close() error {
 	return nil
 }
 
-func (mgr *electionManager) leadersWithActiveShards() float64 {
-	electionState := mgr.ElectionState()
-	if electionState != LeaderState {
-		return 0.0
-	}
-	if !mgr.IsCampaigning() {
-		return 0.0
-	}
-	return 1.0
-}
-
-func (mgr *electionManager) followersWithActiveShards() float64 {
-	electionState := mgr.ElectionState()
-	if electionState != FollowerState {
-		return 0.0
-	}
-	if !mgr.IsCampaigning() {
-		return 0.0
-	}
-	return 1.0
-}
-
 func (mgr *electionManager) watchGoalStateChanges(watch watch.Watch) {
 	defer func() {
 		watch.Close()
@@ -677,6 +655,12 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 		hasNotCutoff := nowNanos < shard.CutoffNanos()-int64(mgr.shardCutoffCheckOffset)
 		if hasCutover && hasNotCutoff {
 			mgr.metrics.campaignCheckHasActiveShards.Inc(1)
+			if mgr.ElectionState() == LeaderState {
+				mgr.metrics.leadersWithActiveShards.Update(float64(1))
+			}
+			if mgr.ElectionState() == FollowerState {
+				mgr.metrics.followersWithActiveShards.Update(float64(1))
+			}
 			return true, nil
 		}
 		noCutoverShards = noCutoverShards && !hasCutover
@@ -885,8 +869,6 @@ func (mgr *electionManager) reportMetrics() {
 			mgr.metrics.campaignState.Update(float64(campaignState))
 			mgr.metrics.campaigning.Update(float64(campaigning))
 			mgr.metrics.resignOnClose.Update(float64(resignOnClose))
-			mgr.metrics.leadersWithActiveShards.Update(mgr.leadersWithActiveShards())
-			mgr.metrics.followersWithActiveShards.Update(mgr.followersWithActiveShards())
 		case <-mgr.doneCh:
 			ticker.Stop()
 			return
