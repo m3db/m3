@@ -619,18 +619,18 @@ func (n *dbNamespace) QueryIDs(
 func (n *dbNamespace) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
-	opts index.QueryOptions,
-) (index.QueryResults, error) {
+	opts index.AggregateQueryOptions,
+) (index.AggregateResults, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryResults{}, errNamespaceIndexingDisabled
+		return nil, errNamespaceIndexingDisabled
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryResults{}, xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+		return nil, xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 
 	res, err := n.reverseIndex.AggregateQuery(ctx, query, opts)

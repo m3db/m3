@@ -150,7 +150,7 @@ func NewOptions() Options {
 	}
 	resultsPool.Init(func() Results { return NewResults(nil, ResultsOptions{}, opts) })
 	aggResultsPool.Init(func() AggregateResults { return NewAggregateResults(opts) })
-	aggValuesPool.Init(func() AggregateValues { return NewAggregateValues(opts) })
+	aggValuesPool.Init(func() *AggregateValues { return NewAggregateValues(opts) })
 	return opts
 }
 

@@ -66,15 +66,15 @@ type QueryOptions struct {
 	StartInclusive time.Time
 	EndExclusive   time.Time
 	Limit          int
-
-	// Optional param to filter aggregate values.
-	TermFilter *AggregateValuesMap
 }
 
 // AggregateQueryOptions enables users to specify constraints on aggregate query
 // execution.
 type AggregateQueryOptions struct {
 	QueryOptions
+
+	// Optional param to filter aggregate values.
+	TermFilter *AggregateValuesMap
 }
 
 // LimitExceeded returns whether a given size exceeds the limit
@@ -85,9 +85,8 @@ func (o QueryOptions) LimitExceeded(size int) bool {
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
-	Results          Results
-	Exhaustive       bool
-	AggregateResults AggregateResults
+	Results    Results
+	Exhaustive bool
 }
 
 // Results is a collection of results for a query, it is synchronized
@@ -167,11 +166,6 @@ type AggregateResults interface {
 	// including returning it to a backing pool.
 	Finalize()
 
-	// NoFinalize marks the AggregateResults such that a subsequent call to
-	// Finalize() will be a no-op and will not return the object to the pool or
-	// release any of its resources.
-	NoFinalize()
-
 	// Size returns the number of results discovered.
 	Size() int
 
@@ -179,7 +173,7 @@ type AggregateResults interface {
 	// fulfilling the aggregate query and adds it to the results. This method makes
 	// a copy of the bytes backing the tags (TODO: does it?), so the original may
 	// be modified after this function returns without affecting the results map.
-	AggregateDocument(document doc.Document, opts QueryOptions) error
+	AggregateDocument(document doc.Document, opts AggregateQueryOptions) error
 
 	// AddIDAndValues adds  the given values to the given ID set.
 	//
@@ -203,33 +197,8 @@ type AggregateResultsPool interface {
 	Put(value AggregateResults)
 }
 
-// AggregateValues is a collection of values for an aggregation query.
-type AggregateValues interface {
-	// Map returns a map from tag name -> possible tag values,
-	// comprising search results.
-	Map() *AggregateValuesMap
-
-	// Size returns the number of results discovered.
-	Size() int
-
-	// reset resets the AggregateValues object to initial state.
-	reset()
-
-	// finalize releases any resources held by the AggregateValues object,
-	// including returning it to a backing pool.
-	finalize()
-
-	// noFinalize marks the AggregateValues such that a subsequent call to
-	// finalize() will be a no-op and will not return the object to the pool or
-	// release any of its resources.
-	noFinalize()
-
-	// addValue adds an ID to the aggregate values with deduplication.
-	addValue(value ident.ID) error
-}
-
 // AggregateValuesAllocator allocates AggregateValues types.
-type AggregateValuesAllocator func() AggregateValues
+type AggregateValuesAllocator func() *AggregateValues
 
 // AggregateValuesPool allows users to pool `AggregateValues` types.
 type AggregateValuesPool interface {
@@ -281,7 +250,7 @@ type Block interface {
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
 		query Query,
-		opts QueryOptions,
+		opts AggregateQueryOptions,
 		results AggregateResults,
 	) error
 

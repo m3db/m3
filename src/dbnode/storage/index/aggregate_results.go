@@ -21,15 +21,9 @@
 package index
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
-)
-
-var (
-	errUnableToAddAggregateResultMissingID = errors.New("no id for result")
 )
 
 type aggregatedResults struct {
@@ -58,7 +52,7 @@ func NewAggregateResults(opts Options) AggregateResults {
 func (r *aggregatedResults) addField(
 	term []byte,
 	value []byte,
-	opts QueryOptions,
+	opts AggregateQueryOptions,
 ) error {
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
 	// before we're sure we need it.
@@ -91,13 +85,8 @@ func (r *aggregatedResults) addField(
 
 func (r *aggregatedResults) AggregateDocument(
 	document doc.Document,
-	opts QueryOptions,
+	opts AggregateQueryOptions,
 ) error {
-	// TODO: is this neccessary to check for document correctness?
-	if len(document.ID) == 0 {
-		return errUnableToAddAggregateResultMissingID
-	}
-
 	for _, field := range document.Fields {
 		if err := r.addField(field.Name, field.Value, opts); err != nil {
 			return err
@@ -185,15 +174,4 @@ func (r *aggregatedResults) Finalize() {
 	}
 
 	r.pool.Put(r)
-}
-
-func (r *aggregatedResults) NoFinalize() {
-	// Ensure neither the results object itself, or any of its underlying
-	// IDs and tags will be finalized.
-	r.noFinalize = true
-	for _, entry := range r.resultsMap.Iter() {
-		id, values := entry.Key(), entry.Value()
-		id.NoFinalize()
-		values.noFinalize()
-	}
 }

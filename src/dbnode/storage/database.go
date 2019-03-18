@@ -721,12 +721,12 @@ func (d *db) AggregateQuery(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	opts index.QueryOptions,
-) (index.QueryResults, error) {
+	opts index.AggregateQueryOptions,
+) (index.AggregateResults, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.QueryResults{}, err
+		return nil, err
 	}
 
 	return n.AggregateQuery(ctx, query, opts)

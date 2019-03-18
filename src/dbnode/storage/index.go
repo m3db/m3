@@ -1400,15 +1400,15 @@ func (shards dbShards) IDs() []uint32 {
 func (i *nsIndex) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
-	opts index.QueryOptions,
-) (index.QueryResults, error) {
+	opts index.AggregateQueryOptions,
+) (index.AggregateResults, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
 
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		return index.QueryResults{}, errDbIndexUnableToQueryClosed
+		return nil, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -1417,7 +1417,7 @@ func (i *nsIndex) AggregateQuery(
 	defer i.queriesWg.Done()
 
 	// Enact overrides for query options
-	opts = i.overriddenOptsForQueryWithRLock(opts)
+	opts.QueryOptions = i.overriddenOptsForQueryWithRLock(opts.QueryOptions)
 	timeout := i.timeoutForQueryWithRLock(ctx)
 
 	// Retrieve blocks to query, then we can release lock
@@ -1432,7 +1432,7 @@ func (i *nsIndex) AggregateQuery(
 	i.state.RUnlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return nil, err
 	}
 
 	var (
@@ -1564,7 +1564,7 @@ func (i *nsIndex) AggregateQuery(
 
 		if timedOut {
 			// Exceeded our deadline waiting for this block's query to start.
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return nil, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1576,7 +1576,7 @@ func (i *nsIndex) AggregateQuery(
 		// Need to abort early if timeout hit.
 		timeLeft := deadline.Sub(i.nowFn())
 		if timeLeft <= 0 {
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return nil, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 
 		var (
@@ -1598,7 +1598,7 @@ func (i *nsIndex) AggregateQuery(
 		ticker.Stop()
 
 		if aborted {
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return nil, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1607,13 +1607,12 @@ func (i *nsIndex) AggregateQuery(
 	results.returned = true
 	// Take reference to vars to return while locked, need to allow defer
 	// lock/unlock cleanup to not deadlock with this locked code block.
-	exhaustive := results.exhaustive
 	mergedResults := results.merged
 	err = results.multiErr.FinalError()
 	results.Unlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return nil, err
 	}
 
 	// If no blocks queried, return an empty result
@@ -1622,8 +1621,5 @@ func (i *nsIndex) AggregateQuery(
 		mergedResults.Reset(i.nsMetadata.ID())
 	}
 
-	return index.QueryResults{
-		Exhaustive:       exhaustive,
-		AggregateResults: mergedResults,
-	}, nil
+	return mergedResults, nil
 }

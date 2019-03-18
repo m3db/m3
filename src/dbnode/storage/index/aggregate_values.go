@@ -31,7 +31,7 @@ var (
 	errUnableToAddValueMissingID = errors.New("no id for value")
 )
 
-type aggregatedValues struct {
+type AggregateValues struct {
 	valuesMap *AggregateValuesMap
 
 	bytesPool pool.CheckedBytesPool
@@ -41,23 +41,23 @@ type aggregatedValues struct {
 }
 
 // NewAggregateValues returns a new AggregateValues object.
-func NewAggregateValues(opts Options) AggregateValues {
-	return &aggregatedValues{
+func NewAggregateValues(opts Options) *AggregateValues {
+	return &AggregateValues{
 		valuesMap: NewAggregateValuesMap(opts.IdentifierPool()),
 		bytesPool: opts.CheckedBytesPool(),
 		pool:      opts.AggregateValuesPool(),
 	}
 }
 
-func (v *aggregatedValues) Map() *AggregateValuesMap {
+func (v *AggregateValues) Map() *AggregateValuesMap {
 	return v.valuesMap
 }
 
-func (v *aggregatedValues) Size() int {
+func (v *AggregateValues) Size() int {
 	return v.valuesMap.Len()
 }
 
-func (v *aggregatedValues) reset() {
+func (v *AggregateValues) reset() {
 	// reset all values from map first
 	for _, entry := range v.valuesMap.Iter() {
 		ident := entry.Key()
@@ -68,7 +68,7 @@ func (v *aggregatedValues) reset() {
 	v.valuesMap.Reset()
 }
 
-func (v *aggregatedValues) finalize() {
+func (v *AggregateValues) finalize() {
 	if v.noFinalizeVar {
 		return
 	}
@@ -78,20 +78,10 @@ func (v *aggregatedValues) finalize() {
 		return
 	}
 
-	v.pool.Put(v)
+	v.pool.Put(*v)
 }
 
-func (v *aggregatedValues) noFinalize() {
-	// Ensure neither the results object itself, or any of its underlying
-	// IDs and tags will be finalized.
-	v.noFinalizeVar = true
-	for _, entry := range v.valuesMap.Iter() {
-		id := entry.Key()
-		id.NoFinalize()
-	}
-}
-
-func (v *aggregatedValues) addValue(value ident.ID) error {
+func (v *AggregateValues) addValue(value ident.ID) error {
 	bytesID := ident.BytesID(value.Bytes())
 	if len(bytesID) == 0 {
 		return errUnableToAddValueMissingID
