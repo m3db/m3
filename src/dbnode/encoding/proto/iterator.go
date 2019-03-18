@@ -184,7 +184,7 @@ func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
 	it.schema = schema
 	// TODO: use same logic as encoder
 	it.customFields = customFields(it.customFields, schema)
-	it.lastIterated = dynamic.NewMessage(schema)
+	// it.lastIterated = dynamic.NewMessage(schema)
 }
 
 func (it *iterator) Close() {
@@ -193,8 +193,10 @@ func (it *iterator) Close() {
 	}
 
 	it.closed = true
-	pool := it.opts.ReaderIteratorPool()
-	if pool != nil {
+	it.stream.Reset(nil)
+	it.m3tszIterator.Reset(nil)
+
+	if pool := it.opts.ReaderIteratorPool(); pool != nil {
 		pool.Put(it)
 	}
 }
@@ -274,22 +276,22 @@ func (it *iterator) readProtoValues() error {
 
 func (it *iterator) readFirstCustomValues() error {
 	for i, customField := range it.customFields {
-		if isCustomFloatEncodedField(customField.fieldType) {
+		switch {
+		case isCustomFloatEncodedField(customField.fieldType):
 			if err := it.readFirstTSZValue(i, customField); err != nil {
 				return err
 			}
-		}
-
-		if customField.fieldType == cBytes {
+		case customField.fieldType == cBytes:
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
-		}
-
-		if isCustomIntEncodedField(customField.fieldType) {
+		case isCustomIntEncodedField(customField.fieldType):
 			if err := it.readIntValue(i, customField, true); err != nil {
 				return err
 			}
+		default:
+			return fmt.Errorf(
+				"proto iterator: unhandled custom field type: %v", customField.fieldType)
 		}
 	}
 
@@ -412,14 +414,14 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 				dictIdx, len(customField.iteratorBytesFieldDict))
 		}
 
-		bytesVal := customField.iteratorBytesFieldDict[int(dictIdx)]
+		bytesVal := customField.iteratorBytesFieldDict[dictIdx]
 		if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, string(bytesVal))
 		} else {
 			it.lastIterated.SetFieldByNumber(customField.fieldNum, bytesVal)
 		}
 
-		it.moveToEndOfBytesDict(i, int(dictIdx))
+		it.moveToEndOfBytesDict(i, dictIdx)
 		return nil
 	}
 

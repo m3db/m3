@@ -197,7 +197,7 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 
 // Len returns the length of the data stream.
 func (enc *Encoder) Len() int {
-	return enc.m3tszEncoder.Len()
+	return enc.stream.Len()
 }
 
 func (enc *Encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
@@ -279,7 +279,6 @@ func (enc *Encoder) Close() {
 	}
 
 	enc.closed = true
-
 	enc.stream.Reset(nil)
 	enc.m3tszEncoder.Reset(time.Time{}, 0)
 

@@ -16,12 +16,11 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.f
+// THE SOFTWARE.
 
 package proto
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"reflect"
@@ -71,7 +70,6 @@ func TestRoundtripProp(t *testing.T) {
 
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
-
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		times := make([]time.Time, 0, len(input.messages))
 		currTime := time.Now()
@@ -101,12 +99,9 @@ func TestRoundtripProp(t *testing.T) {
 			}
 		}
 
-		rawBytes, err := enc.Bytes()
-		require.NoError(t, err)
-
-		buff := bytes.NewBuffer(rawBytes)
+		stream := enc.Stream()
 		iter.SetSchema(input.schema)
-		iter.Reset(buff)
+		iter.Reset(stream)
 
 		i := 0
 		for iter.Next() {
@@ -164,10 +159,10 @@ type propTestInput struct {
 //
 // If we receive a schema where the message has 5 boolean fields and then 5 string
 // fields, then we will populate the first 5 booleans fields with generatedWrite.bools[:5]
-// and the next 5 string fields with generatedWrite.strings[:5].
+// and the next 5 string fields with generatedWrite.strings[5:].
 type generatedWrite struct {
 	// Whether we should use one of the randomly generated values in the slice below,
-	// or just the default value for the given type.S
+	// or just the default value for the given type.
 	useDefaultValue []bool
 
 	bools    []bool
@@ -235,9 +230,6 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 				fieldType   = field.GetType()
 				fieldNumber = int(field.GetNumber())
 			)
-			if len(input.strings[i]) == 0 {
-				input.strings[i] = "a"
-			}
 			switch fieldType {
 			case dpb.FieldDescriptorProto_TYPE_BOOL:
 				message.SetFieldByNumber(fieldNumber, input.bools[i])
