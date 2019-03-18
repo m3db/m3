@@ -21,16 +21,18 @@
 package index
 
 import (
-	"github.com/cespare/xxhash"
-
 	"github.com/m3db/m3x/ident"
+
+	"github.com/cespare/xxhash"
 )
 
 const (
 	defaultInitialAggregatedValuesMapSize = 10
 )
 
-func newAggregateValuesMap(idPool ident.Pool) *AggregateValuesMap {
+// NewAggregateValuesMap builds an AggregateValuesMap, which is primarily used
+// for checking for existence of particular ident.IDs.
+func NewAggregateValuesMap(idPool ident.Pool) *AggregateValuesMap {
 	return _AggregateValuesMapAlloc(_AggregateValuesMapOptions{
 		hash: func(k ident.ID) AggregateValuesMapHash {
 			return AggregateValuesMapHash(xxhash.Sum64(k.Bytes()))

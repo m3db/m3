@@ -55,9 +55,12 @@ func NewAggregateResults(opts Options) AggregateResults {
 	}
 }
 
-func (r *aggregatedResults) AggregateDocument(document doc.Document) error {
+func (r *aggregatedResults) AggregateDocument(
+	document doc.Document,
+	opts AggregateQueryOptions,
+) error {
 	if len(document.ID) == 0 {
-		return errUnableToAddResultMissingID
+		return errUnableToAddAggregateResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
@@ -65,9 +68,15 @@ func (r *aggregatedResults) AggregateDocument(document doc.Document) error {
 	tsID := ident.BytesID(document.ID)
 
 	// check if it already exists in the map.
+	// NB: if it is already in the map, this is a valid ID to add.
 	value, found := r.resultsMap.Get(tsID)
 	if found {
 		return value.addValue(tsID)
+	}
+
+	// check if this value should be included in output.
+	if !opts.TermRestriction.Contains(tsID) {
+		return nil
 	}
 
 	aggValues := r.valuesPool.Get()
@@ -98,6 +107,7 @@ func (r *aggregatedResults) Reset(nsID ident.ID) {
 	if r.nsID != nil {
 		r.nsID.Finalize()
 	}
+
 	// make an independent copy of the new nsID
 	if nsID != nil {
 		nsID = r.idPool.Clone(nsID)

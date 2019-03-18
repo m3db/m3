@@ -21,9 +21,9 @@
 package index
 
 import (
-	"github.com/cespare/xxhash"
-
 	"github.com/m3db/m3x/ident"
+
+	"github.com/cespare/xxhash"
 )
 
 const (

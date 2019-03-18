@@ -66,6 +66,15 @@ type QueryOptions struct {
 	StartInclusive time.Time
 	EndExclusive   time.Time
 	Limit          int
+
+	// NB: optionally add TermRestriction here
+	// TermRestriction *AggregateValuesMap
+}
+
+// AggregateQueryOptions enables users to specify constraints on aggregate query
+// execution.
+type AggregateQueryOptions struct {
+	QueryOptions
 }
 
 // LimitExceeded returns whether a given size exceeds the limit
@@ -141,6 +150,12 @@ type ResultsPool interface {
 	Put(value Results)
 }
 
+// AggregateQueryResults is the collection of results for a query.
+type AggregateQueryResults struct {
+	AggregateResults AggregateResults
+	Exhaustive       bool
+}
+
 // AggregateResults is a collection of results for an aggregation query.
 type AggregateResults interface {
 	// Namespace returns the namespace associated with the result.
@@ -169,7 +184,7 @@ type AggregateResults interface {
 	// fulfilling the aggregate query and adds it to the results. This method makes
 	// a copy of the bytes backing the tags (TODO: does it?), so the original may
 	// be modified after this function returns without affecting the results map.
-	AggregateDocument(document doc.Document) error
+	AggregateDocument(document doc.Document, opts AggregateQueryOptions) error
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.

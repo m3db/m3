@@ -157,20 +157,6 @@ genny-map-storage-index-results: install-m3x-repo
 	# Rename generated map file
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/results_map_gen.go
 
-# Map generation rule for storage/index/AggregationValuesMap
-.PHONY: genny-map-storage-index-aggregation-values
-genny-map-storage-index-aggregation-values: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen                \
-		pkg=index                                               \
-		key_type=ident.ID                                       \
-		value_type=[]ident.ID                                   \
-		target_package=$(m3db_package)/src/dbnode/storage/index \
-		rename_nogen_key=true                                   \
-		rename_nogen_value=true                                 \
-		rename_type_prefix=Values
-	# Rename generated map file
-	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/values_map_gen.go
-
 genny-map-storage-index-aggregate-values: install-m3x-repo
 	cd $(m3x_package_path) && make hashmap-gen \
 		pkg=index                                \
