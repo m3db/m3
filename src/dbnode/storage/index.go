@@ -93,7 +93,9 @@ type nsIndex struct {
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
 
-	resultsPool index.ResultsPool
+	resultsPool          index.ResultsPool
+	aggregateResultsPool index.AggregateResultsPool
+
 	// NB(r): Use a pooled goroutine worker once pooled goroutine workers
 	// support timeouts for query workers pool.
 	queryWorkersPool xsync.WorkerPool
@@ -248,14 +250,16 @@ func newNamespaceIndexWithOptions(
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
 
-		newBlockFn:       newBlockFn,
-		opts:             newIndexOpts.opts,
-		logger:           indexOpts.InstrumentOptions().Logger(),
-		nsMetadata:       nsMD,
-		resultsPool:      indexOpts.ResultsPool(),
-		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		newBlockFn: newBlockFn,
+		opts:       newIndexOpts.opts,
+		logger:     indexOpts.InstrumentOptions().Logger(),
+		nsMetadata: nsMD,
 
-		metrics: newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+		resultsPool:          indexOpts.ResultsPool(),
+		aggregateResultsPool: indexOpts.AggregateResultsPool(),
+
+		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
@@ -1391,4 +1395,235 @@ func (shards dbShards) IDs() []uint32 {
 		ids = append(ids, s.ID())
 	}
 	return ids
+}
+
+func (i *nsIndex) AggregateQuery(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+) (index.QueryResults, error) {
+	// Capture start before needing to acquire lock.
+	start := i.nowFn()
+
+	i.state.RLock()
+	if !i.isOpenWithRLock() {
+		i.state.RUnlock()
+		return index.QueryResults{}, errDbIndexUnableToQueryClosed
+	}
+
+	// Track this as an inflight query that needs to finish
+	// when the index is closed.
+	i.queriesWg.Add(1)
+	defer i.queriesWg.Done()
+
+	// Enact overrides for query options
+	opts = i.overriddenOptsForQueryWithRLock(opts)
+	timeout := i.timeoutForQueryWithRLock(ctx)
+
+	// Retrieve blocks to query, then we can release lock
+	// NB(r): Important not to block ticking, and other tasks by
+	// holding the RLock during a query.
+	blocks, err := i.blocksForQueryWithRLock(xtime.NewRanges(xtime.Range{
+		Start: opts.StartInclusive,
+		End:   opts.EndExclusive,
+	}))
+
+	// Can now release the lock and execute the query without holding the lock.
+	i.state.RUnlock()
+
+	if err != nil {
+		return index.QueryResults{}, err
+	}
+
+	var (
+		deadline = start.Add(timeout)
+		wg       sync.WaitGroup
+
+		// Results contains all concurrent mutable state below.
+		results = struct {
+			sync.Mutex
+			multiErr   xerrors.MultiError
+			merged     index.AggregateResults
+			exhaustive bool
+			returned   bool
+		}{
+			merged:     nil,
+			exhaustive: true,
+			returned:   false,
+		}
+	)
+	defer func() {
+		// Ensure that during early error returns we let any aborted
+		// goroutines know not to try to modify/edit the result any longer.
+		results.Lock()
+		results.returned = true
+		results.Unlock()
+	}()
+
+	execBlockQuery := func(block index.Block) {
+		aggregateResults := i.aggregateResultsPool.Get()
+		aggregateResults.Reset(i.nsMetadata.ID())
+
+		err := block.AggregateQuery(query, opts, aggregateResults)
+		if err == index.ErrUnableToQueryBlockClosed {
+			// NB(r): Because we query this block outside of the results lock, it's
+			// possible this block may get closed if it slides out of retention, in
+			// that case those results are no longer considered valid and outside of
+			// retention regardless, so this is a non-issue.
+			err = nil
+		}
+
+		var mergedResult bool
+		results.Lock()
+		defer func() {
+			results.Unlock()
+			if mergedResult {
+				// Only finalize this result if we merged it into another.
+				aggregateResults.Finalize()
+			}
+		}()
+
+		if results.returned {
+			// If already returned then we early cancelled, don't add any
+			// further results or errors since caller already has a result.
+			return
+		}
+
+		if err != nil {
+			results.multiErr = results.multiErr.Add(err)
+			return
+		}
+
+		if results.merged == nil {
+			// Return results to pool at end of request.
+			ctx.RegisterFinalizer(aggregateResults)
+			// No merged results yet, use this as the first to merge into.
+			results.merged = aggregateResults
+		} else {
+			// Append the block results.
+			mergedResult = true
+			for _, entry := range aggregateResults.Map().Iter() {
+				// Append to merged results.
+				id, tags := entry.Key(), entry.Value()
+				err = results.merged.AddIDAndValues(id, tags)
+				if err != nil {
+					results.multiErr = results.multiErr.Add(err)
+					return
+				}
+			}
+		}
+	}
+
+	for _, block := range blocks {
+		// Capture block for async query execution below.
+		block := block
+
+		// Terminate early if we know we don't need any more results.
+		results.Lock()
+		mergedSize := 0
+		if results.merged != nil {
+			mergedSize = results.merged.Size()
+		}
+		alreadyNotExhaustive := opts.Limit > 0 && mergedSize >= opts.Limit
+		if alreadyNotExhaustive {
+			results.exhaustive = false
+		}
+		results.Unlock()
+
+		if alreadyNotExhaustive {
+			// Break out if already exhaustive.
+			break
+		}
+
+		if applyTimeout := timeout > 0; !applyTimeout {
+			// No timeout, just wait blockingly for a worker.
+			wg.Add(1)
+			i.queryWorkersPool.Go(func() {
+				execBlockQuery(block)
+				wg.Done()
+			})
+			continue
+		}
+
+		// Need to apply timeout to the blocking wait call for a worker.
+		var timedOut bool
+		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
+			wg.Add(1)
+			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
+				execBlockQuery(block)
+				wg.Done()
+			}, timeLeft)
+
+			if timedOut {
+				// Did not launch task, need to ensure don't wait for it.
+				wg.Done()
+			}
+		} else {
+			timedOut = true
+		}
+
+		if timedOut {
+			// Exceeded our deadline waiting for this block's query to start.
+			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+		}
+	}
+
+	// Wait for queries to finish.
+	if !(timeout > 0) {
+		// No timeout, just blockingly wait.
+		wg.Wait()
+	} else {
+		// Need to abort early if timeout hit.
+		timeLeft := deadline.Sub(i.nowFn())
+		if timeLeft <= 0 {
+			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+		}
+
+		var (
+			ticker  = time.NewTicker(timeLeft)
+			doneCh  = make(chan struct{})
+			aborted bool
+		)
+		go func() {
+			wg.Wait()
+			close(doneCh)
+		}()
+		select {
+		case <-ticker.C:
+			aborted = true
+		case <-doneCh:
+		}
+
+		// Make sure to always free the timer/ticker so they don't sit around.
+		ticker.Stop()
+
+		if aborted {
+			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+		}
+	}
+
+	results.Lock()
+	// Signal not to add any further results since we've returned already.
+	results.returned = true
+	// Take reference to vars to return while locked, need to allow defer
+	// lock/unlock cleanup to not deadlock with this locked code block.
+	exhaustive := results.exhaustive
+	mergedResults := results.merged
+	err = results.multiErr.FinalError()
+	results.Unlock()
+
+	if err != nil {
+		return index.QueryResults{}, err
+	}
+
+	// If no blocks queried, return an empty result
+	if mergedResults == nil {
+		mergedResults = i.aggregateResultsPool.Get()
+		mergedResults.Reset(i.nsMetadata.ID())
+	}
+
+	return index.QueryResults{
+		Exhaustive:       exhaustive,
+		AggregateResults: mergedResults,
+	}, nil
 }

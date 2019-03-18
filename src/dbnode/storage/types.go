@@ -284,6 +284,14 @@ type databaseNamespace interface {
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
 
+	// AggregateQuery resolves the given query into unique tag/value pairs for
+	// that query.
+	AggregateQuery(
+		ctx context.Context,
+		query index.Query,
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
+
 	// ReadEncoded reads data for given id within [start, end).
 	ReadEncoded(
 		ctx context.Context,
@@ -473,6 +481,14 @@ type namespaceIndex interface {
 
 	// Query resolves the given query into known IDs.
 	Query(
+		ctx context.Context,
+		query index.Query,
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
+
+	// AggregateQuery resolves the given query into unique tag/value pairs for
+	// that query.
+	AggregateQuery(
 		ctx context.Context,
 		query index.Query,
 		opts index.QueryOptions,

@@ -67,8 +67,8 @@ type QueryOptions struct {
 	EndExclusive   time.Time
 	Limit          int
 
-	// NB: optionally add TermRestriction here
-	// TermRestriction *AggregateValuesMap
+	// Optional param to filter aggregate values.
+	TermFilter *AggregateValuesMap
 }
 
 // AggregateQueryOptions enables users to specify constraints on aggregate query
@@ -85,8 +85,9 @@ func (o QueryOptions) LimitExceeded(size int) bool {
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
-	Results    Results
-	Exhaustive bool
+	Results          Results
+	Exhaustive       bool
+	AggregateResults AggregateResults
 }
 
 // Results is a collection of results for a query, it is synchronized
@@ -150,12 +151,6 @@ type ResultsPool interface {
 	Put(value Results)
 }
 
-// AggregateQueryResults is the collection of results for a query.
-type AggregateQueryResults struct {
-	AggregateResults AggregateResults
-	Exhaustive       bool
-}
-
 // AggregateResults is a collection of results for an aggregation query.
 type AggregateResults interface {
 	// Namespace returns the namespace associated with the result.
@@ -184,7 +179,13 @@ type AggregateResults interface {
 	// fulfilling the aggregate query and adds it to the results. This method makes
 	// a copy of the bytes backing the tags (TODO: does it?), so the original may
 	// be modified after this function returns without affecting the results map.
-	AggregateDocument(document doc.Document, opts AggregateQueryOptions) error
+	AggregateDocument(document doc.Document, opts QueryOptions) error
+
+	// AddIDAndValues adds  the given values to the given ID set.
+	//
+	// NB: this does not need to take in query options for filtering, since all
+	// incoming values are presumed to have already been filtered.
+	AddIDAndValues(id ident.ID, values AggregateValues) error
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
@@ -276,6 +277,13 @@ type Block interface {
 		opts QueryOptions,
 		results Results,
 	) (exhaustive bool, err error)
+
+	// AggregateQuery resolves the given query into aggregated tags.
+	AggregateQuery(
+		query Query,
+		opts QueryOptions,
+		results AggregateResults,
+	) error
 
 	// AddResults adds bootstrap results to the block, if c.
 	AddResults(results result.IndexBlock) error

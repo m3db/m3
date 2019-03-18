@@ -55,38 +55,85 @@ func NewAggregateResults(opts Options) AggregateResults {
 	}
 }
 
-func (r *aggregatedResults) AggregateDocument(
-	document doc.Document,
-	opts AggregateQueryOptions,
+func (r *aggregatedResults) addField(
+	term []byte,
+	value []byte,
+	opts QueryOptions,
 ) error {
-	if len(document.ID) == 0 {
-		return errUnableToAddAggregateResultMissingID
-	}
-
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
 	// before we're sure we need it.
-	tsID := ident.BytesID(document.ID)
+	termID := ident.BytesID(term)
 
-	// check if it already exists in the map.
-	// NB: if it is already in the map, this is a valid ID to add.
-	value, found := r.resultsMap.Get(tsID)
+	// NB: if it is already in the map, this is a valid ID to add and it's not
+	// necessary to check against the filter.
+	valueMap, found := r.resultsMap.Get(termID)
 	if found {
-		return value.addValue(tsID)
+		valueID := ident.BytesID(value)
+		return valueMap.addValue(valueID)
 	}
 
-	// check if this value should be included in output.
-	if !opts.TermRestriction.Contains(tsID) {
+	// if this term hasn't been seen, ensure it should be included in output.
+	if !opts.TermFilter.Contains(termID) {
 		return nil
 	}
 
 	aggValues := r.valuesPool.Get()
-	if err := aggValues.addValue(tsID); err != nil {
+	valueID := ident.BytesID(value)
+	if err := aggValues.addValue(valueID); err != nil {
 		// Return these values to the pool.
 		r.valuesPool.Put(aggValues)
 		return err
 	}
 
-	r.resultsMap.Set(tsID, aggValues)
+	r.resultsMap.Set(termID, aggValues)
+	return nil
+}
+
+func (r *aggregatedResults) AggregateDocument(
+	document doc.Document,
+	opts QueryOptions,
+) error {
+	// TODO: is this neccessary to check for document correctness?
+	if len(document.ID) == 0 {
+		return errUnableToAddAggregateResultMissingID
+	}
+
+	for _, field := range document.Fields {
+		if err := r.addField(field.Name, field.Value, opts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *aggregatedResults) AddIDAndValues(
+	termID ident.ID,
+	values AggregateValues,
+) error {
+	valueIt := values.Map().Iter()
+
+	valueMap, found := r.resultsMap.Get(termID)
+	if found {
+		for _, value := range valueIt {
+			if err := valueMap.addValue(value.Key()); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	aggValues := r.valuesPool.Get()
+	for _, value := range valueIt {
+		if err := aggValues.addValue(value.Key()); err != nil {
+			// Return these values to the pool.
+			r.valuesPool.Put(aggValues)
+			return err
+		}
+	}
+
+	r.resultsMap.Set(termID, aggValues)
 	return nil
 }
 
@@ -133,10 +180,10 @@ func (r *aggregatedResults) Finalize() {
 	}
 
 	r.Reset(nil)
-
 	if r.pool == nil {
 		return
 	}
+
 	r.pool.Put(r)
 }
 
