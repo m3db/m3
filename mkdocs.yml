@@ -60,6 +60,8 @@ pages:
       - "Overview": "query_engine/architecture/index.md"
       - "Blocks": "query_engine/architecture/blocks.md"
       - "Function Processing": "query_engine/architecture/functions.md"
+    - "Configuration":
+      - "Annotated Config File": "query_engine/config/annotated_config.md"
   - "How-To's":
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
