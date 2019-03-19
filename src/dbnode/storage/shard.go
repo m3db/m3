@@ -781,9 +781,9 @@ func (s *dbShard) writeAndIndex(
 
 	writable := entry != nil
 
-	// If no entry and we are not writing new series asynchronously
+	// If no entry and we are not writing new series asynchronously.
 	if !writable && !opts.writeNewSeriesAsync {
-		// Avoid double lookup by enqueueing insert immediately
+		// Avoid double lookup by enqueueing insert immediately.
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
@@ -819,7 +819,9 @@ func (s *dbShard) writeAndIndex(
 		wasWritten = true
 	)
 	if writable {
-		// Perform write
+		// Perform write. No need to copy the annotation here because we're using it
+		// synchronously and all downstream code will copy anthing they need to maintain
+		// a reference to.
 		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
@@ -842,14 +844,21 @@ func (s *dbShard) writeAndIndex(
 			return ts.Series{}, false, err
 		}
 	} else {
-		// This is an asynchronous insert and write
+		// This is an asynchronous insert and write which means we need to clone the annotation
+		// because it could get returned to a pool at any point after this function returns.
+		annotationClone := s.opts.BytesPool().Get(len(annotation))
+		// IncRef here so we can write the bytes in, but don't DecRef because the queue is about
+		// to take ownership and will DecRef when its done.
+		annotationClone.IncRef()
+		annotationClone.AppendAll(annotation)
+
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
 				value:      value,
 				unit:       unit,
-				annotation: annotation,
+				annotation: annotationClone,
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
@@ -1289,10 +1298,16 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
 			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
-				write.unit, write.annotation)
+				write.unit, write.annotation.Bytes())
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
 			}
+
+			// Now that we've performed the write, we can finalize the annotation because
+			// we're done with it and all the code from the series downwards has copied any
+			// data that it required.
+			write.annotation.DecRef()
+			write.annotation.Finalize()
 		}
 
 		if inserts[i].opts.hasPendingIndexing {
