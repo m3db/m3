@@ -107,6 +107,8 @@ func (b *writeBatch) SetSkipWrite(idx int) {
 	b.writes[idx].SkipWrite = true
 }
 
+// Set the function that will be called to finalize annotations when a WriteBatch
+// is finalized, allowing the caller to pool them.
 func (b *writeBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
 	b.finalizeAnnotationFn = f
 }
@@ -122,6 +124,7 @@ func (b *writeBatch) Finalize() {
 			b.finalizeAnnotationFn(annotation)
 		}
 	}
+	b.finalizeAnnotationFn = nil
 
 	b.ns = nil
 	b.writes = b.writes[:0]
