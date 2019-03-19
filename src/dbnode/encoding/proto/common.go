@@ -77,6 +77,9 @@ var (
 
 		dpb.FieldDescriptorProto_TYPE_INT32:    cSignedInt32,
 		dpb.FieldDescriptorProto_TYPE_SFIXED32: cSignedInt32,
+		// Signed because thats how Proto encodes it (can technically have negative
+		// enum values but its not recommended.)
+		dpb.FieldDescriptorProto_TYPE_ENUM: cSignedInt32,
 
 		dpb.FieldDescriptorProto_TYPE_UINT32:  cUnsignedInt32,
 		dpb.FieldDescriptorProto_TYPE_FIXED32: cUnsignedInt32,
@@ -86,9 +89,6 @@ var (
 
 		dpb.FieldDescriptorProto_TYPE_STRING: cBytes,
 		dpb.FieldDescriptorProto_TYPE_BYTES:  cBytes,
-
-		// dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
-
 	}
 
 	customIntEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
@@ -108,17 +108,17 @@ var (
 	}
 
 	customEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
-		dpb.FieldDescriptorProto_TYPE_DOUBLE:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FLOAT:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT64:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT64:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED32: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_STRING:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_BYTES:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT32:  struct{}{},
-		// dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
+		dpb.FieldDescriptorProto_TYPE_DOUBLE:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FLOAT:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT64:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_UINT64:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_INT32:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FIXED64:  struct{}{},
+		dpb.FieldDescriptorProto_TYPE_FIXED32:  struct{}{},
+		dpb.FieldDescriptorProto_TYPE_STRING:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_BYTES:    struct{}{},
+		dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
+		dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
@@ -135,6 +135,8 @@ var (
 		dpb.FieldDescriptorProto_TYPE_FIXED32: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_BOOL:    struct{}{},
 		dpb.FieldDescriptorProto_TYPE_STRING:  struct{}{},
+		// TODO(rartoul): Add support for nested messages / repeated fields,
+		// and maps: https://github.com/m3db/m3/issues/1471
 		// FieldDescriptorProto_TYPE_MESSAGE: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_BYTES:    struct{}{},
 		dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
