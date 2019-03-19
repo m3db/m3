@@ -856,8 +856,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
 		return convert.ToRPCError(err)
-		return err
 	}
+	// The lifecycle of the annotations is more involved than the rest of the data
+	// so we set the annotation pool put method as the finalization function and
+	// let the database take care of returning them to the pool.
+	batchWriter.SetFinalizeAnnotationFn(apachethrift.BytesPoolPut)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
@@ -931,6 +934,10 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
+	// The lifecycle of the annotations is more involved than the rest of the data
+	// so we set the annotation pool put method as the finalization function and
+	// let the database take care of returning them to the pool.
+	batchWriter.SetFinalizeAnnotationFn(apachethrift.BytesPoolPut)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
@@ -1302,9 +1309,11 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			if elem.Datapoint.Annotation != nil {
-				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-			}
+			// Don't return the annotations to the pool because they don't
+			// automatically get cloned like the IDs do. They will get returned
+			// to the pool automatically by the commitlog once it finishes writing
+			// them to disk via the finalization function that gets set on the
+			// WriteBatch.
 		}
 		r.writeReq = nil
 	}
@@ -1312,9 +1321,7 @@ func (r *writeBatchPooledReq) Finalize() {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
 			apachethrift.BytesPoolPut(elem.EncodedTags)
-			if elem.Datapoint.Annotation != nil {
-				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-			}
+			// See comment above about not finalizing annotations here.
 		}
 		r.writeTaggedReq = nil
 	}
