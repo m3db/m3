@@ -79,13 +79,17 @@ type QueryResults struct {
 	Exhaustive bool
 }
 
-// Results is a collection of results for a query.
+// Results is a collection of results for a query, it is synchronized
+// when access to the results set is used as documented by the methods.
 type Results interface {
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
-	// Map returns a map from seriesID -> seriesTags, comprising index results.
-	Map() *ResultsMap
+	// WithMap executes a function that has access to a results map
+	// from seriesID -> seriesTags, comprising index results.
+	// A function is required to ensure that the results is used
+	// while a read lock for the results is held.
+	WithMap(fn func(results *ResultsMap))
 
 	// Reset resets the Results object to initial state.
 	Reset(nsID ident.ID)
@@ -111,6 +115,14 @@ type Results interface {
 		document doc.Document,
 	) (added bool, size int, err error)
 
+	// AddDocumentsBatch adds the batch of documents to the results set, it will
+	// take a copy of the bytes backing the documents so the original can be modified
+	// after this function returns without affecting the results map.
+	AddDocumentsBatch(
+		batch []doc.Document,
+		opts AddDocumentsBatchResultsOptions,
+	) (numPartialUpdates int, size int, err error)
+
 	// AddIDAndTagsOrFinalize adds ID and tags to the results and takes ownership
 	// if it does not exist, otherwise if it's already contained it returns added
 	// false.
@@ -118,6 +130,22 @@ type Results interface {
 		id ident.ID,
 		tags ident.Tags,
 	) (added bool, size int, err error)
+}
+
+// AddDocumentsBatchResultsOptions is a set of options to use when adding
+// results for a query.
+type AddDocumentsBatchResultsOptions struct {
+	// If AllowPartialUpdates is true the query result will continue to add results
+	// even if it encounters an error attempting to add document that already exists
+	// in the results set.
+	// If false, on the other hand, then any errors encountered adding a document
+	// that already exists to the results set will cause the addition of a batch to
+	// fail and none of the documents in the batch will be added to the results.
+	AllowPartialUpdates bool
+
+	// LimitSize will limit the total results set to a given limit and if overflown
+	// will return early successfully.
+	LimitSize int
 }
 
 // ResultsAllocator allocates Results types.

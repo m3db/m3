@@ -300,9 +300,13 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	require.NoError(t, err)
 	results := res.Results
 	require.Equal(t, testNamespaces[0].String(), results.Namespace().String())
-	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
-	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
-		"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
+
+	var idxFound bool
+	results.WithMap(func(rMap *index.ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("quorumTest"))
+		idxFound = ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
+			"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
+	})
 
 	if !idxFound {
 		return false

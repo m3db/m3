@@ -71,9 +71,11 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.True(t, added)
 	require.Equal(t, 1, size)
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 
 	d2 := doc.Document{ID: []byte("abc"),
 		Fields: doc.Fields{
@@ -84,9 +86,11 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.False(t, added)
 	require.Equal(t, 1, size)
 
-	tags, ok = res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 }
 
 func TestResultsInsertContains(t *testing.T) {
@@ -97,9 +101,11 @@ func TestResultsInsertContains(t *testing.T) {
 	require.True(t, added)
 	require.Equal(t, 1, size)
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 }
 
 func TestResultsInsertCopies(t *testing.T) {
@@ -116,33 +122,35 @@ func TestResultsInsertCopies(t *testing.T) {
 	// our genny generated maps don't provide access to MapEntry directly,
 	// so we iterate over the map to find the added entry. Could avoid this
 	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
-	for _, entry := range res.Map().Iter() {
-		// see if this key has the same value as the added document's ID.
-		key := entry.Key().Bytes()
-		if !bytes.Equal(dValid.ID, key) {
-			continue
-		}
-		found = true
-		// ensure the underlying []byte for ID/Fields is at a different address
-		// than the original.
-		require.False(t, xtest.ByteSlicesBackedBySameData(key, dValid.ID))
-		tags := entry.Value().Values()
-		for _, f := range dValid.Fields {
-			fName := f.Name
-			fValue := f.Value
-			for _, tag := range tags {
-				tName := tag.Name.Bytes()
-				tValue := tag.Value.Bytes()
-				if !bytes.Equal(fName, tName) || !bytes.Equal(fValue, tValue) {
-					continue
+	res.WithMap(func(rMap *ResultsMap) {
+		for _, entry := range rMap.Iter() {
+			// see if this key has the same value as the added document's ID.
+			key := entry.Key().Bytes()
+			if !bytes.Equal(dValid.ID, key) {
+				continue
+			}
+			found = true
+			// ensure the underlying []byte for ID/Fields is at a different address
+			// than the original.
+			require.False(t, xtest.ByteSlicesBackedBySameData(key, dValid.ID))
+			tags := entry.Value().Values()
+			for _, f := range dValid.Fields {
+				fName := f.Name
+				fValue := f.Value
+				for _, tag := range tags {
+					tName := tag.Name.Bytes()
+					tValue := tag.Value.Bytes()
+					if !bytes.Equal(fName, tName) || !bytes.Equal(fValue, tValue) {
+						continue
+					}
+					require.False(t, xtest.ByteSlicesBackedBySameData(fName, tName))
+					require.False(t, xtest.ByteSlicesBackedBySameData(fValue, tValue))
 				}
-				require.False(t, xtest.ByteSlicesBackedBySameData(fName, tName))
-				require.False(t, xtest.ByteSlicesBackedBySameData(fValue, tValue))
 			}
 		}
-	}
 
-	require.True(t, found)
+		require.True(t, found)
+	})
 }
 
 func TestResultsInsertIDAndTagsInvalid(t *testing.T) {
@@ -175,9 +183,11 @@ func TestResultsIDAndTagsFirstInsertWins(t *testing.T) {
 	require.True(t, added)
 	require.Equal(t, 1, size)
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 
 	d2 := doc.Document{ID: []byte("abc"),
 		Fields: doc.Fields{
@@ -188,9 +198,11 @@ func TestResultsIDAndTagsFirstInsertWins(t *testing.T) {
 	require.False(t, added)
 	require.Equal(t, 1, size)
 
-	tags, ok = res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 }
 
 func TestResultsReset(t *testing.T) {
@@ -201,15 +213,20 @@ func TestResultsReset(t *testing.T) {
 	require.True(t, added)
 	require.Equal(t, 1, size)
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 
 	res.Reset(nil)
-	_, ok = res.Map().Get(ident.StringID("abc"))
-	require.False(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
-	require.Equal(t, 0, res.Size())
+
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.False(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+		require.Equal(t, 0, res.Size())
+	})
 }
 
 func TestResultsResetNamespaceClones(t *testing.T) {
@@ -242,25 +259,29 @@ func TestFinalize(t *testing.T) {
 	require.Equal(t, 1, size)
 
 	// Ensure the data is present.
-	tags, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 
 	// Call Finalize() to reset the Results.
 	res.Finalize()
 
 	// Ensure data was removed by call to Finalize().
-	tags, ok = res.Map().Get(ident.StringID("abc"))
-	require.False(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
-	require.Equal(t, 0, res.Size())
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.False(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+		require.Equal(t, 0, res.Size())
 
-	for _, entry := range res.Map().Iter() {
-		id, _ := entry.Key(), entry.Value()
-		require.False(t, id.IsNoFinalize())
-		// TODO(rartoul): Could verify tags are NoFinalize() as well if
-		// they had that method.
-	}
+		for _, entry := range rMap.Iter() {
+			id, _ := entry.Key(), entry.Value()
+			require.False(t, id.IsNoFinalize())
+			// TODO(rartoul): Could verify tags are NoFinalize() as well if
+			// they had that method.
+		}
+	})
 }
 
 func TestNoFinalize(t *testing.T) {
@@ -273,9 +294,11 @@ func TestNoFinalize(t *testing.T) {
 	require.Equal(t, 1, size)
 
 	// Ensure the data is present.
-	tags, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+	})
 
 	// Call to NoFinalize indicates that subsequent call
 	// to finalize should be a no-op.
@@ -283,15 +306,17 @@ func TestNoFinalize(t *testing.T) {
 	res.Finalize()
 
 	// Ensure data was not removed by call to Finalize().
-	tags, ok = res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
-	require.Equal(t, 0, len(tags.Values()))
-	require.Equal(t, 1, res.Size())
+	res.WithMap(func(rMap *ResultsMap) {
+		tags, ok := rMap.Get(ident.StringID("abc"))
+		require.True(t, ok)
+		require.Equal(t, 0, len(tags.Values()))
+		require.Equal(t, 1, res.Size())
 
-	for _, entry := range res.Map().Iter() {
-		id, _ := entry.Key(), entry.Value()
-		require.True(t, id.IsNoFinalize())
-		// TODO(rartoul): Could verify tags are NoFinalize() as well if
-		// they had that method.
-	}
+		for _, entry := range rMap.Iter() {
+			id, _ := entry.Key(), entry.Value()
+			require.True(t, id.IsNoFinalize())
+			// TODO(rartoul): Could verify tags are NoFinalize() as well if
+			// they had that method.
+		}
+	})
 }

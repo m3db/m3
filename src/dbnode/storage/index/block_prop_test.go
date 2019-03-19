@@ -125,20 +125,27 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					return false, errors.New("querying cached block was not exhaustive")
 				}
 
-				uncachedMap := uncachedResults.Map()
-				cachedMap := cachedResults.Map()
-				if uncachedMap.Len() != cachedMap.Len() {
+				if uncachedResults.Size() != cachedResults.Size() {
 					return false, fmt.Errorf(
 						"uncached map size was: %d, but cached map sized was: %d",
-						uncachedMap.Len(), cachedMap.Len())
+						uncachedResults.Size(), cachedResults.Size())
 				}
 
-				for _, entry := range uncachedMap.Iter() {
-					key := entry.Key()
-					_, ok := cachedMap.Get(key)
-					if !ok {
-						return false, fmt.Errorf("cached map did not contain: %v", key)
-					}
+				var checkMapsErr error
+				uncachedResults.WithMap(func(uncachedMap *ResultsMap) {
+					cachedResults.WithMap(func(cachedMap *ResultsMap) {
+						for _, entry := range uncachedMap.Iter() {
+							key := entry.Key()
+							_, ok := cachedMap.Get(key)
+							if !ok {
+								checkMapsErr = fmt.Errorf("cached map did not contain: %v", key)
+								return
+							}
+						}
+					})
+				})
+				if checkMapsErr != nil {
+					return false, checkMapsErr
 				}
 			}
 

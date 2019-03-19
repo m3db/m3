@@ -193,14 +193,16 @@ func TestServiceQuery(t *testing.T) {
 
 	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
-		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
-		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
-		ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
-		ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
-	))
+	resMap.WithMap(func(rMap *index.ResultsMap) {
+		rMap.Set(ident.StringID("foo"), ident.NewTags(
+			ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
+			ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
+		))
+		rMap.Set(ident.StringID("bar"), ident.NewTags(
+			ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
+			ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
+		))
+	})
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -1066,14 +1068,16 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("dzk", "baz"),
-	))
+	resMap.WithMap(func(rMap *index.ResultsMap) {
+		rMap.Set(ident.StringID("foo"), ident.NewTags(
+			ident.StringTag("foo", "bar"),
+			ident.StringTag("baz", "dxk"),
+		))
+		rMap.Set(ident.StringID("bar"), ident.NewTags(
+			ident.StringTag("foo", "bar"),
+			ident.StringTag("dzk", "baz"),
+		))
+	})
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -1163,14 +1167,16 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 
 	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("dzk", "baz"),
-	))
+	resMap.WithMap(func(rMap *index.ResultsMap) {
+		rMap.Set(ident.StringID("foo"), ident.NewTags(
+			ident.StringTag("foo", "bar"),
+			ident.StringTag("baz", "dxk"),
+		))
+		rMap.Set(ident.StringID("bar"), ident.NewTags(
+			ident.StringTag("foo", "bar"),
+			ident.StringTag("dzk", "baz"),
+		))
+	})
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1216,8 +1222,11 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 
 	resMap := index.NewResults(testIndexOptions)
 	resMap.Reset(ident.StringID(nsID))
-	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
-	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
+	resMap.WithMap(func(rMap *index.ResultsMap) {
+		rMap.Set(ident.StringID("foo"), ident.Tags{})
+		rMap.Set(ident.StringID("bar"), ident.Tags{})
+	})
+
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),

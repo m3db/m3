@@ -73,6 +73,8 @@ const (
 	blockStateSealed
 	blockStateClosed
 
+	defaultQueryDocsBatchSize = 256
+
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
 )
 
@@ -772,23 +774,50 @@ func (b *block) Query(
 	}
 
 	size := results.Size()
-	limitedResults := false
+	batch := b.docsPool.Get()
+	batchSize := cap(batch)
+	if batchSize == 0 {
+		batchSize = defaultQueryDocsBatchSize
+	}
+	batchOpts := AddDocumentsBatchResultsOptions{
+		AllowPartialUpdates: true,
+		LimitSize:           opts.Limit,
+	}
 	iterCloser := safeCloser{closable: iter}
 	execCloser := safeCloser{closable: exec}
 
 	defer func() {
+		b.docsPool.Put(batch)
 		iterCloser.Close()
 		execCloser.Close()
 	}()
 
 	for iter.Next() {
 		if opts.LimitExceeded(size) {
-			limitedResults = true
 			break
 		}
 
-		d := iter.Current()
-		_, size, err = results.AddDocument(d)
+		batch = append(batch, iter.Current())
+		if len(batch) < batchSize {
+			continue
+		}
+
+		_, size, err = results.AddDocumentsBatch(batch, batchOpts)
+		if err != nil {
+			return false, err
+		}
+
+		// Reset batch
+		var emptyDoc doc.Document
+		for i := range batch {
+			batch[i] = emptyDoc
+		}
+		batch = batch[:0]
+	}
+
+	// Put last batch if remainding
+	if len(batch) > 0 {
+		_, size, err = results.AddDocumentsBatch(batch, batchOpts)
 		if err != nil {
 			return false, err
 		}
@@ -806,7 +835,7 @@ func (b *block) Query(
 		return false, err
 	}
 
-	exhaustive := !limitedResults
+	exhaustive := !opts.LimitExceeded(size)
 	return exhaustive, nil
 }
 

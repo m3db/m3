@@ -895,24 +895,16 @@ func (i *nsIndex) Query(
 			exhaustive bool
 			returned   bool
 		}{
-			merged:     nil,
+			merged:     i.resultsPool.Get(),
 			exhaustive: true,
 			returned:   false,
 		}
 	)
-	defer func() {
-		// Ensure that during early error returns we let any aborted
-		// goroutines know not to try to modify/edit the result any longer.
-		results.Lock()
-		results.returned = true
-		results.Unlock()
-	}()
+	// Set the results namespace ID
+	results.merged.Reset(i.nsMetadata.ID())
 
 	execBlockQuery := func(block index.Block) {
-		blockResults := i.resultsPool.Get()
-		blockResults.Reset(i.nsMetadata.ID())
-
-		blockExhaustive, err := block.Query(query, opts, blockResults)
+		blockExhaustive, err := block.Query(query, opts, results.merged)
 		if err == index.ErrUnableToQueryBlockClosed {
 			// NB(r): Because we query this block outside of the results lock, it's
 			// possible this block may get closed if it slides out of retention, in
@@ -921,51 +913,12 @@ func (i *nsIndex) Query(
 			err = nil
 		}
 
-		var mergedResult bool
 		results.Lock()
-		defer func() {
-			results.Unlock()
-			if mergedResult {
-				// Only finalize this result if we merged it into another.
-				blockResults.Finalize()
-			}
-		}()
-
-		if results.returned {
-			// If already returned then we early cancelled, don't add any
-			// further results or errors since caller already has a result.
-			return
-		}
+		defer results.Unlock()
 
 		if err != nil {
 			results.multiErr = results.multiErr.Add(err)
 			return
-		}
-
-		if results.merged == nil {
-			// Return results to pool at end of request.
-			ctx.RegisterFinalizer(blockResults)
-			// No merged results yet, use this as the first to merge into.
-			results.merged = blockResults
-		} else {
-			// Append the block results.
-			mergedResult = true
-			size := results.merged.Size()
-			for _, entry := range blockResults.Map().Iter() {
-				// Break early if reached limit.
-				if opts.Limit > 0 && size >= opts.Limit {
-					blockExhaustive = false
-					break
-				}
-
-				// Append to merged results.
-				id, tags := entry.Key(), entry.Value()
-				_, size, err = results.merged.AddIDAndTags(id, tags)
-				if err != nil {
-					results.multiErr = results.multiErr.Add(err)
-					return
-				}
-			}
 		}
 
 		// If block had more data but we stopped early, need to notify caller.
@@ -1064,8 +1017,6 @@ func (i *nsIndex) Query(
 	}
 
 	results.Lock()
-	// Signal not to add any further results since we've returned already.
-	results.returned = true
 	// Take reference to vars to return while locked, need to allow defer
 	// lock/unlock cleanup to not deadlock with this locked code block.
 	exhaustive := results.exhaustive
@@ -1075,12 +1026,6 @@ func (i *nsIndex) Query(
 
 	if err != nil {
 		return index.QueryResults{}, err
-	}
-
-	// If no blocks queried, return an empty result
-	if mergedResults == nil {
-		mergedResults = i.resultsPool.Get()
-		mergedResults.Reset(i.nsMetadata.ID())
 	}
 
 	return index.QueryResults{

@@ -313,26 +313,29 @@ func testNamespaceIndexHighConcurrentQueries(
 
 				// Read the results concurrently too
 				hits := make(map[string]struct{}, results.Results.Size())
-				for _, entry := range results.Results.Map().Iter() {
-					id := entry.Key().String()
+				results.Results.WithMap(func(rMap *index.ResultsMap) {
+					for _, entry := range rMap.Iter() {
+						id := entry.Key().String()
 
-					doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
-					require.NoError(t, err)
-					if err != nil {
-						continue // this will fail the test anyway, but don't want to panic
+						doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
+						require.NoError(t, err)
+						if err != nil {
+							continue // this will fail the test anyway, but don't want to panic
+						}
+
+						expectedDoc, ok := expectedResults[id]
+						require.True(t, ok)
+						if !ok {
+							continue // this will fail the test anyway, but don't want to panic
+						}
+
+						require.Equal(t, expectedDoc, doc)
+						hits[id] = struct{}{}
 					}
 
-					expectedDoc, ok := expectedResults[id]
-					require.True(t, ok)
-					if !ok {
-						continue // this will fail the test anyway, but don't want to panic
-					}
-
-					require.Equal(t, expectedDoc, doc)
-					hits[id] = struct{}{}
-				}
-				expectedHits := idsPerBlock * (k + 1)
-				require.Equal(t, expectedHits, len(hits))
+					expectedHits := idsPerBlock * (k + 1)
+					require.Equal(t, expectedHits, len(hits))
+				})
 			}
 		}()
 	}

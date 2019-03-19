@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
@@ -29,10 +30,12 @@ import (
 )
 
 var (
-	errUnableToAddResultMissingID = errors.New("no id for result")
+	errUnableToAddResultMissingID          = errors.New("no id for result")
+	errResultAlreadyExistsNoPartialUpdates = errors.New("id already exists for result and partial updates not allowed")
 )
 
 type results struct {
+	sync.RWMutex
 	nsID       ident.ID
 	resultsMap *ResultsMap
 
@@ -54,6 +57,15 @@ func NewResults(opts Options) Results {
 }
 
 func (r *results) AddDocument(
+	d doc.Document,
+) (added bool, size int, err error) {
+	r.Lock()
+	added, size, err = r.addDocumentWithLock(d)
+	r.Unlock()
+	return
+}
+
+func (r *results) addDocumentWithLock(
 	d doc.Document,
 ) (added bool, size int, err error) {
 	added = false
@@ -82,7 +94,53 @@ func (r *results) AddDocument(
 	return added, r.resultsMap.Len(), nil
 }
 
+func (r *results) AddDocumentsBatch(
+	batch []doc.Document,
+	opts AddDocumentsBatchResultsOptions,
+) (numPartialUpdates int, size int, err error) {
+	r.Lock()
+	numPartialUpdates, size, err = r.addDocumentsBatchWithLock(batch, opts)
+	r.Unlock()
+	return
+}
+
+func (r *results) addDocumentsBatchWithLock(
+	batch []doc.Document,
+	opts AddDocumentsBatchResultsOptions,
+) (numPartialUpdates int, size int, err error) {
+	numPartialUpdates = 0
+	size = r.resultsMap.Len()
+	for i := range batch {
+		var added bool
+		added, size, err = r.addDocumentWithLock(batch[i])
+		if err != nil {
+			return numPartialUpdates, size, err
+		}
+		if !added {
+			if !opts.AllowPartialUpdates {
+				return numPartialUpdates, size, errResultAlreadyExistsNoPartialUpdates
+			}
+			numPartialUpdates++
+		}
+		if opts.LimitSize > 0 && size >= opts.LimitSize {
+			// Early return if limit enforced and we hit our limit
+			break
+		}
+	}
+	return numPartialUpdates, size, nil
+}
+
 func (r *results) AddIDAndTags(
+	id ident.ID,
+	tags ident.Tags,
+) (added bool, size int, err error) {
+	r.Lock()
+	added, size, err = r.addIDAndTagsWithLock(id, tags)
+	r.Unlock()
+	return
+}
+
+func (r *results) addIDAndTagsWithLock(
 	id ident.ID,
 	tags ident.Tags,
 ) (added bool, size int, err error) {
@@ -121,18 +179,29 @@ func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {
 }
 
 func (r *results) Namespace() ident.ID {
-	return r.nsID
+	r.RLock()
+	v := r.nsID
+	r.RUnlock()
+	return v
 }
 
-func (r *results) Map() *ResultsMap {
-	return r.resultsMap
+func (r *results) WithMap(fn func(results *ResultsMap)) {
+	r.RLock()
+	fn(r.resultsMap)
+	r.RUnlock()
 }
 
 func (r *results) Size() int {
-	return r.resultsMap.Len()
+	r.RLock()
+	v := r.resultsMap.Len()
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Reset(nsID ident.ID) {
+	r.Lock()
+	defer r.Unlock()
+
 	// finalize existing held nsID
 	if r.nsID != nil {
 		r.nsID.Finalize()
@@ -157,7 +226,11 @@ func (r *results) Reset(nsID ident.ID) {
 }
 
 func (r *results) Finalize() {
-	if r.noFinalize {
+	r.RLock()
+	noFinalize := r.noFinalize
+	r.RUnlock()
+
+	if noFinalize {
 		return
 	}
 
@@ -170,6 +243,9 @@ func (r *results) Finalize() {
 }
 
 func (r *results) NoFinalize() {
+	r.Lock()
+	defer r.Unlock()
+
 	// Ensure neither the results object itself, or any of its underlying
 	// IDs and tags will be finalized.
 	r.noFinalize = true
