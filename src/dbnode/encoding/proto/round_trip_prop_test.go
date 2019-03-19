@@ -41,12 +41,12 @@ import (
 )
 
 var (
-	// Generated from allowedProtoTypesSlice by init().
+	// Generated from mapProtoTypeToCustomFieldType by init().
 	allowedProtoTypesSliceIface = []interface{}{}
 )
 
 func init() {
-	for key := range allowedProtoTypes {
+	for key := range mapProtoTypeToCustomFieldType {
 		allowedProtoTypesSliceIface = append(allowedProtoTypesSliceIface, key)
 	}
 }

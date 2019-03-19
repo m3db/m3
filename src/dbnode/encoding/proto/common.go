@@ -106,28 +106,6 @@ var (
 		dpb.FieldDescriptorProto_TYPE_FIXED64: struct{}{},
 		dpb.FieldDescriptorProto_TYPE_FIXED32: struct{}{},
 	}
-
-	allowedProtoTypes = map[dpb.FieldDescriptorProto_Type]struct{}{
-		dpb.FieldDescriptorProto_TYPE_DOUBLE:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FLOAT:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT64:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT64:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED32: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_BOOL:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_STRING:  struct{}{},
-		// TODO(rartoul): Add support for nested messages / repeated fields,
-		// and maps: https://github.com/m3db/m3/issues/1471
-		// FieldDescriptorProto_TYPE_MESSAGE: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_BYTES:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_ENUM:     struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
-	}
 )
 
 type customFieldState struct {
