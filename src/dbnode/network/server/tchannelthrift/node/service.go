@@ -860,7 +860,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	// The lifecycle of the annotations is more involved than the rest of the data
 	// so we set the annotation pool put method as the finalization function and
 	// let the database take care of returning them to the pool.
-	batchWriter.SetFinalizeAnnotationFn(apachethrift.BytesPoolPut)
+	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
@@ -937,7 +937,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	// The lifecycle of the annotations is more involved than the rest of the data
 	// so we set the annotation pool put method as the finalization function and
 	// let the database take care of returning them to the pool.
-	batchWriter.SetFinalizeAnnotationFn(apachethrift.BytesPoolPut)
+	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
@@ -1427,4 +1427,11 @@ func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 	p.pool.Put(v)
+}
+
+// finalizeAnnotationFn implements ts.FinalizeAnnotationFn because
+// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeAnnotationFn
+// does not.
+func finalizeAnnotationFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
