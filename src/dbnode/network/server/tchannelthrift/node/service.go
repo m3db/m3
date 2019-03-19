@@ -1309,11 +1309,10 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			// Don't return the annotations to the pool because they don't
-			// automatically get cloned like the IDs do. They will get returned
-			// to the pool automatically by the commitlog once it finishes writing
-			// them to disk via the finalization function that gets set on the
-			// WriteBatch.
+			// Ownership of the annotations has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
 		}
 		r.writeReq = nil
 	}

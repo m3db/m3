@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3x/checked"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -845,12 +846,15 @@ func (s *dbShard) writeAndIndex(
 		}
 	} else {
 		// This is an asynchronous insert and write which means we need to clone the annotation
-		// because it could get returned to a pool at any point after this function returns.
-		annotationClone := s.opts.BytesPool().Get(len(annotation))
-		// IncRef here so we can write the bytes in, but don't DecRef because the queue is about
-		// to take ownership and will DecRef when its done.
-		annotationClone.IncRef()
-		annotationClone.AppendAll(annotation)
+		// because its lifecycle in the commit log is independent of the calling function.
+		var annotationClone checked.Bytes
+		if len(annotation) != 0 {
+			annotationClone = s.opts.BytesPool().Get(len(annotation))
+			// IncRef here so we can write the bytes in, but don't DecRef because the queue is about
+			// to take ownership and will DecRef when its done.
+			annotationClone.IncRef()
+			annotationClone.AppendAll(annotation)
+		}
 
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
@@ -1303,11 +1307,13 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
 			}
 
-			// Now that we've performed the write, we can finalize the annotation because
-			// we're done with it and all the code from the series downwards has copied any
-			// data that it required.
-			write.annotation.DecRef()
-			write.annotation.Finalize()
+			if write.annotation != nil {
+				// Now that we've performed the write, we can finalize the annotation because
+				// we're done with it and all the code from the series downwards has copied any
+				// data that it required.
+				write.annotation.DecRef()
+				write.annotation.Finalize()
+			}
 		}
 
 		if inserts[i].opts.hasPendingIndexing {

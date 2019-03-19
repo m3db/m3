@@ -127,7 +127,14 @@ func (b *writeBatch) Finalize() {
 	b.finalizeAnnotationFn = nil
 
 	b.ns = nil
+
+	var zeroedWrite BatchWrite
+	for i := range b.writes {
+		// Remove any remaining pointers for G.C reasons.
+		b.writes[i] = zeroedWrite
+	}
 	b.writes = b.writes[:0]
+
 	b.finalizeFn(b)
 }
 
