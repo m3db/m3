@@ -1297,12 +1297,16 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingWrite {
 			write := inserts[i].opts.pendingWrite
+			var annotationBytes []byte
+			if write.annotation != nil {
+				annotationBytes = write.annotation.Bytes()
+			}
 			// NB: Ignore the `wasWritten` return argument here since this is an async
 			// operation and there is nothing further to do with this value.
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
 			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
-				write.unit, write.annotation.Bytes())
+				write.unit, annotationBytes)
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
 			}
