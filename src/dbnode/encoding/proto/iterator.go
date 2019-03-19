@@ -111,6 +111,7 @@ func (it *iterator) Next() bool {
 			it.err = err
 			return false
 		}
+
 		it.byteFieldDictLRUSize = int(byteFieldDictLRUSize)
 	}
 

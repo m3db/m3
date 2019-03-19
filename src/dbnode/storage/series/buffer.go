@@ -28,8 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -255,7 +253,7 @@ func bucketTick(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	// Perform a drain and reset if necessary
 	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start)
 
-	// Try to merge any out of order encoders to amortize the cost of a drain
+	// Try to merge any out of order encoders to amortize the cost of a drain.
 	r, err := b.buckets[idx].merge()
 	if err != nil {
 		log := b.opts.InstrumentOptions().Logger()
@@ -765,16 +763,8 @@ func (b *dbBufferBucket) newEncoder() encoding.Encoder {
 	return encoder1
 }
 
-func (b *dbBufferBucket) newEncoderFromPool(poolSource string, pool encoding.EncoderPool) encoding.Encoder {
-	encoder := pool.Get()
-	if _, ok := encoder.(*proto.Encoder); !ok {
-		if _, ok = encoder.(*m3tsz.Encoder); !ok {
-			panic(fmt.Sprintf("%s: expected Proto or M3TSZ encoder but was neither!", poolSource))
-		}
-		panic(fmt.Sprintf("%s: expected Proto encoder but was M3TSZ", poolSource))
-	}
-
-	return encoder
+func (b *dbBufferBucket) newEncoder() encoding.Encoder {
+	return b.opts.EncoderPool.Get()
 }
 
 type mergeResult struct {

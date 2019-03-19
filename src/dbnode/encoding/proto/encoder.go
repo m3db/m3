@@ -116,6 +116,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	// Unmarshal the ProtoBuf message first to ensure we have a valid message before
 	// we do anything else to reduce the change that we'll end up with a partially
 	// encoded message.
+	// TODO(rartoul): No need to alloate and unmarshal here, could do this in a streaming
+	// fashion if we write our own decoder or expose the one in the underlying library.
 	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
 		return fmt.Errorf(
 			"proto encoder: error unmarshaling annotation into proto message: %v", err)
@@ -211,6 +213,7 @@ func (enc *Encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
 // then the encoder cant be used anymore.
 func (enc *Encoder) encodeProto(m *dynamic.Message) error {
 	if len(m.GetUnknownFields()) > 0 {
+		// TODO(rartoul): Make this behavior configurable.
 		return errEncoderMessageHasUnknownFields
 	}
 

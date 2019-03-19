@@ -78,9 +78,7 @@ func TestRoundtripProp(t *testing.T) {
 			times = append(times, currTime)
 		}
 
-		// TODO: I feel like I shouldn't have to set the start time to the timestamp
-		// of the first write, but it doesn't seem to work otherwise :/.
-		enc.Reset(times[0], 0)
+		enc.Reset(currTime, 0)
 		enc.SetSchema(input.schema)
 
 		for i, m := range input.messages {
