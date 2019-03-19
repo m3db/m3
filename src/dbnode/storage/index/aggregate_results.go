@@ -35,7 +35,6 @@ type aggregatedResults struct {
 
 	pool       AggregateResultsPool
 	valuesPool AggregateValuesPool
-	noFinalize bool
 }
 
 // NewAggregateResults returns a new AggregateResults object.
@@ -164,10 +163,6 @@ func (r *aggregatedResults) Reset(nsID ident.ID) {
 }
 
 func (r *aggregatedResults) Finalize() {
-	if r.noFinalize {
-		return
-	}
-
 	r.Reset(nil)
 	if r.pool == nil {
 		return

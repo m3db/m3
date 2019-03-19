@@ -33,11 +33,8 @@ var (
 
 type AggregateValues struct {
 	valuesMap *AggregateValuesMap
-
 	bytesPool pool.CheckedBytesPool
-
-	pool          AggregateValuesPool
-	noFinalizeVar bool
+	pool      AggregateValuesPool
 }
 
 // NewAggregateValues returns a new AggregateValues object.
@@ -69,10 +66,6 @@ func (v *AggregateValues) reset() {
 }
 
 func (v *AggregateValues) finalize() {
-	if v.noFinalizeVar {
-		return
-	}
-
 	v.reset()
 	if v.pool == nil {
 		return
