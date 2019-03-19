@@ -35,8 +35,10 @@ clusters:
               endpoint: http://127.0.0.1:2380
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
-      writeTimeout: 10s
-      fetchTimeout: 15s
+      writeTimeout: <duration>
+      # fetchTimeout defines the fetch timeout for any given query.
+      # The default is 30s and the max is 5m.
+      fetchTimeout: <duration>
       connectTimeout: 20s
       writeRetry:
         initialBackoff: 500ms
@@ -52,16 +54,16 @@ clusters:
       backgroundHealthCheckFailThrottleFactor: 0.5
 
 readWorkerPoolPolicy:
-  grow: false
-  size: 10
+  grow: <bool>
+  size: <int>
 
 writeWorkerPoolPolicy:
-  grow: false
-  size: 10
+  grow: <bool>
+  size: <int>
 
 tagOptions:
   # See here for more information: http://m3db.github.io/m3/how_to/query/#id-generation
-  idScheme: quoted
+  idScheme: <id_scheme>
 
 cache:
   # See here for more information: http://m3db.github.io/m3/performance/m3query/
