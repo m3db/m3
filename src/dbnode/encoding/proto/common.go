@@ -109,17 +109,21 @@ var (
 )
 
 type customFieldState struct {
+	// TODO(rartoul): This could be made more efficient by separating out fields required
+	// for encoding and those required for enumeration, as well as trying to reuse some
+	// of the fields for multiple types to save memory, but its ok for now.
 	fieldNum  int
 	fieldType customFieldType
 
-	// Float state
+	// Float state.
 	prevXOR       uint64
 	prevFloatBits uint64
 
-	// Bytes State
+	// Bytes State.
 	bytesFieldDict         []uint64
 	iteratorBytesFieldDict [][]byte
 
+	// Int state.
 	intSigBitsTracker m3tsz.IntSigBitsTracker
 }
 
