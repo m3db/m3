@@ -232,7 +232,7 @@ type Options interface {
 	// Validate validates the options.
 	Validate() error
 
-	// SetEncodingM3TSZ sets M3TSZ encoding
+	// SetEncodingM3TSZ sets M3TSZ encoding.
 	SetEncodingM3TSZ() Options
 
 	// SetEncodingProto sets proto encoding based on the provided schema.
