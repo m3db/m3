@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+message Schema {
+  double course = 1;
+  double speed = 2;
+  double horizontalAccuracy = 3;
+  double verticalAccuracy = 4;
+  double latitude = 5;
+  double longitude = 6;
+  int64  epoch = 7;
+  double altitude = 8;
+  int64 entryEpoch = 9;
+  int64 deviceEpoch = 10;
+  double probIndoors = 11;
+  string deviceID = 12;
+  Provider provider = 13;
+  int32 regionID = 14;
+  int32 floorLevel = 15;
+  double probFraud = 16;
+
+  string mapMetadataSegmentUUID = 17;
+  string mapMetadataUMMVersion = 18;
+  string mapMetadataStartJunctionUUID = 19;
+  string mapMetadataEndJunctionUUID = 20;
+
+  bytes mapMetadataSegmentUUIDBytes = 21;
+  bytes mapMetadataStartJunctionUUIDBytes = 22;
+  bytes mapMetadataEndJunctionUUIDBytes = 23;
+}
+
+enum Provider {
+  NOT_EXIST = 0;
+  GPS = 1;
+  NETWORK = 2;
+  FUSED = 3;
+  SHADOWMAPS = 4;
+  UMATCHING = 5;
+  FUSED_KF = 6;
+  SHADOWMAPS_SENSOR_FUSED = 7;
+  APP = 8;
+  UNKNOWN = 9;
+  IOS_CORE = 10;
+}

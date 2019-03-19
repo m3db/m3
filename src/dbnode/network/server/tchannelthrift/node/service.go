@@ -1298,7 +1298,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	}
 	r.pooledIDsUsed = 0
 
-	// Return any pooled thrift byte slices to the thrift pool
+	// Return any pooled thrift byte slices to the thrift pool.
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
