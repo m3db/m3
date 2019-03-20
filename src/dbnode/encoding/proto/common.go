@@ -52,6 +52,9 @@ const (
 )
 
 const (
+	// Single bit op codes that get encoded into the compressed stream and
+	// inform the iterator / decoder how it should interpret subsequent
+	// bits.
 	opCodeNoMoreData = 0
 	opCodeMoreData   = 1
 
@@ -74,6 +77,7 @@ const (
 var (
 	typeOfBytes = reflect.TypeOf(([]byte)(nil))
 
+	// Maps protobuf types to our custom type as described above.
 	mapProtoTypeToCustomFieldType = map[dpb.FieldDescriptorProto_Type]customFieldType{
 		dpb.FieldDescriptorProto_TYPE_DOUBLE: cFloat64,
 		dpb.FieldDescriptorProto_TYPE_FLOAT:  cFloat32,
@@ -87,7 +91,7 @@ var (
 		dpb.FieldDescriptorProto_TYPE_INT32:    cSignedInt32,
 		dpb.FieldDescriptorProto_TYPE_SFIXED32: cSignedInt32,
 		// Signed because thats how Proto encodes it (can technically have negative
-		// enum values but its not recommended.)
+		// enum values but its not recommended for compression reasons).
 		dpb.FieldDescriptorProto_TYPE_ENUM: cSignedInt32,
 
 		dpb.FieldDescriptorProto_TYPE_UINT32:  cUnsignedInt32,
@@ -98,22 +102,6 @@ var (
 
 		dpb.FieldDescriptorProto_TYPE_STRING: cBytes,
 		dpb.FieldDescriptorProto_TYPE_BYTES:  cBytes,
-	}
-
-	customIntEncodedFields = map[dpb.FieldDescriptorProto_Type]struct{}{
-		// Signed.
-		dpb.FieldDescriptorProto_TYPE_INT64:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_INT32:    struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SFIXED32: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SFIXED64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SINT32:   struct{}{},
-		dpb.FieldDescriptorProto_TYPE_SINT64:   struct{}{},
-
-		// Unsigned.
-		dpb.FieldDescriptorProto_TYPE_UINT64:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_UINT32:  struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED64: struct{}{},
-		dpb.FieldDescriptorProto_TYPE_FIXED32: struct{}{},
 	}
 )
 
