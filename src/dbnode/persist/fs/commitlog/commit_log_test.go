@@ -612,7 +612,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
 			// Ensure queue full error.
 			require.Equal(t, ErrCommitLogQueueFull, err)
-			require.Equal(t, int64(backlogQueueSize), commitLog.QueueSize())
+			require.Equal(t, int64(backlogQueueSize), commitLog.QueueLength())
 			break
 		}
 		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})

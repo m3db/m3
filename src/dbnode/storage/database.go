@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -100,10 +99,6 @@ type db struct {
 	scope   tally.Scope
 	metrics databaseMetrics
 	log     xlog.Logger
-
-	errors       xcounter.FrequencyCounter
-	errWindow    time.Duration
-	errThreshold int64
 
 	writeBatchPool *ts.WriteBatchPool
 }
@@ -174,9 +169,6 @@ func NewDatabase(
 		scope:                 scope,
 		metrics:               newDatabaseMetrics(scope),
 		log:                   logger,
-		errors:                xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:             opts.ErrorWindowForLoad(),
-		errThreshold:          opts.ErrorThresholdForLoad(),
 		writeBatchPool:        opts.WriteBatchPool(),
 	}
 
@@ -560,9 +552,6 @@ func (d *db) Write(
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
 	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
-	if err == commitlog.ErrCommitLogQueueFull {
-		d.errors.Record(1)
-	}
 	if err != nil {
 		return err
 	}
@@ -597,9 +586,6 @@ func (d *db) WriteTagged(
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
 	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
-	if err == commitlog.ErrCommitLogQueueFull {
-		d.errors.Record(1)
-	}
 	if err != nil {
 		return err
 	}
@@ -716,10 +702,6 @@ func (d *db) writeBatch(
 	}
 
 	err = d.commitLog.WriteBatch(ctx, writes)
-	if err == commitlog.ErrCommitLogQueueFull {
-		numFailedWrites := int64(len(writes.Iter()))
-		d.errors.Record(numFailedWrites)
-	}
 	if err != nil {
 		return err
 	}
@@ -871,7 +853,9 @@ func (d *db) Truncate(namespace ident.ID) (int64, error) {
 }
 
 func (d *db) IsOverloaded() bool {
-	return d.errors.Count(d.errWindow) > d.errThreshold
+	queueSize := float64(d.commitLog.QueueLength())
+	queueCapacity := float64(d.opts.CommitLogOptions().BacklogQueueSize())
+	return queueSize >= 0.9*queueCapacity
 }
 
 func (d *db) BootstrapState() DatabaseBootstrapState {

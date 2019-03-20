@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -1172,4 +1173,28 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.Equal(t, err, errHandler.errs[1].err)
 	d.commitLog = commitlog
 	require.NoError(t, d.Close())
+}
+
+func TestDatabaseIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	queueCapacity := 100
+	d.opts = d.opts.SetCommitLogOptions(
+		d.opts.CommitLogOptions().SetBacklogQueueSize(100),
+	)
+
+	mockCL := commitlog.NewMockCommitLog(ctrl)
+	d.commitLog = mockCl
+
+	mockCL.EXPECT().QueueLength().Return(89)
+	require.Equal(t, false, d.IsOverloaded())
+
+	mockCL.EXPECT().QueueLength().Return(90)
+	require.Equal(t, true, d.IsOverloaded())
 }

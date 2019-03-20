@@ -355,7 +355,7 @@ func (l *commitLog) RotateLogs() (persist.CommitLogFile, error) {
 	return file, nil
 }
 
-func (l *commitLog) QueueSize() int64 {
+func (l *commitLog) QueueLength() int64 {
 	return atomic.LoadInt64(&l.numWritesInQueue)
 }
 
