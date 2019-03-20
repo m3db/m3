@@ -46,6 +46,14 @@ import (
 	"github.com/uber-go/tally"
 )
 
+const (
+	// The database is considered overloaded if the queue size is 90% or more
+	// of the maximum capacity. We set this below 1.0 because checking the queue
+	// lengthy is racey so we're gonna burst past this value anyways, and the buffer
+	// give us breathing room to recover.
+	commitLogQueueCapacityOverloadedFactor = 0.9
+)
+
 var (
 	// errDatabaseAlreadyOpen raised when trying to open a database that is already open.
 	errDatabaseAlreadyOpen = errors.New("database is already open")
@@ -855,7 +863,7 @@ func (d *db) Truncate(namespace ident.ID) (int64, error) {
 func (d *db) IsOverloaded() bool {
 	queueSize := float64(d.commitLog.QueueLength())
 	queueCapacity := float64(d.opts.CommitLogOptions().BacklogQueueSize())
-	return queueSize >= 0.9*queueCapacity
+	return queueSize >= commitLogQueueCapacityOverloadedFactor*queueCapacity
 }
 
 func (d *db) BootstrapState() DatabaseBootstrapState {

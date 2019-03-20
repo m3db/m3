@@ -1184,17 +1184,16 @@ func TestDatabaseIsOverloaded(t *testing.T) {
 		close(mapCh)
 	}()
 
-	queueCapacity := 100
 	d.opts = d.opts.SetCommitLogOptions(
 		d.opts.CommitLogOptions().SetBacklogQueueSize(100),
 	)
 
 	mockCL := commitlog.NewMockCommitLog(ctrl)
-	d.commitLog = mockCl
+	d.commitLog = mockCL
 
-	mockCL.EXPECT().QueueLength().Return(89)
+	mockCL.EXPECT().QueueLength().Return(int64(89))
 	require.Equal(t, false, d.IsOverloaded())
 
-	mockCL.EXPECT().QueueLength().Return(90)
+	mockCL.EXPECT().QueueLength().Return(int64(90))
 	require.Equal(t, true, d.IsOverloaded())
 }
