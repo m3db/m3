@@ -336,13 +336,13 @@ type Options interface {
 	// SetAllowPartialReplace sets AllowPartialReplace.
 	SetAllowPartialReplace(allowPartialReplace bool) Options
 
-	// AllowNonValidZone will enable the placement to contain hosts that
+	// AllowAllZones will enable the placement to contain hosts that
 	// are not contained within the same zone of the actual placement. This is
 	// needed for services that require cross zone communication.
 	AllowAllZones() bool
 
-	// SetAllowNonValidZone sets AllowAllZones.
-	SetAllowAllZones(allowNonValidZones bool) Options
+	// SetAllowAllZones sets AllowAllZones.
+	SetAllowAllZones(allowAllZones bool) Options
 
 	// AddAllCandidates determines whether the placement will attempt to add all
 	// candidates when adding instances or just a single one.

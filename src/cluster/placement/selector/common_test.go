@@ -53,7 +53,7 @@ func TestGetValidCandidates(t *testing.T) {
 	require.Equal(t, []placement.Instance{i3, i3, i4}, res)
 }
 
-func TestGetValidCandidatesNonValidZone(t *testing.T) {
+func TestGetValidCandidatesAllowAllZones(t *testing.T) {
 	i1 := placement.NewInstance().SetID("i1").SetZone("z1")
 	i2 := placement.NewInstance().SetID("i2").SetZone("z1")
 	i3 := placement.NewInstance().SetID("i3").SetZone("z2")
