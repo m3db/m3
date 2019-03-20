@@ -49,8 +49,8 @@ import (
 const (
 	// The database is considered overloaded if the queue size is 90% or more
 	// of the maximum capacity. We set this below 1.0 because checking the queue
-	// lengthy is racey so we're gonna burst past this value anyways, and the buffer
-	// give us breathing room to recover.
+	// lengthy is racey so we're gonna burst past this value anyways and the buffer
+	// gives us breathing room to recover.
 	commitLogQueueCapacityOverloadedFactor = 0.9
 )
 
