@@ -33,6 +33,13 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+type fetchStateType byte
+
+const (
+	fetchTaggedFetchState fetchStateType = iota
+	aggregateFetchState
+)
+
 const (
 	maxUint = ^uint(0)
 	maxInt  = int(maxUint >> 1)
@@ -47,8 +54,13 @@ type fetchState struct {
 	sync.Mutex
 	refCounter
 
+	// NB: stateType determines which type of op this fetchState
+	// is used for - fetchTagged or Aggregate.
+	stateType     fetchStateType
+	fetchTaggedOp *fetchTaggedOp
+	aggregateOp   *aggregateOp
+
 	nsID                 ident.ID
-	op                   *fetchTaggedOp
 	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
 	done                 bool
@@ -71,9 +83,13 @@ func (f *fetchState) close() {
 		f.nsID.Finalize()
 		f.nsID = nil
 	}
-	if f.op != nil {
-		f.op.decRef()
-		f.op = nil
+	if f.fetchTaggedOp != nil {
+		f.fetchTaggedOp.decRef()
+		f.fetchTaggedOp = nil
+	}
+	if f.aggregateOp != nil {
+		f.aggregateOp.decRef()
+		f.aggregateOp = nil
 	}
 	f.err = nil
 	f.done = false
@@ -85,7 +101,7 @@ func (f *fetchState) close() {
 	f.pool.Put(f)
 }
 
-func (f *fetchState) Reset(
+func (f *fetchState) ResetFetchTagged(
 	startTime time.Time,
 	endTime time.Time,
 	op *fetchTaggedOp, topoMap topology.Map,
@@ -93,7 +109,21 @@ func (f *fetchState) Reset(
 	consistencyLevel topology.ReadConsistencyLevel,
 ) {
 	op.incRef() // take a reference to the provided op
-	f.op = op
+	f.fetchTaggedOp = op
+	f.stateType = fetchTaggedFetchState
+	f.tagResultAccumulator.Reset(startTime, endTime, topoMap, majority, consistencyLevel)
+}
+
+func (f *fetchState) ResetAggregate(
+	startTime time.Time,
+	endTime time.Time,
+	op *aggregateOp, topoMap topology.Map,
+	majority int,
+	consistencyLevel topology.ReadConsistencyLevel,
+) {
+	op.incRef() // take a reference to the provided op
+	f.aggregateOp = op
+	f.stateType = aggregateFetchState
 	f.tagResultAccumulator.Reset(startTime, endTime, topoMap, majority, consistencyLevel)
 }
 
@@ -113,15 +143,23 @@ func (f *fetchState) completionFn(
 		return
 	}
 
-	opts, ok := result.(fetchTaggedResultAccumulatorOpts)
-	if !ok {
+	var (
+		done bool
+		err  error
+	)
+	switch r := result.(type) {
+	case fetchTaggedResultAccumulatorOpts:
+		done, err = f.tagResultAccumulator.AddFetchTaggedResponse(r, resultErr)
+	case aggregateResultAccumulatorOpts:
+		done, err = f.tagResultAccumulator.AddAggregateResponse(r, resultErr)
+	default:
 		// should never happen
-		f.markDoneWithLock(fmt.Errorf(
-			"[invariant violated] expected result to be of type fetchTaggedResultAccumulatorOpts, received: %v", result))
-		return
+		done = true
+		err = fmt.Errorf(
+			"[invariant violated] expected result to be one of %v, received: %v",
+			[]string{"fetchTaggedResultAccumulatorOpts"}, result)
 	}
 
-	done, err := f.tagResultAccumulator.Add(opts, resultErr)
 	if done {
 		f.markDoneWithLock(err)
 	}
@@ -145,7 +183,7 @@ func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsItera
 		return nil, false, err
 	}
 
-	limit := f.op.requestLimit(maxInt)
+	limit := f.fetchTaggedOp.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
@@ -161,8 +199,24 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 		return nil, false, err
 	}
 
-	limit := f.op.requestLimit(maxInt)
+	limit := f.fetchTaggedOp.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools)
+}
+
+func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, bool, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if !f.done {
+		return nil, false, errFetchStateStillProcessing
+	}
+
+	if err := f.err; err != nil {
+		return nil, false, err
+	}
+
+	limit := f.aggregateOp.requestLimit(maxInt)
+	return f.tagResultAccumulator.AsAggregatedTagsIterator(limit, pools)
 }
 
 // NB(prateek): this is backed by the sessionPools struct, but we're restricting it to a narrow

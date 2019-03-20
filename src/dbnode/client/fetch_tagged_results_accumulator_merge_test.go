@@ -318,7 +318,7 @@ func (tm testFetchTaggedWorkflow) run() fetchTaggedResultAccumulator {
 			host:     host(tm.t, tm.topoMap, s.hostname),
 			response: s.response,
 		}
-		done, err := accum.Add(opts, s.err)
+		done, err := accum.AddFetchTaggedResponse(opts, s.err)
 		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("%+v", s))
 		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("%+v", s))
 	}
@@ -359,6 +359,24 @@ func (ts testSerieses) assertMatchesEncodingIters(t *testing.T, iters encoding.S
 	}
 }
 
+func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters AggregatedTagsIterator) {
+	aggMap := ts.toRPCAggResultMap()
+	require.Equal(t, len(aggMap), iters.Remaining())
+	for iters.Next() {
+		name, values := iters.Current()
+		valuesMap, ok := aggMap[name.String()]
+		require.True(t, ok)
+		require.Equal(t, len(valuesMap), values.Remaining())
+		for values.Next() {
+			v := values.Current()
+			_, ok := valuesMap[v.String()]
+			require.True(t, ok)
+		}
+		require.NoError(t, values.Err())
+	}
+	require.NoError(t, iters.Err())
+}
+
 // nolint
 func (ts testSerieses) indexMatcher() TaggedIDsIteratorMatcher {
 	opts := make([]TaggedIDsIteratorMatcherOption, 0, len(ts))
@@ -374,6 +392,44 @@ func (ts testSerieses) toRPCResult(th testFetchTaggedHelper, start time.Time, ex
 	res.Elements = make([]*rpc.FetchTaggedIDResult_, 0, len(ts))
 	for _, s := range ts {
 		res.Elements = append(res.Elements, s.toRPCResult(th, start))
+	}
+	return res
+}
+
+func (ts testSerieses) toRPCAggResultMap() map[string]map[string]struct{} {
+	aggedMap := make(map[string]map[string]struct{})
+	for _, s := range ts {
+		for _, t := range s.tags.Values() {
+			name := t.Name.String()
+			value := t.Value.String()
+			m, ok := aggedMap[name]
+			if !ok {
+				m = make(map[string]struct{})
+				aggedMap[name] = m
+			}
+			m[value] = struct{}{}
+		}
+	}
+	return aggedMap
+}
+
+func (ts testSerieses) toRPCAggResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.AggregateQueryRawResult_ {
+	aggedMap := ts.toRPCAggResultMap()
+	res := &rpc.AggregateQueryRawResult_{
+		Exhaustive: exhaustive,
+	}
+	res.Results = make([]*rpc.AggregateQueryRawResultTagNameElement, 0, len(aggedMap))
+	for name, valuesMap := range aggedMap {
+		elem := &rpc.AggregateQueryRawResultTagNameElement{
+			TagName: []byte(name),
+		}
+		elem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, len(valuesMap))
+		for v := range valuesMap {
+			elem.TagValues = append(elem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+				TagValue: []byte(v),
+			})
+		}
+		res.Results = append(res.Results, elem)
 	}
 	return res
 }

@@ -36,6 +36,7 @@ type sessionPools struct {
 	fetchBatchOp                *fetchBatchOpPool
 	fetchBatchOpArrayArray      *fetchBatchOpArrayArrayPool
 	fetchTaggedOp               fetchTaggedOpPool
+	aggregateOp                 aggregateOpPool
 	fetchState                  fetchStatePool
 	multiReaderIteratorArray    encoding.MultiReaderIteratorArrayPool
 	tagEncoder                  serialize.TagEncoderPool
@@ -48,6 +49,7 @@ type sessionPools struct {
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
 	fetchTaggedAttempt          fetchTaggedAttemptPool
+	aggregateAttempt            aggregateAttemptPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
 }
 

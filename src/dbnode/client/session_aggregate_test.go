@@ -22,8 +22,6 @@ package client
 
 import (
 	"fmt"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -43,13 +41,16 @@ import (
 )
 
 var (
-	testSessionFetchTaggedQuery     = index.Query{idx.NewTermQuery([]byte("a"), []byte("b"))}
-	testSessionFetchTaggedQueryOpts = func(t0, t1 time.Time) index.QueryOptions {
-		return index.QueryOptions{StartInclusive: t0, EndExclusive: t1}
+	testSessionAggregateQuery     = index.Query{idx.NewTermQuery([]byte("a"), []byte("b"))}
+	testSessionAggregateQueryOpts = func(t0, t1 time.Time) index.AggregationOptions {
+		return index.AggregationOptions{
+			QueryOptions: index.QueryOptions{StartInclusive: t0, EndExclusive: t1},
+			Type:         index.AggregateTagNamesAndValues,
+		}
 	}
 )
 
-func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
+func TestSessionAggregateUnsupportedQuery(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
@@ -64,7 +65,7 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	mockHostQueues(ctrl, session, sessionTestReplicas, nil)
 	assert.NoError(t, session.Open())
 
-	leakPool := injectLeakcheckFetchTaggedAttempPool(session)
+	leakPool := injectLeakcheckAggregateAttempPool(session)
 	_, _, err = s.FetchTagged(
 		ident.StringID("namespace"),
 		index.Query{},
@@ -86,7 +87,7 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchTaggedNotOpenError(t *testing.T) {
+func TestSessionAggregateNotOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -95,18 +96,13 @@ func TestSessionFetchTaggedNotOpenError(t *testing.T) {
 	assert.NoError(t, err)
 	t0 := time.Now()
 
-	_, _, err = s.FetchTagged(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
-	assert.Error(t, err)
-	assert.Equal(t, errSessionStatusNotOpen, err)
-
-	_, _, err = s.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
+	_, _, err = s.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(t0, t0))
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
 }
 
-func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {
+func TestSessionAggregateGuardAgainstInvalidCall(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -128,14 +124,13 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	_, _, err = session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchTaggedIDsGuardAgainstNilHost(t *testing.T) {
+func TestSessionAggregateGuardAgainstNilHost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -150,21 +145,20 @@ func TestSessionFetchTaggedIDsGuardAgainstNilHost(t *testing.T) {
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
 		func(idx int, op op) {
 			go func() {
-				op.CompletionFn()(fetchTaggedResultAccumulatorOpts{}, nil)
+				op.CompletionFn()(aggregateResultAccumulatorOpts{}, nil)
 			}()
 		},
 	})
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	_, _, err = session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchTaggedIDsGuardAgainstInvalidHost(t *testing.T) {
+func TestSessionAggregateGuardAgainstInvalidHost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -180,21 +174,20 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidHost(t *testing.T) {
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
 		func(idx int, op op) {
 			go func() {
-				op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: host}, nil)
+				op.CompletionFn()(aggregateResultAccumulatorOpts{host: host}, nil)
 			}()
 		},
 	})
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	_, _, err = session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
+func TestSessionAggregateIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -216,7 +209,7 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 		func(idx int, op op) {
 			go func() {
 				host := topoMap.Hosts()[idx]
-				op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: host}, &rpc.Error{
+				op.CompletionFn()(aggregateResultAccumulatorOpts{host: host}, &rpc.Error{
 					Type:    rpc.ErrorType_BAD_REQUEST,
 					Message: "expected bad request error",
 				})
@@ -227,10 +220,10 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.NoError(t, session.Open())
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
-	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
+	leakOpPool := injectLeakcheckAggregateOpPool(session)
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	_, _, err = session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
 
@@ -242,14 +235,14 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	require.Equal(t, 1, numStateAllocs)
 
 	numOpAllocs := 0
-	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
+	leakOpPool.CheckExtended(t, func(e leakcheckAggregateOp) {
 		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numOpAllocs++
 	})
 	require.Equal(t, 1, numOpAllocs)
 }
 
-func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
+func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -290,13 +283,13 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	_, _, err = session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchTaggedMergeTest(t *testing.T) {
+func TestSessionAggregateMergeTest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -311,8 +304,8 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 
 	var (
 		numPoints = 100
-		sg0       = newTestSerieses(1, 5)
-		sg1       = newTestSerieses(6, 10)
+		sg0       = newTestSerieses(1, 10)
+		sg1       = newTestSerieses(6, 15)
 		sg2       = newTestSerieses(11, 15)
 		th        = newTestFetchTaggedHelper(t)
 	)
@@ -333,9 +326,9 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg0.toRPCResult(th, start, true),
+									response: sg0.toRPCAggResult(th, start, true),
 								}, nil)
 							}()
 						},
@@ -347,9 +340,9 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg1.toRPCResult(th, start, false),
+									response: sg1.toRPCAggResult(th, start, false),
 								}, nil)
 							}()
 						},
@@ -361,9 +354,9 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg2.toRPCResult(th, start, true),
+									response: sg2.toRPCAggResult(th, start, true),
 								}, nil)
 							}()
 						},
@@ -376,15 +369,15 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
-	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
+	leakOpPool := injectLeakcheckAggregateOpPool(session)
 
-	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	iters, exhaust, err := session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.NoError(t, err)
 	assert.False(t, exhaust)
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
-	expected.assertMatchesEncodingIters(t, iters)
+	expected.assertMatchesAggregatedTagsIter(t, iters)
 
 	assert.NoError(t, session.Close())
 
@@ -396,14 +389,14 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	require.Equal(t, 1, numStateAllocs)
 
 	numOpAllocs := 0
-	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
+	leakOpPool.CheckExtended(t, func(e leakcheckAggregateOp) {
 		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numOpAllocs++
 	})
 	require.Equal(t, 1, numOpAllocs)
 }
 
-func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
+func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -442,7 +435,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host: topoMap.Hosts()[idx],
 								}, fmt.Errorf("random-err-0"))
 							}()
@@ -451,9 +444,9 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg0.toRPCResult(th, start, true),
+									response: sg0.toRPCAggResult(th, start, true),
 								}, nil)
 							}()
 						},
@@ -465,7 +458,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host: topoMap.Hosts()[idx],
 								}, fmt.Errorf("random-err-1"))
 							}()
@@ -474,9 +467,9 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg1.toRPCResult(th, start, false),
+									response: sg1.toRPCAggResult(th, start, false),
 								}, nil)
 							}()
 						},
@@ -488,7 +481,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host: topoMap.Hosts()[idx],
 								}, fmt.Errorf("random-err-2"))
 							}()
@@ -497,9 +490,9 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 					testEnqueue{
 						enqueueFn: func(idx int, op op) {
 							go func() {
-								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg2.toRPCResult(th, start, true),
+									response: sg2.toRPCAggResult(th, start, true),
 								}, nil)
 							}()
 						},
@@ -512,14 +505,14 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
-	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
-	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	leakOpPool := injectLeakcheckAggregateOpPool(session)
+	iters, exhaust, err := session.Aggregate(ident.StringID("namespace"),
+		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.NoError(t, err)
 	assert.False(t, exhaust)
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
-	expected.assertMatchesEncodingIters(t, iters)
+	expected.assertMatchesAggregatedTagsIter(t, iters)
 
 	numStateAllocs := 0
 	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
@@ -529,7 +522,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	require.Equal(t, 2, numStateAllocs)
 
 	numOpAllocs := 0
-	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
+	leakOpPool.CheckExtended(t, func(e leakcheckAggregateOp) {
 		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numOpAllocs++
 	})
@@ -538,90 +531,15 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
-func injectLeakcheckFetchTaggedAttempPool(session *session) *leakcheckFetchTaggedAttemptPool {
-	leakPool := newLeakcheckFetchTaggedAttemptPool(leakcheckFetchTaggedAttemptPoolOpts{}, session.pools.fetchTaggedAttempt)
-	session.pools.fetchTaggedAttempt = leakPool
+func injectLeakcheckAggregateAttempPool(session *session) *leakcheckAggregateAttemptPool {
+	leakPool := newLeakcheckAggregateAttemptPool(leakcheckAggregateAttemptPoolOpts{}, session.pools.aggregateAttempt)
+	session.pools.aggregateAttempt = leakPool
 	return leakPool
 }
 
-func injectLeakcheckFetchStatePool(session *session) *leakcheckFetchStatePool {
-	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
-	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
-	session.pools.fetchState = leakStatePool
-	return leakStatePool
-}
-
-func injectLeakcheckFetchTaggedOpPool(session *session) *leakcheckFetchTaggedOpPool {
-	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
-	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
-	session.pools.fetchTaggedOp = leakOpPool
+func injectLeakcheckAggregateOpPool(session *session) *leakcheckAggregateOpPool {
+	leakOpPool := newLeakcheckAggregateOpPool(leakcheckAggregateOpPoolOpts{}, session.pools.aggregateOp)
+	leakOpPool.opts.GetHookFn = func(f *aggregateOp) *aggregateOp { f.pool = leakOpPool; return f }
+	session.pools.aggregateOp = leakOpPool
 	return leakOpPool
-}
-
-type testEnqueue struct {
-	enqueueFn  testEnqueueFn
-	enqueueErr error
-}
-
-type testHostQueueOps struct {
-	wg       sync.WaitGroup
-	enqueues []testEnqueue
-}
-
-type testHostQueueOpsByHost map[string]*testHostQueueOps
-
-func mockExtendedHostQueues(
-	t *testing.T,
-	ctrl *gomock.Controller,
-	s *session,
-	replicas int,
-	opsByHost testHostQueueOpsByHost,
-) {
-	init := s.opts.TopologyInitializer()
-	topoWatch, err := init.Init()
-	require.NoError(t, err)
-	topoMap := topoWatch.Get()
-	findHostIdxFn := func(host topology.Host) int {
-		for idx, h := range topoMap.Hosts() {
-			if h.ID() == host.ID() {
-				return idx
-			}
-		}
-		require.Fail(t, "unable to find host idx: %v", host.ID())
-		return -1
-	}
-	s.newHostQueueFn = func(
-		host topology.Host,
-		opts hostQueueOpts,
-	) (hostQueue, error) {
-		idx := findHostIdxFn(host)
-		hostEnqueues, ok := opsByHost[host.ID()]
-		require.True(t, ok)
-		hostEnqueues.wg.Add(1)
-		hostQueue := NewMockhostQueue(ctrl)
-		hostQueue.EXPECT().Open()
-		hostQueue.EXPECT().Host().Return(host).AnyTimes()
-		hostQueue.EXPECT().ConnectionCount().Return(opts.opts.MinConnectionCount()).AnyTimes()
-		var expectNextEnqueueFn func(fns []testEnqueue)
-		expectNextEnqueueFn = func(fns []testEnqueue) {
-			fn := fns[0]
-			fns = fns[1:]
-			hostQueue.EXPECT().Enqueue(gomock.Any()).Do(func(op op) error {
-				if fn.enqueueErr == nil {
-					fn.enqueueFn(idx, op)
-				}
-				if len(fns) > 0 {
-					expectNextEnqueueFn(fns)
-				} else {
-					hostEnqueues.wg.Done()
-				}
-				return nil
-			}).Return(fn.enqueueErr)
-		}
-		if len(hostEnqueues.enqueues) > 0 {
-			expectNextEnqueueFn(hostEnqueues.enqueues)
-		}
-		hostQueue.EXPECT().Close()
-		return hostQueue, nil
-	}
 }

@@ -48,6 +48,18 @@ func NewAggregateValues(opts Options) AggregateValues {
 	}
 }
 
+// MustNewAggregateValues returns a new AggregateValues object with provided
+// idents added in.
+func MustNewAggregateValues(opts Options, ids ...ident.ID) AggregateValues {
+	m := NewAggregateValues(opts)
+	for _, id := range ids {
+		if err := m.addValue(id); err != nil {
+			panic(err.Error())
+		}
+	}
+	return m
+}
+
 // Map returns a map from an ID -> empty struct to signify existence of the
 // ID in the set this structure represents.
 func (v *AggregateValues) Map() *AggregateValuesMap {
