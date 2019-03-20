@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
 )
 
-// AllQuery returns a query which matches all the known documents.
+// AllQuery returns a query which matches all known documents.
 type AllQuery struct{}
 
 // NewAllQuery constructs a new AllQuery.
