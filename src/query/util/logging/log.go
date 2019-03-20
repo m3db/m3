@@ -30,7 +30,7 @@ import (
 
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -70,7 +70,7 @@ func InitWithCores(cores []zapcore.Core) {
 
 	core := zapcore.NewTee(cores...)
 
-	logger = zap.New(core).WithOptions(zap.AddStacktrace(highPriority))
+	logger = zap.New(core)
 	defer logger.Sync()
 }
 
