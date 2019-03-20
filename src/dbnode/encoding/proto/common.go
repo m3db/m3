@@ -30,6 +30,14 @@ import (
 	"github.com/jhump/protoreflect/desc"
 )
 
+const (
+	// ~1GiB is an intentionally a very large number to avoid users ever running into any
+	// limitations, but we want some theoretical maximum so that in the case of data / memory
+	// corruption the iterator can avoid panicing due to trying to allocate a massive byte slice
+	// (MAX_UINT64 for example) and return a reasonable error message instead.
+	maxMarshaledProtoMessageSize = 2 << 29
+)
+
 type customFieldType int
 
 const (

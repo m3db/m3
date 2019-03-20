@@ -26,6 +26,8 @@ import (
 	"io"
 	"math"
 
+	"github.com/m3db/m3x/checked"
+
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -33,6 +35,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3x/time"
+)
+
+const (
+	// Maximum capacity of a checked.Bytes that will be retained between resets.
+	maxCapacityUnmarshalBufferRetain = 1024
 )
 
 var (
@@ -56,8 +63,9 @@ type iterator struct {
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
-	varIntBuf    [8]byte
-	bitsetValues []int
+	varIntBuf         [8]byte
+	bitsetValues      []int
+	unmarshalProtoBuf checked.Bytes
 
 	done bool
 	// Can i just reuse done for this?
@@ -169,6 +177,7 @@ func (it *iterator) Err() error {
 func (it *iterator) Reset(reader io.Reader) {
 	it.stream.Reset(reader)
 	it.m3tszIterator.Reset(reader)
+
 	it.err = nil
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
@@ -185,7 +194,6 @@ func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
 	it.schema = schema
 	// TODO: use same logic as encoder
 	it.customFields = customFields(it.customFields, schema)
-	// it.lastIterated = dynamic.NewMessage(schema)
 }
 
 func (it *iterator) Close() {
@@ -194,8 +202,17 @@ func (it *iterator) Close() {
 	}
 
 	it.closed = true
+	it.Reset(nil)
 	it.stream.Reset(nil)
 	it.m3tszIterator.Reset(nil)
+
+	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() > maxCapacityUnmarshalBufferRetain {
+		// Only finalize the buffer if its grown too large to prevent pooled
+		// iterators from growing excessively large.
+		it.unmarshalProtoBuf.DecRef()
+		it.unmarshalProtoBuf.Finalize()
+		it.unmarshalProtoBuf = nil
+	}
 
 	if pool := it.opts.ReaderIteratorPool(); pool != nil {
 		pool.Put(it)
@@ -244,9 +261,15 @@ func (it *iterator) readProtoValues() error {
 		return fmt.Errorf("%s: err reading proto length varint: %v", itErrPrefix, err)
 	}
 
-	// TODO(rartoul): Probably want to use a bytes pool for this or recycle it at least.
-	buf := make([]byte, marshalLen)
-	n, err := it.stream.Read(buf)
+	if marshalLen > maxMarshaledProtoMessageSize {
+		return fmt.Errorf(
+			"%s: marshaled protobuf size was %d which is larger than the maximum of %d",
+			itErrPrefix, marshalLen, maxMarshaledProtoMessageSize)
+	}
+
+	it.resetUnmarshalProtoBuffer(int(marshalLen))
+	unmarshalBytes := it.unmarshalProtoBuf.Bytes()
+	n, err := it.stream.Read(unmarshalBytes)
 	if err != nil {
 		return fmt.Errorf("%s: error reading marshaled proto bytes: %v", itErrPrefix, err)
 	}
@@ -256,7 +279,7 @@ func (it *iterator) readProtoValues() error {
 			itErrPrefix, int(marshalLen), n)
 	}
 
-	err = it.lastIterated.UnmarshalMerge(buf)
+	err = it.lastIterated.UnmarshalMerge(unmarshalBytes)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
@@ -777,6 +800,26 @@ func (it *iterator) readBits(numBits int) (uint64, error) {
 	}
 
 	return res, nil
+}
+
+func (it *iterator) resetUnmarshalProtoBuffer(n int) {
+	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() >= n {
+		// If the existing one is big enough, just resize it.
+		it.unmarshalProtoBuf.Resize(n)
+		return
+	}
+
+	if it.unmarshalProtoBuf != nil {
+		// If one exists, but its too small, return it to the pool.
+		it.unmarshalProtoBuf.DecRef()
+		it.unmarshalProtoBuf.Finalize()
+	}
+
+	// If none exists (or one existed but it was too small) get a new one
+	// and IncRef(). DecRef() will never be called unless this one is
+	// replaced by a new one later.
+	it.unmarshalProtoBuf = it.opts.BytesPool().Get(n)
+	it.unmarshalProtoBuf.IncRef()
 }
 
 func (it *iterator) hasNext() bool {
