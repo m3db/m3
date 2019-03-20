@@ -202,9 +202,10 @@ genny-arraypool-node-segments: install-m3x-repo
 
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all
-genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt        \
-	genny-leakcheckpool-fetch-state                                        \
-	genny-leakcheckpool-fetch-tagged-op
+genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt \
+	genny-leakcheckpool-fetch-state                                 \
+	genny-leakcheckpool-fetch-tagged-op                             \
+	genny-leakcheckpool-aggregate-op
 
 # leakcheckpool generation rule for ./client/fetchTaggedAttemptPool
 .PHONY: genny-leakcheckpool-fetch-tagged-attempt
@@ -235,3 +236,13 @@ genny-leakcheckpool-fetch-tagged-op: install-m3x-repo
 	elem_type_pool=fetchTaggedOpPool                    \
 	target_package=$(m3db_package)/src/dbnode/client    \
 	out_file=fetch_tagged_op_leakcheckpool_gen_test.go
+
+# leakcheckpool generation rule for ./client/aggregateOp
+.PHONY: genny-leakcheckpool-aggregate-op
+genny-leakcheckpool-aggregate-op: install-m3x-repo
+	cd $(m3x_package_path) && make genny-leakcheckpool  \
+	pkg=client                                          \
+	elem_type=*aggregateOp                              \
+	elem_type_pool=aggregateOpPool                      \
+	target_package=$(m3db_package)/src/dbnode/client    \
+	out_file=aggregate_leakcheckpool_gen_test.go

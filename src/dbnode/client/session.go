@@ -1091,7 +1091,47 @@ func (s *session) FetchIDs(
 func (s *session) Aggregate(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
 ) (AggregatedTagsIterator, bool, error) {
-	return nil, false, fmt.Errorf("unimplemented")
+	f := s.pools.aggregateAttempt.Get()
+	f.args.ns = ns
+	f.args.query = q
+	f.args.opts = opts
+	err := s.fetchRetrier.Attempt(f.attemptFn)
+	iter, exhaustive := f.resultIter, f.resultExhaustive
+	s.pools.aggregateAttempt.Put(f)
+	return iter, exhaustive, err
+}
+
+func (s *session) aggregateAttempt(
+	ns ident.ID, q index.Query, opts index.AggregationOptions,
+) (encoding.SeriesIterators, bool, error) {
+	s.state.RLock()
+	if s.state.status != statusOpen {
+		s.state.RUnlock()
+		return nil, false, errSessionStatusNotOpen
+	}
+
+	const fetchData = true
+	fetchState, err := s.newFetchStateWithRLock(ns, q, opts, fetchData)
+	s.state.RUnlock()
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
+	// returned from newFetchStateWithRLock.
+	fetchState.Wait()
+
+	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
+	// the fetchState Lock
+	fetchState.Unlock()
+	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools)
+
+	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
+	// pool if ref count == 0.
+	fetchState.decRef()
+
+	return iters, exhaustive, err
 }
 
 func (s *session) FetchTagged(
@@ -1117,7 +1157,7 @@ func (s *session) fetchTaggedAttempt(
 	}
 
 	const fetchData = true
-	fetchState, err := s.fetchTaggedAttemptWithRLock(ns, q, opts, fetchData)
+	fetchState, err := s.newFetchStateWithRLock(ns, q, opts, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1125,7 +1165,7 @@ func (s *session) fetchTaggedAttempt(
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
-	// returned from fetchTaggedAttemptWithRLock.
+	// returned from newFetchStateWithRLock.
 	fetchState.Wait()
 
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
@@ -1163,7 +1203,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	}
 
 	const fetchData = false
-	fetchState, err := s.fetchTaggedAttemptWithRLock(ns, q, opts, fetchData)
+	fetchState, err := s.newFetchStateWithRLock(ns, q, opts, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1171,7 +1211,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
-	// returned from fetchTaggedAttemptWithRLock.
+	// returned from newFetchStateWithRLock.
 	fetchState.Wait()
 
 	// must Unlock before calling `asIndexQueryResults` as the latter needs to acquire
@@ -1189,7 +1229,7 @@ func (s *session) fetchTaggedIDsAttempt(
 // NB(prateek): the returned fetchState, if valid, still holds the lock. Its ownership
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
-func (s *session) fetchTaggedAttemptWithRLock(
+func (s *session) newFetchStateWithRLock(
 	ns ident.ID,
 	q index.Query,
 	opts index.QueryOptions,
@@ -1220,7 +1260,7 @@ func (s *session) fetchTaggedAttemptWithRLock(
 	op.incRef()               // indicate current go-routine has a reference to the op
 	op.update(req, fetchState.completionFn)
 
-	fetchState.Reset(opts.StartInclusive, opts.EndExclusive, op, topoMap, s.state.majority, s.state.readLevel)
+	fetchState.ResetFetchTagged(opts.StartInclusive, opts.EndExclusive, op, topoMap, s.state.majority, s.state.readLevel)
 	fetchState.Lock()
 	for _, hq := range s.state.queues {
 		// inc to indicate the hostQueue has a reference to `op` which has a ref to the fetchState
@@ -1233,7 +1273,7 @@ func (s *session) fetchTaggedAttemptWithRLock(
 
 			// NB: if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			wrappedErr := fmt.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
+			wrappedErr := fmt.Errorf("[invariant violated] failed to enqueue in fetchState: %v", err)
 			s.log.Errorf(wrappedErr.Error())
 			return nil, wrappedErr
 		}

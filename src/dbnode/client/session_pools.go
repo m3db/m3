@@ -48,6 +48,7 @@ type sessionPools struct {
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
 	fetchTaggedAttempt          fetchTaggedAttemptPool
+	aggregateAttempt            aggregateAttemptPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
 }
 
