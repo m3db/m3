@@ -559,12 +559,7 @@ func (d *db) Write(
 	}
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
-	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
 func (d *db) WriteTagged(
@@ -593,12 +588,7 @@ func (d *db) WriteTagged(
 	}
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
-	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
 func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
@@ -709,12 +699,7 @@ func (d *db) writeBatch(
 		return nil
 	}
 
-	err = d.commitLog.WriteBatch(ctx, writes)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return d.commitLog.WriteBatch(ctx, writes)
 }
 
 func (d *db) QueryIDs(
