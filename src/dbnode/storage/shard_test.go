@@ -570,7 +570,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 		nowLock.Unlock()
 	}
 
-	mockBytesPool := pool.NewMockBytesPool(ctrl)
+	mockBytesPool := pool.NewMockCheckedBytesPool(ctrl)
 	for _, write := range writes {
 		if write.annotation != nil {
 			mockBytes := checked.NewMockBytes(ctrl)
