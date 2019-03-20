@@ -45,18 +45,20 @@ const (
 	undefinedID = "undefined"
 )
 
-var logger *zap.Logger
+var (
+	logger *zap.Logger
+
+	highPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+		return lvl >= zapcore.ErrorLevel
+	})
+	lowPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+		return lvl < zapcore.ErrorLevel
+	})
+)
 
 // InitWithCores is used to set up a new logger.
 func InitWithCores(cores []zapcore.Core) {
 	consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
-
-	highPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return lvl >= zapcore.ErrorLevel
-	})
-	lowPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return lvl < zapcore.ErrorLevel
-	})
 
 	consoleErrors := zapcore.Lock(os.Stderr)
 	consoleDebugging := zapcore.Lock(os.Stdout)
@@ -162,7 +164,7 @@ func withPanicErrorResponderFunc(
 
 		defer func() {
 			if err := recover(); err != nil {
-				logger := WithContext(r.Context())
+				logger := WithContext(r.Context()).WithOptions(zap.AddStacktrace(highPriority))
 				logger.Error("panic captured", zap.Any("stack", err))
 
 				if !writeCheckWriter.Written() {
