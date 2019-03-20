@@ -752,6 +752,11 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -788,6 +793,11 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -836,6 +846,11 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -913,6 +928,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
