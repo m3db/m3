@@ -643,23 +643,22 @@ func TestCommitLogQueueLength(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 	defer commitLog.Close()
 
-	var writes []testWrite
-	series := testSeries(0, "foo.bar", testTags1, 127)
-	dp := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
-	unit := xtime.Millisecond
-
-	ctx := context.NewContext()
+	var (
+		series = testSeries(0, "foo.bar", testTags1, 127)
+		dp     = ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
+		unit   = xtime.Millisecond
+		ctx    = context.NewContext()
+	)
 	defer ctx.Close()
 
 	for i := 0; ; i++ {
 		// Write in a loop and check the queue length until the queue is full.
+		require.Equal(t, int64(i), commitLog.QueueLength())
 		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
 			require.Equal(t, ErrCommitLogQueueFull, err)
 			break
 		}
-		require.Equal(t, int64(i), commitLog.QueueLength())
 
-		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})
 		// Increment timestamp and value for next write.
 		dp.Timestamp = dp.Timestamp.Add(time.Second)
 		dp.Value += 1.0
