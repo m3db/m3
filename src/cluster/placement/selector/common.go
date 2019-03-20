@@ -46,10 +46,6 @@ func getValidCandidates(
 		}
 		if instanceInPlacement.IsLeaving() {
 			instances = append(instances, instanceInPlacement)
-			continue
-		}
-		if opts.ShardStateMode() == placement.StableShardStateOnly {
-			instances = append(instances, instanceInPlacement)
 		}
 	}
 

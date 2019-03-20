@@ -57,18 +57,17 @@ func TestGetValidCandidatesAllowAllZones(t *testing.T) {
 	i1 := placement.NewInstance().SetID("i1").SetZone("z1")
 	i2 := placement.NewInstance().SetID("i2").SetZone("z1")
 	i3 := placement.NewInstance().SetID("i3").SetZone("z2")
-	i4 := placement.NewInstance().SetID("i4").SetZone("z2")
-	i5 := placement.NewInstance().SetID("i5").SetZone("z3")
 
 	p := placement.NewPlacement().
-		SetInstances([]placement.Instance{i3, i1, i2, i4, i5}).
+		SetInstances([]placement.Instance{i3, i1, i2}).
 		SetIsSharded(false).
 		SetReplicaFactor(1)
 
-	candidates := []placement.Instance{i3, i1, i2, i4, i5}
+	i4 := placement.NewInstance().SetID("i4").SetZone("z2")
+	i5 := placement.NewInstance().SetID("i5").SetZone("z3")
+	candidates := []placement.Instance{i4, i5}
 	res, err := getValidCandidates(p, candidates, placement.NewOptions().
-		SetAllowAllZones(true).
-		SetShardStateMode(placement.StableShardStateOnly))
+		SetAllowAllZones(true))
 	require.NoError(t, err)
-	require.Equal(t, []placement.Instance{i3, i1, i2, i4, i5}, res)
+	require.Equal(t, []placement.Instance{i4, i5}, res)
 }
