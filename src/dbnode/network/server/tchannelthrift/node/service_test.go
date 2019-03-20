@@ -1583,7 +1583,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
-	mockDB.EXPECT().IsOverloaded().Return(true)
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
