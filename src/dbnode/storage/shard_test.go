@@ -30,8 +30,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/m3db/m3x/pool"
-
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -46,6 +44,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
