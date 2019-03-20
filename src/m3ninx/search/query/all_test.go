@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,51 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package query;
+package query
 
-option go_package = "querypb";
+import (
+	"testing"
 
-message TermQuery {
-  bytes field = 1;
-  bytes term = 2;
+	"github.com/m3db/m3/src/m3ninx/search"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestAllQuery(t *testing.T) {
+	s := NewAllQuery()
+	_, err := s.Searcher()
+	require.NoError(t, err)
 }
 
-message RegexpQuery {
-  bytes field = 1;
-  bytes regexp = 2;
-}
+func TestAllQueryEqual(t *testing.T) {
+	tests := []struct {
+		name        string
+		left, right search.Query
+		expected    bool
+	}{
+		{
+			name:     "same",
+			left:     NewAllQuery(),
+			right:    NewAllQuery(),
+			expected: true,
+		},
+		{
+			name:     "singular conjunction query",
+			left:     NewAllQuery(),
+			right:    NewConjunctionQuery([]search.Query{NewAllQuery()}),
+			expected: true,
+		},
+		{
+			name:     "singular disjunction query",
+			left:     NewAllQuery(),
+			right:    NewDisjunctionQuery([]search.Query{NewAllQuery()}),
+			expected: true,
+		},
+	}
 
-message NegationQuery {
-  Query query = 1;
-}
-
-message ConjunctionQuery {
-  repeated Query queries = 1;
-}
-
-message DisjunctionQuery {
-  repeated Query queries = 1;
-}
-
-message AllQuery {
-}
-
-message Query {
-  oneof query {
-    TermQuery term               = 1;
-    RegexpQuery regexp           = 2;
-    NegationQuery negation       = 3;
-    ConjunctionQuery conjunction = 4;
-    DisjunctionQuery disjunction = 5;
-    AllQuery all                 = 6;
-  }
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.left.Equal(test.right))
+		})
+	}
 }

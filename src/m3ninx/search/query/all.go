@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package query;
+package query
 
-option go_package = "querypb";
+import (
+	"fmt"
 
-message TermQuery {
-  bytes field = 1;
-  bytes term = 2;
+	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
+	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/m3ninx/search/searcher"
+)
+
+// AllQuery returns a query which matches all known documents.
+type AllQuery struct{}
+
+// NewAllQuery constructs a new AllQuery.
+func NewAllQuery() search.Query {
+	return &AllQuery{}
 }
 
-message RegexpQuery {
-  bytes field = 1;
-  bytes regexp = 2;
+// Searcher returns a searcher over the provided readers.
+func (q *AllQuery) Searcher() (search.Searcher, error) {
+	return searcher.NewAllSearcher(), nil
 }
 
-message NegationQuery {
-  Query query = 1;
+// Equal reports whether q is equivalent to o.
+func (q *AllQuery) Equal(o search.Query) bool {
+	o, ok := singular(o)
+	if !ok {
+		return false
+	}
+
+	_, ok = o.(*AllQuery)
+	return ok
 }
 
-message ConjunctionQuery {
-  repeated Query queries = 1;
+// ToProto returns the Protobuf query struct corresponding to the match all query.
+func (q *AllQuery) ToProto() *querypb.Query {
+	return &querypb.Query{
+		Query: &querypb.Query_All{
+			All: &querypb.AllQuery{},
+		},
+	}
 }
 
-message DisjunctionQuery {
-  repeated Query queries = 1;
-}
-
-message AllQuery {
-}
-
-message Query {
-  oneof query {
-    TermQuery term               = 1;
-    RegexpQuery regexp           = 2;
-    NegationQuery negation       = 3;
-    ConjunctionQuery conjunction = 4;
-    DisjunctionQuery disjunction = 5;
-    AllQuery all                 = 6;
-  }
+func (q *AllQuery) String() string {
+	return fmt.Sprintf("all()")
 }

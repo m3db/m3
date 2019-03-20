@@ -525,3 +525,35 @@ func TestStoragePoliciesByResolutionAscRetentionDesc(t *testing.T) {
 	}
 	require.Equal(t, expected, inputs)
 }
+
+func TestStoragePoliciesByRetentionAscResolutionAsc(t *testing.T) {
+	inputs := StoragePolicies{
+		NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Minute, 12*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(11*time.Second, xtime.Second, 2*time.Hour),
+	}
+	sort.Sort(ByRetentionAscResolutionAsc(inputs))
+
+	expected := StoragePolicies{
+		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(11*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Minute, 12*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+	}
+	require.Equal(t, expected, inputs)
+}

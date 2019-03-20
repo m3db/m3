@@ -69,6 +69,9 @@ func filterZones(
 	var validZone string
 	if opts != nil {
 		validZone = opts.ValidZone()
+		if opts.AllowAllZones() {
+			return candidates
+		}
 	}
 	if validZone == "" && len(p.Instances()) > 0 {
 		validZone = p.Instances()[0].Zone()
