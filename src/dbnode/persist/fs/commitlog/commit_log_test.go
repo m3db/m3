@@ -629,9 +629,9 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	assertCommitLogWritesByIterating(t, commitLog, writes)
 }
 
-func TestCommitLogQueueSize(t *testing.T) {
+func TestCommitLogQueueLength(t *testing.T) {
 	// Set backlog of size one and don't automatically flush.
-	backlogQueueSize := 1
+	backlogQueueSize := 10
 	flushInterval := time.Duration(0)
 	opts, _ := newTestOptions(t, overrides{
 		backlogQueueSize: &backlogQueueSize,
@@ -643,7 +643,6 @@ func TestCommitLogQueueSize(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 	defer commitLog.Close()
 
-	// Test filling queue.
 	var writes []testWrite
 	series := testSeries(0, "foo.bar", testTags1, 127)
 	dp := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
@@ -652,15 +651,15 @@ func TestCommitLogQueueSize(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	for {
+	for i := 0; ; i++ {
+		// Write in a loop and check the queue length until the queue is full.
 		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
-			// Ensure queue full error.
 			require.Equal(t, ErrCommitLogQueueFull, err)
-			require.Equal(t, int64(backlogQueueSize), commitLog.QueueSize())
 			break
 		}
-		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})
+		require.Equal(t, int64(i), commitLog.QueueLength())
 
+		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})
 		// Increment timestamp and value for next write.
 		dp.Timestamp = dp.Timestamp.Add(time.Second)
 		dp.Value += 1.0
