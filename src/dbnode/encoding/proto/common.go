@@ -105,6 +105,8 @@ var (
 	}
 )
 
+// customFieldState is used to track any required state for encoding / decoding a single
+// field in the encoder / iterator respectively.
 type customFieldState struct {
 	// TODO(rartoul): This could be made more efficient by separating out fields required
 	// for encoding and those required for enumeration, as well as trying to reuse some

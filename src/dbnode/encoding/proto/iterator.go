@@ -22,7 +22,6 @@ package proto
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -37,8 +36,9 @@ import (
 )
 
 var (
-	errIteratorReaderIsRequired = errors.New("proto iterator: reader is required")
-	errIteratorSchemaIsRequired = errors.New("proto iterator: schema is required")
+	itErrPrefix                 = "proto iterator:"
+	errIteratorReaderIsRequired = fmt.Errorf("%s reader is required", itErrPrefix)
+	errIteratorSchemaIsRequired = fmt.Errorf("%s schema is required", itErrPrefix)
 )
 
 type iterator struct {
@@ -149,7 +149,7 @@ func (it *iterator) Next() bool {
 	it.lastIteratedAnnotation, err = it.lastIterated.Marshal()
 	if err != nil {
 		it.err = fmt.Errorf(
-			"proto iterator: error marshaling last iterated proto message: %v", err)
+			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
 		return false
 	}
 
@@ -217,7 +217,7 @@ func (it *iterator) readCustomValues() error {
 func (it *iterator) readProtoValues() error {
 	protoChangesControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return fmt.Errorf("proto iterator: err reading proto changes control bit: %v", err)
+		return fmt.Errorf("%s: err reading proto changes control bit: %v", itErrPrefix, err)
 	}
 
 	if protoChangesControlBit == opCodeNoChange {
@@ -227,7 +227,7 @@ func (it *iterator) readProtoValues() error {
 
 	fieldsSetToDefaultControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return fmt.Errorf("proto iterator: err reading field set to default control bit: %v", err)
+		return fmt.Errorf("%s: err reading field set to default control bit: %v", itErrPrefix, err)
 	}
 
 	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
@@ -241,19 +241,19 @@ func (it *iterator) readProtoValues() error {
 
 	marshalLen, err := it.readVarInt()
 	if err != nil {
-		return fmt.Errorf("proto iterator: err reading proto length varint: %v", err)
+		return fmt.Errorf("%s: err reading proto length varint: %v", itErrPrefix, err)
 	}
 
 	// TODO(rartoul): Probably want to use a bytes pool for this or recycle it at least.
 	buf := make([]byte, marshalLen)
 	n, err := it.stream.Read(buf)
 	if err != nil {
-		return fmt.Errorf("proto iterator: error reading marshaled proto bytes: %v", err)
+		return fmt.Errorf("%s: error reading marshaled proto bytes: %v", itErrPrefix, err)
 	}
 	if n != int(marshalLen) {
 		return fmt.Errorf(
-			"proto iterator: tried to read %d marshaled proto bytes but only read %d",
-			int(marshalLen), n)
+			"%s: tried to read %d marshaled proto bytes but only read %d",
+			itErrPrefix, int(marshalLen), n)
 	}
 
 	err = it.lastIterated.UnmarshalMerge(buf)
@@ -266,8 +266,8 @@ func (it *iterator) readProtoValues() error {
 			err := it.lastIterated.TryClearFieldByNumber(fieldNum)
 			if err != nil {
 				return fmt.Errorf(
-					"proto iterator: error clearing field number: %d, err: %v",
-					fieldNum, err)
+					"%s: error clearing field number: %d, err: %v",
+					itErrPrefix, fieldNum, err)
 			}
 		}
 	}
@@ -292,7 +292,7 @@ func (it *iterator) readFirstCustomValues() error {
 			}
 		default:
 			return fmt.Errorf(
-				"proto iterator: unhandled custom field type: %v", customField.fieldType)
+				"%s: unhandled custom field type: %v", itErrPrefix, customField.fieldType)
 		}
 	}
 
@@ -333,7 +333,8 @@ func (it *iterator) readNextCustomValues() error {
 			}
 
 		default:
-			return fmt.Errorf("proto iterator: unknown custom field type: %v", customField.fieldType)
+			return fmt.Errorf(
+				"%s: unknown custom field type: %v", itErrPrefix, customField.fieldType)
 		}
 	}
 
@@ -359,7 +360,9 @@ func (it *iterator) readIntValue(i int, customField customFieldState, first bool
 	if !first {
 		changeExistsControlBit, err := it.stream.ReadBit()
 		if err != nil {
-			return fmt.Errorf("proto decoder: error trying to read int change exists control bit: %v", err)
+			return fmt.Errorf(
+				"%s: error trying to read int change exists control bit: %v",
+				itErrPrefix, err)
 		}
 
 		if changeExistsControlBit == opCodeNoChange {
@@ -369,15 +372,21 @@ func (it *iterator) readIntValue(i int, customField customFieldState, first bool
 	}
 
 	if err := it.readIntSig(i); err != nil {
-		return fmt.Errorf("proto decoder: error trying to read number of significant digits: %v", err)
+		return fmt.Errorf(
+			"%s error trying to read number of significant digits: %v",
+			itErrPrefix, err)
 	}
 
 	if err := it.readIntValDiff(i); err != nil {
-		return fmt.Errorf("proto decoder: error trying to read int diff: %v", err)
+		return fmt.Errorf(
+			"%s error trying to read int diff: %v",
+			itErrPrefix, err)
 	}
 
 	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
-		return fmt.Errorf("proto decoder: error updating last iterated with int value: %v", err)
+		return fmt.Errorf(
+			"%s error updating last iterated with int value: %v",
+			itErrPrefix, err)
 	}
 	return nil
 }
@@ -386,7 +395,8 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	bytesChangedControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
-			"proto decoder: error trying to read bytes changed control bit: %v", err)
+			"%s: error trying to read bytes changed control bit: %v",
+			itErrPrefix, err)
 	}
 
 	if bytesChangedControlBit == opCodeNoChange {
@@ -398,21 +408,23 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	valueInDictControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
-			"proto decoder: error trying to read bytes changed control bit: %v", err)
+			"%s error trying to read bytes changed control bit: %v",
+			itErrPrefix, err)
 	}
 	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
 			numBitsRequiredToRepresentArrayIndex(it.byteFieldDictLRUSize))
 		if err != nil {
 			return fmt.Errorf(
-				"proto decoder: error trying to read bytes dict idx: %v", err)
+				"%s error trying to read bytes dict idx: %v",
+				itErrPrefix, err)
 		}
 
 		dictIdx := int(dictIdxBits)
 		if dictIdx >= len(customField.iteratorBytesFieldDict) || dictIdx < 0 {
 			return fmt.Errorf(
-				"proto decoder: read bytes field dictionary index: %d, but dictionary is size: %d",
-				dictIdx, len(customField.iteratorBytesFieldDict))
+				"%s read bytes field dictionary index: %d, but dictionary is size: %d",
+				itErrPrefix, dictIdx, len(customField.iteratorBytesFieldDict))
 		}
 
 		bytesVal := customField.iteratorBytesFieldDict[dictIdx]
@@ -430,20 +442,23 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	bytesLen, err := it.readVarInt()
 	if err != nil {
 		return fmt.Errorf(
-			"proto decoder: error trying to read bytes length: %v", err)
+			"%s error trying to read bytes length: %v", itErrPrefix, err)
 	}
 
 	buf := make([]byte, 0, bytesLen)
 	for j := 0; j < int(bytesLen); j++ {
 		b, err := it.stream.ReadByte()
 		if err != nil {
-			return fmt.Errorf("proto decoder: error trying to read byte in readBytes: %v", err)
+			return fmt.Errorf(
+				"%s error trying to read byte in readBytes: %v",
+				itErrPrefix, err)
 		}
 		buf = append(buf, b)
 	}
 
-	// TODO: Could make this more efficient with unsafe string conversion or by pre-processing
-	// schemas to only have bytes.
+	// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
+	// schemas to only have bytes since its all the same over the wire.
+	// https://github.com/m3db/m3/issues/1471
 	schemaFieldType := it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType()
 	if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
 		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, string(buf))
@@ -452,8 +467,8 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	}
 	if err != nil {
 		return fmt.Errorf(
-			"proto decoder: error trying to set field number: %d, err: %v",
-			customField.fieldNum, err)
+			"%s error trying to set field number: %d, err: %v",
+			itErrPrefix, customField.fieldNum, err)
 	}
 
 	it.addToBytesDict(i, buf)
@@ -507,10 +522,12 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 
 		default:
 			return fmt.Errorf(
-				"proto iterator: expected custom int encoded field but field type was: %v", fieldType)
+				"%s expected custom int encoded field but field type was: %v",
+				itErrPrefix, fieldType)
 		}
 	default:
-		return fmt.Errorf("proto decoder: unhandled fieldType: %v", fieldType)
+		return fmt.Errorf(
+			"%s unhandled fieldType: %v", itErrPrefix, fieldType)
 	}
 }
 
@@ -594,7 +611,7 @@ func (it *iterator) readBitset() error {
 	for i := uint64(0); i < bitsetLengthBits; i++ {
 		bit, err := it.stream.ReadBit()
 		if err != nil {
-			return fmt.Errorf("error reading bitset: %v", err)
+			return fmt.Errorf("%s error reading bitset: %v", itErrPrefix, err)
 		}
 
 		if bit == opCodeBitsetValueIsSet {
@@ -616,7 +633,7 @@ func (it *iterator) readVarInt() (uint64, error) {
 	for {
 		b, err := it.stream.ReadByte()
 		if err != nil {
-			return 0, fmt.Errorf("error reading var int: %v", err)
+			return 0, fmt.Errorf("%s error reading var int: %v", itErrPrefix, err)
 		}
 
 		buf = append(buf, b)
@@ -636,7 +653,8 @@ func (it *iterator) readIntSig(i int) error {
 	updateControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
-			"proto iterator: error reading int significant digits update control bit: %v", err)
+			"%s error reading int significant digits update control bit: %v",
+			itErrPrefix, err)
 	}
 	if updateControlBit == opCodeNoChange {
 		// No change.
@@ -646,7 +664,8 @@ func (it *iterator) readIntSig(i int) error {
 	sigDigitsControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
-			"proto iterator: error reading zero significant digits control bit: %v", err)
+			"%s error reading zero significant digits control bit: %v",
+			itErrPrefix, err)
 	}
 	if sigDigitsControlBit == m3tsz.OpcodeZeroSig {
 		it.customFields[i].intSigBitsTracker.NumSig = 0
@@ -654,7 +673,8 @@ func (it *iterator) readIntSig(i int) error {
 		numSigBits, err := it.readBits(6)
 		if err != nil {
 			return fmt.Errorf(
-				"proto iterator: error reading number of significant digits: %v", err)
+				"%s error reading number of significant digits: %v",
+				itErrPrefix, err)
 		}
 
 		it.customFields[i].intSigBitsTracker.NumSig = uint8(numSigBits) + 1
@@ -667,14 +687,16 @@ func (it *iterator) readIntValDiff(i int) error {
 	negativeControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
-			"proto iterator: error reading negative control bit: %v", err)
+			"%s error reading negative control bit: %v",
+			itErrPrefix, err)
 	}
 
 	numSig := int(it.customFields[i].intSigBitsTracker.NumSig)
 	diffSigBits, err := it.readBits(numSig)
 	if err != nil {
 		return fmt.Errorf(
-			"proto iterator: error reading significant digits: %v", err)
+			"%s error reading significant digits: %v",
+			itErrPrefix, err)
 	}
 
 	if it.customFields[i].fieldType == cUnsignedInt64 {

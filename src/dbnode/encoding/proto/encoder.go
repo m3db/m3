@@ -22,7 +22,6 @@ package proto
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -49,11 +48,12 @@ const (
 )
 
 var (
-	errEncoderSchemaIsRequired           = errors.New("proto encoder: schema is required")
-	errEncoderEncodingOptionsAreRequired = errors.New("proto encoder: encoding options are required")
-	errEncoderMessageHasUnknownFields    = errors.New("proto encoder: message has unknown fields")
-	errEncoderClosed                     = errors.New("proto encoder: encoder is closed")
-	errNoEncodedDatapoints               = errors.New("encoder has no encoded datapoints")
+	encErrPrefix                         = "proto encoder:"
+	errEncoderSchemaIsRequired           = fmt.Errorf("%s schema is required", encErrPrefix)
+	errEncoderEncodingOptionsAreRequired = fmt.Errorf("%s encoding options are required", encErrPrefix)
+	errEncoderMessageHasUnknownFields    = fmt.Errorf("%s message has unknown fields", encErrPrefix)
+	errEncoderClosed                     = fmt.Errorf("%s encoder is closed", encErrPrefix)
+	errNoEncodedDatapoints               = fmt.Errorf("%s encoder has no encoded datapoints", encErrPrefix)
 )
 
 // Encoder compresses arbitrary ProtoBuf streams given a schema.
@@ -120,7 +120,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	// fashion if we write our own decoder or expose the one in the underlying library.
 	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
 		return fmt.Errorf(
-			"proto encoder: error unmarshaling annotation into proto message: %v", err)
+			"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
 	}
 
 	if enc.numEncoded == 0 {
@@ -135,7 +135,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 
 	if err := enc.encodeTimestamp(dp.Timestamp, tu); err != nil {
 		return fmt.Errorf(
-			"proto encoder: error encoding timestamp: %v", err)
+			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
 	enc.encodeProto(enc.unmarshaled)
@@ -327,8 +327,8 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 		iVal, err := m.TryGetFieldByNumber(customField.fieldNum)
 		if err != nil {
 			return fmt.Errorf(
-				"proto encoder error trying to get field number: %d",
-				customField.fieldNum)
+				"%s error trying to get field number: %d",
+				encErrPrefix, customField.fieldNum)
 		}
 
 		customEncoded := true
@@ -369,7 +369,7 @@ func (enc *Encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 		val = float64(typedVal)
 	default:
 		return fmt.Errorf(
-			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
 	}
 
 	if !enc.hasEncodedFirstSetOfCustomValues {
@@ -397,7 +397,7 @@ func (enc *Encoder) encodeIntValue(i int, customField customFieldState, iVal int
 		signedVal = int64(typedVal)
 	default:
 		return fmt.Errorf(
-			"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
 	}
 
 	if isUnsignedInt(customField.fieldType) {
@@ -423,7 +423,7 @@ func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal i
 		currString, ok := iVal.(string)
 		if !ok {
 			return fmt.Errorf(
-				"proto encoder: found unknown type in fieldNum %d", customField.fieldNum)
+				"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
 		}
 		currBytes = []byte(currString)
 	}
@@ -528,7 +528,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	// allocations: https://github.com/m3db/m3/issues/1471
 	marshaled, err := m.Marshal()
 	if err != nil {
-		return fmt.Errorf("proto encoder error trying to marshal protobuf: %v", err)
+		return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
 	}
 
 	// Control bit indicating that proto values have changed.
