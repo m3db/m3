@@ -46,6 +46,10 @@ func getValidCandidates(
 		}
 		if instanceInPlacement.IsLeaving() {
 			instances = append(instances, instanceInPlacement)
+			continue
+		}
+		if opts.ShardStateMode() == placement.StableShardStateOnly {
+			instances = append(instances, instanceInPlacement)
 		}
 	}
 
@@ -67,8 +71,10 @@ func filterZones(
 	}
 
 	var validZone string
+	var allowNonValidZone bool
 	if opts != nil {
 		validZone = opts.ValidZone()
+		allowNonValidZone = opts.AllowNonValidZones()
 	}
 	if validZone == "" && len(p.Instances()) > 0 {
 		validZone = p.Instances()[0].Zone()
@@ -76,7 +82,7 @@ func filterZones(
 
 	validInstances := make([]placement.Instance, 0, len(candidates))
 	for _, instance := range candidates {
-		if validZone == instance.Zone() {
+		if validZone == instance.Zone() || allowNonValidZone {
 			validInstances = append(validInstances, instance)
 		}
 	}

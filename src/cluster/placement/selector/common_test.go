@@ -52,3 +52,23 @@ func TestGetValidCandidates(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []placement.Instance{i3, i3, i4}, res)
 }
+
+func TestGetValidCandidatesNonValidZone(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetZone("z1")
+	i2 := placement.NewInstance().SetID("i2").SetZone("z1")
+	i3 := placement.NewInstance().SetID("i3").SetZone("z2")
+	i4 := placement.NewInstance().SetID("i4").SetZone("z2")
+	i5 := placement.NewInstance().SetID("i5").SetZone("z3")
+
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{i3, i1, i2, i4, i5}).
+		SetIsSharded(false).
+		SetReplicaFactor(1)
+
+	candidates := []placement.Instance{i3, i1, i2, i4, i5}
+	res, err := getValidCandidates(p, candidates, placement.NewOptions().
+		SetAllowNonValidZones(true).
+		SetShardStateMode(placement.StableShardStateOnly))
+	require.NoError(t, err)
+	require.Equal(t, []placement.Instance{i3, i1, i2, i4, i5}, res)
+}
