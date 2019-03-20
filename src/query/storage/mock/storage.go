@@ -36,7 +36,7 @@ type Storage interface {
 	SetTypeResult(storage.Type)
 	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
-	SetFetchTagsResult(*storage.SearchResults, error)
+	SetSearchSeriesResult(*storage.SearchResults, error)
 	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
 	SetWriteResult(error)
 	SetFetchBlocksResult(block.Result, error)
@@ -93,7 +93,7 @@ func (s *mockStorage) SetFetchResult(result *storage.FetchResult, err error) {
 	s.fetchResult.err = err
 }
 
-func (s *mockStorage) SetFetchTagsResult(result *storage.SearchResults, err error) {
+func (s *mockStorage) SetSearchSeriesResult(result *storage.SearchResults, err error) {
 	s.Lock()
 	defer s.Unlock()
 	s.fetchTagsResult.result = result
@@ -159,7 +159,7 @@ func (s *mockStorage) FetchBlocks(
 	return s.fetchBlocksResult.result, s.fetchBlocksResult.err
 }
 
-func (s *mockStorage) FetchTags(
+func (s *mockStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	_ *storage.FetchOptions,

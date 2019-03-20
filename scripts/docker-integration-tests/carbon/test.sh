@@ -34,7 +34,7 @@ function read_carbon {
 function find_carbon {
   query=$1
   expected_file=$2
-  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/metrics/find?query=$query")
+  RESPONSE=$(curl -sSg "http://localhost:7201/api/v1/graphite/metrics/find?query=$query")
   ACTUAL=$(echo $RESPONSE | jq '. | sort')
   EXPECTED=$(cat $EXPECTED_PATH/$expected_file | jq '. | sort')
   if [ "$ACTUAL" == "$EXPECTED" ]
@@ -83,6 +83,7 @@ echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
 echo "a.bag 0 $t"         | nc 0.0.0.0 7204
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.c* a.b.c.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.caw.* a.b.c.d.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon x none.json

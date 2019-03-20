@@ -118,7 +118,7 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 	return result, nil
 }
 
-func (s *fanoutStorage) FetchTags(
+func (s *fanoutStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -127,7 +127,7 @@ func (s *fanoutStorage) FetchTags(
 
 	stores := filterStores(s.stores, s.fetchFilter, query)
 	for _, store := range stores {
-		results, err := store.FetchTags(ctx, query, options)
+		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
 			return nil, err
 		}

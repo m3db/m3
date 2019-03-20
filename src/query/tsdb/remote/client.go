@@ -213,7 +213,7 @@ func (c *grpcClient) FetchBlocks(
 	return res, nil
 }
 
-func (c *grpcClient) FetchTags(
+func (c *grpcClient) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,

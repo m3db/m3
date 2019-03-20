@@ -60,13 +60,13 @@ func (s *slowStorage) FetchBlocks(
 	return s.storage.FetchBlocks(ctx, query, options)
 }
 
-func (s *slowStorage) FetchTags(
+func (s *slowStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
 	time.Sleep(s.delay)
-	return s.storage.FetchTags(ctx, query, options)
+	return s.storage.SearchSeries(ctx, query, options)
 }
 
 func (s *slowStorage) CompleteTags(

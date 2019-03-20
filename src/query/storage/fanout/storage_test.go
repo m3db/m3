@@ -116,6 +116,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		Return(nil, nil).AnyTimes()
 	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, true, errs[0]).AnyTimes()
+	session1.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, true, errs[0]).AnyTimes()
 
 	session2.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -161,7 +163,7 @@ func TestFanoutReadSuccess(t *testing.T) {
 
 func TestFanoutSearchEmpty(t *testing.T) {
 	store := setupFanoutRead(t, false)
-	res, err := store.FetchTags(context.TODO(), nil, nil)
+	res, err := store.SearchSeries(context.TODO(), nil, nil)
 	assert.NoError(t, err, "No error")
 	require.NotNil(t, res, "Non empty result")
 	assert.Len(t, res.Metrics, 0, "No series")
@@ -170,7 +172,7 @@ func TestFanoutSearchEmpty(t *testing.T) {
 func TestFanoutSearchError(t *testing.T) {
 	store := setupFanoutRead(t, true)
 	opts := storage.NewFetchOptions()
-	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, opts)
+	_, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 
@@ -202,7 +204,7 @@ func TestFanoutWriteSuccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestCompleteTagsFailure(t *testing.T) {
+func TestCompleteTagsError(t *testing.T) {
 	store := setupFanoutWrite(t, true, fmt.Errorf("err"))
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
