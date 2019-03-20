@@ -334,15 +334,15 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 		customEncoded := true
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
-			if err := enc.encodeTSZValue(i, customField, iVal); err != nil {
+			if err := enc.encodeTSZValue(i, iVal); err != nil {
 				return err
 			}
 		case isCustomIntEncodedField(customField.fieldType):
-			if err := enc.encodeIntValue(i, customField, iVal); err != nil {
+			if err := enc.encodeIntValue(i, iVal); err != nil {
 				return err
 			}
 		case customField.fieldType == cBytes:
-			if err := enc.encodeBytesValue(i, customField, iVal); err != nil {
+			if err := enc.encodeBytesValue(i, iVal); err != nil {
 				return err
 			}
 		default:
@@ -360,8 +360,11 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 	return nil
 }
 
-func (enc *Encoder) encodeTSZValue(i int, customField customFieldState, iVal interface{}) error {
-	var val float64
+func (enc *Encoder) encodeTSZValue(i int, iVal interface{}) error {
+	var (
+		val         float64
+		customField = enc.customFields[i]
+	)
 	switch typedVal := iVal.(type) {
 	case float64:
 		val = typedVal
@@ -381,10 +384,11 @@ func (enc *Encoder) encodeTSZValue(i int, customField customFieldState, iVal int
 	return nil
 }
 
-func (enc *Encoder) encodeIntValue(i int, customField customFieldState, iVal interface{}) error {
+func (enc *Encoder) encodeIntValue(i int, iVal interface{}) error {
 	var (
 		signedVal   int64
 		unsignedVal uint64
+		customField = enc.customFields[i]
 	)
 	switch typedVal := iVal.(type) {
 	case uint64:
@@ -417,7 +421,8 @@ func (enc *Encoder) encodeIntValue(i int, customField customFieldState, iVal int
 	return nil
 }
 
-func (enc *Encoder) encodeBytesValue(i int, customField customFieldState, iVal interface{}) error {
+func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
+	customField := enc.customFields[i]
 	currBytes, ok := iVal.([]byte)
 	if !ok {
 		currString, ok := iVal.(string)
