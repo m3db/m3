@@ -251,7 +251,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.unmarshaled = nil
 
 	if enc.schema != nil {
-		enc.resetCustomFields(enc.schema)
+		enc.customFields = resetCustomFields(enc.customFields, enc.schema)
 	}
 
 	enc.hasEncodedFirstSetOfCustomValues = false
@@ -261,18 +261,10 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.resetCustomFields(schema)
+	enc.customFields = resetCustomFields(enc.customFields, enc.schema)
 
 	enc.lastEncoded = dynamic.NewMessage(schema)
 	enc.unmarshaled = dynamic.NewMessage(schema)
-}
-
-func (enc *Encoder) resetCustomFields(schema *desc.MessageDescriptor) {
-	if cap(enc.customFields) <= maxTSZFieldsCapacityRetain {
-		enc.customFields = customFields(enc.customFields, schema)
-	} else {
-		enc.customFields = customFields(nil, schema)
-	}
 }
 
 // Close closes the encoder.
@@ -282,6 +274,7 @@ func (enc *Encoder) Close() {
 	}
 
 	enc.closed = true
+	enc.Reset(time.Time{}, 0)
 	enc.stream.Reset(nil)
 	enc.m3tszEncoder.Reset(time.Time{}, 0)
 

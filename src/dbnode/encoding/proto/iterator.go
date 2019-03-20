@@ -182,8 +182,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.lastIteratedAnnotation = nil
-	// TODO: use same logic as encoder
-	it.customFields = customFields(it.customFields, it.schema)
+	it.customFields = resetCustomFields(it.customFields, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
@@ -192,8 +191,7 @@ func (it *iterator) Reset(reader io.Reader) {
 // SetSchema sets the encoders schema.
 func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
 	it.schema = schema
-	// TODO: use same logic as encoder
-	it.customFields = customFields(it.customFields, schema)
+	it.customFields = resetCustomFields(it.customFields, it.schema)
 }
 
 func (it *iterator) Close() {

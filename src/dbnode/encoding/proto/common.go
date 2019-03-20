@@ -30,6 +30,8 @@ import (
 	"github.com/jhump/protoreflect/desc"
 )
 
+type Schema *desc.MessageDescriptor
+
 const (
 	// ~1GiB is an intentionally a very large number to avoid users ever running into any
 	// limitations, but we want some theoretical maximum so that in the case of data / memory
@@ -190,6 +192,13 @@ func numCustomFields(schema *desc.MessageDescriptor) int {
 	}
 
 	return numCustomFields
+}
+
+func resetCustomFields(fields []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
+	if cap(fields) <= maxTSZFieldsCapacityRetain {
+		return customFields(fields, schema)
+	}
+	return customFields(nil, schema)
 }
 
 func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {

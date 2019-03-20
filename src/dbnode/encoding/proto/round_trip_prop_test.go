@@ -65,7 +65,7 @@ func TestRoundtripProp(t *testing.T) {
 		props      = gopter.NewProperties(parameters)
 		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
-	parameters.MinSuccessfulTests = 40
+	parameters.MinSuccessfulTests = 200
 	parameters.Rng.Seed(seed)
 
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
