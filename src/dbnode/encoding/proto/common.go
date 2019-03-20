@@ -33,6 +33,15 @@ import (
 type customFieldType int
 
 const (
+	// All the protobuf field types that we can perform custom encoding /
+	// compression on will get mapped to one of these types. This prevents
+	// us from having to reference the protobuf type all over the encoder
+	// and iterators and also simplifies the logic because the protobuf
+	// format has several instances of multiple types that we will treat the
+	// same. For example, in our encoding scheme the proto types:
+	// int32, sfixed32, and enums are all are treated as int32s and there
+	// is no reasonm to distinguish between them for the purposes of encoding
+	// and decoding.
 	cSignedInt64 customFieldType = iota
 	cSignedInt32
 	cUnsignedInt64
