@@ -43,8 +43,20 @@ import (
 )
 
 func TestShardWriteSyncRefCount(t *testing.T) {
-	now := time.Now()
 	opts := testDatabaseOptions()
+	testShardWriteSyncRefCount(t, opts)
+}
+
+func TestShardWriteSyncRefCountVerifyNoCopyAnnotation(t *testing.T) {
+	opts := testDatabaseOptions().
+		// Set bytes pool to nil to ensure we're not using it to copy annotations
+		// on the sync path.
+		SetBytesPool(nil)
+	testShardWriteSyncRefCount(t, opts)
+}
+
+func testShardWriteSyncRefCount(t *testing.T, opts Options) {
+	now := time.Now()
 
 	shard := testDatabaseShard(t, opts)
 	shard.SetRuntimeOptions(runtime.NewOptions().

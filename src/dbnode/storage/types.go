@@ -115,6 +115,13 @@ type Database interface {
 	// BatchWriter returns a batch writer for the provided namespace that can
 	// be used to issue a batch of writes to either WriteBatch
 	// or WriteTaggedBatch.
+	//
+	// Note that when using the BatchWriter the caller owns the lifecycle of the series
+	// IDs and tag iterators (I.E) if they're being pooled its the callers responsibility
+	// to return them to the appropriate pool, but the annotations are owned by the
+	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
+	// due to their lifecycle being more complicated. Callers can still control the pooling
+	// of the annotations by using the SetFinalizeAnnotationFn on the WriteBatch itself.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.

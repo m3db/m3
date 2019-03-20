@@ -28,9 +28,13 @@ import (
 )
 
 type writeBatch struct {
-	writes     []BatchWrite
-	ns         ident.ID
-	finalizeFn func(WriteBatch)
+	writes []BatchWrite
+	ns     ident.ID
+	// Enables callers to pool annotations by allowing them to
+	// provide a function to finalize all annotations once the
+	// writeBatch itself gets finalized.
+	finalizeAnnotationFn FinalizeAnnotationFn
+	finalizeFn           func(WriteBatch)
 }
 
 // NewWriteBatch creates a new WriteBatch.
@@ -86,6 +90,7 @@ func (b *writeBatch) Reset(
 
 	b.writes = writes
 	b.ns = ns
+	b.finalizeAnnotationFn = nil
 }
 
 func (b *writeBatch) Iter() []BatchWrite {
@@ -102,9 +107,34 @@ func (b *writeBatch) SetSkipWrite(idx int) {
 	b.writes[idx].SkipWrite = true
 }
 
+// Set the function that will be called to finalize annotations when a WriteBatch
+// is finalized, allowing the caller to pool them.
+func (b *writeBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
+	b.finalizeAnnotationFn = f
+}
+
 func (b *writeBatch) Finalize() {
+	if b.finalizeAnnotationFn != nil {
+		for _, write := range b.writes {
+			annotation := write.Write.Annotation
+			if annotation == nil {
+				continue
+			}
+
+			b.finalizeAnnotationFn(annotation)
+		}
+	}
+	b.finalizeAnnotationFn = nil
+
 	b.ns = nil
+
+	var zeroedWrite BatchWrite
+	for i := range b.writes {
+		// Remove any remaining pointers for G.C reasons.
+		b.writes[i] = zeroedWrite
+	}
 	b.writes = b.writes[:0]
+
 	b.finalizeFn(b)
 }
 
