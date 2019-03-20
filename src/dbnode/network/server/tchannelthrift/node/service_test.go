@@ -1420,6 +1420,7 @@ func TestServiceWriteTagged(t *testing.T) {
 			Value: tagValues[i],
 		})
 	}
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteTagged(tctx, request)
 	require.NoError(t, err)
 }
@@ -1496,6 +1497,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
@@ -1516,15 +1518,9 @@ func TestServiceWriteBatchRawOverloaded(t *testing.T) {
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
 
-	nsID := "metrics"
-	writeBatch := ts.NewWriteBatch(0, ident.StringID(nsID), nil)
-	mockDB.EXPECT().
-		BatchWriter(ident.NewIDMatcher(nsID), 0).
-		Return(writeBatch, nil)
-
 	mockDB.EXPECT().IsOverloaded().Return(true)
 	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
-		NameSpace: []byte(nsID),
+		NameSpace: []byte("metrics"),
 	})
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
@@ -1587,6 +1583,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
+	mockDB.EXPECT().IsOverloaded().Return(true)
 	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
@@ -1667,6 +1664,7 @@ func TestServiceWriteTaggedBatchRawUnknownError(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
