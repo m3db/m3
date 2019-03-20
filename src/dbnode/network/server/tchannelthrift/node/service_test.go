@@ -1335,6 +1335,7 @@ func TestServiceWrite(t *testing.T) {
 		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
 		Return(nil)
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.Write(tctx, &rpc.WriteRequest{
 		NameSpace: nsID,
 		ID:        id,
@@ -1370,7 +1371,7 @@ func TestServiceWriteOverloaded(t *testing.T) {
 			Value:             42.42,
 		},
 	})
-	require.Equal(t, errServerIsOverloaded, err)
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceWriteTagged(t *testing.T) {
