@@ -339,10 +339,10 @@ type Options interface {
 	// AllowNonValidZone will enable the placement to contain hosts that
 	// are not contained within the same zone of the actual placement. This is
 	// needed for services that require cross zone communication.
-	AllowNonValidZones() bool
+	AllowAllZones() bool
 
-	// SetAllowNonValidZone sets AllowNonValidZones.
-	SetAllowNonValidZones(allowNonValidZones bool) Options
+	// SetAllowNonValidZone sets AllowAllZones.
+	SetAllowAllZones(allowNonValidZones bool) Options
 
 	// AddAllCandidates determines whether the placement will attempt to add all
 	// candidates when adding instances or just a single one.

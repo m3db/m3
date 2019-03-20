@@ -71,10 +71,11 @@ func filterZones(
 	}
 
 	var validZone string
-	var allowNonValidZone bool
 	if opts != nil {
 		validZone = opts.ValidZone()
-		allowNonValidZone = opts.AllowNonValidZones()
+		if opts.AllowAllZones() {
+			return candidates
+		}
 	}
 	if validZone == "" && len(p.Instances()) > 0 {
 		validZone = p.Instances()[0].Zone()
@@ -82,7 +83,7 @@ func filterZones(
 
 	validInstances := make([]placement.Instance, 0, len(candidates))
 	for _, instance := range candidates {
-		if validZone == instance.Zone() || allowNonValidZone {
+		if validZone == instance.Zone() {
 			validInstances = append(validInstances, instance)
 		}
 	}

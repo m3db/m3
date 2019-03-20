@@ -67,7 +67,7 @@ func TestGetValidCandidatesNonValidZone(t *testing.T) {
 
 	candidates := []placement.Instance{i3, i1, i2, i4, i5}
 	res, err := getValidCandidates(p, candidates, placement.NewOptions().
-		SetAllowNonValidZones(true).
+		SetAllowAllZones(true).
 		SetShardStateMode(placement.StableShardStateOnly))
 	require.NoError(t, err)
 	require.Equal(t, []placement.Instance{i3, i1, i2, i4, i5}, res)

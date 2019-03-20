@@ -35,7 +35,7 @@ const (
 	defaultAllowPartialReplace = true
 	// By default the zone of the hosts within a placement should match the zone
 	// that the placement was created with.
-	defaultAllowNonValidZones = false
+	defaultAllowAllZones = false
 )
 
 type deploymentOptions struct {
@@ -71,7 +71,7 @@ type options struct {
 	validateFn          ValidateFn
 	nowFn               clock.NowFn
 	allowPartialReplace bool
-	allowNonValidZones  bool
+	allowAllZones       bool
 	addAllCandidates    bool
 	dryrun              bool
 	isSharded           bool
@@ -93,7 +93,7 @@ func NewOptions() Options {
 		isShardCutoffFn:     defaultShardValidationFn,
 		validateFn:          Validate,
 		nowFn:               time.Now,
-		allowNonValidZones:  defaultAllowNonValidZones,
+		allowAllZones:       defaultAllowAllZones,
 	}
 }
 
@@ -106,12 +106,12 @@ func (o options) SetAllowPartialReplace(allowPartialReplace bool) Options {
 	return o
 }
 
-func (o options) AllowNonValidZones() bool {
-	return o.allowNonValidZones
+func (o options) AllowAllZones() bool {
+	return o.allowAllZones
 }
 
-func (o options) SetAllowNonValidZones(allowNonValidZones bool) Options {
-	o.allowNonValidZones = allowNonValidZones
+func (o options) SetAllowAllZones(allowAllZones bool) Options {
+	o.allowAllZones = allowAllZones
 	return o
 }
 
