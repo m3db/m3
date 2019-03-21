@@ -434,7 +434,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	}
 	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
-			numBitsRequiredToRepresentArrayIndex(it.byteFieldDictLRUSize))
+			numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize))
 		if err != nil {
 			return fmt.Errorf(
 				"%s error trying to read bytes dict idx: %v",

@@ -210,10 +210,8 @@ func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
 	return false
 }
 
-// numBitsRequiredToRepresentArrayIndex returns the number of bits that are required
-// to represent all the possible indices of an array of size arrSize as a uint64. Its
-// used to calculate the number of bits required to encode the index in the LRU for
-// fields using streaming LRU dictionary compression like byte arrays and strings.
+// numBitsRequiredForNumUpToN returns the number of bits that are required
+// to represent all the possible numbers between 0 and n as a uint64.
 //
 // 4   --> 2
 // 8   --> 3
@@ -221,6 +219,10 @@ func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
 // 32  --> 5
 // 64  --> 6
 // 128 --> 7
-func numBitsRequiredToRepresentArrayIndex(arrSize int) int {
-	return int(math.Log2(float64(arrSize)))
+func numBitsRequiredForNumUpToN(n int) int {
+	if n < 2 {
+		return n
+	}
+
+	return int(math.Log2(float64(n)))
 }

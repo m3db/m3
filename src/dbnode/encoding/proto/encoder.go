@@ -450,7 +450,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 			enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsLRUIndex)
 			enc.stream.WriteBits(
 				uint64(j),
-				numBitsRequiredToRepresentArrayIndex(
+				numBitsRequiredForNumUpToN(
 					enc.opts.ByteFieldDictionaryLRUSize()))
 			enc.moveToEndOfBytesDict(i, j)
 			return nil
