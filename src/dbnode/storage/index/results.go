@@ -69,23 +69,23 @@ func (r *results) Reset(nsID ident.ID, opts ResultsOptions) {
 
 	r.opts = opts
 
-	// finalize existing held nsID
+	// Finalize existing held nsID.
 	if r.nsID != nil {
 		r.nsID.Finalize()
 	}
-	// make an independent copy of the new nsID
+	// Make an independent copy of the new nsID.
 	if nsID != nil {
 		nsID = r.idPool.Clone(nsID)
 	}
 	r.nsID = nsID
 
-	// reset all values from map first
+	// Reset all values from map first
 	for _, entry := range r.resultsMap.Iter() {
 		tags := entry.Value()
 		tags.Finalize()
 	}
 
-	// reset all keys in the map next
+	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
 
 	// NB: could do keys+value in one step but I'm trying to avoid
@@ -109,7 +109,7 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 			return err
 		}
 		if r.opts.SizeLimit > 0 && size >= r.opts.SizeLimit {
-			// Early return if limit enforced and we hit our limit
+			// Early return if limit enforced and we hit our limit.
 			break
 		}
 	}
@@ -119,9 +119,8 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 func (r *results) addDocumentWithLock(
 	d doc.Document,
 ) (bool, int, error) {
-	added := false
 	if len(d.ID) == 0 {
-		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
+		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
@@ -130,7 +129,7 @@ func (r *results) addDocumentWithLock(
 
 	// check if it already exists in the map.
 	if r.resultsMap.Contains(tsID) {
-		return added, r.resultsMap.Len(), nil
+		return false, r.resultsMap.Len(), nil
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
@@ -141,8 +140,7 @@ func (r *results) addDocumentWithLock(
 	// the tsID's bytes.
 	r.resultsMap.Set(tsID, tags)
 
-	added = true
-	return added, r.resultsMap.Len(), nil
+	return true, r.resultsMap.Len(), nil
 }
 
 func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {

@@ -187,7 +187,7 @@ func NewBlock(
 				// to end latency for time to first index a metric.
 				DisableRegistry: true,
 			},
-			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
+			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
 		})
 
 	backgroundCompactor := compaction.NewCompactor(docsPool,
@@ -195,7 +195,7 @@ func NewBlock(
 		indexOpts.SegmentBuilderOptions(),
 		indexOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
-			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
+			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
 		})
 
 	segmentBuilder, err := builder.NewBuilderFromDocuments(indexOpts.SegmentBuilderOptions())
@@ -762,6 +762,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	return executor.NewExecutor(readers), nil
 }
 
+// Query guarentees
 func (b *block) Query(
 	cancellable *resource.CancellableLifetime,
 	query Query,
@@ -770,6 +771,7 @@ func (b *block) Query(
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
+
 	if b.state == blockStateClosed {
 		return false, ErrUnableToQueryBlockClosed
 	}

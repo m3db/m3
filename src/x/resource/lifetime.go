@@ -39,6 +39,9 @@ func NewCancellableLifetime() *CancellableLifetime {
 // is already cancelled this will return false, otherwise it will return
 // true and guarantee the lifetime is not cancelled until the checkout
 // is returned.
+// If this returns true you MUST call ReleaseCheckout later, otherwise
+// the lifetime will never close and any caller calling Cancel will be
+// blocked indefinitely.
 func (l *CancellableLifetime) TryCheckout() bool {
 	l.mu.RLock()
 	if l.cancelled {
@@ -51,7 +54,10 @@ func (l *CancellableLifetime) TryCheckout() bool {
 	return true
 }
 
-// ReleaseCheckout will decrement the number of current checkouts.
+// ReleaseCheckout will decrement the number of current checkouts, it MUST
+// only be called after a call to TryCheckout and must not be called more
+// than once per call to TryCheckout or else it will panic as it will try
+// to unlock an unlocked resource.
 func (l *CancellableLifetime) ReleaseCheckout() {
 	l.mu.RUnlock()
 }

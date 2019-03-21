@@ -932,10 +932,11 @@ func (i *nsIndex) Query(
 			return
 		}
 
-		// If block had more data but we stopped early, need to notify caller.
 		if blockExhaustive {
 			return
 		}
+
+		// If block had more data but we stopped early, need to notify caller.
 		state.exhaustive = false
 	}
 
@@ -943,17 +944,20 @@ func (i *nsIndex) Query(
 		// Capture block for async query execution below.
 		block := block
 
-		// Terminate early if we know we don't need any more results.
+		// We're looping through all the blocks that we need to query and kicking
+		// off parallel queries which are bounded by the queryWorkersPool's maximum
+		// concurrency. This means that it's possible at this point that we've
+		// completed querying one or more blocks and already exhausted the maximum
+		// number of results that we're allowed to return. If thats the case, there
+		// is no value in kicking off more parallel queries, so we break out of
+		// the loop.
 		size := results.Size()
-		alreadyNotExhaustive := opts.LimitExceeded(size)
-		if alreadyNotExhaustive {
+		alreadyExceededLimit := opts.LimitExceeded(size)
+		if alreadyExceededLimit {
 			state.Lock()
 			state.exhaustive = false
 			state.Unlock()
-		}
-
-		if alreadyNotExhaustive {
-			// Break out if already exhaustive.
+			// Break out if already not exhaustive.
 			break
 		}
 
@@ -1025,8 +1029,7 @@ func (i *nsIndex) Query(
 	}
 
 	state.Lock()
-	// Take reference to vars to return while locked, need to allow defer
-	// lock/unlock cleanup to not deadlock with this locked code block.
+	// Take reference to vars to return while locked.
 	exhaustive := state.exhaustive
 	err = state.multiErr.FinalError()
 	state.Unlock()

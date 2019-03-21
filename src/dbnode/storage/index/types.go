@@ -82,8 +82,6 @@ type QueryResults struct {
 
 // Results is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
-// It cannot be written to after it is sealed, until it's reopened by
-// resetting the results.
 type Results interface {
 	// Reset resets the Results object to initial state.
 	Reset(nsID ident.ID, opts ResultsOptions)
@@ -96,6 +94,10 @@ type Results interface {
 
 	// Map returns the results map from seriesID -> seriesTags, comprising
 	// index results.
+	// Since a lock is not held when accessing the map after a call to this
+	// method it is not safe to read or write to the map if any other caller
+	// mutates the state of the results after obtainin a reference to the map
+	// with this call.
 	Map() *ResultsMap
 
 	// AddDocuments adds the batch of documents to the results set, it will
@@ -103,6 +105,8 @@ type Results interface {
 	// modified after this function returns without affecting the results map.
 	// If documents with duplicate IDs are added, they are simply ignored and
 	// the first document added with an ID is returned.
+	// TODO(r): We will need to change this behavior once index fields are
+	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size int, err error)
 
 	// Finalize releases any resources held by the Results object,
