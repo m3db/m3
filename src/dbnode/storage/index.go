@@ -142,7 +142,12 @@ type nsIndexRuntimeOptions struct {
 	defaultQueryTimeout   time.Duration
 }
 
-type newBlockFn func(time.Time, namespace.Metadata, index.Options) (index.Block, error)
+type newBlockFn func(
+	time.Time,
+	namespace.Metadata,
+	index.BlockOptions,
+	index.Options,
+) (index.Block, error)
 
 // NB(prateek): the returned filesets are strictly before the given time, i.e. they
 // live in the period (-infinity, exclusiveTime).
@@ -1137,7 +1142,8 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 	}
 
 	// ok now we know for sure we have to alloc
-	block, err := i.newBlockFn(blockStart, i.nsMetadata, i.opts.IndexOptions())
+	block, err := i.newBlockFn(blockStart, i.nsMetadata,
+		index.BlockOptions{}, i.opts.IndexOptions())
 	if err != nil { // unable to allocate the block, should never happen.
 		return nil, i.unableToAllocBlockInvariantError(err)
 	}
