@@ -182,6 +182,7 @@ func (r *results) Finalize() {
 		return
 	}
 
+	// Reset locks so cannot hold onto lock for call to Finalize.
 	r.Reset(nil, ResultsOptions{})
 
 	if r.pool == nil {
@@ -193,7 +194,7 @@ func (r *results) Finalize() {
 func (r *results) NoFinalize() {
 	r.Lock()
 
-	// Ensure neither the results object itself, or any of its underlying
+	// Ensure neither the results object itself, nor any of its underlying
 	// IDs and tags will be finalized.
 	r.noFinalize = true
 	for _, entry := range r.resultsMap.Iter() {

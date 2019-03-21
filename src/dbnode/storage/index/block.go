@@ -807,7 +807,7 @@ func (b *block) Query(
 		}
 	}
 
-	// Put last batch if remainding
+	// Add last batch to results if remaining.
 	if len(batch) > 0 {
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
