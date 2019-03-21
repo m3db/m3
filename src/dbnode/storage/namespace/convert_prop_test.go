@@ -34,6 +34,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 )
 
 const (
@@ -97,6 +98,7 @@ func genMetadata() gopter.Gen {
 			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
 			SetSnapshotEnabled(bools[5]).
+			SetSchema(getTestSchema()).
 			SetRetentionOptions(retention).
 			SetIndexOptions(namespace.NewIndexOptions().
 				SetEnabled(bools[6]).

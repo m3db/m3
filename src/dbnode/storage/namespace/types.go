@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/jhump/protoreflect/desc"
 )
 
 // Options controls namespace behavior
@@ -84,6 +85,10 @@ type Options interface {
 
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
+
+	SetSchema(schema Schema) Options
+
+	Schema() Schema
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -102,6 +107,14 @@ type IndexOptions interface {
 
 	// BlockSize returns the block size.
 	BlockSize() time.Duration
+}
+
+// Schema represents namespace schema
+type Schema interface {
+	Equal(Schema) bool
+	Get() *desc.MessageDescriptor
+	String() string
+	Bytes() []byte
 }
 
 // Metadata represents namespace metadata information

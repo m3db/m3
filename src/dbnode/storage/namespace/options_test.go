@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
 	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/golang/mock/gomock"
@@ -45,6 +46,24 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 	o2 := o1.SetIndexOptions(
 		o1.IndexOptions().SetBlockSize(
 			o1.IndexOptions().BlockSize() * 2))
+	require.True(t, o1.Equal(o1))
+	require.True(t, o2.Equal(o2))
+	require.False(t, o1.Equal(o2))
+	require.False(t, o2.Equal(o1))
+}
+
+func getTestSchema() Schema {
+	tm := &testproto.TestMessage{}
+	bytes, _ := tm.Descriptor()
+	ts, _ := ToSchema(bytes)
+	return ts
+}
+
+func TestOptionsEqualsSchema(t *testing.T) {
+	o1 := NewOptions()
+	s1, err := ToSchema(getTestSchema().Bytes())
+	require.NoError(t, err)
+	o2 := o1.SetSchema(s1)
 	require.True(t, o1.Equal(o1))
 	require.True(t, o2.Equal(o2))
 	require.False(t, o1.Equal(o2))
