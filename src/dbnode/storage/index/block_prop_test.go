@@ -107,7 +107,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					idx.NewQueryFromSearchQuery(q),
 				}
 
-				uncachedResults := NewResults(testOpts)
+				uncachedResults := NewResults(ResultsOptions{}, testOpts)
 				exhaustive, err := uncachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, uncachedResults)
 				if err != nil {
 					return false, fmt.Errorf("error querying uncached block: %v", err)
@@ -116,7 +116,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					return false, errors.New("querying uncached block was not exhaustive")
 				}
 
-				cachedResults := NewResults(testOpts)
+				cachedResults := NewResults(ResultsOptions{}, testOpts)
 				exhaustive, err = cachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, cachedResults)
 				if err != nil {
 					return false, fmt.Errorf("error querying cached block: %v", err)
@@ -125,27 +125,20 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					return false, errors.New("querying cached block was not exhaustive")
 				}
 
-				if uncachedResults.Size() != cachedResults.Size() {
+				uncachedMap := uncachedResults.Map()
+				cachedMap := cachedResults.Map()
+				if uncachedMap.Len() != cachedMap.Len() {
 					return false, fmt.Errorf(
 						"uncached map size was: %d, but cached map sized was: %d",
-						uncachedResults.Size(), cachedResults.Size())
+						uncachedMap.Len(), cachedMap.Len())
 				}
 
-				var checkMapsErr error
-				uncachedResults.WithMap(func(uncachedMap *ResultsMap) {
-					cachedResults.WithMap(func(cachedMap *ResultsMap) {
-						for _, entry := range uncachedMap.Iter() {
-							key := entry.Key()
-							_, ok := cachedMap.Get(key)
-							if !ok {
-								checkMapsErr = fmt.Errorf("cached map did not contain: %v", key)
-								return
-							}
-						}
-					})
-				})
-				if checkMapsErr != nil {
-					return false, checkMapsErr
+				for _, entry := range uncachedMap.Iter() {
+					key := entry.Key()
+					_, ok := cachedMap.Get(key)
+					if !ok {
+						return false, fmt.Errorf("cached map did not contain: %v", key)
+					}
 				}
 			}
 

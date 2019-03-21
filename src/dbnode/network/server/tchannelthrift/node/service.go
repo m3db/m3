@@ -289,45 +289,35 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 
 	result := &rpc.QueryResult_{
-		Results:    make([]*rpc.QueryResultElement, 0, queryResult.Results.Size()),
+		Results:    make([]*rpc.QueryResultElement, 0, queryResult.Results.Map().Len()),
 		Exhaustive: queryResult.Exhaustive,
 	}
-
 	fetchData := true
 	if req.NoData != nil && *req.NoData {
 		fetchData = false
 	}
-
-	var readErr error
-	queryResult.Results.WithMap(func(rMap *index.ResultsMap) {
-		for _, entry := range rMap.Iter() {
-			elem := &rpc.QueryResultElement{
-				ID:   entry.Key().String(),
-				Tags: make([]*rpc.Tag, 0, len(entry.Value().Values())),
-			}
-			result.Results = append(result.Results, elem)
-			for _, tag := range entry.Value().Values() {
-				elem.Tags = append(elem.Tags, &rpc.Tag{
-					Name:  tag.Name.String(),
-					Value: tag.Value.String(),
-				})
-			}
-			if !fetchData {
-				continue
-			}
-			tsID := entry.Key()
-			datapoints, err := s.readDatapoints(ctx, nsID, tsID, start, end,
-				req.ResultTimeType)
-			if err != nil {
-				// Break for error
-				readErr = err
-				return
-			}
-			elem.Datapoints = datapoints
+	for _, entry := range queryResult.Results.Map().Iter() {
+		elem := &rpc.QueryResultElement{
+			ID:   entry.Key().String(),
+			Tags: make([]*rpc.Tag, 0, len(entry.Value().Values())),
 		}
-	})
-	if readErr != nil {
-		return nil, convert.ToRPCError(readErr)
+		result.Results = append(result.Results, elem)
+		for _, tag := range entry.Value().Values() {
+			elem.Tags = append(elem.Tags, &rpc.Tag{
+				Name:  tag.Name.String(),
+				Value: tag.Value.String(),
+			})
+		}
+		if !fetchData {
+			continue
+		}
+		tsID := entry.Key()
+		datapoints, err := s.readDatapoints(ctx, nsID, tsID, start, end,
+			req.ResultTimeType)
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		elem.Datapoints = datapoints
 	}
 
 	return result, nil
@@ -432,41 +422,33 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	results := queryResult.Results
 	nsID := results.Namespace()
 	tagsIter := ident.NewTagsIterator(ident.Tags{})
-
-	var encodeErr error
-	results.WithMap(func(rMap *index.ResultsMap) {
-		for _, entry := range rMap.Iter() {
-			tsID := entry.Key()
-			tags := entry.Value()
-			enc := s.pools.tagEncoder.Get()
-			ctx.RegisterFinalizer(enc)
-			tagsIter.Reset(tags)
-			encodedTags, err := s.encodeTags(enc, tagsIter)
-			if err != nil {
-				encodeErr = err
-				return
-			}
-
-			elem := &rpc.FetchTaggedIDResult_{
-				NameSpace:   nsID.Bytes(),
-				ID:          tsID.Bytes(),
-				EncodedTags: encodedTags.Bytes(),
-			}
-			response.Elements = append(response.Elements, elem)
-			if !fetchData {
-				continue
-			}
-			segments, rpcErr := s.readEncoded(ctx, nsID, tsID, opts.StartInclusive, opts.EndExclusive)
-			if rpcErr != nil {
-				elem.Err = rpcErr
-				continue
-			}
-			elem.Segments = segments
+	for _, entry := range results.Map().Iter() {
+		tsID := entry.Key()
+		tags := entry.Value()
+		enc := s.pools.tagEncoder.Get()
+		ctx.RegisterFinalizer(enc)
+		tagsIter.Reset(tags)
+		encodedTags, err := s.encodeTags(enc, tagsIter)
+		if err != nil { // This is an invariant, should never happen
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
+			return nil, tterrors.NewInternalError(err)
 		}
-	})
-	if encodeErr != nil {
-		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(err)
+
+		elem := &rpc.FetchTaggedIDResult_{
+			NameSpace:   nsID.Bytes(),
+			ID:          tsID.Bytes(),
+			EncodedTags: encodedTags.Bytes(),
+		}
+		response.Elements = append(response.Elements, elem)
+		if !fetchData {
+			continue
+		}
+		segments, rpcErr := s.readEncoded(ctx, nsID, tsID, opts.StartInclusive, opts.EndExclusive)
+		if rpcErr != nil {
+			elem.Err = rpcErr
+			continue
+		}
+		elem.Segments = segments
 	}
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))

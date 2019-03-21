@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	xsync "github.com/m3db/m3x/sync"
 	xtest "github.com/m3db/m3x/test"
@@ -222,17 +223,27 @@ func testNamespaceIndexHighConcurrentQueries(
 
 			if opts.blockErrors {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						l *resource.CancellableLifetime,
+						q index.Query,
+						opts index.QueryOptions,
+						r index.Results,
+					) (bool, error) {
 						return false, errors.New("some-error")
 					}).
 					AnyTimes()
 			} else {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						c *resource.CancellableLifetime,
+						q index.Query,
+						opts index.QueryOptions,
+						r index.Results,
+					) (bool, error) {
 						timeoutWg.Wait()
-						return block.Query(q, opts, r)
+						return block.Query(c, q, opts, r)
 					}).
 					AnyTimes()
 			}
@@ -313,29 +324,26 @@ func testNamespaceIndexHighConcurrentQueries(
 
 				// Read the results concurrently too
 				hits := make(map[string]struct{}, results.Results.Size())
-				results.Results.WithMap(func(rMap *index.ResultsMap) {
-					for _, entry := range rMap.Iter() {
-						id := entry.Key().String()
+				for _, entry := range results.Results.Map().Iter() {
+					id := entry.Key().String()
 
-						doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
-						require.NoError(t, err)
-						if err != nil {
-							continue // this will fail the test anyway, but don't want to panic
-						}
-
-						expectedDoc, ok := expectedResults[id]
-						require.True(t, ok)
-						if !ok {
-							continue // this will fail the test anyway, but don't want to panic
-						}
-
-						require.Equal(t, expectedDoc, doc)
-						hits[id] = struct{}{}
+					doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
+					require.NoError(t, err)
+					if err != nil {
+						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					expectedHits := idsPerBlock * (k + 1)
-					require.Equal(t, expectedHits, len(hits))
-				})
+					expectedDoc, ok := expectedResults[id]
+					require.True(t, ok)
+					if !ok {
+						continue // this will fail the test anyway, but don't want to panic
+					}
+
+					require.Equal(t, expectedDoc, doc)
+					hits[id] = struct{}{}
+				}
+				expectedHits := idsPerBlock * (k + 1)
+				require.Equal(t, expectedHits, len(hits))
 			}
 		}()
 	}

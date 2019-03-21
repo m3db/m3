@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
@@ -61,6 +62,7 @@ var (
 	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
+	errCancelledQuery                          = errors.New("query was cancelled")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -751,6 +753,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) Query(
+	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results Results,
@@ -779,10 +782,6 @@ func (b *block) Query(
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
 	}
-	batchOpts := AddDocumentsBatchResultsOptions{
-		AllowPartialUpdates: true,
-		LimitSize:           opts.Limit,
-	}
 	iterCloser := safeCloser{closable: iter}
 	execCloser := safeCloser{closable: exec}
 
@@ -802,22 +801,15 @@ func (b *block) Query(
 			continue
 		}
 
-		_, size, err = results.AddDocumentsBatch(batch, batchOpts)
+		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
-
-		// Reset batch
-		var emptyDoc doc.Document
-		for i := range batch {
-			batch[i] = emptyDoc
-		}
-		batch = batch[:0]
 	}
 
 	// Put last batch if remainding
 	if len(batch) > 0 {
-		_, size, err = results.AddDocumentsBatch(batch, batchOpts)
+		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
@@ -837,6 +829,35 @@ func (b *block) Query(
 
 	exhaustive := !opts.LimitExceeded(size)
 	return exhaustive, nil
+}
+
+func (b *block) addQueryResults(
+	cancellable *resource.CancellableLifetime,
+	results Results,
+	batch []doc.Document,
+) ([]doc.Document, int, error) {
+	// Checkout the lifetime of the query before adding results
+	queryValid := cancellable.TryCheckout()
+	if !queryValid {
+		// Query not valid any longer, do not add results and return early
+		return batch, 0, errCancelledQuery
+	}
+
+	// Try to add the docs to the resource
+	size, err := results.AddDocuments(batch)
+
+	// Immediately release the checkout on the lifetime of query
+	cancellable.ReleaseCheckout()
+
+	// Reset batch
+	var emptyDoc doc.Document
+	for i := range batch {
+		batch[i] = emptyDoc
+	}
+	batch = batch[:0]
+
+	// Return results
+	return batch, size, err
 }
 
 func (b *block) AddResults(

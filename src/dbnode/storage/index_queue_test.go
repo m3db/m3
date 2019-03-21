@@ -316,11 +316,9 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, res.Exhaustive)
 	results := res.Results
 	assert.Equal(t, "testns1", results.Namespace().String())
-	results.WithMap(func(rMap *index.ResultsMap) {
-		tags, ok := rMap.Get(ident.StringID("foo"))
-		assert.True(t, ok)
-		assert.True(t, ident.NewTagIterMatcher(
-			ident.MustNewTagStringsIterator("name", "value")).Matches(
-			ident.NewTagsIterator(tags)))
-	})
+	tags, ok := results.Map().Get(ident.StringID("foo"))
+	assert.True(t, ok)
+	assert.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("name", "value")).Matches(
+		ident.NewTagsIterator(tags)))
 }

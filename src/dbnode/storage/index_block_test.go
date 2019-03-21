@@ -526,7 +526,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
-	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
@@ -535,8 +535,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t2.Add(time.Minute),
 	}
-	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
+	b1.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
@@ -545,7 +545,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t0.Add(time.Minute),
 	}
-	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(false, nil)
+	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(false, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 }

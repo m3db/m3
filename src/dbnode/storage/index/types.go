@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -81,71 +82,44 @@ type QueryResults struct {
 
 // Results is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
+// It cannot be written to after it is sealed, until it's reopened by
+// resetting the results.
 type Results interface {
+	// Reset resets the Results object to initial state.
+	Reset(nsID ident.ID, opts ResultsOptions)
+
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
-	// WithMap executes a function that has access to a results map
-	// from seriesID -> seriesTags, comprising index results.
-	// A function is required to ensure that the results is used
-	// while a read lock for the results is held.
-	WithMap(fn func(results *ResultsMap))
+	// Size returns the number of IDs tracked.
+	Size() int
 
-	// Reset resets the Results object to initial state.
-	Reset(nsID ident.ID)
+	// Map returns the results map from seriesID -> seriesTags, comprising
+	// index results.
+	Map() *ResultsMap
+
+	// AddDocuments adds the batch of documents to the results set, it will
+	// take a copy of the bytes backing the documents so the original can be
+	// modified after this function returns without affecting the results map.
+	// If documents with duplicate IDs are added, they are simply ignored and
+	// the first document added with an ID is returned.
+	AddDocuments(batch []doc.Document) (size int, err error)
 
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
 	Finalize()
 
-	// NoFinalize marks the Results such that a subsequent call to Finalize() will
-	// be a no-op and will not return the object to the pool or release any of its
-	// resources.
+	// NoFinalize marks the Results such that a subsequent call to Finalize()
+	// will be a no-op and will not return the object to the pool or release any
+	// of its resources.
 	NoFinalize()
-
-	// Size returns the number of IDs tracked.
-	Size() int
-
-	// Add converts the provided document to a metric and adds it to the results.
-	// This method makes a copy of the bytes backing the document, so the original
-	// may be modified after this function returns without affecting the results map.
-	// NB: it returns a bool to indicate if the doc was added (it won't be added
-	// if it already existed in the ResultsMap).
-	AddDocument(
-		document doc.Document,
-	) (added bool, size int, err error)
-
-	// AddDocumentsBatch adds the batch of documents to the results set, it will
-	// take a copy of the bytes backing the documents so the original can be modified
-	// after this function returns without affecting the results map.
-	AddDocumentsBatch(
-		batch []doc.Document,
-		opts AddDocumentsBatchResultsOptions,
-	) (numPartialUpdates int, size int, err error)
-
-	// AddIDAndTagsOrFinalize adds ID and tags to the results and takes ownership
-	// if it does not exist, otherwise if it's already contained it returns added
-	// false.
-	AddIDAndTags(
-		id ident.ID,
-		tags ident.Tags,
-	) (added bool, size int, err error)
 }
 
-// AddDocumentsBatchResultsOptions is a set of options to use when adding
-// results for a query.
-type AddDocumentsBatchResultsOptions struct {
-	// If AllowPartialUpdates is true the query result will continue to add results
-	// even if it encounters an error attempting to add document that already exists
-	// in the results set.
-	// If false, on the other hand, then any errors encountered adding a document
-	// that already exists to the results set will cause the addition of a batch to
-	// fail and none of the documents in the batch will be added to the results.
-	AllowPartialUpdates bool
-
-	// LimitSize will limit the total results set to a given limit and if overflown
-	// will return early successfully.
-	LimitSize int
+// ResultsOptions is a set of options to use for results.
+type ResultsOptions struct {
+	// SizeLimit will limit the total results set to a given limit and if
+	// overflown will return early successfully.
+	SizeLimit int
 }
 
 // ResultsAllocator allocates Results types.
@@ -192,6 +166,7 @@ type Block interface {
 
 	// Query resolves the given query into known IDs.
 	Query(
+		cancellable *resource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results Results,

@@ -44,6 +44,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/x/resource"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -887,24 +888,29 @@ func (i *nsIndex) Query(
 		deadline = start.Add(timeout)
 		wg       sync.WaitGroup
 
-		// Results contains all concurrent mutable state below.
-		results = struct {
+		// State contains concurrent mutable state for async execution below.
+		state = struct {
 			sync.Mutex
 			multiErr   xerrors.MultiError
-			merged     index.Results
 			exhaustive bool
-			returned   bool
 		}{
-			merged:     i.resultsPool.Get(),
 			exhaustive: true,
-			returned:   false,
 		}
 	)
-	// Set the results namespace ID
-	results.merged.Reset(i.nsMetadata.ID())
+
+	// Get results and set the namespace ID and size limit.
+	results := i.resultsPool.Get()
+	results.Reset(i.nsMetadata.ID(), index.ResultsOptions{
+		SizeLimit: opts.Limit,
+	})
+
+	// Create a cancellable lifetime and cancel it at end of this method so that
+	// no child async task modifies the result after this method returns.
+	cancellable := resource.NewCancellableLifetime()
+	defer cancellable.Cancel()
 
 	execBlockQuery := func(block index.Block) {
-		blockExhaustive, err := block.Query(query, opts, results.merged)
+		blockExhaustive, err := block.Query(cancellable, query, opts, results)
 		if err == index.ErrUnableToQueryBlockClosed {
 			// NB(r): Because we query this block outside of the results lock, it's
 			// possible this block may get closed if it slides out of retention, in
@@ -913,11 +919,11 @@ func (i *nsIndex) Query(
 			err = nil
 		}
 
-		results.Lock()
-		defer results.Unlock()
+		state.Lock()
+		defer state.Unlock()
 
 		if err != nil {
-			results.multiErr = results.multiErr.Add(err)
+			state.multiErr = state.multiErr.Add(err)
 			return
 		}
 
@@ -925,7 +931,7 @@ func (i *nsIndex) Query(
 		if blockExhaustive {
 			return
 		}
-		results.exhaustive = false
+		state.exhaustive = false
 	}
 
 	for _, block := range blocks {
@@ -933,16 +939,13 @@ func (i *nsIndex) Query(
 		block := block
 
 		// Terminate early if we know we don't need any more results.
-		results.Lock()
-		mergedSize := 0
-		if results.merged != nil {
-			mergedSize = results.merged.Size()
-		}
-		alreadyNotExhaustive := opts.Limit > 0 && mergedSize >= opts.Limit
+		size := results.Size()
+		alreadyNotExhaustive := opts.LimitExceeded(size)
 		if alreadyNotExhaustive {
-			results.exhaustive = false
+			state.Lock()
+			state.exhaustive = false
+			state.Unlock()
 		}
-		results.Unlock()
 
 		if alreadyNotExhaustive {
 			// Break out if already exhaustive.
@@ -1016,13 +1019,12 @@ func (i *nsIndex) Query(
 		}
 	}
 
-	results.Lock()
+	state.Lock()
 	// Take reference to vars to return while locked, need to allow defer
 	// lock/unlock cleanup to not deadlock with this locked code block.
-	exhaustive := results.exhaustive
-	mergedResults := results.merged
-	err = results.multiErr.FinalError()
-	results.Unlock()
+	exhaustive := state.exhaustive
+	err = state.multiErr.FinalError()
+	state.Unlock()
 
 	if err != nil {
 		return index.QueryResults{}, err
@@ -1030,7 +1032,7 @@ func (i *nsIndex) Query(
 
 	return index.QueryResults{
 		Exhaustive: exhaustive,
-		Results:    mergedResults,
+		Results:    results,
 	}, nil
 }
 
