@@ -102,6 +102,31 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 	require.NoError(t, compactor.Close())
 }
 
+func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
+	seg, err := mem.NewSegment(0, testMemSegmentOptions)
+	require.NoError(t, err)
+
+	_, err = seg.Insert(testDocuments[0])
+	require.NoError(t, err)
+
+	_, err = seg.Insert(testDocuments[1])
+	require.NoError(t, err)
+
+	compactor := NewCompactor(testDocsPool, testDocsMaxBatch,
+		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{
+			MmapDocsData: true,
+		})
+
+	compacted, err := compactor.Compact([]segment.Segment{
+		mustSeal(t, seg),
+	})
+	require.NoError(t, err)
+
+	assertContents(t, compacted, testDocuments)
+
+	require.NoError(t, compactor.Close())
+}
+
 func TestCompactorManySegments(t *testing.T) {
 	seg1, err := mem.NewSegment(0, testMemSegmentOptions)
 	require.NoError(t, err)

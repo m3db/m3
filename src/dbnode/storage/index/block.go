@@ -160,19 +160,26 @@ type blockShardRangesSegments struct {
 	segments        []segment.Segment
 }
 
+// BlockOptions is a set of options used when constructing an index block.
+type BlockOptions struct {
+	ForegroundCompactorMmapDocsData bool
+	BackgroundCompactorMmapDocsData bool
+}
+
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
 	blockStart time.Time,
 	md namespace.Metadata,
-	opts Options,
+	opts BlockOptions,
+	indexOpts Options,
 ) (Block, error) {
-	docsPool := opts.DocumentArrayPool()
+	docsPool := indexOpts.DocumentArrayPool()
 
 	foregroundCompactor := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
-		opts.SegmentBuilderOptions(),
-		opts.FSTSegmentOptions(),
+		indexOpts.SegmentBuilderOptions(),
+		indexOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
 			FSTWriterOptions: &fst.WriterOptions{
 				// DisableRegistry is set to true to trade a larger FST size
@@ -180,28 +187,31 @@ func NewBlock(
 				// to end latency for time to first index a metric.
 				DisableRegistry: true,
 			},
+			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
 		})
 
 	backgroundCompactor := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
-		opts.SegmentBuilderOptions(),
-		opts.FSTSegmentOptions(),
-		compaction.CompactorOptions{})
+		indexOpts.SegmentBuilderOptions(),
+		indexOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
+		})
 
-	segmentBuilder, err := builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
+	segmentBuilder, err := builder.NewBuilderFromDocuments(indexOpts.SegmentBuilderOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	blockSize := md.Options().IndexOptions().BlockSize()
-	iopts := opts.InstrumentOptions()
+	iopts := indexOpts.InstrumentOptions()
 	b := &block{
 		state:               blockStateOpen,
 		segmentBuilder:      segmentBuilder,
 		blockStart:          blockStart,
 		blockEnd:            blockStart.Add(blockSize),
 		blockSize:           blockSize,
-		opts:                opts,
+		opts:                indexOpts,
 		iopts:               iopts,
 		nsMD:                md,
 		docsPool:            docsPool,

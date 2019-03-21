@@ -38,15 +38,19 @@ var (
 )
 
 func init() {
-	// Use size of 1 to test edge cases
+	// Use size of 1 to test edge cases by default
+	testOpts = optionsWithDocsArrayPool(NewOptions(), 1, 1)
+}
+
+func optionsWithDocsArrayPool(opts Options, size, capacity int) Options {
 	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
-		Options:     pool.NewObjectPoolOptions().SetSize(1),
-		Capacity:    1,
-		MaxCapacity: 1,
+		Options:     pool.NewObjectPoolOptions().SetSize(size),
+		Capacity:    capacity,
+		MaxCapacity: capacity,
 	})
 	docArrayPool.Init()
 
-	testOpts = NewOptions().SetDocumentArrayPool(docArrayPool)
+	return opts.SetDocumentArrayPool(docArrayPool)
 }
 
 func TestResultsInsertInvalid(t *testing.T) {
