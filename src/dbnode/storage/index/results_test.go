@@ -174,17 +174,6 @@ func TestResultsResetNamespaceClones(t *testing.T) {
 	require.Equal(t, "something", res.Namespace().String())
 }
 
-func tagsFromFields(fields []doc.Field) ident.Tags {
-	tags := ident.NewTags()
-	for _, field := range fields {
-		tags.Append(ident.Tag{
-			Name:  ident.BytesID(field.Name),
-			Value: ident.BytesID(field.Value),
-		})
-	}
-	return tags
-}
-
 func TestFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewResults(nil, ResultsOptions{}, testOpts)

@@ -30,8 +30,7 @@ import (
 )
 
 var (
-	errUnableToAddResultMissingID          = errors.New("no id for result")
-	errResultAlreadyExistsNoPartialUpdates = errors.New("id already exists for result and partial updates not allowed")
+	errUnableToAddResultMissingID = errors.New("no id for result")
 )
 
 type results struct {

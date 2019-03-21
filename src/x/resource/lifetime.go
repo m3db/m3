@@ -27,7 +27,6 @@ import "sync"
 // cancelled will not allow any further checkouts.
 type CancellableLifetime struct {
 	mu        sync.RWMutex
-	checkouts int
 	cancelled bool
 }
 
