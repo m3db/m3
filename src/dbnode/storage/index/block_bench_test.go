@@ -46,7 +46,8 @@ func BenchmarkBlockWrite(b *testing.B) {
 	now := time.Now()
 	blockStart := now.Truncate(blockSize)
 
-	bl, err := NewBlock(blockStart, testMD, testOpts)
+	bl, err := NewBlock(blockStart, testMD,
+		BlockOptions{}, testOpts)
 	require.NoError(b, err)
 	defer func() {
 		require.NoError(b, bl.Close())

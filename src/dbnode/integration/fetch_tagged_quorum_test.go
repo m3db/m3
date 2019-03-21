@@ -295,7 +295,7 @@ func makeTestFetchTagged(
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
 				EndExclusive:   startTime.Add(time.Minute),
-				Limit:          1,
+				Limit:          100,
 			})
 	}
 

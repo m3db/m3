@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -79,45 +80,50 @@ type QueryResults struct {
 	Exhaustive bool
 }
 
-// Results is a collection of results for a query.
+// Results is a collection of results for a query, it is synchronized
+// when access to the results set is used as documented by the methods.
 type Results interface {
+	// Reset resets the Results object to initial state.
+	Reset(nsID ident.ID, opts ResultsOptions)
+
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
-	// Map returns a map from seriesID -> seriesTags, comprising index results.
+	// Size returns the number of IDs tracked.
+	Size() int
+
+	// Map returns the results map from seriesID -> seriesTags, comprising
+	// index results.
+	// Since a lock is not held when accessing the map after a call to this
+	// method it is not safe to read or write to the map if any other caller
+	// mutates the state of the results after obtainin a reference to the map
+	// with this call.
 	Map() *ResultsMap
 
-	// Reset resets the Results object to initial state.
-	Reset(nsID ident.ID)
+	// AddDocuments adds the batch of documents to the results set, it will
+	// take a copy of the bytes backing the documents so the original can be
+	// modified after this function returns without affecting the results map.
+	// If documents with duplicate IDs are added, they are simply ignored and
+	// the first document added with an ID is returned.
+	// TODO(r): We will need to change this behavior once index fields are
+	// mutable and the most recent need to shadow older entries.
+	AddDocuments(batch []doc.Document) (size int, err error)
 
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
 	Finalize()
 
-	// NoFinalize marks the Results such that a subsequent call to Finalize() will
-	// be a no-op and will not return the object to the pool or release any of its
-	// resources.
+	// NoFinalize marks the Results such that a subsequent call to Finalize()
+	// will be a no-op and will not return the object to the pool or release any
+	// of its resources.
 	NoFinalize()
+}
 
-	// Size returns the number of IDs tracked.
-	Size() int
-
-	// Add converts the provided document to a metric and adds it to the results.
-	// This method makes a copy of the bytes backing the document, so the original
-	// may be modified after this function returns without affecting the results map.
-	// NB: it returns a bool to indicate if the doc was added (it won't be added
-	// if it already existed in the ResultsMap).
-	AddDocument(
-		document doc.Document,
-	) (added bool, size int, err error)
-
-	// AddIDAndTagsOrFinalize adds ID and tags to the results and takes ownership
-	// if it does not exist, otherwise if it's already contained it returns added
-	// false.
-	AddIDAndTags(
-		id ident.ID,
-		tags ident.Tags,
-	) (added bool, size int, err error)
+// ResultsOptions is a set of options to use for results.
+type ResultsOptions struct {
+	// SizeLimit will limit the total results set to a given limit and if
+	// overflown will return early successfully.
+	SizeLimit int
 }
 
 // ResultsAllocator allocates Results types.
@@ -164,6 +170,7 @@ type Block interface {
 
 	// Query resolves the given query into known IDs.
 	Query(
+		cancellable *resource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results Results,
