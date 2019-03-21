@@ -751,20 +751,7 @@ func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
 }
 
 func (b *dbBufferBucket) newEncoder() encoding.Encoder {
-	encoder1 := b.newEncoderFromPool(
-		"blockOptions",
-		b.opts.DatabaseBlockOptions().EncoderPool(),
-	)
-	b.newEncoderFromPool(
-		"options",
-		b.opts.EncoderPool(),
-	)
-
-	return encoder1
-}
-
-func (b *dbBufferBucket) newEncoder() encoding.Encoder {
-	return b.opts.EncoderPool.Get()
+	return b.opts.EncoderPool().Get()
 }
 
 type mergeResult struct {
