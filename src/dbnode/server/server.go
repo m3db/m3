@@ -1199,12 +1199,11 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetIdentifierPool(identifierPool))
 
-	var (
-		resultsPool = index.NewResultsPool(
-			poolOptions(policy.IndexResultsPool, scope.SubScope("index-results-pool")))
-		postingsListOpts = poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
-		postingsList     = postings.NewPool(postingsListOpts, roaring.NewPostingsList)
-	)
+	postingsListOpts := poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
+	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
+
+	resultsPool := index.NewResultsPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-results-pool")))
 
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
@@ -1223,7 +1222,11 @@ func withEncodingAndPoolingOptions(
 		SetCheckedBytesPool(bytesPool).
 		SetResultsPool(resultsPool)
 
-	resultsPool.Init(func() index.Results { return index.NewResults(index.ResultsOptions{}, indexOpts) })
+	resultsPool.Init(func() index.Results {
+		// NB(r): Need to initialize after setting the index opts so
+		// it seems the same reference of the options as is set
+		return index.NewResults(nil, index.ResultsOptions{}, indexOpts)
+	})
 
 	return opts.SetIndexOptions(indexOpts)
 }

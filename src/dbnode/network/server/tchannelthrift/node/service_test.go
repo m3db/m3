@@ -191,8 +191,8 @@ func TestServiceQuery(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewResults(ident.StringID(nsID),
+		index.ResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
 		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
@@ -1064,8 +1064,8 @@ func TestServiceFetchTagged(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewResults(ident.StringID(nsID),
+		index.ResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
@@ -1161,8 +1161,8 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewResults(ident.StringID(nsID),
+		index.ResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
@@ -1214,8 +1214,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewResults(ident.StringID(nsID),
+		index.ResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
 	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
 	mockDB.EXPECT().QueryIDs(

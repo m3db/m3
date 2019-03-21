@@ -50,7 +50,7 @@ func init() {
 }
 
 func TestResultsInsertInvalid(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	dInvalid := doc.Document{ID: nil}
 	size, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
@@ -58,7 +58,7 @@ func TestResultsInsertInvalid(t *testing.T) {
 }
 
 func TestResultsInsertIdempotency(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestResultsInsertIdempotency(t *testing.T) {
 }
 
 func TestResultsFirstInsertWins(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 }
 
 func TestResultsInsertContains(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestResultsInsertContains(t *testing.T) {
 }
 
 func TestResultsInsertCopies(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
 		doc.Field{Name: []byte("name"), Value: []byte("value")},
 	}}
@@ -148,7 +148,7 @@ func TestResultsInsertCopies(t *testing.T) {
 }
 
 func TestResultsReset(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestResultsReset(t *testing.T) {
 }
 
 func TestResultsResetNamespaceClones(t *testing.T) {
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	require.Equal(t, nil, res.Namespace())
 	nsID := ident.StringID("something")
 	res.Reset(nsID, ResultsOptions{})
@@ -187,7 +187,7 @@ func tagsFromFields(fields []doc.Field) ident.Tags {
 
 func TestFinalize(t *testing.T) {
 	// Create a Results and insert some data.
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -217,7 +217,7 @@ func TestFinalize(t *testing.T) {
 
 func TestNoFinalize(t *testing.T) {
 	// Create a Results and insert some data.
-	res := NewResults(ResultsOptions{}, testOpts)
+	res := NewResults(nil, ResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)

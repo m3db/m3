@@ -50,8 +50,13 @@ type results struct {
 }
 
 // NewResults returns a new results object.
-func NewResults(opts ResultsOptions, indexOpts Options) Results {
+func NewResults(
+	namespaceID ident.ID,
+	opts ResultsOptions,
+	indexOpts Options,
+) Results {
 	return &results{
+		nsID:       namespaceID,
 		opts:       opts,
 		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
 		idPool:     indexOpts.IdentifierPool(),

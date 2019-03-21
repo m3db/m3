@@ -140,7 +140,7 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
-	resultsPool.Init(func() Results { return NewResults(ResultsOptions{}, opts) })
+	resultsPool.Init(func() Results { return NewResults(nil, ResultsOptions{}, opts) })
 	return opts
 }
 
