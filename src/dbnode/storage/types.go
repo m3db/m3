@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -735,12 +734,6 @@ type Options interface {
 
 	// RuntimeOptionsManager returns the runtime options manager.
 	RuntimeOptionsManager() runtime.OptionsManager
-
-	// SetErrorCounterOptions sets the error counter options.
-	SetErrorCounterOptions(value xcounter.Options) Options
-
-	// ErrorCounterOptions returns the error counter options.
-	ErrorCounterOptions() xcounter.Options
 
 	// SetErrorWindowForLoad sets the error window for load.
 	SetErrorWindowForLoad(value time.Duration) Options
