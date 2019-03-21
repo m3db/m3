@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
@@ -493,7 +494,61 @@ func TestShardTick(t *testing.T) {
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
 }
+
+type testWrite struct {
+	id         string
+	value      float64
+	unit       xtime.Unit
+	annotation []byte
+}
+
 func TestShardWriteAsync(t *testing.T) {
+	testShardWriteAsync(t, []testWrite{
+		{
+			id:    "foo",
+			value: 1.0,
+			unit:  xtime.Second,
+		},
+		{
+			id:    "bar",
+			value: 2.0,
+			unit:  xtime.Second,
+		},
+		{
+			id:    "baz",
+			value: 3.0,
+			unit:  xtime.Second,
+		},
+	})
+}
+
+func TestShardWriteAsyncWithAnnotations(t *testing.T) {
+	testShardWriteAsync(t, []testWrite{
+		{
+			id:         "foo",
+			value:      1.0,
+			unit:       xtime.Second,
+			annotation: []byte("annotation1"),
+		},
+		{
+			id:         "bar",
+			value:      2.0,
+			unit:       xtime.Second,
+			annotation: []byte("annotation2"),
+		},
+		{
+			id:         "baz",
+			value:      3.0,
+			unit:       xtime.Second,
+			annotation: []byte("annotation3"),
+		},
+	})
+}
+
+func testShardWriteAsync(t *testing.T, writes []testWrite) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
@@ -514,7 +569,25 @@ func TestShardWriteAsync(t *testing.T) {
 		nowLock.Unlock()
 	}
 
-	opts := testDatabaseOptions()
+	mockBytesPool := pool.NewMockCheckedBytesPool(ctrl)
+	for _, write := range writes {
+		if write.annotation != nil {
+			mockBytes := checked.NewMockBytes(ctrl)
+			mockBytes.EXPECT().IncRef()
+			mockBytes.EXPECT().AppendAll(write.annotation)
+			mockBytes.EXPECT().Bytes()
+			mockBytes.EXPECT().DecRef()
+			mockBytes.EXPECT().Finalize()
+
+			mockBytesPool.
+				EXPECT().
+				Get(gomock.Any()).
+				Return(mockBytes)
+		}
+	}
+
+	opts := testDatabaseOptions().
+		SetBytesPool(mockBytesPool)
 	opts = opts.
 		SetInstrumentOptions(
 			opts.InstrumentOptions().
@@ -553,13 +626,13 @@ func TestShardWriteAsync(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+	for _, write := range writes {
+		shard.Write(ctx, ident.StringID(write.id), nowFn(), write.value, write.unit, write.annotation)
+	}
 
 	for {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
-		if ok && counter == 3 {
+		if ok && counter == int64(len(writes)) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -567,7 +640,7 @@ func TestShardWriteAsync(t *testing.T) {
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
-	require.Equal(t, 3, r.activeSeries)
+	require.Equal(t, len(writes), r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
 

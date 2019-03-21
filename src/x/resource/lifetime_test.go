@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package query;
+package resource
 
-option go_package = "querypb";
+import (
+	"testing"
+	"time"
 
-message TermQuery {
-  bytes field = 1;
-  bytes term = 2;
-}
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/atomic"
+)
 
-message RegexpQuery {
-  bytes field = 1;
-  bytes regexp = 2;
-}
+func TestCancellableLifetime(t *testing.T) {
+	l := NewCancellableLifetime()
 
-message NegationQuery {
-  Query query = 1;
-}
+	checkouts := 42
 
-message ConjunctionQuery {
-  repeated Query queries = 1;
-}
+	for i := 0; i < checkouts; i++ {
+		ok := l.TryCheckout()
+		require.True(t, ok)
+	}
 
-message DisjunctionQuery {
-  repeated Query queries = 1;
-}
+	// Launch cancel goroutine
+	cancelDone := atomic.NewBool(false)
+	go func() {
+		l.Cancel()
+		cancelDone.Store(true)
+	}()
 
-message AllQuery {
-}
+	for i := 0; i < checkouts; i++ {
+		time.Sleep(2 * time.Millisecond)
 
-message Query {
-  oneof query {
-    TermQuery term               = 1;
-    RegexpQuery regexp           = 2;
-    NegationQuery negation       = 3;
-    ConjunctionQuery conjunction = 4;
-    DisjunctionQuery disjunction = 5;
-    AllQuery all                 = 6;
-  }
+		// Ensure not done yet until final release
+		done := cancelDone.Load()
+		require.False(t, done)
+
+		l.ReleaseCheckout()
+	}
+
+	// Ensure cannot checkout any longer
+	ok := l.TryCheckout()
+	require.False(t, ok)
+
+	// Ensure that cancel finished
+	for {
+		if cancelDone.Load() {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	time0 "github.com/m3db/m3x/time"
@@ -60,36 +61,19 @@ func (m *MockResults) EXPECT() *MockResultsMockRecorder {
 	return m.recorder
 }
 
-// AddDocument mocks base method
-func (m *MockResults) AddDocument(arg0 doc.Document) (bool, int, error) {
+// AddDocuments mocks base method
+func (m *MockResults) AddDocuments(arg0 []doc.Document) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddDocument", arg0)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret := m.ctrl.Call(m, "AddDocuments", arg0)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// AddDocument indicates an expected call of AddDocument
-func (mr *MockResultsMockRecorder) AddDocument(arg0 interface{}) *gomock.Call {
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockResultsMockRecorder) AddDocuments(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocument", reflect.TypeOf((*MockResults)(nil).AddDocument), arg0)
-}
-
-// AddIDAndTags mocks base method
-func (m *MockResults) AddIDAndTags(arg0 ident.ID, arg1 ident.Tags) (bool, int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddIDAndTags", arg0, arg1)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// AddIDAndTags indicates an expected call of AddIDAndTags
-func (mr *MockResultsMockRecorder) AddIDAndTags(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddIDAndTags", reflect.TypeOf((*MockResults)(nil).AddIDAndTags), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockResults)(nil).AddDocuments), arg0)
 }
 
 // Finalize mocks base method
@@ -145,15 +129,15 @@ func (mr *MockResultsMockRecorder) NoFinalize() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockResults) Reset(arg0 ident.ID) {
+func (m *MockResults) Reset(arg0 ident.ID, arg1 ResultsOptions) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", arg0)
+	m.ctrl.Call(m, "Reset", arg0, arg1)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockResultsMockRecorder) Reset(arg0 interface{}) *gomock.Call {
+func (mr *MockResultsMockRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockResults)(nil).Reset), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockResults)(nil).Reset), arg0, arg1)
 }
 
 // Size mocks base method
@@ -278,18 +262,18 @@ func (mr *MockBlockMockRecorder) NeedsMutableSegmentsEvicted() *gomock.Call {
 }
 
 // Query mocks base method
-func (m *MockBlock) Query(arg0 Query, arg1 QueryOptions, arg2 Results) (bool, error) {
+func (m *MockBlock) Query(arg0 *resource.CancellableLifetime, arg1 Query, arg2 QueryOptions, arg3 Results) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Query", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Query indicates an expected call of Query
-func (mr *MockBlockMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) Query(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), arg0, arg1, arg2, arg3)
 }
 
 // Seal mocks base method

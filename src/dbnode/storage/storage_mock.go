@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -2833,34 +2832,6 @@ func (m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
 func (mr *MockOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).RuntimeOptionsManager))
-}
-
-// SetErrorCounterOptions mocks base method
-func (m *MockOptions) SetErrorCounterOptions(value xcounter.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetErrorCounterOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetErrorCounterOptions indicates an expected call of SetErrorCounterOptions
-func (mr *MockOptionsMockRecorder) SetErrorCounterOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorCounterOptions", reflect.TypeOf((*MockOptions)(nil).SetErrorCounterOptions), value)
-}
-
-// ErrorCounterOptions mocks base method
-func (m *MockOptions) ErrorCounterOptions() xcounter.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ErrorCounterOptions")
-	ret0, _ := ret[0].(xcounter.Options)
-	return ret0
-}
-
-// ErrorCounterOptions indicates an expected call of ErrorCounterOptions
-func (mr *MockOptionsMockRecorder) ErrorCounterOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorCounterOptions", reflect.TypeOf((*MockOptions)(nil).ErrorCounterOptions))
 }
 
 // SetErrorWindowForLoad mocks base method

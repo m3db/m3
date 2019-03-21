@@ -41,6 +41,13 @@ func NewQueryFromSearchQuery(q search.Query) Query {
 	}
 }
 
+// NewAllQuery returns a new query for matching all documents.
+func NewAllQuery() Query {
+	return Query{
+		query: query.NewAllQuery(),
+	}
+}
+
 // NewTermQuery returns a new query for finding documents which match a term exactly.
 func NewTermQuery(field, term []byte) Query {
 	return Query{

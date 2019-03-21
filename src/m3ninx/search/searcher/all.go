@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xcounter
+package searcher
 
-import "time"
-
-const (
-	defaultNumBuckets = 60
-	defaultInterval   = time.Second
+import (
+	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/search"
 )
 
-// Options controls the parameters for frequency counters
-type Options struct {
-	numBuckets int
-	interval   time.Duration
+type all struct{}
+
+// NewAllSearcher returns a new searcher for matching all documents.
+func NewAllSearcher() search.Searcher {
+	return &all{}
 }
 
-// NewOptions creates new options
-func NewOptions() Options {
-	return Options{
-		numBuckets: defaultNumBuckets,
-		interval:   defaultInterval,
-	}
-}
-
-// NumBuckets returns the number of buckets
-func (o Options) NumBuckets() int { return o.numBuckets }
-
-// Interval returns the interval associated with each bucket
-func (o Options) Interval() time.Duration { return o.interval }
-
-// SetNumBuckets sets the number of buckets
-func (o Options) SetNumBuckets(value int) Options {
-	o.numBuckets = value
-	return o
-}
-
-// SetInterval sets the interval
-func (o Options) SetInterval(value time.Duration) Options {
-	o.interval = value
-	return o
+func (s *all) Search(r index.Reader) (postings.List, error) {
+	return r.MatchAll()
 }

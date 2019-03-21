@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package query;
+package searcher
 
-option go_package = "querypb";
+import (
+	"testing"
 
-message TermQuery {
-  bytes field = 1;
-  bytes term = 2;
-}
+	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
-message RegexpQuery {
-  bytes field = 1;
-  bytes regexp = 2;
-}
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+)
 
-message NegationQuery {
-  Query query = 1;
-}
+func TestAllSearcher(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
 
-message ConjunctionQuery {
-  repeated Query queries = 1;
-}
+	s := NewAllSearcher()
+	reader := index.NewMockReader(mockCtrl)
+	allPl := roaring.NewPostingsList()
+	reader.EXPECT().MatchAll().Return(allPl, nil)
 
-message DisjunctionQuery {
-  repeated Query queries = 1;
-}
-
-message AllQuery {
-}
-
-message Query {
-  oneof query {
-    TermQuery term               = 1;
-    RegexpQuery regexp           = 2;
-    NegationQuery negation       = 3;
-    ConjunctionQuery conjunction = 4;
-    DisjunctionQuery disjunction = 5;
-    AllQuery all                 = 6;
-  }
+	pl, err := s.Search(reader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(allPl))
 }
