@@ -1224,7 +1224,7 @@ func withEncodingAndPoolingOptions(
 
 	resultsPool.Init(func() index.Results {
 		// NB(r): Need to initialize after setting the index opts so
-		// it seems the same reference of the options as is set
+		// it sees the same reference of the options as is set for the DB.
 		return index.NewResults(nil, index.ResultsOptions{}, indexOpts)
 	})
 
