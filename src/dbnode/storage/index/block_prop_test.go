@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
 	"github.com/m3db/m3/src/m3ninx/util"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/leanovate/gopter"
@@ -107,8 +108,26 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					idx.NewQueryFromSearchQuery(q),
 				}
 
-				uncachedResults := NewResults(ResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, uncachedResults)
+				cancellable := resource.NewCancellableLifetime()
+				cancelled := false
+				doneQuery := func() {
+					if !cancelled {
+						cancelled = true
+						cancellable.Cancel()
+					}
+				}
+
+				// In case we return early
+				defer doneQuery()
+
+				queryOpts := QueryOptions{
+					StartInclusive: blockStart,
+					EndExclusive:   blockStart.Add(blockSize),
+				}
+
+				uncachedResults := NewResults(nil, ResultsOptions{}, testOpts)
+				exhaustive, err := uncachedBlock.Query(cancellable, indexQuery,
+					queryOpts, uncachedResults)
 				if err != nil {
 					return false, fmt.Errorf("error querying uncached block: %v", err)
 				}
@@ -116,14 +135,19 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					return false, errors.New("querying uncached block was not exhaustive")
 				}
 
-				cachedResults := NewResults(ResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(indexQuery, QueryOptions{StartInclusive: blockStart, EndExclusive: blockStart.Add(blockSize)}, cachedResults)
+				cachedResults := NewResults(nil, ResultsOptions{}, testOpts)
+				exhaustive, err = cachedBlock.Query(cancellable, indexQuery,
+					queryOpts, cachedResults)
 				if err != nil {
 					return false, fmt.Errorf("error querying cached block: %v", err)
 				}
 				if !exhaustive {
 					return false, errors.New("querying cached block was not exhaustive")
 				}
+
+				// The lifetime of the query is complete, cancel the lifetime so we
+				// can safely access the results of each
+				doneQuery()
 
 				uncachedMap := uncachedResults.Map()
 				cachedMap := cachedResults.Map()
