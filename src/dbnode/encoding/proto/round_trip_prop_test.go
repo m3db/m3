@@ -324,15 +324,28 @@ func genWrite() gopter.Gen {
 }
 
 func genSchema(numFields int) gopter.Gen {
-	return gen.
-		SliceOfN(numFields, genFieldType()).
-		Map(func(fieldTypes []dpb.FieldDescriptorProto_Type) *desc.MessageDescriptor {
-			schemaBuilder := builder.NewMessage("schema")
+	return gopter.CombineGens(
+		gen.SliceOfN(numFields, gen.Bool()),
+		gen.SliceOfN(numFields, genFieldType())).
+		Map(func(input []interface{}) *desc.MessageDescriptor {
+			var (
+				shouldReserve = input[0].([]bool)
+				fieldTypes    = input[1].([]dpb.FieldDescriptorProto_Type)
+				schemaBuilder = builder.NewMessage("schema")
+			)
+
 			for i, fieldType := range fieldTypes {
 				var (
-					fieldNum         = i + 1 // Zero not valid.
+					fieldNum         = int32(i + 1) // Zero not valid.
 					builderFieldType *builder.FieldType
 				)
+
+				if shouldReserve[i] {
+					// Sprinkle in some reserved fields to make sure that we handle those
+					// without issue.
+					schemaBuilder.AddReservedRange(fieldNum, fieldNum)
+					continue
+				}
 
 				if fieldType == dpb.FieldDescriptorProto_TYPE_ENUM {
 					var (
@@ -349,7 +362,7 @@ func genSchema(numFields int) gopter.Gen {
 				}
 
 				field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
-					SetNumber(int32(fieldNum))
+					SetNumber(fieldNum)
 				schemaBuilder = schemaBuilder.AddField(field)
 			}
 

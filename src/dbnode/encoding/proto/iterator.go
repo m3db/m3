@@ -248,6 +248,10 @@ func (it *iterator) readCustomFieldsSchema() error {
 		}
 
 		fieldType := customFieldType(fieldTypeBits)
+		if fieldType == cNotCustomEncoded {
+			continue
+		}
+
 		it.customFields = append(it.customFields, newCustomFieldState(i, fieldType))
 	}
 
