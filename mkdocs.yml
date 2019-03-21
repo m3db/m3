@@ -59,6 +59,7 @@ pages:
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
       - "Blocks": "query_engine/architecture/blocks.md"
+      - "Query Fanout": "query_engine/architecture/fanout.md"
       - "Function Processing": "query_engine/architecture/functions.md"
     - "Configuration":
       - "Annotated Config File": "query_engine/config/annotated_config.md"
