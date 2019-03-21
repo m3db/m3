@@ -1223,7 +1223,7 @@ func withEncodingAndPoolingOptions(
 		SetCheckedBytesPool(bytesPool).
 		SetResultsPool(resultsPool)
 
-	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
+	resultsPool.Init(func() index.Results { return index.NewResults(index.ResultsOptions{}, indexOpts) })
 
 	return opts.SetIndexOptions(indexOpts)
 }
