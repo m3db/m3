@@ -72,6 +72,7 @@ func TestRoundtripProp(t *testing.T) {
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
+		// Make panics debuggable.
 		defer func() {
 			if r := recover(); r != nil {
 				fmt.Printf(
