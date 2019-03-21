@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"runtime/debug"
 	"testing"
 	"time"
 
@@ -77,8 +78,11 @@ func TestRoundtripProp(t *testing.T) {
 					"recovered with schema: %s and messages: %#v",
 					input.schema.String(),
 					input.messages)
+				debug.PrintStack()
+				panic("prop test encountered a panic!")
 			}
 		}()
+
 		times := make([]time.Time, 0, len(input.messages))
 		currTime := time.Now()
 		for range input.messages {
