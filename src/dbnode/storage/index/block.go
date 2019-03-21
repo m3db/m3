@@ -762,7 +762,13 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	return executor.NewExecutor(readers), nil
 }
 
-// Query guarentees
+// Query acquires a read lock on the block so that the segments
+// are guaranteed to not be freed/released while accumulating results.
+// This allows references to the mmap'd segment data to be accumulated
+// and then copied into the results before this method returns (it is not
+// safe to return docs directly from the segments from this method, the
+// results datastructure is used to copy it every time documents are added
+// to the results datastructure).
 func (b *block) Query(
 	cancellable *resource.CancellableLifetime,
 	query Query,
