@@ -21,7 +21,6 @@
 package proto
 
 import (
-	"math"
 	"reflect"
 
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -38,6 +37,9 @@ const (
 	// corruption the iterator can avoid panicing due to trying to allocate a massive byte slice
 	// (MAX_UINT64 for example) and return a reasonable error message instead.
 	maxMarshaledProtoMessageSize = 2 << 29
+
+	// maxCustomFieldNum is included for the same rationale as maxMarshaledProtoMessageSize.
+	maxCustomFieldNum = 10000
 )
 
 type customFieldType int
@@ -52,14 +54,21 @@ const (
 	// int32, sfixed32, and enums are all are treated as int32s and there
 	// is no reasonm to distinguish between them for the purposes of encoding
 	// and decoding.
-	cSignedInt64 customFieldType = iota
+	cNotCustomEncoded customFieldType = iota
+	cSignedInt64
 	cSignedInt32
 	cUnsignedInt64
 	cUnsignedInt32
 	cFloat64
 	cFloat32
 	cBytes
+
+	numCustomTypes = 8
 )
+
+// -1 because iota's are zero-indexed so the highest value will be the number of
+// custom types - 1.
+var numBitsToEncodeCustomType = numBitsRequiredForNumUpToN(numCustomTypes - 1)
 
 const (
 	// Single bit op codes that get encoded into the compressed stream and
@@ -136,6 +145,10 @@ type customFieldState struct {
 	intSigBitsTracker m3tsz.IntSigBitsTracker
 }
 
+func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldState {
+	return customFieldState{fieldNum: fieldNum, fieldType: fieldType}
+}
+
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
 func customFields(s []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
@@ -154,10 +167,8 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 			continue
 		}
 
-		s = append(s, customFieldState{
-			fieldType: customFieldType,
-			fieldNum:  int(field.GetNumber()),
-		})
+		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
+		s = append(s, fieldState)
 	}
 
 	return s
@@ -220,9 +231,10 @@ func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
 // 64  --> 6
 // 128 --> 7
 func numBitsRequiredForNumUpToN(n int) int {
-	if n < 2 {
-		return n
+	count := 0
+	for n > 0 {
+		count++
+		n = n >> 1
 	}
-
-	return int(math.Log2(float64(n)))
+	return count
 }

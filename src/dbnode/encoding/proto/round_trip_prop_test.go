@@ -52,7 +52,7 @@ func init() {
 }
 
 var maxNumFields = 10
-var maxNumMessages = 1000
+var maxNumMessages = 100
 var maxNumEnumValues = 10
 
 // TODO(rartoul): Modify this prop test to generate schemas with repeated fields and maps
@@ -65,12 +65,20 @@ func TestRoundtripProp(t *testing.T) {
 		props      = gopter.NewProperties(parameters)
 		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
-	parameters.MinSuccessfulTests = 200
+	parameters.MinSuccessfulTests = 300
 	parameters.Rng.Seed(seed)
 
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf(
+					"recovered with schema: %s and messages: %#v",
+					input.schema.String(),
+					input.messages)
+			}
+		}()
 		times := make([]time.Time, 0, len(input.messages))
 		currTime := time.Now()
 		for range input.messages {
@@ -98,6 +106,10 @@ func TestRoundtripProp(t *testing.T) {
 		}
 
 		stream := enc.Stream()
+		if stream == nil {
+			return true, nil
+		}
+
 		iter.SetSchema(input.schema)
 		iter.Reset(stream)
 

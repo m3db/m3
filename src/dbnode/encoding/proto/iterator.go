@@ -107,20 +107,10 @@ func (it *iterator) Next() bool {
 	}
 
 	if !it.consumedFirstMessage {
-		// Can ignore the version number for now because we only have one.
-		_, err := it.readVarInt()
-		if err != nil {
+		if err := it.readHeader(); err != nil {
 			it.err = err
 			return false
 		}
-
-		byteFieldDictLRUSize, err := it.readVarInt()
-		if err != nil {
-			it.err = err
-			return false
-		}
-
-		it.byteFieldDictLRUSize = int(byteFieldDictLRUSize)
 	}
 
 	moreDataControlBit, err := it.stream.ReadBit()
@@ -215,6 +205,53 @@ func (it *iterator) Close() {
 	if pool := it.opts.ReaderIteratorPool(); pool != nil {
 		pool.Put(it)
 	}
+}
+
+func (it *iterator) readHeader() error {
+	// Can ignore the version number for now because we only have one.
+	_, err := it.readVarInt()
+	if err != nil {
+		return err
+	}
+
+	byteFieldDictLRUSize, err := it.readVarInt()
+	if err != nil {
+		return err
+	}
+
+	it.byteFieldDictLRUSize = int(byteFieldDictLRUSize)
+	return it.readCustomFieldsSchema()
+}
+
+func (it *iterator) readCustomFieldsSchema() error {
+	maxCustomFieldNum, err := it.readVarInt()
+	if err != nil {
+		return err
+	}
+
+	if maxCustomFieldNum > maxCustomFieldNum {
+		return fmt.Errorf(
+			"%s maximum custom field in header is %d but maximum allowed is %d",
+			itErrPrefix, maxCustomFieldNum, maxCustomFieldNum)
+	}
+
+	if maxCustomFieldNum <= maxTSZFieldsCapacityRetain && it.customFields != nil {
+		it.customFields = it.customFields[:0]
+	} else {
+		it.customFields = make([]customFieldState, 0, maxCustomFieldNum)
+	}
+
+	for i := 1; i <= int(maxCustomFieldNum); i++ {
+		fieldTypeBits, err := it.stream.ReadBits(3)
+		if err != nil {
+			return err
+		}
+
+		fieldType := customFieldType(fieldTypeBits)
+		it.customFields = append(it.customFields, newCustomFieldState(i, fieldType))
+	}
+
+	return nil
 }
 
 func (it *iterator) readCustomValues() error {

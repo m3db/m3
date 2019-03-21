@@ -202,6 +202,40 @@ func (enc *Encoder) Len() int {
 func (enc *Encoder) encodeHeader() {
 	enc.encodeVarInt(currentEncodingSchemeVersion)
 	enc.encodeVarInt(uint64(enc.opts.ByteFieldDictionaryLRUSize()))
+	enc.encodeCustomSchemaTypes()
+}
+
+func (enc *Encoder) encodeCustomSchemaTypes() {
+	if len(enc.customFields) == 0 {
+		enc.encodeVarInt(0)
+		return
+	}
+
+	// Field numbers are 1-indexed so encoding the maximum field number
+	// at the beginning is equivalent to encoding the number of types
+	// we need to read after if we imagine that we're encoding a 1-indexed
+	// bitset where the position in the bitset encodes the field number (I.E
+	// the first value is the type for field number 1) and the values are
+	// the number of bits required to unique identify a custom type instead of
+	// just being a single bit (3 bits in the case of version 1 of the encoding
+	// scheme.)
+	maxFieldNum := enc.customFields[len(enc.customFields)-1].fieldNum
+	enc.encodeVarInt(uint64(maxFieldNum))
+
+	// Start at 1 because we're zero-indexed.
+	for i := 1; i <= maxFieldNum; i++ {
+		customTypeBits := uint64(cNotCustomEncoded)
+		for _, customField := range enc.customFields {
+			if customField.fieldNum == i {
+				customTypeBits = uint64(customField.fieldType)
+				break
+			}
+		}
+
+		enc.stream.WriteBits(
+			customTypeBits,
+			numBitsToEncodeCustomType)
+	}
 }
 
 func (enc *Encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {

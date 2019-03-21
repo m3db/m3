@@ -41,40 +41,52 @@ func TestNumBitsRequiredForNumUpToN(t *testing.T) {
 		},
 		{
 			input:          2,
-			expectedOutput: 1,
-		},
-		{
-			input:          4,
 			expectedOutput: 2,
 		},
 		{
-			input:          8,
+			input:          4,
 			expectedOutput: 3,
 		},
 		{
+			input:          5,
+			expectedOutput: 3,
+		},
+		{
+			input:          8,
+			expectedOutput: 4,
+		},
+		{
+			input:          9,
+			expectedOutput: 4,
+		},
+		{
+			input:          15,
+			expectedOutput: 4,
+		},
+		{
 			input:          16,
-			expectedOutput: 4,
-		},
-		{
-			input:          31,
-			expectedOutput: 4,
-		},
-		{
-			input:          32,
 			expectedOutput: 5,
 		},
 		{
-			input:          64,
+			input:          31,
+			expectedOutput: 5,
+		},
+		{
+			input:          32,
 			expectedOutput: 6,
 		},
 		{
-			input:          128,
+			input:          63,
+			expectedOutput: 6,
+		},
+		{
+			input:          64,
 			expectedOutput: 7,
 		},
 	}
 
 	for _, tc := range testCases {
 		output := numBitsRequiredForNumUpToN(tc.input)
-		require.Equal(t, tc.expectedOutput, output)
+		require.Equal(t, tc.expectedOutput, output, "failed for input %d", tc.input)
 	}
 }

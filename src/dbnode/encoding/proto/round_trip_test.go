@@ -135,6 +135,7 @@ func TestRoundtrip(t *testing.T) {
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
 		i++
 	}
+	require.Equal(t, len(testCases), i)
 	require.NoError(t, iter.Err())
 }
 
