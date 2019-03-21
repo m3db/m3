@@ -51,6 +51,17 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 	require.False(t, o2.Equal(o1))
 }
 
+func TestOptionsEqualsSchema(t *testing.T) {
+	o1 := NewOptions()
+	s1, err := ToSchema(getTestSchemaBytes())
+	require.NoError(t, err)
+	o2 := o1.SetSchema(s1)
+	require.True(t, o1.Equal(o1))
+	require.True(t, o2.Equal(o2))
+	require.False(t, o1.Equal(o2))
+	require.False(t, o2.Equal(o1))
+}
+
 func TestOptionsEqualsRetention(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

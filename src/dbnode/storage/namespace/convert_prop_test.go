@@ -34,6 +34,8 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
+	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
 )
 
 const (
@@ -78,6 +80,13 @@ func genMap() gopter.Gen {
 		})
 }
 
+func getTestSchema() namespace.Schema {
+	tm := &testproto.TestMessage{}
+	bytes, _ := tm.Descriptor()
+	ts, _ := namespace.ToSchema(bytes)
+	return ts
+}
+
 // metadata generator
 func genMetadata() gopter.Gen {
 	return gopter.CombineGens(
@@ -97,6 +106,7 @@ func genMetadata() gopter.Gen {
 			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
 			SetSnapshotEnabled(bools[5]).
+			SetSchema(getTestSchema()).
 			SetRetentionOptions(retention).
 			SetIndexOptions(namespace.NewIndexOptions().
 				SetEnabled(bools[6]).

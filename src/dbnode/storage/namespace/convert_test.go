@@ -31,6 +31,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"bytes"
 )
 
 var (
@@ -60,6 +61,7 @@ var (
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
+			Schema:            getTestSchema().Bytes(),
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -69,6 +71,13 @@ var (
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
 			IndexOptions:      &validIndexOpts,
+		},
+	}
+
+	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
+		nsproto.NamespaceOptions{
+			RetentionOptions:  &validRetentionOpts,
+			Schema:            getTestSchema().Bytes(),
 		},
 	}
 
@@ -92,7 +101,7 @@ var (
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 	}
-)
+	)
 
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
@@ -178,6 +187,41 @@ func TestToProto(t *testing.T) {
 	assertEqualMetadata(t, "ns2", *(reg.Namespaces["ns2"]), md2)
 }
 
+func TestSchemaFromProto(t *testing.T) {
+	validRegistry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"testns1": &validNamespaceSchemaOpts[0],
+		},
+	}
+	nsMap, err := namespace.FromProto(validRegistry)
+	require.NoError(t, err)
+
+	md1, err := nsMap.Get(ident.StringID("testns1"))
+	require.NoError(t, err)
+	assertEqualMetadata(t, "testns1", validNamespaceSchemaOpts[0], md1)
+
+	require.NotNil(t, md1.Options().Schema().Get())
+	require.EqualValues(t, "TestMessage", md1.Options().Schema().Get().GetName())
+}
+
+func TestSchemaToProto(t *testing.T) {
+	// make ns map
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
+		namespace.NewOptions().SetSchema(getTestSchema()))
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// convert to nsproto map
+	reg := namespace.ToProto(nsMap)
+	require.Len(t, reg.Namespaces, 1)
+
+	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
+	outschema, err := namespace.ToSchema(reg.Namespaces["ns1"].Schema)
+	assert.NoError(t, err)
+	require.EqualValues(t, "TestMessage", outschema.Get().GetName())
+}
+
 func TestToProtoSnapshotEnabled(t *testing.T) {
 	md, err := namespace.NewMetadata(
 		ident.StringID("ns1"),
@@ -226,6 +270,7 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, expected.CleanupEnabled, opts.CleanupEnabled())
 	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
+	require.True(t, bytes.Equal(expected.Schema, opts.Schema().Bytes()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
 }
