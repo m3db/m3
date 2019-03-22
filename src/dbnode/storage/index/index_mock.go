@@ -191,6 +191,20 @@ func (mr *MockBlockMockRecorder) AddResults(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), arg0)
 }
 
+// AggregateQuery mocks base method
+func (m *MockBlock) AggregateQuery(arg0 Query, arg1 AggregateQueryOptions, arg2 AggregateResults) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateQuery", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AggregateQuery indicates an expected call of AggregateQuery
+func (mr *MockBlockMockRecorder) AggregateQuery(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockBlock)(nil).AggregateQuery), arg0, arg1, arg2)
+}
+
 // Close mocks base method
 func (m *MockBlock) Close() error {
 	m.ctrl.T.Helper()
