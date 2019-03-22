@@ -397,15 +397,6 @@ func (s *seeker) SeekIndexEntry(
 
 	idBytes := id.Bytes()
 	for {
-		currOffset, err := s.indexFd.Seek(0, os.SEEK_CUR)
-		if err != nil {
-			return IndexEntry{}, err
-		}
-		if currOffset >= s.indexFileSize && resources.fileDecoderStream.Buffered() <= 0 {
-			// Prevent panics when we're scanning to the end of the buffer.
-			return IndexEntry{}, errSeekIDNotFound
-		}
-
 		// Use the bytesPool on resources here because its designed for this express purpose
 		// and is much faster / cheaper than the checked bytes pool which has a lot of
 		// synchronization and is prone to allocation (due to being shared). Basically because
@@ -414,6 +405,9 @@ func (s *seeker) SeekIndexEntry(
 		// copy into checked.Bytes from the more expensive pool.
 		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
 			resources.decodeIndexEntryBytesPool)
+		if err == io.EOF {
+			return IndexEntry{}, errSeekIDNotFound
+		}
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
