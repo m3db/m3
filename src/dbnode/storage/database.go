@@ -238,15 +238,8 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return err
 	}
 
-	// update namespace
-	if err := d.updateNamespacesWithLock(updates); err != nil {
-		enrichedErr := fmt.Errorf("unable to update namespaces: %v", err)
-		d.log.Errorf("%v", enrichedErr)
-		return err
-	}
-
 	// log that updates and removals are skipped
-	if len(removes) > 0 {
+	if len(removes) > 0 || len(updates) > 0 {
 		d.log.Warnf("skipping namespace removals and updates, restart process if you want changes to take effect.")
 	}
 
@@ -330,7 +323,6 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 }
 
 func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
-	// should we add a lock?
 	for _, n := range namespaces {
 		// ensure namespace doesn't exist
 		_, ok := d.namespaces.Get(n.ID())
@@ -344,22 +336,6 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
-	}
-	return nil
-}
-
-func (d *db) updateNamespacesWithLock(namespaces []namespace.Metadata) error {
-	// should we add a lock?
-	for _, n := range namespaces {
-		ns2update, ok := d.namespaces.Get(n.ID())
-		if !ok { // should never happen
-			return fmt.Errorf("non-existing namespace marked for update: %v", n.ID().String())
-		}
-		if ns2update.Options().Schema().Equal(n.Options().Schema()) {
-			d.log.Warnf("skipping namespace updates other than schema, restart process if you want changes to take effect.")
-			continue
-		}
-		ns2update.Options().SetSchema(n.Options().Schema())
 	}
 	return nil
 }

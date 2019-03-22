@@ -35,7 +35,6 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 
-	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
 )
 
 const (
@@ -78,13 +77,6 @@ func genMap() gopter.Gen {
 			}
 			return nsMap
 		})
-}
-
-func getTestSchema() namespace.Schema {
-	tm := &testproto.TestMessage{}
-	bytes, _ := tm.Descriptor()
-	ts, _ := namespace.ToSchema(bytes)
-	return ts
 }
 
 // metadata generator

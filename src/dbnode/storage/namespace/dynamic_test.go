@@ -338,7 +338,7 @@ func singleTestValue() *testValue {
 						BufferFutureNanos:                        toNanosInt64(time.Minute * 10),
 						BufferPastNanos:                          toNanosInt64(time.Minute * 15),
 					},
-					Schema: getTestSchemaBytes(),
+					Schema: getTestSchema().Bytes(),
 				},
 			},
 		},

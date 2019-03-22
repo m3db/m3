@@ -21,6 +21,7 @@
 package namespace_test
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -28,10 +29,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"bytes"
 )
 
 var (
@@ -76,8 +75,8 @@ var (
 
 	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
-			RetentionOptions:  &validRetentionOpts,
-			Schema:            getTestSchema().Bytes(),
+			RetentionOptions: &validRetentionOpts,
+			Schema:           getTestSchema().Bytes(),
 		},
 	}
 
@@ -101,7 +100,7 @@ var (
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 	}
-	)
+)
 
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
