@@ -21,13 +21,19 @@
 package index
 
 import (
+	"sync"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
 type aggregatedResults struct {
-	nsID       ident.ID
+	sync.RWMutex
+
+	nsID ident.ID
+	opts AggregateResultsOptions
+
 	resultsMap *AggregateResultsMap
 
 	idPool    ident.Pool
@@ -38,8 +44,14 @@ type aggregatedResults struct {
 }
 
 // NewAggregateResults returns a new AggregateResults object.
-func NewAggregateResults(opts Options) AggregateResults {
+func NewAggregateResults(
+	namespaceID ident.ID,
+	rOpts AggregateResultsOptions,
+	opts Options,
+) AggregateResults {
 	return &aggregatedResults{
+		nsID:       namespaceID,
+		opts:       rOpts,
 		resultsMap: newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:     opts.IdentifierPool(),
 		bytesPool:  opts.CheckedBytesPool(),
@@ -48,96 +60,11 @@ func NewAggregateResults(opts Options) AggregateResults {
 	}
 }
 
-func (r *aggregatedResults) addField(
-	term []byte,
-	value []byte,
-	opts AggregateQueryOptions,
-) error {
-	// NB: can cast the []byte -> ident.ID to avoid an alloc
-	// before we're sure we need it.
-	termID := ident.BytesID(term)
+func (r *aggregatedResults) Reset(nsID ident.ID, opts AggregateResultsOptions) {
+	r.Lock()
 
-	// NB: if it is already in the map, this is a valid ID to add and it's not
-	// necessary to check against the filter.
-	valueMap, found := r.resultsMap.Get(termID)
-	if found {
-		valueID := ident.BytesID(value)
-		return valueMap.addValue(valueID)
-	}
+	r.opts = opts
 
-	// if this term hasn't been seen, ensure it should be included in output.
-	if !opts.TermFilter.Contains(termID) {
-		return nil
-	}
-
-	aggValues := r.valuesPool.Get()
-	valueID := ident.BytesID(value)
-	if err := aggValues.addValue(valueID); err != nil {
-		// Return these values to the pool.
-		r.valuesPool.Put(aggValues)
-		return err
-	}
-
-	r.resultsMap.Set(termID, aggValues)
-	return nil
-}
-
-func (r *aggregatedResults) AggregateDocument(
-	document doc.Document,
-	opts AggregateQueryOptions,
-) error {
-	for _, field := range document.Fields {
-		if err := r.addField(field.Name, field.Value, opts); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *aggregatedResults) AddIDAndValues(
-	termID ident.ID,
-	values AggregateValues,
-) error {
-	valueIt := values.Map().Iter()
-
-	valueMap, found := r.resultsMap.Get(termID)
-	if found {
-		for _, value := range valueIt {
-			if err := valueMap.addValue(value.Key()); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-
-	aggValues := r.valuesPool.Get()
-	for _, value := range valueIt {
-		if err := aggValues.addValue(value.Key()); err != nil {
-			// Return these values to the pool.
-			r.valuesPool.Put(aggValues)
-			return err
-		}
-	}
-
-	r.resultsMap.Set(termID, aggValues)
-	return nil
-}
-
-func (r *aggregatedResults) Namespace() ident.ID {
-	return r.nsID
-}
-
-func (r *aggregatedResults) Map() *AggregateResultsMap {
-	return r.resultsMap
-}
-
-func (r *aggregatedResults) Size() int {
-	return r.resultsMap.Len()
-}
-
-func (r *aggregatedResults) Reset(nsID ident.ID) {
 	// finalize existing held nsID
 	if r.nsID != nil {
 		r.nsID.Finalize()
@@ -160,10 +87,131 @@ func (r *aggregatedResults) Reset(nsID ident.ID) {
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
+	r.Unlock()
+}
+
+func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, error) {
+	r.Lock()
+	err := r.addDocumentsBatchWithLock(batch)
+	size := r.resultsMap.Len()
+	r.Unlock()
+	return size, err
+}
+
+func (r *aggregatedResults) addDocumentsBatchWithLock(
+	batch []doc.Document,
+) error {
+	for i := range batch {
+		err := r.addDocumentWithLock(batch[i])
+		if err != nil {
+			return err
+		}
+
+		if r.opts.SizeLimit > 0 && r.resultsMap.Len() >= r.opts.SizeLimit {
+			// Early return if limit enforced and we hit our limit.
+			break
+		}
+	}
+
+	return nil
+}
+
+func (r *aggregatedResults) addDocumentWithLock(
+	document doc.Document,
+) error {
+	for _, field := range document.Fields {
+		if err := r.addFieldWithLock(field.Name, field.Value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *aggregatedResults) addFieldWithLock(
+	term []byte,
+	value []byte,
+) error {
+	// NB: can cast the []byte -> ident.ID to avoid an alloc
+	// before we're sure we need it.
+	termID := ident.BytesID(term)
+
+	// if this term hasn't been seen, ensure it should be included in output.
+	if !r.opts.TermFilter.Contains(termID) {
+		return nil
+	}
+
+	valueMap, found := r.resultsMap.Get(termID)
+	if found {
+		valueID := ident.BytesID(value)
+		return valueMap.addValue(valueID)
+	}
+
+	aggValues := r.valuesPool.Get()
+	valueID := ident.BytesID(value)
+	if err := aggValues.addValue(valueID); err != nil {
+		// Return these values to the pool.
+		r.valuesPool.Put(aggValues)
+		return err
+	}
+
+	r.resultsMap.Set(termID, aggValues)
+	return nil
+}
+
+// func (r *aggregatedResults) AddIDAndValues(
+// 	termID ident.ID,
+// 	values AggregateValues,
+// ) error {
+// 	valueIt := values.Map().Iter()
+
+// 	valueMap, found := r.resultsMap.Get(termID)
+// 	if found {
+// 		for _, value := range valueIt {
+// 			if err := valueMap.addValue(value.Key()); err != nil {
+// 				return err
+// 			}
+// 		}
+
+// 		return nil
+// 	}
+
+// 	aggValues := r.valuesPool.Get()
+// 	for _, value := range valueIt {
+// 		if err := aggValues.addValue(value.Key()); err != nil {
+// 			// Return these values to the pool.
+// 			r.valuesPool.Put(aggValues)
+// 			return err
+// 		}
+// 	}
+
+// 	r.resultsMap.Set(termID, aggValues)
+// 	return nil
+// }
+
+func (r *aggregatedResults) Namespace() ident.ID {
+	r.RLock()
+	ns := r.nsID
+	r.RUnlock()
+	return ns
+}
+
+func (r *aggregatedResults) Map() *AggregateResultsMap {
+	r.RLock()
+	m := r.resultsMap
+	r.RUnlock()
+	return m
+}
+
+func (r *aggregatedResults) Size() int {
+	r.RLock()
+	l := r.resultsMap.Len()
+	r.RUnlock()
+	return l
 }
 
 func (r *aggregatedResults) Finalize() {
-	r.Reset(nil)
+	r.Reset(nil, AggregateResultsOptions{})
 	if r.pool == nil {
 		return
 	}

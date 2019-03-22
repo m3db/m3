@@ -139,10 +139,10 @@ type ResultsPool interface {
 	Init(alloc ResultsAllocator)
 
 	// Get retrieves a Results object for use.
-	Get() Results
+	Get() QueryResults
 
 	// Put returns the provided Results to the pool.
-	Put(value Results)
+	Put(value QueryResults)
 }
 
 // AggregateResults is a collection of results for an aggregation query, it is

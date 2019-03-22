@@ -37,10 +37,10 @@ func (p *resultsPool) Init(alloc ResultsAllocator) {
 	})
 }
 
-func (p *resultsPool) Get() Results {
-	return p.pool.Get().(Results)
+func (p *resultsPool) Get() QueryResults {
+	return p.pool.Get().(QueryResults)
 }
 
-func (p *resultsPool) Put(value Results) {
+func (p *resultsPool) Put(value QueryResults) {
 	p.pool.Put(value)
 }

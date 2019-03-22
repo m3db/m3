@@ -148,8 +148,12 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
-	resultsPool.Init(func() Results { return NewResults(nil, ResultsOptions{}, opts) })
-	aggResultsPool.Init(func() AggregateResults { return NewAggregateResults(opts) })
+	resultsPool.Init(func() Results {
+		return NewResults(nil, ResultsOptions{}, opts)
+	})
+	aggResultsPool.Init(func() AggregateResults {
+		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
+	})
 	aggValuesPool.Init(func() *AggregateValues { return NewAggregateValues(opts) })
 	return opts
 }

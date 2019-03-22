@@ -707,11 +707,11 @@ func (d *db) QueryIDs(
 	namespace ident.ID,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (index.QueryReturnResults, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.QueryResults{}, err
+		return index.QueryReturnResults{}, err
 	}
 
 	return n.QueryIDs(ctx, query, opts)
@@ -721,15 +721,16 @@ func (d *db) AggregateQuery(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	opts index.AggregateQueryOptions,
-) (index.AggregateResults, error) {
+	opts index.QueryOptions,
+	aggResultOpts *index.AggregateResultsOptions,
+) (index.QueryReturnResults, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return nil, err
+		return index.QueryReturnResults{}, err
 	}
 
-	return n.AggregateQuery(ctx, query, opts)
+	return n.AggregateQuery(ctx, query, opts, aggResultOpts)
 }
 
 func (d *db) ReadEncoded(
