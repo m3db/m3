@@ -58,6 +58,7 @@ func (m *MockMatcher) EXPECT() *MockMatcherMockRecorder {
 
 // Close mocks base method
 func (m *MockMatcher) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -65,11 +66,13 @@ func (m *MockMatcher) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockMatcherMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMatcher)(nil).Close))
 }
 
 // ForwardMatch mocks base method
 func (m *MockMatcher) ForwardMatch(arg0 id.ID, arg1, arg2 int64) rules.MatchResult {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForwardMatch", arg0, arg1, arg2)
 	ret0, _ := ret[0].(rules.MatchResult)
 	return ret0
@@ -77,5 +80,6 @@ func (m *MockMatcher) ForwardMatch(arg0 id.ID, arg1, arg2 int64) rules.MatchResu
 
 // ForwardMatch indicates an expected call of ForwardMatch
 func (mr *MockMatcherMockRecorder) ForwardMatch(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardMatch", reflect.TypeOf((*MockMatcher)(nil).ForwardMatch), arg0, arg1, arg2)
 }

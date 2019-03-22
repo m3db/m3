@@ -8,11 +8,11 @@ fi
 COVERFILE=$1
 SUBMIT_COVER="$(dirname $0)/../.ci/codecov.sh"
 
-TARGETS=("aggregator" "dbnode" "query" "collector" "m3ninx" "m3nsch" "m3em" "x")
+TARGETS=("aggregator" "dbnode" "query" "collector" "cluster" "m3ninx" "m3nsch" "m3em" "x")
 target_patterns() {
     case $1 in
         'collector') echo "^mode|github.com/m3db/m3/src/collector|github.com/m3db/m3/src/cmd/services/m3collector";;
-        'collector') echo "^mode|github.com/m3db/m3/src/collector";;
+        'cluster') echo "^mode|github.com/m3db/m3/src/cluster";;
         'aggregator') echo "^mode|github.com/m3db/m3/src/aggregator|github.com/m3db/m3/src/cmd/services/m3aggregator";;
         'dbnode') echo "^mode|github.com/m3db/m3/src/dbnode|github.com/m3db/m3/src/cmd/services/m3dbnode";;
         'query') echo "^mode|github.com/m3db/m3/src/query|github.com/m3db/m3/src/cmd/services/m3query";;

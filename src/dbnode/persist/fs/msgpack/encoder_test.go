@@ -80,6 +80,7 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 		indexInfo.BloomFilter.NumHashesK,
 		indexInfo.SnapshotTime,
 		int64(indexInfo.FileType),
+		indexInfo.SnapshotID,
 	}
 }
 
@@ -108,8 +109,8 @@ func testExpectedResultForLogInfo(t *testing.T, logInfo schema.LogInfo) []interf
 		currRoot,
 		int64(logInfoType),
 		currLogInfo,
-		logInfo.Start,
-		logInfo.Duration,
+		logInfo.DeprecatedDoNotUseStart,
+		logInfo.DeprecatedDoNotUseDuration,
 		logInfo.Index,
 	}
 }
@@ -175,11 +176,33 @@ func TestEncodeLogEntry(t *testing.T) {
 	require.Equal(t, expected, *actual)
 }
 
+func TestEncodeLogEntryFast(t *testing.T) {
+	buffer, err := EncodeLogEntryFast(nil, testLogEntry)
+	require.NoError(t, err)
+
+	enc := NewEncoder()
+	enc.EncodeLogEntry(testLogEntry)
+	expected := enc.Bytes()
+
+	require.Equal(t, expected, buffer)
+}
+
 func TestEncodeLogMetadata(t *testing.T) {
 	enc, actual := testCapturingEncoder(t)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
 	expected := testExpectedResultForLogMetadata(t, testLogMetadata)
 	require.Equal(t, expected, *actual)
+}
+
+func TestEncodeLogMetadataFast(t *testing.T) {
+	buffer, err := EncodeLogMetadataFast(nil, testLogMetadata)
+	require.NoError(t, err)
+
+	enc := NewEncoder()
+	enc.EncodeLogMetadata(testLogMetadata)
+	expected := enc.Bytes()
+
+	require.Equal(t, expected, buffer)
 }
 
 func TestEncodeVarintError(t *testing.T) {

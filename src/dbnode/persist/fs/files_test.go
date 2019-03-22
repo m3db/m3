@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -282,6 +283,61 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
 }
 
+func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
+	idUUID := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NotNil(t, idUUID)
+
+	var (
+		prefix = "/var/lib/m3db"
+		id     = SnapshotMetadataIdentifier{
+			Index: 10,
+			UUID:  idUUID,
+		}
+	)
+
+	var (
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e058242ee83b2d098c206260e-10-metadata.db"
+		actual   = snapshotMetadataFilePathFromIdentifier(prefix, id)
+	)
+	require.Equal(t, expected, actual)
+
+	idFromPath, err := snapshotMetadataIdentifierFromFilePath(expected)
+	require.NoError(t, err)
+	require.Equal(t, id, idFromPath)
+}
+
+func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T) {
+	idUUID := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NotNil(t, idUUID)
+
+	var (
+		prefix = "/var/lib/m3db"
+		id     = SnapshotMetadataIdentifier{
+			Index: 10,
+			UUID:  idUUID,
+		}
+	)
+
+	var (
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e058242ee83b2d098c206260e-10-metadata-checkpoint.db"
+		actual   = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id)
+	)
+	require.Equal(t, expected, actual)
+
+	idFromPath, err := snapshotMetadataIdentifierFromFilePath(expected)
+	require.NoError(t, err)
+	require.Equal(t, id, idFromPath)
+}
+
+func TestSanitizedUUIDsCanBeParsed(t *testing.T) {
+	u := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NotNil(t, u)
+
+	parsedUUID, ok := parseUUID(sanitizeUUID(u))
+	require.True(t, ok)
+	require.Equal(t, u.String(), parsedUUID.String())
+}
+
 func TestFileExists(t *testing.T) {
 
 	var (
@@ -485,9 +541,10 @@ func TestSnapshotFiles(t *testing.T) {
 	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, shard)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(snapshotFiles))
-	snapshotTime, err := snapshotFiles[0].SnapshotTime()
+	snapshotTime, snapshotID, err := snapshotFiles[0].SnapshotTimeAndID()
 	require.NoError(t, err)
 	require.True(t, testWriterStart.Equal(snapshotTime))
+	require.Equal(t, testSnapshotID, snapshotID)
 	require.False(t, testWriterStart.IsZero())
 }
 
@@ -519,6 +576,11 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	defer os.RemoveAll(shardDir)
 
+	index, err := NextSnapshotFileSetVolumeIndex(
+		dir, testNs1ID, shard, blockStart)
+	require.NoError(t, err)
+	require.Equal(t, 0, index)
+
 	// Check increments properly
 	curr := -1
 	for i := 0; i <= 10; i++ {
@@ -530,6 +592,131 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 
 		writeOutTestSnapshot(t, dir, shard, blockStart, index)
 	}
+}
+
+// TestSortedSnapshotMetadataFiles tests the SortedSnapshotMetadataFiles function by writing out
+// a number of valid snapshot metadata files (along with their checkpoint files), as
+// well as one invalid / corrupt one, and then asserts that the correct number of valid
+// and corrupt files are returned.
+func TestSortedSnapshotMetadataFiles(t *testing.T) {
+	var (
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+		opts           = testDefaultOpts.
+				SetFilePathPrefix(filePathPrefix)
+		commitlogIdentifier = persist.CommitLogFile{
+			FilePath: "some_path",
+			Index:    0,
+		}
+		numMetadataFiles = 10
+	)
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	// Shoulld be no files before we write them out.
+	metadataFiles, errorsWithpaths, err := SortedSnapshotMetadataFiles(opts)
+	require.NoError(t, err)
+	require.Empty(t, errorsWithpaths)
+	require.Empty(t, metadataFiles)
+
+	// Write out a bunch of metadata files along with their corresponding checkpoints.
+	for i := 0; i < numMetadataFiles; i++ {
+		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
+		require.NotNil(t, snapshotUUID)
+
+		snapshotMetadataIdentifier := SnapshotMetadataIdentifier{
+			Index: int64(i),
+			UUID:  snapshotUUID,
+		}
+
+		writer := NewSnapshotMetadataWriter(opts)
+		err := writer.Write(SnapshotMetadataWriteArgs{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		})
+		require.NoError(t, err)
+
+		reader := NewSnapshotMetadataReader(opts)
+		snapshotMetadata, err := reader.Read(snapshotMetadataIdentifier)
+		require.NoError(t, err)
+
+		require.Equal(t, SnapshotMetadata{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+			MetadataFilePath: snapshotMetadataFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier),
+			CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier),
+		}, snapshotMetadata)
+
+		// Corrupt the last file.
+		if i == numMetadataFiles-1 {
+			os.Remove(snapshotMetadataCheckpointFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier))
+		}
+	}
+
+	metadataFiles, errorsWithpaths, err = SortedSnapshotMetadataFiles(opts)
+	require.NoError(t, err)
+	require.Len(t, errorsWithpaths, 1)
+	require.Len(t, metadataFiles, numMetadataFiles-1)
+
+	// Assert that they're sorted.
+	for i, file := range metadataFiles {
+		require.Equal(t, int64(i), file.ID.Index)
+	}
+}
+
+// TestNextSnapshotMetadataFileIndex tests the NextSnapshotMetadataFileIndex function by
+// writing out a number of SnapshotMetadata files and then ensuring that the NextSnapshotMetadataFileIndex
+// function returns the correct next index.
+func TestNextSnapshotMetadataFileIndex(t *testing.T) {
+	var (
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+		opts           = testDefaultOpts.
+				SetFilePathPrefix(filePathPrefix)
+		commitlogIdentifier = persist.CommitLogFile{
+			FilePath: "some_path",
+			Index:    0,
+		}
+		numMetadataFiles = 10
+	)
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	// Shoulld be no files before we write them out.
+	metadataFiles, errorsWithpaths, err := SortedSnapshotMetadataFiles(opts)
+	require.NoError(t, err)
+	require.Empty(t, errorsWithpaths)
+	require.Empty(t, metadataFiles)
+
+	writer := NewSnapshotMetadataWriter(opts)
+	// Write out a bunch of metadata files along with their corresponding checkpoints.
+	for i := 0; i < numMetadataFiles; i++ {
+		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
+		require.NotNil(t, snapshotUUID)
+
+		snapshotMetadataIdentifier := SnapshotMetadataIdentifier{
+			Index: int64(i),
+			UUID:  snapshotUUID,
+		}
+
+		err := writer.Write(SnapshotMetadataWriteArgs{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		})
+		require.NoError(t, err)
+	}
+
+	nextIdx, err := NextSnapshotMetadataFileIndex(opts)
+	require.NoError(t, err)
+	// Snapshot metadata file indices are zero-based so if we wrote out
+	// numMetadataFiles, then the last index should be numMetadataFiles-1
+	// and the next one should be numMetadataFiles.
+	require.Equal(t, int64(numMetadataFiles), nextIdx)
 }
 
 func TestNextIndexFileSetVolumeIndex(t *testing.T) {
@@ -637,23 +824,18 @@ func TestSnapshotFileSetExistsAt(t *testing.T) {
 
 func TestSortedCommitLogFiles(t *testing.T) {
 	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
+	dir := createCommitLogFiles(t, iter)
 	defer os.RemoveAll(dir)
-
-	createFile(t, path.Join(dir, "abcd"), nil)
-	createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
 
 	files, err := SortedCommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
-	require.Equal(t, iter*perSlot, len(files))
+	require.Equal(t, iter, len(files))
 
 	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
-		}
+		require.Equal(
+			t,
+			path.Join(dir, "commitlogs", fmt.Sprintf("commitlog-0-%d.db", i)),
+			files[i])
 	}
 }
 
@@ -831,7 +1013,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	}
 }
 
-func TestSnapshotFileSnapshotTime(t *testing.T) {
+func TestSnapshotFileSnapshotTimeAndID(t *testing.T) {
 	var (
 		dir            = createTempDir(t)
 		filePathPrefix = filepath.Join(dir, "")
@@ -846,10 +1028,30 @@ func TestSnapshotFileSnapshotTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(snapshotFiles))
 
-	// Verify SnapshotTime() returns the expected time
-	snapshotTime, err := SnapshotTime(filePathPrefix, snapshotFiles[0].ID)
+	// Verify SnapshotTimeAndID() returns the expected time
+	snapshotTime, snapshotID, err := SnapshotTimeAndID(filePathPrefix, snapshotFiles[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
+	require.Equal(t, testSnapshotID, snapshotID)
+}
+
+func TestSnapshotFileSnapshotTimeAndIDZeroValue(t *testing.T) {
+	f := FileSetFile{}
+	_, _, err := f.SnapshotTimeAndID()
+	require.Equal(t, errSnapshotTimeAndIDZero, err)
+}
+
+func TestSnapshotFileSnapshotTimeAndIDNotSnapshot(t *testing.T) {
+	f := FileSetFile{}
+	f.AbsoluteFilepaths = []string{"/var/lib/m3db/data/fileset-data.db"}
+	_, _, err := f.SnapshotTimeAndID()
+	require.Error(t, err)
+}
+
+func TestCommitLogFilePath(t *testing.T) {
+	expected := "/var/lib/m3db/commitlogs/commitlog-0-1.db"
+	actual := CommitLogFilePath("/var/lib/m3db", time.Unix(0, 0), 1)
+	require.Equal(t, expected, actual)
 }
 
 func createTempFile(t *testing.T) *os.File {
@@ -974,28 +1176,17 @@ func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix 
 	createFile(t, filePath, b)
 }
 
-func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
+func createCommitLogFiles(t *testing.T, iter int) string {
 	dir := createTempDir(t)
 	commitLogsDir := path.Join(dir, commitLogsDirName)
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
 	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			filePath, _, err := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
-			require.NoError(t, err)
-			fd, err := os.Create(filePath)
-			assert.NoError(t, err)
-			assert.NoError(t, fd.Close())
-		}
+		filePath := CommitLogFilePath(dir, time.Unix(0, 0), i)
+		fd, err := os.Create(filePath)
+		assert.NoError(t, err)
+		assert.NoError(t, fd.Close())
 	}
 	return dir
-}
-
-func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
-	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
-	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-
-	x := (resIdx * perSlot) + index
-	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
 }
 
 func writeOutTestSnapshot(

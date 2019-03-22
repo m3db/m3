@@ -95,14 +95,6 @@ type Options interface {
 	// persistence enabled.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
-	// SetFetchBlocksMetadataEndpointVersion sets the version of the fetch blocks
-	// metadata endpoint that the peer bootstrapper will use
-	SetFetchBlocksMetadataEndpointVersion(value client.FetchBlocksMetadataEndpointVersion) Options
-
-	// SetFetchBlocksMetadataEndpointVersion returns the version of the fetch blocks
-	// metadata endpoint that the peer bootstrapper will use
-	FetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion
-
 	// SetRuntimeOptionsManagers sets the RuntimeOptionsManager.
 	SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options
 

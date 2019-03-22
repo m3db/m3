@@ -33,41 +33,17 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetBlockMetadataPool sets the block metadata pool
-	SetBlockMetadataPool(value BlockMetadataPool) Options
-
-	// BlockMetadataPool returns the block metadata pool
-	BlockMetadataPool() BlockMetadataPool
-
 	// SetBlockMetadataV2Pool sets the block metadata pool
 	SetBlockMetadataV2Pool(value BlockMetadataV2Pool) Options
 
 	// BlockMetadataV2Pool returns the block metadata pool
 	BlockMetadataV2Pool() BlockMetadataV2Pool
 
-	// SetBlockMetadataSlicePool sets the block metadata slice pool
-	SetBlockMetadataSlicePool(value BlockMetadataSlicePool) Options
-
-	// BlockMetadataSlicePool returns the block metadata slice pool
-	BlockMetadataSlicePool() BlockMetadataSlicePool
-
 	// SetBlockMetadataV2SlicePool sets the block metadata slice pool
 	SetBlockMetadataV2SlicePool(value BlockMetadataV2SlicePool) Options
 
 	// BlockMetadataV2SlicePool returns the block metadata slice pool
 	BlockMetadataV2SlicePool() BlockMetadataV2SlicePool
-
-	// SetBlocksMetadataPool sets the blocks metadata pool
-	SetBlocksMetadataPool(value BlocksMetadataPool) Options
-
-	// BlocksMetadataPool returns the blocks metadata pool
-	BlocksMetadataPool() BlocksMetadataPool
-
-	// SetBlocksMetadataSlicePool sets the blocks metadata slice pool
-	SetBlocksMetadataSlicePool(value BlocksMetadataSlicePool) Options
-
-	// BlocksMetadataSlicePool returns the blocks metadata slice pool
-	BlocksMetadataSlicePool() BlocksMetadataSlicePool
 
 	// SetTagEncoderPool sets the tag encoder pool.
 	SetTagEncoderPool(value serialize.TagEncoderPool) Options

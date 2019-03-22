@@ -1,5 +1,5 @@
 app:
-  image: quay.io/m3db/ci-base:latest
+  image: golang:1.10.4-stretch
   volumes:
     - .:/go/src/github.com/m3db/m3
     - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent

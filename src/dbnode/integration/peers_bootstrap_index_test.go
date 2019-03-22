@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -45,8 +44,6 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	log := xlog.SimpleLogger
 
-	// Index metadata exchange is only possible with version 2
-	version := client.FetchBlocksMetadataEndpointV2
 	blockSize := 2 * time.Hour
 
 	rOpts := retention.NewOptions().
@@ -68,7 +65,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: version},
+		{disablePeersBootstrapper: false},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

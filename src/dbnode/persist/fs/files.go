@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -41,9 +42,15 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+
+	"github.com/pborman/uuid"
 )
 
-var timeZero time.Time
+var (
+	timeZero time.Time
+
+	errSnapshotTimeAndIDZero = errors.New("tried to read snapshot time and ID of zero value")
+)
 
 const (
 	dataDirName       = "data"
@@ -53,6 +60,11 @@ const (
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
+
+	numComponentsSnapshotMetadataFile           = 4
+	numComponentsSnapshotMetadataCheckpointFile = 5
+	snapshotMetadataUUIDComponentPosition       = 1
+	snapshotMetadataIndexComponentPosition      = 2
 )
 
 var (
@@ -67,25 +79,35 @@ type FileSetFile struct {
 	AbsoluteFilepaths []string
 
 	CachedSnapshotTime time.Time
+	CachedSnapshotID   uuid.UUID
 	filePathPrefix     string
 }
 
-// SnapshotTime returns the SnapshotTime for the given FileSetFile. Value is meaningless
-// if the the FileSetFile is a flush instead of a snapshot.
-func (f *FileSetFile) SnapshotTime() (time.Time, error) {
-	if !f.CachedSnapshotTime.IsZero() {
-		// Return immediately if we've already cached it.
-		return f.CachedSnapshotTime, nil
+// SnapshotTimeAndID returns the snapshot time and id for the given FileSetFile.
+// Value is meaningless if the the FileSetFile is a flush instead of a snapshot.
+func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
+	if f.IsZero() {
+		return time.Time{}, nil, errSnapshotTimeAndIDZero
+	}
+	if len(f.AbsoluteFilepaths) > 0 && !strings.Contains(f.AbsoluteFilepaths[0], snapshotDirName) {
+		return time.Time{}, nil, fmt.Errorf(
+			"tried to determine snapshot time and id of non-snapshot: %s", f.AbsoluteFilepaths[0])
 	}
 
-	snapshotTime, err := SnapshotTime(f.filePathPrefix, f.ID)
+	if !f.CachedSnapshotTime.IsZero() || f.CachedSnapshotID != nil {
+		// Return immediately if we've already cached it.
+		return f.CachedSnapshotTime, f.CachedSnapshotID, nil
+	}
+
+	snapshotTime, snapshotID, err := SnapshotTimeAndID(f.filePathPrefix, f.ID)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, nil, err
 	}
 
 	// Cache for future use and return.
 	f.CachedSnapshotTime = snapshotTime
-	return f.CachedSnapshotTime, nil
+	f.CachedSnapshotID = snapshotID
+	return f.CachedSnapshotTime, f.CachedSnapshotID, nil
 }
 
 // IsZero returns whether the FileSetFile is a zero value.
@@ -169,6 +191,39 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 
 		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
 	})
+}
+
+// SnapshotMetadata represents a SnapshotMetadata file, along with its checkpoint file,
+// as well as all the information contained within the metadata file and paths to the
+// physical files on disk.
+type SnapshotMetadata struct {
+	ID                  SnapshotMetadataIdentifier
+	CommitlogIdentifier persist.CommitLogFile
+	MetadataFilePath    string
+	CheckpointFilePath  string
+}
+
+// AbsoluteFilepaths returns a slice of all the absolute filepaths associated
+// with a snapshot metadata.
+func (s SnapshotMetadata) AbsoluteFilepaths() []string {
+	return []string{s.MetadataFilePath, s.CheckpointFilePath}
+}
+
+// SnapshotMetadataErrorWithPaths contains an error that occurred while trying to
+// read a snapshot metadata file, as well as paths for the metadata file path and
+// the checkpoint file path so that they can be cleaned up. The checkpoint file may
+// not exist if only the metadata file was written out (due to sudden node failure)
+// or if the metadata file name was structured incorrectly (should never happen.)
+type SnapshotMetadataErrorWithPaths struct {
+	Error              error
+	MetadataFilePath   string
+	CheckpointFilePath string
+}
+
+// SnapshotMetadataIdentifier is an identifier for a snapshot metadata file
+type SnapshotMetadataIdentifier struct {
+	Index int64
+	UUID  uuid.UUID
 }
 
 // NewFileSetFile creates a new FileSet file
@@ -333,23 +388,36 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 	return t, int(index), nil
 }
 
-// SnapshotTime returns the time at which the snapshot was taken.
-func SnapshotTime(
-	filePathPrefix string, id FileSetFileIdentifier) (time.Time, error) {
+// SnapshotTimeAndID returns the metadata for the snapshot.
+func SnapshotTimeAndID(
+	filePathPrefix string, id FileSetFileIdentifier) (time.Time, uuid.UUID, error) {
 	decoder := msgpack.NewDecoder(nil)
-	return snapshotTime(filePathPrefix, id, decoder)
+	return snapshotTimeAndID(filePathPrefix, id, decoder)
 }
 
-func snapshotTime(
-	filePathPrefix string, id FileSetFileIdentifier, decoder *msgpack.Decoder) (time.Time, error) {
+func snapshotTimeAndID(
+	filePathPrefix string,
+	id FileSetFileIdentifier,
+	decoder *msgpack.Decoder,
+) (time.Time, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
 	}
 
 	decoder.Reset(msgpack.NewDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
-	return time.Unix(0, info.SnapshotTime), err
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
+	}
+
+	var parsedSnapshotID uuid.UUID
+	err = parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %v", err)
+	}
+
+	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
 }
 
 func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
@@ -619,6 +687,80 @@ func ReadIndexInfoFiles(
 	return infoFileResults
 }
 
+// SortedSnapshotMetadataFiles returns a slice of all the SnapshotMetadata files that are on disk, as well
+// as any files that it encountered errors for (corrupt, missing checkpoints, etc) which facilitates
+// cleanup of corrupt files. []SnapshotMetadata will be sorted by index (i.e the chronological order
+// in which the snapshots were taken), but []SnapshotMetadataErrorWithPaths will not be in any particular
+// order.
+func SortedSnapshotMetadataFiles(opts Options) (
+	[]SnapshotMetadata, []SnapshotMetadataErrorWithPaths, error) {
+	var (
+		prefix           = opts.FilePathPrefix()
+		snapshotsDirPath = SnapshotDirPath(prefix)
+	)
+
+	// Glob for metadata files directly instead of their checkpoint files.
+	// In the happy case this makes no difference, but in situations where
+	// the metadata file exists but the checkpoint file does not (due to sudden
+	// node failure) this strategy allows us to still cleanup the metadata file
+	// whereas if we looked for checkpoint files directly the dangling metadata
+	// file would hang around forever.
+	metadataFilePaths, err := filepath.Glob(
+		path.Join(
+			snapshotsDirPath,
+			fmt.Sprintf("*%s%s%s", separator, metadataFileSuffix, fileSuffix)))
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		reader          = NewSnapshotMetadataReader(opts)
+		metadatas       = []SnapshotMetadata{}
+		errorsWithPaths = []SnapshotMetadataErrorWithPaths{}
+	)
+	for _, file := range metadataFilePaths {
+		id, err := snapshotMetadataIdentifierFromFilePath(file)
+		if err != nil {
+			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
+				Error:            err,
+				MetadataFilePath: file,
+				// Can't construct checkpoint file path without ID
+			})
+			continue
+		}
+
+		if file != snapshotMetadataFilePathFromIdentifier(prefix, id) {
+			// Should never happen
+			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
+				Error: instrument.InvariantErrorf(
+					"actual snapshot metadata filepath: %s and generated filepath: %s do not match",
+					file, snapshotMetadataFilePathFromIdentifier(prefix, id)),
+				MetadataFilePath:   file,
+				CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
+			})
+			continue
+		}
+
+		metadata, err := reader.Read(id)
+		if err != nil {
+			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
+				Error:              err,
+				MetadataFilePath:   file,
+				CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
+			})
+			continue
+		}
+
+		metadatas = append(metadatas, metadata)
+	}
+
+	sort.Slice(metadatas, func(i, j int) bool {
+		return metadatas[i].ID.Index < metadatas[j].ID.Index
+	})
+	return metadatas, errorsWithPaths, nil
+}
+
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
 func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (FileSetFilesSlice, error) {
@@ -778,7 +920,7 @@ func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []s
 
 // SortedCommitLogFiles returns all the commit log files in the commit logs directory.
 func SortedCommitLogFiles(commitLogsDir string) ([]string, error) {
-	return sortedCommitlogFiles(commitLogsDir, commitLogFilePattern)
+	return sortedCommitLogFiles(commitLogsDir, commitLogFilePattern)
 }
 
 type toSortableFn func(files []string) sort.Interface
@@ -928,7 +1070,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 	return filesetFiles, nil
 }
 
-func sortedCommitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
+func sortedCommitLogFiles(commitLogsDir string, pattern string) ([]string, error) {
 	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
 		return commitlogsByTimeAndIndexAscending(files)
 	})
@@ -1002,7 +1144,7 @@ func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 
 // NamespaceSnapshotsDirPath returns the path to the snapshots directory for a given namespace.
 func NamespaceSnapshotsDirPath(prefix string, namespace ident.ID) string {
-	return path.Join(prefix, snapshotDirName, namespace.String())
+	return path.Join(SnapshotsDirPath(prefix), namespace.String())
 }
 
 // NamespaceIndexDataDirPath returns the path to the data directory for a given namespace.
@@ -1013,6 +1155,11 @@ func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
 // NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
 func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, indexDirName, snapshotDirName, namespace.String())
+}
+
+// SnapshotsDirPath returns the path to the snapshots directory.
+func SnapshotsDirPath(prefix string) string {
+	return path.Join(prefix, snapshotDirName)
 }
 
 // ShardDataDirPath returns the path to the data directory for a given shard.
@@ -1054,20 +1201,23 @@ func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 	return latest.HasCheckpointFile(), nil
 }
 
-// NextCommitLogsFile returns the next commit logs file.
-func NextCommitLogsFile(prefix string, start time.Time) (string, int, error) {
-	for i := 0; ; i++ {
-		entry := fmt.Sprintf("%d%s%d", start.UnixNano(), separator, i)
-		fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-		filePath := path.Join(CommitLogsDirPath(prefix), fileName)
-		exists, err := FileExists(filePath)
-		if err != nil {
-			return "", -1, err
-		}
-		if !exists {
-			return filePath, i, nil
-		}
+// NextSnapshotMetadataFileIndex returns the next snapshot metadata file index.
+func NextSnapshotMetadataFileIndex(opts Options) (int64, error) {
+	// We can ignore any SnapshotMetadataErrorsWithpaths that are returned because even if a corrupt
+	// snapshot metadata file exists with the next index that we want to return from this function,
+	// every snapshot metadata has its own UUID so there will never be a collision with a corrupt file
+	// anyways and we can ignore them entirely when considering what the next index should be.
+	snapshotMetadataFiles, _, err := SortedSnapshotMetadataFiles(opts)
+	if err != nil {
+		return 0, err
 	}
+
+	if len(snapshotMetadataFiles) == 0 {
+		return 0, nil
+	}
+
+	lastSnapshotMetadataFile := snapshotMetadataFiles[len(snapshotMetadataFiles)-1]
+	return lastSnapshotMetadataFile.ID.Index + 1, nil
 }
 
 // NextSnapshotFileSetVolumeIndex returns the next snapshot file set index for a given
@@ -1131,9 +1281,10 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 // is it complete.
 func CompleteCheckpointFileExists(filePath string) (bool, error) {
 	if !strings.Contains(filePath, checkpointFileSuffix) {
-		return false, fmt.Errorf(
-			"%s tried to use CompleteCheckpointFileExists to verify existence of non checkpoint file: %s",
-			instrument.InvariantViolatedMetricName, filePath)
+		return false, instrument.InvariantErrorf(
+			"tried to use CompleteCheckpointFileExists to verify existence of non checkpoint file: %s",
+			filePath,
+		)
 	}
 
 	f, err := os.Stat(filePath)
@@ -1155,9 +1306,10 @@ func FileExists(filePath string) (bool, error) {
 		// Existence of a checkpoint file needs to be verified using the function
 		// CompleteCheckpointFileExists instead to ensure that it has been
 		// completely written out.
-		return false, fmt.Errorf(
-			"%s tried to use FileExists to verify existence of checkpoint file: %s",
-			instrument.InvariantViolatedMetricName, filePath)
+		return false, instrument.InvariantErrorf(
+			"tried to use FileExists to verify existence of checkpoint file: %s",
+			filePath,
+		)
 	}
 
 	_, err := os.Stat(filePath)
@@ -1175,6 +1327,16 @@ func FileExists(filePath string) (bool, error) {
 // OpenWritable opens a file for writing and truncating as necessary.
 func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+}
+
+// CommitLogFilePath returns the path for a commitlog file.
+func CommitLogFilePath(prefix string, start time.Time, index int) string {
+	var (
+		entry    = fmt.Sprintf("%d%s%d", start.UnixNano(), separator, index)
+		fileName = fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+		filePath = path.Join(CommitLogsDirPath(prefix), fileName)
+	)
+	return filePath
 }
 
 func filesetFileForTime(t time.Time, suffix string) string {
@@ -1217,4 +1379,78 @@ func snapshotIndexSegmentFilePathFromTimeAndIndex(
 ) string {
 	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, snapshotIndex, suffix)
+}
+
+func snapshotMetadataFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
+	return path.Join(
+		prefix,
+		snapshotDirName,
+		fmt.Sprintf(
+			"%s%s%s%s%d%s%s%s",
+			snapshotFilePrefix, separator,
+			sanitizeUUID(id.UUID), separator,
+			id.Index, separator,
+			metadataFileSuffix, fileSuffix))
+}
+
+func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
+	return path.Join(
+		prefix,
+		snapshotDirName,
+		fmt.Sprintf(
+			"%s%s%s%s%d%s%s%s%s%s",
+			snapshotFilePrefix, separator,
+			sanitizeUUID(id.UUID), separator,
+			id.Index, separator,
+			metadataFileSuffix, separator,
+			checkpointFileSuffix, fileSuffix))
+}
+
+// sanitizeUUID strips all instances of separator ("-") in the provided UUID string. This prevents us from
+// treating every "piece" of the UUID as a separate fragment of the name when we split filepaths by
+// separator. This works because the UUID library can still parse stripped UUID strings.
+func sanitizeUUID(u uuid.UUID) string {
+	return strings.Replace(u.String(), separator, "", -1)
+}
+
+func parseUUID(sanitizedUUID string) (uuid.UUID, bool) {
+	parsed := uuid.Parse(sanitizedUUID)
+	return parsed, parsed != nil
+}
+
+func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataIdentifier, error) {
+	_, fileName := path.Split(filePath)
+	if fileName == "" {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"splitting: %s created empty filename", filePath)
+	}
+
+	var (
+		splitFileName    = strings.Split(fileName, separator)
+		isCheckpointFile = strings.Contains(fileName, checkpointFileSuffix)
+	)
+	if len(splitFileName) != numComponentsSnapshotMetadataFile &&
+		// Snapshot metadata checkpoint files contain one extra separator.
+		!(isCheckpointFile && len(splitFileName) == numComponentsSnapshotMetadataCheckpointFile) {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"invalid snapshot metadata file name: %s", filePath)
+	}
+
+	index, err := strconv.ParseInt(splitFileName[snapshotMetadataIndexComponentPosition], 10, 64)
+	if err != nil {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"invalid snapshot metadata file name, unable to parse index: %s", filePath)
+	}
+
+	sanitizedUUID := splitFileName[snapshotMetadataUUIDComponentPosition]
+	id, ok := parseUUID(sanitizedUUID)
+	if !ok {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"invalid snapshot metadata file name, unable to parse UUID: %s", filePath)
+	}
+
+	return SnapshotMetadataIdentifier{
+		Index: index,
+		UUID:  id,
+	}, nil
 }

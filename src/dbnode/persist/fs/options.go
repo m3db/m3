@@ -58,6 +58,14 @@ const (
 
 	// defaultMmapHugePagesThreshold is the default threshold for when to enable huge pages if enabled
 	defaultMmapHugePagesThreshold = 2 << 14 // 32kb (or when eclipsing 8 pages of default 4096 page size)
+
+	// defaultForceIndexSummariesMmapMemory is the default configuration for whether the bytes for the index
+	// summaries file should be mmap'd as an anonymous region (forced completely into memory) or mmap'd as a file.
+	defaultForceIndexSummariesMmapMemory = false
+
+	// defaultForceIndexBloomFilterMmapMemory is the default configuration for whether the bytes for the bloom filter
+	// should be mmap'd as an anonymous region (forced completely into memory) or mmap'd as a file.
+	defaultForceIndexBloomFilterMmapMemory = false
 )
 
 var (
@@ -83,11 +91,13 @@ type options struct {
 	dataReaderBufferSize                 int
 	infoReaderBufferSize                 int
 	seekReaderBufferSize                 int
-	mmapEnableHugePages                  bool
 	mmapHugePagesThreshold               int64
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
+	forceIndexSummariesMmapMemory        bool
+	forceBloomFilterMmapMemory           bool
+	mmapEnableHugePages                  bool
 }
 
 // NewOptions creates a new set of fs options
@@ -110,6 +120,8 @@ func NewOptions() Options {
 		newDirectoryMode:                     defaultNewDirectoryMode,
 		indexSummariesPercent:                defaultIndexSummariesPercent,
 		indexBloomFilterFalsePositivePercent: defaultIndexBloomFilterFalsePositivePercent,
+		forceIndexSummariesMmapMemory:        defaultForceIndexSummariesMmapMemory,
+		forceBloomFilterMmapMemory:           defaultForceIndexBloomFilterMmapMemory,
 		writerBufferSize:                     defaultWriterBufferSize,
 		dataReaderBufferSize:                 defaultDataReaderBufferSize,
 		infoReaderBufferSize:                 defaultInfoReaderBufferSize,
@@ -230,6 +242,26 @@ func (o *options) SetIndexBloomFilterFalsePositivePercent(value float64) Options
 
 func (o *options) IndexBloomFilterFalsePositivePercent() float64 {
 	return o.indexBloomFilterFalsePositivePercent
+}
+
+func (o *options) SetForceIndexSummariesMmapMemory(value bool) Options {
+	opts := *o
+	opts.forceIndexSummariesMmapMemory = value
+	return &opts
+}
+
+func (o *options) ForceIndexSummariesMmapMemory() bool {
+	return o.forceIndexSummariesMmapMemory
+}
+
+func (o *options) SetForceBloomFilterMmapMemory(value bool) Options {
+	opts := *o
+	opts.forceBloomFilterMmapMemory = value
+	return &opts
+}
+
+func (o *options) ForceBloomFilterMmapMemory() bool {
+	return o.forceBloomFilterMmapMemory
 }
 
 func (o *options) SetWriterBufferSize(value int) Options {

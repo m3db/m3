@@ -67,7 +67,7 @@ func tagsToSeriesMeta(tags []models.Tags) []block.SeriesMeta {
 	expectedMetas := make([]block.SeriesMeta, len(tags))
 	for i, m := range tags {
 		expectedMetas[i] = block.SeriesMeta{
-			Name: CountValuesType,
+			Name: []byte(CountValuesType),
 			Tags: m,
 		}
 	}
@@ -83,7 +83,7 @@ func processCountValuesOp(
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, vals)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(countValuesOp).Node(c, transform.Options{})
-	err := node.Process(parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 	require.NoError(t, err)
 	return sink
 }

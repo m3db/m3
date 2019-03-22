@@ -97,13 +97,13 @@ type helper struct {
 	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
 	groupToInstancesMap map[string]map[placement.Instance]struct{}
 	groupToWeightMap    map[string]uint32
-	totalWeight         uint32
 	rf                  int
 	uniqueShards        []uint32
 	instances           map[string]placement.Instance
-	maxShardSetID       uint32
 	log                 log.Logger
 	opts                placement.Options
+	totalWeight         uint32
+	maxShardSetID       uint32
 }
 
 // NewPlacementHelper returns a placement helper

@@ -43,7 +43,29 @@ func RegisterRoutes(
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
 ) {
-	logged := logging.WithResponseTimeLogging
+	wrapped := logging.WithResponseTimeAndPanicErrorLogging
 
-	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
+	r.HandleFunc(CreateURL, wrapped(
+		NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).
+		Methods(CreateHTTPMethod)
+
+	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
+		NewConfigGetBootstrappersHandler(client)).ServeHTTP).
+		Methods(ConfigGetBootstrappersHTTPMethod)
+	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
+		NewConfigSetBootstrappersHandler(client)).ServeHTTP).
+		Methods(ConfigSetBootstrappersHTTPMethod)
+
+	// Register the same handler under two different endpoints. This just makes explaining things in
+	// our documentation easier so we can separate out concepts, but share the underlying code.
+	createHandler := wrapped(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP
+	r.HandleFunc(CreateURL, createHandler).Methods(CreateHTTPMethod)
+	r.HandleFunc(CreateNamespaceURL, createHandler).Methods(CreateNamespaceHTTPMethod)
+
+	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
+		NewConfigGetBootstrappersHandler(client)).ServeHTTP).
+		Methods(ConfigGetBootstrappersHTTPMethod)
+	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
+		NewConfigSetBootstrappersHandler(client)).ServeHTTP).
+		Methods(ConfigSetBootstrappersHTTPMethod)
 }

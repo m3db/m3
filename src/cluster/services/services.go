@@ -287,14 +287,15 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 	}
 
 	// Prepare the watch of placement outside of lock.
-	placementWatch, err := kvm.kv.Watch(c.placementKeyFn(sid))
+	key := c.placementKeyFn(sid)
+	placementWatch, err := kvm.kv.Watch(key)
 	if err != nil {
 		return nil, err
 	}
 
 	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout())
 	if err != nil {
-		return nil, fmt.Errorf("could not get init value within timeout, err: %v", err)
+		return nil, fmt.Errorf("could not get init value for '%s' within timeout, err: %v", key, err)
 	}
 
 	initService, err := getServiceFromValue(initValue, sid)

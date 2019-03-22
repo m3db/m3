@@ -129,6 +129,8 @@ var linearParseTests = []struct {
 	{"minute(up)", linear.MinuteType},
 	{"month(up)", linear.MonthType},
 	{"year(up)", linear.YearType},
+
+	{"histogram_quantile(1,up)", linear.HistogramQuantileType},
 }
 
 func TestLinearParses(t *testing.T) {
@@ -149,6 +151,41 @@ func TestLinearParses(t *testing.T) {
 			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
 		})
 	}
+}
+
+var sortTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"sort(up)", linear.SortType},
+	{"sort_desc(up)", linear.SortDescType},
+}
+
+func TestSort(t *testing.T) {
+	for _, tt := range sortTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q, models.NewTagOptions())
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 1)
+			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Len(t, edges, 0)
+		})
+	}
+}
+
+func TestScalar(t *testing.T) {
+	p, err := Parse("scalar(up)", models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 1)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Len(t, edges, 0)
 }
 
 func TestTimeTypeParse(t *testing.T) {
@@ -262,6 +299,7 @@ var temporalParseTests = []struct {
 	{"sum_over_time(up[5m])", temporal.SumType},
 	{"stddev_over_time(up[5m])", temporal.StdDevType},
 	{"stdvar_over_time(up[5m])", temporal.StdVarType},
+	{"quantile_over_time(0.2, up[5m])", temporal.QuantileType},
 	{"irate(up[5m])", temporal.IRateType},
 	{"idelta(up[5m])", temporal.IDeltaType},
 	{"rate(up[5m])", temporal.RateType},

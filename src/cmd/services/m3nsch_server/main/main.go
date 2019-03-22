@@ -21,7 +21,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -36,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/agent"
 	"github.com/m3db/m3/src/m3nsch/datums"
-	"github.com/m3db/m3/src/m3nsch/rpc"
+	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 
@@ -94,12 +93,8 @@ func main() {
 func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.NewSessionFn {
 	return m3nsch.NewSessionFn(func(zone, env string) (client.Session, error) {
 		svc := conf.DBClient.EnvironmentConfig.Service
-		if zone != svc.Zone {
-			return nil, fmt.Errorf("request zone %s did not match config zone %s", zone, svc.Zone)
-		}
-		if env != svc.Env {
-			return nil, fmt.Errorf("request env %s did not match config zone %s", env, svc.Env)
-		}
+		svc.Env = env
+		svc.Zone = zone
 		cl, err := conf.DBClient.NewClient(client.ConfigurationParameters{
 			InstrumentOptions: iopts,
 		})
@@ -133,7 +128,7 @@ func ServeGRPCService(
 	if err != nil {
 		logger.Fatalf("could not create grpc service: %v", err)
 	}
-	rpc.RegisterMenschServer(server, service)
+	proto.RegisterMenschServer(server, service)
 	logger.Infof("serving m3nsch endpoints at %v", listener.Addr().String())
 	err = server.Serve(listener)
 	if err != nil {

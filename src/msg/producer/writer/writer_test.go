@@ -162,7 +162,8 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 		SetShards([]uint32{0, 1}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps1.Set(p1))
+	_, err = ps1.Set(p1)
+	require.NoError(t, err)
 
 	w := NewWriter(opts).(*writer)
 	var wg sync.WaitGroup
@@ -280,7 +281,8 @@ func TestWriterTopicUpdate(t *testing.T) {
 		SetShards([]uint32{0, 1}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps1.Set(p1))
+	_, err = ps1.Set(p1)
+	require.NoError(t, err)
 
 	w := NewWriter(opts).(*writer)
 	require.NoError(t, w.Init())
@@ -400,7 +402,8 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps1.Set(p1))
+	_, err = ps1.Set(p1)
+	require.NoError(t, err)
 
 	p2 := placement.NewPlacement().
 		SetInstances([]placement.Instance{
@@ -414,7 +417,8 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps2.Set(p2))
+	_, err = ps2.Set(p2)
+	require.NoError(t, err)
 
 	w := NewWriter(opts).(*writer)
 
@@ -518,7 +522,8 @@ func TestWriterWrite(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	require.NoError(t, ps1.Set(p1))
+	_, err = ps1.Set(p1)
+	require.NoError(t, err)
 
 	p2 := placement.NewPlacement().
 		SetInstances([]placement.Instance{
@@ -538,7 +543,8 @@ func TestWriterWrite(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	require.NoError(t, ps2.Set(p2))
+	_, err = ps2.Set(p2)
+	require.NoError(t, err)
 
 	w := NewWriter(opts).(*writer)
 	require.NoError(t, w.Init())
@@ -619,7 +625,8 @@ func TestWriterCloseBlocking(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps1.Set(p1))
+	_, err = ps1.Set(p1)
+	require.NoError(t, err)
 
 	w := NewWriter(opts).(*writer)
 	require.NoError(t, w.Init())
@@ -698,7 +705,8 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps1.Set(p1))
+	_, err = ps1.Set(p1)
+	require.NoError(t, err)
 
 	p2 := placement.NewPlacement().
 		SetInstances([]placement.Instance{
@@ -712,7 +720,8 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps2.Set(p2))
+	_, err = ps2.Set(p2)
+	require.NoError(t, err)
 
 	w := NewWriter(opts).(*writer)
 	require.NoError(t, w.Init())
@@ -764,7 +773,8 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps2.Set(p2))
+	_, err = ps2.Set(p2)
+	require.NoError(t, err)
 
 	testTopic = topic.NewTopic().
 		SetName(opts.TopicName()).
@@ -797,4 +807,34 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	require.Equal(t, 1, called)
 
 	w.Close()
+}
+
+func TestWriterNumShards(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+
+	opts := testOptions().SetTopicService(ts)
+
+	testTopic := topic.NewTopic().
+		SetName(opts.TopicName()).
+		SetNumberOfShards(2)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+	require.NoError(t, err)
+
+	w := NewWriter(opts).(*writer)
+	defer w.Close()
+
+	require.Equal(t, 0, int(w.NumShards()))
+
+	require.NoError(t, w.Init())
+	require.Equal(t, 2, int(w.NumShards()))
 }

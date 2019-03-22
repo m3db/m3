@@ -28,12 +28,8 @@ import (
 
 type options struct {
 	instrumentOpts           instrument.Options
-	blockMetadataPool        BlockMetadataPool
 	blockMetadataV2Pool      BlockMetadataV2Pool
-	blockMetadataSlicePool   BlockMetadataSlicePool
 	blockMetadataV2SlicePool BlockMetadataV2SlicePool
-	blocksMetadataPool       BlocksMetadataPool
-	blocksMetadataSlicePool  BlocksMetadataSlicePool
 	tagEncoderPool           serialize.TagEncoderPool
 	tagDecoderPool           serialize.TagDecoderPool
 }
@@ -52,12 +48,8 @@ func NewOptions() Options {
 
 	return &options{
 		instrumentOpts:           instrument.NewOptions(),
-		blockMetadataPool:        NewBlockMetadataPool(nil),
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
-		blockMetadataSlicePool:   NewBlockMetadataSlicePool(nil, 0),
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
-		blocksMetadataPool:       NewBlocksMetadataPool(nil),
-		blocksMetadataSlicePool:  NewBlocksMetadataSlicePool(nil, 0),
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
 	}
@@ -73,16 +65,6 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetBlockMetadataPool(value BlockMetadataPool) Options {
-	opts := *o
-	opts.blockMetadataPool = value
-	return &opts
-}
-
-func (o *options) BlockMetadataPool() BlockMetadataPool {
-	return o.blockMetadataPool
-}
-
 func (o *options) SetBlockMetadataV2Pool(value BlockMetadataV2Pool) Options {
 	opts := *o
 	opts.blockMetadataV2Pool = value
@@ -93,16 +75,6 @@ func (o *options) BlockMetadataV2Pool() BlockMetadataV2Pool {
 	return o.blockMetadataV2Pool
 }
 
-func (o *options) SetBlockMetadataSlicePool(value BlockMetadataSlicePool) Options {
-	opts := *o
-	opts.blockMetadataSlicePool = value
-	return &opts
-}
-
-func (o *options) BlockMetadataSlicePool() BlockMetadataSlicePool {
-	return o.blockMetadataSlicePool
-}
-
 func (o *options) SetBlockMetadataV2SlicePool(value BlockMetadataV2SlicePool) Options {
 	opts := *o
 	opts.blockMetadataV2SlicePool = value
@@ -111,26 +83,6 @@ func (o *options) SetBlockMetadataV2SlicePool(value BlockMetadataV2SlicePool) Op
 
 func (o *options) BlockMetadataV2SlicePool() BlockMetadataV2SlicePool {
 	return o.blockMetadataV2SlicePool
-}
-
-func (o *options) SetBlocksMetadataPool(value BlocksMetadataPool) Options {
-	opts := *o
-	opts.blocksMetadataPool = value
-	return &opts
-}
-
-func (o *options) BlocksMetadataPool() BlocksMetadataPool {
-	return o.blocksMetadataPool
-}
-
-func (o *options) SetBlocksMetadataSlicePool(value BlocksMetadataSlicePool) Options {
-	opts := *o
-	opts.blocksMetadataSlicePool = value
-	return &opts
-}
-
-func (o *options) BlocksMetadataSlicePool() BlocksMetadataSlicePool {
-	return o.blocksMetadataSlicePool
 }
 
 func (o *options) SetTagEncoderPool(value serialize.TagEncoderPool) Options {

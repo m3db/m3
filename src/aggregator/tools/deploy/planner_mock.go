@@ -55,6 +55,7 @@ func (m *Mockplanner) EXPECT() *MockplannerMockRecorder {
 
 // GeneratePlan mocks base method
 func (m *Mockplanner) GeneratePlan(toDeploy, all instanceMetadatas) (deploymentPlan, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GeneratePlan", toDeploy, all)
 	ret0, _ := ret[0].(deploymentPlan)
 	ret1, _ := ret[1].(error)
@@ -63,11 +64,13 @@ func (m *Mockplanner) GeneratePlan(toDeploy, all instanceMetadatas) (deploymentP
 
 // GeneratePlan indicates an expected call of GeneratePlan
 func (mr *MockplannerMockRecorder) GeneratePlan(toDeploy, all interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GeneratePlan", reflect.TypeOf((*Mockplanner)(nil).GeneratePlan), toDeploy, all)
 }
 
 // GenerateOneStep mocks base method
 func (m *Mockplanner) GenerateOneStep(toDeploy, all instanceMetadatas) (deploymentStep, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GenerateOneStep", toDeploy, all)
 	ret0, _ := ret[0].(deploymentStep)
 	ret1, _ := ret[1].(error)
@@ -76,5 +79,6 @@ func (m *Mockplanner) GenerateOneStep(toDeploy, all instanceMetadatas) (deployme
 
 // GenerateOneStep indicates an expected call of GenerateOneStep
 func (mr *MockplannerMockRecorder) GenerateOneStep(toDeploy, all interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateOneStep", reflect.TypeOf((*Mockplanner)(nil).GenerateOneStep), toDeploy, all)
 }

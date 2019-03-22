@@ -53,9 +53,6 @@ type BootstrapConfiguration struct {
 	// Filesystem bootstrapper configuration.
 	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
 
-	// Peers bootstrapper configuration.
-	Peers *BootstrapPeersConfiguration `yaml:"peers"`
-
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
 
@@ -72,37 +69,21 @@ func (bsc BootstrapConfiguration) fsNumProcessors() int {
 	return int(math.Ceil(float64(runtime.NumCPU()) * np))
 }
 
-// TODO: Remove once v1 endpoint no longer required.
-func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion {
-	version := client.FetchBlocksMetadataEndpointDefault
-	if peersCfg := bsc.Peers; peersCfg != nil {
-		version = peersCfg.FetchBlocksMetadataEndpointVersion
-	}
-	return version
-}
-
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per CPU.
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 }
 
-// BootstrapPeersConfiguration specifies config for the peers bootstrapper.
-type BootstrapPeersConfiguration struct {
-	// FetchBlocksMetadataEndpointVersion is the endpoint to use when fetching blocks metadata.
-	// TODO: Remove once v1 endpoint no longer required.
-	FetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion `yaml:"fetchBlocksMetadataEndpointVersion"`
-}
-
 // BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
 type BootstrapCommitlogConfiguration struct {
-	// ReturnUnfulfilledForCorruptCommitlogFiles controls whether the commitlog bootstrapper
+	// ReturnUnfulfilledForCorruptCommitLogFiles controls whether the commitlog bootstrapper
 	// will return unfulfilled for all shard time ranges when it encounters a corrupt commit
 	// file. Note that regardless of this value, the commitlog bootstrapper will still try and
 	// read all the uncorrupted commitlog files and return as much data as it can, but setting
 	// this to true allows the node to attempt a repair if the peers bootstrapper is configured
 	// after the commitlog bootstrapper.
-	ReturnUnfulfilledForCorruptCommitlogFiles bool `yaml:"returnUnfulfilledForCorruptCommitlogFiles"`
+	ReturnUnfulfilledForCorruptCommitLogFiles bool `yaml:"returnUnfulfilledForCorruptCommitLogFiles"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
@@ -171,7 +152,6 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
-				SetFetchBlocksMetadataEndpointVersion(bsc.peersFetchBlocksMetadataEndpointVersion()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
 			bs, err = peers.NewPeersBootstrapperProvider(pOpts, bs)
 			if err != nil {

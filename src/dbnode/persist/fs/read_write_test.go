@@ -36,8 +36,13 @@ import (
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testSnapshotID = uuid.Parse("bbc85a98-bd0c-47fe-8b9a-89cde1b4540f")
 )
 
 type testEntry struct {
@@ -112,6 +117,7 @@ func writeTestDataWithVolume(
 
 	if fileSetType == persist.FileSetSnapshotType {
 		writerOpts.Snapshot.SnapshotTime = timestamp
+		writerOpts.Snapshot.SnapshotID = testSnapshotID
 	}
 
 	err := w.Open(writerOpts)
@@ -345,6 +351,26 @@ func TestInfoReadWrite(t *testing.T) {
 	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
+}
+
+func TestInfoReadWriteSnapshot(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestWriter(t, filePathPrefix)
+	writeTestData(t, w, 0, testWriterStart, nil, persist.FileSetSnapshotType)
+
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, 0)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(snapshotFiles))
+
+	snapshot := snapshotFiles[0]
+	snapshotTime, snapshotID, err := snapshot.SnapshotTimeAndID()
+	require.NoError(t, err)
+	require.True(t, testWriterStart.Equal(snapshotTime))
+	require.Equal(t, testSnapshotID, snapshotID)
 }
 
 func TestReusingReaderWriter(t *testing.T) {

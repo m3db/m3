@@ -71,8 +71,7 @@ func TestBootstrapIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
-		SetFetchBlocksMetadataEndpointVersion(client.FetchBlocksMetadataEndpointV2)
+	opts := testDefaultOpts
 
 	blockSize := 2 * time.Hour
 	indexBlockSize := 2 * blockSize
@@ -180,11 +179,10 @@ func TestBootstrapIndex(t *testing.T) {
 
 			rangeStart := blockStart
 			rangeEnd := rangeStart.Add(blockSize)
-			version := opts.FetchBlocksMetadataEndpointVersion()
 
 			call := mockAdminSession.EXPECT().
 				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+					uint32(0), rangeStart, rangeEnd, gomock.Any()).
 				Return(mockIter, nil)
 			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
 			break
@@ -199,11 +197,10 @@ func TestBootstrapIndex(t *testing.T) {
 
 			rangeStart := blockStart
 			rangeEnd := rangeStart.Add(blockSize)
-			version := opts.FetchBlocksMetadataEndpointVersion()
 
 			call := mockAdminSession.EXPECT().
 				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+					uint32(0), rangeStart, rangeEnd, gomock.Any()).
 				Return(mockIter, nil)
 			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
 		}
@@ -324,8 +321,7 @@ func TestBootstrapIndexErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
-		SetFetchBlocksMetadataEndpointVersion(client.FetchBlocksMetadataEndpointV2)
+	opts := testDefaultOpts
 
 	blockSize := 2 * time.Hour
 	indexBlockSize := 2 * blockSize
@@ -420,11 +416,10 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 			rangeStart := blockStart
 			rangeEnd := rangeStart.Add(blockSize)
-			version := opts.FetchBlocksMetadataEndpointVersion()
 
 			call := mockAdminSession.EXPECT().
 				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+					uint32(0), rangeStart, rangeEnd, gomock.Any()).
 				Return(mockIter, nil)
 			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
 			break
@@ -439,11 +434,10 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 			rangeStart := blockStart
 			rangeEnd := rangeStart.Add(blockSize)
-			version := opts.FetchBlocksMetadataEndpointVersion()
 
 			call := mockAdminSession.EXPECT().
 				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+					uint32(0), rangeStart, rangeEnd, gomock.Any()).
 				Return(mockIter, nil)
 			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
 		}

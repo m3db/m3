@@ -33,6 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	defaultLookbackDuration = time.Minute
+)
+
 func TestResultNode(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
 	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
@@ -48,7 +52,7 @@ func TestResultNode(t *testing.T) {
 
 	lp, err := NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()})
+	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
 	require.NoError(t, err)
 	node, err := p.leafNode()
 	require.NoError(t, err)
@@ -72,13 +76,13 @@ func TestShiftTime(t *testing.T) {
 	lp, _ := NewLogicalPlan(transforms, edges)
 	now := time.Now()
 	start := time.Now().Add(-1 * time.Hour)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
+	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start}, defaultLookbackDuration)
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start)
+	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*defaultLookbackDuration), defaultLookbackDuration)
 	fetchTransform = parser.NewTransformFromOperation(functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
 	transforms = parser.Nodes{fetchTransform, countTransform}
 	lp, _ = NewLogicalPlan(transforms, edges)
-	p, err = NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
+	p, err = NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start}, defaultLookbackDuration)
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*(time.Minute+time.Hour)), "start time offset by fetch")
+	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*(time.Minute+time.Hour+defaultLookbackDuration)), "start time offset by fetch")
 }

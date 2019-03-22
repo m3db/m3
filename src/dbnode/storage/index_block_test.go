@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -40,6 +39,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+var namespaceIndexOptions = namespace.NewIndexOptions()
 
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
@@ -88,11 +89,11 @@ func copyBytes(b []byte) []byte {
 }
 
 func testNamespaceMetadata(blockSize, period time.Duration) namespace.Metadata {
-	nopts := namespace.NewOptions().
-		SetRetentionOptions(retention.NewOptions().
+	nopts := namespaceOptions.
+		SetRetentionOptions(namespaceOptions.RetentionOptions().
 			SetRetentionPeriod(period)).
 		SetIndexOptions(
-			namespace.NewIndexOptions().
+			namespaceIndexOptions.
 				SetBlockSize(blockSize))
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	if err != nil {
@@ -112,7 +113,14 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	mockBlock.EXPECT().Close().Return(nil)
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
 	}
@@ -120,14 +128,19 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	index, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
 
+	defer func() {
+		require.NoError(t, index.Close())
+	}()
+
 	indexState := index.(*nsIndex).state
 	blocksSlice := indexState.blockStartsDescOrder
+
 	require.Equal(t, 1, len(blocksSlice))
 	require.Equal(t, xtime.ToUnixNano(now.Truncate(blockSize)), blocksSlice[0])
 
-	require.Equal(t, mockBlock, indexState.latestBlock)
+	require.Equal(t, mockBlock, index.(*nsIndex).state.latestBlock)
 
-	blocksMap := indexState.blocksByTime
+	blocksMap := index.(*nsIndex).state.blocksByTime
 	require.Equal(t, 1, len(blocksMap))
 	blk, ok := blocksMap[xtime.ToUnixNano(now.Truncate(blockSize))]
 	require.True(t, ok)
@@ -144,7 +157,12 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		return nil, fmt.Errorf("randomerr")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
@@ -153,7 +171,7 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 }
 
 func TestNamespaceIndexWrite(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -163,14 +181,25 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	mockBlock.EXPECT().Close().Return(nil)
 	mockBlock.EXPECT().StartTime().Return(now.Truncate(blockSize)).AnyTimes()
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
 	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
@@ -199,7 +228,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 }
 
 func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -216,10 +245,19 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil)
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	b1 := index.NewMockBlock(ctrl)
+	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b1.EXPECT().Close().Return(nil)
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -231,6 +269,10 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
 	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
@@ -262,7 +304,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 }
 
 func TestNamespaceIndexBootstrap(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -282,10 +324,17 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	b1 := index.NewMockBlock(ctrl)
+	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -312,7 +361,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 }
 
 func TestNamespaceIndexTickExpire(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	retentionPeriod := 4 * time.Hour
@@ -329,8 +378,14 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -354,7 +409,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 }
 
 func TestNamespaceIndexTick(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	retentionPeriod := 4 * time.Hour
@@ -371,8 +426,15 @@ func TestNamespaceIndexTick(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil)
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -381,6 +443,10 @@ func TestNamespaceIndexTick(t *testing.T) {
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
 	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
 	c := context.NewCancellable()
 	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
@@ -429,7 +495,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockQuery(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -450,12 +516,21 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil)
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	b0.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	b1 := index.NewMockBlock(ctrl)
+	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b1.EXPECT().Close().Return(nil)
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
-	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -467,6 +542,10 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	md := testNamespaceMetadata(blockSize, retention)
 	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
@@ -487,7 +566,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
-	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
@@ -496,8 +575,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t2.Add(time.Minute),
 	}
-	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
+	b1.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
@@ -506,7 +585,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t0.Add(time.Minute),
 	}
-	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(false, nil)
+	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(false, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -63,6 +64,10 @@ type baseNode struct {
 	processor  Processor
 }
 
+func (c *baseNode) Params() parser.Params {
+	return c.op
+}
+
 // Ensure baseNode implements the types for lazy evaluation
 var _ transform.StepNode = (*baseNode)(nil)
 var _ transform.SeriesNode = (*baseNode)(nil)
@@ -80,36 +85,41 @@ func (c *baseNode) ProcessSeries(series block.Series) (block.Series, error) {
 }
 
 // Process the block
-func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
+func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(c, c.controller, queryCtx, ID, b)
+}
+
+// ProcessBlock applies the linear function time Step-wise to each value in the block.
+func (c *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
+	builder, err := c.controller.BlockBuilder(queryCtx, stepIter.Meta(), stepIter.SeriesMeta())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := builder.AddCols(stepIter.StepCount()); err != nil {
-		return err
+		return nil, err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := stepIter.Current()
 		values := c.processor.Process(step.Values())
 		for _, value := range values {
-			builder.AppendValue(index, value)
+			if err := builder.AppendValue(index, value); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
+	if err = stepIter.Err(); err != nil {
+		return nil, err
+	}
+
+	return builder.Build(), nil
 }
 
 // Meta returns the metadata for the block

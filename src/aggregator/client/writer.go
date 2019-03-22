@@ -464,5 +464,8 @@ func newRefCountedWriter(instance placement.Instance, opts Options) *refCountedW
 }
 
 func (rcWriter *refCountedWriter) Close() {
-	rcWriter.instanceWriter.Close() // nolint: errcheck
+	// NB: closing the writer needs to be done asynchronously because it may
+	// be called by writer manager while holding a lock that blocks any writes
+	// from proceeding.
+	go rcWriter.instanceWriter.Close() // nolint: errcheck
 }

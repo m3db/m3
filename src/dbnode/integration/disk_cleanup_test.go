@@ -46,21 +46,8 @@ func TestDiskCleanup(t *testing.T) {
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
-	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk cleanup test")
-	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up")
-
-	// Stop the server
-	defer func() {
-		require.NoError(t, testSetup.stopServer())
-		log.Debug("server is now down")
-	}()
-
-	// Now create some fileset files and commit logs
+	// Create some fileset files and commit logs
 	var (
 		shard         = uint32(0)
 		numTimes      = 10
@@ -76,7 +63,6 @@ func TestDiskCleanup(t *testing.T) {
 	}
 	writeDataFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
 	for _, clTime := range fileTimes {
-		// Need to generate valid commit log files otherwise cleanup will fail.
 		data := map[xtime.UnixNano]generate.SeriesBlock{
 			xtime.ToUnixNano(clTime): nil,
 		}
@@ -85,12 +71,32 @@ func TestDiskCleanup(t *testing.T) {
 			data, ns1, clTime, false)
 	}
 
+	// Now start the server
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log.Debug("disk cleanup test")
+	require.NoError(t, testSetup.startServer())
+	log.Debug("server is now up")
+
+	defer func() {
+		require.NoError(t, testSetup.stopServer())
+		log.Debug("server is now down")
+	}()
+
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted
 	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
 	testSetup.setNowFn(newNow)
+	// This isn't great, but right now the commitlog will only ever rotate when writes
+	// are received, so we need to issue a write after changing the time to force the
+	// commitlog rotation. This won't be required once we tie commitlog rotation into
+	// the snapshotting process.
+	testSetup.writeBatch(testNamespaces[0], generate.Block(generate.BlockConfig{
+		IDs:       []string{"foo"},
+		NumPoints: 1,
+		Start:     newNow,
+	}))
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(commitLogOpts, testNamespaces[0], shard, now, waitTimeout))
 }

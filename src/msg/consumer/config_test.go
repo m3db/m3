@@ -34,6 +34,7 @@ func TestConfiguration(t *testing.T) {
 	str := `
 messagePool:
   size: 5
+  maxBufferReuseSize: 65536
 ackFlushInterval: 100ms
 ackBufferSize: 100
 connectionWriteBufferSize: 200
@@ -54,7 +55,8 @@ decoder:
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 
 	opts := cfg.NewOptions(instrument.NewOptions())
-	require.Equal(t, 5, opts.MessagePoolOptions().Size())
+	require.Equal(t, 5, opts.MessagePoolOptions().PoolOptions.Size())
+	require.Equal(t, 65536, opts.MessagePoolOptions().MaxBufferReuseSize)
 	require.Equal(t, 100*time.Millisecond, opts.AckFlushInterval())
 	require.Equal(t, 100, opts.AckBufferSize())
 	require.Equal(t, 200, opts.ConnectionWriteBufferSize())

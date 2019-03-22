@@ -55,6 +55,7 @@ func (m *MockID) EXPECT() *MockIDMockRecorder {
 
 // Bytes mocks base method
 func (m *MockID) Bytes() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -62,11 +63,13 @@ func (m *MockID) Bytes() []byte {
 
 // Bytes indicates an expected call of Bytes
 func (mr *MockIDMockRecorder) Bytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockID)(nil).Bytes))
 }
 
 // TagValue mocks base method
 func (m *MockID) TagValue(arg0 []byte) ([]byte, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagValue", arg0)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(bool)
@@ -75,5 +78,6 @@ func (m *MockID) TagValue(arg0 []byte) ([]byte, bool) {
 
 // TagValue indicates an expected call of TagValue
 func (mr *MockIDMockRecorder) TagValue(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagValue", reflect.TypeOf((*MockID)(nil).TagValue), arg0)
 }

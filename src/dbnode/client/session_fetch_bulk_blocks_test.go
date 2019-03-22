@@ -131,141 +131,6 @@ func testPeers(v []peer) peers {
 	return peers{peers: v, majorityReplicas: topology.Majority(len(v))}
 }
 
-// TODO(rartoul): Delete when we delete the V1 code path
-func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSessionTestAdminOptions()
-	s, err := newSession(opts)
-	require.NoError(t, err)
-	session := s.(*session)
-
-	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
-	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-
-	// Don't drain the peer blocks queue, explicitly drain ourselves to
-	// avoid unpredictable batches being retrieved from peers
-	var (
-		qs      []*peerBlocksQueue
-		qsMutex sync.RWMutex
-	)
-	session.newPeerBlocksQueueFn = func(
-		peer peer,
-		maxQueueSize int,
-		_ time.Duration,
-		workers xsync.WorkerPool,
-		processFn processFn,
-	) *peerBlocksQueue {
-		qsMutex.Lock()
-		defer qsMutex.Unlock()
-		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
-		qs = append(qs, q)
-		return q
-	}
-
-	require.NoError(t, session.Open())
-
-	batchSize := opts.FetchSeriesBlocksBatchSize()
-
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
-	blocks := []testBlocks{
-		{
-			id: fooID,
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 1),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{1, 2},
-						tail: []byte{3},
-					}},
-				},
-			},
-		},
-		{
-			id: barID,
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 2),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{4, 5},
-						tail: []byte{6},
-					}},
-				},
-			},
-		},
-		{
-			id: bazID,
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 3),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{7, 8},
-						tail: []byte{9},
-					}},
-				},
-			},
-		},
-	}
-
-	// Expect the fetch metadata calls
-	metadataResult := resultMetadataFromBlocks(blocks)
-	// Skip the first client which is the client for the origin
-	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts, false)
-
-	// Expect the fetch blocks calls
-	participating := len(mockClients) - 1
-	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
-		blocks, batchSize, participating,
-		func(blockIdx int) (clientIdx int) {
-			// Round robin to match the best peer selection algorithm
-			return blockIdx % participating
-		})
-	// Skip the first client which is the client for the origin
-	for i, client := range mockClients[1:] {
-		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
-	}
-
-	// Make sure peer selection is round robin to match our expected
-	// peer fetch calls
-	session.pickBestPeerFn = newRoundRobinPickBestPeerFn()
-
-	// Fetch blocks
-	go func() {
-		// Trigger peer queues to drain explicitly when all work enqueued
-		for {
-			qsMutex.RLock()
-			assigned := 0
-			for _, q := range qs {
-				assigned += int(atomic.LoadUint64(&q.assigned))
-			}
-			qsMutex.RUnlock()
-			if assigned == len(blocks) {
-				qsMutex.Lock()
-				defer qsMutex.Unlock()
-				for _, q := range qs {
-					q.drain()
-				}
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-	rangeStart := start
-	rangeEnd := start.Add(blockSize * (24 - 1))
-	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(
-		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, FetchBlocksMetadataEndpointV1)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-
-	// Assert result
-	assertFetchBootstrapBlocksResult(t, blocks, result)
-
-	assert.NoError(t, session.Close())
-}
-
 func newRoundRobinPickBestPeerFn() pickBestPeerFn {
 	calls := int32(0)
 	return func(
@@ -360,7 +225,7 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	// Expect the fetch metadata calls
 	metadataResult := resultMetadataFromBlocks(blocks)
 	// Skip the first client which is the client for the origin
-	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts, true)
+	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
 
 	// Expect the fetch blocks calls
 	participating := len(mockClients) - 1
@@ -404,7 +269,7 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchBootstrapBlocksFromPeers(
-		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, FetchBlocksMetadataEndpointV2)
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -1914,14 +1779,9 @@ type MockTChanNodes []*rpc.MockTChanNode
 func (c MockTChanNodes) expectFetchMetadataAndReturn(
 	result []testBlocksMetadata,
 	opts AdminOptions,
-	isV2 bool,
 ) {
 	for _, client := range c {
-		if isV2 {
-			expectFetchMetadataAndReturnV2(client, result, opts)
-		} else {
-			expectFetchMetadataAndReturn(client, result, opts)
-		}
+		expectFetchMetadataAndReturn(client, result, opts)
 	}
 }
 
@@ -2089,62 +1949,7 @@ func expectedReqsAndResultFromBlocks(
 	return clientsExpectReqs, clientsBlocksResult
 }
 
-// TODO(rartoul): Delete when we delete the V1 code path
 func expectFetchMetadataAndReturn(
-	client *rpc.MockTChanNode,
-	result []testBlocksMetadata,
-	opts AdminOptions,
-) {
-	batchSize := opts.FetchSeriesBlocksBatchSize()
-	totalCalls := int(math.Ceil(float64(len(result)) / float64(batchSize)))
-	includeSizes := true
-
-	var calls []*gomock.Call
-	for i := 0; i < totalCalls; i++ {
-		var (
-			ret      = &rpc.FetchBlocksMetadataRawResult_{}
-			beginIdx = i * batchSize
-			nextIdx  = int64(0)
-		)
-		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
-			elem := &rpc.BlocksMetadata{}
-			elem.ID = result[j].id.Bytes()
-			for k := 0; k < len(result[j].blocks); k++ {
-				bl := &rpc.BlockMetadata{}
-				bl.Start = result[j].blocks[k].start.UnixNano()
-				bl.Size = result[j].blocks[k].size
-				if result[j].blocks[k].checksum != nil {
-					checksum := int64(*result[j].blocks[k].checksum)
-					bl.Checksum = &checksum
-				}
-				elem.Blocks = append(elem.Blocks, bl)
-			}
-			ret.Elements = append(ret.Elements, elem)
-			nextIdx = int64(j) + 1
-		}
-		if i != totalCalls-1 {
-			// Include next page token if not last page
-			ret.NextPageToken = &nextIdx
-		}
-
-		matcher := &fetchMetadataReqMatcher{
-			shard:        0,
-			limit:        int64(batchSize),
-			includeSizes: &includeSizes,
-		}
-		if i != 0 {
-			expectPageToken := int64(beginIdx)
-			matcher.pageToken = &expectPageToken
-		}
-
-		call := client.EXPECT().FetchBlocksMetadataRaw(gomock.Any(), matcher).Return(ret, nil)
-		calls = append(calls, call)
-	}
-
-	gomock.InOrder(calls...)
-}
-
-func expectFetchMetadataAndReturnV2(
 	client *rpc.MockTChanNode,
 	result []testBlocksMetadata,
 	opts AdminOptions,
@@ -2185,7 +1990,7 @@ func expectFetchMetadataAndReturnV2(
 			isV2:         true,
 		}
 		if i != 0 {
-			matcher.pageTokenV2 = []byte(fmt.Sprintf("token_%d", i))
+			matcher.pageToken = []byte(fmt.Sprintf("token_%d", i))
 		}
 
 		call := client.EXPECT().FetchBlocksMetadataRawV2(gomock.Any(), matcher).Return(ret, nil)
@@ -2198,22 +2003,13 @@ func expectFetchMetadataAndReturnV2(
 type fetchMetadataReqMatcher struct {
 	shard        int32
 	limit        int64
-	pageToken    *int64
-	pageTokenV2  []byte
+	pageToken    []byte
 	includeSizes *bool
 	isV2         bool
 }
 
 func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
-	if m.isV2 {
-		return m.matchesV2(x)
-	}
-	return m.matchesV1(x)
-}
-
-// TODO(rartoul): Delete when we delete the V1 code path
-func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
-	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
+	req, ok := x.(*rpc.FetchBlocksMetadataRawV2Request)
 	if !ok {
 		return false
 	}
@@ -2234,50 +2030,7 @@ func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
 		if req.PageToken == nil {
 			return false
 		}
-		if *req.PageToken != *m.pageToken {
-			return false
-		}
-	}
-
-	if m.includeSizes == nil {
-		if req.IncludeSizes != nil {
-			return false
-		}
-	} else {
-		if req.IncludeSizes == nil {
-			return false
-		}
-		if *req.IncludeSizes != *m.includeSizes {
-			return false
-		}
-	}
-
-	return true
-}
-
-func (m *fetchMetadataReqMatcher) matchesV2(x interface{}) bool {
-	req, ok := x.(*rpc.FetchBlocksMetadataRawV2Request)
-	if !ok {
-		return false
-	}
-
-	if m.shard != req.Shard {
-		return false
-	}
-
-	if m.limit != req.Limit {
-		return false
-	}
-
-	if m.pageTokenV2 == nil {
-		if req.PageToken != nil {
-			return false
-		}
-	} else {
-		if req.PageToken == nil {
-			return false
-		}
-		if !bytes.Equal(req.PageToken, m.pageTokenV2) {
+		if !bytes.Equal(req.PageToken, m.pageToken) {
 			return false
 		}
 	}

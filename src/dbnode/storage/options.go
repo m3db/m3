@@ -41,7 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -51,33 +51,30 @@ import (
 )
 
 const (
-	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
+	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket.
 	defaultBytesPoolBucketCapacity = 256
 
-	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
+	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket.
 	defaultBytesPoolBucketCount = 4096
 
-	// defaultRepairEnabled enables repair by default
+	// defaultRepairEnabled enables repair by default.
 	defaultRepairEnabled = true
 
-	// defaultErrorWindowForLoad is the default error window for evaluating server load
+	// defaultErrorWindowForLoad is the default error window for evaluating server load.
 	defaultErrorWindowForLoad = 10 * time.Second
 
-	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
+	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded.
 	defaultErrorThresholdForLoad = 1000
 
-	// defaultIndexingEnabled disables indexing by default
+	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
-
-	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots
-	defaultMinSnapshotInterval = time.Minute
 )
 
 var (
-	// defaultBootstrapProcessProvider is the default bootstrap provider for the database
+	// defaultBootstrapProcessProvider is the default bootstrap provider for the database.
 	defaultBootstrapProcessProvider = bootstrap.NewNoOpProcessProvider()
 
-	// defaultPoolOptions are the pool options used by default
+	// defaultPoolOptions are the pool options used by default.
 	defaultPoolOptions pool.ObjectPoolOptions
 
 	timeZero time.Time
@@ -115,7 +112,6 @@ type options struct {
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
 	runtimeOptsMgr                 m3dbruntime.OptionsManager
-	errCounterOpts                 xcounter.Options
 	errWindowForLoad               time.Duration
 	errThresholdForLoad            int64
 	indexingEnabled                bool
@@ -126,7 +122,6 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcessProvider       bootstrap.ProcessProvider
 	persistManager                 persist.Manager
-	minSnapshotInterval            time.Duration
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
@@ -142,6 +137,7 @@ type options struct {
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 	queryIDsWorkerPool             xsync.WorkerPool
+	writeBatchPool                 *ts.WriteBatchPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -160,13 +156,15 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	queryIDsWorkerPool.Init()
 
+	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil, nil)
+	writeBatchPool.Init()
+
 	o := &options{
 		clockOpts:                clock.NewOptions(),
 		instrumentOpts:           instrument.NewOptions(),
 		blockOpts:                block.NewOptions(),
 		commitLogOpts:            commitlog.NewOptions(),
 		runtimeOptsMgr:           m3dbruntime.NewOptionsManager(),
-		errCounterOpts:           xcounter.NewOptions(),
 		errWindowForLoad:         defaultErrorWindowForLoad,
 		errThresholdForLoad:      defaultErrorThresholdForLoad,
 		indexingEnabled:          defaultIndexingEnabled,
@@ -174,7 +172,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:            defaultRepairEnabled,
 		repairOpts:               repair.NewOptions(),
 		bootstrapProcessProvider: defaultBootstrapProcessProvider,
-		minSnapshotInterval:      defaultMinSnapshotInterval,
 		poolOpts:                 poolOpts,
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(poolOpts).
@@ -195,6 +192,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 		queryIDsWorkerPool:             queryIDsWorkerPool,
+		writeBatchPool:                 writeBatchPool,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -308,16 +306,6 @@ func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Opt
 
 func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
 	return o.runtimeOptsMgr
-}
-
-func (o *options) SetErrorCounterOptions(value xcounter.Options) Options {
-	opts := *o
-	opts.errCounterOpts = value
-	return &opts
-}
-
-func (o *options) ErrorCounterOptions() xcounter.Options {
-	return o.errCounterOpts
 }
 
 func (o *options) SetErrorWindowForLoad(value time.Duration) Options {
@@ -603,16 +591,6 @@ func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResu
 	return o.fetchBlocksMetadataResultsPool
 }
 
-func (o *options) SetMinimumSnapshotInterval(value time.Duration) Options {
-	opts := *o
-	opts.minSnapshotInterval = value
-	return &opts
-}
-
-func (o *options) MinimumSnapshotInterval() time.Duration {
-	return o.minSnapshotInterval
-}
-
 func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
 	opts := *o
 	opts.queryIDsWorkerPool = value
@@ -621,4 +599,14 @@ func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
 
 func (o *options) QueryIDsWorkerPool() xsync.WorkerPool {
 	return o.queryIDsWorkerPool
+}
+
+func (o *options) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
+	opts := *o
+	opts.writeBatchPool = value
+	return &opts
+}
+
+func (o *options) WriteBatchPool() *ts.WriteBatchPool {
+	return o.writeBatchPool
 }

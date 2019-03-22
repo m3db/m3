@@ -52,8 +52,6 @@ var (
 		},
 		Value: []byte("barrrrrrr"),
 	}
-
-	testEncoder = proto.NewEncoder(nil)
 )
 
 func TestConsumerWithMessagePool(t *testing.T) {
@@ -416,15 +414,18 @@ func testOptions() Options {
 	return opts.
 		SetAckBufferSize(1).
 		SetAckFlushInterval(50 * time.Millisecond).
-		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
+		SetMessagePoolOptions(MessagePoolOptions{
+			PoolOptions: pool.NewObjectPoolOptions().SetSize(1),
+		}).
 		SetConnectionWriteBufferSize(1)
 }
 
 func produce(w io.Writer, m proto.Marshaler) error {
-	err := testEncoder.Encode(m)
+	encoder := proto.NewEncoder(nil)
+	err := encoder.Encode(m)
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(testEncoder.Bytes())
+	_, err = w.Write(encoder.Bytes())
 	return err
 }

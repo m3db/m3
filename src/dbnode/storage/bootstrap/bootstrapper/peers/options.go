@@ -33,48 +33,41 @@ import (
 )
 
 var (
-	defaultDefaultShardConcurrency            = runtime.NumCPU()
-	defaultShardPersistenceConcurrency        = int(math.Max(1, float64(runtime.NumCPU())/2))
-	defaultPersistenceMaxQueueSize            = 0
-	defaultFetchBlocksMetadataEndpointVersion = client.FetchBlocksMetadataEndpointV1
+	defaultDefaultShardConcurrency     = runtime.NumCPU()
+	defaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
+	defaultPersistenceMaxQueueSize     = 0
 )
 
 var (
-	errAdminClientNotSet                 = errors.New("admin client not set")
-	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
-	errPersistManagerNotSet              = errors.New("persist manager not set")
-	errRuntimeOptionsManagerNotSet       = errors.New("runtime options manager not set")
+	errAdminClientNotSet           = errors.New("admin client not set")
+	errPersistManagerNotSet        = errors.New("persist manager not set")
+	errRuntimeOptionsManagerNotSet = errors.New("runtime options manager not set")
 )
 
 type options struct {
-	resultOpts                         result.Options
-	client                             client.AdminClient
-	defaultShardConcurrency            int
-	shardPersistenceConcurrency        int
-	persistenceMaxQueueSize            int
-	persistManager                     persist.Manager
-	blockRetrieverManager              block.DatabaseBlockRetrieverManager
-	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
-	runtimeOptionsManager              m3dbruntime.OptionsManager
+	resultOpts                  result.Options
+	client                      client.AdminClient
+	defaultShardConcurrency     int
+	shardPersistenceConcurrency int
+	persistenceMaxQueueSize     int
+	persistManager              persist.Manager
+	blockRetrieverManager       block.DatabaseBlockRetrieverManager
+	runtimeOptionsManager       m3dbruntime.OptionsManager
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:                         result.NewOptions(),
-		defaultShardConcurrency:            defaultDefaultShardConcurrency,
-		shardPersistenceConcurrency:        defaultShardPersistenceConcurrency,
-		persistenceMaxQueueSize:            defaultPersistenceMaxQueueSize,
-		fetchBlocksMetadataEndpointVersion: defaultFetchBlocksMetadataEndpointVersion,
+		resultOpts:                  result.NewOptions(),
+		defaultShardConcurrency:     defaultDefaultShardConcurrency,
+		shardPersistenceConcurrency: defaultShardPersistenceConcurrency,
+		persistenceMaxQueueSize:     defaultPersistenceMaxQueueSize,
 	}
 }
 
 func (o *options) Validate() error {
 	if client := o.client; client == nil {
 		return errAdminClientNotSet
-	}
-	if !client.IsValidFetchBlocksMetadataEndpoint(o.fetchBlocksMetadataEndpointVersion) {
-		return errInvalidFetchBlocksMetadataVersion
 	}
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
@@ -155,16 +148,6 @@ func (o *options) SetDatabaseBlockRetrieverManager(
 
 func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
 	return o.blockRetrieverManager
-}
-
-func (o *options) SetFetchBlocksMetadataEndpointVersion(value client.FetchBlocksMetadataEndpointVersion) Options {
-	opts := *o
-	opts.fetchBlocksMetadataEndpointVersion = value
-	return &opts
-}
-
-func (o *options) FetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion {
-	return o.fetchBlocksMetadataEndpointVersion
 }
 
 func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {

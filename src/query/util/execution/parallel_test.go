@@ -24,8 +24,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,15 +34,23 @@ type request struct {
 	order     int
 	processed bool
 	err       error
+	wait      <-chan bool
+	ack       chan<- bool
 }
 
 func (f *request) Process(ctx context.Context) error {
+	defer func() {
+		if f.ack != nil {
+			f.ack <- true
+		}
+	}()
+
 	if f.err != nil {
 		return f.err
 	}
 
-	if f.order == 0 {
-		time.Sleep(2 * time.Millisecond)
+	if f.wait != nil {
+		<-f.wait
 	}
 
 	select {
@@ -60,8 +68,9 @@ func (f *request) String() string {
 
 func TestOrderedParallel(t *testing.T) {
 	requests := make([]Request, 3)
-	requests[0] = &request{order: 0}
-	requests[1] = &request{order: 1}
+	signalChan := make(chan bool)
+	requests[0] = &request{order: 0, wait: signalChan}
+	requests[1] = &request{order: 1, ack: signalChan}
 	requests[2] = &request{order: 2}
 
 	err := ExecuteParallel(context.Background(), requests)
@@ -70,12 +79,34 @@ func TestOrderedParallel(t *testing.T) {
 }
 
 func TestSingleError(t *testing.T) {
+	defer leaktest.Check(t)()
 	requests := make([]Request, 3)
-	requests[0] = &request{order: 0}
-	requests[1] = &request{order: 1, err: fmt.Errorf("problem executing")}
+	signalChan := make(chan bool)
+
+	var cancelErr error
+	requests[0] = funcRequest(func(ctx context.Context) error {
+		// wait for the second goroutine to finish
+		<-signalChan
+
+		// wait for cancellation. This will hang if there's a bug here (i.e. the context doesn't get cancelled);
+		// we rely on leaktest to catch that case.
+		<-ctx.Done()
+
+		cancelErr = ctx.Err()
+		return nil
+	})
+	requests[1] = &request{order: 1, err: fmt.Errorf("problem executing"), ack: signalChan}
 	requests[2] = &request{order: 2}
 
 	err := ExecuteParallel(context.Background(), requests)
 	assert.Error(t, err, "error in second request")
-	assert.False(t, requests[0].(*request).processed, "skip request on error")
+
+	assert.EqualError(t, cancelErr, "context canceled",
+		"context should be cancelled in case of any request error")
+}
+
+type funcRequest func(ctx context.Context) error
+
+func (f funcRequest) Process(ctx context.Context) error {
+	return f(ctx)
 }

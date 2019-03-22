@@ -38,22 +38,22 @@ func TestNegationSearcher(t *testing.T) {
 
 	// First reader.
 	readerFirstPL := roaring.NewPostingsList()
-	readerFirstPL.AddRange(postings.ID(42), postings.ID(48))
+	require.NoError(t, readerFirstPL.AddRange(postings.ID(42), postings.ID(48)))
 	firstReader := index.NewMockReader(mockCtrl)
 
 	// Second reader.
 	readerSecondPL := roaring.NewPostingsList()
-	readerSecondPL.AddRange(postings.ID(48), postings.ID(52))
+	require.NoError(t, readerSecondPL.AddRange(postings.ID(48), postings.ID(52)))
 	secondReader := index.NewMockReader(mockCtrl)
 
 	// Mock searcher.
 	searcherFirstPL := roaring.NewPostingsList()
-	searcherFirstPL.Insert(postings.ID(42))
-	searcherFirstPL.Insert(postings.ID(44))
-	searcherFirstPL.Insert(postings.ID(45))
+	require.NoError(t, searcherFirstPL.Insert(postings.ID(42)))
+	require.NoError(t, searcherFirstPL.Insert(postings.ID(44)))
+	require.NoError(t, searcherFirstPL.Insert(postings.ID(45)))
 	searcherSecondPL := roaring.NewPostingsList()
-	searcherSecondPL.Insert(postings.ID(51))
-	searcherSecondPL.Insert(postings.ID(52))
+	require.NoError(t, searcherSecondPL.Insert(postings.ID(51)))
+	require.NoError(t, searcherSecondPL.Insert(postings.ID(52)))
 	searcher := search.NewMockSearcher(mockCtrl)
 
 	gomock.InOrder(

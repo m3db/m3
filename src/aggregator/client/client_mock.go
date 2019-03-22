@@ -59,6 +59,7 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 
 // Close mocks base method
 func (m *MockClient) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -66,11 +67,13 @@ func (m *MockClient) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockClientMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockClient)(nil).Close))
 }
 
 // Flush mocks base method
 func (m *MockClient) Flush() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -78,11 +81,13 @@ func (m *MockClient) Flush() error {
 
 // Flush indicates an expected call of Flush
 func (mr *MockClientMockRecorder) Flush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockClient)(nil).Flush))
 }
 
 // Init mocks base method
 func (m *MockClient) Init() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Init")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -90,11 +95,13 @@ func (m *MockClient) Init() error {
 
 // Init indicates an expected call of Init
 func (mr *MockClientMockRecorder) Init() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockClient)(nil).Init))
 }
 
 // WriteTimed mocks base method
 func (m *MockClient) WriteTimed(arg0 aggregated.Metric, arg1 metadata.TimedMetadata) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTimed", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -102,11 +109,13 @@ func (m *MockClient) WriteTimed(arg0 aggregated.Metric, arg1 metadata.TimedMetad
 
 // WriteTimed indicates an expected call of WriteTimed
 func (mr *MockClientMockRecorder) WriteTimed(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimed", reflect.TypeOf((*MockClient)(nil).WriteTimed), arg0, arg1)
 }
 
 // WriteUntimedBatchTimer mocks base method
 func (m *MockClient) WriteUntimedBatchTimer(arg0 unaggregated.BatchTimer, arg1 metadata.StagedMetadatas) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteUntimedBatchTimer", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -114,11 +123,13 @@ func (m *MockClient) WriteUntimedBatchTimer(arg0 unaggregated.BatchTimer, arg1 m
 
 // WriteUntimedBatchTimer indicates an expected call of WriteUntimedBatchTimer
 func (mr *MockClientMockRecorder) WriteUntimedBatchTimer(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteUntimedBatchTimer", reflect.TypeOf((*MockClient)(nil).WriteUntimedBatchTimer), arg0, arg1)
 }
 
 // WriteUntimedCounter mocks base method
 func (m *MockClient) WriteUntimedCounter(arg0 unaggregated.Counter, arg1 metadata.StagedMetadatas) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteUntimedCounter", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -126,11 +137,13 @@ func (m *MockClient) WriteUntimedCounter(arg0 unaggregated.Counter, arg1 metadat
 
 // WriteUntimedCounter indicates an expected call of WriteUntimedCounter
 func (mr *MockClientMockRecorder) WriteUntimedCounter(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteUntimedCounter", reflect.TypeOf((*MockClient)(nil).WriteUntimedCounter), arg0, arg1)
 }
 
 // WriteUntimedGauge mocks base method
 func (m *MockClient) WriteUntimedGauge(arg0 unaggregated.Gauge, arg1 metadata.StagedMetadatas) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteUntimedGauge", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -138,6 +151,7 @@ func (m *MockClient) WriteUntimedGauge(arg0 unaggregated.Gauge, arg1 metadata.St
 
 // WriteUntimedGauge indicates an expected call of WriteUntimedGauge
 func (mr *MockClientMockRecorder) WriteUntimedGauge(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteUntimedGauge", reflect.TypeOf((*MockClient)(nil).WriteUntimedGauge), arg0, arg1)
 }
 
@@ -166,6 +180,7 @@ func (m *MockAdminClient) EXPECT() *MockAdminClientMockRecorder {
 
 // Close mocks base method
 func (m *MockAdminClient) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -173,11 +188,13 @@ func (m *MockAdminClient) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockAdminClientMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAdminClient)(nil).Close))
 }
 
 // Flush mocks base method
 func (m *MockAdminClient) Flush() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -185,11 +202,13 @@ func (m *MockAdminClient) Flush() error {
 
 // Flush indicates an expected call of Flush
 func (mr *MockAdminClientMockRecorder) Flush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockAdminClient)(nil).Flush))
 }
 
 // Init mocks base method
 func (m *MockAdminClient) Init() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Init")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -197,11 +216,13 @@ func (m *MockAdminClient) Init() error {
 
 // Init indicates an expected call of Init
 func (mr *MockAdminClientMockRecorder) Init() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockAdminClient)(nil).Init))
 }
 
 // WriteForwarded mocks base method
 func (m *MockAdminClient) WriteForwarded(arg0 aggregated.ForwardedMetric, arg1 metadata.ForwardMetadata) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteForwarded", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -209,11 +230,13 @@ func (m *MockAdminClient) WriteForwarded(arg0 aggregated.ForwardedMetric, arg1 m
 
 // WriteForwarded indicates an expected call of WriteForwarded
 func (mr *MockAdminClientMockRecorder) WriteForwarded(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteForwarded", reflect.TypeOf((*MockAdminClient)(nil).WriteForwarded), arg0, arg1)
 }
 
 // WriteTimed mocks base method
 func (m *MockAdminClient) WriteTimed(arg0 aggregated.Metric, arg1 metadata.TimedMetadata) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTimed", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -221,11 +244,13 @@ func (m *MockAdminClient) WriteTimed(arg0 aggregated.Metric, arg1 metadata.Timed
 
 // WriteTimed indicates an expected call of WriteTimed
 func (mr *MockAdminClientMockRecorder) WriteTimed(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimed", reflect.TypeOf((*MockAdminClient)(nil).WriteTimed), arg0, arg1)
 }
 
 // WriteUntimedBatchTimer mocks base method
 func (m *MockAdminClient) WriteUntimedBatchTimer(arg0 unaggregated.BatchTimer, arg1 metadata.StagedMetadatas) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteUntimedBatchTimer", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -233,11 +258,13 @@ func (m *MockAdminClient) WriteUntimedBatchTimer(arg0 unaggregated.BatchTimer, a
 
 // WriteUntimedBatchTimer indicates an expected call of WriteUntimedBatchTimer
 func (mr *MockAdminClientMockRecorder) WriteUntimedBatchTimer(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteUntimedBatchTimer", reflect.TypeOf((*MockAdminClient)(nil).WriteUntimedBatchTimer), arg0, arg1)
 }
 
 // WriteUntimedCounter mocks base method
 func (m *MockAdminClient) WriteUntimedCounter(arg0 unaggregated.Counter, arg1 metadata.StagedMetadatas) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteUntimedCounter", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -245,11 +272,13 @@ func (m *MockAdminClient) WriteUntimedCounter(arg0 unaggregated.Counter, arg1 me
 
 // WriteUntimedCounter indicates an expected call of WriteUntimedCounter
 func (mr *MockAdminClientMockRecorder) WriteUntimedCounter(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteUntimedCounter", reflect.TypeOf((*MockAdminClient)(nil).WriteUntimedCounter), arg0, arg1)
 }
 
 // WriteUntimedGauge mocks base method
 func (m *MockAdminClient) WriteUntimedGauge(arg0 unaggregated.Gauge, arg1 metadata.StagedMetadatas) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteUntimedGauge", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -257,5 +286,6 @@ func (m *MockAdminClient) WriteUntimedGauge(arg0 unaggregated.Gauge, arg1 metada
 
 // WriteUntimedGauge indicates an expected call of WriteUntimedGauge
 func (mr *MockAdminClientMockRecorder) WriteUntimedGauge(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteUntimedGauge", reflect.TypeOf((*MockAdminClient)(nil).WriteUntimedGauge), arg0, arg1)
 }

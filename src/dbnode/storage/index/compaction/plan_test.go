@@ -34,15 +34,6 @@ import (
 func TestDefaultOptsValidate(t *testing.T) {
 	require.NoError(t, DefaultOptions.Validate())
 }
-func TestBrandNewMutableSegment(t *testing.T) {
-	opts := DefaultOptions
-	s1 := Segment{
-		Age:  (opts.MutableCompactionAgeThreshold - time.Second),
-		Size: 10,
-		Type: segments.MutableType,
-	}
-	require.False(t, s1.Compactable(opts))
-}
 
 func TestSingleMutableCompaction(t *testing.T) {
 	opts := DefaultOptions

@@ -32,12 +32,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -62,13 +62,26 @@ func newTestNamespace(t *testing.T) (*dbNamespace, closerFn) {
 	return newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
 }
 
+func newTestNamespaceMetadata(t *testing.T) namespace.Metadata {
+	return newTestNamespaceMetadataWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
+}
+
+func newTestNamespaceMetadataWithIDOpts(
+	t *testing.T,
+	nsID ident.ID,
+	opts namespace.Options,
+) namespace.Metadata {
+	metadata, err := namespace.NewMetadata(nsID, opts)
+	require.NoError(t, err)
+	return metadata
+}
+
 func newTestNamespaceWithIDOpts(
 	t *testing.T,
 	nsID ident.ID,
 	opts namespace.Options,
 ) (*dbNamespace, closerFn) {
-	metadata, err := namespace.NewMetadata(nsID, opts)
-	require.NoError(t, err)
+	metadata := newTestNamespaceMetadataWithIDOpts(t, nsID, opts)
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
@@ -141,10 +154,12 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	err := ns.Write(ctx, ident.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
+	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"),
+		time.Now(), 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
+	require.False(t, wasWritten)
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
@@ -155,7 +170,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
-	ts := time.Now()
+	now := time.Now()
 	val := 0.0
 	unit := xtime.Second
 	ant := []byte(nil)
@@ -163,10 +178,20 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, ts, val, unit, ant).Return(nil)
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
+		Return(ts.Series{}, true, nil).Times(1)
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
+		Return(ts.Series{}, false, nil).Times(1)
+
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	require.NoError(t, ns.Write(ctx, id, ts, val, unit, ant))
+	_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
+	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
+	require.NoError(t, err)
+	require.False(t, wasWritten)
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
@@ -252,72 +277,6 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
-func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	ns, closer := newTestNamespace(t)
-	defer closer()
-
-	for i := range ns.shards {
-		ns.shards[i] = nil
-	}
-	start := time.Now()
-	end := start.Add(time.Hour)
-	opts := block.FetchBlocksMetadataOptions{
-		IncludeSizes:     true,
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
-	}
-	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(), start, end, 100, 0, opts)
-	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, "not responsible for shard 0", err.Error())
-}
-
-func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	var (
-		start         = time.Now()
-		end           = start.Add(time.Hour)
-		limit         = int64(100)
-		pageToken     = int64(0)
-		nextPageToken = int64(100)
-		opts          = block.FetchBlocksMetadataOptions{
-			IncludeSizes:     true,
-			IncludeChecksums: true,
-			IncludeLastRead:  true,
-		}
-	)
-
-	ns, closer := newTestNamespace(t)
-	defer closer()
-
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().
-		FetchBlocksMetadata(ctx, start, end, limit, pageToken, opts).
-		Return(nil, &nextPageToken, nil)
-	ns.shards[testShardIDs[0].ID()] = shard
-
-	shard.EXPECT().IsBootstrapped().Return(true)
-	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
-		start, end, limit, pageToken, opts)
-	require.Nil(t, res)
-	require.Equal(t, npt, &nextPageToken)
-	require.NoError(t, err)
-
-	shard.EXPECT().IsBootstrapped().Return(false)
-	_, _, err = ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
-		start, end, limit, pageToken, opts)
-	require.Error(t, err)
-	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
-}
-
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
@@ -334,7 +293,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 }
 
 func TestNamespaceBootstrapAllShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
@@ -472,20 +431,21 @@ func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
 	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
 
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ID().Return(testShardIDs[0].ID())
+	shard.EXPECT().ID().Return(testShardIDs[0].ID()).AnyTimes()
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	ShardBootstrapStates := ShardBootstrapStates{}
-	ShardBootstrapStates[testShardIDs[0].ID()] = Bootstrapping
+	shardBootstrapStates := ShardBootstrapStates{}
+	shardBootstrapStates[testShardIDs[0].ID()] = Bootstrapping
 
-	require.NoError(t, ns.Flush(blockStart, ShardBootstrapStates, nil))
+	require.NoError(t, ns.Flush(blockStart, shardBootstrapStates, nil))
 }
 
 type snapshotTestCase struct {
-	isSnapshotting   bool
-	expectSnapshot   bool
-	lastSnapshotTime func(blockStart time.Time, blockSize time.Duration) time.Time
-	snapshotErr      error
+	isSnapshotting                bool
+	expectSnapshot                bool
+	shardBootstrapStateBeforeTick BootstrapState
+	lastSnapshotTime              func(blockStart time.Time, blockSize time.Duration) time.Time
+	shardSnapshotErr              error
 }
 
 func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
@@ -505,48 +465,56 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
 }
 
-func TestNamespaceSnapshotNotEnoughTimeSinceLastSnapshot(t *testing.T) {
-	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
-			isSnapshotting: false,
-			expectSnapshot: false,
-			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
-				return curr
-			},
-			snapshotErr: nil,
-		},
-		snapshotTestCase{
-			isSnapshotting: false,
-			expectSnapshot: true,
-			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
-				return curr.Add(-2 * defaultMinSnapshotInterval)
-			},
-			snapshotErr: nil,
-		},
-	}
-	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
-}
-
 func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
-		snapshotTestCase{isSnapshotting: true, snapshotErr: nil, expectSnapshot: false},
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+		},
+		snapshotTestCase{
+			isSnapshotting:                true,
+			expectSnapshot:                false,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+		},
 	}
 	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
-		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+		},
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+		},
 	}
 	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
 func TestNamespaceSnapshotShardError(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
-		snapshotTestCase{isSnapshotting: false, snapshotErr: errors.New("err"), expectSnapshot: true},
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+		},
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              errors.New("err"),
+		},
 	}
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
@@ -566,8 +534,12 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 	ns.nowFn = func() time.Time {
 		return now
 	}
-	blockSize := ns.Options().RetentionOptions().BlockSize()
-	blockStart := now.Truncate(blockSize)
+
+	var (
+		shardBootstrapStates = ShardBootstrapStates{}
+		blockSize            = ns.Options().RetentionOptions().BlockSize()
+		blockStart           = now.Truncate(blockSize)
+	)
 
 	for i, tc := range shardMethodResults {
 		shard := NewMockdatabaseShard(ctrl)
@@ -578,11 +550,13 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 			lastSnapshotTime = tc.lastSnapshotTime(now, blockSize)
 		}
 		shard.EXPECT().SnapshotState().Return(tc.isSnapshotting, lastSnapshotTime)
+		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
-			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.snapshotErr)
+			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.shardSnapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
+		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
 	}
 
 	return ns.Snapshot(blockStart, now, nil)
@@ -1090,16 +1064,25 @@ func TestNamespaceIndexInsert(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewContext()
-	ts := time.Now()
+	now := time.Now()
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		ts, 1.0, xtime.Second, nil).Return(nil)
+		now, 1.0, xtime.Second, nil).Return(ts.Series{}, true, nil)
+	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+		now, 1.0, xtime.Second, nil).Return(ts.Series{}, false, nil)
+
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	err := ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, ts, 1.0, xtime.Second, nil)
+	_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+	require.NoError(t, err)
+	require.False(t, wasWritten)
 
 	shard.EXPECT().Close()
 	idx.EXPECT().Close().Return(nil)
@@ -1111,6 +1094,8 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMocknamespaceIndex(ctrl)
+	idx.EXPECT().BootstrapsDone().Return(uint(1))
+
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
@@ -1240,7 +1225,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: testTime.Truncate(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(-1 * time.Second),
 						},
 					},
@@ -1260,7 +1245,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},
@@ -1282,7 +1267,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},
@@ -1303,7 +1288,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 						fs.FileSetFile{
@@ -1311,7 +1296,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart.Add(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},

@@ -28,10 +28,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
+	xcost "github.com/m3db/m3/src/x/cost"
 	"github.com/m3db/m3x/ident"
 	xsync "github.com/m3db/m3x/sync"
 
@@ -40,17 +42,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools xsync.PooledWorkerPool) {
+func TestLabelConversion(t *testing.T) {
+	// NB: sorted order (__name__, foo, le)
+	labels := []*prompb.Label{
+		&prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
+		&prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
+		&prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
+	}
+
+	opts := models.NewTagOptions().
+		SetMetricName([]byte("name")).
+		SetBucketName([]byte("bucket"))
+
+	tags := PromLabelsToM3Tags(labels, opts)
+	name, found := tags.Name()
+	assert.True(t, found)
+	assert.Equal(t, []byte("name-val"), name)
+	name, found = tags.Get([]byte("name"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("name-val"), name)
+
+	bucket, found := tags.Bucket()
+	assert.True(t, found)
+	assert.Equal(t, []byte("bucket-val"), bucket)
+	bucket, found = tags.Get([]byte("bucket"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("bucket-val"), bucket)
+
+	reverted := TagsToPromLabels(tags)
+	assert.Equal(t, labels, reverted)
+}
+
+func verifyExpandSeries(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	num int,
+	pools xsync.PooledWorkerPool,
+) {
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true, nil)
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true, enforcer, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, num)
-	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
+	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(),
+		Value: testTags.Value.Bytes()}}
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
@@ -91,16 +132,14 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 		poolSize       = 2
 		numUncalled    = 10
 	)
-	pool, err := xsync.NewPooledWorkerPool(poolSize, xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewPooledWorkerPool(poolSize,
+		xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 	ctrl := gomock.NewController(t)
-	testTags := seriesiter.GenerateTag()
-	validTagGenerator := func() ident.TagIterator {
-		return seriesiter.GenerateSingleSampleTagIterator(ctrl, testTags)
-	}
 
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, numValidSeries, numValues)
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl,
+		seriesiter.NewMockValidTagGenerator(ctrl), numValidSeries, numValues)
 	// Add poolSize + 1 failing iterators; there can be slight timing
 	// inconsistencies which can sometimes cause failures in this test
 	// as one of the `uncalled` iterators gets unexpectedly used.
@@ -128,11 +167,54 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	mockIters.EXPECT().Iters().Return(iters).Times(1)
 	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
 	mockIters.EXPECT().Close().Times(1)
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
 
 	result, err := SeriesIteratorsToFetchResult(
 		mockIters,
 		pool,
 		true,
+		enforcer,
+		nil,
+	)
+	require.Nil(t, result)
+	require.EqualError(t, err, "error")
+}
+
+func TestOverLimit(t *testing.T) {
+	var (
+		numValidSeries = 8
+		numValues      = 2
+		poolSize       = 2
+		numUncalled    = 10
+	)
+	pool, err := xsync.NewPooledWorkerPool(poolSize,
+		xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+	ctrl := gomock.NewController(t)
+
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl,
+		seriesiter.NewMockValidTagGenerator(ctrl), numValidSeries+poolSize+1, numValues)
+	for i := 0; i < numUncalled; i++ {
+		uncalledIter := encoding.NewMockSeriesIterator(ctrl)
+		iters = append(iters, uncalledIter)
+	}
+
+	mockIters := encoding.NewMockSeriesIterators(ctrl)
+	mockIters.EXPECT().Iters().Return(iters).Times(1)
+	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
+	mockIters.EXPECT().Close().Times(1)
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
+	enforcer.EXPECT().Add(xcost.Cost(2)).
+		Return(xcost.Report{Error: errors.New("error")}).MinTimes(1)
+
+	result, err := SeriesIteratorsToFetchResult(
+		mockIters,
+		pool,
+		true,
+		enforcer,
 		nil,
 	)
 	require.Nil(t, result)
@@ -238,6 +320,25 @@ var (
 	benchResult *prompb.QueryResult
 )
 
+func TestIteratorToTsSeries(t *testing.T) {
+	t.Run("errors on iterator error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockIter := encoding.NewMockSeriesIterator(ctrl)
+
+		expectedErr := errors.New("expected")
+		mockIter.EXPECT().Err().Return(expectedErr)
+
+		mockIter = seriesiter.NewMockSeriesIteratorFromBase(mockIter, seriesiter.NewMockValidTagGenerator(ctrl), 1)
+		enforcer := cost.NewMockChainedEnforcer(ctrl)
+		enforcer.EXPECT().Add(xcost.Cost(2)).Times(1)
+
+		dps, err := iteratorToTsSeries(mockIter, enforcer, models.NewTagOptions())
+
+		assert.Nil(t, dps)
+		assert.EqualError(t, err, expectedErr.Error())
+	})
+}
+
 // BenchmarkFetchResultToPromResult-8   	     100	  10563444 ns/op	25368543 B/op	    4443 allocs/op
 func BenchmarkFetchResultToPromResult(b *testing.B) {
 	var (
@@ -267,7 +368,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		}
 
 		series := ts.NewSeries(
-			fmt.Sprintf("series-%d", i), values, tags)
+			[]byte(fmt.Sprintf("series-%d", i)), values, tags)
 
 		fr.SeriesList = append(fr.SeriesList, series)
 	}

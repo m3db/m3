@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -83,34 +84,25 @@ func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namesp
 }
 
 type cleanupTimesCommitLog struct {
-	filePathPrefix string
-	times          []time.Time
+	clOpts  commitlog.Options
+	indices []int64
 }
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
-	for _, t := range c.times {
-		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
-		if err != nil {
-			panic(err)
-		}
-		if index != 0 {
-			return true
-		}
+	commitlogs, _, err := commitlog.Files(c.clOpts)
+	if err != nil {
+		panic(err)
 	}
-	return false
-}
 
-func (c *cleanupTimesCommitLog) allExist() bool {
-	for _, t := range c.times {
-		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
-		if err != nil {
-			panic(err)
-		}
-		if index == 0 {
-			return false
+	for _, cl := range commitlogs {
+		for _, index := range c.indices {
+			if cl.Index == index {
+				return true
+			}
 		}
 	}
-	return true
+
+	return false
 }
 
 type cleanupTimesFileSet struct {
@@ -132,21 +124,6 @@ func (fset *cleanupTimesFileSet) anyExist() bool {
 		}
 	}
 	return false
-}
-
-func (fset *cleanupTimesFileSet) allExist() bool {
-	for _, t := range fset.times {
-		exists, err := fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
-		if err != nil {
-			panic(err)
-		}
-
-		if !exists {
-			return false
-		}
-	}
-
-	return true
 }
 
 func waitUntilDataCleanedUpExtended(
@@ -216,7 +193,8 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 }
 
 // nolint: unused
-func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+func waitUntilDataFileSetsCleanedUp(clOpts commitlog.Options, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
 			shardDir := fs.ShardDataDirPath(filePathPrefix, n.ID(), extraShard)
@@ -237,7 +215,8 @@ func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.
 	return errDataCleanupTimedOut
 }
 
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(clOpts commitlog.Options, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileSet{
 			cleanupTimesFileSet{
@@ -248,20 +227,8 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uin
 			},
 		},
 		cleanupTimesCommitLog{
-			filePathPrefix: filePathPrefix,
-			times:          []time.Time{toDelete},
+			clOpts:  clOpts,
+			indices: []int64{},
 		},
 		timeout)
-}
-
-func getTimes(start time.Time, end time.Time, intervalSize time.Duration) []time.Time {
-	totalPeriod := end.Sub(start)
-	numPeriods := int(totalPeriod / intervalSize)
-
-	times := make([]time.Time, 0, numPeriods)
-	for i := 0; i < numPeriods; i++ {
-		times = append(times, start.Add(time.Duration(i)*intervalSize))
-	}
-
-	return times
 }

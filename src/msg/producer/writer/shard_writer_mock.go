@@ -58,46 +58,55 @@ func (m *MockshardWriter) EXPECT() *MockshardWriterMockRecorder {
 
 // Write mocks base method
 func (m *MockshardWriter) Write(rm *producer.RefCountedMessage) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Write", rm)
 }
 
 // Write indicates an expected call of Write
 func (mr *MockshardWriterMockRecorder) Write(rm interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockshardWriter)(nil).Write), rm)
 }
 
 // UpdateInstances mocks base method
 func (m *MockshardWriter) UpdateInstances(instances []placement.Instance, cws map[string]consumerWriter) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateInstances", instances, cws)
 }
 
 // UpdateInstances indicates an expected call of UpdateInstances
 func (mr *MockshardWriterMockRecorder) UpdateInstances(instances, cws interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstances", reflect.TypeOf((*MockshardWriter)(nil).UpdateInstances), instances, cws)
 }
 
 // SetMessageTTLNanos mocks base method
 func (m *MockshardWriter) SetMessageTTLNanos(value int64) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetMessageTTLNanos", value)
 }
 
 // SetMessageTTLNanos indicates an expected call of SetMessageTTLNanos
 func (mr *MockshardWriterMockRecorder) SetMessageTTLNanos(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockshardWriter)(nil).SetMessageTTLNanos), value)
 }
 
 // Close mocks base method
 func (m *MockshardWriter) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockshardWriterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockshardWriter)(nil).Close))
 }
 
 // QueueSize mocks base method
 func (m *MockshardWriter) QueueSize() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueueSize")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -105,5 +114,6 @@ func (m *MockshardWriter) QueueSize() int {
 
 // QueueSize indicates an expected call of QueueSize
 func (mr *MockshardWriterMockRecorder) QueueSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueueSize", reflect.TypeOf((*MockshardWriter)(nil).QueueSize))
 }

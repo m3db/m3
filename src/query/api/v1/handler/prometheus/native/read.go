@@ -23,19 +23,22 @@ package native
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
-	"sort"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 
+	opentracingext "github.com/opentracing/opentracing-go/ext"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -53,12 +56,35 @@ const (
 
 var (
 	emptySeriesList = []*ts.Series{}
+	emptyReqParams  = models.RequestParams{}
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine  *executor.Engine
-	tagOpts models.TagOptions
+	engine          *executor.Engine
+	tagOpts         models.TagOptions
+	limitsCfg       *config.LimitsConfiguration
+	promReadMetrics promReadMetrics
+	timeoutOps      *prometheus.TimeoutOpts
+	keepNans        bool
+}
+
+type promReadMetrics struct {
+	fetchSuccess      tally.Counter
+	fetchErrorsServer tally.Counter
+	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
+	maxDatapoints     tally.Gauge
+}
+
+func newPromReadMetrics(scope tally.Scope) promReadMetrics {
+	return promReadMetrics{
+		fetchSuccess:      scope.Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		maxDatapoints:     scope.Gauge("max_datapoints"),
+	}
 }
 
 // ReadResponse is the response that gets returned to the user
@@ -71,246 +97,110 @@ type blockWithMeta struct {
 	meta  block.Metadata
 }
 
+// RespError wraps error and status code
+type RespError struct {
+	Err  error
+	Code int
+}
+
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
-) http.Handler {
-	return &PromReadHandler{
-		engine:  engine,
-		tagOpts: tagOpts,
+	limitsCfg *config.LimitsConfiguration,
+	scope tally.Scope,
+	timeoutOpts *prometheus.TimeoutOpts,
+	keepNans bool,
+) *PromReadHandler {
+	h := &PromReadHandler{
+		engine:          engine,
+		tagOpts:         tagOpts,
+		limitsCfg:       limitsCfg,
+		promReadMetrics: newPromReadMetrics(scope),
+		timeoutOps:      timeoutOpts,
+		keepNans:        keepNans,
 	}
+
+	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
+	return h
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
+
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
+	if respErr != nil {
+		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if params.FormatType == models.FormatM3QL {
+		renderM3QLResultsJSON(w, result, params)
+		h.promReadMetrics.fetchSuccess.Inc(1)
+		timer.Stop()
+		return
+	}
+
+	h.promReadMetrics.fetchSuccess.Inc(1)
+	timer.Stop()
+	// TODO: Support multiple result types
+	renderResultsJSON(w, result, params, h.keepNans)
+}
+
+// ServeHTTPWithEngine returns query results from the storage
+func (h *PromReadHandler) ServeHTTPWithEngine(
+	w http.ResponseWriter,
+	r *http.Request, engine *executor.Engine,
+) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
-	params, rErr := parseParams(r)
+	params, rErr := parseParams(r, h.timeoutOps)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
 	}
 
 	if params.Debug {
 		logger.Info("Request params", zap.Any("params", params))
 	}
 
-	result, err := h.read(ctx, w, params)
+	if err := h.validateRequest(&params); err != nil {
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
+	}
+
+	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
+		sp := opentracingutil.SpanFromContextOrNoop(ctx)
+		sp.LogFields(opentracinglog.Error(err))
+		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	renderResultsJSON(w, result, params)
+
+	return result, params, nil
 }
 
-func (h *PromReadHandler) read(
-	reqCtx context.Context,
-	w http.ResponseWriter,
-	params models.RequestParams,
-) ([]*ts.Series, error) {
-	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
-	defer cancel()
-
-	opts := &executor.EngineOptions{}
-	// Detect clients closing connections
-	abortCh, _ := handler.CloseWatcher(ctx, w)
-	opts.AbortCh = abortCh
-
-	// TODO: Capture timing
-	parser, err := promql.Parse(params.Query, h.tagOpts)
-	if err != nil {
-		return nil, err
+func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
+	// Impose a rough limit on the number of returned time series. This is intended to prevent things like
+	// querying from the beginning of time with a 1s step size.
+	// Approach taken directly from prom.
+	numSteps := int64(params.End.Sub(params.Start) / params.Step)
+	maxComputedDatapoints := h.limitsCfg.MaxComputedDatapoints()
+	if maxComputedDatapoints > 0 && numSteps > maxComputedDatapoints {
+		return fmt.Errorf(
+			"querying from %v to %v with step size %v would result in too many datapoints "+
+				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, "+
+				"or increase the limit (`limits.maxComputedDatapoints`)",
+			params.Start, params.End, params.Step, maxComputedDatapoints,
+		)
 	}
 
-	// Results is closed by execute
-	results := make(chan executor.Query)
-	go h.engine.ExecuteExpr(ctx, parser, opts, params, results)
-
-	// Block slices are sorted by start time
-	// TODO: Pooling
-	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
-	var processErr error
-	for result := range results {
-		if result.Err != nil {
-			processErr = result.Err
-			break
-		}
-
-		resultChan := result.Result.ResultChan()
-		firstElement := false
-		var numSteps, numSeries int
-		// TODO(nikunj): Stream blocks to client
-		for blkResult := range resultChan {
-			if blkResult.Err != nil {
-				processErr = blkResult.Err
-				break
-			}
-
-			b := blkResult.Block
-			if !firstElement {
-				firstElement = true
-				firstStepIter, err := b.StepIter()
-				if err != nil {
-					processErr = err
-					break
-				}
-
-				firstSeriesIter, err := b.SeriesIter()
-				if err != nil {
-					processErr = err
-					break
-				}
-
-				numSteps = firstStepIter.StepCount()
-				numSeries = firstSeriesIter.SeriesCount()
-			}
-
-			// Insert blocks sorted by start time
-			sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
-			if err != nil {
-				processErr = err
-				break
-			}
-		}
-	}
-
-	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
-	defer func() {
-		for _, b := range sortedBlockList {
-			b.block.Close()
-		}
-	}()
-
-	if processErr != nil {
-		// Drain anything remaining
-		drainResultChan(results)
-		return nil, processErr
-	}
-
-	return sortedBlocksToSeriesList(sortedBlockList)
-}
-
-func drainResultChan(resultsChan chan executor.Query) {
-	for result := range resultsChan {
-		// Ignore errors during drain
-		if result.Err != nil {
-			continue
-		}
-
-		for range result.Result.ResultChan() {
-			// drain out
-		}
-	}
-}
-
-func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
-	if len(blockList) == 0 {
-		return emptySeriesList, nil
-	}
-
-	firstBlock := blockList[0].block
-	firstStepIter, err := firstBlock.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	firstSeriesIter, err := firstBlock.SeriesIter()
-	if err != nil {
-		return nil, err
-	}
-
-	numSeries := firstSeriesIter.SeriesCount()
-	seriesMeta := firstSeriesIter.SeriesMeta()
-	bounds := firstSeriesIter.Meta().Bounds
-
-	seriesList := make([]*ts.Series, numSeries)
-	seriesIters := make([]block.SeriesIter, len(blockList))
-	// To create individual series, we iterate over seriesIterators for each block in the block list.
-	// For each iterator, the nth current() will be combined to give the nth series
-	for i, b := range blockList {
-		seriesIter, err := b.block.SeriesIter()
-		if err != nil {
-			return nil, err
-		}
-
-		seriesIters[i] = seriesIter
-	}
-
-	numValues := firstStepIter.StepCount() * len(blockList)
-	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
-		valIdx := 0
-		for idx, iter := range seriesIters {
-			if !iter.Next() {
-				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
-			}
-
-			blockSeries, err := iter.Current()
-			if err != nil {
-				return nil, err
-			}
-
-			for i := 0; i < blockSeries.Len(); i++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
-				valIdx++
-			}
-		}
-
-		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
-	}
-
-	return seriesList, nil
-}
-
-func insertSortedBlock(
-	b block.Block,
-	blockList []blockWithMeta,
-	stepCount,
-	seriesCount int,
-) ([]blockWithMeta, error) {
-	blockSeriesIter, err := b.SeriesIter()
-	if err != nil {
-		return nil, err
-	}
-
-	blockMeta := blockSeriesIter.Meta()
-	if len(blockList) == 0 {
-		blockList = append(blockList, blockWithMeta{
-			block: b,
-			meta:  blockMeta,
-		})
-		return blockList, nil
-	}
-
-	blockSeriesCount := blockSeriesIter.SeriesCount()
-	if seriesCount != blockSeriesCount {
-		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
-	}
-
-	blockStepIter, err := b.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	blockStepCount := blockStepIter.StepCount()
-	if stepCount != blockStepCount {
-		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", stepCount, blockStepCount)
-	}
-
-	// Binary search to keep the start times sorted
-	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].meta.Bounds.Start.Before(blockMeta.Bounds.Start) })
-	// Append here ensures enough size in the slice
-	blockList = append(blockList, blockWithMeta{})
-	copy(blockList[index+1:], blockList[index:])
-	blockList[index] = blockWithMeta{
-		block: b,
-		meta:  blockMeta,
-	}
-	return blockList, nil
+	return nil
 }

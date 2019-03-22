@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -60,7 +59,7 @@ var (
 type commitLogWriter interface {
 	Write(
 		ctx context.Context,
-		series commitlog.Series,
+		series ts.Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
@@ -69,7 +68,7 @@ type commitLogWriter interface {
 
 type commitLogWriterFn func(
 	ctx context.Context,
-	series commitlog.Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -77,7 +76,7 @@ type commitLogWriterFn func(
 
 func (fn commitLogWriterFn) Write(
 	ctx context.Context,
-	series commitlog.Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -87,7 +86,7 @@ func (fn commitLogWriterFn) Write(
 
 var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	ctx context.Context,
-	series commitlog.Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -420,7 +419,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			bootstrapEnabled := n.nopts.BootstrapEnabled()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
+				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -557,16 +556,17 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) error {
+) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
-		return err
+		return ts.Series{}, false, err
 	}
-	err = shard.Write(ctx, id, timestamp, value, unit, annotation)
+	series, wasWritten, err := shard.Write(ctx, id, timestamp,
+		value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -577,20 +577,21 @@ func (n *dbNamespace) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) error {
+) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return errNamespaceIndexingDisabled
+		return ts.Series{}, false, errNamespaceIndexingDisabled
 	}
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return err
+		return ts.Series{}, false, err
 	}
-	err = shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
+		value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return err
+	return series, wasWritten, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -603,6 +604,13 @@ func (n *dbNamespace) QueryIDs(
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		return index.QueryResults{}, errNamespaceIndexingDisabled
 	}
+
+	if n.reverseIndex.BootstrapsDone() < 1 {
+		// Similar to reading shard data, return not bootstrapped
+		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		return index.QueryResults{}, xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+	}
+
 	res, err := n.reverseIndex.Query(ctx, query, opts)
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
@@ -640,27 +648,6 @@ func (n *dbNamespace) FetchBlocks(
 	res, err := shard.FetchBlocks(ctx, id, starts)
 	n.metrics.fetchBlocks.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
-}
-
-func (n *dbNamespace) FetchBlocksMetadata(
-	ctx context.Context,
-	shardID uint32,
-	start, end time.Time,
-	limit int64,
-	pageToken int64,
-	opts block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	callStart := n.nowFn()
-	shard, err := n.readableShardAt(shardID)
-	if err != nil {
-		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
-		return nil, nil, err
-	}
-
-	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, start, end, limit,
-		pageToken, opts)
-	n.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, nextPageToken, err
 }
 
 func (n *dbNamespace) FetchBlocksMetadataV2(
@@ -813,7 +800,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	shardBootstrapStatesAtTickStart ShardBootstrapStates,
-	flush persist.DataFlush,
+	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
@@ -851,6 +838,11 @@ func (n *dbNamespace) Flush(
 			// before the previous tick which means that we have no guarantee that all
 			// bootstrapped blocks have been rotated out of the series buffer buckets,
 			// so we wait until the next opportunity.
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
+				WithFields(xlog.NewField("bootstrapStateExists", ok)).
+				Debug("skipping snapshot due to shard bootstrap state before tick")
 			continue
 		}
 
@@ -860,7 +852,7 @@ func (n *dbNamespace) Flush(
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flush); err != nil {
+		if err := shard.Flush(blockStart, flushPersist); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -894,7 +886,11 @@ func (n *dbNamespace) FlushIndex(
 	return err
 }
 
-func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
+func (n *dbNamespace) Snapshot(
+	blockStart,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
+) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -908,6 +904,10 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
+		// Note that we keep the ability to disable snapshots at the namespace level around for
+		// debugging / performance / flexibility reasons, but disabling it can / will cause data
+		// loss due to the commitlog cleanup logic assuming that a valid snapshot checkpoint file
+		// means that all namespaces were successfully snapshotted.
 		n.metrics.snapshot.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -915,7 +915,7 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		isSnapshotting, lastSuccessfulSnapshot := shard.SnapshotState()
+		isSnapshotting, _ := shard.SnapshotState()
 		if isSnapshotting {
 			// Should never happen because snapshots should never overlap
 			// each other (controlled by loop in flush manager)
@@ -925,12 +925,7 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 			continue
 		}
 
-		if snapshotTime.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
-			// Skip if not enough time has elapsed since the previous snapshot
-			continue
-		}
-
-		err := shard.Snapshot(blockStart, snapshotTime, flush)
+		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -983,7 +978,7 @@ func (n *dbNamespace) IsCapturedBySnapshot(
 				return false, nil
 			}
 
-			snapshotTime, err := snapshot.SnapshotTime()
+			snapshotTime, _, err := snapshot.SnapshotTimeAndID()
 			if err != nil {
 				return false, err
 			}
@@ -1201,7 +1196,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
+			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards

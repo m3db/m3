@@ -55,6 +55,7 @@ func (m *MockackRouter) EXPECT() *MockackRouterMockRecorder {
 
 // Ack mocks base method
 func (m *MockackRouter) Ack(ack metadata) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Ack", ack)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -62,25 +63,30 @@ func (m *MockackRouter) Ack(ack metadata) error {
 
 // Ack indicates an expected call of Ack
 func (mr *MockackRouterMockRecorder) Ack(ack interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockackRouter)(nil).Ack), ack)
 }
 
 // Register mocks base method
 func (m *MockackRouter) Register(replicatedShardID uint64, mw messageWriter) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Register", replicatedShardID, mw)
 }
 
 // Register indicates an expected call of Register
 func (mr *MockackRouterMockRecorder) Register(replicatedShardID, mw interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockackRouter)(nil).Register), replicatedShardID, mw)
 }
 
 // Unregister mocks base method
 func (m *MockackRouter) Unregister(replicatedShardID uint64) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Unregister", replicatedShardID)
 }
 
 // Unregister indicates an expected call of Unregister
 func (mr *MockackRouterMockRecorder) Unregister(replicatedShardID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unregister", reflect.TypeOf((*MockackRouter)(nil).Unregister), replicatedShardID)
 }

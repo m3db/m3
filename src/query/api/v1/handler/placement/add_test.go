@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -39,8 +40,11 @@ import (
 
 func TestPlacementAddHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -52,7 +56,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 			w   = httptest.NewRecorder()
 			req *http.Request
 		)
-		if serviceName == M3AggregatorServiceName {
+		if serviceName == apihandler.M3AggregatorServiceName {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[]}`))
@@ -69,7 +73,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 		// Test add success
 		w = httptest.NewRecorder()
-		if serviceName == M3AggregatorServiceName {
+		if serviceName == apihandler.M3AggregatorServiceName {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
@@ -87,11 +91,14 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 	})
 }
 
-func TestPlacementAddHandler_SafeErr(t *testing.T) {
+func TestPlacementAddHandler_SafeErr_NoNewInstance(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
-			handlerOpts                      = NewHandlerOptions(
+			mockClient  = setupPlacementTest(t, ctrl, newValidAvailPlacement())
+			handlerOpts = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
 		)
@@ -101,37 +108,50 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 			w   = httptest.NewRecorder()
 			req *http.Request
 		)
-		if serviceName == M3AggregatorServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[]}`))
+		if serviceName == apihandler.M3AggregatorServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[]}`))
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
-		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+	})
+}
 
-		// Current placement has initializing shards
-		w = httptest.NewRecorder()
-		if serviceName == M3AggregatorServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
+func TestPlacementAddHandler_SafeErr_NotAllAvailable(t *testing.T) {
+	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		var (
+			mockClient  = setupPlacementTest(t, ctrl, newValidInitPlacement())
+			handlerOpts = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewAddHandler(handlerOpts)
+		)
+
+		// Test add failure
+		var (
+			w   = httptest.NewRecorder()
+			req *http.Request
+		)
+		if serviceName == apihandler.M3AggregatorServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
-		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
-		resp = w.Result()
-		body, _ = ioutil.ReadAll(resp.Body)
+		resp := w.Result()
+		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Equal(t, `{"error":"instances [A,B] do not have all shards available"}`+"\n", string(body))
 	})
@@ -139,8 +159,11 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -153,8 +176,8 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 			req *http.Request
 		)
 		switch serviceName {
-		case M3AggregatorServiceName:
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
+		case apihandler.M3AggregatorServiceName:
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		default:
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
@@ -168,14 +191,14 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		)
 
 		switch serviceName {
-		case M3CoordinatorServiceName:
+		case apihandler.M3CoordinatorServiceName:
 			existingPlacement = existingPlacement.
 				SetIsSharded(false).
 				SetReplicaFactor(1)
 			newPlacement = existingPlacement.
 				SetIsSharded(false).
 				SetReplicaFactor(1)
-		case M3AggregatorServiceName:
+		case apihandler.M3AggregatorServiceName:
 			existingPlacement = existingPlacement.
 				SetIsMirrored(true).
 				SetReplicaFactor(1)
@@ -183,9 +206,8 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 				SetIsMirrored(true).
 				SetReplicaFactor(1)
 		}
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
-		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
+
+		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(nil, nil, errors.New("test err"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -194,25 +216,40 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		require.Equal(t, `{"error":"test err"}`+"\n", string(body))
 
 		w = httptest.NewRecorder()
-		if serviceName == M3AggregatorServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
+		if serviceName == apihandler.M3AggregatorServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
-		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
+		newInst := placement.NewInstance().
+			SetID("host1").
+			SetIsolationGroup("rack1").
+			SetZone("test").
+			SetWeight(1).
+			SetEndpoint("http://host1:1234").
+			SetHostname("host1").
+			SetPort(1234)
+
+		returnPlacement := newPlacement.Clone().SetInstances([]placement.Instance{
+			newInst,
+		})
+
+		if serviceName == apihandler.M3CoordinatorServiceName {
+			mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(returnPlacement.SetVersion(1), nil, nil)
+		} else {
+			mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(existingPlacement.Clone().SetVersion(1), nil, nil)
+		}
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()
 		body, _ = ioutil.ReadAll(resp.Body)
 
 		switch serviceName {
-		case M3CoordinatorServiceName:
+		case apihandler.M3CoordinatorServiceName:
 			require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234}},"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
-		case M3AggregatorServiceName:
+		case apihandler.M3AggregatorServiceName:
 			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":0},"version":1}`, string(body))
 		default:
 			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))

@@ -22,10 +22,12 @@ package protobuf
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +56,12 @@ var (
 	testGaugeAfterResetProto = metricpb.Gauge{
 		Id:    []byte{},
 		Value: 0.0,
+	}
+	testTimedMetricBeforeResetProto = metricpb.TimedMetric{
+		Type:      metricpb.MetricType_COUNTER,
+		Id:        []byte("testTimedMetric"),
+		TimeNanos: 1234,
+		Value:     1.23,
 	}
 	testForwardedMetricBeforeResetProto = metricpb.ForwardedMetric{
 		Type:      metricpb.MetricType_COUNTER,
@@ -108,6 +116,33 @@ var (
 
 func TestResetMetricWithMetadatasProtoNilProto(t *testing.T) {
 	require.NotPanics(t, func() { resetMetricWithMetadatasProto(nil) })
+}
+
+func TestResetAggregatedMetricProto(t *testing.T) {
+	input := &metricpb.AggregatedMetric{
+		Metric: metricpb.TimedMetricWithStoragePolicy{
+			TimedMetric: testTimedMetricBeforeResetProto,
+			StoragePolicy: policypb.StoragePolicy{
+				Resolution: &policypb.Resolution{
+					WindowSize: 10 * time.Second.Nanoseconds(),
+					Precision:  time.Second.Nanoseconds(),
+				},
+				Retention: &policypb.Retention{
+					Period: (6 * time.Hour).Nanoseconds(),
+				},
+			},
+		},
+		EncodeNanos: 1234,
+	}
+	resetAggregatedMetricProto(input)
+	require.Equal(t, metricpb.AggregatedMetric{
+		Metric: metricpb.TimedMetricWithStoragePolicy{
+			TimedMetric:   metricpb.TimedMetric{Id: []byte{}},
+			StoragePolicy: policypb.StoragePolicy{},
+		},
+		EncodeNanos: 0,
+	}, *input)
+	require.True(t, cap(input.Metric.TimedMetric.Id) > 0)
 }
 
 func TestResetMetricWithMetadatasProtoOnlyCounter(t *testing.T) {

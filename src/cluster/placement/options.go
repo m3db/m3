@@ -33,6 +33,9 @@ const (
 	defaultIsSharded   = true
 	// By default partial replace should be allowed for better distribution.
 	defaultAllowPartialReplace = true
+	// By default the zone of the hosts within a placement should match the zone
+	// that the placement was created with.
+	defaultAllowAllZones = false
 )
 
 type deploymentOptions struct {
@@ -57,21 +60,23 @@ func defaultTimeNanosFn() int64                    { return shard.UnInitializedV
 func defaultShardValidationFn(s shard.Shard) error { return nil }
 
 type options struct {
-	allowPartialReplace bool
-	addAllCandidates    bool
 	shardStateMode      ShardStateMode
-	isSharded           bool
-	isMirrored          bool
-	isStaged            bool
 	iopts               instrument.Options
 	validZone           string
-	dryrun              bool
 	placementCutOverFn  TimeNanosFn
 	shardCutOverFn      TimeNanosFn
 	shardCutOffFn       TimeNanosFn
-	isShardCutoverFn    ShardValidationFn
-	isShardCutoffFn     ShardValidationFn
+	isShardCutoverFn    ShardValidateFn
+	isShardCutoffFn     ShardValidateFn
+	validateFn          ValidateFn
 	nowFn               clock.NowFn
+	allowPartialReplace bool
+	allowAllZones       bool
+	addAllCandidates    bool
+	dryrun              bool
+	isSharded           bool
+	isMirrored          bool
+	isStaged            bool
 }
 
 // NewOptions returns a default Options.
@@ -86,7 +91,9 @@ func NewOptions() Options {
 		shardCutOffFn:       defaultTimeNanosFn,
 		isShardCutoverFn:    defaultShardValidationFn,
 		isShardCutoffFn:     defaultShardValidationFn,
+		validateFn:          Validate,
 		nowFn:               time.Now,
+		allowAllZones:       defaultAllowAllZones,
 	}
 }
 
@@ -96,6 +103,15 @@ func (o options) AllowPartialReplace() bool {
 
 func (o options) SetAllowPartialReplace(allowPartialReplace bool) Options {
 	o.allowPartialReplace = allowPartialReplace
+	return o
+}
+
+func (o options) AllowAllZones() bool {
+	return o.allowAllZones
+}
+
+func (o options) SetAllowAllZones(allowAllZones bool) Options {
+	o.allowAllZones = allowAllZones
 	return o
 }
 
@@ -198,20 +214,20 @@ func (o options) SetShardCutoffNanosFn(fn TimeNanosFn) Options {
 	return o
 }
 
-func (o options) IsShardCutoverFn() ShardValidationFn {
+func (o options) IsShardCutoverFn() ShardValidateFn {
 	return o.isShardCutoverFn
 }
 
-func (o options) SetIsShardCutoverFn(fn ShardValidationFn) Options {
+func (o options) SetIsShardCutoverFn(fn ShardValidateFn) Options {
 	o.isShardCutoverFn = fn
 	return o
 }
 
-func (o options) IsShardCutoffFn() ShardValidationFn {
+func (o options) IsShardCutoffFn() ShardValidateFn {
 	return o.isShardCutoffFn
 }
 
-func (o options) SetIsShardCutoffFn(fn ShardValidationFn) Options {
+func (o options) SetIsShardCutoffFn(fn ShardValidateFn) Options {
 	o.isShardCutoffFn = fn
 	return o
 }
@@ -222,5 +238,14 @@ func (o options) NowFn() clock.NowFn {
 
 func (o options) SetNowFn(fn clock.NowFn) Options {
 	o.nowFn = fn
+	return o
+}
+
+func (o options) ValidateFnBeforeUpdate() ValidateFn {
+	return o.validateFn
+}
+
+func (o options) SetValidateFnBeforeUpdate(fn ValidateFn) Options {
+	o.validateFn = fn
 	return o
 }

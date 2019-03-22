@@ -24,6 +24,35 @@ import (
 	"time"
 )
 
+// FormatType describes what format to return the data in
+type FormatType int
+
+const (
+	// FormatPromQL returns results in Prom format
+	FormatPromQL FormatType = iota
+	// FormatM3QL returns results in M3QL format
+	FormatM3QL
+)
+
+// FetchedBlockType determines the type for fetched blocks, and how they are
+// transformed from storage type.
+type FetchedBlockType uint8
+
+const (
+	// TypeSingleBlock represents a single block which contains each encoded fetched
+	// series. Default block type for Prometheus queries.
+	TypeSingleBlock FetchedBlockType = iota
+	// TypeMultiBlock represents multiple blocks, each containing a time-based slice
+	// of encoded fetched series. Default block type for non-Prometheus queries.
+	TypeMultiBlock
+	// TypeDecodedBlock represents a single block which contains all fetched series
+	// which get decoded.
+	//
+	// NB: this is a legacy block type, will be deprecated once there is
+	// sufficient confidence that other block types are performing correctly.
+	TypeDecodedBlock
+)
+
 // RequestParams represents the params from the request
 type RequestParams struct {
 	Start time.Time
@@ -34,7 +63,10 @@ type RequestParams struct {
 	Step       time.Duration
 	Query      string
 	Debug      bool
+	KeepNans   bool
 	IncludeEnd bool
+	BlockType  FetchedBlockType
+	FormatType FormatType
 }
 
 // ExclusiveEnd returns the end exclusive

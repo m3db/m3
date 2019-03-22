@@ -55,6 +55,7 @@ func (m *MockvalidatorFactory) EXPECT() *MockvalidatorFactoryMockRecorder {
 
 // ValidatorFor mocks base method
 func (m *MockvalidatorFactory) ValidatorFor(instance instanceMetadata, group *instanceGroup, targetType targetType) validator {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidatorFor", instance, group, targetType)
 	ret0, _ := ret[0].(validator)
 	return ret0
@@ -62,5 +63,6 @@ func (m *MockvalidatorFactory) ValidatorFor(instance instanceMetadata, group *in
 
 // ValidatorFor indicates an expected call of ValidatorFor
 func (mr *MockvalidatorFactoryMockRecorder) ValidatorFor(instance, group, targetType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidatorFor", reflect.TypeOf((*MockvalidatorFactory)(nil).ValidatorFor), instance, group, targetType)
 }

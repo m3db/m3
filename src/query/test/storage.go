@@ -69,6 +69,15 @@ func (s *slowStorage) FetchTags(
 	return s.storage.FetchTags(ctx, query, options)
 }
 
+func (s *slowStorage) CompleteTags(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	time.Sleep(s.delay)
+	return s.storage.CompleteTags(ctx, query, options)
+}
+
 func (s *slowStorage) Write(
 	ctx context.Context,
 	query *storage.WriteQuery,

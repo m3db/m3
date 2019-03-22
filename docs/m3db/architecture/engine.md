@@ -181,7 +181,7 @@ The ticking process runs continously in the background and is responsible for a 
 
 #### Merging all encoders
 
-M3TSZ is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always larger than the previous one. However, real world systems are messy and occassionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The multiple encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.
+M3TSZ is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always chronologically after the previous one. However, real world systems are messy and occasionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The multiple encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.
 
 #### Removing expired / flushed series and blocks from memory
 
@@ -197,9 +197,8 @@ If the blocksize is set to two hours, then all writes for all series for a given
 
 ## Caveats / Limitations
 
-1. M3DB currently supports exact ID based lookups. It does not support tag/secondary indexing. This feature is under development and future versions of M3DB will have support for a built-in reverse index.
-2. M3DB does not support updates / deletes. All data written to M3DB is immutable.
-3. M3DB does not support writing arbitrarily into the past and future. This is generally fine for monitoring workloads, but can be problematic for traditional [OLTP](https://en.wikipedia.org/wiki/Online_transaction_processing) and [OLAP](https://en.wikipedia.org/wiki/Online_analytical_processing) workloads. Future versions of M3DB will have better support for writes with arbitrary timestamps.
-4. M3DB does not support writing datapoints with values other than double-precision floats. Future versions of M3DB will have support for storing arbitrary values.
-5. M3DB does not support storing data with an indefinite retention period, every namespace in M3DB is required to have a retention policy which specifies how long data in that namespace will be retained for. While there is no upper bound on that value (Uber has production databases running with retention periods as high as 5 years), its still required and generally speaking M3DB is optimized for workloads with a well-defined [TTL](https://en.wikipedia.org/wiki/Time_to_live).
-6. M3DB does not support either background data repair or Cassandra-style [read repairs](https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/opsRepairNodesReadRepair.html). Future versions of M3DB will support automatic repairs of data as an ongoing background process.
+1. Currently M3DB does not support arbitrary updates or deletes. There is support for upserts for time series data in a mutable block, however after time series data moves out of the mutable window it then becomes immutable.
+2. M3DB does not support writing arbitrarily into the past and future. This is generally fine for monitoring workloads, but can be problematic for traditional [OLTP](https://en.wikipedia.org/wiki/Online_transaction_processing) and [OLAP](https://en.wikipedia.org/wiki/Online_analytical_processing) workloads. Future versions of M3DB will have better support for writes with arbitrary timestamps.
+3. M3DB does not support writing datapoints with values other than double-precision floats. Future versions of M3DB will have support for storing arbitrary values.
+4. M3DB does not support storing data with an indefinite retention period, every namespace in M3DB is required to have a retention policy which specifies how long data in that namespace will be retained for. While there is no upper bound on that value (Uber has production databases running with retention periods as high as 5 years), its still required and generally speaking M3DB is optimized for workloads with a well-defined [TTL](https://en.wikipedia.org/wiki/Time_to_live).
+5. M3DB does not support either background data repair or Cassandra-style [read repairs](https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/opsRepairNodesReadRepair.html). Future versions of M3DB will support automatic repairs of data as an ongoing background process.

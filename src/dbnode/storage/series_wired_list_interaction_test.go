@@ -108,7 +108,6 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				return
 			default:
 				bl := blPool.Get()
-				bl.ResetRetrievable(time.Time{}, blockSize, nil, block.RetrievableBlockMetadata{})
 				bl.Close()
 			}
 		}

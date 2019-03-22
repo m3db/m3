@@ -20,18 +20,36 @@
 
 package downsample
 
+import (
+	"time"
+)
+
 // Downsampler is a downsampler.
 type Downsampler interface {
-	NewMetricsAppender() MetricsAppender
+	NewMetricsAppender() (MetricsAppender, error)
 }
 
 // MetricsAppender is a metrics appender that can build a samples
 // appender, only valid to use with a single caller at a time.
 type MetricsAppender interface {
 	AddTag(name, value []byte)
-	SamplesAppender() (SamplesAppender, error)
+	SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error)
 	Reset()
 	Finalize()
+}
+
+// SampleAppenderOptions defines the options being used when constructing
+// the samples appender for a metric.
+type SampleAppenderOptions struct {
+	Override      bool
+	OverrideRules SamplesAppenderOverrideRules
+}
+
+// SamplesAppenderOverrideRules provides override rules to
+// use instead of matching against default and dynamic matched rules
+// for an ID.
+type SamplesAppenderOverrideRules struct {
+	MappingRules []MappingRule
 }
 
 // SamplesAppender is a downsampling samples appender,
@@ -39,6 +57,8 @@ type MetricsAppender interface {
 type SamplesAppender interface {
 	AppendCounterSample(value int64) error
 	AppendGaugeSample(value float64) error
+	AppendCounterTimedSample(t time.Time, value int64) error
+	AppendGaugeTimedSample(t time.Time, value float64) error
 }
 
 type downsampler struct {
@@ -46,36 +66,21 @@ type downsampler struct {
 	agg  agg
 }
 
-// NewDownsampler returns a new downsampler.
-func NewDownsampler(
-	opts DownsamplerOptions,
-) (Downsampler, error) {
-	agg, err := opts.newAggregator()
-	if err != nil {
-		return nil, err
-	}
-
-	return &downsampler{
-		opts: opts,
-		agg:  agg,
-	}, nil
-}
-
-func (d *downsampler) NewMetricsAppender() MetricsAppender {
+func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg: d.agg.aggregator,
+		agg:                    d.agg.aggregator,
 		defaultStagedMetadatas: d.agg.defaultStagedMetadatas,
 		clockOpts:              d.agg.clockOpts,
 		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),
 		matcher:                d.agg.matcher,
 		metricTagsIteratorPool: d.agg.pools.metricTagsIteratorPool,
-	})
+	}), nil
 }
 
 func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
 	return &metricsAppender{
 		metricsAppenderOptions: opts,
-		tags:                 newTags(),
-		multiSamplesAppender: newMultiSamplesAppender(),
+		tags:                   newTags(),
+		multiSamplesAppender:   newMultiSamplesAppender(),
 	}
 }

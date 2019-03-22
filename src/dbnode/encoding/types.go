@@ -263,7 +263,7 @@ type OStream interface {
 	WriteBytes(bytes []byte)
 	Reset(buffer checked.Bytes)
 	Discard() checked.Bytes
-	Rawbytes() (checked.Bytes, int)
+	Rawbytes() ([]byte, int)
 }
 
 // EncoderPool provides a pool for encoders

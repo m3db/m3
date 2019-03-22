@@ -648,7 +648,7 @@ func TestMarkAllAsAvailable(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not exist in placement")
 }
 
-func genShardCutoverFn(now time.Time) placement.ShardValidationFn {
+func genShardCutoverFn(now time.Time) placement.ShardValidateFn {
 	return func(s shard.Shard) error {
 		switch s.State() {
 		case shard.Initializing:
@@ -662,7 +662,7 @@ func genShardCutoverFn(now time.Time) placement.ShardValidationFn {
 	}
 }
 
-func genShardCutoffFn(now time.Time, maxWindowSize time.Duration) placement.ShardValidationFn {
+func genShardCutoffFn(now time.Time, maxWindowSize time.Duration) placement.ShardValidateFn {
 	return func(s shard.Shard) error {
 		switch s.State() {
 		case shard.Leaving:

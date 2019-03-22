@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -88,14 +87,12 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{
-			disablePeersBootstrapper:           false,
-			fetchBlocksMetadataEndpointVersion: client.FetchBlocksMetadataEndpointV2,
-			topologyInitializer:                topoInit,
+			disablePeersBootstrapper: false,
+			topologyInitializer:      topoInit,
 		},
 		{
-			disablePeersBootstrapper:           false,
-			fetchBlocksMetadataEndpointVersion: client.FetchBlocksMetadataEndpointV2,
-			topologyInitializer:                topoInit,
+			disablePeersBootstrapper: false,
+			topologyInitializer:      topoInit,
 		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)

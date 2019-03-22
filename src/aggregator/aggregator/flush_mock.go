@@ -56,6 +56,7 @@ func (m *MockflushingMetricList) EXPECT() *MockflushingMetricListMockRecorder {
 
 // Shard mocks base method
 func (m *MockflushingMetricList) Shard() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shard")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -63,11 +64,13 @@ func (m *MockflushingMetricList) Shard() uint32 {
 
 // Shard indicates an expected call of Shard
 func (mr *MockflushingMetricListMockRecorder) Shard() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shard", reflect.TypeOf((*MockflushingMetricList)(nil).Shard))
 }
 
 // ID mocks base method
 func (m *MockflushingMetricList) ID() metricListID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(metricListID)
 	return ret0
@@ -75,11 +78,13 @@ func (m *MockflushingMetricList) ID() metricListID {
 
 // ID indicates an expected call of ID
 func (mr *MockflushingMetricListMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockflushingMetricList)(nil).ID))
 }
 
 // FlushInterval mocks base method
 func (m *MockflushingMetricList) FlushInterval() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -87,11 +92,13 @@ func (m *MockflushingMetricList) FlushInterval() time.Duration {
 
 // FlushInterval indicates an expected call of FlushInterval
 func (mr *MockflushingMetricListMockRecorder) FlushInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushInterval", reflect.TypeOf((*MockflushingMetricList)(nil).FlushInterval))
 }
 
 // LastFlushedNanos mocks base method
 func (m *MockflushingMetricList) LastFlushedNanos() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastFlushedNanos")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -99,26 +106,31 @@ func (m *MockflushingMetricList) LastFlushedNanos() int64 {
 
 // LastFlushedNanos indicates an expected call of LastFlushedNanos
 func (mr *MockflushingMetricListMockRecorder) LastFlushedNanos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastFlushedNanos", reflect.TypeOf((*MockflushingMetricList)(nil).LastFlushedNanos))
 }
 
 // Flush mocks base method
 func (m *MockflushingMetricList) Flush(req flushRequest) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Flush", req)
 }
 
 // Flush indicates an expected call of Flush
 func (mr *MockflushingMetricListMockRecorder) Flush(req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockflushingMetricList)(nil).Flush), req)
 }
 
 // DiscardBefore mocks base method
 func (m *MockflushingMetricList) DiscardBefore(beforeNanos int64) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "DiscardBefore", beforeNanos)
 }
 
 // DiscardBefore indicates an expected call of DiscardBefore
 func (mr *MockflushingMetricListMockRecorder) DiscardBefore(beforeNanos interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardBefore", reflect.TypeOf((*MockflushingMetricList)(nil).DiscardBefore), beforeNanos)
 }
 
@@ -147,6 +159,7 @@ func (m *MockfixedOffsetFlushingMetricList) EXPECT() *MockfixedOffsetFlushingMet
 
 // Shard mocks base method
 func (m *MockfixedOffsetFlushingMetricList) Shard() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shard")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -154,11 +167,13 @@ func (m *MockfixedOffsetFlushingMetricList) Shard() uint32 {
 
 // Shard indicates an expected call of Shard
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) Shard() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shard", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).Shard))
 }
 
 // ID mocks base method
 func (m *MockfixedOffsetFlushingMetricList) ID() metricListID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(metricListID)
 	return ret0
@@ -166,11 +181,13 @@ func (m *MockfixedOffsetFlushingMetricList) ID() metricListID {
 
 // ID indicates an expected call of ID
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).ID))
 }
 
 // FlushInterval mocks base method
 func (m *MockfixedOffsetFlushingMetricList) FlushInterval() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -178,11 +195,13 @@ func (m *MockfixedOffsetFlushingMetricList) FlushInterval() time.Duration {
 
 // FlushInterval indicates an expected call of FlushInterval
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) FlushInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushInterval", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).FlushInterval))
 }
 
 // LastFlushedNanos mocks base method
 func (m *MockfixedOffsetFlushingMetricList) LastFlushedNanos() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastFlushedNanos")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -190,31 +209,37 @@ func (m *MockfixedOffsetFlushingMetricList) LastFlushedNanos() int64 {
 
 // LastFlushedNanos indicates an expected call of LastFlushedNanos
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) LastFlushedNanos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastFlushedNanos", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).LastFlushedNanos))
 }
 
 // Flush mocks base method
 func (m *MockfixedOffsetFlushingMetricList) Flush(req flushRequest) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Flush", req)
 }
 
 // Flush indicates an expected call of Flush
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) Flush(req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).Flush), req)
 }
 
 // DiscardBefore mocks base method
 func (m *MockfixedOffsetFlushingMetricList) DiscardBefore(beforeNanos int64) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "DiscardBefore", beforeNanos)
 }
 
 // DiscardBefore indicates an expected call of DiscardBefore
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) DiscardBefore(beforeNanos interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardBefore", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).DiscardBefore), beforeNanos)
 }
 
 // FlushOffset mocks base method
 func (m *MockfixedOffsetFlushingMetricList) FlushOffset() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushOffset")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -222,5 +247,6 @@ func (m *MockfixedOffsetFlushingMetricList) FlushOffset() time.Duration {
 
 // FlushOffset indicates an expected call of FlushOffset
 func (mr *MockfixedOffsetFlushingMetricListMockRecorder) FlushOffset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushOffset", reflect.TypeOf((*MockfixedOffsetFlushingMetricList)(nil).FlushOffset))
 }

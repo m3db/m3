@@ -22,27 +22,36 @@ package namespace
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
+	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 
-const (
-	// AddURL is the url for the namespace add handler.
-	AddURL = handler.RoutePrefixV1 + "/namespace"
+var (
+	// DeprecatedM3DBAddURL is the old url for the namespace add handler, maintained
+	// for backwards compatibility.
+	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
+
+	// M3DBAddURL is the url for the M3DB namespace add handler.
+	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
+
+	errNamespaceExists = errors.New("namespace with same ID already exists")
 )
 
 // AddHandler is the handler for namespace adds.
@@ -64,8 +73,15 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nsRegistry, err := h.Add(md)
+	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	nsRegistry, err := h.Add(md, opts)
 	if err != nil {
+		if err == errNamespaceExists {
+			logger.Error("namespace already exists", zap.Error(err))
+			xhttp.Error(w, err, http.StatusConflict)
+			return
+		}
+
 		logger.Error("unable to get namespace", zap.Any("error", err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
@@ -94,7 +110,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, 
 }
 
 // Add adds a namespace.
-func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, error) {
+func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest, opts handler.ServiceOptions) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
@@ -102,7 +118,11 @@ func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, e
 		return emptyReg, fmt.Errorf("unable to get metadata: %v", err)
 	}
 
-	store, err := h.client.KV()
+	kvOpts := kv.NewOverrideOptions().
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+
+	store, err := h.client.Store(kvOpts)
 	if err != nil {
 		return emptyReg, err
 	}
@@ -110,6 +130,16 @@ func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, e
 	currentMetadata, version, err := Metadata(store)
 	if err != nil {
 		return emptyReg, err
+	}
+
+	// Since this endpoint is `/add` and not in-place update, return an error if
+	// the NS already exists. NewMap will return an error if there's duplicate
+	// entries with the same name, but it's abstracted away behind a MultiError so
+	// we can't easily check that it's a conflict in the handler.
+	for _, ns := range currentMetadata {
+		if ns.ID().Equal(md.ID()) {
+			return emptyReg, errNamespaceExists
+		}
 	}
 
 	nsMap, err := namespace.NewMap(append(currentMetadata, md))

@@ -40,6 +40,7 @@
 		PlacementInitRequest
 		PlacementGetResponse
 		PlacementAddRequest
+		PlacementReplaceRequest
 		TopicGetResponse
 		TopicInitRequest
 		TopicAddRequest

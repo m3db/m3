@@ -64,11 +64,14 @@ func Service(clusterClient clusterclient.Client) (topic.Service, error) {
 
 // RegisterRoutes registers the topic routes
 func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
-	logged := logging.WithResponseTimeLogging
+	wrapped := logging.WithResponseTimeAndPanicErrorLogging
 
-	r.HandleFunc(InitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
-	r.HandleFunc(GetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
+	r.HandleFunc(InitURL, wrapped(NewInitHandler(client, cfg)).ServeHTTP).
+		Methods(InitHTTPMethod)
+	r.HandleFunc(GetURL, wrapped(NewGetHandler(client, cfg)).ServeHTTP).
+		Methods(GetHTTPMethod)
+	r.HandleFunc(AddURL, wrapped(NewAddHandler(client, cfg)).ServeHTTP).
+		Methods(AddHTTPMethod)
 }
 
 func topicName(headers http.Header) string {

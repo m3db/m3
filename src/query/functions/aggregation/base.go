@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -108,11 +109,20 @@ type baseNode struct {
 	controller *transform.Controller
 }
 
+func (n *baseNode) Params() parser.Params {
+	return n.op
+}
+
 // Process the block
-func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+}
+
+// ProcessBlock performs the aggregation on the input block, and returns the aggregated result.
+func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	params := n.op.params
@@ -121,36 +131,36 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opType,
+		[]byte(n.op.opType),
 		seriesMetas,
 	)
 	meta.Tags, metas = utils.DedupeMetadata(metas)
 
-	builder, err := n.controller.BlockBuilder(meta, metas)
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := builder.AddCols(stepIter.StepCount()); err != nil {
-		return err
+		return nil, err
 	}
 
 	aggregatedValues := make([]float64, len(buckets))
 	for index := 0; stepIter.Next(); index++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := stepIter.Current()
 		values := step.Values()
 		for i, bucket := range buckets {
 			aggregatedValues[i] = n.op.aggFn(values, bucket)
 		}
 
-		builder.AppendValues(index, aggregatedValues)
+		if err := builder.AppendValues(index, aggregatedValues); err != nil {
+			return nil, err
+		}
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return n.controller.Process(nextBlock)
+	if err = stepIter.Err(); err != nil {
+		return nil, err
+	}
+
+	return builder.Build(), nil
 }

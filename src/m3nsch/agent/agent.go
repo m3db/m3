@@ -21,8 +21,11 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -35,24 +38,25 @@ import (
 )
 
 var (
-	errCannotStartNotInitialized = fmt.Errorf("unable to start, agent is not initialized")
-	errCannotStopNotInitialized  = fmt.Errorf("unable to stop, agent is not initialized")
-	errAlreadyInitialized        = fmt.Errorf("unable to initialize, agent already initialized")
+	errCannotStartNotInitialized = errors.New("unable to start, agent is not initialized")
+	errCannotStopNotInitialized  = errors.New("unable to stop, agent is not initialized")
+	errAlreadyInitialized        = errors.New("unable to initialize, agent already initialized")
 )
 
 type m3nschAgent struct {
 	sync.RWMutex
-	token       string              // workload token
-	workload    m3nsch.Workload     // workload to operate upon
-	registry    datums.Registry     // workload fake metric registry
-	session     client.Session      // m3db session to operate upon
-	agentStatus m3nsch.Status       // agent status
-	opts        m3nsch.AgentOptions // agent options
-	logger      xlog.Logger         // logger
-	metrics     agentMetrics        // agent performance metrics
-	workerChans workerChannels      // worker-idx -> channel for worker notification
-	workerWg    sync.WaitGroup      // used to track when workers are finished
-	params      workerParams        // worker params
+	token         string              // workload token
+	workload      m3nsch.Workload     // workload to operate upon
+	registry      datums.Registry     // workload fake metric registry
+	session       client.Session      // m3db session to operate upon
+	agentStatus   m3nsch.Status       // agent status
+	opts          m3nsch.AgentOptions // agent options
+	logger        xlog.Logger         // logger
+	metrics       agentMetrics        // agent performance metrics
+	workerChans   workerChannels      // worker-idx -> channel for worker notification
+	workerWg      sync.WaitGroup      // used to track when workers are finished
+	params        workerParams        // worker params
+	lastStartTime int64               // last time a workload was started as unix epoch
 }
 
 type workerParams struct {
@@ -214,6 +218,7 @@ func (ms *m3nschAgent) Start() error {
 	concurrency := ms.opts.Concurrency()
 	ms.workerChans = newWorkerChannels(concurrency)
 	ms.agentStatus = m3nsch.StatusRunning
+	atomic.StoreInt64(&ms.lastStartTime, time.Now().Unix())
 	ms.workerWg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
 		go ms.runWorker(i, ms.workerChans[i])
@@ -299,11 +304,25 @@ func (ms *m3nschAgent) runWorker(workerIdx int, workerCh chan workerNotification
 			fakeNow = fakeNow.Add(tickPeriod)
 			metric := ms.nextWorkerMetric(workerIdx)
 			start := time.Now()
+
+			// If configured to generate uniques over time, modify the metric to add
+			// cardinality.
+			if u := ms.workload.UniqueAmplifier; u > 0 {
+				lastStart := time.Unix(atomic.LoadInt64(&ms.lastStartTime), 0)
+				suffix := "/" + metricUniqueSuffix(lastStart, start, u)
+				metric.name += suffix
+			}
+
 			err := ms.params.fn(workerIdx, ms.session, namespace, metric, fakeNow, timeUnit)
 			elapsed := time.Since(start)
 			methodMetrics.ReportSuccessOrError(err, elapsed)
 		}
 	}
+}
+
+func metricUniqueSuffix(startTime, now time.Time, uniqueAmplifier float64) string {
+	n := now.Sub(startTime).Seconds() * uniqueAmplifier
+	return strconv.Itoa(int(n))
 }
 
 type generatedMetric struct {

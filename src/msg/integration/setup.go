@@ -284,7 +284,7 @@ func (s *setup) KillConnection(t *testing.T, idx int) {
 	c.closeOneConsumer()
 
 	log.SimpleLogger.Debugf("killed a consumer on instance: %s", c.instance.ID())
-	p, _, err := cs.placementService.Placement()
+	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
 	log.SimpleLogger.Debugf("placement: %s", p.String())
 }
@@ -299,7 +299,7 @@ func (s *setup) KillInstance(t *testing.T, idx int) {
 	c.Close()
 
 	log.SimpleLogger.Debugf("killed instance: %s", c.instance.ID())
-	p, _, err := cs.placementService.Placement()
+	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
 	log.SimpleLogger.Debugf("placement: %s", p.String())
 }
@@ -311,7 +311,7 @@ func (s *setup) AddInstance(t *testing.T, idx int) {
 	newConsumer := newTestConsumer(t, cs)
 	newConsumer.consumeAndAck(s.totalConsumed)
 
-	p, _, err := cs.placementService.Placement()
+	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
 	log.SimpleLogger.Debugf("old placement: %s", p.String())
 
@@ -331,7 +331,7 @@ func (s *setup) RemoveInstance(t *testing.T, idx int) {
 	oldConsumer := testConsumers[l-1]
 	defer oldConsumer.Close()
 
-	p, _, err := cs.placementService.Placement()
+	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
 	log.SimpleLogger.Debugf("old placement: %s", p.String())
 
@@ -354,7 +354,7 @@ func (s *setup) ReplaceInstance(t *testing.T, idx int) {
 	oldConsumer := testConsumers[l-1]
 	defer oldConsumer.Close()
 
-	p, _, err := cs.placementService.Placement()
+	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
 	log.SimpleLogger.Debugf("old placement: %s", p.String())
 

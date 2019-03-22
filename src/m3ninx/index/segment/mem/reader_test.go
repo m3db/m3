@@ -41,9 +41,9 @@ func TestReaderMatchExact(t *testing.T) {
 
 	name, value := []byte("apple"), []byte("red")
 	postingsList := roaring.NewPostingsList()
-	postingsList.Insert(postings.ID(42))
-	postingsList.Insert(postings.ID(50))
-	postingsList.Insert(postings.ID(57))
+	require.NoError(t, postingsList.Insert(postings.ID(42)))
+	require.NoError(t, postingsList.Insert(postings.ID(50)))
+	require.NoError(t, postingsList.Insert(postings.ID(57)))
 
 	segment := NewMockReadableSegment(mockCtrl)
 	gomock.InOrder(
@@ -68,9 +68,9 @@ func TestReaderMatchRegex(t *testing.T) {
 	name, regexp := []byte("apple"), []byte("r.*")
 	compiled := re.MustCompile(string(regexp))
 	postingsList := roaring.NewPostingsList()
-	postingsList.Insert(postings.ID(42))
-	postingsList.Insert(postings.ID(50))
-	postingsList.Insert(postings.ID(57))
+	require.NoError(t, postingsList.Insert(postings.ID(42)))
+	require.NoError(t, postingsList.Insert(postings.ID(50)))
+	require.NoError(t, postingsList.Insert(postings.ID(57)))
 
 	segment := NewMockReadableSegment(mockCtrl)
 	gomock.InOrder(
@@ -95,11 +95,11 @@ func TestReaderMatchAll(t *testing.T) {
 	)
 
 	postingsList := roaring.NewPostingsList()
-	postingsList.Insert(postings.ID(42))
-	postingsList.Insert(postings.ID(43))
-	postingsList.Insert(postings.ID(44))
-	postingsList.Insert(postings.ID(45))
-	postingsList.Insert(postings.ID(46))
+	require.NoError(t, postingsList.Insert(postings.ID(42)))
+	require.NoError(t, postingsList.Insert(postings.ID(43)))
+	require.NoError(t, postingsList.Insert(postings.ID(44)))
+	require.NoError(t, postingsList.Insert(postings.ID(45)))
+	require.NoError(t, postingsList.Insert(postings.ID(46)))
 
 	reader := newReader(nil, readerDocRange{minID, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 
@@ -141,9 +141,9 @@ func TestReaderDocs(t *testing.T) {
 	)
 
 	postingsList := roaring.NewPostingsList()
-	postingsList.Insert(postings.ID(42))
-	postingsList.Insert(postings.ID(47))
-	postingsList.Insert(postings.ID(57)) // IDs past maxID should be ignored.
+	require.NoError(t, postingsList.Insert(postings.ID(42)))
+	require.NoError(t, postingsList.Insert(postings.ID(47)))
+	require.NoError(t, postingsList.Insert(postings.ID(57))) // IDs past maxID should be ignored.
 
 	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 

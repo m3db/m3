@@ -26,9 +26,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 // Type describes the type of storage
@@ -41,6 +44,8 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters
 	TypeMultiDC
+	// TypeDebug is for storages that are used for debugging purposes
+	TypeDebug
 )
 
 // Storage provides an interface for reading and writing to the tsdb
@@ -76,10 +81,60 @@ func (q *FetchQuery) String() string {
 	return q.Raw
 }
 
-// FetchOptions represents the options for fetch query
+// FetchOptions represents the options for fetch query.
 type FetchOptions struct {
-	Limit    int
-	KillChan chan struct{}
+	// Limit is the maximum number of series to return.
+	Limit int
+	// BlockType is the block type that the fetch function returns.
+	BlockType models.FetchedBlockType
+	// FanoutOptions are the options for the fetch namespace fanout.
+	FanoutOptions *FanoutOptions
+	// Enforcer is used to enforce resource limits on the number of datapoints
+	// used by a given query. Limits are imposed at time of decompression.
+	Enforcer cost.ChainedEnforcer
+	// Scope is used to report metrics about the fetch.
+	Scope tally.Scope
+}
+
+// FanoutOptions describes which namespaces should be fanned out to for
+// the query.
+type FanoutOptions struct {
+	// FanoutUnaggregated describes the fanout options for
+	// unaggregated namespaces.
+	FanoutUnaggregated FanoutOption
+	// FanoutAggregated describes the fanout options for
+	// aggregated namespaces.
+	FanoutAggregated FanoutOption
+	// FanoutAggregatedOptimized describes the fanout options for the
+	// aggregated namespace optimization.
+	FanoutAggregatedOptimized FanoutOption
+}
+
+// FanoutOption describes the fanout option.
+type FanoutOption uint
+
+const (
+	// FanoutDefault defaults to the fanout option.
+	FanoutDefault FanoutOption = iota
+	// FanoutForceDisable forces disabling fanout.
+	FanoutForceDisable
+	// FanoutForceEnable forces enabling fanout.
+	FanoutForceEnable
+)
+
+// NewFetchOptions creates a new fetch options.
+func NewFetchOptions() *FetchOptions {
+	return &FetchOptions{
+		Limit:     0,
+		BlockType: models.TypeSingleBlock,
+		FanoutOptions: &FanoutOptions{
+			FanoutUnaggregated:        FanoutDefault,
+			FanoutAggregated:          FanoutDefault,
+			FanoutAggregatedOptimized: FanoutDefault,
+		},
+		Enforcer: cost.NoopChainedEnforcer(),
+		Scope:    tally.NoopScope,
+	}
 }
 
 // Querier handles queries against a storage.
@@ -104,9 +159,16 @@ type Querier interface {
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*SearchResults, error)
+
+	// CompleteTags returns autocompleted tag results
+	CompleteTags(
+		ctx context.Context,
+		query *CompleteTagsQuery,
+		options *FetchOptions,
+	) (*CompleteTagsResult, error)
 }
 
-// WriteQuery represents the input timeseries that is written to M3DB
+// WriteQuery represents the input timeseries that is written to the db
 type WriteQuery struct {
 	Tags       models.Tags
 	Datapoints ts.Datapoints
@@ -116,7 +178,50 @@ type WriteQuery struct {
 }
 
 func (q *WriteQuery) String() string {
-	return q.Tags.ID()
+	return string(q.Tags.ID())
+}
+
+// CompleteTagsQuery represents a query that returns an autocompleted
+// set of tags that exist in the db
+type CompleteTagsQuery struct {
+	CompleteNameOnly bool
+	FilterNameTags   [][]byte
+	TagMatchers      models.Matchers
+}
+
+// SeriesMatchQuery represents a query that returns a set of series
+// that match the query
+type SeriesMatchQuery struct {
+	TagMatchers []models.Matchers
+	Start       time.Time
+	End         time.Time
+}
+
+func (q *CompleteTagsQuery) String() string {
+	if q.CompleteNameOnly {
+		return fmt.Sprintf("completing tag name for query %s", q.TagMatchers)
+	}
+
+	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
+}
+
+// CompletedTag is an autocompleted tag with a name and a list of possible values
+type CompletedTag struct {
+	Name   []byte
+	Values [][]byte
+}
+
+// CompleteTagsResult represents a set of autocompleted tag names and values
+type CompleteTagsResult struct {
+	CompleteNameOnly bool
+	CompletedTags    []CompletedTag
+}
+
+// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
+// incoming CompleteTagsResult values
+type CompleteTagsResultBuilder interface {
+	Add(*CompleteTagsResult) error
+	Build() CompleteTagsResult
 }
 
 // Appender provides batched appends against a storage.

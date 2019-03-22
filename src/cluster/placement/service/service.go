@@ -76,180 +76,222 @@ func (ps *placementService) BuildInitialPlacement(
 		ids[i] = uint32(i)
 	}
 
-	p, err := ps.algo.InitialPlacement(instances, ids, rf)
+	tempPlacement, err := ps.algo.InitialPlacement(instances, ids, rf)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := placement.Validate(p); err != nil {
+	if err := placement.Validate(tempPlacement); err != nil {
 		return nil, err
 	}
 
-	return p, ps.SetIfNotExist(p)
+	return ps.SetIfNotExist(tempPlacement)
 }
 
 func (ps *placementService) AddReplica() (placement.Placement, error) {
-	p, v, err := ps.Placement()
+	curPlacement, err := ps.Placement()
 	if err != nil {
 		return nil, err
 	}
 
-	if p, err = ps.algo.AddReplica(p); err != nil {
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
 		return nil, err
 	}
 
-	if err := placement.Validate(p); err != nil {
+	tempPlacement, err := ps.algo.AddReplica(curPlacement)
+	if err != nil {
 		return nil, err
 	}
 
-	return p, ps.CheckAndSet(p, v)
+	if err := placement.Validate(tempPlacement); err != nil {
+		return nil, err
+	}
+
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) AddInstances(
 	candidates []placement.Instance,
 ) (placement.Placement, []placement.Instance, error) {
-	p, v, err := ps.Placement()
+	curPlacement, err := ps.Placement()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	addingInstances, err := ps.selector.SelectAddingInstances(candidates, p)
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, nil, err
+	}
+
+	addingInstances, err := ps.selector.SelectAddingInstances(candidates, curPlacement)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if p, err = ps.algo.AddInstances(p, addingInstances); err != nil {
+	tempPlacement, err := ps.algo.AddInstances(curPlacement, addingInstances)
+	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := placement.Validate(p); err != nil {
+	if err := placement.Validate(tempPlacement); err != nil {
 		return nil, nil, err
 	}
 
 	for i, instance := range addingInstances {
-		addingInstance, ok := p.Instance(instance.ID())
+		addingInstance, ok := tempPlacement.Instance(instance.ID())
 		if !ok {
 			return nil, nil, fmt.Errorf("unable to find added instance [%s] in new placement", instance.ID())
 		}
 		addingInstances[i] = addingInstance
 	}
 
-	return p, addingInstances, ps.CheckAndSet(p, v)
+	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.Version())
+	if err != nil {
+		return nil, nil, err
+	}
+	return newPlacement, addingInstances, nil
 }
 
 func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Placement, error) {
-	p, v, err := ps.Placement()
+	curPlacement, err := ps.Placement()
 	if err != nil {
 		return nil, err
 	}
 
-	if p, err = ps.algo.RemoveInstances(p, instanceIDs); err != nil {
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
 		return nil, err
 	}
 
-	if err := placement.Validate(p); err != nil {
+	tempPlacement, err := ps.algo.RemoveInstances(curPlacement, instanceIDs)
+	if err != nil {
 		return nil, err
 	}
 
-	return p, ps.CheckAndSet(p, v)
+	if err := placement.Validate(tempPlacement); err != nil {
+		return nil, err
+	}
+
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) ReplaceInstances(
 	leavingInstanceIDs []string,
 	candidates []placement.Instance,
 ) (placement.Placement, []placement.Instance, error) {
-	p, v, err := ps.Placement()
+	curPlacement, err := ps.Placement()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	addingInstances, err := ps.selector.SelectReplaceInstances(candidates, leavingInstanceIDs, p)
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, nil, err
+	}
+
+	addingInstances, err := ps.selector.SelectReplaceInstances(candidates, leavingInstanceIDs, curPlacement)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if p, err = ps.algo.ReplaceInstances(p, leavingInstanceIDs, addingInstances); err != nil {
+	tempPlacement, err := ps.algo.ReplaceInstances(curPlacement, leavingInstanceIDs, addingInstances)
+	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := placement.Validate(p); err != nil {
+	if err := placement.Validate(tempPlacement); err != nil {
 		return nil, nil, err
 	}
 
 	addedInstances := make([]placement.Instance, 0, len(addingInstances))
 	for _, inst := range addingInstances {
-		addedInstance, ok := p.Instance(inst.ID())
+		addedInstance, ok := tempPlacement.Instance(inst.ID())
 		if !ok {
-			return nil, nil, fmt.Errorf("unable to find added instance [%+v] in new placement [%+v]", inst, p)
+			return nil, nil, fmt.Errorf("unable to find added instance [%+v] in new placement [%+v]", inst, curPlacement)
 		}
 		addedInstances = append(addedInstances, addedInstance)
 	}
 
-	return p, addedInstances, ps.CheckAndSet(p, v)
-}
-
-func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
-	p, v, err := ps.Placement()
+	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.Version())
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-
-	if p, err = ps.algo.MarkShardsAvailable(p, instanceID, shardIDs...); err != nil {
-		return err
-	}
-
-	if err := placement.Validate(p); err != nil {
-		return err
-	}
-
-	return ps.CheckAndSet(p, v)
+	return newPlacement, addedInstances, nil
 }
 
-func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error) {
-	p, v, err := ps.Placement()
+func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) (placement.Placement, error) {
+	curPlacement, err := ps.Placement()
 	if err != nil {
 		return nil, err
 	}
 
-	p, updated, err := ps.algo.MarkAllShardsAvailable(p)
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
+	tempPlacement, err := ps.algo.MarkShardsAvailable(curPlacement, instanceID, shardIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := placement.Validate(tempPlacement); err != nil {
+		return nil, err
+	}
+
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
+}
+
+func (ps *placementService) MarkInstanceAvailable(instanceID string) (placement.Placement, error) {
+	curPlacement, err := ps.Placement()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
+	instance, exist := curPlacement.Instance(instanceID)
+	if !exist {
+		return nil, fmt.Errorf("could not find instance %s in placement", instanceID)
+	}
+
+	shards := instance.Shards().ShardsForState(shard.Initializing)
+	shardIDs := make([]uint32, len(shards))
+	for i, s := range shards {
+		shardIDs[i] = s.ID()
+	}
+
+	tempPlacement, err := ps.algo.MarkShardsAvailable(curPlacement, instanceID, shardIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := placement.Validate(tempPlacement); err != nil {
+		return nil, err
+	}
+
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
+}
+
+func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error) {
+	curPlacement, err := ps.Placement()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
+	tempPlacement, updated, err := ps.algo.MarkAllShardsAvailable(curPlacement)
 	if err != nil {
 		return nil, err
 	}
 	if !updated {
-		return p, nil
+		return curPlacement, nil
 	}
 
-	if err := placement.Validate(p); err != nil {
+	if err := placement.Validate(tempPlacement); err != nil {
 		return nil, err
 	}
 
-	return p, ps.CheckAndSet(p, v)
-}
-
-func (ps *placementService) MarkInstanceAvailable(instanceID string) error {
-	p, v, err := ps.Placement()
-	if err != nil {
-		return err
-	}
-
-	instance, exist := p.Instance(instanceID)
-	if !exist {
-		return fmt.Errorf("could not find instance %s in placement", instanceID)
-	}
-
-	for _, s := range instance.Shards().All() {
-		if s.State() != shard.Initializing {
-			continue
-		}
-		p, err = ps.algo.MarkShardsAvailable(p, instanceID, s.ID())
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := placement.Validate(p); err != nil {
-		return err
-	}
-
-	return ps.CheckAndSet(p, v)
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }

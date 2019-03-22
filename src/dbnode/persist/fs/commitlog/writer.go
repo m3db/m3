@@ -26,11 +26,11 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -54,6 +54,8 @@ const (
 		chunkHeaderChecksumDataLen
 
 	defaultBitSetLength = 65536
+
+	defaultEncoderBuffSize = 16384
 )
 
 var (
@@ -65,18 +67,19 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time, duration time.Duration) error
+	Open() (persist.CommitLogFile, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
-		series Series,
+		series ts.Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
 	) error
 
-	// Flush will flush the contents to the disk, useful when first testing if first commit log is writable
-	Flush() error
+	// Flush will flush any data in the writers buffer to the chunkWriter, essentially forcing
+	// a new chunk to be created. Optionally forces the data to be FSync'd to disk.
+	Flush(sync bool) error
 
 	// Close the reader
 	Close() error
@@ -88,26 +91,27 @@ type chunkWriter interface {
 	reset(f xos.File)
 	close() error
 	isOpen() bool
+	sync() error
 }
 
 type flushFn func(err error)
 
 type writer struct {
-	filePathPrefix     string
-	newFileMode        os.FileMode
-	newDirectoryMode   os.FileMode
-	nowFn              clock.NowFn
-	start              time.Time
-	duration           time.Duration
-	chunkWriter        chunkWriter
-	chunkReserveHeader []byte
-	buffer             *bufio.Writer
-	sizeBuffer         []byte
-	seen               *bitset.BitSet
-	logEncoder         *msgpack.Encoder
-	metadataEncoder    *msgpack.Encoder
-	tagEncoder         serialize.TagEncoder
-	tagSliceIter       ident.TagsIterator
+	filePathPrefix      string
+	newFileMode         os.FileMode
+	newDirectoryMode    os.FileMode
+	nowFn               clock.NowFn
+	chunkWriter         chunkWriter
+	chunkReserveHeader  []byte
+	buffer              *bufio.Writer
+	sizeBuffer          []byte
+	seen                *bitset.BitSet
+	logEncoder          *msgpack.Encoder
+	logEncoderBuff      []byte
+	metadataEncoderBuff []byte
+	tagEncoder          serialize.TagEncoder
+	tagSliceIter        ident.TagsIterator
+	opts                Options
 }
 
 func newCommitLogWriter(
@@ -117,60 +121,70 @@ func newCommitLogWriter(
 	shouldFsync := opts.Strategy() == StrategyWriteWait
 
 	return &writer{
-		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
-		newFileMode:        opts.FilesystemOptions().NewFileMode(),
-		newDirectoryMode:   opts.FilesystemOptions().NewDirectoryMode(),
-		nowFn:              opts.ClockOptions().NowFn(),
-		chunkWriter:        newChunkWriter(flushFn, shouldFsync),
-		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
-		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
-		seen:               bitset.NewBitSet(defaultBitSetLength),
-		logEncoder:         msgpack.NewEncoder(),
-		metadataEncoder:    msgpack.NewEncoder(),
-		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
-		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
+		filePathPrefix:      opts.FilesystemOptions().FilePathPrefix(),
+		newFileMode:         opts.FilesystemOptions().NewFileMode(),
+		newDirectoryMode:    opts.FilesystemOptions().NewDirectoryMode(),
+		nowFn:               opts.ClockOptions().NowFn(),
+		chunkWriter:         newChunkWriter(flushFn, shouldFsync),
+		chunkReserveHeader:  make([]byte, chunkHeaderLen),
+		buffer:              bufio.NewWriterSize(nil, opts.FlushSize()),
+		sizeBuffer:          make([]byte, binary.MaxVarintLen64),
+		seen:                bitset.NewBitSet(defaultBitSetLength),
+		logEncoder:          msgpack.NewEncoder(),
+		logEncoderBuff:      make([]byte, 0, defaultEncoderBuffSize),
+		metadataEncoderBuff: make([]byte, 0, defaultEncoderBuffSize),
+		tagEncoder:          opts.FilesystemOptions().TagEncoderPool().Get(),
+		tagSliceIter:        ident.NewTagsIterator(ident.Tags{}),
+		opts:                opts,
 	}
 }
 
-func (w *writer) Open(start time.Time, duration time.Duration) error {
+func (w *writer) Open() (persist.CommitLogFile, error) {
 	if w.isOpen() {
-		return errCommitLogWriterAlreadyOpen
+		return persist.CommitLogFile{}, errCommitLogWriterAlreadyOpen
+	}
+
+	// Reset buffers since they will grow 2x on demand so we want to make sure that
+	// one exceptionally large write does not cause them to remain oversized forever.
+	if cap(w.logEncoderBuff) != defaultEncoderBuffSize {
+		w.logEncoderBuff = make([]byte, 0, defaultEncoderBuffSize)
+	}
+	if cap(w.metadataEncoderBuff) != defaultEncoderBuffSize {
+		w.metadataEncoderBuff = make([]byte, 0, defaultEncoderBuffSize)
 	}
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
-		return err
+		return persist.CommitLogFile{}, err
 	}
 
-	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
+	filePath, index, err := NextFile(w.opts)
 	if err != nil {
-		return err
+		return persist.CommitLogFile{}, err
 	}
 	logInfo := schema.LogInfo{
-		Start:    start.UnixNano(),
-		Duration: int64(duration),
-		Index:    int64(index),
+		Index: int64(index),
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
-		return err
+		return persist.CommitLogFile{}, err
 	}
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
-		return err
+		return persist.CommitLogFile{}, err
 	}
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
-		return err
+		return persist.CommitLogFile{}, err
 	}
 
-	w.start = start
-	w.duration = duration
-	return nil
+	return persist.CommitLogFile{
+		FilePath: filePath,
+		Index:    int64(index),
+	}, nil
 }
 
 func (w *writer) isOpen() bool {
@@ -178,7 +192,7 @@ func (w *writer) isOpen() bool {
 }
 
 func (w *writer) Write(
-	series Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -217,22 +231,27 @@ func (w *writer) Write(
 		metadata.Namespace = series.Namespace.Bytes()
 		metadata.Shard = series.Shard
 		metadata.EncodedTags = encodedTags
-		w.metadataEncoder.Reset()
-		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
+
+		var err error
+		w.metadataEncoderBuff, err = msgpack.EncodeLogMetadataFast(w.metadataEncoderBuff[:0], metadata)
+		if err != nil {
 			return err
 		}
-		logEntry.Metadata = w.metadataEncoder.Bytes()
+		logEntry.Metadata = w.metadataEncoderBuff
 	}
 
 	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
 	logEntry.Value = datapoint.Value
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation
-	w.logEncoder.Reset()
-	if err := w.logEncoder.EncodeLogEntry(logEntry); err != nil {
+
+	var err error
+	w.logEncoderBuff, err = msgpack.EncodeLogEntryFast(w.logEncoderBuff[:0], logEntry)
+	if err != nil {
 		return err
 	}
-	if err := w.write(w.logEncoder.Bytes()); err != nil {
+
+	if err := w.write(w.logEncoderBuff); err != nil {
 		return err
 	}
 
@@ -243,8 +262,21 @@ func (w *writer) Write(
 	return nil
 }
 
-func (w *writer) Flush() error {
-	return w.buffer.Flush()
+func (w *writer) Flush(sync bool) error {
+	err := w.buffer.Flush()
+	if err != nil {
+		return err
+	}
+
+	if !sync {
+		return nil
+	}
+
+	return w.sync()
+}
+
+func (w *writer) sync() error {
+	return w.chunkWriter.sync()
 }
 
 func (w *writer) Close() error {
@@ -252,16 +284,13 @@ func (w *writer) Close() error {
 		return nil
 	}
 
-	if err := w.Flush(); err != nil {
+	if err := w.Flush(true); err != nil {
 		return err
 	}
 	if err := w.chunkWriter.close(); err != nil {
 		return err
 	}
 
-	w.chunkWriter.reset(nil)
-	w.start = timeZero
-	w.duration = 0
 	w.seen.ClearAll()
 	return nil
 }
@@ -307,11 +336,17 @@ func (w *fsChunkWriter) reset(f xos.File) {
 }
 
 func (w *fsChunkWriter) close() error {
-	return w.fd.Close()
+	err := w.fd.Close()
+	w.fd = nil
+	return err
 }
 
 func (w *fsChunkWriter) isOpen() bool {
 	return w.fd != nil
+}
+
+func (w *fsChunkWriter) sync() error {
+	return w.fd.Sync()
 }
 
 func (w *fsChunkWriter) Write(p []byte) (int, error) {
@@ -351,7 +386,7 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 
 	// Fsync if required to
 	if w.fsync {
-		err = w.fd.Sync()
+		err = w.sync()
 	}
 
 	// Fire flush callback

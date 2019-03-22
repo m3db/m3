@@ -155,7 +155,7 @@ func TestClusterUninitializedToSetupTransition(t *testing.T) {
 
 	// setup (legal)
 	gomock.InOrder(
-		mpsvc.EXPECT().Placement().Return(nil, 0, nil),
+		mpsvc.EXPECT().Placement().Return(nil, nil),
 		mpsvc.EXPECT().Delete().Return(nil),
 		mpsvc.EXPECT().
 			BuildInitialPlacement(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -288,7 +288,7 @@ func TestClusterSetupToStart(t *testing.T) {
 
 	// setup (legal)
 	gomock.InOrder(
-		mpsvc.EXPECT().Placement().Return(nil, 0, nil),
+		mpsvc.EXPECT().Placement().Return(nil, nil),
 		mpsvc.EXPECT().Delete().Return(nil),
 		mpsvc.EXPECT().
 			BuildInitialPlacement(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -330,7 +330,7 @@ func TestClusterSetupToRemoveNode(t *testing.T) {
 
 	// setup (legal)
 	gomock.InOrder(
-		mpsvc.EXPECT().Placement().Return(nil, 0, nil),
+		mpsvc.EXPECT().Placement().Return(nil, nil),
 		mpsvc.EXPECT().Delete().Return(nil),
 		mpsvc.EXPECT().
 			BuildInitialPlacement(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -391,7 +391,7 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 
 	// setup (legal)
 	gomock.InOrder(
-		mpsvc.EXPECT().Placement().Return(nil, 0, nil),
+		mpsvc.EXPECT().Placement().Return(nil, nil),
 		mpsvc.EXPECT().Delete().Return(nil),
 		mpsvc.EXPECT().
 			BuildInitialPlacement(gomock.Any(), gomock.Any(), gomock.Any()).

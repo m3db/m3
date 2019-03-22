@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -61,32 +60,6 @@ func testNsMetadata(t *testing.T) namespace.Metadata {
 	md, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
 	require.NoError(t, err)
 	return md
-}
-
-func testOptions() Options {
-	opts := NewOptions()
-	ropts := opts.ResultOptions()
-	rlopts := opts.ResultOptions().DatabaseBlockOptions()
-	eopts := encoding.NewOptions()
-	encoderPool := encoding.NewEncoderPool(nil)
-	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, true, eopts)
-	})
-	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
-	readerIteratorPool.Init(func(reader io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(reader, true, eopts)
-	})
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-	multiReaderIteratorPool.Init(func(reader io.Reader) encoding.ReaderIterator {
-		it := readerIteratorPool.Get()
-		it.Reset(reader)
-		return it
-	})
-	return opts.SetResultOptions(ropts.SetDatabaseBlockOptions(rlopts.
-		SetEncoderPool(encoderPool).
-		SetReaderIteratorPool(readerIteratorPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool))).
-		SetRuntimeOptionsManager(runtime.NewOptionsManager())
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
@@ -149,9 +122,9 @@ func TestReadOrderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar")}
-	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz")}
+	foo := ts.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+	bar := ts.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar")}
+	baz := ts.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -194,7 +167,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+	foo := ts.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
@@ -240,9 +213,9 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	})
 
 	// All series need to be in the same shard to exercise the regression.
-	foo := commitlog.Series{
+	foo := ts.Series{
 		Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo"), UniqueIndex: 0}
-	bar := commitlog.Series{
+	bar := ts.Series{
 		Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
 
 	values := []testValue{
@@ -282,7 +255,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+	foo := ts.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
@@ -318,7 +291,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		end       = now.Truncate(blockSize)
 		ranges    = xtime.Ranges{}
 
-		foo             = commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+		foo             = ts.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 		commitLogValues = []testValue{
 			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
@@ -350,7 +323,8 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 					Shard:       shard,
 					VolumeIndex: 0,
 				},
-				AbsoluteFilepaths:  []string{"checkpoint"},
+				// Make sure path passes the "is snapshot" check in SnapshotTimeAndID method.
+				AbsoluteFilepaths:  []string{"snapshots/checkpoint"},
 				CachedSnapshotTime: start.Add(time.Minute),
 			},
 		}, nil
@@ -367,6 +341,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		FileSetType: persist.FileSetSnapshotType,
 	}).Return(nil).AnyTimes()
 	mockReader.EXPECT().Entries().Return(1).AnyTimes()
+	mockReader.EXPECT().Close().Return(nil).AnyTimes()
 
 	snapshotValues := []testValue{
 		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
@@ -413,7 +388,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 }
 
 type testValue struct {
-	s commitlog.Series
+	s ts.Series
 	t time.Time
 	v float64
 	u xtime.Unit
@@ -698,7 +673,7 @@ func (i *testCommitLogIterator) Next() bool {
 	return i.idx < len(i.values)
 }
 
-func (i *testCommitLogIterator) Current() (commitlog.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *testCommitLogIterator) Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
 	idx := i.idx
 	if idx == -1 {
 		idx = 0

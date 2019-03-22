@@ -56,8 +56,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const maxShards = 8192
+const maxShards = 1024
 const blockSize = 2 * time.Hour
+
+var (
+	testFsOpts        = fs.NewOptions()
+	testCommitlogOpts = commitlog.NewOptions()
+)
 
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	var (
@@ -119,20 +124,16 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			)
 
-			commitLogBlockSize := 1 * time.Minute
-			require.True(t, commitLogBlockSize < blockSize)
-
 			var (
-				fsOpts = fs.NewOptions().
+				fsOpts = testFsOpts.
 					SetFilePathPrefix(dir)
-				commitLogOpts = commitlog.NewOptions().
+				commitLogOpts = testCommitlogOpts.
 						SetBlockSize(blockSize).
 						SetFilesystemOptions(fsOpts).
-						SetBlockSize(commitLogBlockSize).
 						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
-						SetClockOptions(commitlog.NewOptions().ClockOptions().SetNowFn(nowFn))
-				bootstrapOpts = testOptions().SetCommitLogOptions(commitLogOpts)
+						SetClockOptions(testCommitlogOpts.ClockOptions().SetNowFn(nowFn))
+				bootstrapOpts = testDefaultOpts.SetCommitLogOptions(commitLogOpts)
 
 				start = input.currentTime.Truncate(blockSize)
 			)
@@ -296,13 +297,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					}
 
 					if len(commitLogFiles) > 0 {
-						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
-						if err != nil {
-							return false, err
-						}
-
-						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
-							fsOpts.FilePathPrefix(), lastCommitLogFile.Start)
+						nextCommitLogFile, _, err := commitlog.NextFile(commitLogOpts)
 						if err != nil {
 							return false, err
 						}
@@ -390,10 +385,19 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, fmt.Errorf("found corrupt commit log files: %v", corruptFiles)
 			}
 
-			commitLogFilesExist := len(commitLogFiles) > 0
-			// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
-			// we always want to return fulfilled in the single node setup.
-			if input.multiNodeCluster && input.includeCorruptedCommitlogFile && commitLogFilesExist {
+			var (
+				commitLogFilesExist = len(commitLogFiles) > 0
+				// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
+				// we always want to return fulfilled in the single node setup. In addition, the source will not
+				// return unfulfilled in the presence of corrupt files if the range we request it to bootstrap
+				// is empty so we need to handle that case too.
+				shouldReturnUnfulfilled = input.multiNodeCluster &&
+					input.includeCorruptedCommitlogFile &&
+					commitLogFilesExist &&
+					!shardTimeRanges.IsEmpty()
+			)
+
+			if shouldReturnUnfulfilled {
 				if dataResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
 						"data result unfulfilled should not be empty in multi node cluster but was")
@@ -422,9 +426,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
-			// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
-			// we always want to return fulfilled in the single node setup.
-			if input.multiNodeCluster && input.includeCorruptedCommitlogFile && commitLogFilesExist {
+			if shouldReturnUnfulfilled {
 				if indexResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
 						"index result unfulfilled should not be empty in multi node cluster but was")
@@ -463,7 +465,7 @@ type generatedWrite struct {
 	// arrivedAt is used to simulate out-of-order writes which arrive somewhere
 	// between time.Now().Add(-bufferFuture) and time.Now().Add(bufferPast).
 	arrivedAt  time.Time
-	series     commitlog.Series
+	series     ts.Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -584,7 +586,7 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 
 		return generatedWrite{
 			arrivedAt: a,
-			series: commitlog.Series{
+			series: ts.Series{
 				ID:          ident.StringID(id),
 				Tags:        seriesUniqueTags(id, tagKey, tagVal, includeTags),
 				Namespace:   ident.StringID(ns),

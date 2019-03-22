@@ -21,15 +21,16 @@
 package functions
 
 import (
-	"context"
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/opentracing"
 
 	"go.uber.org/zap"
 )
@@ -49,11 +50,12 @@ type FetchOp struct {
 // FetchNode is the execution node
 // TODO: Make FetchNode private
 type FetchNode struct {
+	debug      bool
+	blockType  models.FetchedBlockType
 	op         FetchOp
 	controller *transform.Controller
 	storage    storage.Storage
 	timespec   transform.TimeSpec
-	debug      bool
 }
 
 // OpType for the operator
@@ -76,21 +78,43 @@ func (o FetchOp) String() string {
 
 // Node creates an execution node
 func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
-	return &FetchNode{op: o, controller: controller, storage: storage, timespec: options.TimeSpec, debug: options.Debug}
+	return &FetchNode{
+		op:         o,
+		controller: controller,
+		storage:    storage,
+		timespec:   options.TimeSpec,
+		debug:      options.Debug,
+		blockType:  options.BlockType,
+	}
 }
 
-// Execute runs the fetch node operation
-func (n *FetchNode) Execute(ctx context.Context) error {
+func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
+	ctx := queryCtx.Ctx
+	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "fetch")
+	defer sp.Finish()
+
 	timeSpec := n.timespec
 	// No need to adjust start and ends since physical plan already considers the offset, range
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
-	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
+
+	opts := storage.NewFetchOptions()
+	opts.BlockType = n.blockType
+	opts.Scope = queryCtx.Scope
+	opts.Enforcer = queryCtx.Enforcer
+
+	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
 		End:         endTime,
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
-	}, &storage.FetchOptions{})
+	}, opts)
+}
+
+// Execute runs the fetch node operation
+func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
+	ctx := queryCtx.Ctx
+	blockResult, err := n.fetch(queryCtx)
 	if err != nil {
 		return err
 	}
@@ -104,13 +128,23 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 			}
 		}
 
-		if err := n.controller.Process(block); err != nil {
+		if err := n.controller.Process(queryCtx, block); err != nil {
 			block.Close()
 			// Fail on first error
 			return err
 		}
 
-		block.Close()
+		// TODO: Revisit how and when we close blocks. At the each function step
+		// defers Close(), which means that we have half blocks hanging around for
+		// a long time. Ideally we should be able to transform blocks in place.
+		//
+		// NB: Until block closing is implemented correctly, this handles closing
+		// encoded iterators when there are additional processing steps, as these
+		// steps will not properly close the block. If there are no additional steps
+		// beyond the fetch, the read handler will close blocks.
+		if n.controller.HasMultipleOperations() {
+			block.Close()
+		}
 	}
 
 	return nil

@@ -63,23 +63,23 @@ func ReadAllSeriesPredicate() SeriesFilterPredicate {
 }
 
 type seriesMetadata struct {
-	Series
+	ts.Series
 	passedPredicate bool
 }
 
 type commitLogReader interface {
 	// Open opens the commit log for reading
-	Open(filePath string) (time.Time, time.Duration, int64, error)
+	Open(filePath string) (int64, error)
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
-	Read() (Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
+	Read() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
 
 	// Close the reader
 	Close() error
 }
 
 type readResponse struct {
-	series     Series
+	series     ts.Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -159,29 +159,27 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 	return reader
 }
 
-func (r *reader) Open(filePath string) (time.Time, time.Duration, int64, error) {
+func (r *reader) Open(filePath string) (int64, error) {
 	// Commitlog reader does not currently support being reused
 	if r.hasBeenOpened {
-		return timeZero, 0, 0, errCommitLogReaderIsNotReusable
+		return 0, errCommitLogReaderIsNotReusable
 	}
 	r.hasBeenOpened = true
 
 	fd, err := os.Open(filePath)
 	if err != nil {
-		return timeZero, 0, 0, err
+		return 0, err
 	}
 
 	r.chunkReader.reset(fd)
 	info, err := r.readInfo()
 	if err != nil {
 		r.Close()
-		return timeZero, 0, 0, err
+		return 0, err
 	}
-	start := time.Unix(0, info.Start)
-	duration := time.Duration(info.Duration)
 	index := info.Index
 
-	return start, duration, index, nil
+	return index, nil
 }
 
 // Read guarantees that the datapoints it returns will be in the same order as they are on disk
@@ -191,7 +189,7 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int64, error) 
 // Then the caller is guaranteed to receive A1 before A2 and A2 before A3, and they are guaranteed
 // to see B1 before B2, but they may see B1 before A1 and D2 before B3.
 func (r *reader) Read() (
-	series Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -200,12 +198,12 @@ func (r *reader) Read() (
 	if r.nextIndex == 0 {
 		err := r.startBackgroundWorkers()
 		if err != nil {
-			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
+			return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
 		}
 	}
 	rr, ok := <-r.outChan
 	if !ok {
-		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
+		return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
@@ -444,7 +442,7 @@ func (r *reader) decodeAndHandleMetadata(
 		}
 	}
 
-	metadata := Series{
+	metadata := ts.Series{
 		UniqueIndex: entry.Index,
 		ID:          ident.BinaryID(id),
 		Namespace:   ident.BinaryID(namespace),

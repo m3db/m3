@@ -57,6 +57,7 @@ func (m *MockUnaggregatedEncoder) EXPECT() *MockUnaggregatedEncoderMockRecorder 
 
 // EncodeMessage mocks base method
 func (m *MockUnaggregatedEncoder) EncodeMessage(arg0 encoding.UnaggregatedMessageUnion) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EncodeMessage", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -64,11 +65,13 @@ func (m *MockUnaggregatedEncoder) EncodeMessage(arg0 encoding.UnaggregatedMessag
 
 // EncodeMessage indicates an expected call of EncodeMessage
 func (mr *MockUnaggregatedEncoderMockRecorder) EncodeMessage(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodeMessage", reflect.TypeOf((*MockUnaggregatedEncoder)(nil).EncodeMessage), arg0)
 }
 
 // Len mocks base method
 func (m *MockUnaggregatedEncoder) Len() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -76,11 +79,13 @@ func (m *MockUnaggregatedEncoder) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockUnaggregatedEncoderMockRecorder) Len() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockUnaggregatedEncoder)(nil).Len))
 }
 
 // Relinquish mocks base method
 func (m *MockUnaggregatedEncoder) Relinquish() Buffer {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Relinquish")
 	ret0, _ := ret[0].(Buffer)
 	return ret0
@@ -88,21 +93,25 @@ func (m *MockUnaggregatedEncoder) Relinquish() Buffer {
 
 // Relinquish indicates an expected call of Relinquish
 func (mr *MockUnaggregatedEncoderMockRecorder) Relinquish() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Relinquish", reflect.TypeOf((*MockUnaggregatedEncoder)(nil).Relinquish))
 }
 
 // Reset mocks base method
 func (m *MockUnaggregatedEncoder) Reset(arg0 []byte) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", arg0)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockUnaggregatedEncoderMockRecorder) Reset(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockUnaggregatedEncoder)(nil).Reset), arg0)
 }
 
 // Truncate mocks base method
 func (m *MockUnaggregatedEncoder) Truncate(arg0 int) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Truncate", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -110,5 +119,6 @@ func (m *MockUnaggregatedEncoder) Truncate(arg0 int) error {
 
 // Truncate indicates an expected call of Truncate
 func (mr *MockUnaggregatedEncoderMockRecorder) Truncate(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockUnaggregatedEncoder)(nil).Truncate), arg0)
 }

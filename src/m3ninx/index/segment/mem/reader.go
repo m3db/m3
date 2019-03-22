@@ -99,7 +99,10 @@ func (r *reader) MatchAll() (postings.MutableList, error) {
 	}
 
 	pl := r.plPool.Get()
-	pl.AddRange(r.limits.startInclusive, r.limits.endExclusive)
+	err := pl.AddRange(r.limits.startInclusive, r.limits.endExclusive)
+	if err != nil {
+		return nil, err
+	}
 	return pl, nil
 }
 

@@ -32,4 +32,18 @@ const (
 
 	// DeprecatedHeader is the M3 deprecated header
 	DeprecatedHeader = "M3-Deprecated"
+
+	// DefaultServiceEnvironment is the default service ID environment.
+	DefaultServiceEnvironment = "default_env"
+	// DefaultServiceZone is the default service ID zone.
+	DefaultServiceZone = "embedded"
+
+	// HeaderClusterEnvironmentName is the header used to specify the environment
+	// name.
+	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
+	// HeaderClusterZoneName is the header used to specify the zone name.
+	HeaderClusterZoneName = "Cluster-Zone-Name"
+	// HeaderDryRun is the header used to specify whether this should be a dry
+	// run.
+	HeaderDryRun = "Dry-Run"
 )

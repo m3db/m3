@@ -29,11 +29,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
+
+var namespaceOptions = namespace.NewOptions()
 
 func TestBootstrapIndex(t *testing.T) {
 	testBootstrapIndex(t, false)
@@ -45,18 +48,18 @@ func TestBootstrapIndexAfterBootstrapData(t *testing.T) {
 
 func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	var (
-		opts             = testOptions()
+		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		dataBlockSize    = 2 * time.Hour
 		indexBlockSize   = 4 * time.Hour
-		namespaceOptions = namespace.NewOptions().
+		namespaceOptions = namespaceOptions.
 					SetRetentionOptions(
-				namespace.NewOptions().
+				namespaceOptions.
 					RetentionOptions().
 					SetBlockSize(dataBlockSize),
 			).
 			SetIndexOptions(
-				namespace.NewOptions().
+				namespaceOptions.
 					IndexOptions().
 					SetBlockSize(indexBlockSize).
 					SetEnabled(true),
@@ -81,20 +84,20 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	bazTags := ident.NewTags(ident.StringTag("city", "oakland"))
 
 	shardn := func(n int) uint32 { return uint32(n) }
-	foo := commitlog.Series{UniqueIndex: 0, Namespace: testNamespaceID, Shard: shardn(0), ID: ident.StringID("foo"), Tags: fooTags}
-	bar := commitlog.Series{UniqueIndex: 1, Namespace: testNamespaceID, Shard: shardn(0), ID: ident.StringID("bar"), Tags: barTags}
-	baz := commitlog.Series{UniqueIndex: 2, Namespace: testNamespaceID, Shard: shardn(5), ID: ident.StringID("baz"), Tags: bazTags}
+	foo := ts.Series{UniqueIndex: 0, Namespace: testNamespaceID, Shard: shardn(0), ID: ident.StringID("foo"), Tags: fooTags}
+	bar := ts.Series{UniqueIndex: 1, Namespace: testNamespaceID, Shard: shardn(0), ID: ident.StringID("bar"), Tags: barTags}
+	baz := ts.Series{UniqueIndex: 2, Namespace: testNamespaceID, Shard: shardn(5), ID: ident.StringID("baz"), Tags: bazTags}
 	// Make sure we can handle series that don't have tags.
-	untagged := commitlog.Series{UniqueIndex: 3, Namespace: testNamespaceID, Shard: shardn(5), ID: ident.StringID("untagged"), Tags: ident.Tags{}}
+	untagged := ts.Series{UniqueIndex: 3, Namespace: testNamespaceID, Shard: shardn(5), ID: ident.StringID("untagged"), Tags: ident.Tags{}}
 	// Make sure we skip series that are not within the bootstrap range.
-	outOfRange := commitlog.Series{UniqueIndex: 4, Namespace: testNamespaceID, Shard: shardn(3), ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
+	outOfRange := ts.Series{UniqueIndex: 4, Namespace: testNamespaceID, Shard: shardn(3), ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
 	// Make sure we skip and dont panic on writes for shards that are higher than the maximum we're trying to bootstrap.
-	shardTooHigh := commitlog.Series{UniqueIndex: 5, Namespace: testNamespaceID, Shard: shardn(100), ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
+	shardTooHigh := ts.Series{UniqueIndex: 5, Namespace: testNamespaceID, Shard: shardn(100), ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
 	// Make sure we skip series for shards that have no requested bootstrap ranges. The shard for this write needs
 	// to be less than the highest shard we actually plan to bootstrap.
-	noShardBootstrapRange := commitlog.Series{UniqueIndex: 6, Namespace: testNamespaceID, Shard: shardn(4), ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
+	noShardBootstrapRange := ts.Series{UniqueIndex: 6, Namespace: testNamespaceID, Shard: shardn(4), ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
 	// Make sure it handles multiple namespaces
-	someOtherNamespace := commitlog.Series{UniqueIndex: 7, Namespace: testNamespaceID2, Shard: shardn(0), ID: ident.StringID("someOtherNamespace"), Tags: ident.Tags{}}
+	someOtherNamespace := ts.Series{UniqueIndex: 7, Namespace: testNamespaceID2, Shard: shardn(0), ID: ident.StringID("someOtherNamespace"), Tags: ident.Tags{}}
 
 	seriesNotToExpect := map[string]struct{}{
 		outOfRange.ID.String():            struct{}{},
@@ -232,7 +235,7 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 
 func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	var (
-		opts             = testOptions()
+		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		dataBlockSize    = 2 * time.Hour
 		indexBlockSize   = 4 * time.Hour
@@ -269,7 +272,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 
 func TestBootstrapIndexNamespaceIndexNotEnabled(t *testing.T) {
 	var (
-		opts             = testOptions()
+		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		namespaceOptions = namespace.NewOptions().
 					SetIndexOptions(

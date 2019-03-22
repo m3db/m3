@@ -21,6 +21,7 @@
 package temporal
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/ts"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,14 +55,14 @@ func (p *processor) Process(dps ts.Datapoints, _ time.Time) float64 {
 	return sum
 }
 
-func compareCacheState(t *testing.T, bNode *baseNode, bounds models.Bounds, state []bool, debugMsg string) {
+func compareCacheState(t *testing.T, node *baseNode, bounds models.Bounds, state []bool, debugMsg string) {
 	actualState := make([]bool, len(state))
 	for i := range state {
-		_, exists := bNode.cache.get(bounds.Next(i).Start)
+		_, exists := node.cache.get(bounds.Next(i).Start)
 		actualState[i] = exists
 	}
 
-	assert.Equal(t, actualState, state, debugMsg)
+	assert.Equal(t, state, actualState, debugMsg)
 }
 
 func TestBaseWithB0(t *testing.T) {
@@ -81,7 +83,7 @@ func TestBaseWithB0(t *testing.T) {
 			Step:  time.Second,
 		},
 	})
-	err := node.Process(parser.NodeID(0), block)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2)
 	require.IsType(t, node, &baseNode{})
@@ -98,7 +100,7 @@ func TestBaseWithB0(t *testing.T) {
 		},
 	})
 
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	bNode = node.(*baseNode)
 	_, exists = bNode.cache.get(boundStart)
@@ -113,7 +115,7 @@ func TestBaseWithB0(t *testing.T) {
 		},
 	})
 
-	err = node.Process(parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	bNode = node.(*baseNode)
 	_, exists = bNode.cache.get(boundStart)
@@ -121,351 +123,407 @@ func TestBaseWithB0(t *testing.T) {
 }
 
 func TestBaseWithB1B0(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 2)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
+	tc := setup(2, 5*time.Minute, 1)
 
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(1).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
-	err := node.Process(parser.NodeID(0), blocks[1])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 0, "nothing processed yet")
-	compareCacheState(t, bNode, bounds, []bool{false, true}, "B1 cached")
+	assert.Len(t, tc.Sink.Values, 0, "nothing processed yet")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true}, "B1 cached")
 
-	err = node.Process(parser.NodeID(0), blocks[0])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 4, "output from both blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false}, "everything removed from cache")
-	blks, err := bNode.cache.multiGet(bounds, 2, false)
+	assert.Len(t, tc.Sink.Values, 4, "output from both blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false}, "everything removed from cache")
+	blks, err := tc.Node.cache.multiGet(tc.Bounds, 2, false)
 	require.NoError(t, err)
 	assert.Len(t, blks, 0)
 }
 
 func TestBaseWithB0B1(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 2)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
+	tc := setup(2, 5*time.Minute, 1)
 
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(1).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
-	err := node.Process(parser.NodeID(0), blocks[0])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, false}, "B0 cached for future")
+	assert.Len(t, tc.Sink.Values, 2, "B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, false}, "B0 cached for future")
 
-	err = node.Process(parser.NodeID(0), blocks[1])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 4, "output from both blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false}, "B0 removed from cache, B1 not cached")
-	blks, err := bNode.cache.multiGet(bounds, 2, false)
+	assert.Len(t, tc.Sink.Values, 4, "output from both blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false}, "B0 removed from cache, B1 not cached")
+	blks, err := tc.Node.cache.multiGet(tc.Bounds, 2, false)
 	require.NoError(t, err)
 	assert.Len(t, blks, 0)
 }
 
 func TestBaseWithB0B1B2(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
-
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(2).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
+	tc := setup(3, 5*time.Minute, 2)
 
 	// B0 arrives
-	err := node.Process(parser.NodeID(0), blocks[0])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, false, false}, "B0 cached for future")
+	assert.Len(t, tc.Sink.Values, 2, "B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, false, false}, "B0 cached for future")
 
 	// B1 arrives
-	err = node.Process(parser.NodeID(0), blocks[1])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 4, "output from B0, B1")
-	compareCacheState(t, bNode, bounds, []bool{false, true, false}, "B0 removed from cache, B1 cached")
+	assert.Len(t, tc.Sink.Values, 4, "output from B0, B1")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, false}, "B0 removed from cache, B1 cached")
 
 	// B2 arrives
-	err = node.Process(parser.NodeID(0), blocks[2])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "output from all blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false}, "nothing cached")
+	assert.Len(t, tc.Sink.Values, 6, "output from all blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false}, "nothing cached")
 }
 
 func TestBaseWithB0B2B1(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
-
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(2).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
+	tc := setup(3, 5*time.Minute, 2)
 
 	// B0 arrives
-	err := node.Process(parser.NodeID(0), blocks[0])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, false, false}, "B0 cached for future")
+	assert.Len(t, tc.Sink.Values, 2, "B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, false, false}, "B0 cached for future")
 
 	// B2 arrives
-	err = node.Process(parser.NodeID(0), blocks[2])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "Only B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, false, true}, "B0, B2 cached")
+	assert.Len(t, tc.Sink.Values, 2, "Only B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, false, true}, "B0, B2 cached")
 
 	// B1 arrives
-	err = node.Process(parser.NodeID(0), blocks[1])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "output from all blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false}, "nothing cached")
+	assert.Len(t, tc.Sink.Values, 6, "output from all blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false}, "nothing cached")
 }
 
 func TestBaseWithB1B0B2(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
-
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(2).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
+	tc := setup(3, 5*time.Minute, 2)
 
 	// B1 arrives
-	err := node.Process(parser.NodeID(0), blocks[1])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 0, "Nothing processed")
-	compareCacheState(t, bNode, bounds, []bool{false, true, false}, "B1 cached for future")
+	assert.Len(t, tc.Sink.Values, 0, "Nothing processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, false}, "B1 cached for future")
 
 	// B0 arrives
-	err = node.Process(parser.NodeID(0), blocks[0])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 4, "B0, B1 processed")
-	compareCacheState(t, bNode, bounds, []bool{false, true, false}, "B1 still cached, B0 not cached")
+	assert.Len(t, tc.Sink.Values, 4, "B0, B1 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, false}, "B1 still cached, B0 not cached")
 
 	// B2 arrives
-	err = node.Process(parser.NodeID(0), blocks[2])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "output from all blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false}, "nothing cached")
+	assert.Len(t, tc.Sink.Values, 6, "output from all blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false}, "nothing cached")
 }
 
 func TestBaseWithB1B2B0(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
-
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(2).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
+	tc := setup(3, 5*time.Minute, 2)
 
 	// B1 arrives
-	err := node.Process(parser.NodeID(0), blocks[1])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 0, "Nothing processed")
-	compareCacheState(t, bNode, bounds, []bool{false, true, false}, "B1 cached for future")
+	assert.Len(t, tc.Sink.Values, 0, "Nothing processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, false}, "B1 cached for future")
 
 	// B2 arrives
-	err = node.Process(parser.NodeID(0), blocks[2])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B1 processed")
-	compareCacheState(t, bNode, bounds, []bool{false, true, false}, "B1 still cached, B2 not cached")
+	assert.Len(t, tc.Sink.Values, 2, "B1 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, false}, "B1 still cached, B2 not cached")
 
 	// B0 arrives
-	err = node.Process(parser.NodeID(0), blocks[0])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "output from all blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false}, "nothing cached")
+	assert.Len(t, tc.Sink.Values, 6, "output from all blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false}, "nothing cached")
 }
 
 func TestBaseWithB2B0B1(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
-
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(2).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
+	tc := setup(3, 5*time.Minute, 2)
 
 	// B2 arrives
-	err := node.Process(parser.NodeID(0), blocks[2])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 0, "Nothing processed")
-	compareCacheState(t, bNode, bounds, []bool{false, false, true}, "B2 cached for future")
+	assert.Len(t, tc.Sink.Values, 0, "Nothing processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, true}, "B2 cached for future")
 
 	// B0 arrives
-	err = node.Process(parser.NodeID(0), blocks[0])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, false, true}, "B0, B2 cached")
+	assert.Len(t, tc.Sink.Values, 2, "B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, false, true}, "B0, B2 cached")
 
 	// B1 arrives
-	err = node.Process(parser.NodeID(0), blocks[1])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "output from all blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false}, "nothing cached")
+	assert.Len(t, tc.Sink.Values, 6, "output from all blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false}, "nothing cached")
 }
 
 func TestBaseWithB2B1B0(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	baseOp := baseOp{
-		operatorType: "dummy",
-		duration:     5 * time.Minute,
-		processorFn:  processor{},
-	}
-
-	node := baseOp.Node(c, transform.Options{
-		TimeSpec: transform.TimeSpec{
-			Start: bounds.Start,
-			End:   bounds.Next(2).End(),
-			Step:  time.Second,
-		},
-	})
-	bNode := node.(*baseNode)
+	tc := setup(3, 5*time.Minute, 2)
 
 	// B2 arrives
-	err := node.Process(parser.NodeID(0), blocks[2])
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 0, "Nothing processed")
-	compareCacheState(t, bNode, bounds, []bool{false, false, true}, "B2 cached for future")
+	assert.Len(t, tc.Sink.Values, 0, "Nothing processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, true}, "B2 cached for future")
 
 	// B1 arrives
-	err = node.Process(parser.NodeID(0), blocks[1])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{false, true, false}, "B1 cached, B2 removed")
+	assert.Len(t, tc.Sink.Values, 2, "B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, false}, "B1 cached, B2 removed")
 
 	// B0 arrives
-	err = node.Process(parser.NodeID(0), blocks[0])
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "output from all blocks")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false}, "nothing cached")
+	assert.Len(t, tc.Sink.Values, 6, "output from all blocks")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false}, "nothing cached")
 }
 
 func TestBaseWithSize3B0B1B2B3B4(t *testing.T) {
+	tc := setup(5, 15*time.Minute, 4)
+
+	// B0 arrives
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
+	require.NoError(t, err)
+	assert.Len(t, tc.Sink.Values, 2, "B0 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, false, false, false, false}, "B0 cached for future")
+
+	// B1 arrives
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
+	require.NoError(t, err)
+	assert.Len(t, tc.Sink.Values, 4, "B0, B1 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, true, false, false, false}, "B0, B1 cached")
+
+	// B2 arrives
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
+	require.NoError(t, err)
+	assert.Len(t, tc.Sink.Values, 6, "B0, B1, B2 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{true, true, true, false, false}, "B0, B1, B2 cached")
+
+	// B3 arrives
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[3])
+	require.NoError(t, err)
+	assert.Len(t, tc.Sink.Values, 8, "B0, B1, B2, B3 processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, true, true, true, false}, "B0 removed, B1, B2, B3 cached")
+
+	// B4 arrives
+	err = tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[4])
+	require.NoError(t, err)
+	assert.Len(t, tc.Sink.Values, 10, "all 5 blocks processed")
+	compareCacheState(t, tc.Node, tc.Bounds, []bool{false, false, false, false, false}, "nothing cached")
+}
+
+type testContext struct {
+	Bounds models.Bounds
+	Blocks []block.Block
+	Sink   *executor.SinkNode
+	Node   *baseNode
+}
+
+func setup(numBlocks int, duration time.Duration, nextBound int) *testContext {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 5)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, numBlocks)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
-		duration:     15 * time.Minute,
+		duration:     duration,
 		processorFn:  processor{},
 	}
-
 	node := baseOp.Node(c, transform.Options{
 		TimeSpec: transform.TimeSpec{
 			Start: bounds.Start,
-			End:   bounds.Next(4).End(),
+			End:   bounds.Next(nextBound).End(),
 			Step:  time.Second,
 		},
 	})
-	bNode := node.(*baseNode)
+	return &testContext{
+		Bounds: bounds,
+		Blocks: blocks,
+		Sink:   sink,
+		Node:   node.(*baseNode),
+	}
+}
 
-	// B0 arrives
-	err := node.Process(parser.NodeID(0), blocks[0])
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2, "B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, false, false, false, false}, "B0 cached for future")
+// TestBaseWithDownstreamError checks that we handle errors from blocks correctly
+func TestBaseWithDownstreamError(t *testing.T) {
+	numBlocks := 2
+	tc := setup(numBlocks, 5*time.Minute, 1)
 
-	// B1 arrives
-	err = node.Process(parser.NodeID(0), blocks[1])
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 4, "B0, B1 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, true, false, false, false}, "B0, B1 cached")
+	testErr := errors.New("test err")
+	errBlock := blockWithDownstreamErr{Block: tc.Blocks[1], Err: testErr}
 
-	// B2 arrives
-	err = node.Process(parser.NodeID(0), blocks[2])
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 6, "B0, B1, B2 processed")
-	compareCacheState(t, bNode, bounds, []bool{true, true, true, false, false}, "B0, B1, B2 cached")
+	require.NoError(t, tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), errBlock))
 
-	// B3 arrives
-	err = node.Process(parser.NodeID(0), blocks[3])
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 8, "B0, B1, B2, B3 processed")
-	compareCacheState(t, bNode, bounds, []bool{false, true, true, true, false}, "B0 removed, B1, B2, B3 cached")
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
+	require.EqualError(t, err, testErr.Error())
+}
 
-	// B4 arrives
-	err = node.Process(parser.NodeID(0), blocks[4])
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 10, "all 5 blocks processed")
-	compareCacheState(t, bNode, bounds, []bool{false, false, false, false, false}, "nothing cached")
+// Types for TestBaseWithDownstreamError
+
+// blockWithDownstreamErr overrides only Unconsolidated() for purposes of returning a
+// an UnconsolidatedBlock which errors on SeriesIter() (unconsolidatedBlockWithSeriesIterErr)
+type blockWithDownstreamErr struct {
+	block.Block
+	Err error
+}
+
+func (mbu blockWithDownstreamErr) Unconsolidated() (block.UnconsolidatedBlock, error) {
+	unconsolidated, err := mbu.Block.Unconsolidated()
+	if err != nil {
+		return nil, err
+	}
+	return unconsolidatedBlockWithSeriesIterErr{
+		Err:                 mbu.Err,
+		UnconsolidatedBlock: unconsolidated,
+	}, nil
+}
+
+type unconsolidatedBlockWithSeriesIterErr struct {
+	block.UnconsolidatedBlock
+	Err error
+}
+
+func (mbuc unconsolidatedBlockWithSeriesIterErr) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
+	return nil, mbuc.Err
+}
+
+// End types for TestBaseWithDownstreamError
+
+func TestBaseClosesBlocks(t *testing.T) {
+	tc := setup(1, 5*time.Minute, 1)
+
+	ctrl := gomock.NewController(t)
+	builderCtx := setupCloseableBlock(ctrl, tc.Node)
+
+	require.NoError(t, tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0]))
+
+	for _, mockBuilder := range builderCtx.MockBlockBuilders {
+		assert.Equal(t, 1, mockBuilder.BuiltBlock.ClosedCalls)
+	}
+}
+
+func TestProcessCompletedBlocks_ClosesBlocksOnError(t *testing.T) {
+	numBlocks := 2
+	tc := setup(numBlocks, 5*time.Minute, 1)
+	ctrl := gomock.NewController(t)
+	setupCloseableBlock(ctrl, tc.Node)
+
+	testErr := errors.New("test err")
+	tc.Blocks[1] = blockWithDownstreamErr{Block: tc.Blocks[1], Err: testErr}
+
+	processRequests := make([]processRequest, numBlocks)
+	for i, blk := range tc.Blocks {
+		unconsolidated, err := blk.Unconsolidated()
+		require.NoError(t, err)
+
+		processRequests[i] = processRequest{
+			queryCtx: models.NoopQueryContext(),
+			blk:      unconsolidated,
+			bounds:   tc.Bounds,
+			deps:     nil,
+		}
+	}
+
+	blocks, err := tc.Node.processCompletedBlocks(models.NoopQueryContext(), processRequests, numBlocks)
+	require.EqualError(t, err, testErr.Error())
+
+	for _, bl := range blocks {
+		require.NotNil(t, bl)
+		assert.Equal(t, 1, bl.(*closeSpyBlock).ClosedCalls)
+	}
+}
+
+type closeableBlockBuilderContext struct {
+	MockController    *Mockcontroller
+	MockBlockBuilders []*closeSpyBlockBuilder
+}
+
+// setupCloseableBlock mocks out node.controller to return a block builder which
+// builds closeSpyBlock instances, so that you can inspect whether
+// or not a block was closed (using closeSpyBlock.ClosedCalls). See TestBaseClosesBlocks
+// for an example.
+func setupCloseableBlock(ctrl *gomock.Controller, node *baseNode) closeableBlockBuilderContext {
+	mockController := NewMockcontroller(ctrl)
+	mockBuilders := make([]*closeSpyBlockBuilder, 0)
+
+	mockController.EXPECT().Process(gomock.Any(), gomock.Any()).Return(nil)
+
+	// return a regular ColumnBlockBuilder, wrapped with closeSpyBlockBuilder
+	mockController.EXPECT().BlockBuilder(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(
+			queryCtx *models.QueryContext,
+			blockMeta block.Metadata,
+			seriesMeta []block.SeriesMeta) (block.Builder, error) {
+			mb := &closeSpyBlockBuilder{
+				Builder: block.NewColumnBlockBuilder(models.NoopQueryContext(), blockMeta, seriesMeta),
+			}
+			mockBuilders = append(mockBuilders, mb)
+			return mb, nil
+		})
+
+	node.controller = mockController
+
+	return closeableBlockBuilderContext{
+		MockController:    mockController,
+		MockBlockBuilders: mockBuilders,
+	}
+}
+
+// closeSpyBlockBuilder wraps a block.Builder to build a closeSpyBlock
+// instead of a regular block. It is otherwise equivalent to the wrapped Builder.
+type closeSpyBlockBuilder struct {
+	block.Builder
+
+	BuiltBlock *closeSpyBlock
+}
+
+func (bb *closeSpyBlockBuilder) Build() block.Block {
+	bb.BuiltBlock = &closeSpyBlock{
+		Block: bb.Builder.Build(),
+	}
+	return bb.BuiltBlock
+}
+
+// closeSpyBlock wraps a block.Block to allow assertions on the Close()
+// method.
+type closeSpyBlock struct {
+	block.Block
+
+	ClosedCalls int
+}
+
+func (b *closeSpyBlock) Close() error {
+	b.ClosedCalls++
+	return nil
 }
 
 func TestSingleProcessRequest(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	boundStart := bounds.Start
-	b := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
+
+	seriesMetas := []block.SeriesMeta{{
+		Name: []byte("s1"),
+		Tags: models.EmptyTags().AddTags([]models.Tag{{
+			Name:  []byte("t1"),
+			Value: []byte("v1"),
+		}})}, {
+		Name: []byte("s2"),
+		Tags: models.EmptyTags().AddTags([]models.Tag{{
+			Name:  []byte("t1"),
+			Value: []byte("v2"),
+		}}),
+	}}
+
+	b := test.NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, seriesMetas, values)
 	block2, _ := b.Unconsolidated()
 	values = [][]float64{{10, 11, 12, 13, 14}, {15, 16, 17, 18, 19}}
 
@@ -475,7 +533,7 @@ func TestSingleProcessRequest(t *testing.T) {
 		StepSize: bounds.StepSize,
 	}
 
-	b = test.NewUnconsolidatedBlockFromDatapoints(block1Bounds, values)
+	b = test.NewUnconsolidatedBlockFromDatapointsWithMeta(block1Bounds, seriesMetas, values)
 	block1, _ := b.Unconsolidated()
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
@@ -493,13 +551,31 @@ func TestSingleProcessRequest(t *testing.T) {
 		},
 	})
 	bNode := node.(*baseNode)
-	err := bNode.processSingleRequest(processRequest{blk: block2, bounds: bounds, deps: []block.UnconsolidatedBlock{block1}})
-	assert.NoError(t, err)
+	request := processRequest{
+		blk:      block2,
+		bounds:   bounds,
+		deps:     []block.UnconsolidatedBlock{block1},
+		queryCtx: models.NoopQueryContext(),
+	}
+	bl, err := bNode.processSingleRequest(request)
+	require.NoError(t, err)
+
+	bNode.propagateNextBlocks([]processRequest{request}, []block.Block{bl}, 1)
 	assert.Len(t, sink.Values, 2, "block processed")
 	// Current Block:     0  1  2  3  4  5
 	// Previous Block:   10 11 12 13 14 15
 	// i = 0; prev values [11, 12, 13, 14, 15], current values [0], sum = 50
 	// i = 1; prev values [12, 13, 14, 15], current values [0, 1], sum = 40
-	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10}, "first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
-	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35}, "second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
+	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10},
+		"first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
+	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35},
+		"second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
+
+	// processSingleRequest renames the series to use their ids; reflect this in our expectation.
+	expectedSeriesMetas := make([]block.SeriesMeta, len(seriesMetas))
+	require.Equal(t, len(expectedSeriesMetas), copy(expectedSeriesMetas, seriesMetas))
+	expectedSeriesMetas[0].Name = []byte("t1=v1,")
+	expectedSeriesMetas[1].Name = []byte("t1=v2,")
+
+	assert.Equal(t, expectedSeriesMetas, sink.Metas, "Process should pass along series meta, renaming to the ID")
 }

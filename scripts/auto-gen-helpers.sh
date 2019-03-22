@@ -21,9 +21,26 @@ remove_matching_files() {
     find $DIR -type f -name "$FILE_PATTERN" -exec rm -f {} \;
 }
 
+revert_copyright_only_change() {
+    # We don't want to make a change to a file if the only change
+    # is the copyright year. We can't check this in add_license because a newly-
+    # generated file will not contain the copyright notice and thus it will
+    # add in the copyright (with the new year).
+    local FILE=$0
+    numDiffLines=$(git diff --text -U0 $FILE | # Get file text diffs with no context.
+        grep -E -v '^\+\+\+|^---'            | # Exclude file descriptors.
+        grep -E '^-|^\+'                     | # Get only line diffs.
+        grep -Evc '^-// Copyright \(c\)|^\+// Copyright \(c\)') # Exclude copyrights and get the number of lines remaining.
+    if [ $numDiffLines = 0 ]; then
+        git checkout -- "$FILE" 2> /dev/null # Remove changes, since the only change was the copyright year.
+    fi
+}
+
+export -f revert_copyright_only_change
+
 autogen_cleanup() {
     local DIR="$1"
-    find $DIR -type f -name "*.go" -exec /bin/bash -c 'add_license $0' {} \;
+    find $DIR -type f -name "*.go" -exec /bin/bash -c 'add_license $0; revert_copyright_only_change $0' {} \;
 }
 
 gen_cleanup_helper() {
@@ -47,6 +64,7 @@ gen_cleanup_helper() {
     basePkg=$(echo $DIR | sed -e "s@${GOPATH}/src/@@g")
     genclean -pkg $basePkg -out $FILE -in $FILE
     gofmt -w $FILE
+    revert_copyright_only_change $FILE
 }
 
 export -f gen_cleanup_helper

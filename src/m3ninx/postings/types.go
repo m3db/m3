@@ -52,9 +52,6 @@ type List interface {
 	// calculating the size of the postings list.
 	IsEmpty() bool
 
-	// Min returns the minimum ID in the postings list or an error if it is empty.
-	Min() (ID, error)
-
 	// Max returns the maximum ID in the postings list or an error if it is empty.
 	Max() (ID, error)
 
@@ -76,7 +73,7 @@ type MutableList interface {
 	List
 
 	// Insert inserts the given ID into the postings list.
-	Insert(i ID)
+	Insert(i ID) error
 
 	// Intersect updates this postings list in place to contain only those DocIDs which are
 	// in both this postings list and other.
@@ -94,10 +91,10 @@ type MutableList interface {
 	AddIterator(iter Iterator) error
 
 	// AddRange adds all IDs between [min, max) to this postings list.
-	AddRange(min, max ID)
+	AddRange(min, max ID) error
 
 	// RemoveRange removes all IDs between [min, max) from this postings list.
-	RemoveRange(min, max ID)
+	RemoveRange(min, max ID) error
 
 	// Reset resets the internal state of the postings list.
 	Reset()

@@ -53,11 +53,6 @@ import (
 var (
 	byteOrder        binary.ByteOrder = binary.LittleEndian
 	headerMagicBytes                  = encodeUInt16(headerMagicNumber)
-
-	// FOLLOWUP(prateek): this terrible hack is necessary due to a bug in the indexing
-	// sub-system. Our FST library (Vellum) doesn't handle '' values correctly in an edge
-	// case. I'll remove this once I have some cycles to come back to it.
-	mapEmptyTagValueToSpaceHack = ident.BytesID([]byte(" "))
 )
 
 var (
@@ -168,10 +163,6 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 
 	if err := e.encodeID(t.Name); err != nil {
 		return err
-	}
-
-	if len(t.Value.Bytes()) == 0 {
-		return e.encodeID(mapEmptyTagValueToSpaceHack)
 	}
 
 	return e.encodeID(t.Value)

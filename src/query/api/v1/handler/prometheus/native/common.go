@@ -23,8 +23,10 @@ package native
 import (
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -35,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -43,10 +45,12 @@ import (
 const (
 	endParam          = "end"
 	startParam        = "start"
+	timeParam         = "time"
 	queryParam        = "query"
 	stepParam         = "step"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
+	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -80,12 +84,12 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 }
 
 // parseParams parses all params from the GET request
-func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
 
-	t, err := prometheus.ParseRequestTimeout(r)
+	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -113,18 +117,10 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
+
 	params.Query = query
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err := strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Any("error", err))
-		}
-		params.Debug = debug
-	}
-
+	params.Debug = parseDebugFlag(r)
+	params.BlockType = parseBlockType(r)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -137,6 +133,84 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 		params.IncludeEnd = !excludeEnd
 	}
 
+	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
+		params.FormatType = models.FormatM3QL
+	}
+
+	return params, nil
+}
+
+func parseDebugFlag(r *http.Request) bool {
+	var (
+		debug bool
+		err   error
+	)
+
+	// Skip debug if unable to parse debug param
+	debugVal := r.FormValue(debugParam)
+	if debugVal != "" {
+		debug, err = strconv.ParseBool(r.FormValue(debugParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Error(err))
+		}
+	}
+
+	return debug
+}
+
+func parseBlockType(r *http.Request) models.FetchedBlockType {
+	// Use default block type if unable to parse blockTypeParam.
+	useLegacyVal := r.FormValue(blockTypeParam)
+	if useLegacyVal != "" {
+		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse useLegacy flag", zap.Error(err))
+		}
+
+		blockType := models.FetchedBlockType(intVal)
+		// Ignore error from receiving an invalid block type, and return default.
+		if blockType.Validate() != nil {
+			return models.TypeSingleBlock
+		}
+
+		return blockType
+	}
+
+	return models.TypeSingleBlock
+}
+
+// parseInstantaneousParams parses all params from the GET request
+func parseInstantaneousParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
+	params := models.RequestParams{
+		Now:        time.Now(),
+		Step:       time.Second,
+		IncludeEnd: true,
+	}
+
+	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
+	if err != nil {
+		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	params.Timeout = t
+	instant := time.Now()
+	if t := r.FormValue(timeParam); t != "" {
+		instant, err = util.ParseTimeString(t)
+		if err != nil {
+			return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+		}
+	}
+
+	params.Start = instant
+	params.End = instant
+
+	query, err := parseQuery(r)
+	if err != nil {
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
+	}
+	params.Query = query
+	params.Debug = parseDebugFlag(r)
+	params.BlockType = parseBlockType(r)
 	return params, nil
 }
 
@@ -154,7 +228,12 @@ func parseQuery(r *http.Request) (string, error) {
 	return queries[0], nil
 }
 
-func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestParams) {
+func renderResultsJSON(
+	w io.Writer,
+	series []*ts.Series,
+	params models.RequestParams,
+	keepNans bool,
+) {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
@@ -185,6 +264,12 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		length := s.Len()
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
+
+			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			if !keepNans && math.IsNaN(dp.Value) {
+				continue
+			}
+
 			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
 			// since we would need to create another block just for the sake of restricting the bounds.
 			// Each series have the same start time so we just need to calculate the correct startIdx once
@@ -205,13 +290,103 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		if ok {
 			jw.BeginObjectField("step_size_ms")
 			jw.WriteInt(int(fixedStep.Resolution() / time.Millisecond))
-			jw.EndObject()
 		}
+		jw.EndObject()
 	}
 	jw.EndArray()
 
 	jw.EndObject()
 
 	jw.EndObject()
+	jw.Close()
+}
+
+func renderResultsInstantaneousJSON(
+	w io.Writer,
+	series []*ts.Series,
+) {
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginObject()
+
+	jw.BeginObjectField("resultType")
+	jw.WriteString("vector")
+
+	jw.BeginObjectField("result")
+	jw.BeginArray()
+	for _, s := range series {
+		jw.BeginObject()
+		jw.BeginObjectField("metric")
+		jw.BeginObject()
+		for _, t := range s.Tags.Tags {
+			jw.BeginObjectField(string(t.Name))
+			jw.WriteString(string(t.Value))
+		}
+		jw.EndObject()
+
+		jw.BeginObjectField("value")
+		vals := s.Values()
+		length := s.Len()
+		dp := vals.DatapointAt(length - 1)
+		jw.BeginArray()
+		jw.WriteInt(int(dp.Timestamp.Unix()))
+		jw.WriteString(utils.FormatFloat(dp.Value))
+		jw.EndArray()
+		jw.EndObject()
+	}
+	jw.EndArray()
+
+	jw.EndObject()
+
+	jw.EndObject()
+	jw.Close()
+}
+
+func renderM3QLResultsJSON(
+	w io.Writer,
+	series []*ts.Series,
+	params models.RequestParams,
+) {
+	jw := json.NewWriter(w)
+	jw.BeginArray()
+
+	for _, s := range series {
+		jw.BeginObject()
+		jw.BeginObjectField("target")
+		jw.WriteString(string(s.Name()))
+
+		jw.BeginObjectField("tags")
+		jw.BeginObject()
+
+		for _, tag := range s.Tags.Tags {
+			jw.BeginObjectField(string(tag.Name))
+			jw.WriteString(string(tag.Value))
+		}
+
+		jw.EndObject()
+
+		jw.BeginObjectField("datapoints")
+		jw.BeginArray()
+		for i := 0; i < s.Len(); i++ {
+			dp := s.Values().DatapointAt(i)
+			jw.BeginArray()
+			jw.WriteFloat64(dp.Value)
+			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.EndArray()
+		}
+		jw.EndArray()
+
+		jw.BeginObjectField("step_size_ms")
+		jw.WriteInt(int(params.Step.Seconds() * 1000))
+
+		jw.EndObject()
+	}
+
+	jw.EndArray()
 	jw.Close()
 }

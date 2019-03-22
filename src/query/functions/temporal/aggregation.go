@@ -23,6 +23,7 @@ package temporal
 import (
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -50,6 +51,9 @@ const (
 
 	// StdVarType calculates the standard variance of all values in the specified interval.
 	StdVarType = "stdvar_over_time"
+
+	// QuantileType calculates the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified interval.
+	QuantileType = "quantile_over_time"
 )
 
 type aggFunc func([]float64) float64
@@ -78,14 +82,52 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 	}
 }
 
+// NewQuantileOp create a new base temporal transform for quantile_over_time func.
+func NewQuantileOp(args []interface{}, optype string) (transform.Params, error) {
+	if optype != QuantileType {
+		return nil, fmt.Errorf("unknown aggregation type: %s", optype)
+	}
+
+	if len(args) != 2 {
+		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", QuantileType, len(args))
+	}
+
+	q, ok := args[0].(float64)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to quantile argument: %v for %s", args[0], QuantileType)
+	}
+
+	duration, ok := args[1].(time.Duration)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], QuantileType)
+	}
+
+	aggregationFunc := makeQuantileOverTimeFn(q)
+
+	a := aggProcessor{
+		aggFunc: aggregationFunc,
+	}
+
+	return newBaseOp(duration, QuantileType, a)
+}
+
 // NewAggOp creates a new base temporal transform with a specified node.
 func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 	if aggregationFunc, ok := aggFuncs[optype]; ok {
+		if len(args) != 1 {
+			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
+		}
+
+		duration, ok := args[0].(time.Duration)
+		if !ok {
+			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		}
+
 		a := aggProcessor{
 			aggFunc: aggregationFunc,
 		}
 
-		return newBaseOp(args, optype, a)
+		return newBaseOp(duration, optype, a)
 	}
 
 	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
@@ -191,4 +233,54 @@ func sumAndCount(values []float64) (float64, float64) {
 	}
 
 	return sum, count
+}
+
+func removeNaNs(vals []float64) []float64 {
+	b := vals[:0]
+	for _, val := range vals {
+		if !math.IsNaN(val) {
+			b = append(b, val)
+		}
+	}
+
+	return b
+}
+
+func makeQuantileOverTimeFn(q float64) aggFunc {
+	return func(values []float64) float64 {
+		return quantile(q, removeNaNs(values))
+	}
+}
+
+// qauntile calculates the given quantile of a slice of values.
+//
+// This slice will be sorted.
+// If 'values' has zero elements, NaN is returned.
+// If q<0, -Inf is returned.
+// If q>1, +Inf is returned.
+func quantile(q float64, values []float64) float64 {
+	if len(values) == 0 {
+		return math.NaN()
+	}
+
+	if q < 0 {
+		return math.Inf(-1)
+	}
+
+	if q > 1 {
+		return math.Inf(+1)
+	}
+
+	sort.Float64s(values)
+
+	n := float64(len(values))
+	// When the quantile lies between two values,
+	// we use a weighted average of the two values.
+	rank := q * (n - 1)
+
+	lowerIndex := math.Max(0, math.Floor(rank))
+	upperIndex := math.Min(n-1, lowerIndex+1)
+
+	weight := rank - math.Floor(rank)
+	return values[int(lowerIndex)]*(1-weight) + values[int(upperIndex)]*weight
 }

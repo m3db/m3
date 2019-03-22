@@ -272,18 +272,32 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// check, and a block should never be pooled in-between those steps because
 			// the wired list is supposed to have sole ownership over that lifecycle and
 			// is single-threaded.
-			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(l.iOpts)
-			invariantLogger.WithFields(
-				xlog.NewField("blockStart", entry.startTime),
-				xlog.NewField("closed", entry.closed),
-				xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-			).Errorf("wired list tried to process a block that was not retrieved from disk")
+			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
+				l.WithFields(
+					xlog.NewField("blockStart", entry.startTime),
+					xlog.NewField("closed", entry.closed),
+					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+				).Errorf("wired list tried to process a block that was not retrieved from disk")
+			})
+
 		}
 
 		// Evict the block before closing it so that callers of series.ReadEncoded()
 		// don't get errors about trying to read from a closed block.
 		if onEvict := bl.OnEvictedFromWiredList(); onEvict != nil {
-			onEvict.OnEvictedFromWiredList(entry.retrieveID, entry.startTime)
+			if entry.seriesID == nil {
+				// Entry should always have a series ID attached
+				instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
+					l.WithFields(
+						xlog.NewField("blockStart", entry.startTime),
+						xlog.NewField("closed", entry.closed),
+						xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+					).Errorf("wired list entry does not have seriesID set")
+				})
+
+			} else {
+				onEvict.OnEvictedFromWiredList(entry.seriesID, entry.startTime)
+			}
 		}
 
 		// bl.CloseIfFromDisk() will return the block to the pool. In order to avoid
@@ -293,12 +307,13 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 		l.remove(bl)
 		if wasFromDisk := bl.CloseIfFromDisk(); !wasFromDisk {
 			// Should never happen
-			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(l.iOpts)
-			invariantLogger.WithFields(
-				xlog.NewField("blockStart", entry.startTime),
-				xlog.NewField("closed", entry.closed),
-				xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-			).Errorf("wired list tried to close a block that was not from disk")
+			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
+				l.WithFields(
+					xlog.NewField("blockStart", entry.startTime),
+					xlog.NewField("closed", entry.closed),
+					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+				).Errorf("wired list tried to close a block that was not from disk")
+			})
 		}
 
 		l.metrics.evicted.Inc(1)

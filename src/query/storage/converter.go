@@ -23,13 +23,16 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xcost "github.com/m3db/m3/src/x/cost"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -55,10 +58,11 @@ func PromWriteTSToM3(
 	}
 }
 
-// The default name for the name tag in Prometheus metrics.
-// This can be overwritten by setting tagOptions in the config
+// The default name for the name and bucket tags in Prometheus metrics.
+// This can be overwritten by setting tagOptions in the config.
 var (
-	promDefaultName = []byte("__name__")
+	promDefaultName       = []byte("__name__")
+	promDefaultBucketName = []byte("le")
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -69,13 +73,16 @@ func PromLabelsToM3Tags(
 	tags := models.NewTags(len(labels), tagOptions)
 	tagList := make([]models.Tag, 0, len(labels))
 	for _, label := range labels {
-		// If this label corresponds to the Prometheus name,
+		name := label.Name
+		// If this label corresponds to the Prometheus name or bucket name,
 		// instead set it as the given name tag from the config file.
-		if bytes.Equal(promDefaultName, label.Name) {
+		if bytes.Equal(promDefaultName, name) {
 			tags = tags.SetName(label.Value)
+		} else if bytes.Equal(promDefaultBucketName, name) {
+			tags = tags.SetBucket(label.Value)
 		} else {
 			tagList = append(tagList, models.Tag{
-				Name:  label.Name,
+				Name:  name,
 				Value: label.Value,
 			})
 		}
@@ -192,6 +199,14 @@ func SeriesToPromTS(series *ts.Series) prompb.TimeSeries {
 	return prompb.TimeSeries{Labels: labels, Samples: samples}
 }
 
+type sortableLabels []prompb.Label
+
+func (t sortableLabels) Len() int      { return len(t) }
+func (t sortableLabels) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t sortableLabels) Less(i, j int) bool {
+	return bytes.Compare(t[i].Name, t[j].Name) == -1
+}
+
 // TagsToPromLabels converts tags to prometheus labels.
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// Perform bulk allocation upfront then convert to pointers afterwards
@@ -199,10 +214,24 @@ func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// if modifying.
 	l := tags.Len()
 	labels := make([]prompb.Label, 0, l)
+
+	metricName := tags.Opts.MetricName()
+	bucketName := tags.Opts.BucketName()
 	for _, t := range tags.Tags {
-		labels = append(labels, prompb.Label{Name: t.Name, Value: t.Value})
+		if bytes.Equal(t.Name, metricName) {
+			labels = append(labels,
+				prompb.Label{Name: promDefaultName, Value: t.Value})
+		} else if bytes.Equal(t.Name, bucketName) {
+			labels = append(labels,
+				prompb.Label{Name: promDefaultBucketName, Value: t.Value})
+		} else {
+			labels = append(labels, prompb.Label{Name: t.Name, Value: t.Value})
+		}
 	}
 
+	// Sort here since name and label may be added in a different order in tags
+	// if default metric name or bucket names are overridden.
+	sort.Sort(sortableLabels(labels))
 	labelsPointers := make([]*prompb.Label, 0, l)
 	for i := range labels {
 		labelsPointers = append(labelsPointers, &labels[i])
@@ -239,6 +268,7 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*ts.Series, error) {
 	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
@@ -252,6 +282,15 @@ func iteratorToTsSeries(
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
 	}
 
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	r := enforcer.Add(xcost.Cost(len(datapoints)))
+	if r.Error != nil {
+		return nil, r.Error
+	}
+
 	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
 }
 
@@ -259,11 +298,12 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
 	for _, iter := range iters {
-		series, err := iteratorToTsSeries(iter, tagOptions)
+		series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -279,6 +319,7 @@ func decompressConcurrently(
 	iterLength int,
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -305,7 +346,7 @@ func decompressConcurrently(
 				return
 			}
 
-			series, err := iteratorToTsSeries(iter, tagOptions)
+			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 			if err != nil {
 				// Return the first error that is encountered.
 				select {
@@ -335,6 +376,7 @@ func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	if cleanupSeriesIters {
@@ -344,8 +386,9 @@ func SeriesIteratorsToFetchResult(
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
 	if readWorkerPool == nil {
-		return decompressSequentially(iterLength, iters, tagOptions)
+		return decompressSequentially(iterLength, iters, enforcer, tagOptions)
 	}
 
-	return decompressConcurrently(iterLength, iters, readWorkerPool, tagOptions)
+	return decompressConcurrently(iterLength, iters, readWorkerPool,
+		enforcer, tagOptions)
 }

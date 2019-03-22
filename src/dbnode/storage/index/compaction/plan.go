@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 )
@@ -36,66 +35,29 @@ var (
 
 var (
 	// DefaultLevels are the default Level(s) used for compaction options.
-	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 262K), [262K, 524K), [524K, 1M), [1M, 2M), [2M, 8M)
+	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 262K), [262K, 1M), [1M, 4M)
 		Level{
 			MinSizeInclusive: 0,
 			MaxSizeExclusive: 1 << 18,
 		},
 		Level{
 			MinSizeInclusive: 1 << 18,
-			MaxSizeExclusive: 1 << 19,
-		},
-		Level{
-			MinSizeInclusive: 1 << 19,
 			MaxSizeExclusive: 1 << 20,
 		},
 		Level{
 			MinSizeInclusive: 1 << 20,
-			MaxSizeExclusive: 1 << 21,
-		},
-		Level{
-			MinSizeInclusive: 1 << 21,
-			MaxSizeExclusive: 1 << 23,
+			MaxSizeExclusive: 1 << 22,
 		},
 	}
 
 	// DefaultOptions are the default compaction PlannerOptions.
 	DefaultOptions = PlannerOptions{
-		MutableSegmentSizeThreshold:   1 << 16,          // 64K
-		MutableCompactionAgeThreshold: 15 * time.Second, // any mutable segment 15s or older is eligible for compactions
-		Levels:  DefaultLevels,                      // sizes defined above
-		OrderBy: TasksOrderedByOldestMutableAndSize, // compact mutable segments first
+		MutableSegmentSizeThreshold:   0,                                  // any mutable segment is eligible for compactions
+		MutableCompactionAgeThreshold: 0,                                  // any mutable segment is eligible for compactions
+		Levels:                        DefaultLevels,                      // sizes defined above
+		OrderBy:                       TasksOrderedByOldestMutableAndSize, // compact mutable segments first
 	}
 )
-
-// Compactable returns whether the current segment meets the requirements to be
-// compacted in steady-state.
-// NB: Steady-state here refers to the usual operating mode for M3DB, where the
-// database is constantly receiving new writes. In these situations, we don't
-// compact as soon as we receive a write to allow segments to buffer incoming
-// writes to reduce the number of total compactions required by the process.
-// However, in times where the process isn't already compacting, mutable segments
-// that don't meet the requirements laid herein may still be considered compactable.
-func (s Segment) Compactable(opts PlannerOptions) bool {
-	// In steady state, i.e. when we are constantly getting writes w/ new IDs, any
-	// of following conditions holding true indicates we will compact a segment:
-	//  - a mutable segment is sufficiently old, i.e, has Age > MutableCompactionAgeThreshold
-	//  - a mutable segment is sufficiently large, i.e, has Size > MutableCompactionSizeThreshold
-	//  - a FST segment fits within within any of the given opts.Levels
-	if s.Type == segments.MutableType {
-		return s.Age >= opts.MutableCompactionAgeThreshold || s.Size >= opts.MutableSegmentSizeThreshold
-	}
-	if s.Type == segments.FSTType {
-		for _, l := range opts.Levels {
-			if l.MinSizeInclusive <= s.Size && s.Size < l.MaxSizeExclusive {
-				return true
-			}
-		}
-		return false
-	}
-	// we don't know how to compact anything that isn't FST/Mutable.
-	return false
-}
 
 // NewPlan returns a new compaction.Plan per the rules above and the knobs provided.
 func NewPlan(compactableSegments []Segment, opts PlannerOptions) (*Plan, error) {

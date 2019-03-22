@@ -21,7 +21,9 @@
 package pools
 
 import (
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 )
@@ -76,4 +78,35 @@ func (w *PoolWrapper) IteratorPools() (
 	watcherErr := make(chan error)
 	w.watchersErr = append(w.watchersErr, watcherErr)
 	return false, nil, nil, watcher, watcherErr
+}
+
+// WaitForIteratorPools will block until iterator pools are available.
+// If given a timeout of 0, will block indefinitely
+func (w *PoolWrapper) WaitForIteratorPools(
+	timeout time.Duration,
+) (encoding.IteratorPools, error) {
+	available, pools, err, poolCh, errCh := w.IteratorPools()
+	if err != nil {
+		return nil, err
+	}
+
+	if !available {
+		if timeout == 0 {
+			select {
+			case pools = <-poolCh:
+			case err = <-errCh:
+				return nil, err
+			}
+		}
+
+		select {
+		case pools = <-poolCh:
+		case err = <-errCh:
+			return nil, err
+		case <-time.After(timeout):
+			return nil, errors.New("timeout waiting for iterator pools")
+		}
+	}
+
+	return pools, err
 }

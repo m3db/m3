@@ -30,7 +30,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/service"
+	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -40,11 +43,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SetupPlacementTest(t *testing.T) (*client.MockClient, *placement.MockService) {
+func SetupPlacementTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *placement.MockService) {
 	logging.InitWithCores(nil)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
@@ -61,10 +61,37 @@ func SetupPlacementTest(t *testing.T) (*client.MockClient, *placement.MockServic
 	return mockClient, mockPlacementService
 }
 
+func setupPlacementTest(t *testing.T, ctrl *gomock.Controller, initPlacement placement.Placement) *client.MockClient {
+	logging.InitWithCores(nil)
+
+	mockClient := client.NewMockClient(ctrl)
+	require.NotNil(t, mockClient)
+
+	mockServices := services.NewMockServices(ctrl)
+	require.NotNil(t, mockServices)
+
+	mockClient.EXPECT().Services(gomock.Any()).Return(mockServices, nil).AnyTimes()
+	mockServices.EXPECT().PlacementService(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ interface{}, opts placement.Options) (placement.Service, error) {
+			ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), "", opts), opts)
+			if initPlacement != nil {
+				_, err := ps.Set(initPlacement)
+				require.NoError(t, err)
+			}
+			return ps, nil
+		},
+	).AnyTimes()
+
+	return mockClient
+}
+
 func TestPlacementGetHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewGetHandler(handlerOpts)
@@ -103,7 +130,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		placementObj, err := placement.NewPlacementFromProto(placementProto)
 		require.NoError(t, err)
 
-		mockPlacementService.EXPECT().Placement().Return(placementObj, 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(placementObj, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -116,7 +143,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(nil, 0, errors.New("key not found"))
+		mockPlacementService.EXPECT().Placement().Return(nil, errors.New("key not found"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()
@@ -136,7 +163,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=12", nil)
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj, nil)
+		mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj.Clone().SetVersion(12), nil)
 
 		handler.ServeHTTP(serviceName, w, req)
 		resp = w.Result()

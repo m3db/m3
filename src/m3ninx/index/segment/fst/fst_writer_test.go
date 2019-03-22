@@ -27,7 +27,7 @@ import (
 )
 
 func TestFSTWriterNoPanic(t *testing.T) {
-	w := newFSTWriter()
+	w := newFSTWriter(WriterOptions{})
 	_, err := w.Write(nil)
 	require.Error(t, err)
 

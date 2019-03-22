@@ -59,7 +59,7 @@ func TestHashTypeUnmarshalYAMLErrors(t *testing.T) {
 
 func TestMurmur32HashShardFn(t *testing.T) {
 	hashType := Murmur32Hash
-	numShards := 1024
+	numShards := uint32(1024)
 	shardFn, err := hashType.ShardFn()
 	require.NoError(t, err)
 

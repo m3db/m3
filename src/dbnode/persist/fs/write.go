@@ -38,6 +38,8 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/pborman/uuid"
 )
 
 const (
@@ -68,8 +70,10 @@ type writer struct {
 	checkpointFilePath         string
 	indexEntries               indexEntries
 
-	start              time.Time
-	snapshotTime       time.Time
+	start        time.Time
+	snapshotTime time.Time
+	snapshotID   uuid.UUID
+
 	currIdx            int64
 	currOffset         int64
 	encoder            *msgpack.Encoder
@@ -149,6 +153,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
 	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.snapshotID = opts.Snapshot.SnapshotID
 	w.currIdx = 0
 	w.currOffset = 0
 	w.err = nil
@@ -520,9 +525,15 @@ func (w *writer) writeInfoFileContents(
 	bloomFilter *bloom.BloomFilter,
 	summaries int,
 ) error {
+	snapshotBytes, err := w.snapshotID.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("error marshaling snapshot ID into bytes: %v", err)
+	}
+
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
+		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,
@@ -540,6 +551,6 @@ func (w *writer) writeInfoFileContents(
 		return err
 	}
 
-	_, err := w.infoFdWithDigest.Write(w.encoder.Bytes())
+	_, err = w.infoFdWithDigest.Write(w.encoder.Bytes())
 	return err
 }

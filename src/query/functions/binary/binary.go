@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // Function is a function that applies on two floats
@@ -34,6 +35,7 @@ type singleScalarFunc func(x float64) float64
 
 // processes two logical blocks, performing a logical operation on them
 func processBinary(
+	queryCtx *models.QueryContext,
 	lhs, rhs block.Block,
 	params NodeParams,
 	controller *transform.Controller,
@@ -56,6 +58,7 @@ func processBinary(
 		// rhs is a series; use rhs metadata and series meta
 		if !params.RIsScalar {
 			return processSingleBlock(
+				queryCtx,
 				rhs,
 				controller,
 				func(x float64) float64 {
@@ -95,6 +98,7 @@ func processBinary(
 		rVal := scalarR.Value(time.Time{})
 		// lhs is a series; use lhs metadata and series meta
 		return processSingleBlock(
+			queryCtx,
 			lhs,
 			controller,
 			func(x float64) float64 {
@@ -116,10 +120,11 @@ func processBinary(
 		return nil, errNoMatching
 	}
 
-	return processBothSeries(lIter, rIter, controller, params.VectorMatching, fn)
+	return processBothSeries(queryCtx, lIter, rIter, controller, params.VectorMatching, fn)
 }
 
 func processSingleBlock(
+	queryCtx *models.QueryContext,
 	block block.Block,
 	controller *transform.Controller,
 	fn singleScalarFunc,
@@ -129,31 +134,34 @@ func processSingleBlock(
 		return nil, err
 	}
 
-	builder, err := controller.BlockBuilder(it.Meta(), it.SeriesMeta())
+	builder, err := controller.BlockBuilder(queryCtx, it.Meta(), it.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}
 
-	if err := builder.AddCols(it.StepCount()); err != nil {
+	if err = builder.AddCols(it.StepCount()); err != nil {
 		return nil, err
 	}
 
 	for index := 0; it.Next(); index++ {
-		step, err := it.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		step := it.Current()
 		values := step.Values()
 		for _, value := range values {
-			builder.AppendValue(index, fn(value))
+			if err := builder.AppendValue(index, fn(value)); err != nil {
+				return nil, err
+			}
 		}
+	}
+
+	if err = it.Err(); err != nil {
+		return nil, err
 	}
 
 	return builder.Build(), nil
 }
 
 func processBothSeries(
+	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
@@ -173,7 +181,7 @@ func processBothSeries(
 	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta)
 
 	// Use metas from only taken left series
-	builder, err := controller.BlockBuilder(lMeta, lSeriesMeta)
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -183,17 +191,9 @@ func processBothSeries(
 	}
 
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
-		lStep, err := lIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
-		rStep, err := rIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		lStep := lIter.Current()
 		lValues := lStep.Values()
+		rStep := rIter.Current()
 		rValues := rStep.Values()
 
 		for seriesIdx, lIdx := range takeLeft {
@@ -201,8 +201,18 @@ func processBothSeries(
 			lVal := lValues[lIdx]
 			rVal := rValues[rIdx]
 
-			builder.AppendValue(index, fn(lVal, rVal))
+			if err := builder.AppendValue(index, fn(lVal, rVal)); err != nil {
+				return nil, err
+			}
 		}
+	}
+
+	if err = lIter.Err(); err != nil {
+		return nil, err
+	}
+
+	if err = rIter.Err(); err != nil {
+		return nil, err
 	}
 
 	return builder.Build(), nil

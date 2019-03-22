@@ -28,33 +28,23 @@ import (
 )
 
 // CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
-func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-chan bool) {
-	closing := make(chan bool)
+func CloseWatcher(ctx context.Context, cancel context.CancelFunc, w http.ResponseWriter) {
 	logger := logging.WithContext(ctx)
-	var doneChan <-chan bool
 	if notifier, ok := w.(http.CloseNotifier); ok {
-		done := make(chan bool)
-
 		notify := notifier.CloseNotify()
 		go func() {
 			// Wait for either the request to finish
 			// or for the client to disconnect
 			select {
-			case <-done:
 			case <-notify:
 				logger.Warn("connection closed by client")
-				close(closing)
+				cancel()
 			case <-ctx.Done():
 				// We only care about the time out case and not other cancellations
 				if ctx.Err() == context.DeadlineExceeded {
 					logger.Warn("request timed out")
 				}
-				close(closing)
 			}
-			close(done)
 		}()
-		doneChan = done
 	}
-
-	return doneChan, closing
 }

@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -51,6 +52,9 @@ var (
 	// errShardNotBootstrappedToRead raised when trying to read data for a shard that's not yet bootstrapped.
 	errShardNotBootstrappedToRead = errors.New("shard is not yet bootstrapped to read")
 
+	// errIndexNotBootstrappedToRead raised when trying to read the index before being bootstrapped.
+	errIndexNotBootstrappedToRead = errors.New("index is not yet bootstrapped to read")
+
 	// errBootstrapEnqueued raised when trying to bootstrap and bootstrap becomes enqueued.
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")
 )
@@ -58,15 +62,16 @@ var (
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database        database
-	mediator        databaseMediator
-	opts            Options
-	log             xlog.Logger
-	nowFn           clock.NowFn
-	processProvider bootstrap.ProcessProvider
-	state           BootstrapState
-	hasPending      bool
-	status          tally.Gauge
+	database                    database
+	mediator                    databaseMediator
+	opts                        Options
+	log                         xlog.Logger
+	nowFn                       clock.NowFn
+	processProvider             bootstrap.ProcessProvider
+	state                       BootstrapState
+	hasPending                  bool
+	status                      tally.Gauge
+	lastBootstrapCompletionTime time.Time
 }
 
 func newBootstrapManager(
@@ -91,6 +96,10 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	state := m.state
 	m.RUnlock()
 	return state == Bootstrapped
+}
+
+func (m *bootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
+	return m.lastBootstrapCompletionTime, !m.lastBootstrapCompletionTime.IsZero()
 }
 
 func (m *bootstrapManager) Bootstrap() error {
@@ -148,6 +157,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 
+	m.lastBootstrapCompletionTime = m.nowFn()
 	return multiErr.FinalError()
 }
 

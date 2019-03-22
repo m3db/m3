@@ -1,5 +1,5 @@
-hash: 0d0e018e8d993d4a2bcb12c426e444f6b3c7070d3acf6fbe7fcc3140064b6215
-updated: 2018-10-16T13:52:30.938944-04:00
+hash: 1142bd7c68492e34422277010dfee8fd45c6810cceaa25194352178a1315f716
+updated: 2019-02-21T12:08:41.672845643-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -15,6 +15,8 @@ imports:
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
+- name: github.com/codahale/hdrhistogram
+  version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
@@ -108,7 +110,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: 51c732079c882f52f8e6af889d99ac2a1611d5e4
+  version: e766292d14de216c324bb60b17320af72dee59c6
   repo: https://github.com/m3db/vellum
   subpackages:
   - regexp
@@ -125,19 +127,23 @@ imports:
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
-- name: github.com/glycerine/go-unsnap-stream
-  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
+  version: 10f464fb11741e507cbb5201eb889c37dd51dbab
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
-  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
+  version: 432dd90af23366a89a611c020003fc8ba281ae5d
+- name: github.com/go-playground/locales
+  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/go-stack/stack
   version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
-  version: 636bf0302bc95575d69441b25a2603156ffdddf1
+  version: ba06b47c162d49f2af050fb4c75bcbc86a159d5c
   subpackages:
   - gogoproto
   - jsonpb
@@ -150,7 +156,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: c34cdb4725f4c3844d095133c6e40e448b86589b
+  version: 51421b967af1f557f93a59e0057aaf15ca02e29c
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -178,10 +184,8 @@ imports:
   - cmp/internal/value
 - name: github.com/google/uuid
   version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
-- name: github.com/gorilla/context
-  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: e3702bed27f0d39777b0b37b664b6280e8ef8fbf
+  version: a7962380ca08b5a188038c69871b8d3fbdf31e89
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -191,7 +195,7 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/hashicorp/hcl
-  version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
+  version: 65a6292f0157eff210d03ed1bf6c59b190b8b906
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -202,6 +206,8 @@ imports:
   - json/parser
   - json/scanner
   - json/token
+- name: github.com/hydrogen18/stalecucumber
+  version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
@@ -219,7 +225,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: fc5c28bb09dfe6ba7f79e897021d9b186b5fffc5
+  version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
   vcs: git
   subpackages:
   - checked
@@ -240,12 +246,18 @@ imports:
   - process
   - resource
   - retry
+  - sampler
   - server
   - sync
   - tcp
   - test
   - time
+  - unsafe
   - watch
+- name: github.com/m3db/pilosa
+  version: ac8920c6e1abe06e2b0a3deba79a9910c39700e6
+  subpackages:
+  - roaring
 - name: github.com/m3db/prometheus_client_golang
   version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
   subpackages:
@@ -268,7 +280,7 @@ imports:
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/magiconair/properties
-  version: b3b15ef068fd0b17ddf408a23669f20811d194d2
+  version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -280,33 +292,34 @@ imports:
 - name: github.com/MichaelTJones/pcg
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
-  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
-- name: github.com/mschoch/smat
-  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+  version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/nightlyone/lockfile
-  version: 1d49c987357a327b5b03aa84cbddd582c328615d
+  version: 0ad87eef1443f64d3d8c50da647e2b1552851124
 - name: github.com/oklog/ulid
-  version: 66bb6560562feca7045b23db1ae85b01260f87c5
+  version: 1fe95fa015d44afc8cd427914daadb0317481b71
+- name: github.com/opentracing-contrib/go-stdlib
+  version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+  subpackages:
+  - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 855519783f479520497c6b3445611b05fc42f009
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
   subpackages:
   - ext
+  - log
+  - mocktracer
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
-- name: github.com/pelletier/go-buffruneio
-  version: de1592c34d9c6055a32fc9ebe2b3ee50ca468ebe
 - name: github.com/pelletier/go-toml
-  version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
-- name: github.com/philhofer/fwd
-  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+  version: 27c6b39a135b7dc87a14afb068809132fb7a9a8f
 - name: github.com/pilosa/pilosa
-  version: a112b2d46af94e3ecfa74b8158381e3595b24e4b
+  version: 62b9697a6aa83cff2bbc1f826f5f26943d505321
   subpackages:
-  - roaring
+  - logger
+  - stats
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -352,6 +365,10 @@ imports:
   - fileutil
   - index
   - labels
+- name: github.com/rakyll/statik
+  version: 19b88da8fc15428620782ba18f68423130e7ac7d
+  subpackages:
+  - fs
 - name: github.com/RoaringBitmap/roaring
   version: 3d677d3262197ee558b85029301eb69b8239f91a
 - name: github.com/satori/go.uuid
@@ -363,31 +380,30 @@ imports:
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/afero
-  version: 36f8810e2e3d7eeac4ac05b57f65690fbfba62a2
+  version: f4711e4db9e9a1d3887343acb72b2bbfc2f686f5
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
+  version: 8c9545af88b134710ab1cd196795e7f2388358d7
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
-  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
+  version: 94f6ae3ed3bceceafa716478c5fbf8d29ca601a1
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
+  version: 6d33b5a963d922d182c91e8a1c88d81fd150cfd4
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
+  - mock
   - require
   - suite
-- name: github.com/tinylib/msgp
-  version: f65876d3ea05943d6613bca6b8ed391843044bd4
-  subpackages:
-  - msgp
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
@@ -399,8 +415,33 @@ imports:
   - m3/thriftudp
   - multi
   - prometheus
+- name: github.com/uber/jaeger-client-go
+  version: 1a782e2da844727691fef1757c72eb190c2909f0
+  subpackages:
+  - config
+  - internal/baggage
+  - internal/baggage/remote
+  - internal/spanlog
+  - internal/throttler
+  - internal/throttler/remote
+  - log
+  - log/zap
+  - rpcmetrics
+  - thrift
+  - thrift-gen/agent
+  - thrift-gen/baggage
+  - thrift-gen/jaeger
+  - thrift-gen/sampling
+  - thrift-gen/zipkincore
+  - transport
+  - utils
+- name: github.com/uber/jaeger-lib
+  version: ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5
+  subpackages:
+  - metrics
+  - metrics/tally
 - name: github.com/uber/tchannel-go
-  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+  version: 162ecb0dc97845a0c42aae3899651dba111085e5
   subpackages:
   - internal/argreader
   - relay
@@ -453,11 +494,11 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
+  version: 37e7f081c4d4c64e13b10787722085407fe5d15f
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: e48874b42435b4347fc52bdee0424a52abc974d7
+  version: 2b024373dcd9800f0cae693839fac6ede8d64a8c
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -534,3 +575,13 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
+- name: github.com/glycerine/go-unsnap-stream
+  version: f9677308dec2b35e76737f9713df328ad11b1fea
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/tinylib/msgp
+  version: ade0ca4ace05af96235d107023ab018ee921309c
+  subpackages:
+  - msgp

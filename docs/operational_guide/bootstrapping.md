@@ -14,7 +14,7 @@ M3DB currently supports 5 different bootstrappers:
 2. `commitlog`
 3. `peers`
 4. `uninitialized_topology`
-5. `noop_all`
+5. `noop-all`
 
 When the bootstrapping process begins, M3DB nodes need to determine two things:
 
@@ -83,7 +83,7 @@ The `uninitialized_topology` bootstrapper determines whether a placement is "new
 
 ### No Operational All Bootstrapper
 
-The `noop_all` bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.
+The `noop-all` bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.
 
 ## Bootstrappers Configuration
 

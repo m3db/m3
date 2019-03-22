@@ -55,16 +55,19 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 
 // Close mocks base method
 func (m *MockStore) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockStoreMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStore)(nil).Close))
 }
 
 // ReadNamespaces mocks base method
 func (m *MockStore) ReadNamespaces() (*Namespaces, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadNamespaces")
 	ret0, _ := ret[0].(*Namespaces)
 	ret1, _ := ret[1].(error)
@@ -73,11 +76,13 @@ func (m *MockStore) ReadNamespaces() (*Namespaces, error) {
 
 // ReadNamespaces indicates an expected call of ReadNamespaces
 func (mr *MockStoreMockRecorder) ReadNamespaces() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadNamespaces", reflect.TypeOf((*MockStore)(nil).ReadNamespaces))
 }
 
 // ReadRuleSet mocks base method
 func (m *MockStore) ReadRuleSet(arg0 string) (RuleSet, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadRuleSet", arg0)
 	ret0, _ := ret[0].(RuleSet)
 	ret1, _ := ret[1].(error)
@@ -86,11 +91,13 @@ func (m *MockStore) ReadRuleSet(arg0 string) (RuleSet, error) {
 
 // ReadRuleSet indicates an expected call of ReadRuleSet
 func (mr *MockStoreMockRecorder) ReadRuleSet(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadRuleSet", reflect.TypeOf((*MockStore)(nil).ReadRuleSet), arg0)
 }
 
 // WriteAll mocks base method
 func (m *MockStore) WriteAll(arg0 *Namespaces, arg1 MutableRuleSet) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -98,11 +105,13 @@ func (m *MockStore) WriteAll(arg0 *Namespaces, arg1 MutableRuleSet) error {
 
 // WriteAll indicates an expected call of WriteAll
 func (mr *MockStoreMockRecorder) WriteAll(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockStore)(nil).WriteAll), arg0, arg1)
 }
 
 // WriteRuleSet mocks base method
 func (m *MockStore) WriteRuleSet(arg0 MutableRuleSet) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteRuleSet", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -110,5 +119,6 @@ func (m *MockStore) WriteRuleSet(arg0 MutableRuleSet) error {
 
 // WriteRuleSet indicates an expected call of WriteRuleSet
 func (mr *MockStoreMockRecorder) WriteRuleSet(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRuleSet", reflect.TypeOf((*MockStore)(nil).WriteRuleSet), arg0)
 }

@@ -23,14 +23,17 @@ package native
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/logging"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -39,6 +42,12 @@ import (
 
 const (
 	promQuery = `http_requests_total{job="prometheus",group="canary"}`
+)
+
+var (
+	timeoutOpts = &prometheus.TimeoutOpts{
+		FetchTimeout: 15 * time.Second,
+	}
 )
 
 func defaultParams() url.Values {
@@ -55,7 +64,20 @@ func TestParamParsing(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, err := parseParams(req)
+	r, err := parseParams(req, timeoutOpts)
+	require.Nil(t, err, "unable to parse request")
+	require.Equal(t, promQuery, r.Query)
+}
+
+func TestInstantaneousParamParsing(t *testing.T) {
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	params := url.Values{}
+	now := time.Now()
+	params.Add(queryParam, promQuery)
+	params.Add(timeParam, now.Format(time.RFC3339))
+	req.URL.RawQuery = params.Encode()
+
+	r, err := parseInstantaneousParams(req, timeoutOpts)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
@@ -65,7 +87,7 @@ func TestInvalidStart(t *testing.T) {
 	vals := defaultParams()
 	vals.Del(startParam)
 	req.URL.RawQuery = vals.Encode()
-	_, err := parseParams(req)
+	_, err := parseParams(req, timeoutOpts)
 	require.NotNil(t, err, "unable to parse request")
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
@@ -76,7 +98,7 @@ func TestInvalidTarget(t *testing.T) {
 	vals.Del(queryParam)
 	req.URL.RawQuery = vals.Encode()
 
-	p, err := parseParams(req)
+	p, err := parseParams(req, timeoutOpts)
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
 	require.Equal(t, err.Code(), http.StatusBadRequest)
@@ -105,23 +127,60 @@ func TestParseDurationError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestParseBlockType(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	r, err := http.NewRequest(http.MethodGet, "/foo", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=0", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeMultiBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeDecodedBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+
+	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+}
+
 func TestRenderResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
-
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
-		})),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
-		})),
+		ts.NewSeries([]byte("foo"),
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
 	}
 
-	renderResultsJSON(buffer, series, params)
+	renderResultsJSON(buffer, series, params, true)
 
 	expected := mustPrettyJSON(t, `
 	{
@@ -141,6 +200,95 @@ func TestRenderResultsJSON(t *testing.T) {
 						],
 						[
 							1535948890,
+							"NaN"
+						]
+					],
+					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"baz": "bar",
+						"qaz": "qux"
+					},
+					"values": [
+						[
+							1535948880,
+							"2"
+						],
+						[
+							1535948890,
+							"2"
+						]
+					],
+					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"biz": "baz",
+						"qux": "qaz"
+					},
+					"values": [
+						[
+							1535948880,
+							"NaN"
+						],
+						[
+							1535948890,
+							"NaN"
+						]
+					],
+					"step_size_ms": 10000
+				}
+			]
+		}
+	}
+	`)
+
+	actual := mustPrettyJSON(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+	buffer := bytes.NewBuffer(nil)
+	params := models.RequestParams{}
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+
+	series := []*ts.Series{
+		ts.NewSeries([]byte("foo"),
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+	}
+
+	renderResultsJSON(buffer, series, params, false)
+
+	expected := mustPrettyJSON(t, `
+	{
+		"status": "success",
+		"data": {
+			"resultType": "matrix",
+			"result": [
+				{
+					"metric": {
+						"bar": "baz",
+						"qux": "qaz"
+					},
+					"values": [
+						[
+							1535948880,
 							"1"
 						]
 					],
@@ -162,7 +310,68 @@ func TestRenderResultsJSON(t *testing.T) {
 						]
 					],
 					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"biz": "baz",
+						"qux": "qaz"
+					},
+					"values": [],
+					"step_size_ms": 10000
 				}
+			]
+		}
+	}
+	`)
+
+	actual := mustPrettyJSON(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func TestRenderInstantaneousResultsJSON(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+	buffer := bytes.NewBuffer(nil)
+	series := []*ts.Series{
+		ts.NewSeries([]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+	}
+
+	renderResultsInstantaneousJSON(buffer, series)
+
+	expected := mustPrettyJSON(t, `
+	{
+		"status": "success",
+		"data": {
+			"resultType": "vector",
+			"result": [
+				{
+					"metric": {
+						"bar": "baz",
+						"qux": "qaz"
+					},
+					"value": [
+						1535948880,
+						"1"
+					]
+				},
+				{
+					"metric": {
+						"baz": "bar",
+						"qaz": "qux"
+					},
+					"value": [
+						1535948880,
+						"2"
+					]
+ 				}
 			]
 		}
 	}

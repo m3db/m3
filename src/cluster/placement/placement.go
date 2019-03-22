@@ -49,11 +49,11 @@ type placement struct {
 	instancesByShard map[uint32][]Instance
 	rf               int
 	shards           []uint32
+	cutoverNanos     int64
+	version          int
+	maxShardSetID    uint32
 	isSharded        bool
 	isMirrored       bool
-	cutoverNanos     int64
-	maxShardSetID    uint32
-	version          int
 }
 
 // NewPlacement returns a ServicePlacement
@@ -193,7 +193,7 @@ func (p *placement) SetCutoverNanos(cutoverNanos int64) Placement {
 	return p
 }
 
-func (p *placement) GetVersion() int {
+func (p *placement) Version() int {
 	return p.version
 }
 
@@ -238,7 +238,8 @@ func (p *placement) Clone() Placement {
 		SetIsSharded(p.IsSharded()).
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
-		SetMaxShardSetID(p.MaxShardSetID())
+		SetMaxShardSetID(p.MaxShardSetID()).
+		SetVersion(p.Version())
 }
 
 // Placements represents a list of placements.
@@ -289,7 +290,12 @@ func (placements Placements) ActiveIndex(timeNanos int64) int {
 	return idx
 }
 
-// Validate validates a placement
+// Validate validates a placement to ensure:
+// - The shards on each instance are in valid state.
+// - The total number of shards match rf * num_shards_per_replica.
+// - Each shard shows up rf times.
+// - There is one Initializing shard for each Leaving shard.
+// - The instances with same shard_set_id owns the same shards.
 func Validate(p Placement) error {
 	if p.IsMirrored() && !p.IsSharded() {
 		return errMirrorNotSharded
@@ -440,11 +446,11 @@ type instance struct {
 	id             string
 	isolationGroup string
 	zone           string
-	weight         uint32
 	endpoint       string
 	hostname       string
-	port           uint32
 	shards         shard.Shards
+	port           uint32
+	weight         uint32
 	shardSetID     uint32
 }
 

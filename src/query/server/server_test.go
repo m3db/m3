@@ -35,10 +35,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
+	"github.com/m3db/m3/src/query/cost"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
@@ -47,17 +49,19 @@ import (
 	"google.golang.org/grpc"
 )
 
+var queryPort = 25123
+
 var configYAML = `
 listenAddress:
   type: "config"
-  value: "127.0.0.1:7201"
+  value: "127.0.0.1:25123"
 
 metrics:
   scope:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: "127.0.0.1:7202"
+    listenAddress: "127.0.0.1:18202"
   sanitization: prometheus
   samplingRate: 1.0
 
@@ -69,6 +73,7 @@ clusters:
 
 tagOptions:
   metricName: "_new"
+  idScheme: quoted
 
 readWorkerPoolPolicy:
   grow: true
@@ -81,6 +86,7 @@ writeWorkerPoolPolicy:
   size: 100
   shards: 1000
   killProbability: 0.3
+
 `
 
 //TODO: Use randomly assigned port here
@@ -101,7 +107,7 @@ func TestRun(t *testing.T) {
 	session := client.NewMockSession(ctrl)
 	for _, value := range []float64{1, 2} {
 		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
-			ident.NewIDMatcher("_new=first,biz=baz,foo=bar,"),
+			ident.NewIDMatcher(`{_new="first",biz="baz",foo="bar"}`),
 			gomock.Any(),
 			gomock.Any(),
 			value,
@@ -110,7 +116,7 @@ func TestRun(t *testing.T) {
 	}
 	for _, value := range []float64{3, 4} {
 		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
-			ident.NewIDMatcher("_new=second,bar=baz,foo=qux,"),
+			ident.NewIDMatcher(`{_new="second",bar="baz",foo="qux"}`),
 			gomock.Any(),
 			gomock.Any(),
 			value,
@@ -142,13 +148,13 @@ func TestRun(t *testing.T) {
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t, 7201)
+	waitForServerHealthy(t, queryPort)
 
 	// Send Prometheus write request
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:7201"+remote.PromWriteURL, promReqBody)
+		fmt.Sprintf("http://127.0.0.1:%d", queryPort)+remote.PromWriteURL, promReqBody)
 	require.NoError(t, err)
 
 	res, err := http.DefaultClient.Do(req)
@@ -192,8 +198,8 @@ func waitForServerHealthy(t *testing.T, port int) {
 }
 
 type queryServer struct {
-	reads int
-	mu    sync.Mutex
+	reads, searches, tagCompletes int
+	mu                            sync.Mutex
 }
 
 func (s *queryServer) Fetch(
@@ -203,6 +209,26 @@ func (s *queryServer) Fetch(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads++
+	return nil
+}
+
+func (s *queryServer) Search(
+	*rpc.SearchRequest,
+	rpc.Query_SearchServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.searches++
+	return nil
+}
+
+func (s *queryServer) CompleteTags(
+	*rpc.CompleteTagsRequest,
+	rpc.Query_CompleteTagsServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tagCompletes++
 	return nil
 }
 
@@ -230,6 +256,7 @@ backend: grpc
 
 tagOptions:
   metricName: "bar"
+  idScheme: prepend_meta
 
 readWorkerPoolPolicy:
   grow: true
@@ -296,4 +323,56 @@ writeWorkerPoolPolicy:
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
 	<-doneCh
+}
+
+func TestNewPerQueryEnforcer(t *testing.T) {
+	type testContext struct {
+		Global cost.ChainedEnforcer
+		Query  cost.ChainedEnforcer
+		Block  cost.ChainedEnforcer
+	}
+
+	setup := func(t *testing.T, globalLimit, queryLimit int) testContext {
+		cfg := &config.Configuration{
+			Limits: config.LimitsConfiguration{
+				Global: config.GlobalLimitsConfiguration{
+					MaxFetchedDatapoints: 100,
+				},
+				PerQuery: config.PerQueryLimitsConfiguration{
+					MaxFetchedDatapoints: 10,
+				},
+			},
+		}
+
+		global, err := newConfiguredChainedEnforcer(cfg, instrument.NewOptions())
+		require.NoError(t, err)
+
+		queryLvl := global.Child(cost.QueryLevel)
+		blockLvl := queryLvl.Child(cost.BlockLevel)
+
+		return testContext{
+			Global: global,
+			Query:  queryLvl,
+			Block:  blockLvl,
+		}
+	}
+
+	tctx := setup(t, 100, 10)
+
+	// spot check that limits are setup properly for each level
+	r := tctx.Block.Add(11)
+	require.Error(t, r.Error)
+
+	floatsEqual := func(f1, f2 float64) {
+		assert.InDelta(t, f1, f2, 0.0000001)
+	}
+
+	floatsEqual(float64(r.Cost), 11)
+
+	r, _ = tctx.Query.State()
+	floatsEqual(float64(r.Cost), 11)
+
+	r, _ = tctx.Global.State()
+	floatsEqual(float64(r.Cost), 11)
+	require.NoError(t, r.Error)
 }

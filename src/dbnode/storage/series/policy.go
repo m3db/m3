@@ -39,11 +39,6 @@ const (
 	// which requires loading all into cache on bootstrap and never
 	// expiring series from memory until expired from retention.
 	CacheAll
-	// CacheAllMetadata specifies that all series metadata but not the
-	// data itself must be cached at all times and the metadata is never
-	// expired from memory until expired from retention.
-	// TODO: Remove this once recently read is production grade.
-	CacheAllMetadata
 	// CacheRecentlyRead specifies that series that are recently read
 	// must be cached, configurable by the namespace block expiry after
 	// not accessed period.
@@ -59,7 +54,7 @@ const (
 
 // ValidCachePolicies returns the valid series cache policies.
 func ValidCachePolicies() []CachePolicy {
-	return []CachePolicy{CacheNone, CacheAll, CacheAllMetadata, CacheRecentlyRead, CacheLRU}
+	return []CachePolicy{CacheNone, CacheAll, CacheRecentlyRead, CacheLRU}
 }
 
 func (p CachePolicy) String() string {
@@ -68,8 +63,6 @@ func (p CachePolicy) String() string {
 		return "none"
 	case CacheAll:
 		return "all"
-	case CacheAllMetadata:
-		return "all_metadata"
 	case CacheRecentlyRead:
 		return "recently_read"
 	case CacheLRU:

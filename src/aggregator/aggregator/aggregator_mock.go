@@ -61,6 +61,7 @@ func (m *MockElectionManager) EXPECT() *MockElectionManagerMockRecorder {
 
 // Close mocks base method
 func (m *MockElectionManager) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -68,11 +69,13 @@ func (m *MockElectionManager) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockElectionManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockElectionManager)(nil).Close))
 }
 
 // ElectionState mocks base method
 func (m *MockElectionManager) ElectionState() ElectionState {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ElectionState")
 	ret0, _ := ret[0].(ElectionState)
 	return ret0
@@ -80,11 +83,13 @@ func (m *MockElectionManager) ElectionState() ElectionState {
 
 // ElectionState indicates an expected call of ElectionState
 func (mr *MockElectionManagerMockRecorder) ElectionState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ElectionState", reflect.TypeOf((*MockElectionManager)(nil).ElectionState))
 }
 
 // IsCampaigning mocks base method
 func (m *MockElectionManager) IsCampaigning() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsCampaigning")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -92,11 +97,13 @@ func (m *MockElectionManager) IsCampaigning() bool {
 
 // IsCampaigning indicates an expected call of IsCampaigning
 func (mr *MockElectionManagerMockRecorder) IsCampaigning() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCampaigning", reflect.TypeOf((*MockElectionManager)(nil).IsCampaigning))
 }
 
 // Open mocks base method
 func (m *MockElectionManager) Open(arg0 uint32) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -104,11 +111,13 @@ func (m *MockElectionManager) Open(arg0 uint32) error {
 
 // Open indicates an expected call of Open
 func (mr *MockElectionManagerMockRecorder) Open(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockElectionManager)(nil).Open), arg0)
 }
 
 // Reset mocks base method
 func (m *MockElectionManager) Reset() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reset")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -116,11 +125,13 @@ func (m *MockElectionManager) Reset() error {
 
 // Reset indicates an expected call of Reset
 func (mr *MockElectionManagerMockRecorder) Reset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockElectionManager)(nil).Reset))
 }
 
 // Resign mocks base method
 func (m *MockElectionManager) Resign(arg0 context.Context) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resign", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -128,6 +139,7 @@ func (m *MockElectionManager) Resign(arg0 context.Context) error {
 
 // Resign indicates an expected call of Resign
 func (mr *MockElectionManagerMockRecorder) Resign(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resign", reflect.TypeOf((*MockElectionManager)(nil).Resign), arg0)
 }
 
@@ -156,6 +168,7 @@ func (m *MockFlushTimesManager) EXPECT() *MockFlushTimesManagerMockRecorder {
 
 // Close mocks base method
 func (m *MockFlushTimesManager) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -163,11 +176,13 @@ func (m *MockFlushTimesManager) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockFlushTimesManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFlushTimesManager)(nil).Close))
 }
 
 // Get mocks base method
 func (m *MockFlushTimesManager) Get() (*flush.ShardSetFlushTimes, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(*flush.ShardSetFlushTimes)
 	ret1, _ := ret[1].(error)
@@ -176,11 +191,13 @@ func (m *MockFlushTimesManager) Get() (*flush.ShardSetFlushTimes, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockFlushTimesManagerMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockFlushTimesManager)(nil).Get))
 }
 
 // Open mocks base method
 func (m *MockFlushTimesManager) Open(arg0 uint32) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -188,11 +205,13 @@ func (m *MockFlushTimesManager) Open(arg0 uint32) error {
 
 // Open indicates an expected call of Open
 func (mr *MockFlushTimesManagerMockRecorder) Open(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockFlushTimesManager)(nil).Open), arg0)
 }
 
 // Reset mocks base method
 func (m *MockFlushTimesManager) Reset() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reset")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -200,11 +219,13 @@ func (m *MockFlushTimesManager) Reset() error {
 
 // Reset indicates an expected call of Reset
 func (mr *MockFlushTimesManagerMockRecorder) Reset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockFlushTimesManager)(nil).Reset))
 }
 
 // StoreAsync mocks base method
 func (m *MockFlushTimesManager) StoreAsync(arg0 *flush.ShardSetFlushTimes) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StoreAsync", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -212,11 +233,13 @@ func (m *MockFlushTimesManager) StoreAsync(arg0 *flush.ShardSetFlushTimes) error
 
 // StoreAsync indicates an expected call of StoreAsync
 func (mr *MockFlushTimesManagerMockRecorder) StoreAsync(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreAsync", reflect.TypeOf((*MockFlushTimesManager)(nil).StoreAsync), arg0)
 }
 
 // Watch mocks base method
 func (m *MockFlushTimesManager) Watch() (watch.Watch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(watch.Watch)
 	ret1, _ := ret[1].(error)
@@ -225,6 +248,7 @@ func (m *MockFlushTimesManager) Watch() (watch.Watch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockFlushTimesManagerMockRecorder) Watch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockFlushTimesManager)(nil).Watch))
 }
 
@@ -253,6 +277,7 @@ func (m *MockPlacementManager) EXPECT() *MockPlacementManagerMockRecorder {
 
 // Close mocks base method
 func (m *MockPlacementManager) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -260,11 +285,13 @@ func (m *MockPlacementManager) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockPlacementManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockPlacementManager)(nil).Close))
 }
 
 // HasReplacementInstance mocks base method
 func (m *MockPlacementManager) HasReplacementInstance() (bool, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HasReplacementInstance")
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -273,11 +300,13 @@ func (m *MockPlacementManager) HasReplacementInstance() (bool, error) {
 
 // HasReplacementInstance indicates an expected call of HasReplacementInstance
 func (mr *MockPlacementManagerMockRecorder) HasReplacementInstance() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasReplacementInstance", reflect.TypeOf((*MockPlacementManager)(nil).HasReplacementInstance))
 }
 
 // Instance mocks base method
 func (m *MockPlacementManager) Instance() (placement.Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Instance")
 	ret0, _ := ret[0].(placement.Instance)
 	ret1, _ := ret[1].(error)
@@ -286,11 +315,13 @@ func (m *MockPlacementManager) Instance() (placement.Instance, error) {
 
 // Instance indicates an expected call of Instance
 func (mr *MockPlacementManagerMockRecorder) Instance() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instance", reflect.TypeOf((*MockPlacementManager)(nil).Instance))
 }
 
 // InstanceFrom mocks base method
 func (m *MockPlacementManager) InstanceFrom(arg0 placement.Placement) (placement.Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstanceFrom", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	ret1, _ := ret[1].(error)
@@ -299,11 +330,13 @@ func (m *MockPlacementManager) InstanceFrom(arg0 placement.Placement) (placement
 
 // InstanceFrom indicates an expected call of InstanceFrom
 func (mr *MockPlacementManagerMockRecorder) InstanceFrom(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstanceFrom", reflect.TypeOf((*MockPlacementManager)(nil).InstanceFrom), arg0)
 }
 
 // Open mocks base method
 func (m *MockPlacementManager) Open() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -311,11 +344,13 @@ func (m *MockPlacementManager) Open() error {
 
 // Open indicates an expected call of Open
 func (mr *MockPlacementManagerMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockPlacementManager)(nil).Open))
 }
 
 // Placement mocks base method
 func (m *MockPlacementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Placement")
 	ret0, _ := ret[0].(placement.ActiveStagedPlacement)
 	ret1, _ := ret[1].(placement.Placement)
@@ -325,11 +360,13 @@ func (m *MockPlacementManager) Placement() (placement.ActiveStagedPlacement, pla
 
 // Placement indicates an expected call of Placement
 func (mr *MockPlacementManagerMockRecorder) Placement() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Placement", reflect.TypeOf((*MockPlacementManager)(nil).Placement))
 }
 
 // Shards mocks base method
 func (m *MockPlacementManager) Shards() (shard.Shards, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].(shard.Shards)
 	ret1, _ := ret[1].(error)
@@ -338,5 +375,6 @@ func (m *MockPlacementManager) Shards() (shard.Shards, error) {
 
 // Shards indicates an expected call of Shards
 func (mr *MockPlacementManagerMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockPlacementManager)(nil).Shards))
 }

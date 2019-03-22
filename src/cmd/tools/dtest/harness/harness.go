@@ -427,7 +427,7 @@ func (dt *DTestHarness) WaitUntilAllShardsAvailable() error {
 
 // AllShardsAvailable returns if the placement service has all shards marked available
 func (dt *DTestHarness) AllShardsAvailable() bool {
-	p, _, err := dt.placementService.Placement()
+	p, err := dt.placementService.Placement()
 	if err != nil {
 		return false
 	}
@@ -450,7 +450,7 @@ func (dt *DTestHarness) AllShardsAvailable() bool {
 // AnyInstanceShardHasState returns a flag if the placement service has any instance
 // with the specified shard state
 func (dt *DTestHarness) AnyInstanceShardHasState(id string, state shard.State) bool {
-	p, _, err := dt.placementService.Placement()
+	p, err := dt.placementService.Placement()
 	if err != nil {
 		return false
 	}

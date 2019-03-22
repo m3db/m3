@@ -1,5 +1,5 @@
 coverage:
-  precision: 2
+  precision: 1
   round: down
   range: "70...100"
 

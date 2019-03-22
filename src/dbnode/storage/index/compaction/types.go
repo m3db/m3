@@ -30,9 +30,12 @@ import (
 
 // Segment identifies a candidate for compaction.
 type Segment struct {
-	Age     time.Duration
-	Size    int64
-	Type    segments.Type
+	Age  time.Duration
+	Size int64
+	Type segments.Type
+
+	// Either builder or segment should be set, not both.
+	Builder segment.Builder
 	Segment segment.Segment
 }
 

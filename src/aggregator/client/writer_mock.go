@@ -55,6 +55,7 @@ func (m *MockinstanceWriter) EXPECT() *MockinstanceWriterMockRecorder {
 
 // Write mocks base method
 func (m *MockinstanceWriter) Write(shard uint32, payload payloadUnion) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", shard, payload)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -62,11 +63,13 @@ func (m *MockinstanceWriter) Write(shard uint32, payload payloadUnion) error {
 
 // Write indicates an expected call of Write
 func (mr *MockinstanceWriterMockRecorder) Write(shard, payload interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockinstanceWriter)(nil).Write), shard, payload)
 }
 
 // Flush mocks base method
 func (m *MockinstanceWriter) Flush() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -74,11 +77,13 @@ func (m *MockinstanceWriter) Flush() error {
 
 // Flush indicates an expected call of Flush
 func (mr *MockinstanceWriterMockRecorder) Flush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockinstanceWriter)(nil).Flush))
 }
 
 // Close mocks base method
 func (m *MockinstanceWriter) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -86,5 +91,6 @@ func (m *MockinstanceWriter) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockinstanceWriterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockinstanceWriter)(nil).Close))
 }

@@ -57,6 +57,7 @@ func (m *MockIterableBytesWithID) EXPECT() *MockIterableBytesWithIDMockRecorder 
 
 // ID mocks base method
 func (m *MockIterableBytesWithID) ID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -64,11 +65,13 @@ func (m *MockIterableBytesWithID) ID() string {
 
 // ID indicates an expected call of ID
 func (mr *MockIterableBytesWithIDMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockIterableBytesWithID)(nil).ID))
 }
 
 // Iter mocks base method
 func (m *MockIterableBytesWithID) Iter(bufferSize int) (fs.FileReaderIter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iter", bufferSize)
 	ret0, _ := ret[0].(fs.FileReaderIter)
 	ret1, _ := ret[1].(error)
@@ -77,6 +80,7 @@ func (m *MockIterableBytesWithID) Iter(bufferSize int) (fs.FileReaderIter, error
 
 // Iter indicates an expected call of Iter
 func (mr *MockIterableBytesWithIDMockRecorder) Iter(bufferSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iter", reflect.TypeOf((*MockIterableBytesWithID)(nil).Iter), bufferSize)
 }
 
@@ -105,6 +109,7 @@ func (m *MockServiceBuild) EXPECT() *MockServiceBuildMockRecorder {
 
 // ID mocks base method
 func (m *MockServiceBuild) ID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -112,11 +117,13 @@ func (m *MockServiceBuild) ID() string {
 
 // ID indicates an expected call of ID
 func (mr *MockServiceBuildMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockServiceBuild)(nil).ID))
 }
 
 // Iter mocks base method
 func (m *MockServiceBuild) Iter(bufferSize int) (fs.FileReaderIter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iter", bufferSize)
 	ret0, _ := ret[0].(fs.FileReaderIter)
 	ret1, _ := ret[1].(error)
@@ -125,11 +132,13 @@ func (m *MockServiceBuild) Iter(bufferSize int) (fs.FileReaderIter, error) {
 
 // Iter indicates an expected call of Iter
 func (mr *MockServiceBuildMockRecorder) Iter(bufferSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iter", reflect.TypeOf((*MockServiceBuild)(nil).Iter), bufferSize)
 }
 
 // SourcePath mocks base method
 func (m *MockServiceBuild) SourcePath() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SourcePath")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -137,6 +146,7 @@ func (m *MockServiceBuild) SourcePath() string {
 
 // SourcePath indicates an expected call of SourcePath
 func (mr *MockServiceBuildMockRecorder) SourcePath() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SourcePath", reflect.TypeOf((*MockServiceBuild)(nil).SourcePath))
 }
 
@@ -165,6 +175,7 @@ func (m *MockServiceConfiguration) EXPECT() *MockServiceConfigurationMockRecorde
 
 // ID mocks base method
 func (m *MockServiceConfiguration) ID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -172,11 +183,13 @@ func (m *MockServiceConfiguration) ID() string {
 
 // ID indicates an expected call of ID
 func (mr *MockServiceConfigurationMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockServiceConfiguration)(nil).ID))
 }
 
 // Iter mocks base method
 func (m *MockServiceConfiguration) Iter(bufferSize int) (fs.FileReaderIter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iter", bufferSize)
 	ret0, _ := ret[0].(fs.FileReaderIter)
 	ret1, _ := ret[1].(error)
@@ -185,11 +198,13 @@ func (m *MockServiceConfiguration) Iter(bufferSize int) (fs.FileReaderIter, erro
 
 // Iter indicates an expected call of Iter
 func (mr *MockServiceConfigurationMockRecorder) Iter(bufferSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iter", reflect.TypeOf((*MockServiceConfiguration)(nil).Iter), bufferSize)
 }
 
 // Bytes mocks base method
 func (m *MockServiceConfiguration) Bytes() ([]byte, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
@@ -198,5 +213,6 @@ func (m *MockServiceConfiguration) Bytes() ([]byte, error) {
 
 // Bytes indicates an expected call of Bytes
 func (mr *MockServiceConfigurationMockRecorder) Bytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockServiceConfiguration)(nil).Bytes))
 }

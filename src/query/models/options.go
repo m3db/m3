@@ -26,27 +26,39 @@ import (
 
 var (
 	defaultMetricName = []byte("__name__")
+	defaultBucketName = []byte("le")
 
-	errNoName = errors.New("metric name is missing or empty")
+	errNoName   = errors.New("metric name is missing or empty")
+	errNoBucket = errors.New("bucket name is missing or empty")
 )
 
 type tagOptions struct {
+	version    int
+	idScheme   IDSchemeType
+	bucketName []byte
 	metricName []byte
 }
 
 // NewTagOptions builds a new tag options with default values.
 func NewTagOptions() TagOptions {
 	return &tagOptions{
+		version:    0,
 		metricName: defaultMetricName,
+		bucketName: defaultBucketName,
+		idScheme:   TypeLegacy,
 	}
 }
 
 func (o *tagOptions) Validate() error {
-	if o.MetricName() == nil {
+	if o.metricName == nil || len(o.metricName) == 0 {
 		return errNoName
 	}
 
-	return nil
+	if o.bucketName == nil || len(o.bucketName) == 0 {
+		return errNoBucket
+	}
+
+	return o.idScheme.Validate()
 }
 
 func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
@@ -57,4 +69,24 @@ func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
 
 func (o *tagOptions) MetricName() []byte {
 	return o.metricName
+}
+
+func (o *tagOptions) SetBucketName(bucketName []byte) TagOptions {
+	opts := *o
+	opts.bucketName = bucketName
+	return &opts
+}
+
+func (o *tagOptions) BucketName() []byte {
+	return o.bucketName
+}
+
+func (o *tagOptions) SetIDSchemeType(scheme IDSchemeType) TagOptions {
+	opts := *o
+	opts.idScheme = scheme
+	return &opts
+}
+
+func (o *tagOptions) IDSchemeType() IDSchemeType {
+	return o.idScheme
 }

@@ -160,9 +160,13 @@ func (p *parseState) walk(node pql.Node) error {
 			}
 		}
 
-		op, err := NewFunctionExpr(n.Func.Name, argValues, stringValues)
+		op, ok, err := NewFunctionExpr(n.Func.Name, argValues, stringValues)
 		if err != nil {
 			return err
+		}
+
+		if !ok {
+			return nil
 		}
 
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())

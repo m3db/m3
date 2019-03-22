@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -107,15 +106,14 @@ func newMultiAddrAdminClient(
 }
 
 type bootstrappableTestSetupOptions struct {
-	finalBootstrapper                  string
-	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
-	bootstrapBlocksBatchSize           int
-	bootstrapBlocksConcurrency         int
-	bootstrapConsistencyLevel          topology.ReadConsistencyLevel
-	topologyInitializer                topology.Initializer
-	testStatsReporter                  xmetrics.TestStatsReporter
-	disablePeersBootstrapper           bool
-	useTChannelClientForWriting        bool
+	finalBootstrapper           string
+	bootstrapBlocksBatchSize    int
+	bootstrapBlocksConcurrency  int
+	bootstrapConsistencyLevel   topology.ReadConsistencyLevel
+	topologyInitializer         topology.Initializer
+	testStatsReporter           xmetrics.TestStatsReporter
+	disablePeersBootstrapper    bool
+	useTChannelClientForWriting bool
 }
 
 type closeFn func()
@@ -146,16 +144,7 @@ func newDefaultBootstrappableTestSetups(
 			defer cleanupFnsMutex.Unlock()
 			cleanupFns = append(cleanupFns, fn)
 		}
-		anySetupUsingFetchBlocksMetadataEndpointV1 = false
 	)
-
-	for i := range setupOpts {
-		v1 := client.FetchBlocksMetadataEndpointV1
-		if setupOpts[i].fetchBlocksMetadataEndpointVersion == v1 {
-			anySetupUsingFetchBlocksMetadataEndpointV1 = true
-			break
-		}
-	}
 
 	shardSet, err := newTestShardSet(opts.NumShards())
 	require.NoError(t, err)
@@ -212,12 +201,6 @@ func newDefaultBootstrappableTestSetups(
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
 		topologyInitializer = setup.topoInit
-
-		// Force correct series cache policy if using V1 version
-		// TODO: Remove once v1 endpoint is gone
-		if anySetupUsingFetchBlocksMetadataEndpointV1 {
-			setup.storageOpts = setup.storageOpts.SetSeriesCachePolicy(series.CacheAll)
-		}
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
 		logger := instrumentOpts.Logger()
@@ -278,7 +261,6 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
-				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).

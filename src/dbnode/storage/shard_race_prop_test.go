@@ -55,7 +55,7 @@ func TestShardTickReadFnRace(t *testing.T) {
 		},
 		anyIDs().WithLabel("ids"),
 		gen.UInt8().WithLabel("tickBatchSize").SuchThat(func(x uint8) bool { return x > 0 }),
-		gen.OneConstOf(fetchBlocksMetadataShardFn, fetchBlocksMetadataV2ShardFn),
+		gen.OneConstOf(fetchBlocksMetadataV2ShardFn),
 	))
 
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
@@ -91,18 +91,6 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 }
 
 type testShardReadFn func(shard *dbShard)
-
-var fetchBlocksMetadataShardFn testShardReadFn = func(shard *dbShard) {
-	ctx := context.NewContext()
-	start := time.Time{}
-	end := time.Now()
-	shard.FetchBlocksMetadata(ctx, start, end, 100, 0, block.FetchBlocksMetadataOptions{
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
-		IncludeSizes:     true,
-	})
-	ctx.BlockingClose()
-}
 
 var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 	ctx := context.NewContext()
@@ -169,7 +157,9 @@ func TestShardTickWriteRace(t *testing.T) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			assert.NoError(t, shard.Write(ctx, id, now, 1.0, xtime.Second, nil))
+			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil)
+			assert.NoError(t, err)
+			assert.True(t, wasWritten)
 			ctx.BlockingClose()
 		}()
 	}

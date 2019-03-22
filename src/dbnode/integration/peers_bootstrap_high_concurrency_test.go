@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -36,17 +35,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapHighConcurrency(t, client.FetchBlocksMetadataEndpointV1)
-}
-
-func testPeersBootstrapHighConcurrency(
-	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -67,10 +60,9 @@ func testPeersBootstrapHighConcurrency(
 			disablePeersBootstrapper: true,
 		},
 		{
-			disablePeersBootstrapper:           false,
-			bootstrapBlocksBatchSize:           batchSize,
-			bootstrapBlocksConcurrency:         concurrency,
-			fetchBlocksMetadataEndpointVersion: version,
+			disablePeersBootstrapper:   false,
+			bootstrapBlocksBatchSize:   batchSize,
+			bootstrapBlocksConcurrency: concurrency,
 		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)

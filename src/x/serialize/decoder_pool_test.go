@@ -27,12 +27,13 @@ import (
 )
 
 func newTestTagDecoderPool() TagDecoderPool {
-	return NewTagDecoderPool(testDecodeOpts, nil)
+	p := NewTagDecoderPool(testDecodeOpts, nil)
+	p.Init()
+	return p
 }
 
 func TestTagDecoderPool(t *testing.T) {
 	p := newTestTagDecoderPool()
-	p.Init()
 	d := p.Get()
 	d.Reset(testTagDecoderBytes())
 	require.NoError(t, d.Err())

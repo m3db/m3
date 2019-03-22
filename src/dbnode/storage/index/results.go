@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
@@ -29,34 +30,97 @@ import (
 )
 
 var (
-	errUnableToAddDocMissingID = errors.New("corrupt data, unable to extract id")
+	errUnableToAddResultMissingID = errors.New("no id for result")
 )
 
 type results struct {
-	nsID       ident.ID
-	size       int
+	sync.RWMutex
+
+	nsID ident.ID
+	opts ResultsOptions
+
 	resultsMap *ResultsMap
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool ResultsPool
+	pool       ResultsPool
+	noFinalize bool
 }
 
 // NewResults returns a new results object.
-func NewResults(opts Options) Results {
+func NewResults(
+	namespaceID ident.ID,
+	opts ResultsOptions,
+	indexOpts Options,
+) Results {
 	return &results{
-		resultsMap: newResultsMap(opts.IdentifierPool()),
-		idPool:     opts.IdentifierPool(),
-		bytesPool:  opts.CheckedBytesPool(),
-		pool:       opts.ResultsPool(),
+		nsID:       namespaceID,
+		opts:       opts,
+		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
+		idPool:     indexOpts.IdentifierPool(),
+		bytesPool:  indexOpts.CheckedBytesPool(),
+		pool:       indexOpts.ResultsPool(),
 	}
 }
 
-func (r *results) Add(d doc.Document) (added bool, size int, err error) {
-	added = false
+func (r *results) Reset(nsID ident.ID, opts ResultsOptions) {
+	r.Lock()
+
+	r.opts = opts
+
+	// Finalize existing held nsID.
+	if r.nsID != nil {
+		r.nsID.Finalize()
+	}
+	// Make an independent copy of the new nsID.
+	if nsID != nil {
+		nsID = r.idPool.Clone(nsID)
+	}
+	r.nsID = nsID
+
+	// Reset all values from map first
+	for _, entry := range r.resultsMap.Iter() {
+		tags := entry.Value()
+		tags.Finalize()
+	}
+
+	// Reset all keys in the map next, this will finalize the keys.
+	r.resultsMap.Reset()
+
+	// NB: could do keys+value in one step but I'm trying to avoid
+	// using an internal method of a code-gen'd type.
+
+	r.Unlock()
+}
+
+func (r *results) AddDocuments(batch []doc.Document) (int, error) {
+	r.Lock()
+	err := r.addDocumentsBatchWithLock(batch)
+	size := r.resultsMap.Len()
+	r.Unlock()
+	return size, err
+}
+
+func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
+	for i := range batch {
+		_, size, err := r.addDocumentWithLock(batch[i])
+		if err != nil {
+			return err
+		}
+		if r.opts.SizeLimit > 0 && size >= r.opts.SizeLimit {
+			// Early return if limit enforced and we hit our limit.
+			break
+		}
+	}
+	return nil
+}
+
+func (r *results) addDocumentWithLock(
+	d doc.Document,
+) (bool, int, error) {
 	if len(d.ID) == 0 {
-		return added, r.size, errUnableToAddDocMissingID
+		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
@@ -65,86 +129,81 @@ func (r *results) Add(d doc.Document) (added bool, size int, err error) {
 
 	// check if it already exists in the map.
 	if r.resultsMap.Contains(tsID) {
-		return added, r.size, nil
+		return false, r.resultsMap.Len(), nil
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
 	// fields prodided by the document.
-	tags := r.tags(d.Fields)
+	tags := r.cloneTagsFromFields(d.Fields)
 
 	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
 	// the tsID's bytes.
 	r.resultsMap.Set(tsID, tags)
-	r.size++
 
-	added = true
-	return added, r.size, nil
+	return true, r.resultsMap.Len(), nil
 }
 
-func (r *results) tags(fields doc.Fields) ident.Tags {
+func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {
 	tags := r.idPool.Tags()
 	for _, f := range fields {
-		tags.Append(ident.Tag{
-			Name:  r.copyBytes(f.Name),
-			Value: r.copyBytes(f.Value),
-		})
+		tags.Append(r.idPool.CloneTag(ident.Tag{
+			Name:  ident.BytesID(f.Name),
+			Value: ident.BytesID(f.Value),
+		}))
 	}
 	return tags
 }
 
-// copyBytes copies the provided bytes into an ident.ID backed by pooled types.
-func (r *results) copyBytes(b []byte) ident.ID {
-	cb := r.bytesPool.Get(len(b))
-	cb.IncRef()
-	cb.AppendAll(b)
-	id := r.idPool.BinaryID(cb)
-	// release held reference so now the only reference to the bytes is owned by `id`
-	cb.DecRef()
-	return id
-}
-
 func (r *results) Namespace() ident.ID {
-	return r.nsID
+	r.RLock()
+	v := r.nsID
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Map() *ResultsMap {
-	return r.resultsMap
+	r.RLock()
+	v := r.resultsMap
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Size() int {
-	return r.size
-}
-
-func (r *results) Reset(nsID ident.ID) {
-	// finalize existing held nsID
-	if r.nsID != nil {
-		r.nsID.Finalize()
-	}
-	// make an independent copy of the new nsID
-	if nsID != nil {
-		nsID = r.idPool.Clone(nsID)
-	}
-	r.nsID = nsID
-
-	// reset all values from map first
-	for _, entry := range r.resultsMap.Iter() {
-		tags := entry.Value()
-		tags.Finalize()
-	}
-
-	// reset all keys in the map next
-	r.resultsMap.Reset()
-	r.size = 0
-
-	// NB: could do keys+value in one step but I'm trying to avoid
-	// using an internal method of a code-gen'd type.
+	r.RLock()
+	v := r.resultsMap.Len()
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Finalize() {
-	r.Reset(nil)
+	r.RLock()
+	noFinalize := r.noFinalize
+	r.RUnlock()
+
+	if noFinalize {
+		return
+	}
+
+	// Reset locks so cannot hold onto lock for call to Finalize.
+	r.Reset(nil, ResultsOptions{})
 
 	if r.pool == nil {
 		return
 	}
 	r.pool.Put(r)
+}
+
+func (r *results) NoFinalize() {
+	r.Lock()
+
+	// Ensure neither the results object itself, nor any of its underlying
+	// IDs and tags will be finalized.
+	r.noFinalize = true
+	for _, entry := range r.resultsMap.Iter() {
+		id, tags := entry.Key(), entry.Value()
+		id.NoFinalize()
+		tags.NoFinalize()
+	}
+
+	r.Unlock()
 }

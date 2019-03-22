@@ -62,6 +62,14 @@ func (s *remoteStorage) FetchTags(
 	return s.client.FetchTags(ctx, query, options)
 }
 
+func (s *remoteStorage) CompleteTags(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	return s.client.CompleteTags(ctx, query, options)
+}
+
 func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
 	return errors.ErrRemoteWriteQuery
 }

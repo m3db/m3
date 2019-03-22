@@ -392,7 +392,7 @@ func TestQueryIncludeUnhealthy(t *testing.T) {
 	ps, err := newTestPlacementStorage(sid, opts, placement.NewOptions())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	s, err := sd.Query(sid, qopts)
@@ -434,7 +434,7 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 	ps, err := newTestPlacementStorage(sid, opts, placement.NewOptions())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	s, err := sd.Query(sid, qopts)
@@ -497,7 +497,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 
 	ps, err := sd.PlacementService(sid, placement.NewOptions())
 	require.NoError(t, err)
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	w, err := sd.Watch(sid, qopts)
@@ -523,7 +523,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 		SetReplicaFactor(1).
 		SetIsSharded(true)
 
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	<-w.C()
@@ -582,7 +582,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 		SetReplicaFactor(1).
 		SetIsSharded(true)
 
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	// when the next valid placement came through, the watch will be updated
@@ -628,7 +628,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 
 	ps, err := sd.PlacementService(sid, placement.NewOptions())
 	require.NoError(t, err)
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	w, err := sd.Watch(sid, qopts)
@@ -752,7 +752,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 		SetReplicaFactor(1).
 		SetIsSharded(true)
 
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	// when the next valid placement came through, the watch will be updated
@@ -788,7 +788,7 @@ func TestMultipleWatches(t *testing.T) {
 	ps, err := newTestPlacementStorage(sid, opts, placement.NewOptions())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	sd, err := NewServices(opts)
@@ -850,7 +850,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 
 	ps, err := sd.PlacementService(sid, placement.NewOptions())
 	require.NoError(t, err)
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	sd, err = NewServices(opts)
@@ -866,7 +866,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 
 	// up the version to 2 and delete it and set a new placement
 	// to verify the watch can still receive update on the new placement
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	err = ps.Delete()
@@ -883,7 +883,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 		SetReplicaFactor(1).
 		SetIsSharded(true)
 
-	err = ps.Set(p)
+	_, err = ps.Set(p)
 	require.NoError(t, err)
 
 	for range w.C() {
@@ -963,7 +963,7 @@ func TestCacheCollisions_Watchables(t *testing.T) {
 		p := placement.NewPlacement().SetInstances([]placement.Instance{
 			placement.NewInstance().SetID("i1").SetEndpoint("i:p"),
 		})
-		err = ps.Set(p)
+		_, err = ps.Set(p)
 		assert.NoError(t, err)
 
 		_, err = sd.Watch(id, qopts)

@@ -57,6 +57,7 @@ func (m *MockReporter) EXPECT() *MockReporterMockRecorder {
 
 // Close mocks base method
 func (m *MockReporter) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -64,11 +65,13 @@ func (m *MockReporter) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockReporterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReporter)(nil).Close))
 }
 
 // Flush mocks base method
 func (m *MockReporter) Flush() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -76,11 +79,13 @@ func (m *MockReporter) Flush() error {
 
 // Flush indicates an expected call of Flush
 func (mr *MockReporterMockRecorder) Flush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockReporter)(nil).Flush))
 }
 
 // ReportBatchTimer mocks base method
 func (m *MockReporter) ReportBatchTimer(arg0 id.ID, arg1 []float64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReportBatchTimer", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -88,11 +93,13 @@ func (m *MockReporter) ReportBatchTimer(arg0 id.ID, arg1 []float64) error {
 
 // ReportBatchTimer indicates an expected call of ReportBatchTimer
 func (mr *MockReporterMockRecorder) ReportBatchTimer(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportBatchTimer", reflect.TypeOf((*MockReporter)(nil).ReportBatchTimer), arg0, arg1)
 }
 
 // ReportCounter mocks base method
 func (m *MockReporter) ReportCounter(arg0 id.ID, arg1 int64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReportCounter", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -100,11 +107,13 @@ func (m *MockReporter) ReportCounter(arg0 id.ID, arg1 int64) error {
 
 // ReportCounter indicates an expected call of ReportCounter
 func (mr *MockReporterMockRecorder) ReportCounter(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportCounter", reflect.TypeOf((*MockReporter)(nil).ReportCounter), arg0, arg1)
 }
 
 // ReportGauge mocks base method
 func (m *MockReporter) ReportGauge(arg0 id.ID, arg1 float64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReportGauge", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -112,5 +121,6 @@ func (m *MockReporter) ReportGauge(arg0 id.ID, arg1 float64) error {
 
 // ReportGauge indicates an expected call of ReportGauge
 func (mr *MockReporterMockRecorder) ReportGauge(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportGauge", reflect.TypeOf((*MockReporter)(nil).ReportGauge), arg0, arg1)
 }

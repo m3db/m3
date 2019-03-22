@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
+	xretry "github.com/m3db/m3x/retry"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,16 @@ type testEnqueueFn func(idx int, op op)
 
 var (
 	// NB: allocating once to speedup tests.
-	_testSessionOpts = NewOptions()
+	_testSessionOpts = NewOptions().
+		SetCheckedBytesWrapperPoolSize(1).
+		SetFetchBatchOpPoolSize(1).
+		SetHostQueueOpsArrayPoolSize(1).
+		SetSeriesIteratorPoolSize(1).
+		SetTagDecoderPoolSize(1).
+		SetTagEncoderPoolSize(1).
+		SetWriteOpPoolSize(1).
+		SetWriteTaggedOpPoolSize(1).
+		SetSeriesIteratorPoolSize(1)
 )
 
 func newSessionTestOptions() Options {
@@ -98,6 +108,10 @@ func sessionTestHostAndShards(
 func applySessionTestOptions(opts Options) Options {
 	shardSet := sessionTestShardSet()
 	return opts.
+		// Some of the test mocks expect things to only happen once, so disable retries
+		// for the unit tests.
+		SetWriteRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
+		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetSeriesIteratorPoolSize(0).
 		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).

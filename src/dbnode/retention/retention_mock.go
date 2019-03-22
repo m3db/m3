@@ -56,6 +56,7 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // Validate mocks base method
 func (m *MockOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -63,11 +64,13 @@ func (m *MockOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
 }
 
 // Equal mocks base method
 func (m *MockOptions) Equal(value Options) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", value)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -75,11 +78,13 @@ func (m *MockOptions) Equal(value Options) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockOptionsMockRecorder) Equal(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockOptions)(nil).Equal), value)
 }
 
 // SetRetentionPeriod mocks base method
 func (m *MockOptions) SetRetentionPeriod(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRetentionPeriod", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -87,11 +92,13 @@ func (m *MockOptions) SetRetentionPeriod(value time.Duration) Options {
 
 // SetRetentionPeriod indicates an expected call of SetRetentionPeriod
 func (mr *MockOptionsMockRecorder) SetRetentionPeriod(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetentionPeriod", reflect.TypeOf((*MockOptions)(nil).SetRetentionPeriod), value)
 }
 
 // RetentionPeriod mocks base method
 func (m *MockOptions) RetentionPeriod() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetentionPeriod")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -99,11 +106,13 @@ func (m *MockOptions) RetentionPeriod() time.Duration {
 
 // RetentionPeriod indicates an expected call of RetentionPeriod
 func (mr *MockOptionsMockRecorder) RetentionPeriod() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetentionPeriod", reflect.TypeOf((*MockOptions)(nil).RetentionPeriod))
 }
 
 // SetBlockSize mocks base method
 func (m *MockOptions) SetBlockSize(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBlockSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -111,11 +120,13 @@ func (m *MockOptions) SetBlockSize(value time.Duration) Options {
 
 // SetBlockSize indicates an expected call of SetBlockSize
 func (mr *MockOptionsMockRecorder) SetBlockSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockSize", reflect.TypeOf((*MockOptions)(nil).SetBlockSize), value)
 }
 
 // BlockSize mocks base method
 func (m *MockOptions) BlockSize() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockSize")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -123,11 +134,13 @@ func (m *MockOptions) BlockSize() time.Duration {
 
 // BlockSize indicates an expected call of BlockSize
 func (mr *MockOptionsMockRecorder) BlockSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockSize", reflect.TypeOf((*MockOptions)(nil).BlockSize))
 }
 
 // SetBufferFuture mocks base method
 func (m *MockOptions) SetBufferFuture(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBufferFuture", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -135,11 +148,13 @@ func (m *MockOptions) SetBufferFuture(value time.Duration) Options {
 
 // SetBufferFuture indicates an expected call of SetBufferFuture
 func (mr *MockOptionsMockRecorder) SetBufferFuture(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferFuture", reflect.TypeOf((*MockOptions)(nil).SetBufferFuture), value)
 }
 
 // BufferFuture mocks base method
 func (m *MockOptions) BufferFuture() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BufferFuture")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -147,11 +162,13 @@ func (m *MockOptions) BufferFuture() time.Duration {
 
 // BufferFuture indicates an expected call of BufferFuture
 func (mr *MockOptionsMockRecorder) BufferFuture() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferFuture", reflect.TypeOf((*MockOptions)(nil).BufferFuture))
 }
 
 // SetBufferPast mocks base method
 func (m *MockOptions) SetBufferPast(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBufferPast", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -159,11 +176,13 @@ func (m *MockOptions) SetBufferPast(value time.Duration) Options {
 
 // SetBufferPast indicates an expected call of SetBufferPast
 func (mr *MockOptionsMockRecorder) SetBufferPast(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferPast", reflect.TypeOf((*MockOptions)(nil).SetBufferPast), value)
 }
 
 // BufferPast mocks base method
 func (m *MockOptions) BufferPast() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BufferPast")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -171,11 +190,13 @@ func (m *MockOptions) BufferPast() time.Duration {
 
 // BufferPast indicates an expected call of BufferPast
 func (mr *MockOptionsMockRecorder) BufferPast() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferPast", reflect.TypeOf((*MockOptions)(nil).BufferPast))
 }
 
 // SetBlockDataExpiry mocks base method
 func (m *MockOptions) SetBlockDataExpiry(on bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBlockDataExpiry", on)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -183,11 +204,13 @@ func (m *MockOptions) SetBlockDataExpiry(on bool) Options {
 
 // SetBlockDataExpiry indicates an expected call of SetBlockDataExpiry
 func (mr *MockOptionsMockRecorder) SetBlockDataExpiry(on interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockDataExpiry", reflect.TypeOf((*MockOptions)(nil).SetBlockDataExpiry), on)
 }
 
 // BlockDataExpiry mocks base method
 func (m *MockOptions) BlockDataExpiry() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockDataExpiry")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -195,11 +218,13 @@ func (m *MockOptions) BlockDataExpiry() bool {
 
 // BlockDataExpiry indicates an expected call of BlockDataExpiry
 func (mr *MockOptionsMockRecorder) BlockDataExpiry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockDataExpiry", reflect.TypeOf((*MockOptions)(nil).BlockDataExpiry))
 }
 
 // SetBlockDataExpiryAfterNotAccessedPeriod mocks base method
 func (m *MockOptions) SetBlockDataExpiryAfterNotAccessedPeriod(period time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBlockDataExpiryAfterNotAccessedPeriod", period)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -207,11 +232,13 @@ func (m *MockOptions) SetBlockDataExpiryAfterNotAccessedPeriod(period time.Durat
 
 // SetBlockDataExpiryAfterNotAccessedPeriod indicates an expected call of SetBlockDataExpiryAfterNotAccessedPeriod
 func (mr *MockOptionsMockRecorder) SetBlockDataExpiryAfterNotAccessedPeriod(period interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockDataExpiryAfterNotAccessedPeriod", reflect.TypeOf((*MockOptions)(nil).SetBlockDataExpiryAfterNotAccessedPeriod), period)
 }
 
 // BlockDataExpiryAfterNotAccessedPeriod mocks base method
 func (m *MockOptions) BlockDataExpiryAfterNotAccessedPeriod() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockDataExpiryAfterNotAccessedPeriod")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -219,5 +246,6 @@ func (m *MockOptions) BlockDataExpiryAfterNotAccessedPeriod() time.Duration {
 
 // BlockDataExpiryAfterNotAccessedPeriod indicates an expected call of BlockDataExpiryAfterNotAccessedPeriod
 func (mr *MockOptionsMockRecorder) BlockDataExpiryAfterNotAccessedPeriod() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockDataExpiryAfterNotAccessedPeriod", reflect.TypeOf((*MockOptions)(nil).BlockDataExpiryAfterNotAccessedPeriod))
 }

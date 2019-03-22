@@ -20,12 +20,11 @@
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
 
-//go:generate sh -c "mockgen -package=fs $PACKAGE/src/dbnode/persist/fs DataFileSetWriter,DataFileSetReader,DataFileSetSeeker,IndexFileSetWriter,IndexFileSetReader,IndexSegmentFileSetWriter,IndexSegmentFileSet,IndexSegmentFile | genclean -pkg $PACKAGE/src/dbnode/persist/fs -out $GOPATH/src/$PACKAGE/src/dbnode/persist/fs/fs_mock.go"
+//go:generate sh -c "mockgen -package=fs $PACKAGE/src/dbnode/persist/fs DataFileSetWriter,DataFileSetReader,DataFileSetSeeker,IndexFileSetWriter,IndexFileSetReader,IndexSegmentFileSetWriter,IndexSegmentFileSet,IndexSegmentFile,SnapshotMetadataFileWriter | genclean -pkg $PACKAGE/src/dbnode/persist/fs -out $GOPATH/src/$PACKAGE/src/dbnode/persist/fs/fs_mock.go"
 //go:generate sh -c "mockgen -package=xio $PACKAGE/src/dbnode/x/xio SegmentReader,SegmentReaderPool | genclean -pkg $PACKAGE/src/dbnode/x/xio -out $GOPATH/src/$PACKAGE/src/dbnode/x/xio/io_mock.go"
 //go:generate sh -c "mockgen -package=digest -destination=$GOPATH/src/$PACKAGE/src/dbnode/digest/digest_mock.go $PACKAGE/src/dbnode/digest ReaderWithDigest"
 //go:generate sh -c "mockgen -package=series $PACKAGE/src/dbnode/storage/series DatabaseSeries,QueryableBlockRetriever | genclean -pkg $PACKAGE/src/dbnode/storage/series -out $GOPATH/src/$PACKAGE/src/dbnode/storage/series/series_mock.go"
 //go:generate sh -c "mockgen -package=index $PACKAGE/src/dbnode/storage/index Results,Block,OnIndexSeries | genclean -pkg $PACKAGE/src/dbnode/storage/index -out $GOPATH/src/$PACKAGE/src/dbnode/storage/index/index_mock.go"
-//go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/src/query/block/block_mock.go $PACKAGE/src/query/block Block,StepIter,SeriesIter,Builder,Step"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
 //go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/src/dbnode/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/encoding/types.go"
@@ -41,5 +40,6 @@
 //go:generate sh -c "mockgen -package=retention -destination=$GOPATH/src/$PACKAGE/src/dbnode/retention/retention_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/retention/types.go"
 //go:generate sh -c "mockgen -package=namespace -destination=$GOPATH/src/$PACKAGE/src/dbnode/storage/namespace/namespace_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/storage/namespace/types.go"
 //go:generate sh -c "mockgen -package=runtime -destination=$GOPATH/src/$PACKAGE/src/dbnode/runtime/runtime_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/runtime/types.go"
+//go:generate sh -c "mockgen -package=ts -destination=$GOPATH/src/$PACKAGE/src/dbnode/ts/write_batch_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/ts/types.go"
 
 package mocks

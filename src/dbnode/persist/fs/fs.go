@@ -21,6 +21,8 @@
 package fs
 
 const (
+	snapshotFilePrefix = "snapshot"
+
 	infoFileSuffix           = "info"
 	indexFileSuffix          = "index"
 	summariesFileSuffix      = "summaries"
@@ -28,6 +30,7 @@ const (
 	dataFileSuffix           = "data"
 	digestFileSuffix         = "digest"
 	checkpointFileSuffix     = "checkpoint"
+	metadataFileSuffix       = "metadata"
 	filesetFilePrefix        = "fileset"
 	commitLogFilePrefix      = "commitlog"
 	segmentFileSetFilePrefix = "segment"
@@ -37,7 +40,8 @@ const (
 	anyNumbersPattern               = "[0-9]*"
 	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
 
-	separator            = "-"
+	separator = "-"
+
 	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
 	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
 	commitLogFilePattern = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix

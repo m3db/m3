@@ -1,9 +1,14 @@
 # M3DB on Kubernetes
 
-M3DB on Kubernetes is currently in the alpha phase of development. We currently provide static manifests to bootstrap a
-cluster. In the future, we hope to create an [operator](https://coreos.com/operators/) and leverage [custom resource
-definitions](https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/) (CRDs) to automatically
-handle operations such as managing cluster topology, but for now, our manifests should be adequate to get started.
+**Please note:** If possible _[PLEASE USE THE OPERATOR](https://operator.m3db.io/)_ to deploy to Kubernetes if you
+can. It is a considerly more streamlined setup.
+
+The [operator](https://operator.m3db.io/) leverages [custom resource definitions](https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/)
+(CRDs) to automatically handle operations such as managing cluster topology.
+
+The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
+as a guide to running M3 on Kubernetes, if and only if you have significant custom requirements not satisified by
+the operator.
 
 ## Prerequisites
 
@@ -29,6 +34,11 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-f
 
 If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them
 manifests.
+
+### Kernel Configuration
+
+We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][kernel] docs
+for more.
 
 ## Deploying
 
@@ -284,3 +294,5 @@ certain nodes. Specifically:
 1. The pods tolerate the taint `"dedicated-m3db"` to run on nodes that are specifically dedicated to m3db if you so
    choose.
 2. Via `nodeAffinity` the pods prefer to run on nodes with the label `m3db.io/dedicated-m3db="true"`.
+
+[kernel]: ../operational_guide/kernel_configuration

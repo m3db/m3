@@ -44,7 +44,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
 	db.EXPECT().BootstrapState().Return(DatabaseBootstrapState{}).AnyTimes()
-	m, err := newMediator(db, opts)
+	m, err := newMediator(db, nil, opts)
 	require.NoError(t, err)
 
 	require.Equal(t, errMediatorNotOpen, m.Close())
@@ -70,7 +70,7 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(opts).AnyTimes()
-	med, err := newMediator(db, opts)
+	med, err := newMediator(db, nil, opts)
 	require.NoError(t, err)
 
 	m := med.(*mediator)

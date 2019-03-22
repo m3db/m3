@@ -23,6 +23,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -59,7 +60,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(baseTestPath)
 
-	opts := NewOptions().SetStrategy(StrategyWriteBehind)
+	opts := testOpts.SetStrategy(StrategyWriteBehind)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(baseTestPath)
 	opts = opts.SetFilesystemOptions(fsOpts).SetFlushInterval(time.Millisecond)
 
@@ -187,7 +188,13 @@ func clCommandFunctor(t *testing.T, basePath string, seed int64) *commands.Proto
 			return ok
 		},
 		GenCommandFunc: func(state commands.State) gopter.Gen {
-			return gen.OneGenOf(genOpenCommand, genCloseCommand, genWriteBehindCommand)
+			return gen.OneGenOf(
+				genOpenCommand,
+				genCloseCommand,
+				genWriteBehindCommand,
+				genActiveLogsCommand,
+				genRotateLogsCommand,
+			)
 		},
 	}
 }
@@ -220,7 +227,12 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 				return w
 			}
 		}
-		return s.cLog.Open()
+		err = s.cLog.Open()
+		if err != nil {
+			return err
+		}
+		s.open = true
+		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*clState)
@@ -245,12 +257,16 @@ var genCloseCommand = gen.Const(&commands.ProtoCommand{
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
 		s := q.(*clState)
-		return s.cLog.Close()
+		err := s.cLog.Close()
+		if err != nil {
+			return err
+		}
+		s.open = false
+		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*clState)
 		s.open = false
-		s.cLog = nil
 		return s
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
@@ -310,6 +326,92 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 		}
 	})
 
+var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
+	Name: "ActiveLogs",
+	PreConditionFunc: func(state commands.State) bool {
+		return true
+	},
+	RunFunc: func(q commands.SystemUnderTest) commands.Result {
+		s := q.(*clState)
+
+		if s.cLog == nil {
+			return nil
+		}
+
+		logs, err := s.cLog.ActiveLogs()
+		if !s.open {
+			if err != errCommitLogClosed {
+				return errors.New("did not receive commit log closed error")
+			}
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if len(logs) != 1 {
+			return fmt.Errorf("ActiveLogs did not return exactly one log file: %v", logs)
+		}
+
+		return nil
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*clState)
+		return s
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		if result == nil {
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		}
+		return &gopter.PropResult{
+			Status: gopter.PropFalse,
+			Error:  result.(error),
+		}
+	},
+})
+
+var genRotateLogsCommand = gen.Const(&commands.ProtoCommand{
+	Name: "RotateLogs",
+	PreConditionFunc: func(state commands.State) bool {
+		return true
+	},
+	RunFunc: func(q commands.SystemUnderTest) commands.Result {
+		s := q.(*clState)
+
+		if s.cLog == nil {
+			return nil
+		}
+
+		_, err := s.cLog.RotateLogs()
+		if !s.open {
+			if err != errCommitLogClosed {
+				return errors.New("did not receive commit log closed error")
+			}
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*clState)
+		return s
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		if result == nil {
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		}
+		return &gopter.PropResult{
+			Status: gopter.PropFalse,
+			Error:  result.(error),
+		}
+	},
+})
+
 // clState holds the expected state (i.e. its the commands.State), and we use it as the SystemUnderTest
 type clState struct {
 	basePath      string
@@ -357,7 +459,7 @@ func newInitState(
 	corruptionProbability float64,
 	seed int64,
 ) *clState {
-	opts := NewOptions().
+	opts := testOpts.
 		SetStrategy(StrategyWriteBehind).
 		SetFlushInterval(defaultTestFlushInterval).
 		// Need to set this to a relatively low value otherwise the test will
@@ -441,7 +543,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 }
 
 type generatedWrite struct {
-	series     Series
+	series     ts.Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -467,7 +569,7 @@ func genWrite() gopter.Gen {
 		shard := val[4].(uint32)
 
 		return generatedWrite{
-			series: Series{
+			series: ts.Series{
 				ID:          ident.StringID(id),
 				Namespace:   ident.StringID(ns),
 				Shard:       shard,
@@ -554,4 +656,8 @@ func (c *corruptingChunkWriter) close() error {
 
 func (c *corruptingChunkWriter) isOpen() bool {
 	return c.chunkWriter.isOpen()
+}
+
+func (c *corruptingChunkWriter) sync() error {
+	return c.chunkWriter.sync()
 }

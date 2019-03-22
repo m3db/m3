@@ -55,6 +55,7 @@ func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 
 // Next mocks base method
 func (m *MockIterator) Next() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -62,11 +63,13 @@ func (m *MockIterator) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next))
 }
 
 // Current mocks base method
 func (m *MockIterator) Current() Document {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(Document)
 	return ret0
@@ -74,11 +77,13 @@ func (m *MockIterator) Current() Document {
 
 // Current indicates an expected call of Current
 func (mr *MockIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockIterator)(nil).Current))
 }
 
 // Err mocks base method
 func (m *MockIterator) Err() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -86,11 +91,13 @@ func (m *MockIterator) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockIterator) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -98,5 +105,6 @@ func (m *MockIterator) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
 }

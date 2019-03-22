@@ -34,251 +34,267 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestConfiguration(t *testing.T) {
-	in := `
+const testBaseConfig = `
 db:
-    logging:
-        level: info
-        file: /var/log/m3dbnode.log
+  logging:
+      level: info
+      file: /var/log/m3dbnode.log
 
-    metrics:
-        prometheus:
-            handlerPath: /metrics
-        sanitization: prometheus
-        samplingRate: 1.0
-        extended: detailed
+  cache:
+      postingsList:
+          size: 100
+          cacheRegexp: false
+          cacheTerms: false
 
-    listenAddress: 0.0.0.0:9000
-    clusterListenAddress: 0.0.0.0:9001
-    httpNodeListenAddress: 0.0.0.0:9002
-    httpClusterListenAddress: 0.0.0.0:9003
-    debugListenAddress: 0.0.0.0:9004
+  metrics:
+      prometheus:
+          handlerPath: /metrics
+      sanitization: prometheus
+      samplingRate: 1.0
+      extended: detailed
 
-    hostID:
-        resolver: config
-        value: host1
+  listenAddress: 0.0.0.0:9000
+  clusterListenAddress: 0.0.0.0:9001
+  httpNodeListenAddress: 0.0.0.0:9002
+  httpClusterListenAddress: 0.0.0.0:9003
+  debugListenAddress: 0.0.0.0:9004
 
-    client:
-        writeConsistencyLevel: majority
-        readConsistencyLevel: unstrict_majority
-        connectConsistencyLevel: any
-        writeTimeout: 10s
-        fetchTimeout: 15s
-        connectTimeout: 20s
-        writeRetry:
-            initialBackoff: 500ms
-            backoffFactor: 3
-            maxRetries: 2
-            jitter: true
-        fetchRetry:
-            initialBackoff: 500ms
-            backoffFactor: 2
-            maxRetries: 3
-            jitter: true
-        backgroundHealthCheckFailLimit: 4
-        backgroundHealthCheckFailThrottleFactor: 0.5
-        hashing:
-          seed: 42
+  hostID:
+      resolver: config
+      value: host1
+
+  client:
+      writeConsistencyLevel: majority
+      readConsistencyLevel: unstrict_majority
+      connectConsistencyLevel: any
+      writeTimeout: 10s
+      fetchTimeout: 15s
+      connectTimeout: 20s
+      writeRetry:
+          initialBackoff: 500ms
+          backoffFactor: 3
+          maxRetries: 2
+          jitter: true
+      fetchRetry:
+          initialBackoff: 500ms
+          backoffFactor: 2
+          maxRetries: 3
+          jitter: true
+      backgroundHealthCheckFailLimit: 4
+      backgroundHealthCheckFailThrottleFactor: 0.5
+      hashing:
+        seed: 42
 
 
-    gcPercentage: 100
+  gcPercentage: 100
 
-    writeNewSeriesLimitPerSecond: 1048576
-    writeNewSeriesBackoffDuration: 2ms
+  writeNewSeriesLimitPerSecond: 1048576
+  writeNewSeriesBackoffDuration: 2ms
 
-    bootstrap:
-        bootstrappers:
-            - filesystem
-            - peers
-            - noop-all
-        fs:
-            numProcessorsPerCPU: 0.125
+  bootstrap:
+      bootstrappers:
+          - filesystem
+          - peers
+          - noop-all
+      fs:
+          numProcessorsPerCPU: 0.125
 
-    commitlog:
-        flushMaxBytes: 524288
-        flushEvery: 1s
-        queue:
-            calculationType: fixed
-            size: 2097152
-        blockSize: 10m
+  commitlog:
+      flushMaxBytes: 524288
+      flushEvery: 1s
+      queue:
+          calculationType: fixed
+          size: 2097152
 
-    fs:
-        filePathPrefix: /var/lib/m3db
-        writeBufferSize: 65536
-        dataReadBufferSize: 65536
-        infoReadBufferSize: 128
-        seekReadBufferSize: 4096
-        throughputLimitMbps: 100.0
-        throughputCheckEvery: 128
+  fs:
+      filePathPrefix: /var/lib/m3db
+      writeBufferSize: 65536
+      dataReadBufferSize: 65536
+      infoReadBufferSize: 128
+      seekReadBufferSize: 4096
+      throughputLimitMbps: 100.0
+      throughputCheckEvery: 128
+      force_index_summaries_mmap_memory: true
+      force_bloom_filter_mmap_memory: true
 
-    repair:
-        enabled: false
-        interval: 2h
-        offset: 30m
-        jitter: 1h
-        throttle: 2m
-        checkInterval: 1m
+  repair:
+      enabled: false
+      interval: 2h
+      offset: 30m
+      jitter: 1h
+      throttle: 2m
+      checkInterval: 1m
 
-    pooling:
-        blockAllocSize: 16
-        type: simple
-        seriesPool:
-            size: 5242880
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        blockPool:
-            size: 4194304
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        encoderPool:
-            size: 25165824
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        closersPool:
-            size: 104857
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        contextPool:
-            size: 524288
-            lowWatermark: 0.01
-            highWatermark: 0.02
-            maxFinalizerCapacity: 8
-        segmentReaderPool:
-            size: 16384
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        iteratorPool:
-            size: 2048
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        fetchBlockMetadataResultsPool:
-            size: 65536
-            capacity: 32
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        fetchBlocksMetadataResultsPool:
-            size: 32
-            capacity: 4096
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        hostBlockMetadataSlicePool:
-            size: 131072
-            capacity: 3
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        blockMetadataPool:
-            size: 65536
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        blockMetadataSlicePool:
-            size: 65536
-            capacity: 32
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        blocksMetadataPool:
-            size: 65536
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        blocksMetadataSlicePool:
-            size: 32
-            capacity: 4096
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        tagsPool:
-            size: 65536
-            capacity: 8
-            maxCapacity: 32
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        tagIteratorPool:
-            size: 8192
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        indexResultsPool:
-            size: 8192
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        tagEncoderPool:
-            size: 8192
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        tagDecoderPool:
-            size: 8192
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        identifierPool:
-            size: 9437184
-            lowWatermark: 0.01
-            highWatermark: 0.02
-        bytesPool:
-            buckets:
-                - capacity: 16
-                  size: 6291456
-                  lowWatermark: 0.10
-                  highWatermark: 0.12
-                - capacity: 32
-                  size: 3145728
-                  lowWatermark: 0.10
-                  highWatermark: 0.12
-                - capacity: 64
-                  size: 3145728
-                  lowWatermark: 0.10
-                  highWatermark: 0.12
-                - capacity: 128
-                  size: 3145728
-                  lowWatermark: 0.10
-                  highWatermark: 0.12
-                - capacity: 256
-                  size: 3145728
-                  lowWatermark: 0.10
-                  highWatermark: 0.12
-                - capacity: 1440
-                  size: 524288
-                  lowWatermark: 0.10
-                  highWatermark: 0.12
-                - capacity: 4096
-                  size: 524288
-                  lowWatermark: 0.01
-                  highWatermark: 0.02
-                - capacity: 8192
-                  size: 32768
-                  lowWatermark: 0.01
-                  highWatermark: 0.02
+  pooling:
+      blockAllocSize: 16
+      type: simple
+      seriesPool:
+          size: 5242880
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      blockPool:
+          size: 4194304
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      encoderPool:
+          size: 25165824
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      closersPool:
+          size: 104857
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      contextPool:
+          size: 524288
+          lowWatermark: 0.01
+          highWatermark: 0.02
+          maxFinalizerCapacity: 8
+      segmentReaderPool:
+          size: 16384
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      iteratorPool:
+          size: 2048
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      fetchBlockMetadataResultsPool:
+          size: 65536
+          capacity: 32
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      fetchBlocksMetadataResultsPool:
+          size: 32
+          lowWatermark: 0.01
+          highWatermark: 0.02
+          capacity: 4096
+      hostBlockMetadataSlicePool:
+          size: 131072
+          capacity: 3
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      blockMetadataPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      blockMetadataSlicePool:
+          size: 65536
+          capacity: 32
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      blocksMetadataPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      blocksMetadataSlicePool:
+          size: 32
+          capacity: 4096
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      tagsPool:
+          size: 65536
+          capacity: 8
+          maxCapacity: 32
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      tagIteratorPool:
+          size: 8192
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      indexResultsPool:
+          size: 8192
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      tagEncoderPool:
+          size: 8192
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      tagDecoderPool:
+          size: 8192
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      writeBatchPool:
+          size: 8192
+          initialBatchSize: 128
+          maxBatchSize: 100000
+      postingsListPool:
+          size: 8
+          lowWatermark: 0
+          highWatermark: 0
+      identifierPool:
+          size: 9437184
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      bytesPool:
+          buckets:
+              - capacity: 16
+                size: 6291456
+                lowWatermark: 0.10
+                highWatermark: 0.12
+              - capacity: 32
+                size: 3145728
+                lowWatermark: 0.10
+                highWatermark: 0.12
+              - capacity: 64
+                size: 3145728
+                lowWatermark: 0.10
+                highWatermark: 0.12
+              - capacity: 128
+                size: 3145728
+                lowWatermark: 0.10
+                highWatermark: 0.12
+              - capacity: 256
+                size: 3145728
+                lowWatermark: 0.10
+                highWatermark: 0.12
+              - capacity: 1440
+                size: 524288
+                lowWatermark: 0.10
+                highWatermark: 0.12
+              - capacity: 4096
+                size: 524288
+                lowWatermark: 0.01
+                highWatermark: 0.02
+              - capacity: 8192
+                size: 32768
+                lowWatermark: 0.01
+                highWatermark: 0.02
 
-    config:
-        service:
-            env: production
-            zone: embedded
-            service: m3db
-            cacheDir: /var/lib/m3kv
-            etcdClusters:
-                - zone: embedded
-                  endpoints:
-                      - 1.1.1.1:2379
-                      - 1.1.1.2:2379
-                      - 1.1.1.3:2379
-        seedNodes:
-            listenPeerUrls:
-                - http://0.0.0.0:2380
-            listenClientUrls:
-                - http://0.0.0.0:2379
-            rootDir: /var/lib/etcd
-            initialAdvertisePeerUrls:
-                - http://1.1.1.1:2380
-            advertiseClientUrls:
-                - http://1.1.1.1:2379
-            initialCluster:
-                - hostID: host1
-                  endpoint: http://1.1.1.1:2380
-                - hostID: host2
-                  endpoint: http://1.1.1.2:2380
-                - hostID: host3
-                  endpoint: http://1.1.1.3:2380
-    hashing:
-      seed: 42
-    writeNewSeriesAsync: true
+  config:
+      service:
+          env: production
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+              - zone: embedded
+                endpoints:
+                    - 1.1.1.1:2379
+                    - 1.1.1.2:2379
+                    - 1.1.1.3:2379
+      seedNodes:
+          listenPeerUrls:
+              - http://0.0.0.0:2380
+          listenClientUrls:
+              - http://0.0.0.0:2379
+          rootDir: /var/lib/etcd
+          initialAdvertisePeerUrls:
+              - http://1.1.1.1:2380
+          advertiseClientUrls:
+              - http://1.1.1.1:2379
+          initialCluster:
+              - hostID: host1
+                endpoint: http://1.1.1.1:2380
+                clusterState: existing
+              - hostID: host2
+                endpoint: http://1.1.1.2:2380
+              - hostID: host3
+                endpoint: http://1.1.1.3:2380
+  hashing:
+    seed: 42
+  writeNewSeriesAsync: true
 `
 
+func TestConfiguration(t *testing.T) {
 	fd, err := ioutil.TempFile("", "config.yaml")
 	require.NoError(t, err)
 	defer func() {
@@ -286,7 +302,7 @@ db:
 		assert.NoError(t, os.Remove(fd.Name()))
 	}()
 
-	_, err = fd.Write([]byte(in))
+	_, err = fd.Write([]byte(testBaseConfig))
 	require.NoError(t, err)
 
 	// Verify is valid
@@ -327,11 +343,9 @@ db:
     resolver: config
     value: host1
     envVarName: null
+    file: null
   client:
-    config:
-      service: null
-      static: null
-      seedNodes: null
+    config: null
     writeConsistencyLevel: 2
     readConsistencyLevel: 2
     connectConsistencyLevel: 0
@@ -367,12 +381,15 @@ db:
     - noop-all
     fs:
       numProcessorsPerCPU: 0.125
-    peers: null
     commitlog: null
     cacheSeriesMetadata: null
   blockRetrieve: null
   cache:
     series: null
+    postingsList:
+      size: 100
+      cacheRegexp: false
+      cacheTerms: false
   fs:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
@@ -384,13 +401,16 @@ db:
     newFileMode: null
     newDirectoryMode: null
     mmap: null
+    force_index_summaries_mmap_memory: true
+    force_bloom_filter_mmap_memory: true
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
     queue:
       calculationType: fixed
       size: 2097152
-    blockSize: 10m0s
+    queueChannel: null
+    blockSize: null
   repair:
     enabled: false
     interval: 2h0m0s
@@ -404,37 +424,37 @@ db:
     bytesPool:
       buckets:
       - size: 6291456
+        lowWatermark: 0.1
+        highWatermark: 0.12
         capacity: 16
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 32
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 64
+      - size: 3145728
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 3145728
         capacity: 128
-        lowWatermark: 0.1
-        highWatermark: 0.12
       - size: 3145728
+        lowWatermark: 0.1
+        highWatermark: 0.12
         capacity: 256
+      - size: 524288
         lowWatermark: 0.1
         highWatermark: 0.12
-      - size: 524288
         capacity: 1440
-        lowWatermark: 0.1
-        highWatermark: 0.12
       - size: 524288
+        lowWatermark: 0.01
+        highWatermark: 0.02
         capacity: 4096
-        lowWatermark: 0.01
-        highWatermark: 0.02
       - size: 32768
-        capacity: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
+        capacity: 8192
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -470,43 +490,43 @@ db:
       highWatermark: 0.02
     fetchBlockMetadataResultsPool:
       size: 65536
-      capacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 32
     fetchBlocksMetadataResultsPool:
       size: 32
-      capacity: 4096
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 4096
     hostBlockMetadataSlicePool:
       size: 131072
-      capacity: 3
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 3
     blockMetadataPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
     blockMetadataSlicePool:
       size: 65536
-      capacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 32
     blocksMetadataPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
     blocksMetadataSlicePool:
       size: 32
-      capacity: 4096
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 4096
     tagsPool:
       size: 65536
-      capacity: 8
-      maxCapacity: 32
       lowWatermark: 0.01
       highWatermark: 0.02
+      capacity: 8
+      maxCapacity: 32
     tagIteratorPool:
       size: 8192
       lowWatermark: 0.01
@@ -523,6 +543,14 @@ db:
       size: 8192
       lowWatermark: 0.01
       highWatermark: 0.02
+    writeBatchPool:
+      size: 8192
+      initialBatchSize: 128
+      maxBatchSize: 100000
+    postingsListPool:
+      size: 8
+      lowWatermark: 0
+      highWatermark: 0
   config:
     service:
       zone: embedded
@@ -554,10 +582,13 @@ db:
       initialCluster:
       - hostID: host1
         endpoint: http://1.1.1.1:2380
+        clusterState: existing
       - hostID: host2
         endpoint: http://1.1.1.2:2380
+        clusterState: ""
       - hostID: host3
         endpoint: http://1.1.1.3:2380
+        clusterState: ""
       clientTransportSecurity:
         caFile: ""
         certFile: ""
@@ -674,4 +705,76 @@ func TestIsSeedNode(t *testing.T) {
 	}
 	res = IsSeedNode(seedNodes, "host4")
 	assert.Equal(t, false, res)
+}
+
+func TestGetHostAndEndpointFromID(t *testing.T) {
+	test2Seeds := []environment.SeedNode{
+		environment.SeedNode{
+			HostID:       "host1",
+			Endpoint:     "http://1.1.1.1:2380",
+			ClusterState: "existing",
+		},
+		environment.SeedNode{
+			HostID:   "host2",
+			Endpoint: "http://1.1.1.2:2380",
+		},
+	}
+
+	tests := []struct {
+		initialCluster []environment.SeedNode
+		hostID         string
+		expSeedNode    environment.SeedNode
+		expEndpoint    string
+		expErr         bool
+	}{
+		{
+			initialCluster: test2Seeds,
+			hostID:         "host1",
+			expSeedNode:    test2Seeds[0],
+			expEndpoint:    "http://1.1.1.1",
+		},
+		{
+			initialCluster: test2Seeds,
+			hostID:         "host3",
+			expErr:         true,
+		},
+		{
+			initialCluster: test2Seeds[:0],
+			hostID:         "host1",
+			expErr:         true,
+		},
+	}
+
+	for _, test := range tests {
+		node, ep, err := getHostAndEndpointFromID(test.initialCluster, test.hostID)
+		if test.expErr {
+			assert.Error(t, err)
+			continue
+		}
+
+		assert.Equal(t, test.expSeedNode, node)
+		assert.Equal(t, test.expEndpoint, ep)
+	}
+}
+
+func TestNewEtcdEmbedConfig(t *testing.T) {
+	fd, err := ioutil.TempFile("", "config2.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testBaseConfig))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	embedCfg, err := NewEtcdEmbedConfig(*cfg.DB)
+	require.NoError(t, err)
+
+	assert.Equal(t, "existing", embedCfg.ClusterState)
 }

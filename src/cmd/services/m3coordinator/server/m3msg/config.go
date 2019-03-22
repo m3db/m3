@@ -21,9 +21,9 @@
 package m3msg
 
 import (
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/server"
 )
 
@@ -45,32 +45,41 @@ func (c Configuration) NewServer(
 	iOpts instrument.Options,
 ) (server.Server, error) {
 	scope := iOpts.MetricsScope().Tagged(map[string]string{"server": "m3msg"})
-	hOpts := c.Handler.NewOptions(
-		writeFn,
+	cOpts := c.Consumer.NewOptions(
 		iOpts.SetMetricsScope(scope.Tagged(map[string]string{
-			"handler": "msgpack",
+			"component": "consumer",
 		})),
 	)
-	msgpackHandler, err := newHandler(hOpts)
+	h, err := c.Handler.newHandler(writeFn, cOpts, iOpts.SetMetricsScope(scope))
 	if err != nil {
 		return nil, err
 	}
 	return c.Server.NewServer(
-		consumer.NewHandler(
-			msgpackHandler.Handle,
-			c.Consumer.NewOptions(
-				iOpts.SetMetricsScope(scope.Tagged(map[string]string{
-					"component": "consumer",
-				})),
-			),
-		),
+		h,
 		iOpts.SetMetricsScope(scope),
 	), nil
 }
 
 type handlerConfiguration struct {
-	// Msgpack configs the msgpack iterator.
-	Msgpack MsgpackIteratorConfiguration `yaml:"msgpack"`
+	// ProtobufDecoderPool configs the protobuf decoder pool.
+	ProtobufDecoderPool pool.ObjectPoolConfiguration `yaml:"protobufDecoderPool"`
+}
+
+func (c handlerConfiguration) newHandler(
+	writeFn WriteFn,
+	cOpts consumer.Options,
+	iOpts instrument.Options,
+) (server.Handler, error) {
+	p := newProtobufProcessor(Options{
+		WriteFn: writeFn,
+		InstrumentOptions: iOpts.SetMetricsScope(
+			iOpts.MetricsScope().Tagged(map[string]string{
+				"handler": "protobuf",
+			}),
+		),
+		ProtobufDecoderPoolOptions: c.ProtobufDecoderPool.NewObjectPoolOptions(iOpts),
+	})
+	return consumer.NewMessageHandler(p, cOpts), nil
 }
 
 // NewOptions creates handler options.
@@ -79,29 +88,8 @@ func (c handlerConfiguration) NewOptions(
 	iOpts instrument.Options,
 ) Options {
 	return Options{
-		WriteFn:                   writeFn,
-		InstrumentOptions:         iOpts,
-		AggregatedIteratorOptions: c.Msgpack.NewOptions(),
+		WriteFn:                    writeFn,
+		InstrumentOptions:          iOpts,
+		ProtobufDecoderPoolOptions: c.ProtobufDecoderPool.NewObjectPoolOptions(iOpts),
 	}
-}
-
-// MsgpackIteratorConfiguration configs the msgpack iterator.
-type MsgpackIteratorConfiguration struct {
-	// Whether to ignore encoded data streams whose version is higher than the current known version.
-	IgnoreHigherVersion *bool `yaml:"ignoreHigherVersion"`
-
-	// Reader buffer size.
-	ReaderBufferSize *int `yaml:"readerBufferSize"`
-}
-
-// NewOptions creates a new msgpack aggregated iterator options.
-func (c MsgpackIteratorConfiguration) NewOptions() msgpack.AggregatedIteratorOptions {
-	opts := msgpack.NewAggregatedIteratorOptions()
-	if c.IgnoreHigherVersion != nil {
-		opts = opts.SetIgnoreHigherVersion(*c.IgnoreHigherVersion)
-	}
-	if c.ReaderBufferSize != nil {
-		opts = opts.SetReaderBufferSize(*c.ReaderBufferSize)
-	}
-	return opts
 }

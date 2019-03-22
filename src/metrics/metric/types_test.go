@@ -69,6 +69,10 @@ func TestTypeToProto(t *testing.T) {
 		expected   metricpb.MetricType
 	}{
 		{
+			metricType: UnknownType,
+			expected:   metricpb.MetricType_UNKNOWN,
+		},
+		{
 			metricType: CounterType,
 			expected:   metricpb.MetricType_COUNTER,
 		},
@@ -91,7 +95,6 @@ func TestTypeToProto(t *testing.T) {
 
 func TestTypeToProtoBadType(t *testing.T) {
 	inputs := []Type{
-		UnknownType,
 		Type(1000),
 	}
 
@@ -106,6 +109,10 @@ func TestTypeFromProto(t *testing.T) {
 		metricType metricpb.MetricType
 		expected   Type
 	}{
+		{
+			metricType: metricpb.MetricType_UNKNOWN,
+			expected:   UnknownType,
+		},
 		{
 			metricType: metricpb.MetricType_COUNTER,
 			expected:   CounterType,
@@ -129,7 +136,6 @@ func TestTypeFromProto(t *testing.T) {
 
 func TestTypeFromProtoBadTypeProto(t *testing.T) {
 	inputs := []metricpb.MetricType{
-		metricpb.MetricType_UNKNOWN,
 		metricpb.MetricType(1000),
 	}
 

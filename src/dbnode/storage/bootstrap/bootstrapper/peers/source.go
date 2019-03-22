@@ -106,12 +106,14 @@ func (s *peersSource) ReadData(
 		namespace         = nsMetadata.ID()
 		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-		persistFlush      persist.DataFlush
+		persistFlush      persist.FlushPreparer
 		shouldPersist     = false
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
-	if persistConfig.Enabled && seriesCachePolicy != series.CacheAll {
+	if persistConfig.Enabled &&
+		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
+		persistConfig.FileSetType == persist.FileSetFlushType {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
@@ -132,12 +134,12 @@ func (s *peersSource) ReadData(
 			return nil, err
 		}
 
-		persist, err := persistManager.StartDataPersist()
+		persist, err := persistManager.StartFlushPersist()
 		if err != nil {
 			return nil, err
 		}
 
-		defer persist.DoneData()
+		defer persist.DoneFlush()
 
 		shouldPersist = true
 		blockRetriever = r
@@ -218,7 +220,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 	opts bootstrap.RunOptions,
 	doneCh chan struct{},
 	persistenceQueue chan persistenceFlush,
-	persistFlush persist.DataFlush,
+	persistFlush persist.FlushPreparer,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
@@ -272,10 +274,9 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 		currRange := it.Value()
 
 		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
-			version := s.opts.FetchBlocksMetadataEndpointVersion()
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
-				nsMetadata, shard, blockStart, blockEnd, bopts, version)
+				nsMetadata, shard, blockStart, blockEnd, bopts)
 
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
@@ -342,36 +343,54 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 // shard/block and flushing it to disk. Depending on the series caching policy,
 // the series will either be held in memory, or removed from memory once
 // flushing has completed.
-// Once everything has been flushed to disk then depending on the series
-// caching policy the function is either done, or in the case of the
-// CacheAllMetadata policy we loop through every series and make every block
-// retrievable (so that we can retrieve data for the blocks that we're caching
-// the metadata for).
-// In addition, if the caching policy is not CacheAll or CacheAllMetadata, then
+// In addition, if the caching policy is not CacheAll, then
 // at the end we remove all the series objects from the shard result as well
 // (since all their corresponding blocks have been removed anyways) to prevent
 // a huge memory spike caused by adding lots of unused series to the Shard
 // object and then immediately evicting them in the next tick.
 func (s *peersSource) flush(
 	opts bootstrap.RunOptions,
-	flush persist.DataFlush,
+	flush persist.FlushPreparer,
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
-	var (
-		ropts             = nsMetadata.Options().RetentionOptions()
-		blockSize         = ropts.BlockSize()
-		shardRetriever    = shardRetrieverMgr.ShardRetriever(shard)
-		tmpCtx            = context.NewContext()
-		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		persistConfig     = opts.PersistConfig()
-	)
-	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
-		return fmt.Errorf("shard retriever missing for shard: %d", shard)
+	persistConfig := opts.PersistConfig()
+	if persistConfig.FileSetType != persist.FileSetFlushType {
+		// Should never happen.
+		iOpts := s.opts.ResultOptions().InstrumentOptions()
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+			l.WithFields(
+				xlog.NewField("namespace", nsMetadata.ID().String()),
+				xlog.NewField("filesetType", persistConfig.FileSetType),
+			).Error("error tried to persist data in peers bootstrapper with non-flush fileset type")
+		})
+		return instrument.InvariantErrorf(
+			"tried to flush with unexpected fileset type: %v", persistConfig.FileSetType)
 	}
+
+	seriesCachePolicy := s.opts.ResultOptions().SeriesCachePolicy()
+	if seriesCachePolicy != series.CacheRecentlyRead &&
+		seriesCachePolicy != series.CacheLRU {
+		// Should never happen.
+		iOpts := s.opts.ResultOptions().InstrumentOptions()
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+			l.WithFields(
+				xlog.NewField("namespace", nsMetadata.ID().String()),
+				xlog.NewField("cachePolicy", seriesCachePolicy),
+			).Error("error tried to persist data in peers bootstrapper with invalid cache policy")
+		})
+		return instrument.InvariantErrorf(
+			"tried to persist data in peers bootstrapper with invalid cache policy: %v", seriesCachePolicy)
+	}
+
+	var (
+		ropts     = nsMetadata.Options().RetentionOptions()
+		blockSize = ropts.BlockSize()
+		tmpCtx    = context.NewContext()
+	)
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
@@ -434,43 +453,12 @@ func (s *peersSource) flush(
 				break
 			}
 
-			switch persistConfig.FileSetType {
-			case persist.FileSetFlushType:
-				switch seriesCachePolicy {
-				case series.CacheAll:
-					// Leave the blocks in the shard result, we need to return all blocks
-					// so we can cache in memory
-				case series.CacheAllMetadata:
-					// NB(r): We can now make the flushed blocks retrievable, note that we
-					// explicitly perform another loop here and lookup the block again
-					// to avoid a large expensive allocation to hold onto the blocks
-					// that we just flushed that would have to be pooled.
-					// We are explicitly trading CPU time here for lower GC pressure.
-					metadata := block.RetrievableBlockMetadata{
-						ID:       s.ID,
-						Length:   bl.Len(),
-						Checksum: checksum,
-					}
-					bl.ResetRetrievable(start, blockSize, shardRetriever, metadata)
-				default:
-					// Not caching the series or metadata in memory so finalize the block,
-					// better to do this as we loop through to make blocks return to the
-					// pool earlier than at the end of this flush cycle
-					s.Blocks.RemoveBlockAt(start)
-					bl.Close()
-				}
-			case persist.FileSetSnapshotType:
-				// Unlike the FileSetFlushType scenario, in this case the caching
-				// strategy doesn't matter. Even if the LRU/RecentlyRead strategies are
-				// enabled, we still need to keep all the data in memory long enough for it
-				// to be flushed because the snapshot that we wrote out earlier will only ever
-				// be used if the node goes down again before we have a chance to flush the data
-				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
-				// in the bootstrappers configuration.
-			default:
-				// Should never happen
-				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
-			}
+			// Now that we've persisted the data to disk, we can finalize the block,
+			// as there is no need to keep it in memory. We do this here because it
+			// is better to do this as we loop to make blocks return to the pool earlier
+			// than all at once the end of this flush cycle.
+			s.Blocks.RemoveBlockAt(start)
+			bl.Close()
 		}
 
 		// Always close before attempting to check if block error occurred,
@@ -486,49 +474,37 @@ func (s *peersSource) flush(
 		}
 	}
 
-	// We only want to retain the series metadata in one of three cases:
-	// 	1) CacheAll caching policy (because we're expected to cache everything in memory)
-	// 	2) CacheAllMetadata caching policy (because we're expected to cache all metadata in memory)
-	// 	3) PersistConfig.FileSetType is set to FileSetSnapshotType because that means we're bootstrapping
-	//     an active block that we'll want to perform a flush on later, and we're only flushing here for
-	//     the sake of allowing the commit log bootstrapper to be able to recover this data if the node
-	//     goes down in-between this bootstrapper completing and the subsequent flush.
-	shouldRetainSeriesMetadata := seriesCachePolicy == series.CacheAll ||
-		seriesCachePolicy == series.CacheAllMetadata ||
-		persistConfig.FileSetType == persist.FileSetSnapshotType
-
-	if !shouldRetainSeriesMetadata {
-		// If we're not going to keep all of the data, or at least all of the metadata in memory
-		// then we don't want to keep these series in the shard result. If we leave them in, then
-		// they will all get loaded into the shard object, and then immediately evicted on the next
-		// tick which causes unnecessary memory pressure.
-		numSeriesTriedToRemoveWithRemainingBlocks := 0
-		for _, entry := range shardResult.AllSeries().Iter() {
-			series := entry.Value()
-			numBlocksRemaining := len(series.Blocks.AllBlocks())
-			// Should never happen since we removed all the block in the previous loop and fetching
-			// bootstrap blocks should always be exclusive on the end side.
-			if numBlocksRemaining > 0 {
-				numSeriesTriedToRemoveWithRemainingBlocks++
-				continue
-			}
-
-			shardResult.RemoveSeries(series.ID)
-			series.Blocks.Close()
-			// Safe to finalize these IDs and Tags because the prepared object was the only other thing
-			// using them, and it has been closed.
-			series.ID.Finalize()
-			series.Tags.Finalize()
+	// Since we've persisted the data to disk, we don't want to keep all the series in the shard
+	// result. Otherwise if we leave them in, then they will all get loaded into the shard object,
+	// and then immediately evicted on the next tick which causes unnecessary memory pressure
+	// during peer bootstrapping.
+	numSeriesTriedToRemoveWithRemainingBlocks := 0
+	for _, entry := range shardResult.AllSeries().Iter() {
+		series := entry.Value()
+		numBlocksRemaining := len(series.Blocks.AllBlocks())
+		// Should never happen since we removed all the block in the previous loop and fetching
+		// bootstrap blocks should always be exclusive on the end side.
+		if numBlocksRemaining > 0 {
+			numSeriesTriedToRemoveWithRemainingBlocks++
+			continue
 		}
-		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
-			iOpts := s.opts.ResultOptions().InstrumentOptions()
-			instrument.EmitInvariantViolationAndGetLogger(iOpts).
-				WithFields(
-					xlog.NewField("start", tr.Start.Unix()),
-					xlog.NewField("end", tr.End.Unix()),
-					xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
-				).Error("error tried to remove series that still has blocks")
-		}
+
+		shardResult.RemoveSeries(series.ID)
+		series.Blocks.Close()
+		// Safe to finalize these IDs and Tags because the prepared object was the only other thing
+		// using them, and it has been closed.
+		series.ID.Finalize()
+		series.Tags.Finalize()
+	}
+	if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
+		iOpts := s.opts.ResultOptions().InstrumentOptions()
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+			l.WithFields(
+				xlog.NewField("start", tr.Start.Unix()),
+				xlog.NewField("end", tr.End.Unix()),
+				xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+			).Error("error tried to remove series that still has blocks")
+		})
 	}
 
 	return nil
@@ -587,7 +563,6 @@ func (s *peersSource) ReadIndex(
 		dataBlockSize = ns.Options().RetentionOptions().BlockSize()
 		resultOpts    = s.opts.ResultOptions()
 		idxOpts       = ns.Options().IndexOptions()
-		version       = s.opts.FetchBlocksMetadataEndpointVersion()
 		resultLock    = &sync.Mutex{}
 		wg            sync.WaitGroup
 	)
@@ -623,7 +598,7 @@ func (s *peersSource) ReadIndex(
 					}
 
 					metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
-						shard, currRange.Start, currRange.End, resultOpts, version)
+						shard, currRange.Start, currRange.End, resultOpts)
 					if err != nil {
 						// Make this period unfulfilled
 						markUnfulfilled(err)

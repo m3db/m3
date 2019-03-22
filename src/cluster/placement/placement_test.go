@@ -518,10 +518,10 @@ func TestClonePlacement(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	p1 := NewPlacement()
-	assert.Equal(t, 0, p1.GetVersion())
+	assert.Equal(t, 0, p1.Version())
 
 	p1 = p1.SetVersion(100)
-	assert.Equal(t, 100, p1.GetVersion())
+	assert.Equal(t, 100, p1.Version())
 }
 
 func TestConvertBetweenProtoAndPlacement(t *testing.T) {

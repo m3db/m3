@@ -45,7 +45,7 @@ func NewSelectorFromVector(
 	n *promql.VectorSelector,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
+	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func NewSelectorFromMatrix(
 	n *promql.MatrixSelector,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
+	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -171,55 +171,85 @@ func NewFunctionExpr(
 	name string,
 	argValues []interface{},
 	stringValues []string,
-) (parser.Params, error) {
+) (parser.Params, bool, error) {
+	var p parser.Params
+	var err error
+
 	switch name {
 	case linear.AbsType, linear.CeilType, linear.ExpType, linear.FloorType, linear.LnType,
 		linear.Log10Type, linear.Log2Type, linear.SqrtType:
-		return linear.NewMathOp(name)
+		p, err = linear.NewMathOp(name)
+		return p, true, err
 
 	case linear.AbsentType:
-		return linear.NewAbsentOp(), nil
+		p = linear.NewAbsentOp()
+		return p, true, err
 
 	case linear.ClampMinType, linear.ClampMaxType:
-		return linear.NewClampOp(argValues, name)
+		p, err = linear.NewClampOp(argValues, name)
+		return p, true, err
+
+	case linear.HistogramQuantileType:
+		p, err = linear.NewHistogramQuantileOp(argValues, name)
+		return p, true, err
 
 	case linear.RoundType:
-		return linear.NewRoundOp(argValues)
+		p, err = linear.NewRoundOp(argValues)
+		return p, true, err
 
 	case linear.DayOfMonthType, linear.DayOfWeekType, linear.DaysInMonthType, linear.HourType,
 		linear.MinuteType, linear.MonthType, linear.YearType:
-		return linear.NewDateOp(name)
+		p, err = linear.NewDateOp(name)
+		return p, true, err
 
 	case tag.TagJoinType, tag.TagReplaceType:
-		return tag.NewTagOp(name, stringValues)
+		p, err = tag.NewTagOp(name, stringValues)
+		return p, true, err
 
 	case temporal.AvgType, temporal.CountType, temporal.MinType,
 		temporal.MaxType, temporal.SumType, temporal.StdDevType,
 		temporal.StdVarType:
-		return temporal.NewAggOp(argValues, name)
+		p, err = temporal.NewAggOp(argValues, name)
+		return p, true, err
+
+	case temporal.QuantileType:
+		p, err = temporal.NewQuantileOp(argValues, name)
+		return p, true, err
 
 	case temporal.HoltWintersType:
-		return temporal.NewHoltWintersOp(argValues)
+		p, err = temporal.NewHoltWintersOp(argValues)
+		return p, true, err
 
 	case temporal.IRateType, temporal.IDeltaType, temporal.RateType, temporal.IncreaseType,
 		temporal.DeltaType:
-		return temporal.NewRateOp(argValues, name)
+		p, err = temporal.NewRateOp(argValues, name)
+		return p, true, err
 
 	case temporal.PredictLinearType, temporal.DerivType:
-		return temporal.NewLinearRegressionOp(argValues, name)
+		p, err = temporal.NewLinearRegressionOp(argValues, name)
+		return p, true, err
 
 	case temporal.ResetsType, temporal.ChangesType:
-		return temporal.NewFunctionOp(argValues, name)
+		p, err = temporal.NewFunctionOp(argValues, name)
+		return p, true, err
+
+	case linear.SortType, linear.SortDescType:
+		return nil, false, err
+
+	case scalar.ScalarType:
+		return nil, false, err
 
 	case unconsolidated.TimestampType:
-		return unconsolidated.NewTimestampOp(name)
+		p, err = unconsolidated.NewTimestampOp(name)
+		return p, true, err
 
 	case scalar.TimeType:
-		return scalar.NewScalarOp(func(t time.Time) float64 { return float64(t.Unix()) }, scalar.TimeType)
+		p, err = scalar.NewScalarOp(func(t time.Time) float64 { return float64(t.Unix()) }, scalar.TimeType)
+		return p, true, err
 
 	default:
 		// TODO: handle other types
-		return nil, fmt.Errorf("function not supported: %s", name)
+		return nil, false, fmt.Errorf("function not supported: %s", name)
 	}
 }
 
@@ -265,7 +295,8 @@ func getBinaryOpType(opType promql.ItemType) string {
 
 const promDefaultName = "__name__"
 
-func labelMatchersToModelMatcher(
+// LabelMatchersToModelMatcher parses promql matchers to model matchers
+func LabelMatchersToModelMatcher(
 	lMatchers []*labels.Matcher,
 	tagOpts models.TagOptions,
 ) (models.Matchers, error) {

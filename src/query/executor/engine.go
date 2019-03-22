@@ -22,28 +22,28 @@ package executor
 
 import (
 	"context"
+	"time"
 
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/plan"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/opentracing"
 
-	"go.uber.org/zap"
+	"github.com/uber-go/tally"
 )
 
 // Engine executes a Query.
 type Engine struct {
-	// Used for tracking running queries.
-	tracker *Tracker
-	Stats   *QueryStatistics
-	store   storage.Storage
+	metrics          *engineMetrics
+	costScope        tally.Scope
+	globalEnforcer   qcost.ChainedEnforcer
+	store            storage.Storage
+	lookbackDuration time.Duration
 }
 
 // EngineOptions can be used to pass custom flags to engine
 type EngineOptions struct {
-	// AbortCh is a channel that signals when results are no longer desired by the caller.
-	AbortCh <-chan bool
 }
 
 // Query is the result after execution
@@ -53,39 +53,76 @@ type Query struct {
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage) *Engine {
+func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration, factory qcost.ChainedEnforcer) *Engine {
+	if factory == nil {
+		factory = qcost.NoopChainedEnforcer()
+	}
 	return &Engine{
-		tracker: NewTracker(),
-		Stats:   &QueryStatistics{},
-		store:   store,
+		metrics:          newEngineMetrics(scope),
+		costScope:        scope,
+		store:            store,
+		lookbackDuration: lookbackDuration,
+		globalEnforcer:   factory,
 	}
 }
 
-// QueryStatistics keeps statistics related to the QueryExecutor.
-type QueryStatistics struct {
-	ActiveQueries          int64
-	ExecutedQueries        int64
-	FinishedQueries        int64
-	QueryExecutionDuration int64
+type engineMetrics struct {
+	all       *counterWithDecrement
+	compiling *counterWithDecrement
+	planning  *counterWithDecrement
+	executing *counterWithDecrement
+
+	activeHist    tally.Histogram
+	compilingHist tally.Histogram
+	planningHist  tally.Histogram
+	executingHist tally.Histogram
+}
+
+type counterWithDecrement struct {
+	start tally.Counter
+	end   tally.Counter
+}
+
+func (c *counterWithDecrement) Inc() {
+	c.start.Inc(1)
+}
+
+func (c *counterWithDecrement) Dec() {
+	c.end.Inc(1)
+}
+
+func newCounterWithDecrement(scope tally.Scope) *counterWithDecrement {
+	return &counterWithDecrement{
+		start: scope.Counter("start"),
+		end:   scope.Counter("end"),
+	}
+}
+
+func newEngineMetrics(scope tally.Scope) *engineMetrics {
+	durationBuckets := tally.MustMakeExponentialDurationBuckets(time.Millisecond, 10, 5)
+	return &engineMetrics{
+		all:           newCounterWithDecrement(scope.SubScope(all.String())),
+		compiling:     newCounterWithDecrement(scope.SubScope(compiling.String())),
+		planning:      newCounterWithDecrement(scope.SubScope(planning.String())),
+		executing:     newCounterWithDecrement(scope.SubScope(executing.String())),
+		activeHist:    scope.Histogram(all.durationString(), durationBuckets),
+		compilingHist: scope.Histogram(compiling.durationString(), durationBuckets),
+		planningHist:  scope.Histogram(planning.durationString(), durationBuckets),
+		executingHist: scope.Histogram(executing.durationString(), durationBuckets),
+	}
 }
 
 // Execute runs the query and closes the results channel once done
-func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *EngineOptions, closing <-chan bool, results chan *storage.QueryResult) {
+func (e *Engine) Execute(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *EngineOptions,
+	results chan *storage.QueryResult,
+) {
 	defer close(results)
-	task, err := e.tracker.Track(query, closing)
-	if err != nil {
-		select {
-		case results <- &storage.QueryResult{Err: err}:
-		case <-opts.AbortCh:
-		}
-		return
-	}
-
-	defer e.tracker.DetachQuery(task.qid)
-
-	result, err := e.store.Fetch(ctx, query, &storage.FetchOptions{
-		KillChan: task.closing,
-	})
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = 0
+	result, err := e.store.Fetch(ctx, query, fetchOpts)
 	if err != nil {
 		results <- &storage.QueryResult{Err: err}
 		return
@@ -96,49 +133,45 @@ func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *E
 
 // ExecuteExpr runs the query DAG and closes the results channel once done
 // nolint: unparam
-func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, params models.RequestParams, results chan Query) {
+func (e *Engine) ExecuteExpr(
+	ctx context.Context,
+	parser parser.Parser,
+	opts *EngineOptions,
+	params models.RequestParams,
+	results chan Query,
+) {
 	defer close(results)
 
-	nodes, edges, err := parser.DAG()
+	perQueryEnforcer := e.globalEnforcer.Child(qcost.QueryLevel)
+	defer perQueryEnforcer.Close()
+	req := newRequest(e, params)
+
+	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
-	lp, err := plan.NewLogicalPlan(nodes, edges)
+	pp, err := req.plan(ctx, nodes, edges)
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
-	if params.Debug {
-		logging.WithContext(ctx).Info("logical plan", zap.String("plan", lp.String()))
-	}
-
-	pp, err := plan.NewPhysicalPlan(lp, e.store, params)
-	if err != nil {
-		results <- Query{Err: err}
-		return
-	}
-
-	if params.Debug {
-		logging.WithContext(ctx).Info("physical plan", zap.String("plan", pp.String()))
-	}
-
-	state, err := GenerateExecutionState(pp, e.store)
+	state, err := req.generateExecutionState(ctx, pp)
 	// free up resources
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
-	if params.Debug {
-		logging.WithContext(ctx).Info("execution state", zap.String("state", state.String()))
-	}
+	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "executing")
+	defer sp.Finish()
 
 	result := state.resultNode
 	results <- Query{Result: result}
-	if err := state.Execute(ctx); err != nil {
+
+	if err := state.Execute(models.NewQueryContext(ctx, e.costScope, perQueryEnforcer)); err != nil {
 		result.abort(err)
 	} else {
 		result.done()
@@ -147,5 +180,5 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 
 // Close kills all running queries and prevents new queries from being attached.
 func (e *Engine) Close() error {
-	return e.tracker.Close()
+	return nil
 }

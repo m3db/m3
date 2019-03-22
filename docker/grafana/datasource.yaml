@@ -3,3 +3,11 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus01:9090
+  - name: M3Query - Prometheus
+    type: prometheus
+    access: proxy
+    url: http://m3coordinator01:7201
+  - name: M3Query - Graphite
+    type:  graphite
+    access: proxy
+    url: http://m3coordinator01:7201/api/v1/graphite

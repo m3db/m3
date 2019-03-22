@@ -58,6 +58,12 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *Configuration) InitDefaultsAndValidate() error {
+	return c.DB.InitDefaultsAndValidate()
+}
+
 // DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
 	// Index configuration.
@@ -118,7 +124,7 @@ type DBConfiguration struct {
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing in-memory data.
-	Repair RepairPolicy `yaml:"repair"`
+	Repair *RepairPolicy `yaml:"repair"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
@@ -131,6 +137,24 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+}
+
+// InitDefaultsAndValidate initializes all default values and validates the Configuration.
+// We use this method to validate fields where the validator package falls short.
+func (c *DBConfiguration) InitDefaultsAndValidate() error {
+	if err := c.Filesystem.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.PoolingPolicy.InitDefaultsAndValidate(); err != nil {
+		return err
+	}
+
+	if err := c.Client.Validate(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IndexConfiguration contains index-specific configuration.
@@ -176,10 +200,26 @@ type CommitLogPolicy struct {
 	FlushEvery time.Duration `yaml:"flushEvery" validate:"nonzero"`
 
 	// The queue the commit log will keep in front of the current commit log segment.
+	// Modifying values in this policy will control how many pending writes can be
+	// in the commitlog queue before M3DB will begin rejecting writes.
 	Queue CommitLogQueuePolicy `yaml:"queue" validate:"nonzero"`
 
-	// The commit log block size.
-	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`
+	// The actual Golang channel that implements the commit log queue. We separate this
+	// from the Queue field for historical / legacy reasons. Generally speaking, the
+	// values in this config should not need to be modified, but we leave it in for
+	// tuning purposes. Unlike the Queue field, values in this policy control the size
+	// of the channel that backs the queue. Since writes to the commitlog are batched,
+	// setting the size of this policy will control how many batches can be queued, and
+	// indrectly how many writes can be queued, but that is dependent on the batch size
+	// of the client. As a result, we recommend that users avoid tuning this field and
+	// modify the Queue size instead which maps directly to the number of writes. This
+	// works in most cases because the default size of the QueueChannel should be large
+	// enough for almost all workloads assuming a reasonable batch size is used.
+	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel"`
+
+	// Deprecated. Left in struct to keep old YAMLs parseable.
+	// TODO(V1): remove
+	DeprecatedBlockSize *time.Duration `yaml:"blockSize"`
 }
 
 // CalculationType is a type of configuration parameter.
@@ -241,7 +281,7 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 
 	dir := kvCfg.RootDir
 	if dir == "" {
-		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultEtcdDirSuffix)
+		dir = path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
 	}
 	newKVCfg.Dir = dir
 
@@ -257,18 +297,22 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	}
 	newKVCfg.LCUrls = LCUrls
 
-	host, err := getHostFromHostID(kvCfg.InitialCluster, hostID)
+	host, endpoint, err := getHostAndEndpointFromID(kvCfg.InitialCluster, hostID)
 	if err != nil {
 		return nil, err
 	}
 
-	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(host, defaultEtcdServerPort))
+	if host.ClusterState != "" {
+		newKVCfg.ClusterState = host.ClusterState
+	}
+
+	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, defaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.APUrls = APUrls
 
-	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(host, defaultEtcdClientPort))
+	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, defaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -324,9 +368,11 @@ func initialClusterString(initialCluster []environment.SeedNode) string {
 	return buffer.String()
 }
 
-func getHostFromHostID(initialCluster []environment.SeedNode, hostID string) (string, error) {
+func getHostAndEndpointFromID(initialCluster []environment.SeedNode, hostID string) (environment.SeedNode, string, error) {
+	emptySeedNode := environment.SeedNode{}
+
 	if len(initialCluster) == 0 {
-		return "", errors.New("zero seed nodes in initialCluster")
+		return emptySeedNode, "", errors.New("zero seed nodes in initialCluster")
 	}
 
 	for _, seedNode := range initialCluster {
@@ -335,14 +381,14 @@ func getHostFromHostID(initialCluster []environment.SeedNode, hostID string) (st
 
 			colonIdx := strings.LastIndex(endpoint, ":")
 			if colonIdx == -1 {
-				return "", errors.New("invalid initialCluster format")
+				return emptySeedNode, "", errors.New("invalid initialCluster format")
 			}
 
-			return endpoint[:colonIdx], nil
+			return seedNode, endpoint[:colonIdx], nil
 		}
 	}
 
-	return "", errors.New("host not in initialCluster list")
+	return emptySeedNode, "", errors.New("host not in initialCluster list")
 }
 
 // InitialClusterEndpoints returns the endpoints of the initial cluster

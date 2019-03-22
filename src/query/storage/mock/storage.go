@@ -34,8 +34,10 @@ type Storage interface {
 	storage.Storage
 
 	SetTypeResult(storage.Type)
+	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
 	SetFetchTagsResult(*storage.SearchResults, error)
+	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
 	SetWriteResult(error)
 	SetFetchBlocksResult(block.Result, error)
 	SetCloseResult(error)
@@ -47,7 +49,8 @@ type mockStorage struct {
 	typeResult struct {
 		result storage.Type
 	}
-	fetchResult struct {
+	lastFetchOptions *storage.FetchOptions
+	fetchResult      struct {
 		result *storage.FetchResult
 		err    error
 	}
@@ -60,6 +63,10 @@ type mockStorage struct {
 	}
 	fetchBlocksResult struct {
 		result block.Result
+		err    error
+	}
+	completeTagsResult struct {
+		result *storage.CompleteTagsResult
 		err    error
 	}
 	closeResult struct {
@@ -106,6 +113,13 @@ func (s *mockStorage) SetFetchBlocksResult(result block.Result, err error) {
 	s.fetchBlocksResult.err = err
 }
 
+func (s *mockStorage) SetCompleteTagsResult(result *storage.CompleteTagsResult, err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.completeTagsResult.result = result
+	s.completeTagsResult.err = err
+}
+
 func (s *mockStorage) SetCloseResult(err error) {
 	s.Lock()
 	defer s.Unlock()
@@ -118,13 +132,20 @@ func (s *mockStorage) Writes() []*storage.WriteQuery {
 	return s.writes
 }
 
+func (s *mockStorage) LastFetchOptions() *storage.FetchOptions {
+	s.RLock()
+	defer s.RUnlock()
+	return s.lastFetchOptions
+}
+
 func (s *mockStorage) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	_ *storage.FetchOptions,
+	opts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
+	s.lastFetchOptions = opts
 	return s.fetchResult.result, s.fetchResult.err
 }
 
@@ -146,6 +167,16 @@ func (s *mockStorage) FetchTags(
 	s.RLock()
 	defer s.RUnlock()
 	return s.fetchTagsResult.result, s.fetchTagsResult.err
+}
+
+func (s *mockStorage) CompleteTags(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.completeTagsResult.result, s.completeTagsResult.err
 }
 
 func (s *mockStorage) Write(

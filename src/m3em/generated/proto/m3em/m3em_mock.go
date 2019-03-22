@@ -58,6 +58,7 @@ func (m *MockOperatorClient) EXPECT() *MockOperatorClientMockRecorder {
 
 // PullFile mocks base method
 func (m *MockOperatorClient) PullFile(arg0 context.Context, arg1 *PullFileRequest, arg2 ...grpc.CallOption) (Operator_PullFileClient, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -70,12 +71,14 @@ func (m *MockOperatorClient) PullFile(arg0 context.Context, arg1 *PullFileReques
 
 // PullFile indicates an expected call of PullFile
 func (mr *MockOperatorClientMockRecorder) PullFile(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullFile", reflect.TypeOf((*MockOperatorClient)(nil).PullFile), varargs...)
 }
 
 // PushFile mocks base method
 func (m *MockOperatorClient) PushFile(arg0 context.Context, arg1 ...grpc.CallOption) (Operator_PushFileClient, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0}
 	for _, a := range arg1 {
 		varargs = append(varargs, a)
@@ -88,12 +91,14 @@ func (m *MockOperatorClient) PushFile(arg0 context.Context, arg1 ...grpc.CallOpt
 
 // PushFile indicates an expected call of PushFile
 func (mr *MockOperatorClientMockRecorder) PushFile(arg0 interface{}, arg1 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0}, arg1...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PushFile", reflect.TypeOf((*MockOperatorClient)(nil).PushFile), varargs...)
 }
 
 // Setup mocks base method
 func (m *MockOperatorClient) Setup(arg0 context.Context, arg1 *SetupRequest, arg2 ...grpc.CallOption) (*SetupResponse, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -106,12 +111,14 @@ func (m *MockOperatorClient) Setup(arg0 context.Context, arg1 *SetupRequest, arg
 
 // Setup indicates an expected call of Setup
 func (mr *MockOperatorClientMockRecorder) Setup(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Setup", reflect.TypeOf((*MockOperatorClient)(nil).Setup), varargs...)
 }
 
 // Start mocks base method
 func (m *MockOperatorClient) Start(arg0 context.Context, arg1 *StartRequest, arg2 ...grpc.CallOption) (*StartResponse, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -124,12 +131,14 @@ func (m *MockOperatorClient) Start(arg0 context.Context, arg1 *StartRequest, arg
 
 // Start indicates an expected call of Start
 func (mr *MockOperatorClientMockRecorder) Start(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockOperatorClient)(nil).Start), varargs...)
 }
 
 // Stop mocks base method
 func (m *MockOperatorClient) Stop(arg0 context.Context, arg1 *StopRequest, arg2 ...grpc.CallOption) (*StopResponse, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -142,12 +151,14 @@ func (m *MockOperatorClient) Stop(arg0 context.Context, arg1 *StopRequest, arg2 
 
 // Stop indicates an expected call of Stop
 func (mr *MockOperatorClientMockRecorder) Stop(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockOperatorClient)(nil).Stop), varargs...)
 }
 
 // Teardown mocks base method
 func (m *MockOperatorClient) Teardown(arg0 context.Context, arg1 *TeardownRequest, arg2 ...grpc.CallOption) (*TeardownResponse, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -160,6 +171,7 @@ func (m *MockOperatorClient) Teardown(arg0 context.Context, arg1 *TeardownReques
 
 // Teardown indicates an expected call of Teardown
 func (mr *MockOperatorClientMockRecorder) Teardown(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Teardown", reflect.TypeOf((*MockOperatorClient)(nil).Teardown), varargs...)
 }
@@ -189,6 +201,7 @@ func (m *MockOperator_PushFileClient) EXPECT() *MockOperator_PushFileClientMockR
 
 // CloseAndRecv mocks base method
 func (m *MockOperator_PushFileClient) CloseAndRecv() (*PushFileResponse, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseAndRecv")
 	ret0, _ := ret[0].(*PushFileResponse)
 	ret1, _ := ret[1].(error)
@@ -197,11 +210,13 @@ func (m *MockOperator_PushFileClient) CloseAndRecv() (*PushFileResponse, error) 
 
 // CloseAndRecv indicates an expected call of CloseAndRecv
 func (mr *MockOperator_PushFileClientMockRecorder) CloseAndRecv() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAndRecv", reflect.TypeOf((*MockOperator_PushFileClient)(nil).CloseAndRecv))
 }
 
 // CloseSend mocks base method
 func (m *MockOperator_PushFileClient) CloseSend() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseSend")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -209,11 +224,13 @@ func (m *MockOperator_PushFileClient) CloseSend() error {
 
 // CloseSend indicates an expected call of CloseSend
 func (mr *MockOperator_PushFileClientMockRecorder) CloseSend() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockOperator_PushFileClient)(nil).CloseSend))
 }
 
 // Context mocks base method
 func (m *MockOperator_PushFileClient) Context() context.Context {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
 	return ret0
@@ -221,11 +238,13 @@ func (m *MockOperator_PushFileClient) Context() context.Context {
 
 // Context indicates an expected call of Context
 func (mr *MockOperator_PushFileClientMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockOperator_PushFileClient)(nil).Context))
 }
 
 // Header mocks base method
 func (m *MockOperator_PushFileClient) Header() (metadata.MD, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Header")
 	ret0, _ := ret[0].(metadata.MD)
 	ret1, _ := ret[1].(error)
@@ -234,11 +253,13 @@ func (m *MockOperator_PushFileClient) Header() (metadata.MD, error) {
 
 // Header indicates an expected call of Header
 func (mr *MockOperator_PushFileClientMockRecorder) Header() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockOperator_PushFileClient)(nil).Header))
 }
 
 // RecvMsg mocks base method
 func (m *MockOperator_PushFileClient) RecvMsg(arg0 interface{}) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RecvMsg", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -246,11 +267,13 @@ func (m *MockOperator_PushFileClient) RecvMsg(arg0 interface{}) error {
 
 // RecvMsg indicates an expected call of RecvMsg
 func (mr *MockOperator_PushFileClientMockRecorder) RecvMsg(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockOperator_PushFileClient)(nil).RecvMsg), arg0)
 }
 
 // Send mocks base method
 func (m *MockOperator_PushFileClient) Send(arg0 *PushFileRequest) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -258,11 +281,13 @@ func (m *MockOperator_PushFileClient) Send(arg0 *PushFileRequest) error {
 
 // Send indicates an expected call of Send
 func (mr *MockOperator_PushFileClientMockRecorder) Send(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockOperator_PushFileClient)(nil).Send), arg0)
 }
 
 // SendMsg mocks base method
 func (m *MockOperator_PushFileClient) SendMsg(arg0 interface{}) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendMsg", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -270,11 +295,13 @@ func (m *MockOperator_PushFileClient) SendMsg(arg0 interface{}) error {
 
 // SendMsg indicates an expected call of SendMsg
 func (mr *MockOperator_PushFileClientMockRecorder) SendMsg(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockOperator_PushFileClient)(nil).SendMsg), arg0)
 }
 
 // Trailer mocks base method
 func (m *MockOperator_PushFileClient) Trailer() metadata.MD {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Trailer")
 	ret0, _ := ret[0].(metadata.MD)
 	return ret0
@@ -282,6 +309,7 @@ func (m *MockOperator_PushFileClient) Trailer() metadata.MD {
 
 // Trailer indicates an expected call of Trailer
 func (mr *MockOperator_PushFileClientMockRecorder) Trailer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockOperator_PushFileClient)(nil).Trailer))
 }
 
@@ -310,6 +338,7 @@ func (m *MockOperator_PullFileClient) EXPECT() *MockOperator_PullFileClientMockR
 
 // CloseSend mocks base method
 func (m *MockOperator_PullFileClient) CloseSend() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseSend")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -317,11 +346,13 @@ func (m *MockOperator_PullFileClient) CloseSend() error {
 
 // CloseSend indicates an expected call of CloseSend
 func (mr *MockOperator_PullFileClientMockRecorder) CloseSend() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockOperator_PullFileClient)(nil).CloseSend))
 }
 
 // Context mocks base method
 func (m *MockOperator_PullFileClient) Context() context.Context {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
 	return ret0
@@ -329,11 +360,13 @@ func (m *MockOperator_PullFileClient) Context() context.Context {
 
 // Context indicates an expected call of Context
 func (mr *MockOperator_PullFileClientMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockOperator_PullFileClient)(nil).Context))
 }
 
 // Header mocks base method
 func (m *MockOperator_PullFileClient) Header() (metadata.MD, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Header")
 	ret0, _ := ret[0].(metadata.MD)
 	ret1, _ := ret[1].(error)
@@ -342,11 +375,13 @@ func (m *MockOperator_PullFileClient) Header() (metadata.MD, error) {
 
 // Header indicates an expected call of Header
 func (mr *MockOperator_PullFileClientMockRecorder) Header() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockOperator_PullFileClient)(nil).Header))
 }
 
 // Recv mocks base method
 func (m *MockOperator_PullFileClient) Recv() (*PullFileResponse, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
 	ret0, _ := ret[0].(*PullFileResponse)
 	ret1, _ := ret[1].(error)
@@ -355,11 +390,13 @@ func (m *MockOperator_PullFileClient) Recv() (*PullFileResponse, error) {
 
 // Recv indicates an expected call of Recv
 func (mr *MockOperator_PullFileClientMockRecorder) Recv() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockOperator_PullFileClient)(nil).Recv))
 }
 
 // RecvMsg mocks base method
 func (m *MockOperator_PullFileClient) RecvMsg(arg0 interface{}) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RecvMsg", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -367,11 +404,13 @@ func (m *MockOperator_PullFileClient) RecvMsg(arg0 interface{}) error {
 
 // RecvMsg indicates an expected call of RecvMsg
 func (mr *MockOperator_PullFileClientMockRecorder) RecvMsg(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockOperator_PullFileClient)(nil).RecvMsg), arg0)
 }
 
 // SendMsg mocks base method
 func (m *MockOperator_PullFileClient) SendMsg(arg0 interface{}) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendMsg", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -379,11 +418,13 @@ func (m *MockOperator_PullFileClient) SendMsg(arg0 interface{}) error {
 
 // SendMsg indicates an expected call of SendMsg
 func (mr *MockOperator_PullFileClientMockRecorder) SendMsg(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockOperator_PullFileClient)(nil).SendMsg), arg0)
 }
 
 // Trailer mocks base method
 func (m *MockOperator_PullFileClient) Trailer() metadata.MD {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Trailer")
 	ret0, _ := ret[0].(metadata.MD)
 	return ret0
@@ -391,6 +432,7 @@ func (m *MockOperator_PullFileClient) Trailer() metadata.MD {
 
 // Trailer indicates an expected call of Trailer
 func (mr *MockOperator_PullFileClientMockRecorder) Trailer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockOperator_PullFileClient)(nil).Trailer))
 }
 
@@ -419,6 +461,7 @@ func (m *MockOperator_PullFileServer) EXPECT() *MockOperator_PullFileServerMockR
 
 // Context mocks base method
 func (m *MockOperator_PullFileServer) Context() context.Context {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
 	return ret0
@@ -426,11 +469,13 @@ func (m *MockOperator_PullFileServer) Context() context.Context {
 
 // Context indicates an expected call of Context
 func (mr *MockOperator_PullFileServerMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockOperator_PullFileServer)(nil).Context))
 }
 
 // RecvMsg mocks base method
 func (m *MockOperator_PullFileServer) RecvMsg(arg0 interface{}) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RecvMsg", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -438,11 +483,13 @@ func (m *MockOperator_PullFileServer) RecvMsg(arg0 interface{}) error {
 
 // RecvMsg indicates an expected call of RecvMsg
 func (mr *MockOperator_PullFileServerMockRecorder) RecvMsg(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockOperator_PullFileServer)(nil).RecvMsg), arg0)
 }
 
 // Send mocks base method
 func (m *MockOperator_PullFileServer) Send(arg0 *PullFileResponse) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -450,11 +497,13 @@ func (m *MockOperator_PullFileServer) Send(arg0 *PullFileResponse) error {
 
 // Send indicates an expected call of Send
 func (mr *MockOperator_PullFileServerMockRecorder) Send(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockOperator_PullFileServer)(nil).Send), arg0)
 }
 
 // SendHeader mocks base method
 func (m *MockOperator_PullFileServer) SendHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendHeader", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -462,11 +511,13 @@ func (m *MockOperator_PullFileServer) SendHeader(arg0 metadata.MD) error {
 
 // SendHeader indicates an expected call of SendHeader
 func (mr *MockOperator_PullFileServerMockRecorder) SendHeader(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockOperator_PullFileServer)(nil).SendHeader), arg0)
 }
 
 // SendMsg mocks base method
 func (m *MockOperator_PullFileServer) SendMsg(arg0 interface{}) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendMsg", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -474,11 +525,13 @@ func (m *MockOperator_PullFileServer) SendMsg(arg0 interface{}) error {
 
 // SendMsg indicates an expected call of SendMsg
 func (mr *MockOperator_PullFileServerMockRecorder) SendMsg(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockOperator_PullFileServer)(nil).SendMsg), arg0)
 }
 
 // SetHeader mocks base method
 func (m *MockOperator_PullFileServer) SetHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHeader", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -486,15 +539,18 @@ func (m *MockOperator_PullFileServer) SetHeader(arg0 metadata.MD) error {
 
 // SetHeader indicates an expected call of SetHeader
 func (mr *MockOperator_PullFileServerMockRecorder) SetHeader(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockOperator_PullFileServer)(nil).SetHeader), arg0)
 }
 
 // SetTrailer mocks base method
 func (m *MockOperator_PullFileServer) SetTrailer(arg0 metadata.MD) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetTrailer", arg0)
 }
 
 // SetTrailer indicates an expected call of SetTrailer
 func (mr *MockOperator_PullFileServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockOperator_PullFileServer)(nil).SetTrailer), arg0)
 }

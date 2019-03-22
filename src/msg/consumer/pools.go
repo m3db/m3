@@ -20,23 +20,38 @@
 
 package consumer
 
-import "github.com/m3db/m3x/pool"
+import (
+	"github.com/m3db/m3x/pool"
+)
+
+// MessagePoolOptions are options to use when creating the
+// message pool.
+type MessagePoolOptions struct {
+	PoolOptions pool.ObjectPoolOptions
+
+	// MaxBufferReuseSize specifies the maximum buffer which can
+	// be reused and pooled, if a buffer greater than this
+	// is used then it is discarded. Zero specifies no limit.
+	MaxBufferReuseSize int
+}
 
 type messagePool struct {
 	pool.ObjectPool
+	opts MessagePoolOptions
 }
 
-func newMessagePool(pOpts pool.ObjectPoolOptions) *messagePool {
-	iOpts := pOpts.InstrumentOptions()
+func newMessagePool(opts MessagePoolOptions) *messagePool {
+	iOpts := opts.PoolOptions.InstrumentOptions()
 	scope := iOpts.MetricsScope()
 	return &messagePool{
 		ObjectPool: pool.NewObjectPool(
-			pOpts.SetInstrumentOptions(
+			opts.PoolOptions.SetInstrumentOptions(
 				iOpts.SetMetricsScope(
 					scope.Tagged(map[string]string{"pool": "message"}),
 				),
 			),
 		),
+		opts: opts,
 	}
 }
 
@@ -51,5 +66,10 @@ func (p *messagePool) Get() *message {
 }
 
 func (p *messagePool) Put(m *message) {
+	max := p.opts.MaxBufferReuseSize
+	if max > 0 && cap(m.Bytes()) > max {
+		// Do not return to pool if enforcing max buffer reuse size
+		return
+	}
 	p.ObjectPool.Put(m)
 }

@@ -170,7 +170,6 @@ type AdminSession interface {
 		shard uint32,
 		start, end time.Time,
 		opts result.Options,
-		version FetchBlocksMetadataEndpointVersion,
 	) (result.ShardResult, error)
 
 	// FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from
@@ -180,7 +179,6 @@ type AdminSession interface {
 		shard uint32,
 		start, end time.Time,
 		result result.Options,
-		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlockMetadataIter, error)
 
 	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
@@ -191,7 +189,6 @@ type AdminSession interface {
 		start, end time.Time,
 		consistencyLevel topology.ReadConsistencyLevel,
 		result result.Options,
-		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlockMetadataIter, error)
 
 	// FetchBlocksFromPeers will fetch the required blocks from the

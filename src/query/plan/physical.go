@@ -32,11 +32,13 @@ import (
 
 // PhysicalPlan represents the physical plan
 type PhysicalPlan struct {
-	steps      map[parser.NodeID]LogicalStep
-	pipeline   []parser.NodeID // Ordered list of steps to be performed
-	ResultStep ResultOp
-	TimeSpec   transform.TimeSpec
-	Debug      bool
+	steps            map[parser.NodeID]LogicalStep
+	pipeline         []parser.NodeID // Ordered list of steps to be performed
+	ResultStep       ResultOp
+	TimeSpec         transform.TimeSpec
+	Debug            bool
+	BlockType        models.FetchedBlockType
+	LookbackDuration time.Duration
 }
 
 // ResultOp is resonsible for delivering results to the clients
@@ -47,7 +49,7 @@ type ResultOp struct {
 // NewPhysicalPlan is used to generate a physical plan. Its responsibilities include creating consolidation nodes, result nodes,
 // pushing down predicates, changing the ordering for nodes
 // nolint: unparam
-func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.RequestParams) (PhysicalPlan, error) {
+func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.RequestParams, lookbackDuration time.Duration) (PhysicalPlan, error) {
 	// generate a new physical plan after cloning the logical plan so that any changes here do not update the logical plan
 	cloned := lp.Clone()
 	p := PhysicalPlan{
@@ -59,7 +61,9 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 			Now:   params.Now,
 			Step:  params.Step,
 		},
-		Debug: params.Debug,
+		Debug:            params.Debug,
+		BlockType:        params.BlockType,
+		LookbackDuration: lookbackDuration,
 	}
 
 	pl, err := p.createResultNode()
@@ -73,7 +77,9 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 }
 
 func (p PhysicalPlan) shiftTime() PhysicalPlan {
-	var maxOffset, maxRange time.Duration
+	var maxRange time.Duration
+	// Start offset with lookback
+	maxOffset := p.LookbackDuration
 	for _, transformID := range p.pipeline {
 		node := p.steps[transformID]
 		boundOp, ok := node.Transform.Op.(transform.BoundOp)
@@ -82,8 +88,8 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 
 		spec := boundOp.Bounds()
-		if spec.Offset > maxOffset {
-			maxOffset = spec.Offset
+		if spec.Offset+p.LookbackDuration > maxOffset {
+			maxOffset = spec.Offset + p.LookbackDuration
 		}
 
 		if spec.Range > maxRange {

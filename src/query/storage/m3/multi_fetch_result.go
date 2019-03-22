@@ -29,18 +29,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type multiFetchResult interface {
-	Add(
-		attrs storage.Attributes,
-		iterators encoding.SeriesIterators,
-		err error,
-	)
-
-	FinalResult() (encoding.SeriesIterators, error)
-
-	Close() error
-}
-
 // TODO: use a better seriesIterators merge here
 type multiResult struct {
 	sync.Mutex
@@ -57,7 +45,7 @@ type multiResult struct {
 func newMultiFetchResult(
 	fanout queryFanoutType,
 	pools encoding.IteratorPools,
-) multiFetchResult {
+) MultiFetchResult {
 	return &multiResult{
 		fanout: fanout,
 		pools:  pools,
@@ -95,11 +83,35 @@ func (r *multiResult) Close() error {
 	return nil
 }
 
+func (r *multiResult) FinalResultWithAttrs() (
+	encoding.SeriesIterators, []storage.Attributes, error) {
+	iters, err := r.FinalResult()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	attrs := make([]storage.Attributes, iters.Len())
+	// TODO: add testing around here.
+	if r.dedupeMap == nil {
+		for i := range attrs {
+			attrs[i] = r.seenFirstAttrs
+		}
+	} else {
+		i := 0
+		for _, res := range r.dedupeMap {
+			attrs[i] = res.attrs
+			i++
+		}
+	}
+
+	return iters, attrs, nil
+}
+
 func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	err := r.err.FinalError()
+	err := r.err.LastError()
 	if err != nil {
 		return nil, err
 	}

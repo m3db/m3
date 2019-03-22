@@ -60,16 +60,19 @@ func (m *MockProcessProvider) EXPECT() *MockProcessProviderMockRecorder {
 
 // SetBootstrapperProvider mocks base method
 func (m *MockProcessProvider) SetBootstrapperProvider(bootstrapper BootstrapperProvider) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetBootstrapperProvider", bootstrapper)
 }
 
 // SetBootstrapperProvider indicates an expected call of SetBootstrapperProvider
 func (mr *MockProcessProviderMockRecorder) SetBootstrapperProvider(bootstrapper interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapperProvider", reflect.TypeOf((*MockProcessProvider)(nil).SetBootstrapperProvider), bootstrapper)
 }
 
 // BootstrapperProvider mocks base method
 func (m *MockProcessProvider) BootstrapperProvider() BootstrapperProvider {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapperProvider")
 	ret0, _ := ret[0].(BootstrapperProvider)
 	return ret0
@@ -77,11 +80,13 @@ func (m *MockProcessProvider) BootstrapperProvider() BootstrapperProvider {
 
 // BootstrapperProvider indicates an expected call of BootstrapperProvider
 func (mr *MockProcessProviderMockRecorder) BootstrapperProvider() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapperProvider", reflect.TypeOf((*MockProcessProvider)(nil).BootstrapperProvider))
 }
 
 // Provide mocks base method
 func (m *MockProcessProvider) Provide() (Process, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Provide")
 	ret0, _ := ret[0].(Process)
 	ret1, _ := ret[1].(error)
@@ -90,6 +95,7 @@ func (m *MockProcessProvider) Provide() (Process, error) {
 
 // Provide indicates an expected call of Provide
 func (mr *MockProcessProviderMockRecorder) Provide() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provide", reflect.TypeOf((*MockProcessProvider)(nil).Provide))
 }
 
@@ -118,6 +124,7 @@ func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 
 // Run mocks base method
 func (m *MockProcess) Run(start time.Time, ns namespace.Metadata, shards []uint32) (ProcessResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", start, ns, shards)
 	ret0, _ := ret[0].(ProcessResult)
 	ret1, _ := ret[1].(error)
@@ -126,6 +133,7 @@ func (m *MockProcess) Run(start time.Time, ns namespace.Metadata, shards []uint3
 
 // Run indicates an expected call of Run
 func (mr *MockProcessMockRecorder) Run(start, ns, shards interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), start, ns, shards)
 }
 
@@ -154,6 +162,7 @@ func (m *MockProcessOptions) EXPECT() *MockProcessOptionsMockRecorder {
 
 // SetCacheSeriesMetadata mocks base method
 func (m *MockProcessOptions) SetCacheSeriesMetadata(value bool) ProcessOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCacheSeriesMetadata", value)
 	ret0, _ := ret[0].(ProcessOptions)
 	return ret0
@@ -161,11 +170,13 @@ func (m *MockProcessOptions) SetCacheSeriesMetadata(value bool) ProcessOptions {
 
 // SetCacheSeriesMetadata indicates an expected call of SetCacheSeriesMetadata
 func (mr *MockProcessOptionsMockRecorder) SetCacheSeriesMetadata(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCacheSeriesMetadata", reflect.TypeOf((*MockProcessOptions)(nil).SetCacheSeriesMetadata), value)
 }
 
 // CacheSeriesMetadata mocks base method
 func (m *MockProcessOptions) CacheSeriesMetadata() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CacheSeriesMetadata")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -173,11 +184,13 @@ func (m *MockProcessOptions) CacheSeriesMetadata() bool {
 
 // CacheSeriesMetadata indicates an expected call of CacheSeriesMetadata
 func (mr *MockProcessOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockProcessOptions)(nil).CacheSeriesMetadata))
 }
 
 // SetTopologyMapProvider mocks base method
 func (m *MockProcessOptions) SetTopologyMapProvider(value topology.MapProvider) ProcessOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTopologyMapProvider", value)
 	ret0, _ := ret[0].(ProcessOptions)
 	return ret0
@@ -185,11 +198,13 @@ func (m *MockProcessOptions) SetTopologyMapProvider(value topology.MapProvider) 
 
 // SetTopologyMapProvider indicates an expected call of SetTopologyMapProvider
 func (mr *MockProcessOptionsMockRecorder) SetTopologyMapProvider(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTopologyMapProvider", reflect.TypeOf((*MockProcessOptions)(nil).SetTopologyMapProvider), value)
 }
 
 // TopologyMapProvider mocks base method
 func (m *MockProcessOptions) TopologyMapProvider() topology.MapProvider {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TopologyMapProvider")
 	ret0, _ := ret[0].(topology.MapProvider)
 	return ret0
@@ -197,11 +212,13 @@ func (m *MockProcessOptions) TopologyMapProvider() topology.MapProvider {
 
 // TopologyMapProvider indicates an expected call of TopologyMapProvider
 func (mr *MockProcessOptionsMockRecorder) TopologyMapProvider() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyMapProvider", reflect.TypeOf((*MockProcessOptions)(nil).TopologyMapProvider))
 }
 
 // SetOrigin mocks base method
 func (m *MockProcessOptions) SetOrigin(value topology.Host) ProcessOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetOrigin", value)
 	ret0, _ := ret[0].(ProcessOptions)
 	return ret0
@@ -209,11 +226,13 @@ func (m *MockProcessOptions) SetOrigin(value topology.Host) ProcessOptions {
 
 // SetOrigin indicates an expected call of SetOrigin
 func (mr *MockProcessOptionsMockRecorder) SetOrigin(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOrigin", reflect.TypeOf((*MockProcessOptions)(nil).SetOrigin), value)
 }
 
 // Origin mocks base method
 func (m *MockProcessOptions) Origin() topology.Host {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Origin")
 	ret0, _ := ret[0].(topology.Host)
 	return ret0
@@ -221,11 +240,13 @@ func (m *MockProcessOptions) Origin() topology.Host {
 
 // Origin indicates an expected call of Origin
 func (mr *MockProcessOptionsMockRecorder) Origin() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Origin", reflect.TypeOf((*MockProcessOptions)(nil).Origin))
 }
 
 // Validate mocks base method
 func (m *MockProcessOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -233,6 +254,7 @@ func (m *MockProcessOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockProcessOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockProcessOptions)(nil).Validate))
 }
 
@@ -261,6 +283,7 @@ func (m *MockRunOptions) EXPECT() *MockRunOptionsMockRecorder {
 
 // SetPersistConfig mocks base method
 func (m *MockRunOptions) SetPersistConfig(value PersistConfig) RunOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPersistConfig", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
@@ -268,11 +291,13 @@ func (m *MockRunOptions) SetPersistConfig(value PersistConfig) RunOptions {
 
 // SetPersistConfig indicates an expected call of SetPersistConfig
 func (mr *MockRunOptionsMockRecorder) SetPersistConfig(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistConfig", reflect.TypeOf((*MockRunOptions)(nil).SetPersistConfig), value)
 }
 
 // PersistConfig mocks base method
 func (m *MockRunOptions) PersistConfig() PersistConfig {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PersistConfig")
 	ret0, _ := ret[0].(PersistConfig)
 	return ret0
@@ -280,11 +305,13 @@ func (m *MockRunOptions) PersistConfig() PersistConfig {
 
 // PersistConfig indicates an expected call of PersistConfig
 func (mr *MockRunOptionsMockRecorder) PersistConfig() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistConfig", reflect.TypeOf((*MockRunOptions)(nil).PersistConfig))
 }
 
 // SetCacheSeriesMetadata mocks base method
 func (m *MockRunOptions) SetCacheSeriesMetadata(value bool) RunOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCacheSeriesMetadata", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
@@ -292,11 +319,13 @@ func (m *MockRunOptions) SetCacheSeriesMetadata(value bool) RunOptions {
 
 // SetCacheSeriesMetadata indicates an expected call of SetCacheSeriesMetadata
 func (mr *MockRunOptionsMockRecorder) SetCacheSeriesMetadata(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCacheSeriesMetadata", reflect.TypeOf((*MockRunOptions)(nil).SetCacheSeriesMetadata), value)
 }
 
 // CacheSeriesMetadata mocks base method
 func (m *MockRunOptions) CacheSeriesMetadata() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CacheSeriesMetadata")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -304,11 +333,13 @@ func (m *MockRunOptions) CacheSeriesMetadata() bool {
 
 // CacheSeriesMetadata indicates an expected call of CacheSeriesMetadata
 func (mr *MockRunOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockRunOptions)(nil).CacheSeriesMetadata))
 }
 
 // SetInitialTopologyState mocks base method
 func (m *MockRunOptions) SetInitialTopologyState(value *topology.StateSnapshot) RunOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInitialTopologyState", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
@@ -316,11 +347,13 @@ func (m *MockRunOptions) SetInitialTopologyState(value *topology.StateSnapshot) 
 
 // SetInitialTopologyState indicates an expected call of SetInitialTopologyState
 func (mr *MockRunOptionsMockRecorder) SetInitialTopologyState(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialTopologyState", reflect.TypeOf((*MockRunOptions)(nil).SetInitialTopologyState), value)
 }
 
 // InitialTopologyState mocks base method
 func (m *MockRunOptions) InitialTopologyState() *topology.StateSnapshot {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InitialTopologyState")
 	ret0, _ := ret[0].(*topology.StateSnapshot)
 	return ret0
@@ -328,6 +361,7 @@ func (m *MockRunOptions) InitialTopologyState() *topology.StateSnapshot {
 
 // InitialTopologyState indicates an expected call of InitialTopologyState
 func (mr *MockRunOptionsMockRecorder) InitialTopologyState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitialTopologyState", reflect.TypeOf((*MockRunOptions)(nil).InitialTopologyState))
 }
 
@@ -356,6 +390,7 @@ func (m *MockBootstrapperProvider) EXPECT() *MockBootstrapperProviderMockRecorde
 
 // String mocks base method
 func (m *MockBootstrapperProvider) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -363,11 +398,13 @@ func (m *MockBootstrapperProvider) String() string {
 
 // String indicates an expected call of String
 func (mr *MockBootstrapperProviderMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockBootstrapperProvider)(nil).String))
 }
 
 // Provide mocks base method
 func (m *MockBootstrapperProvider) Provide() (Bootstrapper, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Provide")
 	ret0, _ := ret[0].(Bootstrapper)
 	ret1, _ := ret[1].(error)
@@ -376,6 +413,7 @@ func (m *MockBootstrapperProvider) Provide() (Bootstrapper, error) {
 
 // Provide indicates an expected call of Provide
 func (mr *MockBootstrapperProviderMockRecorder) Provide() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provide", reflect.TypeOf((*MockBootstrapperProvider)(nil).Provide))
 }
 
@@ -404,6 +442,7 @@ func (m *MockBootstrapper) EXPECT() *MockBootstrapperMockRecorder {
 
 // String mocks base method
 func (m *MockBootstrapper) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -411,11 +450,13 @@ func (m *MockBootstrapper) String() string {
 
 // String indicates an expected call of String
 func (mr *MockBootstrapperMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockBootstrapper)(nil).String))
 }
 
 // Can mocks base method
 func (m *MockBootstrapper) Can(strategy Strategy) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Can", strategy)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -423,11 +464,13 @@ func (m *MockBootstrapper) Can(strategy Strategy) bool {
 
 // Can indicates an expected call of Can
 func (mr *MockBootstrapperMockRecorder) Can(strategy interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Can", reflect.TypeOf((*MockBootstrapper)(nil).Can), strategy)
 }
 
 // BootstrapData mocks base method
 func (m *MockBootstrapper) BootstrapData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.DataBootstrapResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapData", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.DataBootstrapResult)
 	ret1, _ := ret[1].(error)
@@ -436,11 +479,13 @@ func (m *MockBootstrapper) BootstrapData(ns namespace.Metadata, shardsTimeRanges
 
 // BootstrapData indicates an expected call of BootstrapData
 func (mr *MockBootstrapperMockRecorder) BootstrapData(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapData", reflect.TypeOf((*MockBootstrapper)(nil).BootstrapData), ns, shardsTimeRanges, opts)
 }
 
 // BootstrapIndex mocks base method
 func (m *MockBootstrapper) BootstrapIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.IndexBootstrapResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapIndex", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.IndexBootstrapResult)
 	ret1, _ := ret[1].(error)
@@ -449,6 +494,7 @@ func (m *MockBootstrapper) BootstrapIndex(ns namespace.Metadata, shardsTimeRange
 
 // BootstrapIndex indicates an expected call of BootstrapIndex
 func (mr *MockBootstrapperMockRecorder) BootstrapIndex(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapIndex", reflect.TypeOf((*MockBootstrapper)(nil).BootstrapIndex), ns, shardsTimeRanges, opts)
 }
 
@@ -477,6 +523,7 @@ func (m *MockSource) EXPECT() *MockSourceMockRecorder {
 
 // Can mocks base method
 func (m *MockSource) Can(strategy Strategy) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Can", strategy)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -484,11 +531,13 @@ func (m *MockSource) Can(strategy Strategy) bool {
 
 // Can indicates an expected call of Can
 func (mr *MockSourceMockRecorder) Can(strategy interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Can", reflect.TypeOf((*MockSource)(nil).Can), strategy)
 }
 
 // AvailableData mocks base method
 func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) (result.ShardTimeRanges, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges, runOpts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	ret1, _ := ret[1].(error)
@@ -497,11 +546,13 @@ func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges resul
 
 // AvailableData indicates an expected call of AvailableData
 func (mr *MockSourceMockRecorder) AvailableData(ns, shardsTimeRanges, runOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableData", reflect.TypeOf((*MockSource)(nil).AvailableData), ns, shardsTimeRanges, runOpts)
 }
 
 // ReadData mocks base method
 func (m *MockSource) ReadData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) (result.DataBootstrapResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadData", ns, shardsTimeRanges, runOpts)
 	ret0, _ := ret[0].(result.DataBootstrapResult)
 	ret1, _ := ret[1].(error)
@@ -510,11 +561,13 @@ func (m *MockSource) ReadData(ns namespace.Metadata, shardsTimeRanges result.Sha
 
 // ReadData indicates an expected call of ReadData
 func (mr *MockSourceMockRecorder) ReadData(ns, shardsTimeRanges, runOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadData", reflect.TypeOf((*MockSource)(nil).ReadData), ns, shardsTimeRanges, runOpts)
 }
 
 // AvailableIndex mocks base method
 func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.ShardTimeRanges, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	ret1, _ := ret[1].(error)
@@ -523,11 +576,13 @@ func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges resu
 
 // AvailableIndex indicates an expected call of AvailableIndex
 func (mr *MockSourceMockRecorder) AvailableIndex(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIndex", reflect.TypeOf((*MockSource)(nil).AvailableIndex), ns, shardsTimeRanges, opts)
 }
 
 // ReadIndex mocks base method
 func (m *MockSource) ReadIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.IndexBootstrapResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadIndex", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.IndexBootstrapResult)
 	ret1, _ := ret[1].(error)
@@ -536,5 +591,6 @@ func (m *MockSource) ReadIndex(ns namespace.Metadata, shardsTimeRanges result.Sh
 
 // ReadIndex indicates an expected call of ReadIndex
 func (mr *MockSourceMockRecorder) ReadIndex(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadIndex", reflect.TypeOf((*MockSource)(nil).ReadIndex), ns, shardsTimeRanges, opts)
 }

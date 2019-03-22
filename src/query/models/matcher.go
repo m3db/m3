@@ -22,8 +22,10 @@ package models
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 func (m MatchType) String() string {
@@ -61,12 +63,12 @@ func NewMatcher(t MatchType, n, v []byte) (Matcher, error) {
 	return m, nil
 }
 
-func (m *Matcher) String() string {
+func (m Matcher) String() string {
 	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 }
 
 // Matches returns whether the matcher matches the given string value.
-func (m *Matcher) Matches(s []byte) bool {
+func (m Matcher) Matches(s []byte) bool {
 	switch m.Type {
 	case MatchEqual:
 		return bytes.Equal(s, m.Value)
@@ -90,11 +92,67 @@ func (m Matchers) ToTags(
 	tags := NewTags(len(m), tagOptions)
 	for _, v := range m {
 		if v.Type != MatchEqual {
-			return Tags{}, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
+			return EmptyTags(),
+				fmt.Errorf("illegal match type, got %v, but expecting: %v",
+					v.Type, MatchEqual)
 		}
 
 		tags = tags.AddTag(Tag{Name: v.Name, Value: v.Value}).Clone()
 	}
 
 	return tags, nil
+}
+
+func (m Matchers) String() string {
+	var buffer bytes.Buffer
+	for _, match := range m {
+		buffer.WriteString(match.String())
+		buffer.WriteByte(sep)
+	}
+
+	return buffer.String()
+}
+
+// TODO: make this more robust, handle types other than MatchEqual
+func matcherFromString(s string) (Matcher, error) {
+	ss := strings.Split(s, ":")
+	length := len(ss)
+	if length > 2 {
+		return Matcher{}, errors.New("invalid arg length for matcher")
+	}
+
+	if length == 0 || len(ss[0]) == 0 {
+		return Matcher{}, errors.New("empty matcher")
+	}
+
+	if length == 1 {
+		return Matcher{
+			Type:  MatchRegexp,
+			Name:  []byte(ss[0]),
+			Value: []byte{},
+		}, nil
+	}
+
+	return Matcher{
+		Type:  MatchRegexp,
+		Name:  []byte(ss[0]),
+		Value: []byte(ss[1]),
+	}, nil
+}
+
+// MatchersFromString parses a string into Matchers
+// TODO: make this more robust, handle types other than MatchEqual
+func MatchersFromString(s string) (Matchers, error) {
+	split := strings.Fields(s)
+	matchers := make(Matchers, len(split))
+	for i, ss := range split {
+		matcher, err := matcherFromString(ss)
+		if err != nil {
+			return nil, err
+		}
+
+		matchers[i] = matcher
+	}
+
+	return matchers, nil
 }

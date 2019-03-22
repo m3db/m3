@@ -21,7 +21,6 @@
 package placement
 
 import (
-	"fmt"
 	"net/http"
 	"path"
 	"time"
@@ -30,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -61,14 +60,6 @@ var (
 
 // AddHandler is the handler for placement adds.
 type AddHandler Handler
-
-type unsafeAddError struct {
-	hosts string
-}
-
-func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
-}
 
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(opts HandlerOptions) *AddHandler {
@@ -105,7 +96,7 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(placement.GetVersion()),
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
@@ -132,41 +123,20 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	serviceOpts := NewServiceOptions(
+	serviceOpts := handler.NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
+	var validateFn placement.ValidateFn
+	if !req.Force {
+		validateFn = validateAllAvailable
+	}
+	service, _, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), validateFn)
+	if err != nil {
+		return nil, err
+	}
+	newPlacement, _, err := service.AddInstances(instances)
 	if err != nil {
 		return nil, err
 	}
 
-	if req.Force {
-		newPlacement, _, err := service.AddInstances(instances)
-		if err != nil {
-			return nil, err
-		}
-
-		return newPlacement, nil
-	}
-
-	curPlacement, version, err := service.Placement()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := validateAllAvailable(curPlacement); err != nil {
-		return nil, err
-	}
-
-	newPlacement, err := algo.AddInstances(curPlacement, instances)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure the placement we're updating is still the one on which we validated
-	// all shards are available.
-	if err := service.CheckAndSet(newPlacement, version); err != nil {
-		return nil, err
-	}
-
-	return newPlacement.SetVersion(version + 1), nil
+	return newPlacement, nil
 }

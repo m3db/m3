@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -47,11 +48,18 @@ const (
 
 	// defaultReadConcurrency is the default read concurrency
 	defaultReadConcurrency = 4
+
+	// MaximumQueueSizeQueueChannelSizeRatio is the maximum ratio between the
+	// backlog queue size and backlog queue channel size.
+	MaximumQueueSizeQueueChannelSizeRatio = 8.0
 )
 
 var (
-	// defaultBacklogQueueSize is the default commit log backlog queue size
+	// defaultBacklogQueueSize is the default commit log backlog queue size.
 	defaultBacklogQueueSize = 1024 * runtime.NumCPU()
+
+	// defaultBacklogQueueChannelSize is the default commit log backlog queue channel size.
+	defaultBacklogQueueChannelSize = int(float64(defaultBacklogQueueSize) / MaximumQueueSizeQueueChannelSizeRatio)
 )
 
 var (
@@ -61,30 +69,32 @@ var (
 )
 
 type options struct {
-	clockOpts        clock.Options
-	instrumentOpts   instrument.Options
-	blockSize        time.Duration
-	fsOpts           fs.Options
-	strategy         Strategy
-	flushSize        int
-	flushInterval    time.Duration
-	backlogQueueSize int
-	bytesPool        pool.CheckedBytesPool
-	identPool        ident.Pool
-	readConcurrency  int
+	clockOpts               clock.Options
+	instrumentOpts          instrument.Options
+	blockSize               time.Duration
+	fsOpts                  fs.Options
+	strategy                Strategy
+	flushSize               int
+	flushInterval           time.Duration
+	backlogQueueSize        int
+	backlogQueueChannelSize int
+	bytesPool               pool.CheckedBytesPool
+	identPool               ident.Pool
+	readConcurrency         int
 }
 
 // NewOptions creates new commit log options
 func NewOptions() Options {
 	o := &options{
-		clockOpts:        clock.NewOptions(),
-		instrumentOpts:   instrument.NewOptions(),
-		blockSize:        defaultBlockSize,
-		fsOpts:           fs.NewOptions(),
-		strategy:         defaultStrategy,
-		flushSize:        defaultFlushSize,
-		flushInterval:    defaultFlushInterval,
-		backlogQueueSize: defaultBacklogQueueSize,
+		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		blockSize:               defaultBlockSize,
+		fsOpts:                  fs.NewOptions(),
+		strategy:                defaultStrategy,
+		flushSize:               defaultFlushSize,
+		flushInterval:           defaultFlushInterval,
+		backlogQueueSize:        defaultBacklogQueueSize,
+		backlogQueueChannelSize: defaultBacklogQueueChannelSize,
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
@@ -99,12 +109,21 @@ func (o *options) Validate() error {
 	if o.FlushInterval() < 0 {
 		return errFlushIntervalNonNegative
 	}
+
 	if o.BlockSize() <= 0 {
 		return errBlockSizePositive
 	}
+
 	if o.ReadConcurrency() <= 0 {
 		return errReadConcurrencyPositive
 	}
+
+	if float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()) > MaximumQueueSizeQueueChannelSizeRatio {
+		return fmt.Errorf(
+			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at most: %f, but was: %f",
+			MaximumQueueSizeQueueChannelSizeRatio, float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()))
+	}
+
 	return nil
 }
 
@@ -186,6 +205,16 @@ func (o *options) SetBacklogQueueSize(value int) Options {
 
 func (o *options) BacklogQueueSize() int {
 	return o.backlogQueueSize
+}
+
+func (o *options) SetBacklogQueueChannelSize(value int) Options {
+	opts := *o
+	opts.backlogQueueChannelSize = value
+	return &opts
+}
+
+func (o *options) BacklogQueueChannelSize() int {
+	return o.backlogQueueChannelSize
 }
 
 func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
