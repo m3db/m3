@@ -406,6 +406,7 @@ func (s *seeker) SeekIndexEntry(
 		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
 			resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
+			// We reached the end of the file without finding it.
 			return IndexEntry{}, errSeekIDNotFound
 		}
 		if err != nil {
