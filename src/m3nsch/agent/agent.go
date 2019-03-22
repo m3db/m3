@@ -23,6 +23,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -369,5 +370,28 @@ type agentMetrics struct {
 type workerFn func(workerIdx int, session client.Session, namespace string, metric generatedMetric, t time.Time, u xtime.Unit) error
 
 func workerWriteFn(_ int, session client.Session, namespace string, metric generatedMetric, t time.Time, u xtime.Unit) error {
-	return session.Write(ident.StringID(namespace), ident.StringID(metric.name), t, metric.timeseries.Next(), u, nil)
+	var (
+		ns = ident.StringID(namespace)
+		id = ident.StringID(metric.name)
+	)
+	err := session.Write(ns, id, t, metric.timeseries.Next(), u, nil)
+	if err != nil {
+		return err
+	}
+
+	shouldRead := rand.Intn(100) <= 10
+	if shouldRead {
+		iter, err := session.Fetch(ns, id, time.Unix(0, 0), t)
+		if err != nil {
+			return err
+		}
+
+		for iter.Next() {
+			iter.Current()
+		}
+
+		if iter.Err(); err != nil {
+			return err
+		}
+	}
 }
