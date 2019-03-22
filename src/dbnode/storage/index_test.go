@@ -302,7 +302,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	result, err := idx.Query(ctx, query, index.QueryOptions{
 		StartInclusive: now.Add(-3 * test.indexBlockSize),
 		EndExclusive:   now.Add(-2 * test.indexBlockSize),
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.True(t, result.Exhaustive)
 	assert.Equal(t, 0, result.Results.Size())

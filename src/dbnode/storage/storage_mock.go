@@ -309,6 +309,21 @@ func (mr *MockDatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), ctx, namespace, query, opts)
 }
 
+// AggregateQuery mocks base method
+func (m *MockDatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions, aggResultOpts *index.AggregateResultsOptions) (index.QueryReturnResults, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts, aggResultOpts)
+	ret0, _ := ret[0].(index.QueryReturnResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateQuery indicates an expected call of AggregateQuery
+func (mr *MockDatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts, aggResultOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockDatabase)(nil).AggregateQuery), ctx, namespace, query, opts, aggResultOpts)
+}
+
 // ReadEncoded mocks base method
 func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
 	m.ctrl.T.Helper()
@@ -672,6 +687,21 @@ func (m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query i
 func (mr *MockdatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), ctx, namespace, query, opts)
+}
+
+// AggregateQuery mocks base method
+func (m *Mockdatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions, aggResultOpts *index.AggregateResultsOptions) (index.QueryReturnResults, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts, aggResultOpts)
+	ret0, _ := ret[0].(index.QueryReturnResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateQuery indicates an expected call of AggregateQuery
+func (mr *MockdatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts, aggResultOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*Mockdatabase)(nil).AggregateQuery), ctx, namespace, query, opts, aggResultOpts)
 }
 
 // ReadEncoded mocks base method
@@ -1120,6 +1150,21 @@ func (m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query,
 func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).QueryIDs), ctx, query, opts)
+}
+
+// AggregateQuery mocks base method
+func (m *MockdatabaseNamespace) AggregateQuery(ctx context.Context, query index.Query, opts index.QueryOptions, aggResultOpts *index.AggregateResultsOptions) (index.QueryReturnResults, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts, aggResultOpts)
+	ret0, _ := ret[0].(index.QueryReturnResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateQuery indicates an expected call of AggregateQuery
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts, aggResultOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateQuery), ctx, query, opts, aggResultOpts)
 }
 
 // ReadEncoded mocks base method
@@ -1725,18 +1770,18 @@ func (mr *MocknamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.
 }
 
 // Query mocks base method
-func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryReturnResults, error) {
+func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions, aggResultOpts *index.AggregateResultsOptions) (index.QueryReturnResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", ctx, query, opts)
+	ret := m.ctrl.Call(m, "Query", ctx, query, opts, aggResultOpts)
 	ret0, _ := ret[0].(index.QueryReturnResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Query indicates an expected call of Query
-func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
+func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts, aggResultOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), ctx, query, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), ctx, query, opts, aggResultOpts)
 }
 
 // Bootstrap mocks base method
