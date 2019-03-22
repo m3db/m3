@@ -49,12 +49,6 @@ var (
 	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
 	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
 
-	// errInvalidDataFileOffset returned when the provided offset into the data file is not valid
-	errInvalidDataFileOffset = errors.New("invalid data file offset")
-
-	// errNotEnoughBytes returned when the data file doesn't have enough bytes to satisfy a read
-	errNotEnoughBytes = errors.New("invalid data file, not enough bytes to satisfy read")
-
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 
