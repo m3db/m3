@@ -68,52 +68,30 @@ type QueryOptions struct {
 	Limit          int
 }
 
-// AggregateQueryOptions enables users to specify constraints on aggregate query
-// execution.
-type AggregateQueryOptions struct {
-	QueryOptions
-
-	// Optional param to filter aggregate values.
-	TermFilter *AggregateValuesMap
-}
-
 // LimitExceeded returns whether a given size exceeds the limit
 // the query options imposes, if it is enabled.
 func (o QueryOptions) LimitExceeded(size int) bool {
 	return o.Limit > 0 && size >= o.Limit
 }
 
-// QueryResults is the collection of results for a query.
-type QueryResults struct {
+// QueryReturnResults is the collection of results for a query.
+type QueryReturnResults struct {
 	Results    Results
 	Exhaustive bool
 }
 
-// Results is a collection of results for a query, it is synchronized
+// Results is a collection of results for a generic query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type Results interface {
-	// Reset resets the Results object to initial state.
-	Reset(nsID ident.ID, opts ResultsOptions)
-
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
 	// Size returns the number of IDs tracked.
 	Size() int
 
-	// Map returns the results map from seriesID -> seriesTags, comprising
-	// index results.
-	// Since a lock is not held when accessing the map after a call to this
-	// method it is not safe to read or write to the map if any other caller
-	// mutates the state of the results after obtainin a reference to the map
-	// with this call.
-	Map() *ResultsMap
-
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
-	// If documents with duplicate IDs are added, they are simply ignored and
-	// the first document added with an ID is returned.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size int, err error)
@@ -121,6 +99,23 @@ type Results interface {
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
 	Finalize()
+}
+
+// QueryResults is a collection of results for a query, it is synchronized
+// when access to the results set is used as documented by the methods.
+type QueryResults interface {
+	Results
+
+	// Reset resets the Results object to initial state.
+	Reset(nsID ident.ID, opts ResultsOptions)
+
+	// Map returns the results map from seriesID -> seriesTags, comprising
+	// index results.
+	// Since a lock is not held when accessing the map after a call to this
+	// method, it is unsafe to read or write to the map if any other caller
+	// mutates the state of the results after obtaining a reference to the map
+	// with this call.
+	Map() *ResultsMap
 
 	// NoFinalize marks the Results such that a subsequent call to Finalize()
 	// will be a no-op and will not return the object to the pool or release any
@@ -150,36 +145,32 @@ type ResultsPool interface {
 	Put(value Results)
 }
 
-// AggregateResults is a collection of results for an aggregation query.
+// AggregateResults is a collection of results for an aggregation query, it is
+// synchronized when access to the results set is used as documented by the
+// methods.
 type AggregateResults interface {
-	// Namespace returns the namespace associated with the result.
-	Namespace() ident.ID
-
-	// Map returns a map from tag name -> possible tag values,
-	// comprising search results.
-	Map() *AggregateResultsMap
+	Results
 
 	// Reset resets the AggregateResults object to initial state.
-	Reset(nsID ident.ID)
+	Reset(nsID ident.ID, opts AggregateResultsOptions)
 
-	// Finalize releases any resources held by the AggregateResults object,
-	// including returning it to a backing pool.
-	Finalize()
+	// Map returns a map from tag name -> possible tag values,
+	// comprising aggregate results.
+	// Since a lock is not held when accessing the map after a call to this
+	// method, it is unsafe to read or write to the map if any other caller
+	// mutates the state of the results after obtaining a reference to the map
+	// with this call.
+	Map() *AggregateResultsMap
+}
 
-	// Size returns the number of results discovered.
-	Size() int
+// AggregateResultsOptions is a set of options to use for results.
+type AggregateResultsOptions struct {
+	// SizeLimit will limit the total results set to a given limit and if
+	// overflown will return early successfully.
+	SizeLimit int
 
-	// AggregateDocument converts the provided document to a set of tags
-	// fulfilling the aggregate query and adds it to the results. This method makes
-	// a copy of the bytes backing the tags (TODO: does it?), so the original may
-	// be modified after this function returns without affecting the results map.
-	AggregateDocument(document doc.Document, opts AggregateQueryOptions) error
-
-	// AddIDAndValues adds  the given values to the given ID set.
-	//
-	// NB: this does not need to take in query options for filtering, since all
-	// incoming values are presumed to have already been filtered.
-	AddIDAndValues(id ident.ID, values AggregateValues) error
+	// Optional param to filter aggregate values.
+	TermFilter *AggregateValuesMap
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
@@ -246,13 +237,6 @@ type Block interface {
 		opts QueryOptions,
 		results Results,
 	) (exhaustive bool, err error)
-
-	// AggregateQuery resolves the given query into aggregated tags.
-	AggregateQuery(
-		query Query,
-		opts AggregateQueryOptions,
-		results AggregateResults,
-	) error
 
 	// AddResults adds bootstrap results to the block, if c.
 	AddResults(results result.IndexBlock) error

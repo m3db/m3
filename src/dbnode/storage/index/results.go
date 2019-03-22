@@ -94,6 +94,8 @@ func (r *results) Reset(nsID ident.ID, opts ResultsOptions) {
 	r.Unlock()
 }
 
+// NB: If documents with duplicate IDs are added, they are simply ignored and
+// the first document added with an ID is returned.
 func (r *results) AddDocuments(batch []doc.Document) (int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)

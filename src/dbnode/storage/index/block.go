@@ -878,61 +878,6 @@ func (b *block) addQueryResults(
 	return batch, size, err
 }
 
-func (b *block) AggregateQuery(
-	query Query,
-	opts AggregateQueryOptions,
-	results AggregateResults,
-) error {
-	b.RLock()
-	defer b.RUnlock()
-	if b.state == blockStateClosed {
-		return ErrUnableToQueryBlockClosed
-	}
-
-	exec, err := b.newExecutorFn()
-	if err != nil {
-		return err
-	}
-
-	// FOLLOWUP(arnikola): push down QueryOptions and further restrictions
-	// to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
-	if err != nil {
-		exec.Close()
-		return err
-	}
-
-	iterCloser := safeCloser{closable: iter}
-	execCloser := safeCloser{closable: exec}
-
-	defer func() {
-		iterCloser.Close()
-		execCloser.Close()
-	}()
-
-	for iter.Next() {
-		d := iter.Current()
-		err = results.AggregateDocument(d, opts)
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return err
-	}
-
-	if err := iterCloser.Close(); err != nil {
-		return err
-	}
-
-	if err := execCloser.Close(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (b *block) AddResults(
 	results result.IndexBlock,
 ) error {

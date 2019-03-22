@@ -88,20 +88,6 @@ func (mr *MockResultsMockRecorder) Finalize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockResults)(nil).Finalize))
 }
 
-// Map mocks base method
-func (m *MockResults) Map() *ResultsMap {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Map")
-	ret0, _ := ret[0].(*ResultsMap)
-	return ret0
-}
-
-// Map indicates an expected call of Map
-func (mr *MockResultsMockRecorder) Map() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Map", reflect.TypeOf((*MockResults)(nil).Map))
-}
-
 // Namespace mocks base method
 func (m *MockResults) Namespace() ident.ID {
 	m.ctrl.T.Helper()
@@ -114,30 +100,6 @@ func (m *MockResults) Namespace() ident.ID {
 func (mr *MockResultsMockRecorder) Namespace() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockResults)(nil).Namespace))
-}
-
-// NoFinalize mocks base method
-func (m *MockResults) NoFinalize() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NoFinalize")
-}
-
-// NoFinalize indicates an expected call of NoFinalize
-func (mr *MockResultsMockRecorder) NoFinalize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NoFinalize", reflect.TypeOf((*MockResults)(nil).NoFinalize))
-}
-
-// Reset mocks base method
-func (m *MockResults) Reset(arg0 ident.ID, arg1 ResultsOptions) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", arg0, arg1)
-}
-
-// Reset indicates an expected call of Reset
-func (mr *MockResultsMockRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockResults)(nil).Reset), arg0, arg1)
 }
 
 // Size mocks base method
@@ -189,20 +151,6 @@ func (m *MockBlock) AddResults(arg0 result.IndexBlock) error {
 func (mr *MockBlockMockRecorder) AddResults(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), arg0)
-}
-
-// AggregateQuery mocks base method
-func (m *MockBlock) AggregateQuery(arg0 Query, arg1 AggregateQueryOptions, arg2 AggregateResults) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateQuery", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MockBlockMockRecorder) AggregateQuery(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockBlock)(nil).AggregateQuery), arg0, arg1, arg2)
 }
 
 // Close mocks base method
