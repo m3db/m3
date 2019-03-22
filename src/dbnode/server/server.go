@@ -397,10 +397,6 @@ func Run(runOpts RunOptions) {
 
 	// Apply pooling options.
 	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
-
-	fsopts = fsopts.SetDecodingOptions(fsopts.DecodingOptions().
-		SetCheckedBytesPool(opts.BytesPool()))
-
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
