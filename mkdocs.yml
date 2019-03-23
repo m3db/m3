@@ -69,6 +69,7 @@ pages:
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
     - "M3Query": "how_to/query.md"
   - "Operational Guides":
+    - "Tunning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
     - "Namespace Configuration": "operational_guide/namespace_configuration.md"
