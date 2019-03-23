@@ -19,6 +19,15 @@ steps:
       automatic:
         limit: 1
       manual: true
+  - name: "Check for docs build :books:"
+    command: ".buildkite/scripts/check_do_docs.sh"
+    agents:
+      queue: init
+    timeout_in_minutes: 10
+    retry:
+      automatic:
+        limit: 1
+      manual: true
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
     env:
