@@ -1,4 +1,4 @@
-# Tuning for Availability vs. Durability and Consistency
+# Tuning Availability, Consistency, and Durability
 
 ## Overview
 
