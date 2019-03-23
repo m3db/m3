@@ -4,7 +4,7 @@
 
 Generally speaking M3DB is an [H.A](https://en.wikipedia.org/wiki/High_availability) system because it doesn't use a consensus protocol like Raft or Paxos to enforce strong consensus and consistency guarantees. However, even within the category of H.A systems, there is a broad spectrum of consistency and durability guarantees that a database can provide. Like many other H.A systems, M3DB allows database operators to tune the consistency and durability guarantees of the system in order to achieve the desired balance between performance, availability, durability, and consistency.
 
-The rest of this document will discuss the various knobs that M3DB allows M3DB operators to tune.
+Generally speaking, all of the default and example YAML configuration files for M3DB are configured to favor performance and availability over consistency and durability since that is usually the tradeoff that makes most sense for metrics and observability workloads. Database operators who are using M3DB for workloads that require stricter consistency and durability guarantees should consider tuning the default configuration to better suite their use case. The rest of this document describes the various configuration options that are available to M3DB operators to make those tradeoffs.
 
 We recommend referring to [this sample M3 YAML configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml) which has every possible configuration value set while reading the rest of this document to see how the described configurations fit into the YAML file as a whole.
 
