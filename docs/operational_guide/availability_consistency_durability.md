@@ -12,18 +12,19 @@ The rest of this document describes the various configuration options that are a
 
 While reading the rest of this document, we recommend referring to [the default configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml) (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.
 
-### Client Write and Read Consistency
+## Tuning for Performance and Availability
 
-The possible configuration values for write and read consistency are discussed in more detail in [the Consistency Levels section](../m3db/architecture/consistencylevels.md). In short, M3DB behaves similarly to other HA systems with configurable consistency such as Cassandra that allow the caller to control the consistency level of writes and reads from the client.
+### Client Write and Read consistency
 
-The most important thing to understand is that **if you want to guarantee that you will be able to read the result of every successful write, then both writes and reads must be done with `majority` consistency.**
+We recommend running the client with `writeConsistencyLevel` set to `majority` and `readConsistencyLevel` set to `unstrict_majority`.
+This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum.
+You can read about the consistency levels in more detail in [the Consistency Levels section](../m3db/architecture/consistencylevels.md)
 
 ### Commitlog Configuration
 
-By default M3DB runs with an asynchronous commitlog such that writes will be reported as successful by the client, though the data may not have been flushed to disk yet.
-M3DB supports changing this default behavior to run the commitlog synchronously, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
+We recommend running M3DB with an asynchronous commitlog.
+This means that writes will be reported as successful by the client, though the data may not have been flushed to disk yet.
 
-M3DB operators can control when M3DB will attempt to flush the commitlog via the `commitlog` section of the YAML configuration.
 For example, consider the default configuration:
 
 ```
@@ -67,7 +68,7 @@ This value can be set much lower than the default value for workloads in which a
 If M3DB is shuts down gracefully (i.e via SIGTERM), it will ensure that all pending writes are flushed to the commitlog on disk before the process exists.
 However, in situations where the process crashed/exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
 In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either **(a)** come up successfully and tolerate an ostensibly minor amount of data or loss, or **(b)** attempt to stream the missing data from its peers.
-In that situation M3DB will read as much of the commitlog as its able to in order to recover as much data as possible, however it then needs to make a decision. It can either come up successfully and tolerate the minor amount of data loss or it can attempt to stream the missing data from its peers. This behavior is controlled by the following default configuration:
+This behavior is controlled by the following default configuration:
 
 ```
 bootstrap:
@@ -75,5 +76,51 @@ bootstrap:
     returnUnfulfilledForCorruptCommitLogFiles: false
 ```
 
-In the situation where only a single node fails, the optimal outcome is for the node to attempt to repair itself from one of its peers. However, if a quorum of nodes fail and encounter corrupt commitlog files, they will deadlock while attempting to stream data from each other, as no nodes will be able to make progress due to a lack of quorum.
+In the situation where only a single node fails, the optimal outcome is for the node to attempt to repair itself from one of its peers.
+However, if a quorum of nodes fail and encounter corrupt commitlog files, they will deadlock while attempting to stream data from each other, as no nodes will be able to make progress due to a lack of quorum.
 This issue requires an operator with significant M3DB operational experience to manually bootstrap the cluster; thus the official recommendation is to set `returnUnfulfilledForCorruptCommitLogFiles: false` to avoid this issue altogether. In most cases, a small amount of data loss is preferable to a quorum of nodes that crash and fail to start back up automatically.
+
+## Tuning for Consistency and Durability
+
+### Client Write and Read consistency
+
+The most important thing to understand is that **if you want to guarantee that you will be able to read the result of every successful write, then both writes and reads must be done with `majority` consistency.**
+This means that both writes *and* reads will fail if a quorum of nodes are unavailable for a given shard.
+You can read about the consistency levels in more detail in [the Consistency Levels section](../m3db/architecture/consistencylevels.md)
+
+### Commitlog Configuration
+
+M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
+We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then their may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](./bootstrapping.md).
+
+
+### Writing New Series Asynchronously
+
+If you want to guarantee that M3DB will immediately allow you to read data for writes that have been acknowledged by the client, including the situation where the previous write was for a brand new timeseries, then you  will need to change the default M3DB configuration to set `writeNewSeriesAsync: false` as a top-level key under the `db` section:
+
+```
+writeNewSeriesAsync: false
+```
+
+This instructs M3DB to handle writes for new timeseries (for a given time block) synchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so this configuration could have an adverse effect on performance when many new timeseries are being inserted into M3DB concurrently.
+
+Since this operation is so expensive, M3DB allows operator to ratelimit the number of new series that can be created per second via the following configuration (also a top-level key under the `db` section):
+
+```
+writeNewSeriesLimitPerSecond: 1048576
+```
+
+### Ignoring Corrupt Commitlogs on Bootstrap
+
+As described in the "Tuning for Performance and Availability" section, we recommend configuring M3DB to ignore corrupt commitlog files on bootstrap. However, if you want to avoid any amount of inconsistency or data loss, no matter how minor, then you should configure M3DB to return unfulfilled when the commitlog bootstrapper encounters corrupt commitlog files. You can do so by modifying your configuration to look like this:
+
+```
+bootstrap:
+  commitlog:
+    returnUnfulfilledForCorruptCommitLogFiles: true
+```
+
+This will force your M3DB nodes to attempt to repair corrupted commitlog files on bootstrap by streaming the data from their peers.
+In most situations this will be transparent to the operator and the M3DB node will finish bootstrapping without trouble.
+However, in the scenario where a quorum of nodes for a given shard failed in unison, the nodes will deadlock while attempting to stream data from each other, as no nodes will be able to make progress due to a lack of quorum.
+This issue requires an operator with significant M3DB operational experience to manually bootstrap the cluster; thus the official recommendation is to avoid configuring M3DB in this way unless data consistency and durability are of utmost importance.
