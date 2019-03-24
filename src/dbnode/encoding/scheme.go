@@ -38,11 +38,6 @@ const (
 )
 
 var (
-	panicOnRead  bool
-	panicOnWrite bool
-)
-
-var (
 	// default time encoding schemes
 	defaultZeroBucket             = newTimeBucket(0x0, 1, 0)
 	defaultNumValueBitsForBuckets = []int{7, 9, 12}
@@ -229,9 +224,6 @@ func newMarkerEncodingScheme(
 			scheme.tails[i][j] = tail
 		}
 	}
-
-	panicOnWrite = true
-	panicOnRead = true
 	return scheme
 }
 
