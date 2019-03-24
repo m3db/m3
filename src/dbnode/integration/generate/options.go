@@ -75,7 +75,7 @@ func NewOptions() Options {
 	encoderPool := encoding.NewEncoderPool(nil)
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(time.Time{}, nil, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	return &options{
