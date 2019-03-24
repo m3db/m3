@@ -42,8 +42,11 @@ var (
 				SetDefaultTimeUnit(xtime.Second)
 )
 
-// TODO: Add test for schema changes mid stream
-func TestRoundtrip(t *testing.T) {
+// TestRoundTrip is intentionally simple to facilitate fast and easy debugging of changes
+// as well as to serve as a basic sanity test. However, the bulk of the confidence in this
+// code's correctness comes from the `TestRoundtripProp` test which is much more exhaustive.
+// TODO: Add test for schema changes mid stream: https://github.com/m3db/m3/issues/1471
+func TestRoundTrip(t *testing.T) {
 	testCases := []struct {
 		timestamp  time.Time
 		latitude   float64
