@@ -20,15 +20,15 @@ rm -rf site
 mkdocs build -e docs/theme -t material
 
 git checkout -t origin/docs
-rm -rf m3db.io/*
-cp -r site/* m3db.io/
-
 # Trying to commit 0 changes would fail, so let's check if there's any changes
-# queued up first. diff-index HEAD exits 0 if no pending changes.
-if git diff-index --quiet HEAD --; then
+# between docs branch and our changes.
+if diff -qr site m3db.io > /dev/null; then
   echo "no docs changes"
   exit 0
 fi
+
+rm -rf m3db.io/*
+cp -r site/* m3db.io/
 
 git add m3db.io
 git commit -m "Docs update $(date)"
