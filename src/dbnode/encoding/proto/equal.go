@@ -31,17 +31,25 @@ import (
 // Mostly copy-pasta of a non-exported helper method from the protoreflect
 // library.
 // https://github.com/jhump/protoreflect/blob/87f824e0b908132b2501fe5652f8ee75a2e8cf06/dynamic/equal.go#L60
-func fieldsEqual(aval, bval interface{}) bool {
-	arv := reflect.ValueOf(aval)
-	brv := reflect.ValueOf(bval)
+func fieldsEqual(aVal, bVal interface{}) bool {
+	// Handle nil cases first since reflect.ValueOf will not handle untyped
+	// nils gracefully.
+	if aVal == nil && bVal == nil {
+		return true
+	}
+	if aVal == nil || bVal == nil {
+		return false
+	}
 
+	arv := reflect.ValueOf(aVal)
+	brv := reflect.ValueOf(bVal)
 	if arv.Type() != brv.Type() {
 		// it is possible that one is a dynamic message and one is not
-		apm, ok := aval.(proto.Message)
+		apm, ok := aVal.(proto.Message)
 		if !ok {
 			return false
 		}
-		bpm, ok := bval.(proto.Message)
+		bpm, ok := bVal.(proto.Message)
 		if !ok {
 			return false
 		}
@@ -51,13 +59,13 @@ func fieldsEqual(aval, bval interface{}) bool {
 	} else {
 		switch arv.Kind() {
 		case reflect.Ptr:
-			apm, ok := aval.(proto.Message)
+			apm, ok := aVal.(proto.Message)
 			if !ok {
 				// Don't know how to compare pointer values that aren't messages!
 				// Maybe this should panic?
 				return false
 			}
-			bpm := bval.(proto.Message) // we know it will succeed because we know a and b have same type
+			bpm := bVal.(proto.Message) // we know it will succeed because we know a and b have same type
 			if !dynamic.MessagesEqual(apm, bpm) {
 				return false
 			}
@@ -68,7 +76,7 @@ func fieldsEqual(aval, bval interface{}) bool {
 
 		case reflect.Slice:
 			if arv.Type() == typeOfBytes {
-				if !bytes.Equal(aval.([]byte), bval.([]byte)) {
+				if !bytes.Equal(aVal.([]byte), bVal.([]byte)) {
 					return false
 				}
 			} else {
@@ -78,7 +86,7 @@ func fieldsEqual(aval, bval interface{}) bool {
 			}
 
 		default:
-			if aval != bval {
+			if aVal != bVal {
 				return false
 			}
 		}

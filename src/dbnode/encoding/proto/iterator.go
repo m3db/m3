@@ -318,10 +318,12 @@ func (it *iterator) readProtoValues() error {
 			itErrPrefix, int(marshalLen), n)
 	}
 
+	fmt.Println("before unmarshal: ", it.lastIterated.String())
 	err = it.lastIterated.UnmarshalMerge(unmarshalBytes)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
+	fmt.Println("after unmarshal: ", it.lastIterated.String())
 
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
@@ -859,6 +861,7 @@ func (it *iterator) resetUnmarshalProtoBuffer(n int) {
 	// replaced by a new one later.
 	it.unmarshalProtoBuf = it.opts.BytesPool().Get(n)
 	it.unmarshalProtoBuf.IncRef()
+	it.unmarshalProtoBuf.Resize(n)
 }
 
 func (it *iterator) hasNext() bool {

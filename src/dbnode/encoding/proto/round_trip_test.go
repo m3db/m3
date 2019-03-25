@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/jhump/protoreflect/desc"
@@ -37,10 +38,18 @@ import (
 )
 
 var (
-	testVLSchema        = newVLMessageDescriptor()
+	testVLSchema = newVLMessageDescriptor()
+	bytesPool    = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
 	testEncodingOptions = encoding.NewOptions().
-				SetDefaultTimeUnit(xtime.Second)
+				SetDefaultTimeUnit(xtime.Second).
+				SetBytesPool(bytesPool)
 )
+
+func init() {
+	bytesPool.Init()
+}
 
 // TestRoundTrip is intentionally simple to facilitate fast and easy debugging of changes
 // as well as to serve as a basic sanity test. However, the bulk of the confidence in this

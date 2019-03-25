@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
@@ -78,7 +77,8 @@ func TestRoundtripProp(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
 				fmt.Printf(
-					"recovered with schema: %s and messages: %#v",
+					"recovered with err: %v,schema: %s and messages: %#v",
+					r,
 					input.schema.String(),
 					input.messages)
 				debug.PrintStack()
@@ -105,6 +105,7 @@ func TestRoundtripProp(t *testing.T) {
 				return false, fmt.Errorf("error marshaling proto message: %v", err)
 			}
 
+			fmt.Println("encoding: ", m.String())
 			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
 				return false, fmt.Errorf(
@@ -231,62 +232,72 @@ func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Ge
 
 func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
-		message := dynamic.NewMessage(schema)
-		for i, field := range message.GetKnownFields() {
-			if input.useDefaultValue[i] {
-				// Due to the way ProtoBuf encoding works where there is no way to
-				// distinguish between an "unset" field and a field set to its default
-				// value, we intentionally force some of the values to their default values
-				// to exercise those code paths. This is important because the probabily of
-				// randomly generating a uint64 with the default value of zero is so unlikely
-				// that it will basically never happen.
-				continue
-			}
+		return newMessageWithValues(schema, input)
+	})
+}
 
-			var (
-				fieldType   = field.GetType()
-				fieldNumber = int(field.GetNumber())
-			)
-			switch fieldType {
-			case dpb.FieldDescriptorProto_TYPE_BOOL:
-				message.SetFieldByNumber(fieldNumber, input.bools[i])
-			case dpb.FieldDescriptorProto_TYPE_ENUM:
-				message.SetFieldByNumber(fieldNumber, input.enums[i])
-			case dpb.FieldDescriptorProto_TYPE_BYTES:
-				message.SetFieldByNumber(fieldNumber, []byte(input.strings[i]))
-			case dpb.FieldDescriptorProto_TYPE_STRING:
-				message.SetFieldByNumber(fieldNumber, input.strings[i])
-			case dpb.FieldDescriptorProto_TYPE_DOUBLE:
-				message.SetFieldByNumber(fieldNumber, input.float64s[i])
-			case dpb.FieldDescriptorProto_TYPE_FLOAT:
-				message.SetFieldByNumber(fieldNumber, input.float32s[i])
-			case dpb.FieldDescriptorProto_TYPE_INT32:
-				message.SetFieldByNumber(fieldNumber, input.int32s[i])
-			case dpb.FieldDescriptorProto_TYPE_INT64:
-				message.SetFieldByNumber(fieldNumber, input.int64s[i])
-			case dpb.FieldDescriptorProto_TYPE_UINT32:
-				message.SetFieldByNumber(fieldNumber, input.uint32s[i])
-			case dpb.FieldDescriptorProto_TYPE_UINT64:
-				message.SetFieldByNumber(fieldNumber, input.uint64s[i])
-			case dpb.FieldDescriptorProto_TYPE_FIXED64:
-				message.SetFieldByNumber(fieldNumber, input.uint64s[i])
-			case dpb.FieldDescriptorProto_TYPE_FIXED32:
-				message.SetFieldByNumber(fieldNumber, input.uint32s[i])
-			case dpb.FieldDescriptorProto_TYPE_SFIXED64:
-				message.SetFieldByNumber(fieldNumber, input.int64s[i])
-			case dpb.FieldDescriptorProto_TYPE_SFIXED32:
-				message.SetFieldByNumber(fieldNumber, input.int32s[i])
-			case dpb.FieldDescriptorProto_TYPE_SINT64:
-				message.SetFieldByNumber(fieldNumber, input.int64s[i])
-			case dpb.FieldDescriptorProto_TYPE_SINT32:
-				message.SetFieldByNumber(fieldNumber, input.int32s[i])
-			default:
-				panic(fmt.Sprintf("invalid field type in schema: %v", fieldType))
-			}
+func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) *dynamic.Message {
+	message := dynamic.NewMessage(schema)
+	for i, field := range message.GetKnownFields() {
+		if input.useDefaultValue[i] {
+			// Due to the way ProtoBuf encoding works where there is no way to
+			// distinguish between an "unset" field and a field set to its default
+			// value, we intentionally force some of the values to their default values
+			// to exercise those code paths. This is important because the probabily of
+			// randomly generating a uint64 with the default value of zero is so unlikely
+			// that it will basically never happen.
+			continue
 		}
 
-		return message
-	})
+		var (
+			fieldType   = field.GetType()
+			fieldNumber = int(field.GetNumber())
+		)
+		switch fieldType {
+		case dpb.FieldDescriptorProto_TYPE_BOOL:
+			message.SetFieldByNumber(fieldNumber, input.bools[i])
+		case dpb.FieldDescriptorProto_TYPE_ENUM:
+			message.SetFieldByNumber(fieldNumber, input.enums[i])
+		case dpb.FieldDescriptorProto_TYPE_BYTES:
+			message.SetFieldByNumber(fieldNumber, []byte(input.strings[i]))
+		case dpb.FieldDescriptorProto_TYPE_STRING:
+			message.SetFieldByNumber(fieldNumber, input.strings[i])
+		case dpb.FieldDescriptorProto_TYPE_DOUBLE:
+			message.SetFieldByNumber(fieldNumber, input.float64s[i])
+		case dpb.FieldDescriptorProto_TYPE_FLOAT:
+			message.SetFieldByNumber(fieldNumber, input.float32s[i])
+		case dpb.FieldDescriptorProto_TYPE_INT32:
+			message.SetFieldByNumber(fieldNumber, input.int32s[i])
+		case dpb.FieldDescriptorProto_TYPE_INT64:
+			message.SetFieldByNumber(fieldNumber, input.int64s[i])
+		case dpb.FieldDescriptorProto_TYPE_UINT32:
+			message.SetFieldByNumber(fieldNumber, input.uint32s[i])
+		case dpb.FieldDescriptorProto_TYPE_UINT64:
+			message.SetFieldByNumber(fieldNumber, input.uint64s[i])
+		case dpb.FieldDescriptorProto_TYPE_FIXED64:
+			message.SetFieldByNumber(fieldNumber, input.uint64s[i])
+		case dpb.FieldDescriptorProto_TYPE_FIXED32:
+			message.SetFieldByNumber(fieldNumber, input.uint32s[i])
+		case dpb.FieldDescriptorProto_TYPE_SFIXED64:
+			message.SetFieldByNumber(fieldNumber, input.int64s[i])
+		case dpb.FieldDescriptorProto_TYPE_SFIXED32:
+			message.SetFieldByNumber(fieldNumber, input.int32s[i])
+		case dpb.FieldDescriptorProto_TYPE_SINT64:
+			message.SetFieldByNumber(fieldNumber, input.int64s[i])
+		case dpb.FieldDescriptorProto_TYPE_SINT32:
+			message.SetFieldByNumber(fieldNumber, input.int32s[i])
+		case dpb.FieldDescriptorProto_TYPE_MESSAGE:
+			// If the field is a nested message, figure out what the nested schema is
+			// and then generate another message to use as the value of that field. We
+			// reuse the same inputs value for simplicity.
+			nestedMessageSchema := schema.FindFieldByNumber(field.GetNumber()).GetMessageType()
+			message.SetFieldByNumber(fieldNumber, newMessageWithValues(nestedMessageSchema, input))
+		default:
+			panic(fmt.Sprintf("invalid field type in schema: %v", fieldType))
+		}
+	}
+
+	return message
 }
 
 func genWrite() gopter.Gen {
@@ -328,55 +339,92 @@ func genWrite() gopter.Gen {
 func genSchema(numFields int) gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(numFields, gen.Bool()),
-		gen.SliceOfN(numFields, genFieldType())).
+		gen.SliceOfN(numFields, genFieldTypeWithNestedMessage()),
+		gen.SliceOfN(numFields, genFieldTypeWithNoNestedMessage())).
 		Map(func(input []interface{}) *desc.MessageDescriptor {
 			var (
 				shouldReserve = input[0].([]bool)
-				fieldTypes    = input[1].([]dpb.FieldDescriptorProto_Type)
-				schemaBuilder = builder.NewMessage("schema")
+				// fieldTypes are generated with the possibility of a field being a nested message
+				// where nestedFieldTypes are generated without the possibility of a field being
+				// a nested message to prevent infinite recursion. This limits the property testing
+				// of nested message types to a maximum depth of 1, but in practice it doesn't matter
+				// much because nested messages are handled by the ProtoBuf specification not our
+				// custom encoding.
+				fieldTypes       = input[1].([]dpb.FieldDescriptorProto_Type)
+				nestedFieldTypes = input[2].([]dpb.FieldDescriptorProto_Type)
 			)
 
-			for i, fieldType := range fieldTypes {
-				var (
-					fieldNum         = int32(i + 1) // Zero not valid.
-					builderFieldType *builder.FieldType
-				)
-
-				if shouldReserve[i] {
-					// Sprinkle in some reserved fields to make sure that we handle those
-					// without issue.
-					schemaBuilder.AddReservedRange(fieldNum, fieldNum)
-					continue
-				}
-
-				if fieldType == dpb.FieldDescriptorProto_TYPE_ENUM {
-					var (
-						enumFieldName = fmt.Sprintf("_enum_%d", fieldNum)
-						enumBuilder   = builder.NewEnum(enumFieldName)
-					)
-					for j := 0; j < maxNumEnumValues; j++ {
-						enumValueName := fmt.Sprintf("_enum_value_%d", j)
-						enumBuilder.AddValue(builder.NewEnumValue(enumValueName))
-					}
-					builderFieldType = builder.FieldTypeEnum(enumBuilder)
-				} else {
-					builderFieldType = builder.FieldTypeScalar(fieldType)
-				}
-
-				field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
-					SetNumber(fieldNum)
-				schemaBuilder = schemaBuilder.AddField(field)
-			}
-
+			schemaBuilder := schemaBuilderFromFieldTypes(shouldReserve, fieldTypes, nestedFieldTypes)
 			schema, err := schemaBuilder.Build()
 			if err != nil {
-				panic(fmt.Errorf("error building dynamic schema message: %v", err))
+				panic(err)
 			}
 
 			return schema
 		})
 }
 
-func genFieldType() gopter.Gen {
+func schemaBuilderFromFieldTypes(
+	shouldReserve []bool,
+	fieldTypes []dpb.FieldDescriptorProto_Type,
+	nestedMessageFieldTypes []dpb.FieldDescriptorProto_Type,
+) *builder.MessageBuilder {
+	var schemaName string
+	if nestedMessageFieldTypes != nil {
+		schemaName = "schema"
+	} else {
+		schemaName = "nested_schema"
+	}
+	schemaBuilder := builder.NewMessage(schemaName)
+
+	for i, fieldType := range fieldTypes {
+		var (
+			fieldNum         = int32(i + 1) // Zero not valid.
+			builderFieldType *builder.FieldType
+		)
+
+		if shouldReserve[i] {
+			// Sprinkle in some reserved fields to make sure that we handle those
+			// without issue.
+			schemaBuilder.AddReservedRange(fieldNum, fieldNum)
+			continue
+		}
+
+		if fieldType == dpb.FieldDescriptorProto_TYPE_ENUM {
+			var (
+				enumFieldName = fmt.Sprintf("_enum_%d", fieldNum)
+				enumBuilder   = builder.NewEnum(enumFieldName)
+			)
+			for j := 0; j < maxNumEnumValues; j++ {
+				enumValueName := fmt.Sprintf("_enum_value_%d", j)
+				enumBuilder.AddValue(builder.NewEnumValue(enumValueName))
+			}
+			builderFieldType = builder.FieldTypeEnum(enumBuilder)
+		} else if fieldType == dpb.FieldDescriptorProto_TYPE_MESSAGE {
+			// NestedMessageFieldTypes can't contain nested messages so we're limited to a single level
+			// of recursion here.
+			nestedMessageBuilder := schemaBuilderFromFieldTypes(shouldReserve, nestedMessageFieldTypes, nil)
+			builderFieldType = builder.FieldTypeMessage(nestedMessageBuilder)
+		} else {
+			builderFieldType = builder.FieldTypeScalar(fieldType)
+		}
+
+		field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
+			SetNumber(fieldNum)
+		schemaBuilder = schemaBuilder.AddField(field)
+	}
+
+	return schemaBuilder
+}
+
+func genFieldTypeWithNoNestedMessage() gopter.Gen {
 	return gen.OneConstOf(allowedProtoTypesSliceIface...)
+}
+
+func genFieldTypeWithNestedMessage() gopter.Gen {
+	allowedProtoTypesSliceIfaceWithNestedMessage := allowedProtoTypesSliceIface[:] // Shallow copy.
+	allowedProtoTypesSliceIfaceWithNestedMessage = append(
+		allowedProtoTypesSliceIfaceWithNestedMessage,
+		dpb.FieldDescriptorProto_TYPE_MESSAGE)
+	return gen.OneConstOf(allowedProtoTypesSliceIfaceWithNestedMessage...)
 }

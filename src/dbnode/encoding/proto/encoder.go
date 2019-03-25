@@ -34,6 +34,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 	murmur3 "github.com/m3db/stackmurmur3"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 )
@@ -540,9 +541,25 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 					return err
 				}
 			} else {
-				if fieldsEqual(field.GetDefaultValue(), curVal) {
-					fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+				fmt.Printf("left: %#v\n", field.GetDefaultValue())
+				fmt.Printf("right: %#v\n", curVal)
+				if field.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE {
+					// field.GetDefaultValue() returns nil for message types so we have to
+					// manually compare the value to the "real" default value which is an
+					// empty instance of that message type.
+					fmt.Println("message  field num: ", fieldNum)
+					if fieldsEqual(dynamic.NewMessage(field.GetMessageType()), curVal) {
+						fmt.Println("MESSAGE equal!")
+						fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+					} else {
+						fmt.Println("MESSAGE NOT equal!")
+					}
+				} else {
+					if fieldsEqual(field.GetDefaultValue(), curVal) {
+						fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+					}
 				}
+
 				changedFields = append(changedFields, fieldNum)
 				if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
 					return err
