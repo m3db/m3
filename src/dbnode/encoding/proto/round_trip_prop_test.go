@@ -105,7 +105,6 @@ func TestRoundtripProp(t *testing.T) {
 				return false, fmt.Errorf("error marshaling proto message: %v", err)
 			}
 
-			fmt.Println("encoding: ", m.String())
 			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
 				return false, fmt.Errorf(

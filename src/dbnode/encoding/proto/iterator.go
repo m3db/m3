@@ -318,7 +318,6 @@ func (it *iterator) readProtoValues() error {
 			itErrPrefix, int(marshalLen), n)
 	}
 
-	fmt.Println("before unmarshal: ", it.lastIterated.String())
 	m := dynamic.NewMessage(it.schema)
 	err = m.Unmarshal(unmarshalBytes)
 	if err != nil {
@@ -334,7 +333,6 @@ func (it *iterator) readProtoValues() error {
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
-	fmt.Println("after unmarshal: ", it.lastIterated.String())
 
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
