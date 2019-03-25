@@ -1,5 +1,4 @@
 steps:
-  - wait
   - name: "Docs build and push :books:"
     command: ".buildkite/scripts/docs_push.sh"
     agents:
