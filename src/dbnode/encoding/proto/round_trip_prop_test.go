@@ -53,7 +53,7 @@ func init() {
 	}
 }
 
-var maxNumFields = 10
+var maxNumFields = 50
 var maxNumMessages = 100
 var maxNumEnumValues = 10
 
@@ -73,6 +73,7 @@ func TestRoundtripProp(t *testing.T) {
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
+		fmt.Println("------------------")
 		// Make panics debuggable.
 		defer func() {
 			if r := recover(); r != nil {
@@ -148,6 +149,7 @@ func TestRoundtripProp(t *testing.T) {
 
 			i++
 		}
+		fmt.Println("done")
 
 		if iter.Err() != nil {
 			return false, fmt.Errorf(
@@ -181,6 +183,8 @@ type generatedWrite struct {
 	// Whether we should use one of the randomly generated values in the slice below,
 	// or just the default value for the given type.
 	useDefaultValue []bool
+	// Whether we should use the same value as the previous write.
+	usePrevValue []bool
 
 	bools    []bool
 	enums    []int32
@@ -221,7 +225,25 @@ func genPropTestInputs() gopter.Gen {
 func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(numMessages, genMessage(schema)),
+		gen.SliceOfN(numMessages, gen.SliceOfN(len(schema.GetFields()), gen.Bool())),
 	).Map(func(input []interface{}) propTestInput {
+		messages := input[0].([]*dynamic.Message)
+		perMessageShouldBeSameAsPrevWrite := input[1].([][]bool)
+		for i, m := range messages {
+			if i == 0 {
+				continue
+			}
+
+			perFieldShouldBeSameAsPrevWrite := perMessageShouldBeSameAsPrevWrite[i]
+			fields := m.GetKnownFields()
+
+			for j, field := range fields {
+				if perFieldShouldBeSameAsPrevWrite[j] {
+					prevFieldVal := messages[i-1].GetFieldByNumber(int(field.GetNumber()))
+					m.SetFieldByNumber(int(field.GetNumber()), prevFieldVal)
+				}
+			}
+		}
 		return propTestInput{
 			schema:   schema,
 			messages: input[0].([]*dynamic.Message),

@@ -326,12 +326,25 @@ func (it *iterator) readProtoValues() error {
 
 	for _, field := range m.GetKnownFields() {
 		if field.GetMessageType() != nil {
-			it.lastIterated.SetFieldByNumber(int(field.GetNumber()), m.GetFieldByNumber(int(field.GetNumber())))
+			curVal := m.GetFieldByNumber(int(field.GetNumber()))
+			if fieldsEqual(dynamic.NewMessage(field.GetMessageType()), curVal) {
+				if fieldsSetToDefaultControlBit == 0 {
+					continue
+				}
+				found := false
+				for _, fieldNum := range it.bitsetValues {
+					if fieldNum == int(field.GetNumber()) {
+						found = true
+					}
+				}
+
+				if found {
+					it.lastIterated.SetFieldByNumber(int(field.GetNumber()), curVal)
+				}
+			} else {
+				it.lastIterated.SetFieldByNumber(int(field.GetNumber()), curVal)
+			}
 		}
-	}
-	err = it.lastIterated.UnmarshalMerge(unmarshalBytes)
-	if err != nil {
-		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
 
 	if fieldsSetToDefaultControlBit == 1 {
