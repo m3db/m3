@@ -14,6 +14,9 @@ git config --local user.email "buildkite@m3db.io"
 git config --local user.name "M3 Buildkite Bot"
 
 rm -rf site
+
+# NB(schallert): if updating this build step be sure to update the docs-build
+# make target (see note there as to why we can't share code between the two).
 mkdocs build -e docs/theme -t material
 
 git checkout -t origin/docs
