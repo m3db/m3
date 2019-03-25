@@ -547,7 +547,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 					// empty instance of that message type.
 					if fieldsEqual(dynamic.NewMessage(field.GetMessageType()), curVal) {
 						fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-					} else {
 					}
 				} else {
 					if fieldsEqual(field.GetDefaultValue(), curVal) {
