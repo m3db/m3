@@ -1,5 +1,4 @@
 steps:
-  - wait
   - name: ":docker: build quay.io/m3db"
     command: ".ci/docker/build.sh"
     env:
