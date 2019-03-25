@@ -22,7 +22,7 @@ mkdocs build -e docs/theme -t material
 git checkout -t origin/docs
 # Trying to commit 0 changes would fail, so let's check if there's any changes
 # between docs branch and our changes.
-if diff -qr site m3db.io > /dev/null; then
+if diff -qr site m3db.io; then
   echo "no docs changes"
   exit 0
 fi
