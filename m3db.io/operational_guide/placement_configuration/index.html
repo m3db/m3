@@ -582,8 +582,56 @@
 
 
   <li class="md-nav__item">
+    <a href="../../query_engine/architecture/fanout/" title="Query Fanout" class="md-nav__link">
+      Query Fanout
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-5" type="checkbox" id="nav-4-5">
+    
+    <label class="md-nav__link" for="nav-4-5">
+      Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-5">
+        Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
+      Annotated Config File
     </a>
   </li>
 
@@ -994,6 +1042,114 @@
       
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8" type="checkbox" id="nav-8">
+    
+    <label class="md-nav__link" for="nav-8">
+      Performance
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-8">
+        Performance
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8-2" type="checkbox" id="nav-8-2">
+    
+    <label class="md-nav__link" for="nav-8-2">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-8-2">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/m3db/" title="M3DB Performance" class="md-nav__link">
+      M3DB Performance
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8-3" type="checkbox" id="nav-8-3">
+    
+    <label class="md-nav__link" for="nav-8-3">
+      m3query
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-8-3">
+        m3query
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/m3query/" title="m3query Performance" class="md-nav__link">
+      m3query Performance
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
   <li class="md-nav__item">
     <a href="../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
       Troubleshooting
@@ -1208,11 +1364,11 @@
 <h4 id="weight">Weight</h4>
 <p>This value should be an integer and controls how the cluster will weigh the number of shards that an individual node will own. If you're running the M3DB cluster on homogenous hardware, then you probably want to assign all M3DB nodes the same weight so that shards are distributed evenly. On the otherhand, if you're running the cluster on heterogenous hardware, then this value should be higher for nodes with higher resources for whatever the limiting factor is in your cluster setup. For example, if disk space (as opposed to memory or CPU) is the limiting factor in how many shards any given node in your cluster can tolerate, then you could assign a higher value to nodes in your cluster that have larger disks and the placement calculations would assign them a higher number of shards.</p>
 <h4 id="endpoint">Endpoint</h4>
-<p>This value should be in the form of <M3DB_HOST_NAME>:<M3DB_NODE_LISTEN_PORT> and identifies how network requests should be routed to this particular node in the placement.</p>
+<p>This value should be in the form of <code>&lt;M3DB_HOST_NAME&gt;:&lt;M3DB_NODE_LISTEN_PORT&gt;</code> and identifies how network requests should be routed to this particular node in the placement.</p>
 <h4 id="hostname">Hostname</h4>
-<p>This value should be in the form of <M3DB_HOST_NAME> and identifies the address / host name of the M3DB node.</p>
+<p>This value should be in the form of <code>&lt;M3DB_HOST_NAME&gt;</code> and identifies the address / host name of the M3DB node.</p>
 <h4 id="port">Port</h4>
-<p>This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the port over which this M3DB node expects to receive traffic (defaults to 9000).</p>
+<p>This value should be in the form of <code>&lt;M3DB_NODE_LISTEN_PORT&gt;</code> and identifies the port over which this M3DB node expects to receive traffic (defaults to 9000).</p>
 <h3 id="placement-operations">Placement Operations</h3>
 <p><strong>NOTE</strong>: If you find yourself performing operations on seed nodes, please refer to the seed node-specific sections
 below before making changes.</p>

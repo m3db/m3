@@ -582,8 +582,56 @@
 
 
   <li class="md-nav__item">
+    <a href="../../query_engine/architecture/fanout/" title="Query Fanout" class="md-nav__link">
+      Query Fanout
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-5" type="checkbox" id="nav-4-5">
+    
+    <label class="md-nav__link" for="nav-4-5">
+      Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-5">
+        Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
+      Annotated Config File
     </a>
   </li>
 
@@ -920,6 +968,114 @@
       
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8" type="checkbox" id="nav-8">
+    
+    <label class="md-nav__link" for="nav-8">
+      Performance
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-8">
+        Performance
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8-2" type="checkbox" id="nav-8-2">
+    
+    <label class="md-nav__link" for="nav-8-2">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-8-2">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/m3db/" title="M3DB Performance" class="md-nav__link">
+      M3DB Performance
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8-3" type="checkbox" id="nav-8-3">
+    
+    <label class="md-nav__link" for="nav-8-3">
+      m3query
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-8-3">
+        m3query
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/m3query/" title="m3query Performance" class="md-nav__link">
+      m3query Performance
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
   <li class="md-nav__item">
     <a href="../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
       Troubleshooting
@@ -1115,10 +1271,10 @@
 │                          │                             │                           │                         │                         │
 │                          │ ┌─────────────────────────┐ │ ┌───────────────────────┐ │┌───────────────────────┐│┌──────────────────────┐ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
-│                          │ │                         │ │ │                       │ ││  Shard 1: Available   │││                      │ │
-│                          │ │   Shard 1: Initializing │ │ │  Shard 1: Available   │ ││  Shard 2: Available   │││   Shard 1: Leaving   │ │
-│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Initializing│ ││  Shard 3: Initializing│││   Shard 2: Leaving   │ │
-│                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││                       │││   Shard 3: Leaving   │ │
+│                          │ │                         │ │ │                       │ ││                       │││                      │ │
+│                          │ │   Shard 1: Initializing │ │ │  Shard 1: Available   │ ││  Shard 1: Available   │││   Shard 1: Leaving   │ │
+│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Initializing│ ││  Shard 2: Available   │││   Shard 2: Leaving   │ │
+│                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││  Shard 3: Initializing│││   Shard 3: Leaving   │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │└───────────────────────┘│└──────────────────────┘ │
@@ -1129,7 +1285,7 @@
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │    Shard 1: Avaiable    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  ││                         │
-│  3) Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
+│  3) Complete Node Remove │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 3: Available  ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
@@ -1160,7 +1316,7 @@
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │   Shard 1: Available    │ │ │  Shard 1: Available   │ ││   Shard 1: Leaving    │││Shard 1: Initializing │ │
-│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ ││   Shard 2: Leaving    │││Shard 2: Initializing │ │
+│  2) Begin Node Replace   │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ ││   Shard 2: Leaving    │││Shard 2: Initializing │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││   Shard 3: Leaving    │││Shard 3: Initializing │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
@@ -1171,8 +1327,8 @@
 │                          │ ┌─────────────────────────┐ │ ┌───────────────────────┐ │                         │┌──────────────────────┐ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
-│                          │ │    Shard 1: Avaiable    │ │ │  Shard 1: Available   │ │                         ││  Shard 1: Available  │ │
-│  3) Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │                         ││  Shard 2: Available  │ │
+│                          │ │   Shard 1: Avaiable     │ │ │  Shard 1: Available   │ │                         ││  Shard 1: Available  │ │
+│  3) Complete Node Replace│ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │                         ││  Shard 2: Available  │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │                         ││  Shard 3: Available  │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
