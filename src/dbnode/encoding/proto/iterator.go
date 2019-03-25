@@ -319,6 +319,17 @@ func (it *iterator) readProtoValues() error {
 	}
 
 	fmt.Println("before unmarshal: ", it.lastIterated.String())
+	m := dynamic.NewMessage(it.schema)
+	err = m.Unmarshal(unmarshalBytes)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling protobuf: %v", err)
+	}
+
+	for _, field := range m.GetKnownFields() {
+		if field.GetMessageType() != nil {
+			it.lastIterated.SetFieldByNumber(int(field.GetNumber()), m.GetFieldByNumber(int(field.GetNumber())))
+		}
+	}
 	err = it.lastIterated.UnmarshalMerge(unmarshalBytes)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
