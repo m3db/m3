@@ -6,18 +6,19 @@ M3DB is designed as a High Availability [HA](https://en.wikipedia.org/wiki/High_
 However, even within the category of HA systems, there is a broad spectrum of consistency and durability guarantees that a database can provide.
 To address as many use cases as possible, M3DB can be tuned to achieve the desired balance between performance, availability, durability, and consistency.
 
-Generally speaking, [the default and example configuration for M3DB](https://github.com/m3db/m3/tree/master/src/dbnode/config) favors performance and availability, as that is well-suited for M3DB's most common metrics and Observability use cases. To instead favor consistency and durability, consider tuning values as described in (TODO).
-Database operators who are using M3DB for workloads that require stricter consistency and durability guarantees should consider tuning the default configuration to better suite their use case.
-The rest of this document describes the various configuration options that are available to M3DB operators to make those tradeoffs.
+Generally speaking, [the default and example configuration for M3DB](https://github.com/m3db/m3/tree/master/src/dbnode/config) favors performance and availability, as that is well-suited for M3DB's most common metrics and Observability use cases. To instead favor consistency and durability, consider tuning values as described in the "Tuning for Consistency and Durability" section.
+Database operators who are using M3DB for workloads that require stricter consistency and durability guarantees should consider tuning the default configuration to better suit their use case.
 
-While reading the rest of this document, we recommend referring to [the default configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml) (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.
+The rest of this document describes the various configuration options that are available to M3DB operators to make such tradeoffs.
+While reading it, we recommend reffering to [the default configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml) (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.
 
 ## Tuning for Performance and Availability
 
 ### Client Write and Read consistency
 
 We recommend running the client with `writeConsistencyLevel` set to `majority` and `readConsistencyLevel` set to `unstrict_majority`.
-This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum.
+This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum. This ensures that reads will normally ensure consistency, but degraded conditions will cause reads to fail outright as long as at least a single node can satisfy the request.
+
 You can read about the consistency levels in more detail in [the Consistency Levels section](../m3db/architecture/consistencylevels.md)
 
 ### Commitlog Configuration
@@ -53,19 +54,19 @@ writeNewSeriesAsync: true
 
 This instructs M3DB to handle writes for new timeseries (for a given time block) asynchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so the default configuration of creating them asynchronously improves M3DBs write throughput significantly when many new series are being created all at once.
 
-However, since new time series are created asynchronously, its possible that there may be a brief delay inbetween when a write is acknowledged by the client and when that series becomes available for subsequent reads.
+However, since new time series are created asynchronously, it's possible that there may be a brief delay inbetween when a write is acknowledged by the client and when that series becomes available for subsequent reads.
 
-M3DB also allows operators to ratelimit the number of new series that can be created per second via the following configuration:
+M3DB also allows operators to rate limit the number of new series that can be created per second via the following configuration:
 
 ```
 writeNewSeriesLimitPerSecond: 1048576
 ```
 
-This value can be set much lower than the default value for workloads in which a significant increase in cardinality usually indicates an abusive caller.
+This value can be set much lower than the default value for workloads in which a significant increase in cardinality usually indicates a misbehaving caller.
 
 ### Ignoring Corrupt Commitlogs on Bootstrap
 
-If M3DB is shuts down gracefully (i.e via SIGTERM), it will ensure that all pending writes are flushed to the commitlog on disk before the process exists.
+If M3DB is shut down gracefully (i.e via SIGTERM), it will ensure that all pending writes are flushed to the commitlog on disk before the process exists.
 However, in situations where the process crashed/exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
 In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either **(a)** come up successfully and tolerate an ostensibly minor amount of data or loss, or **(b)** attempt to stream the missing data from its peers.
 This behavior is controlled by the following default configuration:
@@ -91,7 +92,7 @@ You can read about the consistency levels in more detail in [the Consistency Lev
 ### Commitlog Configuration
 
 M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
-We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then their may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](./bootstrapping.md).
+We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](./bootstrapping.md).
 
 
 ### Writing New Series Asynchronously
@@ -104,7 +105,7 @@ writeNewSeriesAsync: false
 
 This instructs M3DB to handle writes for new timeseries (for a given time block) synchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so this configuration could have an adverse effect on performance when many new timeseries are being inserted into M3DB concurrently.
 
-Since this operation is so expensive, M3DB allows operator to ratelimit the number of new series that can be created per second via the following configuration (also a top-level key under the `db` section):
+Since this operation is so expensive, M3DB allows operator to rate limit the number of new series that can be created per second via the following configuration (also a top-level key under the `db` section):
 
 ```
 writeNewSeriesLimitPerSecond: 1048576
