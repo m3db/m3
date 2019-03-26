@@ -228,7 +228,7 @@ func testNamespaceIndexHighConcurrentQueries(
 						l *resource.CancellableLifetime,
 						q index.Query,
 						opts index.QueryOptions,
-						r index.Results,
+						r index.QueryResult,
 					) (bool, error) {
 						return false, errors.New("some-error")
 					}).
@@ -240,7 +240,7 @@ func testNamespaceIndexHighConcurrentQueries(
 						c *resource.CancellableLifetime,
 						q index.Query,
 						opts index.QueryOptions,
-						r index.Results,
+						r index.QueryResults,
 					) (bool, error) {
 						timeoutWg.Wait()
 						return block.Query(c, q, opts, r)

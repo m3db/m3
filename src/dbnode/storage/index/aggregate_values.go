@@ -31,6 +31,8 @@ var (
 	errUnableToAddValueMissingID = errors.New("no id for value")
 )
 
+// AggregateValues is a collection of unique identity values backed by a pool.
+// NB: there are no synchronization guarantees provided by default.
 type AggregateValues struct {
 	valuesMap *AggregateValuesMap
 	bytesPool pool.CheckedBytesPool
@@ -46,22 +48,19 @@ func NewAggregateValues(opts Options) *AggregateValues {
 	}
 }
 
+// Map returns a map from an ID -> empty struct to signify existence of the
+// ID in the set this structure represents.
 func (v *AggregateValues) Map() *AggregateValuesMap {
 	return v.valuesMap
 }
 
+// Size returns the number of IDs tracked.
 func (v *AggregateValues) Size() int {
 	return v.valuesMap.Len()
 }
 
 func (v *AggregateValues) reset() {
-	// reset all values from map first
-	for _, entry := range v.valuesMap.Iter() {
-		ident := entry.Key()
-		ident.Finalize()
-	}
-
-	// reset the map itself next
+	// NB: resetting the value map will already finalize all copies of the keys/
 	v.valuesMap.Reset()
 }
 
@@ -80,13 +79,7 @@ func (v *AggregateValues) addValue(value ident.ID) error {
 		return errUnableToAddValueMissingID
 	}
 
-	// this value has already been added; finalize the incoming ID since it is not
-	// needed.
-	if v.valuesMap.Contains(bytesID) {
-		value.Finalize()
-		return nil
-	}
-
+	// NB: fine to overwrite the values here.
 	v.valuesMap.Set(bytesID, struct{}{})
 	return nil
 }

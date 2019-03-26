@@ -1103,7 +1103,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	query := index.Query{}
 	opts := index.QueryOptions{}
 
-	idx.EXPECT().Query(ctx, query, opts, nil)
+	idx.EXPECT().Query(ctx, query, opts)
 	_, err := ns.QueryIDs(ctx, query, opts)
 	require.NoError(t, err)
 

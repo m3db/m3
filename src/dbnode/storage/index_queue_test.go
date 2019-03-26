@@ -310,7 +310,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-1 * time.Minute),
 		EndExclusive:   now.Add(1 * time.Minute),
-	}, nil)
+	})
 	require.NoError(t, err)
 
 	assert.True(t, res.Exhaustive)

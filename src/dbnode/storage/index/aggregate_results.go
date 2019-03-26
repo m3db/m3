@@ -149,11 +149,7 @@ func (r *aggregatedResults) addFieldWithLock(
 		return nil
 	}
 
-	valueBytes := r.bytesPool.Get(len(value))
-	valueBytes.IncRef()
-	valueBytes.AppendAll(value)
-	valueBytes.DecRef()
-	valueID := r.idPool.BinaryID(valueBytes)
+	valueID := ident.BytesID(value)
 	valueMap, found := r.resultsMap.Get(termID)
 	if found {
 		return valueMap.addValue(valueID)
@@ -166,11 +162,6 @@ func (r *aggregatedResults) addFieldWithLock(
 		return err
 	}
 
-	termBytes := r.bytesPool.Get(len(value))
-	termBytes.IncRef()
-	termBytes.AppendAll(term)
-	termBytes.DecRef()
-	termID = r.idPool.BinaryID(termBytes)
 	r.resultsMap.Set(termID, aggValues)
 	return nil
 }
@@ -197,7 +188,28 @@ func (r *aggregatedResults) Size() int {
 }
 
 func (r *aggregatedResults) Finalize() {
-	r.Reset(nil, QueryResultsOptions{}, AggregateResultsOptions{})
+	r.Lock()
+
+	r.queryOpts = QueryResultsOptions{}
+	r.aggregateQueryOpts = AggregateResultsOptions{}
+	// finalize existing held nsID
+	if r.nsID != nil {
+		r.nsID.Finalize()
+	}
+
+	r.nsID = nil
+	// finalize all values from map first
+	for _, entry := range r.resultsMap.Iter() {
+		valueMap := entry.Value()
+		valueMap.finalize()
+	}
+
+	// reset all keys in the map next
+	r.resultsMap.Reset()
+
+	// NB: could do keys+value in one step but I'm trying to avoid
+	// using an internal method of a code-gen'd type.
+	r.Unlock()
 	if r.pool == nil {
 		return
 	}

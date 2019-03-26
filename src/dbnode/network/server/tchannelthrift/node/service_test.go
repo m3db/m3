@@ -191,8 +191,8 @@ func TestServiceQuery(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(ident.StringID(nsID),
-		index.ResultsOptions{}, testIndexOptions)
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
 		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
@@ -210,7 +210,7 @@ func TestServiceQuery(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.Results{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	limit := int64(10)
 	r, err := service.Query(tctx, &rpc.QueryRequest{
@@ -329,7 +329,7 @@ func TestServiceQueryUnknownErr(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.Results{}, unknownErr)
+		}).Return(index.QueryResult{}, unknownErr)
 
 	limit := int64(10)
 	_, err = service.Query(tctx, &rpc.QueryRequest{
@@ -1064,8 +1064,8 @@ func TestServiceFetchTagged(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(ident.StringID(nsID),
-		index.ResultsOptions{}, testIndexOptions)
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
@@ -1083,7 +1083,7 @@ func TestServiceFetchTagged(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.Results{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1161,8 +1161,8 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 
-	resMap := index.NewResults(ident.StringID(nsID),
-		index.ResultsOptions{}, testIndexOptions)
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
@@ -1214,8 +1214,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(ident.StringID(nsID),
-		index.ResultsOptions{}, testIndexOptions)
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
 	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
 	mockDB.EXPECT().QueryIDs(
@@ -1226,7 +1226,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.Results{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1299,7 +1299,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.Results{}, fmt.Errorf("random err"))
+		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace:  []byte(nsID),
 		Query:      data,

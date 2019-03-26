@@ -703,7 +703,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	var (
 		q    = index.Query{}
 		opts = index.QueryOptions{}
-		res  = index.Results{}
+		res  = index.QueryResult{}
 		err  error
 	)
 
