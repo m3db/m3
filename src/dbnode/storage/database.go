@@ -707,11 +707,11 @@ func (d *db) QueryIDs(
 	namespace ident.ID,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.Results, error) {
+) (index.QueryResult, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.Results{}, err
+		return index.QueryResult{}, err
 	}
 
 	return n.QueryIDs(ctx, query, opts)
@@ -722,12 +722,12 @@ func (d *db) AggregateQuery(
 	namespace ident.ID,
 	query index.Query,
 	opts index.QueryOptions,
-	aggResultOpts *index.AggregateResultsOptions,
-) (index.Results, error) {
+	aggResultOpts index.AggregateResultsOptions,
+) (index.AggregateQueryResult, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.Results{}, err
+		return index.AggregateQueryResult{}, err
 	}
 
 	return n.AggregateQuery(ctx, query, opts, aggResultOpts)

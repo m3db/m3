@@ -31,8 +31,9 @@ import (
 type aggregatedResults struct {
 	sync.RWMutex
 
-	nsID ident.ID
-	opts AggregateResultsOptions
+	nsID               ident.ID
+	queryOpts          QueryResultsOptions
+	aggregateQueryOpts AggregateResultsOptions
 
 	resultsMap *AggregateResultsMap
 
@@ -46,24 +47,31 @@ type aggregatedResults struct {
 // NewAggregateResults returns a new AggregateResults object.
 func NewAggregateResults(
 	namespaceID ident.ID,
-	rOpts AggregateResultsOptions,
+	queryOpts QueryResultsOptions,
+	aggregateQueryOpts AggregateResultsOptions,
 	opts Options,
 ) AggregateResults {
 	return &aggregatedResults{
-		nsID:       namespaceID,
-		opts:       rOpts,
-		resultsMap: newAggregateResultsMap(opts.IdentifierPool()),
-		idPool:     opts.IdentifierPool(),
-		bytesPool:  opts.CheckedBytesPool(),
-		pool:       opts.AggregateResultsPool(),
-		valuesPool: opts.AggregateValuesPool(),
+		nsID:               namespaceID,
+		queryOpts:          queryOpts,
+		aggregateQueryOpts: aggregateQueryOpts,
+		resultsMap:         newAggregateResultsMap(opts.IdentifierPool()),
+		idPool:             opts.IdentifierPool(),
+		bytesPool:          opts.CheckedBytesPool(),
+		pool:               opts.AggregateResultsPool(),
+		valuesPool:         opts.AggregateValuesPool(),
 	}
 }
 
-func (r *aggregatedResults) Reset(nsID ident.ID, opts AggregateResultsOptions) {
+func (r *aggregatedResults) Reset(
+	nsID ident.ID,
+	queryOpts QueryResultsOptions,
+	aggregateQueryOpts AggregateResultsOptions,
+) {
 	r.Lock()
 
-	r.opts = opts
+	r.queryOpts = queryOpts
+	r.aggregateQueryOpts = aggregateQueryOpts
 
 	// finalize existing held nsID
 	if r.nsID != nil {
@@ -107,7 +115,7 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 			return err
 		}
 
-		if r.opts.SizeLimit > 0 && r.resultsMap.Len() >= r.opts.SizeLimit {
+		if r.queryOpts.SizeLimit > 0 && r.resultsMap.Len() >= r.queryOpts.SizeLimit {
 			// Early return if limit enforced and we hit our limit.
 			break
 		}
@@ -137,7 +145,7 @@ func (r *aggregatedResults) addFieldWithLock(
 	var termID ident.ID = ident.BytesID(term)
 
 	// if this term hasn't been seen, ensure it should be included in output.
-	if !r.opts.TermFilter.Contains(termID) {
+	if !r.aggregateQueryOpts.TermFilter.Contains(termID) {
 		return nil
 	}
 
@@ -189,7 +197,7 @@ func (r *aggregatedResults) Size() int {
 }
 
 func (r *aggregatedResults) Finalize() {
-	r.Reset(nil, AggregateResultsOptions{})
+	r.Reset(nil, QueryResultsOptions{}, AggregateResultsOptions{})
 	if r.pool == nil {
 		return
 	}

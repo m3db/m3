@@ -74,9 +74,15 @@ func (o QueryOptions) LimitExceeded(size int) bool {
 	return o.Limit > 0 && size >= o.Limit
 }
 
-// Results is the collection of results for a query.
-type Results struct {
-	Results    BaseResults
+// QueryResult is the collection of results for a query.
+type QueryResult struct {
+	Results    QueryResults
+	Exhaustive bool
+}
+
+// AggregateQueryResult is the collection of results for an aggregate query.
+type AggregateQueryResult struct {
+	Results    AggregateResults
 	Exhaustive bool
 }
 
@@ -153,7 +159,11 @@ type AggregateResults interface {
 	BaseResults
 
 	// Reset resets the AggregateResults object to initial state.
-	Reset(nsID ident.ID, opts AggregateResultsOptions)
+	Reset(
+		nsID ident.ID,
+		queryOpts QueryResultsOptions,
+		aggregateQueryOpts AggregateResultsOptions,
+	)
 
 	// Map returns a map from tag name -> possible tag values,
 	// comprising aggregate results.
@@ -166,10 +176,6 @@ type AggregateResults interface {
 
 // AggregateResultsOptions is a set of options to use for results.
 type AggregateResultsOptions struct {
-	// SizeLimit will limit the total results set to a given limit and if
-	// overflown will return early successfully.
-	SizeLimit int
-
 	// Optional param to filter aggregate values.
 	TermFilter *AggregateValuesMap
 }
