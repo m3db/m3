@@ -85,7 +85,7 @@ func (r *aggregatedResults) Reset(
 	// reset all values from map first
 	for _, entry := range r.resultsMap.Iter() {
 		valueMap := entry.Value()
-		valueMap.reset()
+		valueMap.finalize()
 	}
 
 	// reset all keys in the map next
@@ -198,27 +198,7 @@ func (r *aggregatedResults) Size() int {
 }
 
 func (r *aggregatedResults) Finalize() {
-	r.Lock()
-
-	r.aggregateOpts = AggregateResultsOptions{}
-	// finalize existing held nsID
-	if r.nsID != nil {
-		r.nsID.Finalize()
-	}
-
-	r.nsID = nil
-	// finalize all values from map first
-	for _, entry := range r.resultsMap.Iter() {
-		valueMap := entry.Value()
-		valueMap.finalize()
-	}
-
-	// reset all keys in the map next
-	r.resultsMap.Reset()
-
-	// NB: could do keys+value in one step but I'm trying to avoid
-	// using an internal method of a code-gen'd type.
-	r.Unlock()
+	r.Reset(nil, AggregateResultsOptions{})
 	if r.pool == nil {
 		return
 	}

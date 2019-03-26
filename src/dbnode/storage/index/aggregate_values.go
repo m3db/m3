@@ -59,13 +59,9 @@ func (v *AggregateValues) Size() int {
 	return v.valuesMap.Len()
 }
 
-func (v *AggregateValues) reset() {
-	// NB: resetting the value map will already finalize all copies of the keys/
-	v.valuesMap.Reset()
-}
-
 func (v *AggregateValues) finalize() {
-	v.reset()
+	// NB: resetting the value map will already finalize all copies of the keys.
+	v.valuesMap.Reset()
 	if v.pool == nil {
 		return
 	}
