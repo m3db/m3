@@ -33,8 +33,8 @@ import (
 
 // isDefaultValue returns whether the provided value is the same as the default value for
 // a given field. For the most part we can rely on the fieldsEqual function and the
-// GetDefaultValue() method on the field descriptor, but repeated and nested message fields
-// require slightly more care.
+// GetDefaultValue() method on the field descriptor, but repeated, map and nested message
+// fields require slightly more care.
 func isDefaultValue(field *desc.FieldDescriptor, curVal interface{}) (bool, error) {
 	if field.IsRepeated() {
 		// If its a repeated field then its a default value if it looks like a zero-length slice.
@@ -45,6 +45,17 @@ func isDefaultValue(field *desc.FieldDescriptor, curVal interface{}) (bool, erro
 		}
 
 		return len(sliceVal) == 0, nil
+	}
+
+	if field.IsMap() {
+		// If its a repeated field then its a default value if it looks like a zero-length slice.
+		mapVal, ok := curVal.(map[interface{}]interface{})
+		if !ok {
+			// Should never happen.
+			return false, fmt.Errorf("current value for repeated field: %s wasn't a slice", field.String())
+		}
+
+		return len(mapVal) == 0, nil
 	}
 
 	if field.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE {
