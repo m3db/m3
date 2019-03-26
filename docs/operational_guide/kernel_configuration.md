@@ -31,7 +31,7 @@ To set this value permanently, update the `vm.swappiness` setting in `/etc/sysct
 ## rlimits
 M3DB also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.
 
-On Linux you can set a high limit for maximum number of open files for a specific user in `/etc/security/limits.conf`:
+On Linux you can set a high limit for the maximum number of open files for a specific user in `/etc/security/limits.conf`:
 ```
 your_m3db_user        hard nofile 3000000
 your_m3db_user        soft nofile 3000000
