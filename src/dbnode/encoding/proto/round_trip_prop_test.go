@@ -364,23 +364,26 @@ func genWrite() gopter.Gen {
 
 func genSchema(numFields int) gopter.Gen {
 	return gopter.CombineGens(
-		gen.SliceOfN(numFields, gen.Bool()),
+		gen.SliceOfN(numFields, gen.Bool()), // IsReserved
+		gen.SliceOfN(numFields, gen.Bool()), // IsRepeated
 		gen.SliceOfN(numFields, genFieldTypeWithNestedMessage()),
-		gen.SliceOfN(numFields, genFieldTypeWithNoNestedMessage())).
+		gen.SliceOfN(numFields, genFieldTypeWithNoNestedMessage()),
+	).
 		Map(func(input []interface{}) *desc.MessageDescriptor {
 			var (
-				shouldReserve = input[0].([]bool)
+				isReserved = input[0].([]bool)
+				isRepeated = input[1].([]bool)
 				// fieldTypes are generated with the possibility of a field being a nested message
 				// where nestedFieldTypes are generated without the possibility of a field being
 				// a nested message to prevent infinite recursion. This limits the property testing
 				// of nested message types to a maximum depth of 1, but in practice it doesn't matter
 				// much because nested messages are handled by the ProtoBuf specification not our
 				// custom encoding.
-				fieldTypes       = input[1].([]dpb.FieldDescriptorProto_Type)
-				nestedFieldTypes = input[2].([]dpb.FieldDescriptorProto_Type)
+				fieldTypes       = input[2].([]dpb.FieldDescriptorProto_Type)
+				nestedFieldTypes = input[3].([]dpb.FieldDescriptorProto_Type)
 			)
 
-			schemaBuilder := schemaBuilderFromFieldTypes(shouldReserve, fieldTypes, nestedFieldTypes)
+			schemaBuilder := schemaBuilderFromFieldTypes(isReserved, isRepeated, fieldTypes, nestedFieldTypes)
 			schema, err := schemaBuilder.Build()
 			if err != nil {
 				panic(err)
@@ -391,7 +394,8 @@ func genSchema(numFields int) gopter.Gen {
 }
 
 func schemaBuilderFromFieldTypes(
-	shouldReserve []bool,
+	isReserved []bool,
+	isRepeated []bool,
 	fieldTypes []dpb.FieldDescriptorProto_Type,
 	nestedMessageFieldTypes []dpb.FieldDescriptorProto_Type,
 ) *builder.MessageBuilder {
@@ -409,7 +413,7 @@ func schemaBuilderFromFieldTypes(
 			builderFieldType *builder.FieldType
 		)
 
-		if shouldReserve[i] {
+		if isReserved[i] {
 			// Sprinkle in some reserved fields to make sure that we handle those
 			// without issue.
 			schemaBuilder.AddReservedRange(fieldNum, fieldNum)
@@ -429,7 +433,7 @@ func schemaBuilderFromFieldTypes(
 		} else if fieldType == dpb.FieldDescriptorProto_TYPE_MESSAGE {
 			// NestedMessageFieldTypes can't contain nested messages so we're limited to a single level
 			// of recursion here.
-			nestedMessageBuilder := schemaBuilderFromFieldTypes(shouldReserve, nestedMessageFieldTypes, nil)
+			nestedMessageBuilder := schemaBuilderFromFieldTypes(isReserved, isRepeated, nestedMessageFieldTypes, nil)
 			builderFieldType = builder.FieldTypeMessage(nestedMessageBuilder)
 		} else {
 			builderFieldType = builder.FieldTypeScalar(fieldType)
@@ -437,6 +441,9 @@ func schemaBuilderFromFieldTypes(
 
 		field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
 			SetNumber(fieldNum)
+		if isRepeated[i] {
+			field = field.SetRepeated()
+		}
 		schemaBuilder = schemaBuilder.AddField(field)
 	}
 

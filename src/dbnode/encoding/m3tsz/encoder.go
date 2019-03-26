@@ -214,7 +214,7 @@ func (enc *Encoder) WriteFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit
 	return enc.WriteNextTime(t, ant, tu)
 }
 
-// WriteFirstTime encodes the next (non-first) timestamp.
+// WriteNextTime encodes the next (non-first) timestamp.
 func (enc *Encoder) WriteNextTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
 	tuChanged := enc.writeTimeUnit(tu)
 
