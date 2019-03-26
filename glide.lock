@@ -1,5 +1,5 @@
-hash: 1142bd7c68492e34422277010dfee8fd45c6810cceaa25194352178a1315f716
-updated: 2019-02-21T12:08:41.672845643-05:00
+hash: be677953e675589aaf15ae31c623336117551cb188e0f86dafd0c64f514324f8
+updated: 2019-03-26T12:06:00.366774-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -140,8 +140,6 @@ imports:
   - currency
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
-- name: github.com/go-stack/stack
-  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
   version: ba06b47c162d49f2af050fb4c75bcbc86a159d5c
   subpackages:
@@ -370,13 +368,17 @@ imports:
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
-  version: 3d677d3262197ee558b85029301eb69b8239f91a
+  version: 8d778e47dd84f169ef4436abb474b0e0101a6dae
+- name: github.com/russross/blackfriday
+  version: d3b5b032dc8e8927d31a5071b56e14c89f045135
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
   version: feef008d51ad2b3778f85d387ccf91735543008d
   subpackages:
   - diffmatchpatch
+- name: github.com/shurcooL/sanitized_anchor_name
+  version: 7bfe4c7ecddb3666a94b053b422cdd8f5aaa3615
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/afero

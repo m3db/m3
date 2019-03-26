@@ -63,7 +63,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/tchannel"
+	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -391,6 +391,12 @@ func Run(runOpts RunOptions) {
 		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
 	}
 
+	// Set the series cache policy.
+	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
+	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
+
+	// Apply pooling options.
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -399,13 +405,6 @@ func Run(runOpts RunOptions) {
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
 		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
-
-	// Set the series cache policy
-	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
-	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
-
-	// Apply pooling options
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 
 	// Setup the block retriever
 	switch seriesCachePolicy {

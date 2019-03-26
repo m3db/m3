@@ -124,7 +124,7 @@ The write will exist only in this "active buffer" and the commitlog until the bl
 
 ## Read Path
 
-A read begins when an M3DB client calls the [`FetchBatchResult`](https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift) or [`FetchBlocksRawResult`](https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift) endpoint on M3DB's embedded thrift server. The read request will contain the following information:
+A read begins when an M3DB client calls the [`FetchBatchResult`](https://github.com/m3db/m3/blob/master/src/dbnode/generated/thrift/rpc.thrift) or [`FetchBlocksRawResult`](https://github.com/m3db/m3/blob/master/src/dbnode/generated/thrift/rpc.thrift) endpoint on M3DB's embedded thrift server. The read request will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)
