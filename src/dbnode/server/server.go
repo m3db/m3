@@ -1202,8 +1202,11 @@ func withEncodingAndPoolingOptions(
 	postingsListOpts := poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 
-	resultsPool := index.NewResultsPool(
-		poolOptions(policy.IndexResultsPool, scope.SubScope("index-results-pool")))
+	// Need to actually set pools
+	// queryResultsPool := index.NewQueryResultsPool(
+	// 	poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
+	// 	aggregateQueryResultsPool := index.NewQueryResultsPool(
+	// 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
 
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
@@ -1219,14 +1222,17 @@ func withEncodingAndPoolingOptions(
 			opts.IndexOptions().SegmentBuilderOptions().
 				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
-		SetCheckedBytesPool(bytesPool).
-		SetResultsPool(resultsPool)
+		SetCheckedBytesPool(bytesPool) // .
+		// Need to actually set pools
+		// SetQueryResultsPool(queryResultsPool).
+		// SetAggregateResultsPool(aggregateQueryResultsPool)
 
-	resultsPool.Init(func() index.Results {
-		// NB(r): Need to initialize after setting the index opts so
-		// it sees the same reference of the options as is set for the DB.
-		return index.NewResults(nil, index.ResultsOptions{}, indexOpts)
-	})
+		// Need to actually set pools
+	// resultsPool.Init(func() index.Results {
+	// 	// NB(r): Need to initialize after setting the index opts so
+	// 	// it sees the same reference of the options as is set for the DB.
+	// 	return index.NewResults(nil, index.ResultsOptions{}, indexOpts)
+	// })
 
 	return opts.SetIndexOptions(indexOpts)
 }

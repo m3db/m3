@@ -598,21 +598,21 @@ func (n *dbNamespace) QueryIDs(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.Results, error) {
+) (index.QueryResult, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.Results{}, errNamespaceIndexingDisabled
+		return index.QueryResult{}, errNamespaceIndexingDisabled
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.Results{},
+		return index.QueryResult{},
 			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 
-	res, err := n.reverseIndex.Query(ctx, query, opts, nil)
+	res, err := n.reverseIndex.Query(ctx, query, opts)
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -621,22 +621,22 @@ func (n *dbNamespace) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
-	aggResultOpts *index.AggregateResultsOptions,
-) (index.Results, error) {
+	aggResultOpts index.AggregateResultsOptions,
+) (index.AggregateQueryResult, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.Results{}, errNamespaceIndexingDisabled
+		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.Results{},
+		return index.AggregateQueryResult{},
 			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 
-	res, err := n.reverseIndex.Query(ctx, query, opts, aggResultOpts)
+	res, err := n.reverseIndex.AggregateQuery(ctx, query, opts, aggResultOpts)
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
