@@ -27,7 +27,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-curl --max-time 5 -sSf -o "$COORD_TMPFILE" "$COORD_PLACEMENT_ENDPOINT"
+curl --max-time 60 -sSf -o "$COORD_TMPFILE" "$COORD_PLACEMENT_ENDPOINT"
 RES=$?
 
 # Curl exits 22 for 400+ status code. Note this leaves us vulnerable to saying
@@ -48,7 +48,7 @@ if [ "$RES" -ne 0 ]; then
   exit 0
 fi
 
-curl --max-time 5 -sSf -o "$COORD_TMPFILE" "$COORD_NAMESPACE_ENDPOINT"
+curl --max-time 60 -sSf -o "$COORD_TMPFILE" "$COORD_NAMESPACE_ENDPOINT"
 RES=$?
 
 if [ "$RES" -eq 22 ]; then
@@ -68,7 +68,7 @@ if [ "$NS_COUNT" -eq 0 ]; then
   exit 0
 fi
 
-curl --max-time 5 -sSf -o "$DBNODE_TMPFILE" "$DBNODE_ENDPOINT"
+curl --max-time 60 -sSf -o "$DBNODE_TMPFILE" "$DBNODE_ENDPOINT"
 RES=$?
 
 if [ "$RES" -ne 0 ]; then
