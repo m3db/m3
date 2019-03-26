@@ -31,6 +31,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/m3db/m3/src/x/docs"
+
 	"github.com/russross/blackfriday"
 )
 
@@ -76,18 +78,17 @@ func main() {
 			switch node.Type {
 			case blackfriday.Link:
 				link := node.LinkData
-				dest := strings.TrimSpace(string(link.Destination))
-				if !repoPathRegexp.MatchString(dest) {
+				url := strings.TrimSpace(string(link.Destination))
+
+				parse, ok := docs.ParseRepoPathURL(url)
+				if !ok {
 					break
 				}
 
-				matches := repoPathRegexp.FindStringSubmatch(dest)
-				path := matches[2]
-				_, err := os.Stat(path)
-				if err != nil {
+				if _, err := os.Stat(parse.RepoPath); err != nil {
 					return abort(fmt.Errorf(
 						"could not stat repo path: link=%s, path=%s, err=%v",
-						dest, path, err))
+						url, parse.RepoPath, err))
 				}
 
 				// Valid
