@@ -31,12 +31,27 @@ To set this value permanently, update the `vm.swappiness` setting in `/etc/sysct
 ## rlimits
 M3DB also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.
 
-On Linux you can set a high limit for maximum number of open files in `/etc/security/limits.conf`:
+On Linux you can set a high limit for maximum number of open files for a specific user in `/etc/security/limits.conf`:
 ```
-your_m3db_user        hard nofile 500000
-your_m3db_user        soft nofile 500000
+your_m3db_user        hard nofile 3000000
+your_m3db_user        soft nofile 3000000
+```
+
+In addition, you may need to override the system and process-level limits set by the kernel with the following commands:
+
+Set the kernel-wide limit to 3 million.
+```
+sysctl -w fs.file-max=3000000
+```
+
+Set the process-level limit to 3 million
+```
+sysctl -w fs.nr_open=3000000
 ```
 
 Alternatively, if you wish to have M3DB run under `systemd` you can use our [service example](https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service) which will set sane defaults.
+Keep in mind that you'll still need to configure the kernel and process limits because systemd will not allow a process to exceed them and will silently fallback to a default value which could cause M3DB to crash due to hitting the file descriptor limit.
+Also note that systemd has a `system.conf` file and a `user.conf` file which may contain limits that the service-specific configuration files cannot override.
+Be sure to check that those files aren't configured with values lower than the value you configure at the service level.
 
-Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 500000`.
+Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 3000000`.
