@@ -1153,13 +1153,28 @@ values for you. Please read the comment in that manifest to understand the impli
 <p>To set this value permanently, update the <code>vm.swappiness</code> setting in <code>/etc/sysctl.conf</code>.</p>
 <h2 id="rlimits">rlimits</h2>
 <p>M3DB also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.</p>
-<p>On Linux you can set a high limit for maximum number of open files in <code>/etc/security/limits.conf</code>:</p>
-<pre><code>your_m3db_user        hard nofile 500000
-your_m3db_user        soft nofile 500000
+<p>You may need to override the system and process-level limits set by the kernel with the following commands. To check the existing values run:</p>
+<pre><code>sysctl -n fs.file-max
 </code></pre>
 
-<p>Alternatively, if you wish to have M3DB run under <code>systemd</code> you can use our <a href="https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service">service example</a> which will set sane defaults.</p>
-<p>Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with <code>ulimit -n 500000</code>.</p>
+<p>and</p>
+<pre><code>sysctl -n fs.nr_open
+</code></pre>
+
+<p>to see the kernel and process limits respectively.
+If either of the values are less than three million (our minimum recommended value), then you can update them with the following commands:</p>
+<pre><code>sysctl -w fs.file-max=3000000
+</code></pre>
+
+<pre><code>sysctl -w fs.nr_open=3000000
+</code></pre>
+
+<p>To set these values permanently, update the <code>fs.file-max</code> and <code>fs.nr_open</code> settings in <code>/etc/sysctl.conf</code>.</p>
+<p>Alternatively, if you wish to have M3DB run under <code>systemd</code> you can use our <a href="https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service">service example</a> which will set sane defaults.
+Keep in mind that you'll still need to configure the kernel and process limits because systemd will not allow a process to exceed them and will silently fallback to a default value which could cause M3DB to crash due to hitting the file descriptor limit.
+Also note that systemd has a <code>system.conf</code> file and a <code>user.conf</code> file which may contain limits that the service-specific configuration files cannot override.
+Be sure to check that those files aren't configured with values lower than the value you configure at the service level.</p>
+<p>Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with <code>ulimit -n 3000000</code>.</p>
                 
                   
                 
