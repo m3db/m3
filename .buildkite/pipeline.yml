@@ -86,3 +86,10 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
+  - name: "Documentation tests"
+    command: make clean install-vendor docs-test
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common

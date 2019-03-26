@@ -199,32 +199,36 @@ docs-container:
 	docker run --rm hello-world >/dev/null
 	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
 
-.PHONY: docs-validate
-docs-validate: docs_test
-	./bin/docs_test
-
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our
 # Makefile assumes its running under bash and the container is alpine (ash
 # shell).
 .PHONY: docs-build
-docs-build: docs-validate docs-container
+docs-build: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
 
 .PHONY: docs-serve
-docs-serve: docs-validate docs-container
+docs-serve: docs-container
 	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -e docs/theme -t material -a 0.0.0.0:8000"
 
 .PHONY: docs-deploy
-docs-deploy: docs-validate docs-container
+docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
+
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
+
+.PHONY: docs-test
+docs-test:
+	@echo "--- Documentation validate test"
+	make docs-validate
+	@echo "--- Documentation build test"
+	make docs-build
 
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
-	# Run docker container to build docs
-	make docs-build
-	# Run docker integration tests from shell scripts
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
