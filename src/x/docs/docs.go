@@ -31,7 +31,7 @@ var (
 	// It uses capture groups to help us extract the relative repository path
 	// that the URL points to.
 	repoPathURLRegexp = regexp.MustCompile(
-		"^https://github.com/.*/blob/[a-zA-Z0-9]+/([-_.a-zA-Z0-9/]+)(#?.*)(\\??.*)$")
+		`^https://github.com/.*/blob/[a-zA-Z0-9]+/([-_.a-zA-Z0-9/]+)(#?.*)(\??.*)$`)
 )
 
 const (

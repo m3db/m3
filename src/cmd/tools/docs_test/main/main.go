@@ -28,16 +28,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/m3db/m3/src/x/docs"
 
 	"github.com/russross/blackfriday"
-)
-
-var (
-	repoPathRegexp = regexp.MustCompile("^https://github.com/(.*)/blob/[a-zA-Z0-9]+/([-_.a-zA-Z0-9/]+)(#?.*)(\\??.*)$")
 )
 
 func main() {
