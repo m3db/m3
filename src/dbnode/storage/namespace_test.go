@@ -1111,6 +1111,29 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	require.NoError(t, ns.Close())
 }
 
+func TestNamespaceAggregateQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	idx.EXPECT().BootstrapsDone().Return(uint(1))
+
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	query := index.Query{}
+	opts := index.QueryOptions{}
+	aggOpts := index.AggregateResultsOptions{}
+
+	idx.EXPECT().AggregateQuery(ctx, query, opts, aggOpts)
+	_, err := ns.AggregateQuery(ctx, query, opts, aggOpts)
+	require.NoError(t, err)
+
+	idx.EXPECT().Close().Return(nil)
+	require.NoError(t, ns.Close())
+}
+
 func TestNamespaceTicksIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

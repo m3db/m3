@@ -701,10 +701,12 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		1.0, xtime.Second, nil))
 
 	var (
-		q    = index.Query{}
-		opts = index.QueryOptions{}
-		res  = index.QueryResults{}
-		err  error
+		q       = index.Query{}
+		opts    = index.QueryOptions{}
+		res     = index.QueryResult{}
+		aggOpts = index.AggregateResultsOptions{}
+		aggRes  = index.AggregateQueryResult{}
+		err     error
 	)
 
 	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, nil)
@@ -713,6 +715,15 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, fmt.Errorf("random err"))
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
+	require.Error(t, err)
+
+	ns.EXPECT().AggregateQuery(ctx, q, opts, aggOpts).Return(aggRes, nil)
+	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, opts, aggOpts)
+	require.NoError(t, err)
+
+	ns.EXPECT().AggregateQuery(ctx, q, opts, aggOpts).
+		Return(aggRes, fmt.Errorf("random err"))
+	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, opts, aggOpts)
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)

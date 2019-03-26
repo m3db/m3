@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,25 +22,26 @@ package index
 
 import "github.com/m3db/m3x/pool"
 
-type resultsPool struct {
+type aggregateValuesPool struct {
 	pool pool.ObjectPool
 }
 
-// NewQueryResultsPool creates a new QueryResultsPool.
-func NewQueryResultsPool(opts pool.ObjectPoolOptions) QueryResultsPool {
-	return &resultsPool{pool: pool.NewObjectPool(opts)}
+// NewAggregateValuesPool creates a new AggregateValuesPool.
+func NewAggregateValuesPool(
+	opts pool.ObjectPoolOptions) AggregateValuesPool {
+	return &aggregateValuesPool{pool: pool.NewObjectPool(opts)}
 }
 
-func (p *resultsPool) Init(alloc QueryResultsAllocator) {
+func (p *aggregateValuesPool) Init(alloc AggregateValuesAllocator) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *resultsPool) Get() QueryResults {
-	return p.pool.Get().(QueryResults)
+func (p *aggregateValuesPool) Get() AggregateValues {
+	return p.pool.Get().(AggregateValues)
 }
 
-func (p *resultsPool) Put(value QueryResults) {
+func (p *aggregateValuesPool) Put(value AggregateValues) {
 	p.pool.Put(value)
 }

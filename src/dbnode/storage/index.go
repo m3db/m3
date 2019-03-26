@@ -93,7 +93,9 @@ type nsIndex struct {
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
 
-	resultsPool index.ResultsPool
+	resultsPool          index.QueryResultsPool
+	aggregateResultsPool index.AggregateResultsPool
+
 	// NB(r): Use a pooled goroutine worker once pooled goroutine workers
 	// support timeouts for query workers pool.
 	queryWorkersPool xsync.WorkerPool
@@ -248,14 +250,16 @@ func newNamespaceIndexWithOptions(
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
 
-		newBlockFn:       newBlockFn,
-		opts:             newIndexOpts.opts,
-		logger:           indexOpts.InstrumentOptions().Logger(),
-		nsMetadata:       nsMD,
-		resultsPool:      indexOpts.ResultsPool(),
-		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		newBlockFn: newBlockFn,
+		opts:       newIndexOpts.opts,
+		logger:     indexOpts.InstrumentOptions().Logger(),
+		nsMetadata: nsMD,
 
-		metrics: newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+		resultsPool:          indexOpts.QueryResultsPool(),
+		aggregateResultsPool: indexOpts.AggregateResultsPool(),
+
+		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
@@ -855,14 +859,54 @@ func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (index.QueryResult, error) {
+	// Get results and set the namespace ID and size limit.
+	results := i.resultsPool.Get()
+	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
+		SizeLimit: opts.Limit,
+	})
+	exhaustive, err := i.query(ctx, query, results, opts)
+	if err != nil {
+		return index.QueryResult{}, err
+	}
+	return index.QueryResult{
+		Results:    results,
+		Exhaustive: exhaustive,
+	}, nil
+}
+
+func (i *nsIndex) AggregateQuery(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+	aggResultOpts index.AggregateResultsOptions,
+) (index.AggregateQueryResult, error) {
+	// Get results and set the filters, namespace ID and size limit.
+	results := i.aggregateResultsPool.Get()
+	results.Reset(i.nsMetadata.ID(), aggResultOpts)
+	exhaustive, err := i.query(ctx, query, results, opts)
+	if err != nil {
+		return index.AggregateQueryResult{}, err
+	}
+	return index.AggregateQueryResult{
+		Results:    results,
+		Exhaustive: exhaustive,
+	}, nil
+}
+
+func (i *nsIndex) query(
+	ctx context.Context,
+	query index.Query,
+	results index.BaseResults,
+	opts index.QueryOptions,
+) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
 
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		return index.QueryResults{}, errDbIndexUnableToQueryClosed
+		return false, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -886,7 +930,7 @@ func (i *nsIndex) Query(
 	i.state.RUnlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return false, err
 	}
 
 	var (
@@ -902,12 +946,6 @@ func (i *nsIndex) Query(
 			exhaustive: true,
 		}
 	)
-
-	// Get results and set the namespace ID and size limit.
-	results := i.resultsPool.Get()
-	results.Reset(i.nsMetadata.ID(), index.ResultsOptions{
-		SizeLimit: opts.Limit,
-	})
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
 	// no child async task modifies the result after this method returns.
@@ -990,7 +1028,7 @@ func (i *nsIndex) Query(
 
 		if timedOut {
 			// Exceeded our deadline waiting for this block's query to start.
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1002,7 +1040,7 @@ func (i *nsIndex) Query(
 		// Need to abort early if timeout hit.
 		timeLeft := deadline.Sub(i.nowFn())
 		if timeLeft <= 0 {
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 
 		var (
@@ -1024,7 +1062,7 @@ func (i *nsIndex) Query(
 		ticker.Stop()
 
 		if aborted {
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1035,13 +1073,10 @@ func (i *nsIndex) Query(
 	state.Unlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return false, err
 	}
 
-	return index.QueryResults{
-		Exhaustive: exhaustive,
-		Results:    results,
-	}, nil
+	return exhaustive, nil
 }
 
 func (i *nsIndex) timeoutForQueryWithRLock(

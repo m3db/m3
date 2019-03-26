@@ -54,7 +54,7 @@ func optionsWithDocsArrayPool(opts Options, size, capacity int) Options {
 }
 
 func TestResultsInsertInvalid(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dInvalid := doc.Document{ID: nil}
 	size, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
@@ -62,7 +62,7 @@ func TestResultsInsertInvalid(t *testing.T) {
 }
 
 func TestResultsInsertIdempotency(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestResultsInsertIdempotency(t *testing.T) {
 }
 
 func TestResultsFirstInsertWins(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 }
 
 func TestResultsInsertContains(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestResultsInsertContains(t *testing.T) {
 }
 
 func TestResultsInsertCopies(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
 		doc.Field{Name: []byte("name"), Value: []byte("value")},
 	}}
@@ -119,6 +119,7 @@ func TestResultsInsertCopies(t *testing.T) {
 	require.Equal(t, 1, size)
 
 	found := false
+
 	// our genny generated maps don't provide access to MapEntry directly,
 	// so we iterate over the map to find the added entry. Could avoid this
 	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
@@ -152,7 +153,7 @@ func TestResultsInsertCopies(t *testing.T) {
 }
 
 func TestResultsReset(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestResultsReset(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 
-	res.Reset(nil, ResultsOptions{})
+	res.Reset(nil, QueryResultsOptions{})
 	_, ok = res.Map().Get(ident.StringID("abc"))
 	require.False(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
@@ -170,17 +171,21 @@ func TestResultsReset(t *testing.T) {
 }
 
 func TestResultsResetNamespaceClones(t *testing.T) {
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	require.Equal(t, nil, res.Namespace())
 	nsID := ident.StringID("something")
-	res.Reset(nsID, ResultsOptions{})
+	res.Reset(nsID, QueryResultsOptions{})
 	nsID.Finalize()
 	require.Equal(t, "something", res.Namespace().String())
+
+	// Ensure new NS is cloned
+	require.False(t,
+		xtest.ByteSlicesBackedBySameData(nsID.Bytes(), res.Namespace().Bytes()))
 }
 
 func TestFinalize(t *testing.T) {
 	// Create a Results and insert some data.
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -210,7 +215,7 @@ func TestFinalize(t *testing.T) {
 
 func TestNoFinalize(t *testing.T) {
 	// Create a Results and insert some data.
-	res := NewResults(nil, ResultsOptions{}, testOpts)
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
@@ -233,7 +238,7 @@ func TestNoFinalize(t *testing.T) {
 	require.Equal(t, 1, res.Size())
 
 	for _, entry := range res.Map().Iter() {
-		id, _ := entry.Key(), entry.Value()
+		id := entry.Key()
 		require.True(t, id.IsNoFinalize())
 		// TODO(rartoul): Could verify tags are NoFinalize() as well if
 		// they had that method.

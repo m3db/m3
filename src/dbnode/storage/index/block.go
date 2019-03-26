@@ -773,7 +773,7 @@ func (b *block) Query(
 	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results Results,
+	results BaseResults,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -851,7 +851,7 @@ func (b *block) Query(
 
 func (b *block) addQueryResults(
 	cancellable *resource.CancellableLifetime,
-	results Results,
+	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
 	// Checkout the lifetime of the query before adding results

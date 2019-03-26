@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,27 +20,30 @@
 
 package index
 
-import "github.com/m3db/m3x/pool"
+import (
+	"github.com/m3db/m3x/ident"
 
-type resultsPool struct {
-	pool pool.ObjectPool
-}
+	"github.com/cespare/xxhash"
+)
 
-// NewQueryResultsPool creates a new QueryResultsPool.
-func NewQueryResultsPool(opts pool.ObjectPoolOptions) QueryResultsPool {
-	return &resultsPool{pool: pool.NewObjectPool(opts)}
-}
+const (
+	defaultInitialAggregatedResultsMapSize = 10
+)
 
-func (p *resultsPool) Init(alloc QueryResultsAllocator) {
-	p.pool.Init(func() interface{} {
-		return alloc()
+func newAggregateResultsMap(idPool ident.Pool) *AggregateResultsMap {
+	return _AggregateResultsMapAlloc(_AggregateResultsMapOptions{
+		hash: func(k ident.ID) AggregateResultsMapHash {
+			return AggregateResultsMapHash(xxhash.Sum64(k.Bytes()))
+		},
+		equals: func(x, y ident.ID) bool {
+			return x.Equal(y)
+		},
+		copy: func(k ident.ID) ident.ID {
+			return idPool.Clone(k)
+		},
+		finalize: func(k ident.ID) {
+			k.Finalize()
+		},
+		initialSize: defaultInitialAggregatedResultsMapSize,
 	})
-}
-
-func (p *resultsPool) Get() QueryResults {
-	return p.pool.Get().(QueryResults)
-}
-
-func (p *resultsPool) Put(value QueryResults) {
-	p.pool.Put(value)
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,27 +20,20 @@
 
 package index
 
-import "github.com/m3db/m3x/pool"
+import "bytes"
 
-type resultsPool struct {
-	pool pool.ObjectPool
-}
+// Allow returns true if the given term satisfies the filter.
+func (f AggregateTermFilter) Allow(term []byte) bool {
+	if len(f) == 0 {
+		// NB: if filter is empty, all values are valid.
+		return true
+	}
 
-// NewQueryResultsPool creates a new QueryResultsPool.
-func NewQueryResultsPool(opts pool.ObjectPoolOptions) QueryResultsPool {
-	return &resultsPool{pool: pool.NewObjectPool(opts)}
-}
+	for _, allowed := range f {
+		if bytes.Equal(term, allowed) {
+			return true
+		}
+	}
 
-func (p *resultsPool) Init(alloc QueryResultsAllocator) {
-	p.pool.Init(func() interface{} {
-		return alloc()
-	})
-}
-
-func (p *resultsPool) Get() QueryResults {
-	return p.pool.Get().(QueryResults)
-}
-
-func (p *resultsPool) Put(value QueryResults) {
-	p.pool.Put(value)
+	return false
 }

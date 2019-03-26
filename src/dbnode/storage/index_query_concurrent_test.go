@@ -225,10 +225,10 @@ func testNamespaceIndexHighConcurrentQueries(
 				mockBlock.EXPECT().
 					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
-						l *resource.CancellableLifetime,
-						q index.Query,
-						opts index.QueryOptions,
-						r index.Results,
+						_ *resource.CancellableLifetime,
+						_ index.Query,
+						_ index.QueryOptions,
+						_ index.QueryResults,
 					) (bool, error) {
 						return false, errors.New("some-error")
 					}).
@@ -240,7 +240,7 @@ func testNamespaceIndexHighConcurrentQueries(
 						c *resource.CancellableLifetime,
 						q index.Query,
 						opts index.QueryOptions,
-						r index.Results,
+						r index.QueryResults,
 					) (bool, error) {
 						timeoutWg.Wait()
 						return block.Query(c, q, opts, r)

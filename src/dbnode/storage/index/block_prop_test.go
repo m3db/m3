@@ -125,7 +125,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					EndExclusive:   blockStart.Add(blockSize),
 				}
 
-				uncachedResults := NewResults(nil, ResultsOptions{}, testOpts)
+				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 				exhaustive, err := uncachedBlock.Query(cancellable, indexQuery,
 					queryOpts, uncachedResults)
 				if err != nil {
@@ -135,7 +135,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					return false, errors.New("querying uncached block was not exhaustive")
 				}
 
-				cachedResults := NewResults(nil, ResultsOptions{}, testOpts)
+				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 				exhaustive, err = cachedBlock.Query(cancellable, indexQuery,
 					queryOpts, cachedResults)
 				if err != nil {
