@@ -325,25 +325,27 @@ func (it *iterator) readProtoValues() error {
 	}
 
 	for _, field := range m.GetKnownFields() {
-		if field.GetMessageType() != nil {
-			curVal := m.GetFieldByNumber(int(field.GetNumber()))
-			if fieldsEqual(dynamic.NewMessage(field.GetMessageType()), curVal) {
-				if fieldsSetToDefaultControlBit == 0 {
-					continue
-				}
-				found := false
-				for _, fieldNum := range it.bitsetValues {
-					if fieldNum == int(field.GetNumber()) {
-						found = true
-					}
-				}
+		var (
+			messageType = field.GetMessageType()
+			fieldNumInt = int(field.GetNumber())
+		)
+		if messageType != nil {
+			var (
+				curVal = m.GetFieldByNumber(fieldNumInt)
+				// TODO(rartoul): Don't allocate new message.
+				isDefaultValue = fieldsEqual(dynamic.NewMessage(messageType), curVal)
+			)
 
-				if found {
-					it.lastIterated.SetFieldByNumber(int(field.GetNumber()), curVal)
-				}
-			} else {
-				it.lastIterated.SetFieldByNumber(int(field.GetNumber()), curVal)
+			if isDefaultValue {
+				// The value may appear as a default value simply because it hasn't changed
+				// since the last message. Ignore for now and if it trully changed to become
+				// a default value it will get handled when we loop through the bitset later.
+				continue
 			}
+
+			// If the unmarshaled value is not the default value for the field then
+			// we know it has changed and needs to be updated.
+			it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
 		}
 	}
 

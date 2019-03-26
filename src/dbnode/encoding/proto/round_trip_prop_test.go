@@ -53,7 +53,7 @@ func init() {
 	}
 }
 
-var maxNumFields = 50
+var maxNumFields = 10
 var maxNumMessages = 100
 var maxNumEnumValues = 10
 
@@ -73,7 +73,6 @@ func TestRoundtripProp(t *testing.T) {
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
-		fmt.Println("------------------")
 		// Make panics debuggable.
 		defer func() {
 			if r := recover(); r != nil {
@@ -149,7 +148,6 @@ func TestRoundtripProp(t *testing.T) {
 
 			i++
 		}
-		fmt.Println("done")
 
 		if iter.Err() != nil {
 			return false, fmt.Errorf(
@@ -224,26 +222,33 @@ func genPropTestInputs() gopter.Gen {
 
 func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Gen {
 	return gopter.CombineGens(
+		// Messages to write for the given schema.
 		gen.SliceOfN(numMessages, genMessage(schema)),
+		// [][]bool that indicates on a field-by-field basis for each message whether the
+		// value should be the same as the previous message for that field to ensure we
+		// aggressively exercise that codepath.
 		gen.SliceOfN(numMessages, gen.SliceOfN(len(schema.GetFields()), gen.Bool())),
 	).Map(func(input []interface{}) propTestInput {
+
 		messages := input[0].([]*dynamic.Message)
 		perMessageShouldBeSameAsPrevWrite := input[1].([][]bool)
 		for i, m := range messages {
 			if i == 0 {
+				// Can't make the same as previous if there is no previous.
 				continue
 			}
 
 			perFieldShouldBeSameAsPrevWrite := perMessageShouldBeSameAsPrevWrite[i]
 			fields := m.GetKnownFields()
-
 			for j, field := range fields {
 				if perFieldShouldBeSameAsPrevWrite[j] {
-					prevFieldVal := messages[i-1].GetFieldByNumber(int(field.GetNumber()))
-					m.SetFieldByNumber(int(field.GetNumber()), prevFieldVal)
+					fieldNumInt := int(field.GetNumber())
+					prevFieldVal := messages[i-1].GetFieldByNumber(fieldNumInt)
+					m.SetFieldByNumber(fieldNumInt, prevFieldVal)
 				}
 			}
 		}
+
 		return propTestInput{
 			schema:   schema,
 			messages: input[0].([]*dynamic.Message),
