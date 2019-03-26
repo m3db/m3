@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,6 +23,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -30,7 +33,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
@@ -40,6 +46,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -182,7 +189,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
 
-				err := w.Write(id, ident.Tags{}, data, digest.Checksum(data.Bytes()))
+				tags := testTagsFromTestID(id.String())
+				err := w.Write(id, ident.NewTags(tags...), data, digest.Checksum(data.Bytes()))
 				require.NoError(t, err)
 			}
 			closer()
@@ -198,6 +206,28 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		seeksPerID       = 24
 		seeksEach        = len(shards) * idsPerShard * seeksPerID
 	)
+
+	// Write a fake onRetrieve function so we can verify the behavior of the callback.
+	var (
+		retrievedIDs      = map[string]ident.Tags{}
+		retrievedIDsMutex = sync.Mutex{}
+		bytesPool         = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		})
+		idPool = ident.NewPool(bytesPool, ident.PoolOptions{})
+	)
+	bytesPool.Init()
+
+	onRetrieve := block.OnRetrieveBlockFn(func(id ident.ID, tagsIter ident.TagIterator, startTime time.Time, segment ts.Segment) {
+		// TagsFromTagsIter requires a series ID to try and share bytes so we just pass
+		// an empty string because we don't care about efficiency.
+		tags, err := convert.TagsFromTagsIter(ident.StringID(""), tagsIter, idPool)
+		require.NoError(t, err)
+
+		retrievedIDsMutex.Lock()
+		retrievedIDs[id.String()] = tags
+		retrievedIDsMutex.Unlock()
+	})
 
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
@@ -222,7 +252,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], nil)
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve)
 					require.NoError(t, err)
 					results = append(results, streamResult{
 						ctx:        ctx,
@@ -253,12 +283,25 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		}()
 	}
 
-	// Wait for all routines to be ready then start
+	// Wait for all routines to be ready then start.
 	readyWg.Wait()
 	startWg.Done()
 
-	// Wait until done
+	// Wait until done.
 	enqueueWg.Wait()
+
+	// Verify the onRetrieve callback was called properly for everything.
+	for _, shard := range shardIDStrings {
+		for _, id := range shard {
+			retrievedIDsMutex.Lock()
+			tags, ok := retrievedIDs[id]
+			retrievedIDsMutex.Unlock()
+			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
+
+			expectedTags := ident.NewTags(testTagsFromTestID(id)...)
+			require.True(t, tags.Equal(expectedTags))
+		}
+	}
 }
 
 // TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
@@ -305,4 +348,102 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, nil, segment.Head)
 	assert.Equal(t, nil, segment.Tail)
+}
+
+// TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method
+// on the retriever in the case where the SeekIndexEntry function returns an
+// error.
+func TestBlockRetrieverHandlesSeekIndexEntryErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
+	mockSeeker.EXPECT().SeekIndexEntry(gomock.Any(), gomock.Any()).Return(IndexEntry{}, errSeekErr)
+
+	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
+}
+
+// TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method
+// on the retriever in the case where the SeekByIndexEntry function returns an
+// error.
+func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
+	mockSeeker.EXPECT().SeekIndexEntry(gomock.Any(), gomock.Any()).Return(IndexEntry{}, nil)
+	mockSeeker.EXPECT().SeekByIndexEntry(gomock.Any(), gomock.Any()).Return(nil, errSeekErr)
+
+	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
+}
+
+var errSeekErr = errors.New("some-error")
+
+func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, mockSeeker ConcurrentDataFileSetSeeker) {
+	// Make sure reader/writer are looking at the same test directory.
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config.
+	var (
+		fsOpts     = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+		rOpts      = testNs1Metadata(t).Options().RetentionOptions()
+		shard      = uint32(0)
+		blockStart = time.Now().Truncate(rOpts.BlockSize())
+
+		// Always true because all the bits in 255 are set.
+		bloomBytes            = []byte{255, 255, 255, 255, 255, 255, 255, 255}
+		alwaysTrueBloomFilter = bloom.NewConcurrentReadOnlyBloomFilter(1, 1, bloomBytes)
+		managedBloomFilter    = newManagedConcurrentBloomFilter(alwaysTrueBloomFilter, bloomBytes)
+	)
+
+	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
+	mockSeekerManager.EXPECT().Open(gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().ConcurrentIDBloomFilter(gomock.Any(), gomock.Any()).Return(managedBloomFilter, nil)
+	mockSeekerManager.EXPECT().Borrow(gomock.Any(), gomock.Any()).Return(mockSeeker, nil)
+	mockSeekerManager.EXPECT().Return(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().Close().Return(nil)
+
+	newSeekerMgr := func(
+		bytesPool pool.CheckedBytesPool,
+		opts Options,
+		fetchConcurrency int,
+	) DataFileSetSeekerManager {
+
+		return mockSeekerManager
+	}
+
+	// Setup the reader.
+	opts := testBlockRetrieverOptions{
+		retrieverOpts:  NewBlockRetrieverOptions(),
+		fsOpts:         fsOpts,
+		newSeekerMgrFn: newSeekerMgr,
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Make sure we return the correct error.
+	ctx := context.NewContext()
+	defer ctx.Close()
+	segmentReader, err := retriever.Stream(ctx, shard,
+		ident.StringID("not-exists"), blockStart, nil)
+	require.NoError(t, err)
+
+	segment, err := segmentReader.Segment()
+	assert.Equal(t, errSeekErr, err)
+	assert.Equal(t, nil, segment.Head)
+	assert.Equal(t, nil, segment.Tail)
+}
+
+func testTagsFromTestID(seriesID string) []ident.Tag {
+	tags := []ident.Tag{}
+	for j := 0; j < 5; j++ {
+		tags = append(tags, ident.Tag{
+			Name:  ident.StringID(fmt.Sprintf("%s.tag.%d.name", seriesID, j)),
+			Value: ident.StringID(fmt.Sprintf("%s.tag.%d.value", seriesID, j)),
+		})
+	}
+	return tags
 }
