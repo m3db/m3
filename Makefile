@@ -88,7 +88,8 @@ TOOLS :=               \
 	dtest                \
 	verify_commitlogs    \
 	verify_index_files   \
-	carbon_load
+	carbon_load          \
+	docs_test            \
 
 .PHONY: setup
 setup:
@@ -213,6 +214,17 @@ docs-serve: docs-container
 .PHONY: docs-deploy
 docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
+
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
+
+.PHONY: docs-test
+docs-test:
+	@echo "--- Documentation validate test"
+	make docs-validate
+	@echo "--- Documentation build test"
+	make docs-build
 
 .PHONY: docker-integration-test
 docker-integration-test:

@@ -239,6 +239,9 @@ import:
     repo: https://github.com/go-yaml/yaml.git
     vcs: git
 
+  - package: github.com/russross/blackfriday
+    version: ^2.0.1
+
   - package: github.com/mauricelam/genny
     version: eb2c5232c885956af3565a20ecf48555cab2b9bc
 
