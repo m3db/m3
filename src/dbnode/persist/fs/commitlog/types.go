@@ -78,6 +78,10 @@ type CommitLog interface {
 	// RotateLogs rotates the commitlog and returns the File that represents
 	// the new commitlog file.
 	RotateLogs() (persist.CommitLogFile, error)
+
+	// QueueLength returns the number of writes that are currently in the commitlog
+	// queue.
+	QueueLength() int64
 }
 
 // Iterator provides an iterator for commit logs

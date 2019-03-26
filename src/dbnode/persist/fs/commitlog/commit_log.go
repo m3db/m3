@@ -355,6 +355,10 @@ func (l *commitLog) RotateLogs() (persist.CommitLogFile, error) {
 	return file, nil
 }
 
+func (l *commitLog) QueueLength() int64 {
+	return atomic.LoadInt64(&l.numWritesInQueue)
+}
+
 func (l *commitLog) flushEvery(interval time.Duration) {
 	// Periodically flush the underlying commit log writer to cover
 	// the case when writes stall for a considerable time

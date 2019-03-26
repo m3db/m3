@@ -198,6 +198,10 @@ docs-container:
 	docker run --rm hello-world >/dev/null
 	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
 
+# NB(schallert): if updating this target, be sure to update the commands used in
+# the .buildkite/docs_push.sh. We can't share the make targets because our
+# Makefile assumes its running under bash and the container is alpine (ash
+# shell).
 .PHONY: docs-build
 docs-build: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"

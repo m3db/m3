@@ -45,6 +45,7 @@ var (
 type Compactor struct {
 	sync.RWMutex
 
+	opts         CompactorOptions
 	writer       fst.Writer
 	docsPool     doc.DocumentArrayPool
 	docsMaxBatch int
@@ -59,6 +60,12 @@ type CompactorOptions struct {
 	// FSTWriterOptions if not nil are the options used to
 	// construct the FST writer.
 	FSTWriterOptions *fst.WriterOptions
+
+	// MmapDocsData when enabled will encode and mmmap the
+	// documents data, rather than keeping the original
+	// documents with references to substrings in the metric
+	// IDs (done for memory savings).
+	MmapDocsData bool
 }
 
 // NewCompactor returns a new compactor which reuses buffers
@@ -75,6 +82,7 @@ func NewCompactor(
 		fstWriterOpts = *v
 	}
 	return &Compactor{
+		opts:         opts,
 		writer:       fst.NewWriter(fstWriterOpts),
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
@@ -225,9 +233,6 @@ func (c *Compactor) compactFromBuilderWithLock(
 		return nil, errCompactorBuilderEmpty
 	}
 
-	allDocsCopy := make([]doc.Document, len(allDocs))
-	copy(allDocsCopy, allDocs)
-
 	err := c.writer.Reset(builder)
 	if err != nil {
 		return nil, err
@@ -239,7 +244,6 @@ func (c *Compactor) compactFromBuilderWithLock(
 		MajorVersion: c.writer.MajorVersion(),
 		MinorVersion: c.writer.MinorVersion(),
 		Metadata:     append([]byte(nil), c.writer.Metadata()...),
-		DocsReader:   docs.NewSliceReader(0, allDocsCopy),
 		Closer:       closers,
 	}
 
@@ -249,6 +253,36 @@ func (c *Compactor) compactFromBuilderWithLock(
 			closers.Close()
 		}
 	}()
+
+	if !c.opts.MmapDocsData {
+		// If retaining references to the original docs, simply take ownership
+		// of the documents and then reference them directly from the FST segment
+		// rather than encoding them and mmap'ing the encoded documents.
+		allDocsCopy := make([]doc.Document, len(allDocs))
+		copy(allDocsCopy, allDocs)
+		fstData.DocsReader = docs.NewSliceReader(0, allDocsCopy)
+	} else {
+		// Otherwise encode and reference the encoded bytes as mmap'd bytes.
+		c.buff.Reset()
+		if err := c.writer.WriteDocumentsData(c.buff); err != nil {
+			return nil, err
+		}
+
+		fstData.DocsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+		if err != nil {
+			return nil, err
+		}
+
+		c.buff.Reset()
+		if err := c.writer.WriteDocumentsIndex(c.buff); err != nil {
+			return nil, err
+		}
+
+		fstData.DocsIdxData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	c.buff.Reset()
 	if err := c.writer.WritePostingsOffsets(c.buff); err != nil {

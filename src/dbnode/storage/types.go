@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -115,6 +114,13 @@ type Database interface {
 	// BatchWriter returns a batch writer for the provided namespace that can
 	// be used to issue a batch of writes to either WriteBatch
 	// or WriteTaggedBatch.
+	//
+	// Note that when using the BatchWriter the caller owns the lifecycle of the series
+	// IDs and tag iterators (I.E) if they're being pooled its the callers responsibility
+	// to return them to the appropriate pool, but the annotations are owned by the
+	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
+	// due to their lifecycle being more complicated. Callers can still control the pooling
+	// of the annotations by using the SetFinalizeAnnotationFn on the WriteBatch itself.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
@@ -728,12 +734,6 @@ type Options interface {
 
 	// RuntimeOptionsManager returns the runtime options manager.
 	RuntimeOptionsManager() runtime.OptionsManager
-
-	// SetErrorCounterOptions sets the error counter options.
-	SetErrorCounterOptions(value xcounter.Options) Options
-
-	// ErrorCounterOptions returns the error counter options.
-	ErrorCounterOptions() xcounter.Options
 
 	// SetErrorWindowForLoad sets the error window for load.
 	SetErrorWindowForLoad(value time.Duration) Options

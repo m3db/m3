@@ -34,6 +34,10 @@ func TestMarshal(t *testing.T) {
 		query search.Query
 	}{
 		{
+			name:  "all query",
+			query: NewAllQuery(),
+		},
+		{
 			name:  "term query",
 			query: NewTermQuery([]byte("fruit"), []byte("apple")),
 		},
