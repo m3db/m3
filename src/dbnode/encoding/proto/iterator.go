@@ -329,24 +329,36 @@ func (it *iterator) readProtoValues() error {
 			messageType = field.GetMessageType()
 			fieldNumInt = int(field.GetNumber())
 		)
-		if messageType != nil {
-			var (
-				curVal = m.GetFieldByNumber(fieldNumInt)
-				// TODO(rartoul): Don't allocate new message.
-				isDefaultValue = fieldsEqual(dynamic.NewMessage(messageType), curVal)
-			)
-
-			if isDefaultValue {
-				// The value may appear as a default value simply because it hasn't changed
-				// since the last message. Ignore for now and if it trully changed to become
-				// a default value it will get handled when we loop through the bitset later.
-				continue
-			}
-
-			// If the unmarshaled value is not the default value for the field then
-			// we know it has changed and needs to be updated.
-			it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
+		if messageType == nil && !field.IsRepeated() {
+			continue
 		}
+
+		var (
+			curVal         = m.GetFieldByNumber(fieldNumInt)
+			isDefaultValue bool
+		)
+
+		// TODO: Wrap this logic up in a helper function
+		if field.IsRepeated() {
+			isDefaultValue = len(curVal.([]interface{})) == 0
+		} else if messageType != nil {
+			// TODO(rartoul): Don't allocate new message.
+			isDefaultValue = fieldsEqual(dynamic.NewMessage(messageType), curVal)
+		} else {
+			// TODO: Not needed?
+			isDefaultValue = fieldsEqual(field.GetDefaultValue(), curVal)
+		}
+
+		if isDefaultValue {
+			// The value may appear as a default value simply because it hasn't changed
+			// since the last message. Ignore for now and if it truly changed to become
+			// a default value it will get handled when we loop through the bitset later.
+			continue
+		}
+
+		// If the unmarshaled value is not the default value for the field then
+		// we know it has changed and needs to be updated.
+		it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
 	}
 
 	if fieldsSetToDefaultControlBit == 1 {

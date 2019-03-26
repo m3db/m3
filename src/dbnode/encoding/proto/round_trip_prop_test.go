@@ -132,20 +132,21 @@ func TestRoundtripProp(t *testing.T) {
 			require.Equal(t, unit, xtime.Nanosecond)
 			require.True(t, times[i].Equal(dp.Timestamp))
 
-			for _, field := range m.GetKnownFields() {
-				var (
-					fieldNum    = int(field.GetNumber())
-					expectedVal = m.GetFieldByNumber(fieldNum)
-					actualVal   = decodedM.GetFieldByNumber(fieldNum)
-				)
+			if !dynamic.MessagesEqual(m, decodedM) {
+				for _, field := range m.GetKnownFields() {
+					var (
+						fieldNum    = int(field.GetNumber())
+						expectedVal = m.GetFieldByNumber(fieldNum)
+						actualVal   = decodedM.GetFieldByNumber(fieldNum)
+					)
 
-				if !fieldsEqual(expectedVal, actualVal) {
-					return false, fmt.Errorf(
-						"expected %v but got %v on iteration number %d and fieldNum %d, schema %s",
-						expectedVal, actualVal, i, fieldNum, input.schema)
+					if !fieldsEqual(expectedVal, actualVal) {
+						return false, fmt.Errorf(
+							"expected %v but got %v on iteration number %d and fieldNum %d, schema %s",
+							expectedVal, actualVal, i, fieldNum, input.schema)
+					}
 				}
 			}
-
 			i++
 		}
 
@@ -281,48 +282,114 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 		)
 		switch fieldType {
 		case dpb.FieldDescriptorProto_TYPE_BOOL:
-			message.SetFieldByNumber(fieldNumber, input.bools[i])
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.bools[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.bools[i])
+			}
 		case dpb.FieldDescriptorProto_TYPE_ENUM:
-			message.SetFieldByNumber(fieldNumber, input.enums[i])
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.enums[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.enums[i])
+			}
 		case dpb.FieldDescriptorProto_TYPE_BYTES:
-			message.SetFieldByNumber(fieldNumber, []byte(input.strings[i]))
+			if field.IsRepeated() {
+				bytesSlice := make([][]byte, 0, i)
+				for _, s := range input.strings[0 : i+1] {
+					bytesSlice = append(bytesSlice, []byte(s))
+				}
+				message.SetFieldByNumber(fieldNumber, bytesSlice)
+			} else {
+				message.SetFieldByNumber(fieldNumber, []byte(input.strings[i]))
+			}
 		case dpb.FieldDescriptorProto_TYPE_STRING:
-			message.SetFieldByNumber(fieldNumber, input.strings[i])
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.strings[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.strings[i])
+			}
 		case dpb.FieldDescriptorProto_TYPE_DOUBLE:
-			message.SetFieldByNumber(fieldNumber, input.float64s[i])
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.float64s[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.float64s[i])
+			}
 		case dpb.FieldDescriptorProto_TYPE_FLOAT:
-			message.SetFieldByNumber(fieldNumber, input.float32s[i])
-		case dpb.FieldDescriptorProto_TYPE_INT32:
-			message.SetFieldByNumber(fieldNumber, input.int32s[i])
-		case dpb.FieldDescriptorProto_TYPE_INT64:
-			message.SetFieldByNumber(fieldNumber, input.int64s[i])
-		case dpb.FieldDescriptorProto_TYPE_UINT32:
-			message.SetFieldByNumber(fieldNumber, input.uint32s[i])
-		case dpb.FieldDescriptorProto_TYPE_UINT64:
-			message.SetFieldByNumber(fieldNumber, input.uint64s[i])
-		case dpb.FieldDescriptorProto_TYPE_FIXED64:
-			message.SetFieldByNumber(fieldNumber, input.uint64s[i])
-		case dpb.FieldDescriptorProto_TYPE_FIXED32:
-			message.SetFieldByNumber(fieldNumber, input.uint32s[i])
-		case dpb.FieldDescriptorProto_TYPE_SFIXED64:
-			message.SetFieldByNumber(fieldNumber, input.int64s[i])
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.float32s[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.float32s[i])
+			}
 		case dpb.FieldDescriptorProto_TYPE_SFIXED32:
-			message.SetFieldByNumber(fieldNumber, input.int32s[i])
-		case dpb.FieldDescriptorProto_TYPE_SINT64:
-			message.SetFieldByNumber(fieldNumber, input.int64s[i])
+			fallthrough
 		case dpb.FieldDescriptorProto_TYPE_SINT32:
-			message.SetFieldByNumber(fieldNumber, input.int32s[i])
+			fallthrough
+		case dpb.FieldDescriptorProto_TYPE_INT32:
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.int32s[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.int32s[i])
+			}
+		case dpb.FieldDescriptorProto_TYPE_SFIXED64:
+			fallthrough
+		case dpb.FieldDescriptorProto_TYPE_SINT64:
+			fallthrough
+		case dpb.FieldDescriptorProto_TYPE_INT64:
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.int64s[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.int64s[i])
+			}
+		case dpb.FieldDescriptorProto_TYPE_FIXED32:
+			fallthrough
+		case dpb.FieldDescriptorProto_TYPE_UINT32:
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.uint32s[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.uint32s[i])
+			}
+		case dpb.FieldDescriptorProto_TYPE_FIXED64:
+			fallthrough
+		case dpb.FieldDescriptorProto_TYPE_UINT64:
+			if field.IsRepeated() {
+				message.SetFieldByNumber(fieldNumber, input.uint64s[0:i+1])
+			} else {
+				message.SetFieldByNumber(fieldNumber, input.uint64s[i])
+			}
 		case dpb.FieldDescriptorProto_TYPE_MESSAGE:
 			// If the field is a nested message, figure out what the nested schema is
 			// and then generate another message to use as the value of that field. We
 			// reuse the same inputs value for simplicity.
 			nestedMessageSchema := schema.FindFieldByNumber(field.GetNumber()).GetMessageType()
-			message.SetFieldByNumber(fieldNumber, newMessageWithValues(nestedMessageSchema, input))
+			if field.IsRepeated() {
+				nestedMessages := make([]*dynamic.Message, 0, i)
+				for j := 0; j <= i; j++ {
+					nestedMessages = append(nestedMessages, newMessageWithValues(nestedMessageSchema, input))
+				}
+				message.SetFieldByNumber(fieldNumber, nestedMessages)
+			} else {
+				message.SetFieldByNumber(fieldNumber, newMessageWithValues(nestedMessageSchema, input))
+			}
 		default:
 			panic(fmt.Sprintf("invalid field type in schema: %v", fieldType))
 		}
 	}
 
+	marshaled, err := message.Marshal()
+	if err != nil {
+		panic(err)
+	}
+	unmarshaled := dynamic.NewMessage(schema)
+	err = unmarshaled.Unmarshal(marshaled)
+	if err != nil {
+		panic(err)
+	}
+	if !dynamic.MessagesEqual(message, unmarshaled) {
+		// Basic sanity test to protect against bugs in the underlying library:
+		// https://github.com/jhump/protoreflect/issues/181
+		panic("generated message that is not equal after being marshaled and unmarshaled")
+	}
 	return message
 }
 

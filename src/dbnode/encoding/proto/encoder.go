@@ -163,7 +163,6 @@ func (enc *Encoder) segment(copy bool) ts.Segment {
 		return ts.Segment{}
 	}
 
-	// TODO: Should this be cropping out the last byte?
 	var head checked.Bytes
 	buffer, _ := enc.stream.Rawbytes()
 	if !copy {
@@ -541,7 +540,12 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 					return err
 				}
 			} else {
-				if field.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE {
+				if field.IsRepeated() {
+					isDefaultValue := len(curVal.([]interface{})) == 0
+					if isDefaultValue {
+						fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+					}
+				} else if field.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE {
 					// field.GetDefaultValue() returns nil for message types so we have to
 					// manually compare the value to the "real" default value which is an
 					// empty instance of that message type.

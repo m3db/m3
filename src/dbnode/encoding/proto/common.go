@@ -161,8 +161,7 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 
 	fields := schema.GetFields()
 	for _, field := range fields {
-		fieldType := field.GetType()
-		customFieldType, ok := mapProtoTypeToCustomFieldType[fieldType]
+		customFieldType, ok := isCustomField(field.GetType(), field.IsRepeated())
 		if !ok {
 			continue
 		}
@@ -196,13 +195,21 @@ func numCustomFields(schema *desc.MessageDescriptor) int {
 	)
 
 	for _, field := range fields {
-		fieldType := field.GetType()
-		if _, ok := mapProtoTypeToCustomFieldType[fieldType]; ok {
+		if _, ok := isCustomField(field.GetType(), field.IsRepeated()); ok {
 			numCustomFields++
 		}
 	}
 
 	return numCustomFields
+}
+
+func isCustomField(fieldType dpb.FieldDescriptorProto_Type, isRepeated bool) (customFieldType, bool) {
+	if isRepeated {
+		return -1, false
+	}
+
+	customFieldType, ok := mapProtoTypeToCustomFieldType[fieldType]
+	return customFieldType, ok
 }
 
 func resetCustomFields(fields []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
