@@ -333,20 +333,12 @@ func (it *iterator) readProtoValues() error {
 			continue
 		}
 
-		var (
-			curVal         = m.GetFieldByNumber(fieldNumInt)
-			isDefaultValue bool
-		)
-
-		// TODO: Wrap this logic up in a helper function
-		if field.IsRepeated() {
-			isDefaultValue = len(curVal.([]interface{})) == 0
-		} else if messageType != nil {
-			// TODO(rartoul): Don't allocate new message.
-			isDefaultValue = fieldsEqual(dynamic.NewMessage(messageType), curVal)
-		} else {
-			// TODO: Not needed?
-			isDefaultValue = fieldsEqual(field.GetDefaultValue(), curVal)
+		curVal := m.GetFieldByNumber(fieldNumInt)
+		isDefaultValue, err := isDefaultValue(field, curVal)
+		if err != nil {
+			return fmt.Errorf(
+				"%s: error checking if %v is default value for field %s",
+				itErrPrefix, curVal, field.String())
 		}
 
 		if isDefaultValue {

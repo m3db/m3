@@ -22,11 +22,41 @@ package proto
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 
 	"github.com/golang/protobuf/proto"
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 )
+
+// isDefaultValue returns whether the provided value is the same as the default value for
+// a given field. For the most part we can rely on the fieldsEqual function and the
+// GetDefaultValue() method on the field descriptor, but repeated and nested message fields
+// require slightly more care.
+func isDefaultValue(field *desc.FieldDescriptor, curVal interface{}) (bool, error) {
+	if field.IsRepeated() {
+		// If its a repeated field then its a default value if it looks like a zero-length slice.
+		sliceVal, ok := curVal.([]interface{})
+		if !ok {
+			// Should never happen.
+			return false, fmt.Errorf("current value for repeated field: %s wasn't a slice", field.String())
+		}
+
+		return len(sliceVal) == 0, nil
+	}
+
+	if field.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE {
+		// If its a nested message then its a default value if it looks the same as a new
+		// empty message with the same schema.
+		messageSchema := field.GetMessageType()
+		// TODO(rartoul): Don't allocate new message.
+		return fieldsEqual(dynamic.NewMessage(messageSchema), curVal), nil
+	}
+
+	return fieldsEqual(field.GetDefaultValue(), curVal), nil
+}
 
 // Mostly copy-pasta of a non-exported helper method from the protoreflect
 // library.
