@@ -1203,10 +1203,10 @@ func withEncodingAndPoolingOptions(
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 
 	// Need to actually set pools
-	// queryResultsPool := index.NewQueryResultsPool(
-	// 	poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
-	// 	aggregateQueryResultsPool := index.NewQueryResultsPool(
-	// 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
+	queryResultsPool := index.NewQueryResultsPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
+	aggregateQueryResultsPool := index.NewAggregateResultsPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
@@ -1222,17 +1222,20 @@ func withEncodingAndPoolingOptions(
 			opts.IndexOptions().SegmentBuilderOptions().
 				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
-		SetCheckedBytesPool(bytesPool) // .
-		// Need to actually set pools
-		// SetQueryResultsPool(queryResultsPool).
-		// SetAggregateResultsPool(aggregateQueryResultsPool)
+		SetCheckedBytesPool(bytesPool).
+		SetQueryResultsPool(queryResultsPool).
+		SetAggregateResultsPool(aggregateQueryResultsPool)
 
-		// Need to actually set pools
-	// resultsPool.Init(func() index.Results {
-	// 	// NB(r): Need to initialize after setting the index opts so
-	// 	// it sees the same reference of the options as is set for the DB.
-	// 	return index.NewResults(nil, index.ResultsOptions{}, indexOpts)
-	// })
+	queryResultsPool.Init(func() index.QueryResults {
+		// NB(r): Need to initialize after setting the index opts so
+		// it sees the same reference of the options as is set for the DB.
+		return index.NewQueryResults(nil, index.QueryResultsOptions{}, indexOpts)
+	})
+	aggregateQueryResultsPool.Init(func() index.AggregateResults {
+		// NB(r): Need to initialize after setting the index opts so
+		// it sees the same reference of the options as is set for the DB.
+		return index.NewAggregateResults(nil, index.AggregateResultsOptions{}, indexOpts)
+	})
 
 	return opts.SetIndexOptions(indexOpts)
 }

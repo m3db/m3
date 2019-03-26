@@ -521,12 +521,8 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	require.Equal(t, 1, rMap.Len())
-	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
@@ -629,12 +625,8 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	require.Equal(t, 1, rMap.Len())
-	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
@@ -676,10 +668,7 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
+	rMap := results.Map()
 	require.Equal(t, 1, rMap.Len())
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
@@ -725,10 +714,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
+	rMap := results.Map()
 	require.Equal(t, 1, rMap.Len())
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
@@ -775,10 +761,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
+	rMap := results.Map()
 	require.Equal(t, 2, rMap.Len())
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
@@ -1190,10 +1173,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
+	rMap := results.Map()
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
@@ -1263,10 +1243,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	require.False(t, exhaustive)
 	require.Equal(t, 1, results.Size())
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
+	rMap := results.Map()
 	numFound := 0
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	if ok {
@@ -1345,10 +1322,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
+	rMap := results.Map()
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
@@ -1412,11 +1386,8 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
 
-	qr, ok := results.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	rMap := results.Map()
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(

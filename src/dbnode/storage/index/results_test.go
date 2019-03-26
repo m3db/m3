@@ -80,11 +80,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	tags, ok := rMap.Get(ident.StringID("abc"))
+	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 
@@ -96,7 +92,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
-	tags, ok = rMap.Get(ident.StringID("abc"))
+	tags, ok = res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 }
@@ -108,11 +104,7 @@ func TestResultsInsertContains(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	tags, ok := rMap.Get(ident.StringID("abc"))
+	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 }
@@ -128,14 +120,10 @@ func TestResultsInsertCopies(t *testing.T) {
 
 	found := false
 
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
 	// our genny generated maps don't provide access to MapEntry directly,
 	// so we iterate over the map to find the added entry. Could avoid this
 	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
-	for _, entry := range rMap.Iter() {
+	for _, entry := range res.Map().Iter() {
 		// see if this key has the same value as the added document's ID.
 		key := entry.Key().Bytes()
 		if !bytes.Equal(dValid.ID, key) {
@@ -171,16 +159,12 @@ func TestResultsReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	tags, ok := rMap.Get(ident.StringID("abc"))
+	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 
-	qr.Reset(nil, QueryResultsOptions{})
-	_, ok = qr.Map().Get(ident.StringID("abc"))
+	res.Reset(nil, QueryResultsOptions{})
+	_, ok = res.Map().Get(ident.StringID("abc"))
 	require.False(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 	require.Equal(t, 0, res.Size())
@@ -190,11 +174,13 @@ func TestResultsResetNamespaceClones(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	require.Equal(t, nil, res.Namespace())
 	nsID := ident.StringID("something")
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	qr.Reset(nsID, QueryResultsOptions{})
+	res.Reset(nsID, QueryResultsOptions{})
 	nsID.Finalize()
 	require.Equal(t, "something", res.Namespace().String())
+
+	// Ensure new NS is cloned
+	require.False(t,
+		xtest.ByteSlicesBackedBySameData(nsID.Bytes(), res.Namespace().Bytes()))
 }
 
 func TestFinalize(t *testing.T) {
@@ -206,11 +192,7 @@ func TestFinalize(t *testing.T) {
 	require.Equal(t, 1, size)
 
 	// Ensure the data is present.
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
-	tags, ok := rMap.Get(ident.StringID("abc"))
+	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 
@@ -218,12 +200,12 @@ func TestFinalize(t *testing.T) {
 	res.Finalize()
 
 	// Ensure data was removed by call to Finalize().
-	tags, ok = rMap.Get(ident.StringID("abc"))
+	tags, ok = res.Map().Get(ident.StringID("abc"))
 	require.False(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 	require.Equal(t, 0, res.Size())
 
-	for _, entry := range rMap.Iter() {
+	for _, entry := range res.Map().Iter() {
 		id, _ := entry.Key(), entry.Value()
 		require.False(t, id.IsNoFinalize())
 		// TODO(rartoul): Could verify tags are NoFinalize() as well if
@@ -239,28 +221,24 @@ func TestNoFinalize(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
-	qr, ok := res.(QueryResults)
-	require.True(t, ok)
-	rMap := qr.Map()
-
 	// Ensure the data is present.
-	tags, ok := rMap.Get(ident.StringID("abc"))
+	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 
 	// Call to NoFinalize indicates that subsequent call
 	// to finalize should be a no-op.
-	qr.NoFinalize()
+	res.NoFinalize()
 	res.Finalize()
 
 	// Ensure data was not removed by call to Finalize().
-	tags, ok = rMap.Get(ident.StringID("abc"))
+	tags, ok = res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
 	require.Equal(t, 0, len(tags.Values()))
 	require.Equal(t, 1, res.Size())
 
-	for _, entry := range rMap.Iter() {
-		id, _ := entry.Key(), entry.Value()
+	for _, entry := range res.Map().Iter() {
+		id := entry.Key()
 		require.True(t, id.IsNoFinalize())
 		// TODO(rartoul): Could verify tags are NoFinalize() as well if
 		// they had that method.

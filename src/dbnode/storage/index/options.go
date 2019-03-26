@@ -152,9 +152,9 @@ func NewOptions() Options {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
 	})
 	aggResultsPool.Init(func() AggregateResults {
-		return NewAggregateResults(nil, QueryResultsOptions{}, AggregateResultsOptions{}, opts)
+		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
 	})
-	aggValuesPool.Init(func() *AggregateValues { return NewAggregateValues(opts) })
+	aggValuesPool.Init(func() AggregateValues { return NewAggregateValues(opts) })
 	return opts
 }
 

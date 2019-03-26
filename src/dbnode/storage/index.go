@@ -865,13 +865,13 @@ func (i *nsIndex) Query(
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
 		SizeLimit: opts.Limit,
 	})
-	qr, err := i.query(ctx, query, results, opts)
+	exhaustive, err := i.query(ctx, query, results, opts)
 	if err != nil {
 		return index.QueryResult{}, err
 	}
 	return index.QueryResult{
 		Results:    results,
-		Exhaustive: qr.exhaustive,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -883,22 +883,15 @@ func (i *nsIndex) AggregateQuery(
 ) (index.AggregateQueryResult, error) {
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
-	queryOpts := index.QueryResultsOptions{
-		SizeLimit: opts.Limit,
-	}
-	results.Reset(i.nsMetadata.ID(), queryOpts, aggResultOpts)
-	qr, err := i.query(ctx, query, results, opts)
+	results.Reset(i.nsMetadata.ID(), aggResultOpts)
+	exhaustive, err := i.query(ctx, query, results, opts)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
 	return index.AggregateQueryResult{
 		Results:    results,
-		Exhaustive: qr.exhaustive,
+		Exhaustive: exhaustive,
 	}, nil
-}
-
-type queryResult struct {
-	exhaustive bool
 }
 
 func (i *nsIndex) query(
@@ -906,14 +899,14 @@ func (i *nsIndex) query(
 	query index.Query,
 	results index.BaseResults,
 	opts index.QueryOptions,
-) (queryResult, error) {
+) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
 
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		return queryResult{}, errDbIndexUnableToQueryClosed
+		return false, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -937,7 +930,7 @@ func (i *nsIndex) query(
 	i.state.RUnlock()
 
 	if err != nil {
-		return queryResult{}, err
+		return false, err
 	}
 
 	var (
@@ -1035,8 +1028,7 @@ func (i *nsIndex) query(
 
 		if timedOut {
 			// Exceeded our deadline waiting for this block's query to start.
-			return queryResult{},
-				fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1048,8 +1040,7 @@ func (i *nsIndex) query(
 		// Need to abort early if timeout hit.
 		timeLeft := deadline.Sub(i.nowFn())
 		if timeLeft <= 0 {
-			return queryResult{},
-				fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 
 		var (
@@ -1071,8 +1062,7 @@ func (i *nsIndex) query(
 		ticker.Stop()
 
 		if aborted {
-			return queryResult{},
-				fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1083,10 +1073,10 @@ func (i *nsIndex) query(
 	state.Unlock()
 
 	if err != nil {
-		return queryResult{}, err
+		return false, err
 	}
 
-	return queryResult{exhaustive: exhaustive}, nil
+	return exhaustive, nil
 }
 
 func (i *nsIndex) timeoutForQueryWithRLock(

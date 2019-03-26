@@ -40,8 +40,8 @@ type AggregateValues struct {
 }
 
 // NewAggregateValues returns a new AggregateValues object.
-func NewAggregateValues(opts Options) *AggregateValues {
-	return &AggregateValues{
+func NewAggregateValues(opts Options) AggregateValues {
+	return AggregateValues{
 		valuesMap: NewAggregateValuesMap(opts.IdentifierPool()),
 		bytesPool: opts.CheckedBytesPool(),
 		pool:      opts.AggregateValuesPool(),

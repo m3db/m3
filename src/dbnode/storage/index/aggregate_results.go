@@ -21,6 +21,7 @@
 package index
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -28,12 +29,13 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
+const missingDocumentFields = "invalid document fields: empty %s"
+
 type aggregatedResults struct {
 	sync.RWMutex
 
-	nsID               ident.ID
-	queryOpts          QueryResultsOptions
-	aggregateQueryOpts AggregateResultsOptions
+	nsID          ident.ID
+	aggregateOpts AggregateResultsOptions
 
 	resultsMap *AggregateResultsMap
 
@@ -47,31 +49,27 @@ type aggregatedResults struct {
 // NewAggregateResults returns a new AggregateResults object.
 func NewAggregateResults(
 	namespaceID ident.ID,
-	queryOpts QueryResultsOptions,
-	aggregateQueryOpts AggregateResultsOptions,
+	aggregateOpts AggregateResultsOptions,
 	opts Options,
 ) AggregateResults {
 	return &aggregatedResults{
-		nsID:               namespaceID,
-		queryOpts:          queryOpts,
-		aggregateQueryOpts: aggregateQueryOpts,
-		resultsMap:         newAggregateResultsMap(opts.IdentifierPool()),
-		idPool:             opts.IdentifierPool(),
-		bytesPool:          opts.CheckedBytesPool(),
-		pool:               opts.AggregateResultsPool(),
-		valuesPool:         opts.AggregateValuesPool(),
+		nsID:          namespaceID,
+		aggregateOpts: aggregateOpts,
+		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
+		idPool:        opts.IdentifierPool(),
+		bytesPool:     opts.CheckedBytesPool(),
+		pool:          opts.AggregateResultsPool(),
+		valuesPool:    opts.AggregateValuesPool(),
 	}
 }
 
 func (r *aggregatedResults) Reset(
 	nsID ident.ID,
-	queryOpts QueryResultsOptions,
-	aggregateQueryOpts AggregateResultsOptions,
+	aggregateOpts AggregateResultsOptions,
 ) {
 	r.Lock()
 
-	r.queryOpts = queryOpts
-	r.aggregateQueryOpts = aggregateQueryOpts
+	r.aggregateOpts = aggregateOpts
 
 	// finalize existing held nsID
 	if r.nsID != nil {
@@ -114,11 +112,6 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 		if err != nil {
 			return err
 		}
-
-		if r.queryOpts.SizeLimit > 0 && r.resultsMap.Len() >= r.queryOpts.SizeLimit {
-			// Early return if limit enforced and we hit our limit.
-			break
-		}
 	}
 
 	return nil
@@ -140,12 +133,22 @@ func (r *aggregatedResults) addFieldWithLock(
 	term []byte,
 	value []byte,
 ) error {
+	if len(term) == 0 {
+		return fmt.Errorf(missingDocumentFields, "term")
+	}
+
+	if len(value) == 0 {
+		return fmt.Errorf(missingDocumentFields, "value")
+	}
+
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
 	// before we're sure we need it.
 	var termID ident.ID = ident.BytesID(term)
 
-	// if this term hasn't been seen, ensure it should be included in output.
-	if !r.aggregateQueryOpts.TermFilter.Contains(termID) {
+	// if a term filter is provided, ensure this field matches the filter,
+	// otherwise ignore it.
+	if r.aggregateOpts.TermFilter != nil &&
+		!r.aggregateOpts.TermFilter.Contains(termID) {
 		return nil
 	}
 
@@ -153,6 +156,13 @@ func (r *aggregatedResults) addFieldWithLock(
 	valueMap, found := r.resultsMap.Get(termID)
 	if found {
 		return valueMap.addValue(valueID)
+	}
+
+	// NB: if over limit, do not add any new values to the map.
+	if r.aggregateOpts.SizeLimit > 0 &&
+		r.resultsMap.Len() >= r.aggregateOpts.SizeLimit {
+		// Early return if limit enforced and we hit our limit.
+		return nil
 	}
 
 	aggValues := r.valuesPool.Get()
@@ -190,8 +200,7 @@ func (r *aggregatedResults) Size() int {
 func (r *aggregatedResults) Finalize() {
 	r.Lock()
 
-	r.queryOpts = QueryResultsOptions{}
-	r.aggregateQueryOpts = AggregateResultsOptions{}
+	r.aggregateOpts = AggregateResultsOptions{}
 	// finalize existing held nsID
 	if r.nsID != nil {
 		r.nsID.Finalize()

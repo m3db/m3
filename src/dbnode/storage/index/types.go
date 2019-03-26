@@ -161,7 +161,6 @@ type AggregateResults interface {
 	// Reset resets the AggregateResults object to initial state.
 	Reset(
 		nsID ident.ID,
-		queryOpts QueryResultsOptions,
 		aggregateQueryOpts AggregateResultsOptions,
 	)
 
@@ -176,6 +175,10 @@ type AggregateResults interface {
 
 // AggregateResultsOptions is a set of options to use for results.
 type AggregateResultsOptions struct {
+	// SizeLimit will limit the total results set to a given limit and if
+	// overflown will return early successfully.
+	SizeLimit int
+
 	// Optional param to filter aggregate values.
 	TermFilter *AggregateValuesMap
 }
@@ -196,7 +199,7 @@ type AggregateResultsPool interface {
 }
 
 // AggregateValuesAllocator allocates AggregateValues types.
-type AggregateValuesAllocator func() *AggregateValues
+type AggregateValuesAllocator func() AggregateValues
 
 // AggregateValuesPool allows users to pool `AggregateValues` types.
 type AggregateValuesPool interface {
