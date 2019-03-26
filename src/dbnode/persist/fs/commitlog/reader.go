@@ -106,7 +106,7 @@ type reader struct {
 	checkedBytesPool     pool.CheckedBytesPool
 	chunkReader          *chunkReader
 	infoDecoder          *msgpack.Decoder
-	infoDecoderStream    msgpack.DecoderStream
+	infoDecoderStream    msgpack.ByteDecoderStream
 	decoderQueues        []chan decoderArg
 	decoderBufPools      []chan []byte
 	outChan              chan readResponse
@@ -145,7 +145,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		checkedBytesPool:  opts.BytesPool(),
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
-		infoDecoderStream: msgpack.NewDecoderStream(nil),
+		infoDecoderStream: msgpack.NewByteDecoderStream(nil),
 		decoderQueues:     decoderQueues,
 		decoderBufPools:   decoderBufs,
 		outChan:           outBuf,
@@ -235,7 +235,7 @@ func (r *reader) readLoop() {
 
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
-	decoderStream := msgpack.NewDecoderStream(nil)
+	decoderStream := msgpack.NewByteDecoderStream(nil)
 
 	reusedBytes := make([]byte, 0, r.opts.FlushSize())
 
@@ -298,9 +298,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	var (
 		decodingOpts           = r.opts.FilesystemOptions().DecodingOptions()
 		decoder                = msgpack.NewDecoder(decodingOpts)
-		decoderStream          = msgpack.NewDecoderStream(nil)
+		decoderStream          = msgpack.NewByteDecoderStream(nil)
 		metadataDecoder        = msgpack.NewDecoder(decodingOpts)
-		metadataDecoderStream  = msgpack.NewDecoderStream(nil)
+		metadataDecoderStream  = msgpack.NewByteDecoderStream(nil)
 		metadataLookup         = make(map[uint64]seriesMetadata)
 		tagDecoder             = r.opts.FilesystemOptions().TagDecoderPool().Get()
 		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
@@ -396,7 +396,7 @@ func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- rea
 func (r *reader) decodeAndHandleMetadata(
 	metadataLookup map[uint64]seriesMetadata,
 	metadataDecoder *msgpack.Decoder,
-	metadataDecoderStream msgpack.DecoderStream,
+	metadataDecoderStream msgpack.ByteDecoderStream,
 	tagDecoder serialize.TagDecoder,
 	tagDecoderCheckedBytes checked.Bytes,
 	entry schema.LogEntry,

@@ -47,7 +47,7 @@ func (m IndexSummaryToken) ID(buf []byte) []byte {
 // so that the IndexSummaryToken struct can be kept small, as well as
 // so that the caller can have control over re-use and allocations.
 func (m IndexSummaryToken) IndexOffset(
-	buf []byte, stream DecoderStream, msgpackDecoder *msgpack.Decoder) (int64, error) {
+	buf []byte, stream ByteDecoderStream, msgpackDecoder *msgpack.Decoder) (int64, error) {
 	idStart := m.idStartOffset
 	idEnd := idStart + m.idLength
 	indexOffsetStart := int(idEnd)

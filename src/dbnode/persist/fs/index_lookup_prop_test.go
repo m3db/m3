@@ -117,15 +117,18 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		summariesFdWithDigest.Reset(summariesFile)
 		expectedSummariesDigest := calculateExpectedChecksum(t, summariesFilePath)
 		decoder := msgpack.NewDecoder(options.DecodingOptions())
+		decoderStream := msgpack.NewByteDecoderStream(nil)
 		indexLookup, err := newNearestIndexOffsetLookupFromSummariesFile(
-			summariesFdWithDigest, expectedSummariesDigest, decoder, len(writes), input.forceMmapMemory)
+			summariesFdWithDigest, expectedSummariesDigest,
+			decoder, decoderStream, len(writes), input.forceMmapMemory)
 		if err != nil {
 			return false, fmt.Errorf("err reading index lookup from summaries file: %v, ", err)
 		}
 
-		// Make sure it returns the correct index offset for every ID
+		// Make sure it returns the correct index offset for every ID.
+		resources := newTestReusableSeekerResources()
 		for id, expectedOffset := range expectedIndexFileOffsets {
-			foundOffset, err := indexLookup.getNearestIndexFileOffset(ident.StringID(id))
+			foundOffset, err := indexLookup.getNearestIndexFileOffset(ident.StringID(id), resources)
 			if err != nil {
 				return false, fmt.Errorf("err locating index file offset for: %s, err: %v", id, err)
 			}
@@ -257,14 +260,14 @@ func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) 
 		return nil, fmt.Errorf("err reading index file: %v, ", err)
 	}
 
-	decoderStream := msgpack.NewDecoderStream(buf)
+	decoderStream := msgpack.NewByteDecoderStream(buf)
 	decoder := msgpack.NewDecoder(testDefaultOpts.DecodingOptions())
 	decoder.Reset(decoderStream)
 
 	summariesOffsets := map[string]int64{}
 	for read := 0; read < numEntries; read++ {
 		offset := int64(len(buf)) - (decoderStream.Remaining())
-		entry, err := decoder.DecodeIndexEntry()
+		entry, err := decoder.DecodeIndexEntry(nil)
 		if err != nil {
 			return nil, fmt.Errorf("err decoding index entry: %v", err)
 		}
