@@ -222,6 +222,9 @@ docs-deploy: docs-validate docs-container
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
+	# Run docker container to build docs
+	make docs-build
+	# Run docker integration tests from shell scripts
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
