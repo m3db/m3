@@ -36,7 +36,7 @@
     
     
       
-        <title>Namespace Configuration - M3 Documentation</title>
+        <title>Tuning Availability, Consistency, and Durability - M3 Documentation</title>
       
     
     
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#namespace-configuration" tabindex="1" class="md-skip">
+      <a href="#tuning-availability-consistency-and-durability" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Namespace Configuration
+                Tuning Availability, Consistency, and Durability
               </span>
             
           
@@ -743,11 +743,131 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../availability_consistency_durability/" title="Tuning Availability, Consistency, and Durability" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Tuning Availability, Consistency, and Durability
+      </label>
+    
+    <a href="./" title="Tuning Availability, Consistency, and Durability" class="md-nav__link md-nav__link--active">
       Tuning Availability, Consistency, and Durability
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tuning-for-performance-and-availability" title="Tuning for Performance and Availability" class="md-nav__link">
+    Tuning for Performance and Availability
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-write-and-read-consistency" title="Client Write and Read consistency" class="md-nav__link">
+    Client Write and Read consistency
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commitlog-configuration" title="Commitlog Configuration" class="md-nav__link">
+    Commitlog Configuration
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-new-series-asynchronously" title="Writing New Series Asynchronously" class="md-nav__link">
+    Writing New Series Asynchronously
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignoring-corrupt-commitlogs-on-bootstrap" title="Ignoring Corrupt Commitlogs on Bootstrap" class="md-nav__link">
+    Ignoring Corrupt Commitlogs on Bootstrap
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tuning-for-consistency-and-durability" title="Tuning for Consistency and Durability" class="md-nav__link">
+    Tuning for Consistency and Durability
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-write-and-read-consistency_1" title="Client Write and Read consistency" class="md-nav__link">
+    Client Write and Read consistency
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commitlog-configuration_1" title="Commitlog Configuration" class="md-nav__link">
+    Commitlog Configuration
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-new-series-asynchronously_1" title="Writing New Series Asynchronously" class="md-nav__link">
+    Writing New Series Asynchronously
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignoring-corrupt-commitlogs-on-bootstrap_1" title="Ignoring Corrupt Commitlogs on Bootstrap" class="md-nav__link">
+    Ignoring Corrupt Commitlogs on Bootstrap
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -779,192 +899,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        Namespace Configuration
-      </label>
-    
-    <a href="./" title="Namespace Configuration" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
       Namespace Configuration
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#introduction" title="Introduction" class="md-nav__link">
-    Introduction
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#namespace-operations" title="Namespace Operations" class="md-nav__link">
-    Namespace Operations
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#adding-a-namespace" title="Adding a Namespace" class="md-nav__link">
-    Adding a Namespace
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#recommended-easy-way" title="Recommended (Easy way)" class="md-nav__link">
-    Recommended (Easy way)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#advanced-hard-way" title="Advanced (Hard Way)" class="md-nav__link">
-    Advanced (Hard Way)
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deleting-a-namespace" title="Deleting a Namespace" class="md-nav__link">
-    Deleting a Namespace
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modifying-a-namespace" title="Modifying a Namespace" class="md-nav__link">
-    Modifying a Namespace
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#namespace-attributes" title="Namespace Attributes" class="md-nav__link">
-    Namespace Attributes
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#bootstrapenabled" title="bootstrapEnabled" class="md-nav__link">
-    bootstrapEnabled
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#flushenabled" title="flushEnabled" class="md-nav__link">
-    flushEnabled
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#writestocommitlog" title="writesToCommitlog" class="md-nav__link">
-    writesToCommitlog
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#snapshotenabled" title="snapshotEnabled" class="md-nav__link">
-    snapshotEnabled
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#repairenabled" title="repairEnabled" class="md-nav__link">
-    repairEnabled
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#retentionoptions" title="retentionOptions" class="md-nav__link">
-    retentionOptions
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#retentionperiod" title="retentionPeriod" class="md-nav__link">
-    retentionPeriod
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#blocksize" title="blockSize" class="md-nav__link">
-    blockSize
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#bufferfuture-and-bufferpast" title="bufferFuture and bufferPast" class="md-nav__link">
-    bufferFuture and bufferPast
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#index-options" title="Index Options" class="md-nav__link">
-    Index Options
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -1222,57 +1161,44 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#introduction" title="Introduction" class="md-nav__link">
-    Introduction
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#namespace-operations" title="Namespace Operations" class="md-nav__link">
-    Namespace Operations
+  <a href="#tuning-for-performance-and-availability" title="Tuning for Performance and Availability" class="md-nav__link">
+    Tuning for Performance and Availability
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#adding-a-namespace" title="Adding a Namespace" class="md-nav__link">
-    Adding a Namespace
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#recommended-easy-way" title="Recommended (Easy way)" class="md-nav__link">
-    Recommended (Easy way)
+  <a href="#client-write-and-read-consistency" title="Client Write and Read consistency" class="md-nav__link">
+    Client Write and Read consistency
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#advanced-hard-way" title="Advanced (Hard Way)" class="md-nav__link">
-    Advanced (Hard Way)
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deleting-a-namespace" title="Deleting a Namespace" class="md-nav__link">
-    Deleting a Namespace
+  <a href="#commitlog-configuration" title="Commitlog Configuration" class="md-nav__link">
+    Commitlog Configuration
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#modifying-a-namespace" title="Modifying a Namespace" class="md-nav__link">
-    Modifying a Namespace
+  <a href="#writing-new-series-asynchronously" title="Writing New Series Asynchronously" class="md-nav__link">
+    Writing New Series Asynchronously
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignoring-corrupt-commitlogs-on-bootstrap" title="Ignoring Corrupt Commitlogs on Bootstrap" class="md-nav__link">
+    Ignoring Corrupt Commitlogs on Bootstrap
   </a>
   
 </li>
@@ -1283,85 +1209,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#namespace-attributes" title="Namespace Attributes" class="md-nav__link">
-    Namespace Attributes
+  <a href="#tuning-for-consistency-and-durability" title="Tuning for Consistency and Durability" class="md-nav__link">
+    Tuning for Consistency and Durability
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#bootstrapenabled" title="bootstrapEnabled" class="md-nav__link">
-    bootstrapEnabled
+  <a href="#client-write-and-read-consistency_1" title="Client Write and Read consistency" class="md-nav__link">
+    Client Write and Read consistency
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#flushenabled" title="flushEnabled" class="md-nav__link">
-    flushEnabled
+  <a href="#commitlog-configuration_1" title="Commitlog Configuration" class="md-nav__link">
+    Commitlog Configuration
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#writestocommitlog" title="writesToCommitlog" class="md-nav__link">
-    writesToCommitlog
+  <a href="#writing-new-series-asynchronously_1" title="Writing New Series Asynchronously" class="md-nav__link">
+    Writing New Series Asynchronously
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#snapshotenabled" title="snapshotEnabled" class="md-nav__link">
-    snapshotEnabled
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#repairenabled" title="repairEnabled" class="md-nav__link">
-    repairEnabled
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#retentionoptions" title="retentionOptions" class="md-nav__link">
-    retentionOptions
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#retentionperiod" title="retentionPeriod" class="md-nav__link">
-    retentionPeriod
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#blocksize" title="blockSize" class="md-nav__link">
-    blockSize
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#bufferfuture-and-bufferpast" title="bufferFuture and bufferPast" class="md-nav__link">
-    bufferFuture and bufferPast
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#index-options" title="Index Options" class="md-nav__link">
-    Index Options
+  <a href="#ignoring-corrupt-commitlogs-on-bootstrap_1" title="Ignoring Corrupt Commitlogs on Bootstrap" class="md-nav__link">
+    Ignoring Corrupt Commitlogs on Bootstrap
   </a>
   
 </li>
@@ -1387,107 +1265,95 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/namespace_configuration.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/availability_consistency_durability.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="namespace-configuration">Namespace Configuration</h1>
-<h2 id="introduction">Introduction</h2>
-<p>Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our <a href="../../m3db/architecture/engine/">storage engine documentation</a>.</p>
-<h2 id="namespace-operations">Namespace Operations</h2>
-<p>The operations below include sample cURLs, but you can always review the API documentation by navigating to</p>
-<p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
-<h3 id="adding-a-namespace">Adding a Namespace</h3>
-<h4 id="recommended-easy-way">Recommended (Easy way)</h4>
-<p>The recommended way to add a namespace to M3DB is to use our <code>api/v1/database/namespace</code> endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.</p>
-<p>For example, the following cURL:</p>
-<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;api/v1/database/namespace/create -d '{
-  &quot;namespaceName&quot;: &quot;default_unaggregated&quot;,
-  &quot;retentionTime&quot;: &quot;24h&quot;
-}'
+                <h1 id="tuning-availability-consistency-and-durability">Tuning Availability, Consistency, and Durability</h1>
+<h2 id="overview">Overview</h2>
+<p>M3DB is designed as a High Availability <a href="https://en.wikipedia.org/wiki/High_availability">HA</a> system because it doesn't use a consensus protocol like Raft or Paxos to enforce strong consensus and consistency guarantees.
+However, even within the category of HA systems, there is a broad spectrum of consistency and durability guarantees that a database can provide.
+To address as many use cases as possible, M3DB can be tuned to achieve the desired balance between performance, availability, durability, and consistency.</p>
+<p>Generally speaking, <a href="https://github.com/m3db/m3/tree/master/src/dbnode/config">the default and example configuration for M3DB</a> favors performance and availability, as that is well-suited for M3DB's most common metrics and Observability use cases. To instead favor consistency and durability, consider tuning values as described in the "Tuning for Consistency and Durability" section.
+Database operators who are using M3DB for workloads that require stricter consistency and durability guarantees should consider tuning the default configuration to better suit their use case.</p>
+<p>The rest of this document describes the various configuration options that are available to M3DB operators to make such tradeoffs.
+While reading it, we recommend reffering to <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml">the default configuration file</a> (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.</p>
+<h2 id="tuning-for-performance-and-availability">Tuning for Performance and Availability</h2>
+<h3 id="client-write-and-read-consistency">Client Write and Read consistency</h3>
+<p>We recommend running the client with <code>writeConsistencyLevel</code> set to <code>majority</code> and <code>readConsistencyLevel</code> set to <code>unstrict_majority</code>.
+This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum. This ensures that reads will normally ensure consistency, but degraded conditions will cause reads to fail outright as long as at least a single node can satisfy the request.</p>
+<p>You can read about the consistency levels in more detail in <a href="../../m3db/architecture/consistencylevels/">the Consistency Levels section</a></p>
+<h3 id="commitlog-configuration">Commitlog Configuration</h3>
+<p>We recommend running M3DB with an asynchronous commitlog.
+This means that writes will be reported as successful by the client, though the data may not have been flushed to disk yet.</p>
+<p>For example, consider the default configuration:</p>
+<pre><code>commitlog:
+  flushMaxBytes: 524288
+  flushEvery: 1s
+  queue:
+    calculationType: fixed
+    size: 2097152
 </code></pre>
 
-<p>will create a namespace called <code>default_unaggregated</code> with a retention of <code>24 hours</code>. All of the other namespace options will either use reasonable default values or be calculated based on the provided <code>retentionTime</code>.</p>
-<p>Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.</p>
-<p>If you feel the need to configure the namespace options yourself (for performance or other reasons), read the <code>Advanced</code> section below.</p>
-<h4 id="advanced-hard-way">Advanced (Hard Way)</h4>
-<p>The "advanced" API allows you to configure every aspect of the namespace that you're adding which can sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
-Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/namespace</code> API on an M3Coordinator instance.</p>
-<pre><code>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;api/v1/namespace -d '{
-  &quot;name&quot;: &quot;default_unaggregated&quot;,
-  &quot;options&quot;: {
-    &quot;bootstrapEnabled&quot;: true,
-    &quot;flushEnabled&quot;: true,
-    &quot;writesToCommitLog&quot;: true,
-    &quot;cleanupEnabled&quot;: true,
-    &quot;snapshotEnabled&quot;: true,
-    &quot;repairEnabled&quot;: false,
-    &quot;retentionOptions&quot;: {
-      &quot;retentionPeriodDuration&quot;: &quot;2d&quot;,
-      &quot;blockSizeDuration&quot;: &quot;2h&quot;,
-      &quot;bufferFutureDuration&quot;: &quot;10m&quot;,
-      &quot;bufferPastDuration&quot;: &quot;10m&quot;,
-      &quot;blockDataExpiry&quot;: true,
-      &quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;: &quot;5m&quot;
-    },
-    &quot;indexOptions&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;blockSizeDuration&quot;: &quot;4h&quot;
-    }
-  }
-}'
+<p>This configuration states that the commitlog should be flushed whenever either of the following is true:</p>
+<ol>
+<li>524288 or more bytes have been written since the last time M3DB flushed the commitlog.</li>
+<li>One or more seconds has elapsed since the last time M3DB flushed the commitlog.</li>
+</ol>
+<p>In addition, the configuration also states that M3DB should allow up to <code>2097152</code> writes to be buffered in the commitlog queue before the database node will begin rejecting incoming writes so it can attempt to drain the queue and catch up. Increasing the size of this queue can often increase the write throughput of an M3DB node at the cost of potentially losing more data if the node experiences a sudden failure like a hard crash or power loss.</p>
+<h3 id="writing-new-series-asynchronously">Writing New Series Asynchronously</h3>
+<p>The default M3DB YAML configuration will contain the following as a top-level key under the <code>db</code> section:</p>
+<pre><code>writeNewSeriesAsync: true
 </code></pre>
 
-<p>Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.</p>
-<h3 id="deleting-a-namespace">Deleting a Namespace</h3>
-<p>Deleting a namespace is a simple as using the <code>DELETE</code> <code>/api/v1/namespace</code> API on an M3Coordinator instance.</p>
-<p><code>curl -X DELETE &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/namespace/&lt;NAMESPACE_NAME&gt;</code></p>
-<p>Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.</p>
-<h3 id="modifying-a-namespace">Modifying a Namespace</h3>
-<p>There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example, it is never safe to modify the blockSize of a namespace.</p>
-<p>Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.</p>
-<h2 id="namespace-attributes">Namespace Attributes</h2>
-<h3 id="bootstrapenabled">bootstrapEnabled</h3>
-<p>This controls whether M3DB will attempt to <a href="../bootstrapping/">bootstrap</a> the namespace on startup. This value should always be set to <code>true</code> unless you have a very good reason to change it as setting it to <code>false</code> can cause data loss when restarting nodes.</p>
-<p>Can be modified without creating a new namespace: <code>yes</code></p>
-<h3 id="flushenabled">flushEnabled</h3>
-<p>This controls whether M3DB will periodically flush blocks to disk once they become immutable. This value should always be set to <code>true</code> unless you have a very good reason to change it as setting it to <code>false</code> will cause increased memory utilization and potential data loss when restarting nodes.</p>
-<p>Can be modified without creating a new namespace: <code>yes</code></p>
-<h3 id="writestocommitlog">writesToCommitlog</h3>
-<p>This controls whether M3DB will includes writes to this namespace in the commitlog. This value should always be set to <code>true</code> unless you have a very good reason to change it as setting it to <code>false</code> will cause potential data loss when restarting nodes.</p>
-<p>Can be modified without creating a new namespace: <code>yes</code></p>
-<h3 id="snapshotenabled">snapshotEnabled</h3>
-<p>This controls whether M3DB will periodically write out <a href="../architecture/commitlogs.md">snapshot files</a> for this namespace which act as compacted commitlog files. This value should always be set to <code>true</code> unless you have a very good reason to change it as setting it to <code>false</code> will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).</p>
-<p>Can be modified without creating a new namespace: <code>yes</code></p>
-<h3 id="repairenabled">repairEnabled</h3>
-<p>If enabled, the M3DB nodes will attempt to compare the data they own with the data of their peers and emit metrics about any discrepancies. This feature is experimental and we do not recommend enabling it under any circumstances.</p>
-<h3 id="retentionoptions">retentionOptions</h3>
-<h4 id="retentionperiod">retentionPeriod</h4>
-<p>This controls the duration of time that M3DB will retain data for the namespace. For example, if this is set to 30 days, then data within this namespace will be available for querying up to 30 days after it is written. Note that this retention operates at the block level, not the write level, so its possible for individual datapoints to only be available for less than the specified retention. For example, if the blockSize was set to 24 hour and the retention was set to 30 days then a write that arrived at the very end of a 24 hour block would only be available for 29 days, but the node itself would always support querying the last 30 days worth of data.</p>
-<p>Can be modified without creating a new namespace: <code>yes</code></p>
-<h4 id="blocksize">blockSize</h4>
-<p>This is the most important value to consider when tuning the performance of an M3DB namespace. Read the <a href="../../m3db/architecture/engine.md">storage engine documentation</a> for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.</p>
-<p>Can be modified without creating a new namespace: <code>no</code></p>
-<h4 id="bufferfuture-and-bufferpast">bufferFuture and bufferPast</h4>
-<p>These values control how far into the future and the past (compared to the system time on an M3DB node) writes for the namespace will be accepted. For example, consider the following configuration:</p>
-<pre><code>bufferPast: 10m
-bufferFuture: 20m
-currentSystemTime: 2:35:00PM
+<p>This instructs M3DB to handle writes for new timeseries (for a given time block) asynchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so the default configuration of creating them asynchronously improves M3DBs write throughput significantly when many new series are being created all at once.</p>
+<p>However, since new time series are created asynchronously, it's possible that there may be a brief delay inbetween when a write is acknowledged by the client and when that series becomes available for subsequent reads.</p>
+<p>M3DB also allows operators to rate limit the number of new series that can be created per second via the following configuration:</p>
+<pre><code>writeNewSeriesLimitPerSecond: 1048576
 </code></pre>
 
-<p>Now consider the following writes (all of which arrive at 2:35:00PM system time, but include datapoints with the specified timestamps):</p>
-<pre><code>2:25:00PM - Accepted, within the 10m bufferPast
-
-2:24:59PM - Rejected, outside the 10m bufferPast
-
-2:55:00PM - Accepted, within the 20m bufferFuture
-
-2:55:01PM - Rejected, outside the 20m bufferFuture
+<p>This value can be set much lower than the default value for workloads in which a significant increase in cardinality usually indicates a misbehaving caller.</p>
+<h3 id="ignoring-corrupt-commitlogs-on-bootstrap">Ignoring Corrupt Commitlogs on Bootstrap</h3>
+<p>If M3DB is shut down gracefully (i.e via SIGTERM), it will ensure that all pending writes are flushed to the commitlog on disk before the process exists.
+However, in situations where the process crashed/exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
+In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either <strong>(a)</strong> come up successfully and tolerate an ostensibly minor amount of data or loss, or <strong>(b)</strong> attempt to stream the missing data from its peers.
+This behavior is controlled by the following default configuration:</p>
+<pre><code>bootstrap:
+  commitlog:
+    returnUnfulfilledForCorruptCommitLogFiles: false
 </code></pre>
 
-<p>While it may be tempting to configure <code>bufferPast</code> and <code>bufferFuture</code> to very large values to prevent writes from being rejected, this may cause performance issues. M3DB is a timeseries database that is optimized for realtime data. Out of order writes, as well as writes for times that are very far into the future or past are much more expensive and will cause additional CPU / memory pressure. In addition, M3DB cannot evict a block from memory until it is no longer mutable and large <code>bufferPast</code> and <code>bufferFuture</code> values effectively increase the amount of time that a block is mutable for which means that it must be kept in memory for a longer period of time.</p>
-<p>Can be modified without creating a new namespace: <code>yes</code></p>
-<h3 id="index-options">Index Options</h3>
-<p>TODO</p>
+<p>In the situation where only a single node fails, the optimal outcome is for the node to attempt to repair itself from one of its peers.
+However, if a quorum of nodes fail and encounter corrupt commitlog files, they will deadlock while attempting to stream data from each other, as no nodes will be able to make progress due to a lack of quorum.
+This issue requires an operator with significant M3DB operational experience to manually bootstrap the cluster; thus the official recommendation is to set <code>returnUnfulfilledForCorruptCommitLogFiles: false</code> to avoid this issue altogether. In most cases, a small amount of data loss is preferable to a quorum of nodes that crash and fail to start back up automatically.</p>
+<h2 id="tuning-for-consistency-and-durability">Tuning for Consistency and Durability</h2>
+<h3 id="client-write-and-read-consistency_1">Client Write and Read consistency</h3>
+<p>The most important thing to understand is that <strong>if you want to guarantee that you will be able to read the result of every successful write, then both writes and reads must be done with <code>majority</code> consistency.</strong>
+This means that both writes <em>and</em> reads will fail if a quorum of nodes are unavailable for a given shard.
+You can read about the consistency levels in more detail in <a href="../../m3db/architecture/consistencylevels/">the Consistency Levels section</a></p>
+<h3 id="commitlog-configuration_1">Commitlog Configuration</h3>
+<p>M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
+We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: <code>filesystem,peers,uninitialized_topology</code> as described in our <a href="../bootstrapping/">bootstrapping operational guide</a>.</p>
+<h3 id="writing-new-series-asynchronously_1">Writing New Series Asynchronously</h3>
+<p>If you want to guarantee that M3DB will immediately allow you to read data for writes that have been acknowledged by the client, including the situation where the previous write was for a brand new timeseries, then you  will need to change the default M3DB configuration to set <code>writeNewSeriesAsync: false</code> as a top-level key under the <code>db</code> section:</p>
+<pre><code>writeNewSeriesAsync: false
+</code></pre>
+
+<p>This instructs M3DB to handle writes for new timeseries (for a given time block) synchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so this configuration could have an adverse effect on performance when many new timeseries are being inserted into M3DB concurrently.</p>
+<p>Since this operation is so expensive, M3DB allows operator to rate limit the number of new series that can be created per second via the following configuration (also a top-level key under the <code>db</code> section):</p>
+<pre><code>writeNewSeriesLimitPerSecond: 1048576
+</code></pre>
+
+<h3 id="ignoring-corrupt-commitlogs-on-bootstrap_1">Ignoring Corrupt Commitlogs on Bootstrap</h3>
+<p>As described in the "Tuning for Performance and Availability" section, we recommend configuring M3DB to ignore corrupt commitlog files on bootstrap. However, if you want to avoid any amount of inconsistency or data loss, no matter how minor, then you should configure M3DB to return unfulfilled when the commitlog bootstrapper encounters corrupt commitlog files. You can do so by modifying your configuration to look like this:</p>
+<pre><code>bootstrap:
+  commitlog:
+    returnUnfulfilledForCorruptCommitLogFiles: true
+</code></pre>
+
+<p>This will force your M3DB nodes to attempt to repair corrupted commitlog files on bootstrap by streaming the data from their peers.
+In most situations this will be transparent to the operator and the M3DB node will finish bootstrapping without trouble.
+However, in the scenario where a quorum of nodes for a given shard failed in unison, the nodes will deadlock while attempting to stream data from each other, as no nodes will be able to make progress due to a lack of quorum.
+This issue requires an operator with significant M3DB operational experience to manually bootstrap the cluster; thus the official recommendation is to avoid configuring M3DB in this way unless data consistency and durability are of utmost importance.</p>
                 
                   
                 
@@ -1508,7 +1374,7 @@ currentSystemTime: 2:35:00PM
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../placement_configuration/" title="Placement/Topology Configuration" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../../how_to/query/" title="M3Query" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1517,19 +1383,19 @@ currentSystemTime: 2:35:00PM
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Placement/Topology Configuration
+                M3Query
               </span>
             </div>
           </a>
         
         
-          <a href="../bootstrapping/" title="Bootstrapping" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../placement/" title="Placement/Topology" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Bootstrapping
+                Placement/Topology
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">

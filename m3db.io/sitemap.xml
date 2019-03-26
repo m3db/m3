@@ -112,6 +112,12 @@
     
         
     <url>
+     <loc>/operational_guide/availability_consistency_durability/</loc>
+     <lastmod>2019-03-26</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
      <loc>/operational_guide/placement/</loc>
      <lastmod>2019-03-26</lastmod>
      <changefreq>daily</changefreq>
