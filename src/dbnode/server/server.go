@@ -1202,7 +1202,6 @@ func withEncodingAndPoolingOptions(
 	postingsListOpts := poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 
-	// Need to actually set pools
 	queryResultsPool := index.NewQueryResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(

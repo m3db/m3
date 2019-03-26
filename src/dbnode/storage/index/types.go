@@ -173,6 +173,11 @@ type AggregateResults interface {
 	Map() *AggregateResultsMap
 }
 
+// AggregateTermFilter dictates which fields will appear in the aggregated
+// result; if filter values exist, only those whose term matches a value in the
+// filter are returned.
+type AggregateTermFilter [][]byte
+
 // AggregateResultsOptions is a set of options to use for results.
 type AggregateResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
@@ -180,7 +185,7 @@ type AggregateResultsOptions struct {
 	SizeLimit int
 
 	// Optional param to filter aggregate values.
-	TermFilter [][]byte
+	TermFilter AggregateTermFilter
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.

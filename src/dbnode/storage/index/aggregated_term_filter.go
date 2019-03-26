@@ -20,28 +20,20 @@
 
 package index
 
-import "github.com/m3db/m3x/pool"
+import "bytes"
 
-type aggregateValuesPool struct {
-	pool pool.ObjectPool
-}
+// Allow returns true if the given term satisfies the filter.
+func (f AggregateTermFilter) Allow(term []byte) bool {
+	if len(f) == 0 {
+		// NB: if filter is empty, all values are valid.
+		return true
+	}
 
-// NewAggregateValuesPool creates a new AggregateValuesPool.
-func NewAggregateValuesPool(
-	opts pool.ObjectPoolOptions) AggregateValuesPool {
-	return &aggregateValuesPool{pool: pool.NewObjectPool(opts)}
-}
+	for _, allowed := range f {
+		if bytes.Equal(term, allowed) {
+			return true
+		}
+	}
 
-func (p *aggregateValuesPool) Init(alloc AggregateValuesAllocator) {
-	p.pool.Init(func() interface{} {
-		return alloc()
-	})
-}
-
-func (p *aggregateValuesPool) Get() AggregateValues {
-	return p.pool.Get().(AggregateValues)
-}
-
-func (p *aggregateValuesPool) Put(value AggregateValues) {
-	p.pool.Put(value)
+	return false
 }

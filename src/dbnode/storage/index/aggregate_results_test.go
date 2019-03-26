@@ -58,12 +58,12 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 
 	dInvalid = genDoc("", "foo")
 	size, err = res.AddDocuments([]doc.Document{dInvalid})
-	require.EqualError(t, err, "invalid document fields: empty term")
+	require.Error(t, err)
 	require.Equal(t, 0, size)
 
 	dInvalid = genDoc("foo", "")
 	size, err = res.AddDocuments([]doc.Document{dInvalid})
-	require.EqualError(t, err, "invalid document fields: empty value")
+	require.Error(t, err)
 	require.Equal(t, 0, size)
 }
 
@@ -173,7 +173,7 @@ func TestAggResultsMultipleBatchesMergeWithMaxSize(t *testing.T) {
 
 func TestAggResultsEmptyFilterMultipleBatchesMerge(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: [][]byte{},
+		TermFilter: toFilter(),
 	}, testOpts)
 	size := addMultipleDocuments(t, res)
 
@@ -188,18 +188,18 @@ func TestAggResultsEmptyFilterMultipleBatchesMerge(t *testing.T) {
 	contains(t, expected, res.Map())
 }
 
-func bs(strs ...string) [][]byte {
+func toFilter(strs ...string) AggregateTermFilter {
 	b := make([][]byte, len(strs))
 	for i, s := range strs {
 		b[i] = []byte(s)
 	}
 
-	return b
+	return AggregateTermFilter(b)
 }
 
 func TestAggResultsMultipleBatchesMergeFiltered(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: bs("buzz"),
+		TermFilter: toFilter("buzz"),
 	}, testOpts)
 
 	size := addMultipleDocuments(t, res)
@@ -214,7 +214,7 @@ func TestAggResultsMultipleBatchesMergeFiltered(t *testing.T) {
 
 func TestAggResultsMultipleBatchesMergeFilteredWithMaxSize(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: bs("buzz", "qux", "fizz"),
+		TermFilter: toFilter("buzz", "qux", "fizz"),
 		SizeLimit:  2,
 	}, testOpts)
 

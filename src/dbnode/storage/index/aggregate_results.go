@@ -21,7 +21,6 @@
 package index
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 
@@ -123,7 +122,7 @@ func (r *aggregatedResults) addDocumentWithLock(
 ) error {
 	for _, field := range document.Fields {
 		if err := r.addFieldWithLock(field.Name, field.Value); err != nil {
-			return err
+			return fmt.Errorf("unable to add document [%+v]: %v", document, err)
 		}
 	}
 
@@ -142,27 +141,18 @@ func (r *aggregatedResults) addFieldWithLock(
 		return fmt.Errorf(missingDocumentFields, "value")
 	}
 
-	// NB: can cast the []byte -> ident.ID to avoid an alloc
-	// before we're sure we need it.
-	var termID ident.ID = ident.BytesID(term)
-
 	// if a term filter is provided, ensure this field matches the filter,
 	// otherwise ignore it.
-	if len(r.aggregateOpts.TermFilter) > 0 {
-		found := false
-		for _, filtered := range r.aggregateOpts.TermFilter {
-			if bytes.Equal(filtered, term) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return nil
-		}
+	filter := r.aggregateOpts.TermFilter
+	if filter != nil && !filter.Allow(term) {
+		return nil
 	}
 
+	// NB: can cast the []byte -> ident.ID to avoid an alloc
+	// before we're sure we need it.
+	termID := ident.BytesID(term)
 	valueID := ident.BytesID(value)
+
 	valueMap, found := r.resultsMap.Get(termID)
 	if found {
 		return valueMap.addValue(valueID)

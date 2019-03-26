@@ -151,6 +151,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	queryIDs            instrument.MethodMetrics
+	aggregateQuery      instrument.MethodMetrics
 	unfulfilled         tally.Counter
 	bootstrapStart      tally.Counter
 	bootstrapEnd        tally.Counter
@@ -228,6 +229,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", samplingRate),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", samplingRate),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
 		bootstrapEnd:        scope.Counter("bootstrap.end"),
@@ -625,19 +627,19 @@ func (n *dbNamespace) AggregateQuery(
 ) (index.AggregateQueryResult, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
-		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
-		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{},
 			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 
 	res, err := n.reverseIndex.AggregateQuery(ctx, query, opts, aggResultOpts)
-	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	n.metrics.aggregateQuery.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
 
