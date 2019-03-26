@@ -235,7 +235,7 @@ func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
 		campaignState:                          scope.Gauge("campaign-state"),
 		campaigning:                            scope.Gauge("campaigning"),
 		leadersWithActiveShards:                scope.Gauge("leaders-with-active-shards"),
-		followerWithActiveShards:               scope.Gauge("follower-with-active-shards"),
+		followersWithActiveShards:              scope.Gauge("follower-with-active-shards"),
 	}
 }
 
