@@ -1405,7 +1405,7 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>The write will exist only in this "active buffer" and the commitlog until the block ends and is flushed to disk, at which point the write will exist in a fileset file for efficient storage and retrieval later and the commitlog entry can be garbage collected.</p>
 <p><strong>Note:</strong> Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured <a href="../consistencylevels/">consistency level</a>.</p>
 <h2 id="read-path">Read Path</h2>
-<p>A read begins when an M3DB client calls the <a href="https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift"><code>FetchBatchResult</code></a> or <a href="https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift"><code>FetchBlocksRawResult</code></a> endpoint on M3DB's embedded thrift server. The read request will contain the following information:</p>
+<p>A read begins when an M3DB client calls the <a href="https://github.com/m3db/m3/blob/master/src/dbnode/generated/thrift/rpc.thrift"><code>FetchBatchResult</code></a> or <a href="https://github.com/m3db/m3/blob/master/src/dbnode/generated/thrift/rpc.thrift"><code>FetchBlocksRawResult</code></a> endpoint on M3DB's embedded thrift server. The read request will contain the following information:</p>
 <ol>
 <li>The namespace</li>
 <li>The series ID (byte blob)</li>
