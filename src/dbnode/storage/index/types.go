@@ -180,7 +180,7 @@ type AggregateResultsOptions struct {
 	SizeLimit int
 
 	// Optional param to filter aggregate values.
-	TermFilter *AggregateValuesMap
+	TermFilter [][]byte
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.

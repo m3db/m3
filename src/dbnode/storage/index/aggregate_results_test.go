@@ -171,11 +171,35 @@ func TestAggResultsMultipleBatchesMergeWithMaxSize(t *testing.T) {
 	contains(t, expected, res.Map())
 }
 
-func TestAggResultsMultipleBatchesMergeFiltered(t *testing.T) {
-	filter := NewAggregateValues(testOpts)
-	filter.addValue(ident.StringID("buzz"))
+func TestAggResultsEmptyFilterMultipleBatchesMerge(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: filter.Map(),
+		TermFilter: [][]byte{},
+	}, testOpts)
+	size := addMultipleDocuments(t, res)
+
+	require.Equal(t, 4, size)
+	expected := map[string][]string{
+		"foo":  []string{"bar", "biz", "baz"},
+		"fizz": []string{"bar"},
+		"buzz": []string{"bar", "bag"},
+		"qux":  []string{"qaz"},
+	}
+
+	contains(t, expected, res.Map())
+}
+
+func bs(strs ...string) [][]byte {
+	b := make([][]byte, len(strs))
+	for i, s := range strs {
+		b[i] = []byte(s)
+	}
+
+	return b
+}
+
+func TestAggResultsMultipleBatchesMergeFiltered(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		TermFilter: bs("buzz"),
 	}, testOpts)
 
 	size := addMultipleDocuments(t, res)
@@ -189,12 +213,8 @@ func TestAggResultsMultipleBatchesMergeFiltered(t *testing.T) {
 }
 
 func TestAggResultsMultipleBatchesMergeFilteredWithMaxSize(t *testing.T) {
-	filter := NewAggregateValues(testOpts)
-	filter.addValue(ident.StringID("buzz"))
-	filter.addValue(ident.StringID("qux"))
-	filter.addValue(ident.StringID("fizz"))
 	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: filter.Map(),
+		TermFilter: bs("buzz", "qux", "fizz"),
 		SizeLimit:  2,
 	}, testOpts)
 

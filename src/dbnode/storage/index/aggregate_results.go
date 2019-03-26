@@ -21,6 +21,7 @@
 package index
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 
@@ -147,9 +148,18 @@ func (r *aggregatedResults) addFieldWithLock(
 
 	// if a term filter is provided, ensure this field matches the filter,
 	// otherwise ignore it.
-	if r.aggregateOpts.TermFilter != nil &&
-		!r.aggregateOpts.TermFilter.Contains(termID) {
-		return nil
+	if len(r.aggregateOpts.TermFilter) > 0 {
+		found := false
+		for _, filtered := range r.aggregateOpts.TermFilter {
+			if bytes.Equal(filtered, term) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil
+		}
 	}
 
 	valueID := ident.BytesID(value)
