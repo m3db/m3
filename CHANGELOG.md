@@ -1,5 +1,18 @@
 # Changelog
 
+# 0.8.0 (T.B.D)
+
+## Migration Disclaimer
+
+Version 0.8.0 of M3 switches M3DB to use file descriptors and the Read() system call for reading time series data files instead of mmaps.
+This should improve read latency and memory utilization for some workloads, particularly those in which the amount of data on disk vastly exceeds the amount of memory on the system.
+This changes also enables the ability to increase the fetch concurrency past the default value.
+
+As a result of this change, M3DB will allocate significantly less mmaps, but will create a corresponding amount of file descriptors.
+
+Operators may need to tune their kernel configuration to allow a higher number of open file descriptors. Please follow our [Kernel Configuration Guide](http://m3db.github.io/m3/operational_guide/kernel_configuration/) for more details.
+
+
 # 0.7.3 (2019-03-22)
 
 ## New Features

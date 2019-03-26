@@ -31,12 +31,34 @@ To set this value permanently, update the `vm.swappiness` setting in `/etc/sysct
 ## rlimits
 M3DB also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.
 
-On Linux you can set a high limit for maximum number of open files in `/etc/security/limits.conf`:
+You may need to override the system and process-level limits set by the kernel with the following commands. To check the existing values run:
+
 ```
-your_m3db_user        hard nofile 500000
-your_m3db_user        soft nofile 500000
+sysctl -n fs.file-max
 ```
+
+and
+
+```
+sysctl -n fs.nr_open
+```
+
+to see the kernel and process limits respectively.
+If either of the values are less than three million (our minimum recommended value), then you can update them with the following commands:
+
+```
+sysctl -w fs.file-max=3000000
+```
+
+```
+sysctl -w fs.nr_open=3000000
+```
+
+To set these values permanently, update the `fs.file-max` and `fs.nr_open` settings in `/etc/sysctl.conf`.
 
 Alternatively, if you wish to have M3DB run under `systemd` you can use our [service example](https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service) which will set sane defaults.
+Keep in mind that you'll still need to configure the kernel and process limits because systemd will not allow a process to exceed them and will silently fallback to a default value which could cause M3DB to crash due to hitting the file descriptor limit.
+Also note that systemd has a `system.conf` file and a `user.conf` file which may contain limits that the service-specific configuration files cannot override.
+Be sure to check that those files aren't configured with values lower than the value you configure at the service level.
 
-Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 500000`.
+Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 3000000`.
