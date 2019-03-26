@@ -1,5 +1,21 @@
 # Changelog
 
+# 0.7.3 (2019-03-22)
+
+## New Features
+
+- **M3DB**: Add an AllQuery index query type (#1478)
+
+## Bug Fixes
+
+- **M3DB**: Fix to annotation pooling (#1476)
+- **M3Coordinator**: Only panics log a stacktrace rather than expected errors (#1480)
+
+## Performance
+
+- **M3DB**: Use a single results object for merging postings lists across blocks, rather than creating a result per block and discarding them immediately thereafter (#1474)
+- **M3DB**: Improvement to applying back pressure on writes with a full commitlog, which should improve recovery when dealing with spiky traffic (#1482)
+
 # 0.7.2 (2019-03-15)
 
 ## Bug Fixes

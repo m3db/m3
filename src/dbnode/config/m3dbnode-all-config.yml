@@ -114,7 +114,9 @@ db:
         - peers
         - uninitialized_topology
     fs:
-        numProcessorsPerCPU: 0.125
+      numProcessorsPerCPU: 0.125
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
     # Caching policy for database blocks.
@@ -129,9 +131,8 @@ db:
     # Configuration for the commitlog queue. High throughput setups may require higher
     # values. Higher values will use more memory.
     queue:
-        calculationType: fixed
-        size: 2097152
-    blockSize: 10m
+      calculationType: fixed
+      size: 2097152
 
   fs:
     # Directory to store M3DB data in.
