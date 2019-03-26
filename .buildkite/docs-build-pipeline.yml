@@ -1,0 +1,15 @@
+steps:
+  - name: "Docs build and push :books:"
+    command: ".buildkite/scripts/docs_push.sh"
+    agents:
+      queue: workers
+    timeout_in_minutes: 20
+    retry:
+      automatic:
+        limit: 1
+      manual: true
+    plugins:
+      docker-compose#v2.5.1:
+        run: docs
+        config: .buildkite/docs-docker-compose.yml
+        workdir: /go/src/github.com/m3db/m3
