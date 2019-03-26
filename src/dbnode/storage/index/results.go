@@ -37,34 +37,34 @@ type results struct {
 	sync.RWMutex
 
 	nsID ident.ID
-	opts ResultsOptions
+	opts QueryResultsOptions
 
 	resultsMap *ResultsMap
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       ResultsPool
+	pool       QueryResultsPool
 	noFinalize bool
 }
 
-// NewResults returns a new results object.
-func NewResults(
+// NewQueryResults returns a new query results object.
+func NewQueryResults(
 	namespaceID ident.ID,
-	opts ResultsOptions,
+	opts QueryResultsOptions,
 	indexOpts Options,
-) Results {
+) QueryResults {
 	return &results{
 		nsID:       namespaceID,
 		opts:       opts,
 		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
 		idPool:     indexOpts.IdentifierPool(),
 		bytesPool:  indexOpts.CheckedBytesPool(),
-		pool:       indexOpts.ResultsPool(),
+		pool:       indexOpts.QueryResultsPool(),
 	}
 }
 
-func (r *results) Reset(nsID ident.ID, opts ResultsOptions) {
+func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	r.Lock()
 
 	r.opts = opts
@@ -187,7 +187,7 @@ func (r *results) Finalize() {
 	}
 
 	// Reset locks so cannot hold onto lock for call to Finalize.
-	r.Reset(nil, ResultsOptions{})
+	r.Reset(nil, QueryResultsOptions{})
 
 	if r.pool == nil {
 		return

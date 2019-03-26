@@ -74,15 +74,16 @@ func (o QueryOptions) LimitExceeded(size int) bool {
 	return o.Limit > 0 && size >= o.Limit
 }
 
-// QueryReturnResults is the collection of results for a query.
-type QueryReturnResults struct {
-	Results    Results
+// Results is the collection of results for a query.
+type Results struct {
+	Results    BaseResults
 	Exhaustive bool
 }
 
-// Results is a collection of results for a generic query, it is synchronized
-// when access to the results set is used as documented by the methods.
-type Results interface {
+// BaseResults is a collection of basic results for a generic query, it is
+// synchronized when access to the results set is used as documented by the
+// methods.
+type BaseResults interface {
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
@@ -104,10 +105,10 @@ type Results interface {
 // QueryResults is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type QueryResults interface {
-	Results
+	BaseResults
 
 	// Reset resets the Results object to initial state.
-	Reset(nsID ident.ID, opts ResultsOptions)
+	Reset(nsID ident.ID, opts QueryResultsOptions)
 
 	// Map returns the results map from seriesID -> seriesTags, comprising
 	// index results.
@@ -123,25 +124,25 @@ type QueryResults interface {
 	NoFinalize()
 }
 
-// ResultsOptions is a set of options to use for results.
-type ResultsOptions struct {
+// QueryResultsOptions is a set of options to use for query results.
+type QueryResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
 }
 
-// ResultsAllocator allocates Results types.
-type ResultsAllocator func() Results
+// QueryResultsAllocator allocates QueryResults types.
+type QueryResultsAllocator func() QueryResults
 
-// ResultsPool allows users to pool `Results` types.
-type ResultsPool interface {
-	// Init initializes the results pool.
-	Init(alloc ResultsAllocator)
+// QueryResultsPool allows users to pool `Results` types.
+type QueryResultsPool interface {
+	// Init initializes the QueryResults pool.
+	Init(alloc QueryResultsAllocator)
 
-	// Get retrieves a Results object for use.
+	// Get retrieves a QueryResults object for use.
 	Get() QueryResults
 
-	// Put returns the provided Results to the pool.
+	// Put returns the provided QueryResults to the pool.
 	Put(value QueryResults)
 }
 
@@ -149,7 +150,7 @@ type ResultsPool interface {
 // synchronized when access to the results set is used as documented by the
 // methods.
 type AggregateResults interface {
-	Results
+	BaseResults
 
 	// Reset resets the AggregateResults object to initial state.
 	Reset(nsID ident.ID, opts AggregateResultsOptions)
@@ -235,7 +236,7 @@ type Block interface {
 		cancellable *resource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
-		results Results,
+		results BaseResults,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block, if c.
@@ -716,11 +717,11 @@ type Options interface {
 	// CheckedBytesPool returns the checked bytes pool.
 	CheckedBytesPool() pool.CheckedBytesPool
 
-	// SetResultsPool updates the results pool.
-	SetResultsPool(values ResultsPool) Options
+	// SetQueryResultsPool updates the query results pool.
+	SetQueryResultsPool(values QueryResultsPool) Options
 
 	// ResultsPool returns the results pool.
-	ResultsPool() ResultsPool
+	QueryResultsPool() QueryResultsPool
 
 	// SetAggregateResultsPool updates the aggregate results pool.
 	SetAggregateResultsPool(values AggregateResultsPool) Options

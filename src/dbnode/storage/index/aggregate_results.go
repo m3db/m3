@@ -134,60 +134,38 @@ func (r *aggregatedResults) addFieldWithLock(
 ) error {
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
 	// before we're sure we need it.
-	termID := ident.BytesID(term)
+	var termID ident.ID = ident.BytesID(term)
 
 	// if this term hasn't been seen, ensure it should be included in output.
 	if !r.opts.TermFilter.Contains(termID) {
 		return nil
 	}
 
+	valueBytes := r.bytesPool.Get(len(value))
+	valueBytes.IncRef()
+	valueBytes.AppendAll(value)
+	valueBytes.DecRef()
+	valueID := r.idPool.BinaryID(valueBytes)
 	valueMap, found := r.resultsMap.Get(termID)
 	if found {
-		valueID := ident.BytesID(value)
 		return valueMap.addValue(valueID)
 	}
 
 	aggValues := r.valuesPool.Get()
-	valueID := ident.BytesID(value)
 	if err := aggValues.addValue(valueID); err != nil {
 		// Return these values to the pool.
 		r.valuesPool.Put(aggValues)
 		return err
 	}
 
+	termBytes := r.bytesPool.Get(len(value))
+	termBytes.IncRef()
+	termBytes.AppendAll(term)
+	termBytes.DecRef()
+	termID = r.idPool.BinaryID(termBytes)
 	r.resultsMap.Set(termID, aggValues)
 	return nil
 }
-
-// func (r *aggregatedResults) AddIDAndValues(
-// 	termID ident.ID,
-// 	values AggregateValues,
-// ) error {
-// 	valueIt := values.Map().Iter()
-
-// 	valueMap, found := r.resultsMap.Get(termID)
-// 	if found {
-// 		for _, value := range valueIt {
-// 			if err := valueMap.addValue(value.Key()); err != nil {
-// 				return err
-// 			}
-// 		}
-
-// 		return nil
-// 	}
-
-// 	aggValues := r.valuesPool.Get()
-// 	for _, value := range valueIt {
-// 		if err := aggValues.addValue(value.Key()); err != nil {
-// 			// Return these values to the pool.
-// 			r.valuesPool.Put(aggValues)
-// 			return err
-// 		}
-// 	}
-
-// 	r.resultsMap.Set(termID, aggValues)
-// 	return nil
-// }
 
 func (r *aggregatedResults) Namespace() ident.ID {
 	r.RLock()

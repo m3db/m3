@@ -598,17 +598,17 @@ func (n *dbNamespace) QueryIDs(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.QueryReturnResults, error) {
+) (index.Results, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryReturnResults{}, errNamespaceIndexingDisabled
+		return index.Results{}, errNamespaceIndexingDisabled
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryReturnResults{},
+		return index.Results{},
 			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 
@@ -622,17 +622,17 @@ func (n *dbNamespace) AggregateQuery(
 	query index.Query,
 	opts index.QueryOptions,
 	aggResultOpts *index.AggregateResultsOptions,
-) (index.QueryReturnResults, error) {
+) (index.Results, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryReturnResults{}, errNamespaceIndexingDisabled
+		return index.Results{}, errNamespaceIndexingDisabled
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryReturnResults{},
+		return index.Results{},
 			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 

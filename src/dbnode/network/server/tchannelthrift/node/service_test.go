@@ -210,7 +210,7 @@ func TestServiceQuery(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryReturnResults{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.Results{Results: resMap, Exhaustive: true}, nil)
 
 	limit := int64(10)
 	r, err := service.Query(tctx, &rpc.QueryRequest{
@@ -329,7 +329,7 @@ func TestServiceQueryUnknownErr(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryReturnResults{}, unknownErr)
+		}).Return(index.Results{}, unknownErr)
 
 	limit := int64(10)
 	_, err = service.Query(tctx, &rpc.QueryRequest{
@@ -1083,7 +1083,7 @@ func TestServiceFetchTagged(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryReturnResults{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.Results{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1226,7 +1226,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryReturnResults{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.Results{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1299,7 +1299,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryReturnResults{}, fmt.Errorf("random err"))
+		}).Return(index.Results{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace:  []byte(nsID),
 		Query:      data,

@@ -61,7 +61,7 @@ func (v *AggregateValues) reset() {
 		ident.Finalize()
 	}
 
-	// reset all keys in the map next
+	// reset the map itself next
 	v.valuesMap.Reset()
 }
 
@@ -80,7 +80,13 @@ func (v *AggregateValues) addValue(value ident.ID) error {
 		return errUnableToAddValueMissingID
 	}
 
-	// TODO: check to see if the value should be cloned here prior to insertion.
+	// this value has already been added; finalize the incoming ID since it is not
+	// needed.
+	if v.valuesMap.Contains(bytesID) {
+		value.Finalize()
+		return nil
+	}
+
 	v.valuesMap.Set(bytesID, struct{}{})
 	return nil
 }

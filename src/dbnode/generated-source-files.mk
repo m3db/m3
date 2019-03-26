@@ -39,7 +39,6 @@ genny-map-all:                                \
 	genny-map-storage-index-aggregation-results \
 	genny-map-storage-bootstrap-bootstrapper-commitlog
 
-
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
 genny-map-client-received-blocks: install-m3x-repo

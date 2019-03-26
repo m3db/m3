@@ -98,7 +98,7 @@ type opts struct {
 	fstOpts                         fst.Options
 	idPool                          ident.Pool
 	bytesPool                       pool.CheckedBytesPool
-	resultsPool                     ResultsPool
+	resultsPool                     QueryResultsPool
 	aggResultsPool                  AggregateResultsPool
 	aggValuesPool                   AggregateValuesPool
 	docArrayPool                    doc.DocumentArrayPool
@@ -112,7 +112,7 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 
 // NewOptions returns a new Options object with default properties.
 func NewOptions() Options {
-	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
+	resultsPool := NewQueryResultsPool(pool.NewObjectPoolOptions())
 	aggResultsPool := NewAggregateResultsPool(pool.NewObjectPoolOptions())
 	aggValuesPool := NewAggregateValuesPool(pool.NewObjectPoolOptions())
 
@@ -148,8 +148,8 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
-	resultsPool.Init(func() Results {
-		return NewResults(nil, ResultsOptions{}, opts)
+	resultsPool.Init(func() QueryResults {
+		return NewQueryResults(nil, QueryResultsOptions{}, opts)
 	})
 	aggResultsPool.Init(func() AggregateResults {
 		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
@@ -264,13 +264,13 @@ func (o *opts) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
 }
 
-func (o *opts) SetResultsPool(value ResultsPool) Options {
+func (o *opts) SetQueryResultsPool(value QueryResultsPool) Options {
 	opts := *o
 	opts.resultsPool = value
 	return &opts
 }
 
-func (o *opts) ResultsPool() ResultsPool {
+func (o *opts) QueryResultsPool() QueryResultsPool {
 	return o.resultsPool
 }
 
