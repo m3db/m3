@@ -12,6 +12,14 @@ while true; do\n\
   if [ "$SVAL" -ne 1 ]; then\n\
     sysctl -w vm.swappiness=1\n\
   fi\n\
+  FVAL=$(sysctl -n fs.file-max)\n\
+  if [ "$FVAL" -ne 3000000 ]; then\n\
+    sysctl -w fs.file-max=3000000\n\
+  fi\n\
+  OVAL=$(sysctl -n fs.nr_open)\n\
+  if [ "$OVAL" -ne 3000000 ]; then\n\
+    sysctl -w fs.nr_open=3000000\n\
+  fi\n\
   sleep 60\n\
 done' > /bin/m3dbnode_sysctl.sh &&\
   chmod +x /bin/m3dbnode_sysctl.sh
