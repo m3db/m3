@@ -88,7 +88,8 @@ TOOLS :=               \
 	dtest                \
 	verify_commitlogs    \
 	verify_index_files   \
-	carbon_load
+	carbon_load          \
+	docs_test            \
 
 .PHONY: setup
 setup:
@@ -198,20 +199,24 @@ docs-container:
 	docker run --rm hello-world >/dev/null
 	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
 
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
+
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our
 # Makefile assumes its running under bash and the container is alpine (ash
 # shell).
 .PHONY: docs-build
-docs-build: docs-container
+docs-build: docs-validate docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
 
 .PHONY: docs-serve
-docs-serve: docs-container
+docs-serve: docs-validate docs-container
 	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -e docs/theme -t material -a 0.0.0.0:8000"
 
 .PHONY: docs-deploy
-docs-deploy: docs-container
+docs-deploy: docs-validate docs-container
 	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
 
 .PHONY: docker-integration-test

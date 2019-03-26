@@ -1,5 +1,5 @@
-hash: 1142bd7c68492e34422277010dfee8fd45c6810cceaa25194352178a1315f716
-updated: 2019-02-21T12:08:41.672845643-05:00
+hash: be677953e675589aaf15ae31c623336117551cb188e0f86dafd0c64f514324f8
+updated: 2019-03-26T12:06:00.366774-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -140,8 +140,6 @@ imports:
   - currency
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
-- name: github.com/go-stack/stack
-  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
   version: ba06b47c162d49f2af050fb4c75bcbc86a159d5c
   subpackages:
@@ -160,7 +158,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: aa810b61a9c79d51363740d207bb46cf8e620ed5
+  version: b5d812f8a3706043e23a9cd5babf2e5423744d30
   subpackages:
   - jsonpb
   - proto
@@ -370,13 +368,17 @@ imports:
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
-  version: 3d677d3262197ee558b85029301eb69b8239f91a
+  version: 8d778e47dd84f169ef4436abb474b0e0101a6dae
+- name: github.com/russross/blackfriday
+  version: d3b5b032dc8e8927d31a5071b56e14c89f045135
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
   version: feef008d51ad2b3778f85d387ccf91735543008d
   subpackages:
   - diffmatchpatch
+- name: github.com/shurcooL/sanitized_anchor_name
+  version: 7bfe4c7ecddb3666a94b053b422cdd8f5aaa3615
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/afero
@@ -394,7 +396,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 6d33b5a963d922d182c91e8a1c88d81fd150cfd4
+  version: 9e56dacc08fbbf8c9ee2dbc717553c758ce42bc9
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
@@ -407,7 +409,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: ff17f3c43c065c3c2991f571e740eee43ea3a14a
+  version: e9a67ec1839e1f6e5133dbcca2f57bec12fdeda2
   subpackages:
   - m3
   - m3/customtransports
@@ -416,7 +418,7 @@ imports:
   - multi
   - prometheus
 - name: github.com/uber/jaeger-client-go
-  version: 1a782e2da844727691fef1757c72eb190c2909f0
+  version: 2f47546e3facd43297739439600bcf43f44cce5d
   subpackages:
   - config
   - internal/baggage
