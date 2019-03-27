@@ -135,7 +135,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
-	enc.encodeProto(enc.unmarshaled)
+	if err := enc.encodeProto(enc.unmarshaled); err != nil {
+		return fmt.Errorf(
+			"%s error encoding proto portion of message: %v", encErrPrefix, err)
+	}
+
 	enc.numEncoded++
 	enc.lastEncodedDP = dp
 	return nil
@@ -502,6 +506,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 }
 
 func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
+	printMessage("beggining of encodeProtoValues", m)
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
@@ -519,6 +524,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 			// impacts performance too much.
 			fieldNum := field.GetNumber()
 			if !fieldsContains(fieldNum, schemaFields) {
+				fmt.Println("clearing not exist in schema: ", fieldNum)
 				if err := m.TryClearFieldByNumber(int(fieldNum)); err != nil {
 					return err
 				}
@@ -534,6 +540,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 			)
 
 			if fieldsEqual(curVal, prevVal) {
+				fmt.Println("clearing: ", fieldNumInt)
 				// Clear fields that haven't changed.
 				if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
 					return err
@@ -542,8 +549,8 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 				isDefaultValue, err := isDefaultValue(field, curVal)
 				if err != nil {
 					return fmt.Errorf(
-						"error checking if %v is default value for field %s",
-						curVal, field.String())
+						"error: %v, checking if %v is default value for field %s",
+						err, curVal, field.String())
 				}
 				if isDefaultValue {
 					fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
@@ -558,6 +565,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	if len(changedFields) == 0 && enc.lastEncoded != nil {
+		fmt.Println("NO CHANGES")
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
@@ -566,6 +574,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 
 	// TODO(rartoul): Need to add a MarshalInto to the ProtoReflect library to save
 	// allocations: https://github.com/m3db/m3/issues/1471
+	printMessage("marshaling", m)
 	marshaled, err := m.Marshal()
 	if err != nil {
 		return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
@@ -810,4 +819,13 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 		return bytesPool.Get(capacity)
 	}
 	return checked.NewBytes(make([]byte, 0, capacity), nil)
+}
+
+// TODO: Delete me
+func printMessage(prefix string, m *dynamic.Message) {
+	json, err := m.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s: %s\n", prefix, string(json))
 }

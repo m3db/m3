@@ -273,7 +273,7 @@ func (it *iterator) readCustomValues() error {
 func (it *iterator) readProtoValues() error {
 	protoChangesControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return fmt.Errorf("%s: err reading proto changes control bit: %v", itErrPrefix, err)
+		return fmt.Errorf("%s err reading proto changes control bit: %v", itErrPrefix, err)
 	}
 
 	if protoChangesControlBit == opCodeNoChange {
@@ -283,7 +283,7 @@ func (it *iterator) readProtoValues() error {
 
 	fieldsSetToDefaultControlBit, err := it.stream.ReadBit()
 	if err != nil {
-		return fmt.Errorf("%s: err reading field set to default control bit: %v", itErrPrefix, err)
+		return fmt.Errorf("%s err reading field set to default control bit: %v", itErrPrefix, err)
 	}
 
 	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
@@ -297,12 +297,12 @@ func (it *iterator) readProtoValues() error {
 
 	marshalLen, err := it.readVarInt()
 	if err != nil {
-		return fmt.Errorf("%s: err reading proto length varint: %v", itErrPrefix, err)
+		return fmt.Errorf("%s err reading proto length varint: %v", itErrPrefix, err)
 	}
 
 	if marshalLen > maxMarshaledProtoMessageSize {
 		return fmt.Errorf(
-			"%s: marshaled protobuf size was %d which is larger than the maximum of %d",
+			"%s marshaled protobuf size was %d which is larger than the maximum of %d",
 			itErrPrefix, marshalLen, maxMarshaledProtoMessageSize)
 	}
 
@@ -314,7 +314,7 @@ func (it *iterator) readProtoValues() error {
 	}
 	if n != int(marshalLen) {
 		return fmt.Errorf(
-			"%s: tried to read %d marshaled proto bytes but only read %d",
+			"%s tried to read %d marshaled proto bytes but only read %d",
 			itErrPrefix, int(marshalLen), n)
 	}
 
@@ -337,8 +337,8 @@ func (it *iterator) readProtoValues() error {
 		isDefaultValue, err := isDefaultValue(field, curVal)
 		if err != nil {
 			return fmt.Errorf(
-				"%s: error checking if %v is default value for field %s",
-				itErrPrefix, curVal, field.String())
+				"%s error: %v checking if %v is default value for field %s",
+				itErrPrefix, err, curVal, field.String())
 		}
 
 		if isDefaultValue {
