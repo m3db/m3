@@ -108,11 +108,13 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 	batch []doc.Document,
 ) error {
 	for _, doc := range batch {
-		if r.aggregateOpts.Type == AggregateTagNamesAndValues {
+		switch r.aggregateOpts.Type {
+		case AggregateTagNamesAndValues:
 			if err := r.addDocumentWithLock(doc); err != nil {
 				return err
 			}
-		} else {
+
+		case AggregateTagNames:
 			// NB: if aggregating by name only, can ignore any additional documents
 			// after the result map size exceeds the optional size limit, since all
 			// incoming terms are either duplicates or new values which will exceed
@@ -125,6 +127,8 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 			if err := r.addDocumentTermsWithLock(doc); err != nil {
 				return err
 			}
+		default:
+			return fmt.Errorf("unsupported aggregation type: %v", r.aggregateOpts.Type)
 		}
 	}
 

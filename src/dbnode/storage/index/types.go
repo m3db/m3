@@ -57,7 +57,7 @@ const (
 )
 
 // AggregationType specifies what granularity to aggregate upto.
-type AggregationType byte
+type AggregationType uint8
 
 const (
 	// AggregateTagNamesAndValues returns both the tag name and value.

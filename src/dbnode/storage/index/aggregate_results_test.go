@@ -88,7 +88,6 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 }
 
 func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
-	// res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	dValid := genDoc("foo", "bar")
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
@@ -109,6 +108,16 @@ func TestAggResultsTermOnlyInsertIdempotency(t *testing.T) {
 		Type: AggregateTagNames,
 	}, testOpts)
 	testAggResultsInsertIdempotency(t, res)
+}
+
+func TestInvalidAggregateType(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		Type: 100,
+	}, testOpts)
+	dValid := genDoc("foo", "bar")
+	size, err := res.AddDocuments([]doc.Document{dValid})
+	require.Error(t, err)
+	require.Equal(t, 0, size)
 }
 
 func TestAggResultsSameName(t *testing.T) {
