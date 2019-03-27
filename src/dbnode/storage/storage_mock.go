@@ -3509,3 +3509,59 @@ func (mr *MockOptionsMockRecorder) WriteBatchPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchPool", reflect.TypeOf((*MockOptions)(nil).WriteBatchPool))
 }
+
+// SetBufferBucketPool mocks base method
+func (m *MockOptions) SetBufferBucketPool(value *series.BufferBucketPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBufferBucketPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBufferBucketPool indicates an expected call of SetBufferBucketPool
+func (mr *MockOptionsMockRecorder) SetBufferBucketPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketPool), value)
+}
+
+// BufferBucketPool mocks base method
+func (m *MockOptions) BufferBucketPool() *series.BufferBucketPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BufferBucketPool")
+	ret0, _ := ret[0].(*series.BufferBucketPool)
+	return ret0
+}
+
+// BufferBucketPool indicates an expected call of BufferBucketPool
+func (mr *MockOptionsMockRecorder) BufferBucketPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketPool))
+}
+
+// SetBufferBucketVersionsPool mocks base method
+func (m *MockOptions) SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBufferBucketVersionsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBufferBucketVersionsPool indicates an expected call of SetBufferBucketVersionsPool
+func (mr *MockOptionsMockRecorder) SetBufferBucketVersionsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketVersionsPool), value)
+}
+
+// BufferBucketVersionsPool mocks base method
+func (m *MockOptions) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BufferBucketVersionsPool")
+	ret0, _ := ret[0].(*series.BufferBucketVersionsPool)
+	return ret0
+}
+
+// BufferBucketVersionsPool indicates an expected call of BufferBucketVersionsPool
+func (mr *MockOptionsMockRecorder) BufferBucketVersionsPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketVersionsPool))
+}

@@ -914,6 +914,10 @@ func (b *BufferBucket) hasJustSingleBootstrappedBlock() bool {
 	return encodersEmpty && len(b.bootstrapped) == 1
 }
 
+func (b *BufferBucket) newEncoder() encoding.Encoder {
+	return b.opts.EncoderPool().Get()
+}
+
 func (b *BufferBucket) merge() (int, error) {
 	if !b.needsMerge() {
 		// Save unnecessary work
