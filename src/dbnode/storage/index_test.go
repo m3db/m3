@@ -308,10 +308,12 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	assert.Equal(t, 0, result.Results.Size())
 
 	// Aggregate query on the non-overlapping range
-	aggResult, err := idx.AggregateQuery(ctx, query, index.QueryOptions{
-		StartInclusive: now.Add(-3 * test.indexBlockSize),
-		EndExclusive:   now.Add(-2 * test.indexBlockSize),
-	}, index.AggregateResultsOptions{})
+	aggResult, err := idx.AggregateQuery(ctx, query, index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: now.Add(-3 * test.indexBlockSize),
+			EndExclusive:   now.Add(-2 * test.indexBlockSize),
+		},
+	})
 	require.NoError(t, err)
 	assert.True(t, aggResult.Exhaustive)
 	assert.Equal(t, 0, aggResult.Results.Size())

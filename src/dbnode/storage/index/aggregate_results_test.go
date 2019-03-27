@@ -67,8 +67,28 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 	require.Equal(t, 0, size)
 }
 
-func TestAggResultsInsertIdempotency(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+func TestAggResultsTermOnlyInsert(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		Type: AggregateTagNames,
+	}, testOpts)
+	dInvalid := doc.Document{Fields: []doc.Field{{}}}
+	size, err := res.AddDocuments([]doc.Document{dInvalid})
+	require.Error(t, err)
+	require.Equal(t, 0, size)
+
+	dInvalid = genDoc("", "foo")
+	size, err = res.AddDocuments([]doc.Document{dInvalid})
+	require.Error(t, err)
+	require.Equal(t, 0, size)
+
+	valid := genDoc("foo", "")
+	size, err = res.AddDocuments([]doc.Document{valid})
+	require.NoError(t, err)
+	require.Equal(t, 1, size)
+}
+
+func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
+	// res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	dValid := genDoc("foo", "bar")
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
@@ -77,6 +97,18 @@ func TestAggResultsInsertIdempotency(t *testing.T) {
 	size, err = res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+}
+
+func TestAggResultsInsertIdempotency(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+	testAggResultsInsertIdempotency(t, res)
+}
+
+func TestAggResultsTermOnlyInsertIdempotency(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		Type: AggregateTagNames,
+	}, testOpts)
+	testAggResultsInsertIdempotency(t, res)
 }
 
 func TestAggResultsSameName(t *testing.T) {
@@ -104,7 +136,32 @@ func TestAggResultsSameName(t *testing.T) {
 	assert.True(t, aggVals.Map().Contains(ident.StringID("biz")))
 }
 
-func contains(t *testing.T, ex map[string][]string, ac *AggregateResultsMap) {
+func TestAggResultsTermOnlySameName(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		Type: AggregateTagNames,
+	}, testOpts)
+	d1 := genDoc("foo", "bar")
+	size, err := res.AddDocuments([]doc.Document{d1})
+	require.NoError(t, err)
+	require.Equal(t, 1, size)
+
+	rMap := res.Map()
+	aggVals, ok := rMap.Get(ident.StringID("foo"))
+	require.True(t, ok)
+	require.Equal(t, 0, aggVals.Size())
+
+	d2 := genDoc("foo", "biz")
+	size, err = res.AddDocuments([]doc.Document{d2})
+	require.NoError(t, err)
+	require.Equal(t, 1, size)
+
+	aggVals, ok = rMap.Get(ident.StringID("foo"))
+	require.True(t, ok)
+	require.Equal(t, 0, aggVals.Size())
+}
+
+func assertContains(t *testing.T,
+	ex map[string][]string, ac *AggregateResultsMap) {
 	require.Equal(t, len(ex), ac.Len())
 	for k, v := range ex {
 		aggVals, ok := ac.Get(ident.StringID(k))
@@ -138,54 +195,13 @@ func addMultipleDocuments(t *testing.T, res AggregateResults) int {
 	return size
 }
 
-func TestAggResultsMultipleBatchesMerge(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	size := addMultipleDocuments(t, res)
-
-	require.Equal(t, 4, size)
-	expected := map[string][]string{
-		"foo":  []string{"bar", "biz", "baz"},
-		"fizz": []string{"bar"},
-		"buzz": []string{"bar", "bag"},
-		"qux":  []string{"qaz"},
+func expectedTermsOnly(ex map[string][]string) map[string][]string {
+	m := make(map[string][]string, len(ex))
+	for k := range ex {
+		m[k] = []string{}
 	}
 
-	contains(t, expected, res.Map())
-}
-
-func TestAggResultsMultipleBatchesMergeWithMaxSize(t *testing.T) {
-	filter := NewAggregateValues(testOpts)
-	filter.addValue(ident.StringID("buzz"))
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		SizeLimit: 2,
-	}, testOpts)
-
-	size := addMultipleDocuments(t, res)
-	require.Equal(t, 2, size)
-
-	expected := map[string][]string{
-		"foo":  []string{"bar", "biz", "baz"},
-		"fizz": []string{"bar"},
-	}
-
-	contains(t, expected, res.Map())
-}
-
-func TestAggResultsEmptyFilterMultipleBatchesMerge(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: toFilter(),
-	}, testOpts)
-	size := addMultipleDocuments(t, res)
-
-	require.Equal(t, 4, size)
-	expected := map[string][]string{
-		"foo":  []string{"bar", "biz", "baz"},
-		"fizz": []string{"bar"},
-		"buzz": []string{"bar", "bag"},
-		"qux":  []string{"qaz"},
-	}
-
-	contains(t, expected, res.Map())
+	return m
 }
 
 func toFilter(strs ...string) AggregateTermFilter {
@@ -197,36 +213,81 @@ func toFilter(strs ...string) AggregateTermFilter {
 	return AggregateTermFilter(b)
 }
 
-func TestAggResultsMultipleBatchesMergeFiltered(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: toFilter("buzz"),
-	}, testOpts)
-
-	size := addMultipleDocuments(t, res)
-	require.Equal(t, 1, size)
-
-	expected := map[string][]string{
-		"buzz": []string{"bar", "bag"},
-	}
-
-	contains(t, expected, res.Map())
+var mergeTests = []struct {
+	name     string
+	opts     AggregateResultsOptions
+	expected map[string][]string
+}{
+	{
+		name: "no limit no filter",
+		opts: AggregateResultsOptions{},
+		expected: map[string][]string{
+			"foo":  []string{"bar", "biz", "baz"},
+			"fizz": []string{"bar"},
+			"buzz": []string{"bar", "bag"},
+			"qux":  []string{"qaz"},
+		},
+	},
+	{
+		name: "with limit no filter",
+		opts: AggregateResultsOptions{SizeLimit: 2},
+		expected: map[string][]string{
+			"foo":  []string{"bar", "biz", "baz"},
+			"fizz": []string{"bar"},
+		},
+	},
+	{
+		name: "no limit empty filter",
+		opts: AggregateResultsOptions{TermFilter: toFilter()},
+		expected: map[string][]string{
+			"foo":  []string{"bar", "biz", "baz"},
+			"fizz": []string{"bar"},
+			"buzz": []string{"bar", "bag"},
+			"qux":  []string{"qaz"},
+		},
+	},
+	{
+		name:     "no limit matchless filter",
+		opts:     AggregateResultsOptions{TermFilter: toFilter("zig")},
+		expected: map[string][]string{},
+	},
+	{
+		name: "empty limit with filter",
+		opts: AggregateResultsOptions{TermFilter: toFilter("buzz")},
+		expected: map[string][]string{
+			"buzz": []string{"bar", "bag"},
+		},
+	},
+	{
+		name: "with limit with filter",
+		opts: AggregateResultsOptions{
+			SizeLimit: 2, TermFilter: toFilter("buzz", "qux", "fizz")},
+		expected: map[string][]string{
+			"fizz": []string{"bar"},
+			"buzz": []string{"bar", "bag"},
+		},
+	},
 }
 
-func TestAggResultsMultipleBatchesMergeFilteredWithMaxSize(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		TermFilter: toFilter("buzz", "qux", "fizz"),
-		SizeLimit:  2,
-	}, testOpts)
+func TestAggResultsMerge(t *testing.T) {
+	for _, tt := range mergeTests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := NewAggregateResults(nil, tt.opts, testOpts)
+			size := addMultipleDocuments(t, res)
 
-	size := addMultipleDocuments(t, res)
-	require.Equal(t, 2, size)
+			require.Equal(t, len(tt.expected), size)
+			assertContains(t, tt.expected, res.Map())
+		})
 
-	expected := map[string][]string{
-		"fizz": []string{"bar"},
-		"buzz": []string{"bar", "bag"},
+		t.Run(tt.name+" name only", func(t *testing.T) {
+			tt.opts.Type = AggregateTagNames
+			res := NewAggregateResults(nil, tt.opts, testOpts)
+			size := addMultipleDocuments(t, res)
+
+			require.Equal(t, len(tt.expected), size)
+			assertContains(t, expectedTermsOnly(tt.expected), res.Map())
+		})
 	}
-
-	contains(t, expected, res.Map())
 }
 
 func TestAggResultsInsertCopies(t *testing.T) {
@@ -264,6 +325,39 @@ func TestAggResultsInsertCopies(t *testing.T) {
 			// than the original.
 			require.False(t, xtest.ByteSlicesBackedBySameData(v, value))
 		}
+	}
+
+	require.True(t, found)
+}
+
+func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		Type: AggregateTagNames,
+	}, testOpts)
+	dValid := genDoc("foo", "bar")
+	name := dValid.Fields[0].Name
+	size, err := res.AddDocuments([]doc.Document{dValid})
+	require.NoError(t, err)
+	require.Equal(t, 1, size)
+
+	found := false
+	// our genny generated maps don't provide access to MapEntry directly,
+	// so we iterate over the map to find the added entry. Could avoid this
+	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
+	for _, entry := range res.Map().Iter() {
+		// see if this key has the same value as the added document's ID.
+		n := entry.Key().Bytes()
+		if !bytes.Equal(name, n) {
+			continue
+		}
+
+		// ensure the underlying []byte for ID/Fields is at a different address
+		// than the original.
+		require.False(t, xtest.ByteSlicesBackedBySameData(n, name))
+		found = true
+		v := entry.Value()
+		require.Nil(t, v.Map())
+		require.Equal(t, 0, v.Size())
 	}
 
 	require.True(t, found)

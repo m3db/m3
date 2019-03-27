@@ -704,7 +704,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		q       = index.Query{}
 		opts    = index.QueryOptions{}
 		res     = index.QueryResult{}
-		aggOpts = index.AggregateResultsOptions{}
+		aggOpts = index.AggregationOptions{}
 		aggRes  = index.AggregateQueryResult{}
 		err     error
 	)
@@ -717,13 +717,13 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
 	require.Error(t, err)
 
-	ns.EXPECT().AggregateQuery(ctx, q, opts, aggOpts).Return(aggRes, nil)
-	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, opts, aggOpts)
+	ns.EXPECT().AggregateQuery(ctx, q, aggOpts).Return(aggRes, nil)
+	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.NoError(t, err)
 
-	ns.EXPECT().AggregateQuery(ctx, q, opts, aggOpts).
+	ns.EXPECT().AggregateQuery(ctx, q, aggOpts).
 		Return(aggRes, fmt.Errorf("random err"))
-	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, opts, aggOpts)
+	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)

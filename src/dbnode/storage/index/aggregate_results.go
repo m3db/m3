@@ -107,13 +107,67 @@ func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, error) {
 func (r *aggregatedResults) addDocumentsBatchWithLock(
 	batch []doc.Document,
 ) error {
-	for i := range batch {
-		err := r.addDocumentWithLock(batch[i])
-		if err != nil {
-			return err
+	for _, doc := range batch {
+		if r.aggregateOpts.Type == AggregateTagNamesAndValues {
+			if err := r.addDocumentWithLock(doc); err != nil {
+				return err
+			}
+		} else {
+			// NB: if aggregating by name only, can ignore any additional documents
+			// after the result map size exceeds the optional size limit, since all
+			// incoming terms are either duplicates or new values which will exceed
+			// the limit.
+			size := r.resultsMap.Len()
+			if r.aggregateOpts.SizeLimit > 0 && size >= r.aggregateOpts.SizeLimit {
+				return nil
+			}
+
+			if err := r.addDocumentTermsWithLock(doc); err != nil {
+				return err
+			}
 		}
 	}
 
+	return nil
+}
+
+func (r *aggregatedResults) addDocumentTermsWithLock(
+	document doc.Document,
+) error {
+	for _, field := range document.Fields {
+		if err := r.addTermWithLock(field.Name); err != nil {
+			return fmt.Errorf("unable to add document terms [%+v]: %v", document, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *aggregatedResults) addTermWithLock(
+	term []byte,
+) error {
+	if len(term) == 0 {
+		return fmt.Errorf(missingDocumentFields, "term")
+	}
+
+	// if a term filter is provided, ensure this field matches the filter,
+	// otherwise ignore it.
+	filter := r.aggregateOpts.TermFilter
+	if filter != nil && !filter.Allow(term) {
+		return nil
+	}
+
+	// NB: can cast the []byte -> ident.ID to avoid an alloc
+	// before we're sure we need it.
+	termID := ident.BytesID(term)
+	if r.resultsMap.Contains(termID) {
+		// NB: this term is already added; continue.
+		return nil
+	}
+
+	// Set results map to an empty AggregateValues since we only care about
+	// existence of the term in the map, rather than its set of values.
+	r.resultsMap.Set(termID, AggregateValues{})
 	return nil
 }
 

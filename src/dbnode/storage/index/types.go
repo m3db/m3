@@ -56,6 +56,16 @@ const (
 	InsertAsync
 )
 
+// AggregationType specifies what granularity to aggregate upto.
+type AggregationType byte
+
+const (
+	// AggregateTagNamesAndValues returns both the tag name and value.
+	AggregateTagNamesAndValues AggregationType = iota
+	// AggregateTagNames returns tag names only.
+	AggregateTagNames
+)
+
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
 	idx.Query
@@ -71,6 +81,19 @@ type QueryOptions struct {
 // LimitExceeded returns whether a given size exceeds the limit
 // the query options imposes, if it is enabled.
 func (o QueryOptions) LimitExceeded(size int) bool {
+	return o.Limit > 0 && size >= o.Limit
+}
+
+// AggregationOptions enables users to specify constraints on aggregations.
+type AggregationOptions struct {
+	QueryOptions
+	TermFilter AggregateTermFilter
+	Type       AggregationType
+}
+
+// LimitExceeded returns whether a given size exceeds the limit
+// the query options imposes, if it is enabled.
+func (o AggregationOptions) LimitExceeded(size int) bool {
 	return o.Limit > 0 && size >= o.Limit
 }
 
@@ -186,6 +209,9 @@ type AggregateResultsOptions struct {
 
 	// Optional param to filter aggregate values.
 	TermFilter AggregateTermFilter
+
+	// Type determines what result is required.
+	Type AggregationType
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.

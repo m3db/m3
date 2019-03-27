@@ -158,6 +158,17 @@ func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts in
 	return s.session.FetchTaggedIDs(namespace, q, opts)
 }
 
+// Aggregate aggregates values from the database for the given set of constraints.
+func (s *AsyncSession) Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (client.AggregatedTagsIterator, bool, error) {
+	s.RLock()
+	defer s.RUnlock()
+	if s.err != nil {
+		return nil, false, s.err
+	}
+
+	return s.session.Aggregate(namespace, q, opts)
+}
+
 // ShardID returns the given shard for an ID for callers
 // to easily discern what shard is failing when operations
 // for given IDs begin failing

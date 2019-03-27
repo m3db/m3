@@ -310,18 +310,18 @@ func (mr *MockDatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interfa
 }
 
 // AggregateQuery mocks base method
-func (m *MockDatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions, aggResultOpts index.AggregateResultsOptions) (index.AggregateQueryResult, error) {
+func (m *MockDatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts, aggResultOpts)
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.AggregateQueryResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MockDatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts, aggResultOpts interface{}) *gomock.Call {
+func (mr *MockDatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockDatabase)(nil).AggregateQuery), ctx, namespace, query, opts, aggResultOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockDatabase)(nil).AggregateQuery), ctx, namespace, query, opts)
 }
 
 // ReadEncoded mocks base method
@@ -690,18 +690,18 @@ func (mr *MockdatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interfa
 }
 
 // AggregateQuery mocks base method
-func (m *Mockdatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions, aggResultOpts index.AggregateResultsOptions) (index.AggregateQueryResult, error) {
+func (m *Mockdatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts, aggResultOpts)
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.AggregateQueryResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MockdatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts, aggResultOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*Mockdatabase)(nil).AggregateQuery), ctx, namespace, query, opts, aggResultOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*Mockdatabase)(nil).AggregateQuery), ctx, namespace, query, opts)
 }
 
 // ReadEncoded mocks base method
@@ -1153,18 +1153,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface
 }
 
 // AggregateQuery mocks base method
-func (m *MockdatabaseNamespace) AggregateQuery(ctx context.Context, query index.Query, opts index.QueryOptions, aggResultOpts index.AggregateResultsOptions) (index.AggregateQueryResult, error) {
+func (m *MockdatabaseNamespace) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts, aggResultOpts)
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts)
 	ret0, _ := ret[0].(index.AggregateQueryResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts, aggResultOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateQuery), ctx, query, opts, aggResultOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateQuery), ctx, query, opts)
 }
 
 // ReadEncoded mocks base method
@@ -1785,18 +1785,18 @@ func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *g
 }
 
 // AggregateQuery mocks base method
-func (m *MocknamespaceIndex) AggregateQuery(ctx context.Context, query index.Query, opts index.QueryOptions, aggResultOpts index.AggregateResultsOptions) (index.AggregateQueryResult, error) {
+func (m *MocknamespaceIndex) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts, aggResultOpts)
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts)
 	ret0, _ := ret[0].(index.AggregateQueryResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MocknamespaceIndexMockRecorder) AggregateQuery(ctx, query, opts, aggResultOpts interface{}) *gomock.Call {
+func (mr *MocknamespaceIndexMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MocknamespaceIndex)(nil).AggregateQuery), ctx, query, opts, aggResultOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MocknamespaceIndex)(nil).AggregateQuery), ctx, query, opts)
 }
 
 // Bootstrap mocks base method

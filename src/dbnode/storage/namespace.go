@@ -622,8 +622,7 @@ func (n *dbNamespace) QueryIDs(
 func (n *dbNamespace) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
-	opts index.QueryOptions,
-	aggResultOpts index.AggregateResultsOptions,
+	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
@@ -638,7 +637,7 @@ func (n *dbNamespace) AggregateQuery(
 			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
 	}
 
-	res, err := n.reverseIndex.AggregateQuery(ctx, query, opts, aggResultOpts)
+	res, err := n.reverseIndex.AggregateQuery(ctx, query, opts)
 	n.metrics.aggregateQuery.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
