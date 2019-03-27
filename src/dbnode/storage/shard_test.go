@@ -428,7 +428,7 @@ func writeShardAndVerify(
 	expectedIdx uint64,
 ) {
 	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
-		now, wType, value, xtime.Second, nil, wopts)
+		now, value, xtime.Second, nil, wopts)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedShouldWrite, wasWritten)
 	assert.Equal(t, id, series.ID.String())

@@ -1149,13 +1149,13 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	)
 
 	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series1, true, nil)
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(series1, true, nil)
 	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series2, true, err)
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(series2, true, err)
 	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series3, false, err)
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(series3, false, err)
 	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series4, false, nil)
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(series4, false, nil)
 
 	write := ts.Write{
 		Series: ts.Series{ID: ident.StringID("foo")},
@@ -1180,7 +1180,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	batchWriter.EXPECT().SetSkipWrite(3)
 
 	errHandler := &fakeIndexedErrorHandler{}
-	d.WriteBatch(ctx, namespace, batchWriter, errHandler)
+	d.WriteBatch(ctx, namespace, batchWriter, errHandler, series.WriteOptions{})
 	require.Equal(t, 2, len(errHandler.errs))
 	require.Equal(t, err, errHandler.errs[0].err)
 	require.Equal(t, err, errHandler.errs[1].err)
