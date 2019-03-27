@@ -624,6 +624,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	}
 
 	for _, v := range data {
+		curr = v.timestamp
 		verifyWriteToBuffer(t, buffer, v)
 	}
 
