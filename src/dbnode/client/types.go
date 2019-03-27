@@ -99,6 +99,9 @@ type AggregatedTagsIterator interface {
 	// Next returns whether there are more items in the collection.
 	Next() bool
 
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
+
 	// Current returns the current tagName, and associated tagValues iterator.
 	// These remain valid until Next() is called again.
 	Current() (tagName ident.ID, tagValues ident.Iterator)
