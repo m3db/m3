@@ -351,11 +351,12 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
 	res, err := idx.AggregateQuery(ctx, index.Query{Query: reQuery},
-		index.QueryOptions{
-			StartInclusive: now.Add(-1 * time.Minute),
-			EndExclusive:   now.Add(1 * time.Minute),
+		index.AggregationOptions{
+			QueryOptions: index.QueryOptions{
+				StartInclusive: now.Add(-1 * time.Minute),
+				EndExclusive:   now.Add(1 * time.Minute),
+			},
 		},
-		index.AggregateResultsOptions{},
 	)
 	require.NoError(t, err)
 

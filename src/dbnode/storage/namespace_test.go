@@ -1123,11 +1123,10 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 
 	ctx := context.NewContext()
 	query := index.Query{}
-	opts := index.QueryOptions{}
-	aggOpts := index.AggregateResultsOptions{}
+	aggOpts := index.AggregationOptions{}
 
-	idx.EXPECT().AggregateQuery(ctx, query, opts, aggOpts)
-	_, err := ns.AggregateQuery(ctx, query, opts, aggOpts)
+	idx.EXPECT().AggregateQuery(ctx, query, aggOpts)
+	_, err := ns.AggregateQuery(ctx, query, aggOpts)
 	require.NoError(t, err)
 
 	idx.EXPECT().Close().Return(nil)

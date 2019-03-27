@@ -878,13 +878,16 @@ func (i *nsIndex) Query(
 func (i *nsIndex) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
-	opts index.QueryOptions,
-	aggResultOpts index.AggregateResultsOptions,
+	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
-	results.Reset(i.nsMetadata.ID(), aggResultOpts)
-	exhaustive, err := i.query(ctx, query, results, opts)
+	results.Reset(i.nsMetadata.ID(), index.AggregateResultsOptions{
+		SizeLimit:  opts.Limit,
+		TermFilter: opts.TermFilter,
+		Type:       opts.Type,
+	})
+	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}

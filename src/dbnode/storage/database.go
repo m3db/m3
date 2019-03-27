@@ -721,8 +721,7 @@ func (d *db) AggregateQuery(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	opts index.QueryOptions,
-	aggResultOpts index.AggregateResultsOptions,
+	aggResultOpts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -730,7 +729,7 @@ func (d *db) AggregateQuery(
 		return index.AggregateQueryResult{}, err
 	}
 
-	return n.AggregateQuery(ctx, query, opts, aggResultOpts)
+	return n.AggregateQuery(ctx, query, aggResultOpts)
 }
 
 func (d *db) ReadEncoded(
