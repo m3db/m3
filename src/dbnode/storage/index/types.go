@@ -91,12 +91,6 @@ type AggregationOptions struct {
 	Type       AggregationType
 }
 
-// LimitExceeded returns whether a given size exceeds the limit
-// the query options imposes, if it is enabled.
-func (o AggregationOptions) LimitExceeded(size int) bool {
-	return o.Limit > 0 && size >= o.Limit
-}
-
 // QueryResult is the collection of results for a query.
 type QueryResult struct {
 	Results    QueryResults

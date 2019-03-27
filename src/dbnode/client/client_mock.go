@@ -340,6 +340,20 @@ func (mr *MockAggregatedTagsIteratorMockRecorder) Next() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockAggregatedTagsIterator)(nil).Next))
 }
 
+// Remaining mocks base method
+func (m *MockAggregatedTagsIterator) Remaining() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Remaining")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Remaining indicates an expected call of Remaining
+func (mr *MockAggregatedTagsIteratorMockRecorder) Remaining() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remaining", reflect.TypeOf((*MockAggregatedTagsIterator)(nil).Remaining))
+}
+
 // Current mocks base method
 func (m *MockAggregatedTagsIterator) Current() (ident.ID, ident.Iterator) {
 	m.ctrl.T.Helper()
