@@ -619,11 +619,10 @@ func interfaceSlice(slice interface{}) []interface{} {
 	return ret
 }
 
-// TODO: Uncomment me
-// func printMessage(prefix string, m *dynamic.Message) {
-// 	json, err := m.MarshalJSON()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Printf("%s: %s\n", prefix, string(json))
-// }
+func printMessage(prefix string, m *dynamic.Message) {
+	json, err := m.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s: %s\n", prefix, string(json))
+}
