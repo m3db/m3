@@ -45,6 +45,22 @@ import (
 var (
 	// Generated from mapProtoTypeToCustomFieldType by init().
 	allowedProtoTypesSliceIface = []interface{}{}
+
+	validMapKeyTypes = []interface{}{
+		// https://developers.google.com/protocol-buffers/docs/proto3#maps
+		dpb.FieldDescriptorProto_TYPE_INT32,
+		dpb.FieldDescriptorProto_TYPE_INT64,
+		dpb.FieldDescriptorProto_TYPE_UINT32,
+		dpb.FieldDescriptorProto_TYPE_UINT64,
+		dpb.FieldDescriptorProto_TYPE_SINT32,
+		dpb.FieldDescriptorProto_TYPE_SINT64,
+		dpb.FieldDescriptorProto_TYPE_FIXED32,
+		dpb.FieldDescriptorProto_TYPE_FIXED64,
+		dpb.FieldDescriptorProto_TYPE_SFIXED32,
+		dpb.FieldDescriptorProto_TYPE_SFIXED64,
+		dpb.FieldDescriptorProto_TYPE_BOOL,
+		dpb.FieldDescriptorProto_TYPE_STRING,
+	}
 )
 
 func init() {
@@ -53,9 +69,21 @@ func init() {
 	}
 }
 
-var maxNumFields = 10
-var maxNumMessages = 100
-var maxNumEnumValues = 10
+const (
+	maxNumFields     = 10
+	maxNumMessages   = 100
+	maxNumEnumValues = 10
+)
+
+type fieldModifierProp int
+
+const (
+	fieldModifierRegular fieldModifierProp = iota
+	fieldModifierReserved
+	// Maps can't be repeated so its ok for these to be mutally exclusive.
+	fieldModifierRepeated
+	fieldModifierMap
+)
 
 // TODO(rartoul): Modify this prop test to generate schemas with repeated fields and maps
 // (which are basically the same thing) as well as nested messages once we add support for
@@ -431,15 +459,15 @@ func genWrite() gopter.Gen {
 
 func genSchema(numFields int) gopter.Gen {
 	return gopter.CombineGens(
-		gen.SliceOfN(numFields, gen.Bool()), // IsReserved
-		gen.SliceOfN(numFields, gen.Bool()), // IsRepeated
+		gen.SliceOfN(numFields, genFieldModifier()),
+		gen.SliceOfN(numFields, genMapKeyType()),
 		gen.SliceOfN(numFields, genFieldTypeWithNestedMessage()),
 		gen.SliceOfN(numFields, genFieldTypeWithNoNestedMessage()),
 	).
 		Map(func(input []interface{}) *desc.MessageDescriptor {
 			var (
-				isReserved = input[0].([]bool)
-				isRepeated = input[1].([]bool)
+				fieldModifiers = input[0].([]fieldModifierProp)
+				mapKeyTypes    = input[1].([]dpb.FieldDescriptorProto_Type)
 				// fieldTypes are generated with the possibility of a field being a nested message
 				// where nestedFieldTypes are generated without the possibility of a field being
 				// a nested message to prevent infinite recursion. This limits the property testing
@@ -450,7 +478,7 @@ func genSchema(numFields int) gopter.Gen {
 				nestedFieldTypes = input[3].([]dpb.FieldDescriptorProto_Type)
 			)
 
-			schemaBuilder := schemaBuilderFromFieldTypes(isReserved, isRepeated, fieldTypes, nestedFieldTypes)
+			schemaBuilder := schemaBuilderFromFieldTypes(fieldModifiers, mapKeyTypes, fieldTypes, nestedFieldTypes)
 			schema, err := schemaBuilder.Build()
 			if err != nil {
 				panic(err)
@@ -461,8 +489,8 @@ func genSchema(numFields int) gopter.Gen {
 }
 
 func schemaBuilderFromFieldTypes(
-	isReserved []bool,
-	isRepeated []bool,
+	fieldModifiers []fieldModifierProp,
+	mapKeyTypes []dpb.FieldDescriptorProto_Type,
 	fieldTypes []dpb.FieldDescriptorProto_Type,
 	nestedMessageFieldTypes []dpb.FieldDescriptorProto_Type,
 ) *builder.MessageBuilder {
@@ -476,45 +504,77 @@ func schemaBuilderFromFieldTypes(
 
 	for i, fieldType := range fieldTypes {
 		var (
-			fieldNum         = int32(i + 1) // Zero not valid.
-			builderFieldType *builder.FieldType
+			fieldModifier = fieldModifiers[i]
+			fieldNum      = int32(i + 1) // Zero not valid.
+			fieldBuilder  *builder.FieldBuilder
 		)
 
-		if isReserved[i] {
+		switch {
+		case fieldModifier == fieldModifierReserved:
 			// Sprinkle in some reserved fields to make sure that we handle those
 			// without issue.
 			schemaBuilder.AddReservedRange(fieldNum, fieldNum)
 			continue
+		case fieldModifier == fieldModifierMap:
+			// Map key types can only be scalar types.
+			mapKeyType := builder.FieldTypeScalar(mapKeyTypes[i])
+			mapValueType := newBuilderFieldType(
+				fieldNum, fieldType, fieldModifiers, mapKeyTypes, nestedMessageFieldTypes)
+			mapFieldName := fmt.Sprintf("_map_%d", fieldNum)
+			fieldBuilder = builder.NewMapField(mapFieldName, mapKeyType, mapValueType).SetNumber(fieldNum)
+		default:
+			builderFieldType := newBuilderFieldType(fieldNum, fieldType, fieldModifiers, mapKeyTypes, nestedMessageFieldTypes)
+			fieldBuilder = builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
+				SetNumber(fieldNum)
 		}
 
-		if fieldType == dpb.FieldDescriptorProto_TYPE_ENUM {
-			var (
-				enumFieldName = fmt.Sprintf("_enum_%d", fieldNum)
-				enumBuilder   = builder.NewEnum(enumFieldName)
-			)
-			for j := 0; j < maxNumEnumValues; j++ {
-				enumValueName := fmt.Sprintf("_enum_value_%d", j)
-				enumBuilder.AddValue(builder.NewEnumValue(enumValueName))
-			}
-			builderFieldType = builder.FieldTypeEnum(enumBuilder)
-		} else if fieldType == dpb.FieldDescriptorProto_TYPE_MESSAGE {
-			// NestedMessageFieldTypes can't contain nested messages so we're limited to a single level
-			// of recursion here.
-			nestedMessageBuilder := schemaBuilderFromFieldTypes(isReserved, isRepeated, nestedMessageFieldTypes, nil)
-			builderFieldType = builder.FieldTypeMessage(nestedMessageBuilder)
-		} else {
-			builderFieldType = builder.FieldTypeScalar(fieldType)
+		if fieldModifier == fieldModifierRepeated {
+			// This is safe because a field cant be repeated and a map by design.
+			fieldBuilder = fieldBuilder.SetRepeated()
 		}
 
-		field := builder.NewField(fmt.Sprintf("_%d", fieldNum), builderFieldType).
-			SetNumber(fieldNum)
-		if isRepeated[i] {
-			field = field.SetRepeated()
-		}
-		schemaBuilder = schemaBuilder.AddField(field)
+		schemaBuilder = schemaBuilder.AddField(fieldBuilder)
 	}
 
 	return schemaBuilder
+}
+
+func newBuilderFieldType(
+	fieldNum int32,
+	fieldType dpb.FieldDescriptorProto_Type,
+	fieldModifiers []fieldModifierProp,
+	mapKeyTypes []dpb.FieldDescriptorProto_Type,
+	nestedMessageFieldTypes []dpb.FieldDescriptorProto_Type,
+) *builder.FieldType {
+	if fieldType == dpb.FieldDescriptorProto_TYPE_ENUM {
+		var (
+			enumFieldName = fmt.Sprintf("_enum_%d", fieldNum)
+			enumBuilder   = builder.NewEnum(enumFieldName)
+		)
+		for j := 0; j < maxNumEnumValues; j++ {
+			enumValueName := fmt.Sprintf("_enum_value_%d", j)
+			enumBuilder.AddValue(builder.NewEnumValue(enumValueName))
+		}
+		return builder.FieldTypeEnum(enumBuilder)
+	}
+
+	if fieldType == dpb.FieldDescriptorProto_TYPE_MESSAGE {
+		// NestedMessageFieldTypes can't contain nested messages so we're limited to a single level
+		// of recursion here.
+		nestedMessageBuilder := schemaBuilderFromFieldTypes(fieldModifiers, mapKeyTypes, nestedMessageFieldTypes, nil)
+		return builder.FieldTypeMessage(nestedMessageBuilder)
+	}
+
+	return builder.FieldTypeScalar(fieldType)
+}
+
+func genFieldModifier() gopter.Gen {
+	return gen.OneConstOf(
+		fieldModifierRegular, fieldModifierRegular, fieldModifierRepeated)
+}
+
+func genMapKeyType() gopter.Gen {
+	return gen.OneConstOf(validMapKeyTypes...)
 }
 
 func genFieldTypeWithNoNestedMessage() gopter.Gen {
