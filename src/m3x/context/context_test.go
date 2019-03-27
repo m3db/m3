@@ -153,7 +153,7 @@ func testDependsOn(t *testing.T, c *ctx) {
 
 func TestGoContext(t *testing.T) {
 	goCtx := stdctx.Background()
-	xCtx := NewContext().(*ctx)
+	xCtx := NewContext()
 
 	var (
 		exists    bool
