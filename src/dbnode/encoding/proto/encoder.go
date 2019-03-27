@@ -524,9 +524,9 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 			// impacts performance too much.
 			fieldNum := field.GetNumber()
 			if !fieldsContains(fieldNum, schemaFields) {
-				fmt.Println("clearing not exist in schema: ", fieldNum)
 				if err := m.TryClearFieldByNumber(int(fieldNum)); err != nil {
-					return err
+					return fmt.Errorf(
+						"error: %v clearing field that does not exist in schema: %d", err, fieldNum)
 				}
 			}
 		}
@@ -543,7 +543,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 				fmt.Println("clearing: ", fieldNumInt)
 				// Clear fields that haven't changed.
 				if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
-					return err
+					return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
 				}
 			} else {
 				isDefaultValue, err := isDefaultValue(field, curVal)
@@ -558,7 +558,9 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 
 				changedFields = append(changedFields, fieldNum)
 				if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
-					return err
+					return fmt.Errorf(
+						"error: %v setting field %d with value %v on lastEncoded",
+						err, fieldNumInt, curVal)
 				}
 			}
 		}

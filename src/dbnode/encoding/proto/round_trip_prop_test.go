@@ -319,16 +319,21 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 		fieldNumber := int(field.GetNumber())
 		switch {
 		case field.IsMap():
-		// Maps require special handling because the type will look like a message, they'll
-		// have the repeated label, and to construct them properly we need to look at both
-		// the key type as well as the value type.
-		// mapKeyType := field.GetMapKeyType()
-		// mapValueType := field.GetMapValueType()
-		// val := map[interface{}]interface{}{}
-		// switch mapKeyType {
-		// case dpb.FieldDescriptorProto_TYPE_STRING:
-		// 	for _,
-		// }
+			// Maps require special handling because the type will look like a message, they'll
+			// have the repeated label, and to construct them properly we need to look at both
+			// the key type as well as the value type.
+			var (
+				mapKeyType   = field.GetMapKeyType()
+				mapValueType = field.GetMapValueType()
+
+				mapKeysForTypeIFace, _   = valuesOfType(nil, i, mapKeyType, input)
+				mapValuesForTypeIFace, _ = valuesOfType(nil, i, mapValueType, input)
+				mapKeysForType           = interfaceSlice(mapKeysForTypeIFace)
+				mapValuesForType         = interfaceSlice(mapValuesForTypeIFace)
+			)
+			for j, key := range mapKeysForType {
+				message.PutMapFieldByNumber(fieldNumber, key, mapValuesForType[j])
+			}
 		default:
 			sliceValues, singleValue := valuesOfType(schema, i, field, input)
 			if field.IsRepeated() {
@@ -405,7 +410,16 @@ func valuesOfType(
 		// If the field is a nested message, figure out what the nested schema is
 		// and then generate another message to use as the value of that field. We
 		// reuse the same inputs value for simplicity.
-		nestedMessageSchema := schema.FindFieldByNumber(field.GetNumber()).GetMessageType()
+		//
+		// If the schema is set to nil, that means that field itself is a message type
+		// that we'd like to generate a value for so get the nested message schema
+		// from the field itself instead of looking it up.
+		var nestedMessageSchema *desc.MessageDescriptor
+		if schema != nil {
+			nestedMessageSchema = schema.FindFieldByNumber(field.GetNumber()).GetMessageType()
+		} else {
+			nestedMessageSchema = field.GetMessageType()
+		}
 		nestedMessages := make([]*dynamic.Message, 0, i)
 		for j := 0; j <= i; j++ {
 			nestedMessages = append(nestedMessages, newMessageWithValues(nestedMessageSchema, input))
@@ -587,6 +601,22 @@ func genFieldTypeWithNestedMessage() gopter.Gen {
 		allowedProtoTypesSliceIfaceWithNestedMessage,
 		dpb.FieldDescriptorProto_TYPE_MESSAGE)
 	return gen.OneConstOf(allowedProtoTypesSliceIfaceWithNestedMessage...)
+}
+
+func interfaceSlice(slice interface{}) []interface{} {
+	// https://stackoverflow.com/questions/12753805/type-converting-slices-of-interfaces-in-go
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		panic("InterfaceSlice() given a non-slice type")
+	}
+
+	ret := make([]interface{}, s.Len())
+
+	for i := 0; i < s.Len(); i++ {
+		ret[i] = s.Index(i).Interface()
+	}
+
+	return ret
 }
 
 // TODO: Uncomment me
