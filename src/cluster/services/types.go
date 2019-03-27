@@ -52,6 +52,9 @@ type Services interface {
 	// SetMetadata sets the metadata for a given service.
 	SetMetadata(sid ServiceID, m Metadata) error
 
+	// DeleteMetadata deletes the metadata for a given service
+	DeleteMetadata(sid ServiceID) error
+
 	// PlacementService returns a client of placement.Service.
 	PlacementService(sid ServiceID, popts placement.Options) (placement.Service, error)
 

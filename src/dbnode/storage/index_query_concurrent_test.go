@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	xsync "github.com/m3db/m3x/sync"
 	xtest "github.com/m3db/m3x/test"
@@ -222,17 +223,27 @@ func testNamespaceIndexHighConcurrentQueries(
 
 			if opts.blockErrors {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						_ *resource.CancellableLifetime,
+						_ index.Query,
+						_ index.QueryOptions,
+						_ index.QueryResults,
+					) (bool, error) {
 						return false, errors.New("some-error")
 					}).
 					AnyTimes()
 			} else {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						c *resource.CancellableLifetime,
+						q index.Query,
+						opts index.QueryOptions,
+						r index.QueryResults,
+					) (bool, error) {
 						timeoutWg.Wait()
-						return block.Query(q, opts, r)
+						return block.Query(c, q, opts, r)
 					}).
 					AnyTimes()
 			}

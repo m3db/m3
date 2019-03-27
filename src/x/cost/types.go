@@ -68,4 +68,18 @@ type Enforcer interface {
 	State() (Report, Limit)
 	Limit() Limit
 	Clone() Enforcer
+	Reporter() EnforcerReporter
+}
+
+// An EnforcerReporter is a listener for Enforcer events.
+type EnforcerReporter interface {
+	// ReportCost is called on every call to Enforcer#Add with the added cost
+	ReportCost(c Cost)
+
+	// ReportCurrent reports the current total on every call to Enforcer#Add
+	ReportCurrent(c Cost)
+
+	// ReportOverLimit is called every time an enforcer goes over its limit. enabled is true if the limit manager
+	// says the limit is currently enabled.
+	ReportOverLimit(enabled bool)
 }

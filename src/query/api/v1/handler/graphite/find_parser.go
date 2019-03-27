@@ -76,7 +76,12 @@ func parseFindParamsToQuery(r *http.Request) (
 		return nil, xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
 	}
 
-	matchers := graphiteStorage.TranslateQueryToMatchers(query)
+	matchers, err := graphiteStorage.TranslateQueryToMatchers(query)
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf("invalid 'query': %s", query),
+			http.StatusBadRequest)
+	}
+
 	return &storage.FetchQuery{
 		Raw:         query,
 		TagMatchers: matchers,

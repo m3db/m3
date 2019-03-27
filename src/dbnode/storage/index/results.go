@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
@@ -33,32 +34,95 @@ var (
 )
 
 type results struct {
-	nsID       ident.ID
+	sync.RWMutex
+
+	nsID ident.ID
+	opts QueryResultsOptions
+
 	resultsMap *ResultsMap
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       ResultsPool
+	pool       QueryResultsPool
 	noFinalize bool
 }
 
-// NewResults returns a new results object.
-func NewResults(opts Options) Results {
+// NewQueryResults returns a new query results object.
+func NewQueryResults(
+	namespaceID ident.ID,
+	opts QueryResultsOptions,
+	indexOpts Options,
+) QueryResults {
 	return &results{
-		resultsMap: newResultsMap(opts.IdentifierPool()),
-		idPool:     opts.IdentifierPool(),
-		bytesPool:  opts.CheckedBytesPool(),
-		pool:       opts.ResultsPool(),
+		nsID:       namespaceID,
+		opts:       opts,
+		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
+		idPool:     indexOpts.IdentifierPool(),
+		bytesPool:  indexOpts.CheckedBytesPool(),
+		pool:       indexOpts.QueryResultsPool(),
 	}
 }
 
-func (r *results) AddDocument(
+func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
+	r.Lock()
+
+	r.opts = opts
+
+	// Finalize existing held nsID.
+	if r.nsID != nil {
+		r.nsID.Finalize()
+	}
+	// Make an independent copy of the new nsID.
+	if nsID != nil {
+		nsID = r.idPool.Clone(nsID)
+	}
+	r.nsID = nsID
+
+	// Reset all values from map first
+	for _, entry := range r.resultsMap.Iter() {
+		tags := entry.Value()
+		tags.Finalize()
+	}
+
+	// Reset all keys in the map next, this will finalize the keys.
+	r.resultsMap.Reset()
+
+	// NB: could do keys+value in one step but I'm trying to avoid
+	// using an internal method of a code-gen'd type.
+
+	r.Unlock()
+}
+
+// NB: If documents with duplicate IDs are added, they are simply ignored and
+// the first document added with an ID is returned.
+func (r *results) AddDocuments(batch []doc.Document) (int, error) {
+	r.Lock()
+	err := r.addDocumentsBatchWithLock(batch)
+	size := r.resultsMap.Len()
+	r.Unlock()
+	return size, err
+}
+
+func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
+	for i := range batch {
+		_, size, err := r.addDocumentWithLock(batch[i])
+		if err != nil {
+			return err
+		}
+		if r.opts.SizeLimit > 0 && size >= r.opts.SizeLimit {
+			// Early return if limit enforced and we hit our limit.
+			break
+		}
+	}
+	return nil
+}
+
+func (r *results) addDocumentWithLock(
 	d doc.Document,
-) (added bool, size int, err error) {
-	added = false
+) (bool, int, error) {
 	if len(d.ID) == 0 {
-		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
+		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
@@ -67,7 +131,7 @@ func (r *results) AddDocument(
 
 	// check if it already exists in the map.
 	if r.resultsMap.Contains(tsID) {
-		return added, r.resultsMap.Len(), nil
+		return false, r.resultsMap.Len(), nil
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
@@ -78,35 +142,7 @@ func (r *results) AddDocument(
 	// the tsID's bytes.
 	r.resultsMap.Set(tsID, tags)
 
-	added = true
-	return added, r.resultsMap.Len(), nil
-}
-
-func (r *results) AddIDAndTags(
-	id ident.ID,
-	tags ident.Tags,
-) (added bool, size int, err error) {
-	added = false
-	bytesID := ident.BytesID(id.Bytes())
-	if len(bytesID) == 0 {
-		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
-	}
-
-	// check if it already exists in the map.
-	if r.resultsMap.Contains(bytesID) {
-		return added, r.resultsMap.Len(), nil
-	}
-
-	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
-	// the tsID's bytes.
-	r.resultsMap.Set(bytesID, r.cloneTags(tags))
-
-	added = true
-	return added, r.resultsMap.Len(), nil
-}
-
-func (r *results) cloneTags(tags ident.Tags) ident.Tags {
-	return r.idPool.CloneTags(tags)
+	return true, r.resultsMap.Len(), nil
 }
 
 func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {
@@ -121,47 +157,37 @@ func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {
 }
 
 func (r *results) Namespace() ident.ID {
-	return r.nsID
+	r.RLock()
+	v := r.nsID
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Map() *ResultsMap {
-	return r.resultsMap
+	r.RLock()
+	v := r.resultsMap
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Size() int {
-	return r.resultsMap.Len()
-}
-
-func (r *results) Reset(nsID ident.ID) {
-	// finalize existing held nsID
-	if r.nsID != nil {
-		r.nsID.Finalize()
-	}
-	// make an independent copy of the new nsID
-	if nsID != nil {
-		nsID = r.idPool.Clone(nsID)
-	}
-	r.nsID = nsID
-
-	// reset all values from map first
-	for _, entry := range r.resultsMap.Iter() {
-		tags := entry.Value()
-		tags.Finalize()
-	}
-
-	// reset all keys in the map next
-	r.resultsMap.Reset()
-
-	// NB: could do keys+value in one step but I'm trying to avoid
-	// using an internal method of a code-gen'd type.
+	r.RLock()
+	v := r.resultsMap.Len()
+	r.RUnlock()
+	return v
 }
 
 func (r *results) Finalize() {
-	if r.noFinalize {
+	r.RLock()
+	noFinalize := r.noFinalize
+	r.RUnlock()
+
+	if noFinalize {
 		return
 	}
 
-	r.Reset(nil)
+	// Reset locks so cannot hold onto lock for call to Finalize.
+	r.Reset(nil, QueryResultsOptions{})
 
 	if r.pool == nil {
 		return
@@ -170,7 +196,9 @@ func (r *results) Finalize() {
 }
 
 func (r *results) NoFinalize() {
-	// Ensure neither the results object itself, or any of its underlying
+	r.Lock()
+
+	// Ensure neither the results object itself, nor any of its underlying
 	// IDs and tags will be finalized.
 	r.noFinalize = true
 	for _, entry := range r.resultsMap.Iter() {
@@ -178,4 +206,6 @@ func (r *results) NoFinalize() {
 		id.NoFinalize()
 		tags.NoFinalize()
 	}
+
+	r.Unlock()
 }

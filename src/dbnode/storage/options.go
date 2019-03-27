@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -113,7 +112,6 @@ type options struct {
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
 	runtimeOptsMgr                 m3dbruntime.OptionsManager
-	errCounterOpts                 xcounter.Options
 	errWindowForLoad               time.Duration
 	errThresholdForLoad            int64
 	indexingEnabled                bool
@@ -167,7 +165,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		blockOpts:                block.NewOptions(),
 		commitLogOpts:            commitlog.NewOptions(),
 		runtimeOptsMgr:           m3dbruntime.NewOptionsManager(),
-		errCounterOpts:           xcounter.NewOptions(),
 		errWindowForLoad:         defaultErrorWindowForLoad,
 		errThresholdForLoad:      defaultErrorThresholdForLoad,
 		indexingEnabled:          defaultIndexingEnabled,
@@ -309,16 +306,6 @@ func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Opt
 
 func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
 	return o.runtimeOptsMgr
-}
-
-func (o *options) SetErrorCounterOptions(value xcounter.Options) Options {
-	opts := *o
-	opts.errCounterOpts = value
-	return &opts
-}
-
-func (o *options) ErrorCounterOptions() xcounter.Options {
-	return o.errCounterOpts
 }
 
 func (o *options) SetErrorWindowForLoad(value time.Duration) Options {

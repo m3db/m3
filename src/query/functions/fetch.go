@@ -100,6 +100,8 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 
 	opts := storage.NewFetchOptions()
 	opts.BlockType = n.blockType
+	opts.Scope = queryCtx.Scope
+	opts.Enforcer = queryCtx.Enforcer
 
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,

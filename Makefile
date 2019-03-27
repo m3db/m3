@@ -39,8 +39,16 @@ GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
-GO_RELEASER_WORKING_DIR   := /m3
+GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
+
+# LD Flags
+GIT_REVISION              := $(shell git rev-parse --short HEAD)
+GIT_BRANCH                := $(shell git rev-parse --abbrev-ref HEAD)
+GIT_VERSION               := $(shell git describe --tags --abbrev=0 2>/dev/null || echo unknown)
+BUILD_DATE                := $(shell date '+%F-%T') # outputs something in this format 2017-08-21-18:58:45
+BUILD_TS_UNIX             := $(shell date '+%s') # second since epoch
+BASE_PACKAGE              := ${m3_package}/vendor/github.com/m3db/m3x/instrument
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
@@ -69,6 +77,7 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
+	kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -79,7 +88,8 @@ TOOLS :=               \
 	dtest                \
 	verify_commitlogs    \
 	verify_index_files   \
-	carbon_load
+	carbon_load          \
+	docs_test            \
 
 .PHONY: setup
 setup:
@@ -177,7 +187,7 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e "GIT_REVISION=$(GIT_REVISION)" -e "GIT_BRANCH=$(GIT_BRANCH)" -e "GIT_VERSION=$(GIT_VERSION)" -e "BUILD_DATE=$(BUILD_DATE)" -e "BUILD_TS_UNIX=$(BUILD_TS_UNIX)" -e "BASE_PACKAGE=$(BASE_PACKAGE)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
@@ -189,6 +199,10 @@ docs-container:
 	docker run --rm hello-world >/dev/null
 	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
 
+# NB(schallert): if updating this target, be sure to update the commands used in
+# the .buildkite/docs_push.sh. We can't share the make targets because our
+# Makefile assumes its running under bash and the container is alpine (ash
+# shell).
 .PHONY: docs-build
 docs-build: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
@@ -200,6 +214,17 @@ docs-serve: docs-container
 .PHONY: docs-deploy
 docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
+
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
+
+.PHONY: docs-test
+docs-test:
+	@echo "--- Documentation validate test"
+	make docs-validate
+	@echo "--- Documentation build test"
+	make docs-build
 
 .PHONY: docker-integration-test
 docker-integration-test:
@@ -238,6 +263,18 @@ test-ci-integration:
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
+
+# We override the rules for `*-gen-kube` to just generate the kube manifest
+# bundle.
+ifeq ($(SUBDIR), kube)
+
+# Builds the single kube bundle from individual manifest files.
+all-gen-kube: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(retool_bin_path):$(PATH) xargs -0 kubeval -v=1.12.0
+
+else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -333,6 +370,8 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@echo "--- metalinting $(SUBDIR)"
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+
+endif
 
 endef
 

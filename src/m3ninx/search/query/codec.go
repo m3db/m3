@@ -51,6 +51,9 @@ func Unmarshal(data []byte) (search.Query, error) {
 func unmarshal(q *querypb.Query) (search.Query, error) {
 	switch q := q.Query.(type) {
 
+	case *querypb.Query_All:
+		return NewAllQuery(), nil
+
 	case *querypb.Query_Term:
 		return NewTermQuery(q.Term.Field, q.Term.Term), nil
 
@@ -85,8 +88,7 @@ func unmarshal(q *querypb.Query) (search.Query, error) {
 			qs = append(qs, sqry)
 		}
 		return NewDisjunctionQuery(qs), nil
-
 	}
 
-	return nil, fmt.Errorf("unknown query: %v", q)
+	return nil, fmt.Errorf("unknown query: %+v", q)
 }

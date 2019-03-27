@@ -277,7 +277,7 @@ func TestClose(t *testing.T) {
 
 	// Store an entry for the segment in the cache so we can check if it
 	// gets purged after.
-	cache.PutRegexp(segmentUUID, "some-regexp", roaring.NewPostingsList())
+	cache.PutRegexp(segmentUUID, "some-field", "some-pattern", roaring.NewPostingsList())
 
 	segment.EXPECT().Close().Return(nil)
 	err = readThroughSeg.Close()

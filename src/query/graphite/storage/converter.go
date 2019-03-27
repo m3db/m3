@@ -30,6 +30,10 @@ const (
 	carbonGlobRune      = '*'
 )
 
+var (
+	wildcard = []byte(".*")
+)
+
 func glob(metric string) []byte {
 	globLen := len(metric)
 	for _, c := range metric {
@@ -65,6 +69,6 @@ func matcherTerminator(count int) models.Matcher {
 	return models.Matcher{
 		Type:  models.MatchNotRegexp,
 		Name:  graphite.TagName(count),
-		Value: []byte(".*"),
+		Value: wildcard,
 	}
 }

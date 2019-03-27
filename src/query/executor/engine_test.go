@@ -26,12 +26,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
@@ -44,8 +49,40 @@ func TestEngine_Execute(t *testing.T) {
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute)
+	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
 	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
 	res := <-results
 	assert.NotNil(t, res.Err)
+}
+
+func TestEngine_ExecuteExpr(t *testing.T) {
+	t.Run("releases and reports on completion", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
+		mockEnforcer.EXPECT().Close().Times(1)
+
+		mockParent := cost.NewMockChainedEnforcer(ctrl)
+		mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
+
+		parser, err := promql.Parse("foo", models.NewTagOptions())
+		require.NoError(t, err)
+
+		results := make(chan Query)
+		engine := NewEngine(mock.NewMockStorage(), tally.NewTestScope("", nil), defaultLookbackDuration, mockParent)
+		go engine.ExecuteExpr(context.TODO(), parser, &EngineOptions{}, models.RequestParams{
+			Start: time.Now().Add(-2 * time.Second),
+			End:   time.Now(),
+			Step:  time.Second,
+		}, results)
+
+		// drain the channel
+		var resSl []Query
+		for r := range results {
+			resSl = append(resSl, r)
+		}
+		require.Len(t, resSl, 1)
+
+		res := resSl[0]
+		require.NoError(t, res.Err)
+	})
 }

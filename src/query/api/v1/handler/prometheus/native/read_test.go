@@ -126,11 +126,12 @@ func newTestSetup() *testSetup {
 	return &testSetup{
 		Storage: mockStorage,
 		Handler: NewPromReadHandler(
-			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil), time.Minute),
+			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil), time.Minute, nil),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("", nil),
 			timeoutOpts,
+			false,
 		),
 	}
 }
@@ -138,7 +139,9 @@ func newTestSetup() *testSetup {
 func TestPromReadHandler_ServeHTTP_maxComputedDatapoints(t *testing.T) {
 	setup := newTestSetup()
 	setup.Handler.limitsCfg = &config.LimitsConfiguration{
-		MaxComputedDatapoints: 3599,
+		PerQuery: config.PerQueryLimitsConfiguration{
+			PrivateMaxComputedDatapoints: 3599,
+		},
 	}
 
 	params := defaultParams()
@@ -247,7 +250,9 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			setup := newTestSetup()
 			setup.Handler.limitsCfg = &config.LimitsConfiguration{
-				MaxComputedDatapoints: tc.Max,
+				PerQuery: config.PerQueryLimitsConfiguration{
+					PrivateMaxComputedDatapoints: tc.Max,
+				},
 			}
 
 			err := setup.Handler.validateRequest(tc.Params)

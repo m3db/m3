@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,43 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xcounter
+package index
 
-import "time"
+import "github.com/m3db/m3x/pool"
 
-const (
-	defaultNumBuckets = 60
-	defaultInterval   = time.Second
-)
-
-// Options controls the parameters for frequency counters
-type Options struct {
-	numBuckets int
-	interval   time.Duration
+type aggregateValuesPool struct {
+	pool pool.ObjectPool
 }
 
-// NewOptions creates new options
-func NewOptions() Options {
-	return Options{
-		numBuckets: defaultNumBuckets,
-		interval:   defaultInterval,
-	}
+// NewAggregateValuesPool creates a new AggregateValuesPool.
+func NewAggregateValuesPool(
+	opts pool.ObjectPoolOptions) AggregateValuesPool {
+	return &aggregateValuesPool{pool: pool.NewObjectPool(opts)}
 }
 
-// NumBuckets returns the number of buckets
-func (o Options) NumBuckets() int { return o.numBuckets }
-
-// Interval returns the interval associated with each bucket
-func (o Options) Interval() time.Duration { return o.interval }
-
-// SetNumBuckets sets the number of buckets
-func (o Options) SetNumBuckets(value int) Options {
-	o.numBuckets = value
-	return o
+func (p *aggregateValuesPool) Init(alloc AggregateValuesAllocator) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
 }
 
-// SetInterval sets the interval
-func (o Options) SetInterval(value time.Duration) Options {
-	o.interval = value
-	return o
+func (p *aggregateValuesPool) Get() AggregateValues {
+	return p.pool.Get().(AggregateValues)
+}
+
+func (p *aggregateValuesPool) Put(value AggregateValues) {
+	p.pool.Put(value)
 }

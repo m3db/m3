@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
@@ -61,6 +62,7 @@ var (
 	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
+	errCancelledQuery                          = errors.New("query was cancelled")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -72,6 +74,8 @@ const (
 	blockStateOpen blockState = iota
 	blockStateSealed
 	blockStateClosed
+
+	defaultQueryDocsBatchSize = 256
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
 )
@@ -156,19 +160,26 @@ type blockShardRangesSegments struct {
 	segments        []segment.Segment
 }
 
+// BlockOptions is a set of options used when constructing an index block.
+type BlockOptions struct {
+	ForegroundCompactorMmapDocsData bool
+	BackgroundCompactorMmapDocsData bool
+}
+
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
 	blockStart time.Time,
 	md namespace.Metadata,
-	opts Options,
+	opts BlockOptions,
+	indexOpts Options,
 ) (Block, error) {
-	docsPool := opts.DocumentArrayPool()
+	docsPool := indexOpts.DocumentArrayPool()
 
 	foregroundCompactor := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
-		opts.SegmentBuilderOptions(),
-		opts.FSTSegmentOptions(),
+		indexOpts.SegmentBuilderOptions(),
+		indexOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
 			FSTWriterOptions: &fst.WriterOptions{
 				// DisableRegistry is set to true to trade a larger FST size
@@ -176,28 +187,31 @@ func NewBlock(
 				// to end latency for time to first index a metric.
 				DisableRegistry: true,
 			},
+			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
 		})
 
 	backgroundCompactor := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
-		opts.SegmentBuilderOptions(),
-		opts.FSTSegmentOptions(),
-		compaction.CompactorOptions{})
+		indexOpts.SegmentBuilderOptions(),
+		indexOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
+		})
 
-	segmentBuilder, err := builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
+	segmentBuilder, err := builder.NewBuilderFromDocuments(indexOpts.SegmentBuilderOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	blockSize := md.Options().IndexOptions().BlockSize()
-	iopts := opts.InstrumentOptions()
+	iopts := indexOpts.InstrumentOptions()
 	b := &block{
 		state:               blockStateOpen,
 		segmentBuilder:      segmentBuilder,
 		blockStart:          blockStart,
 		blockEnd:            blockStart.Add(blockSize),
 		blockSize:           blockSize,
-		opts:                opts,
+		opts:                indexOpts,
 		iopts:               iopts,
 		nsMD:                md,
 		docsPool:            docsPool,
@@ -748,13 +762,22 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	return executor.NewExecutor(readers), nil
 }
 
+// Query acquires a read lock on the block so that the segments
+// are guaranteed to not be freed/released while accumulating results.
+// This allows references to the mmap'd segment data to be accumulated
+// and then copied into the results before this method returns (it is not
+// safe to return docs directly from the segments from this method, the
+// results datastructure is used to copy it every time documents are added
+// to the results datastructure).
 func (b *block) Query(
+	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results Results,
+	results BaseResults,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
+
 	if b.state == blockStateClosed {
 		return false, ErrUnableToQueryBlockClosed
 	}
@@ -772,23 +795,39 @@ func (b *block) Query(
 	}
 
 	size := results.Size()
-	limitedResults := false
+	batch := b.docsPool.Get()
+	batchSize := cap(batch)
+	if batchSize == 0 {
+		batchSize = defaultQueryDocsBatchSize
+	}
 	iterCloser := safeCloser{closable: iter}
 	execCloser := safeCloser{closable: exec}
 
 	defer func() {
+		b.docsPool.Put(batch)
 		iterCloser.Close()
 		execCloser.Close()
 	}()
 
 	for iter.Next() {
 		if opts.LimitExceeded(size) {
-			limitedResults = true
 			break
 		}
 
-		d := iter.Current()
-		_, size, err = results.AddDocument(d)
+		batch = append(batch, iter.Current())
+		if len(batch) < batchSize {
+			continue
+		}
+
+		batch, size, err = b.addQueryResults(cancellable, results, batch)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	// Add last batch to results if remaining.
+	if len(batch) > 0 {
+		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
@@ -806,8 +845,37 @@ func (b *block) Query(
 		return false, err
 	}
 
-	exhaustive := !limitedResults
+	exhaustive := !opts.LimitExceeded(size)
 	return exhaustive, nil
+}
+
+func (b *block) addQueryResults(
+	cancellable *resource.CancellableLifetime,
+	results BaseResults,
+	batch []doc.Document,
+) ([]doc.Document, int, error) {
+	// Checkout the lifetime of the query before adding results
+	queryValid := cancellable.TryCheckout()
+	if !queryValid {
+		// Query not valid any longer, do not add results and return early
+		return batch, 0, errCancelledQuery
+	}
+
+	// Try to add the docs to the resource
+	size, err := results.AddDocuments(batch)
+
+	// Immediately release the checkout on the lifetime of query
+	cancellable.ReleaseCheckout()
+
+	// Reset batch
+	var emptyDoc doc.Document
+	for i := range batch {
+		batch[i] = emptyDoc
+	}
+	batch = batch[:0]
+
+	// Return results
+	return batch, size, err
 }
 
 func (b *block) AddResults(

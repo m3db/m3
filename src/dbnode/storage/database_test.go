@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -700,10 +701,12 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		1.0, xtime.Second, nil))
 
 	var (
-		q    = index.Query{}
-		opts = index.QueryOptions{}
-		res  = index.QueryResults{}
-		err  error
+		q       = index.Query{}
+		opts    = index.QueryOptions{}
+		res     = index.QueryResult{}
+		aggOpts = index.AggregateResultsOptions{}
+		aggRes  = index.AggregateQueryResult{}
+		err     error
 	)
 
 	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, nil)
@@ -712,6 +715,15 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, fmt.Errorf("random err"))
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
+	require.Error(t, err)
+
+	ns.EXPECT().AggregateQuery(ctx, q, opts, aggOpts).Return(aggRes, nil)
+	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, opts, aggOpts)
+	require.NoError(t, err)
+
+	ns.EXPECT().AggregateQuery(ctx, q, opts, aggOpts).
+		Return(aggRes, fmt.Errorf("random err"))
+	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, opts, aggOpts)
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)
@@ -1172,4 +1184,27 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.Equal(t, err, errHandler.errs[1].err)
 	d.commitLog = commitlog
 	require.NoError(t, d.Close())
+}
+
+func TestDatabaseIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	d.opts = d.opts.SetCommitLogOptions(
+		d.opts.CommitLogOptions().SetBacklogQueueSize(100),
+	)
+
+	mockCL := commitlog.NewMockCommitLog(ctrl)
+	d.commitLog = mockCL
+
+	mockCL.EXPECT().QueueLength().Return(int64(89))
+	require.Equal(t, false, d.IsOverloaded())
+
+	mockCL.EXPECT().QueueLength().Return(int64(90))
+	require.Equal(t, true, d.IsOverloaded())
 }

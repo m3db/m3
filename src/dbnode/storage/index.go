@@ -44,6 +44,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/x/resource"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -92,7 +93,9 @@ type nsIndex struct {
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
 
-	resultsPool index.ResultsPool
+	resultsPool          index.QueryResultsPool
+	aggregateResultsPool index.AggregateResultsPool
+
 	// NB(r): Use a pooled goroutine worker once pooled goroutine workers
 	// support timeouts for query workers pool.
 	queryWorkersPool xsync.WorkerPool
@@ -141,7 +144,12 @@ type nsIndexRuntimeOptions struct {
 	defaultQueryTimeout   time.Duration
 }
 
-type newBlockFn func(time.Time, namespace.Metadata, index.Options) (index.Block, error)
+type newBlockFn func(
+	time.Time,
+	namespace.Metadata,
+	index.BlockOptions,
+	index.Options,
+) (index.Block, error)
 
 // NB(prateek): the returned filesets are strictly before the given time, i.e. they
 // live in the period (-infinity, exclusiveTime).
@@ -242,14 +250,16 @@ func newNamespaceIndexWithOptions(
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
 
-		newBlockFn:       newBlockFn,
-		opts:             newIndexOpts.opts,
-		logger:           indexOpts.InstrumentOptions().Logger(),
-		nsMetadata:       nsMD,
-		resultsPool:      indexOpts.ResultsPool(),
-		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		newBlockFn: newBlockFn,
+		opts:       newIndexOpts.opts,
+		logger:     indexOpts.InstrumentOptions().Logger(),
+		nsMetadata: nsMD,
 
-		metrics: newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+		resultsPool:          indexOpts.QueryResultsPool(),
+		aggregateResultsPool: indexOpts.AggregateResultsPool(),
+
+		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
@@ -849,14 +859,54 @@ func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (index.QueryResult, error) {
+	// Get results and set the namespace ID and size limit.
+	results := i.resultsPool.Get()
+	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
+		SizeLimit: opts.Limit,
+	})
+	exhaustive, err := i.query(ctx, query, results, opts)
+	if err != nil {
+		return index.QueryResult{}, err
+	}
+	return index.QueryResult{
+		Results:    results,
+		Exhaustive: exhaustive,
+	}, nil
+}
+
+func (i *nsIndex) AggregateQuery(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+	aggResultOpts index.AggregateResultsOptions,
+) (index.AggregateQueryResult, error) {
+	// Get results and set the filters, namespace ID and size limit.
+	results := i.aggregateResultsPool.Get()
+	results.Reset(i.nsMetadata.ID(), aggResultOpts)
+	exhaustive, err := i.query(ctx, query, results, opts)
+	if err != nil {
+		return index.AggregateQueryResult{}, err
+	}
+	return index.AggregateQueryResult{
+		Results:    results,
+		Exhaustive: exhaustive,
+	}, nil
+}
+
+func (i *nsIndex) query(
+	ctx context.Context,
+	query index.Query,
+	results index.BaseResults,
+	opts index.QueryOptions,
+) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
 
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		return index.QueryResults{}, errDbIndexUnableToQueryClosed
+		return false, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -880,39 +930,30 @@ func (i *nsIndex) Query(
 	i.state.RUnlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return false, err
 	}
 
 	var (
 		deadline = start.Add(timeout)
 		wg       sync.WaitGroup
 
-		// Results contains all concurrent mutable state below.
-		results = struct {
+		// State contains concurrent mutable state for async execution below.
+		state = struct {
 			sync.Mutex
 			multiErr   xerrors.MultiError
-			merged     index.Results
 			exhaustive bool
-			returned   bool
 		}{
-			merged:     nil,
 			exhaustive: true,
-			returned:   false,
 		}
 	)
-	defer func() {
-		// Ensure that during early error returns we let any aborted
-		// goroutines know not to try to modify/edit the result any longer.
-		results.Lock()
-		results.returned = true
-		results.Unlock()
-	}()
+
+	// Create a cancellable lifetime and cancel it at end of this method so that
+	// no child async task modifies the result after this method returns.
+	cancellable := resource.NewCancellableLifetime()
+	defer cancellable.Cancel()
 
 	execBlockQuery := func(block index.Block) {
-		blockResults := i.resultsPool.Get()
-		blockResults.Reset(i.nsMetadata.ID())
-
-		blockExhaustive, err := block.Query(query, opts, blockResults)
+		blockExhaustive, err := block.Query(cancellable, query, opts, results)
 		if err == index.ErrUnableToQueryBlockClosed {
 			// NB(r): Because we query this block outside of the results lock, it's
 			// possible this block may get closed if it slides out of retention, in
@@ -921,78 +962,40 @@ func (i *nsIndex) Query(
 			err = nil
 		}
 
-		var mergedResult bool
-		results.Lock()
-		defer func() {
-			results.Unlock()
-			if mergedResult {
-				// Only finalize this result if we merged it into another.
-				blockResults.Finalize()
-			}
-		}()
-
-		if results.returned {
-			// If already returned then we early cancelled, don't add any
-			// further results or errors since caller already has a result.
-			return
-		}
+		state.Lock()
+		defer state.Unlock()
 
 		if err != nil {
-			results.multiErr = results.multiErr.Add(err)
+			state.multiErr = state.multiErr.Add(err)
 			return
 		}
 
-		if results.merged == nil {
-			// Return results to pool at end of request.
-			ctx.RegisterFinalizer(blockResults)
-			// No merged results yet, use this as the first to merge into.
-			results.merged = blockResults
-		} else {
-			// Append the block results.
-			mergedResult = true
-			size := results.merged.Size()
-			for _, entry := range blockResults.Map().Iter() {
-				// Break early if reached limit.
-				if opts.Limit > 0 && size >= opts.Limit {
-					blockExhaustive = false
-					break
-				}
-
-				// Append to merged results.
-				id, tags := entry.Key(), entry.Value()
-				_, size, err = results.merged.AddIDAndTags(id, tags)
-				if err != nil {
-					results.multiErr = results.multiErr.Add(err)
-					return
-				}
-			}
-		}
-
-		// If block had more data but we stopped early, need to notify caller.
 		if blockExhaustive {
 			return
 		}
-		results.exhaustive = false
+
+		// If block had more data but we stopped early, need to notify caller.
+		state.exhaustive = false
 	}
 
 	for _, block := range blocks {
 		// Capture block for async query execution below.
 		block := block
 
-		// Terminate early if we know we don't need any more results.
-		results.Lock()
-		mergedSize := 0
-		if results.merged != nil {
-			mergedSize = results.merged.Size()
-		}
-		alreadyNotExhaustive := opts.Limit > 0 && mergedSize >= opts.Limit
-		if alreadyNotExhaustive {
-			results.exhaustive = false
-		}
-		results.Unlock()
-
-		if alreadyNotExhaustive {
-			// Break out if already exhaustive.
+		// We're looping through all the blocks that we need to query and kicking
+		// off parallel queries which are bounded by the queryWorkersPool's maximum
+		// concurrency. This means that it's possible at this point that we've
+		// completed querying one or more blocks and already exhausted the maximum
+		// number of results that we're allowed to return. If thats the case, there
+		// is no value in kicking off more parallel queries, so we break out of
+		// the loop.
+		size := results.Size()
+		alreadyExceededLimit := opts.LimitExceeded(size)
+		if alreadyExceededLimit {
+			state.Lock()
+			state.exhaustive = false
+			state.Unlock()
+			// Break out if already not exhaustive.
 			break
 		}
 
@@ -1025,7 +1028,7 @@ func (i *nsIndex) Query(
 
 		if timedOut {
 			// Exceeded our deadline waiting for this block's query to start.
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1037,7 +1040,7 @@ func (i *nsIndex) Query(
 		// Need to abort early if timeout hit.
 		timeLeft := deadline.Sub(i.nowFn())
 		if timeLeft <= 0 {
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 
 		var (
@@ -1059,34 +1062,21 @@ func (i *nsIndex) Query(
 		ticker.Stop()
 
 		if aborted {
-			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
-	results.Lock()
-	// Signal not to add any further results since we've returned already.
-	results.returned = true
-	// Take reference to vars to return while locked, need to allow defer
-	// lock/unlock cleanup to not deadlock with this locked code block.
-	exhaustive := results.exhaustive
-	mergedResults := results.merged
-	err = results.multiErr.FinalError()
-	results.Unlock()
+	state.Lock()
+	// Take reference to vars to return while locked.
+	exhaustive := state.exhaustive
+	err = state.multiErr.FinalError()
+	state.Unlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return false, err
 	}
 
-	// If no blocks queried, return an empty result
-	if mergedResults == nil {
-		mergedResults = i.resultsPool.Get()
-		mergedResults.Reset(i.nsMetadata.ID())
-	}
-
-	return index.QueryResults{
-		Exhaustive: exhaustive,
-		Results:    mergedResults,
-	}, nil
+	return exhaustive, nil
 }
 
 func (i *nsIndex) timeoutForQueryWithRLock(
@@ -1190,7 +1180,8 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 	}
 
 	// ok now we know for sure we have to alloc
-	block, err := i.newBlockFn(blockStart, i.nsMetadata, i.opts.IndexOptions())
+	block, err := i.newBlockFn(blockStart, i.nsMetadata,
+		index.BlockOptions{}, i.opts.IndexOptions())
 	if err != nil { // unable to allocate the block, should never happen.
 		return nil, i.unableToAllocBlockInvariantError(err)
 	}

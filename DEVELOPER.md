@@ -81,3 +81,13 @@ make docs-deploy
 
 The [M3 website](https://m3db.io/) is hosted with Netlify. It is configured to run `make site-build` and then serving the contents of the `/m3db.io` directory. The site is built and republished every time
 there is a push to master.
+
+## Cutting a release
+
+1. Ensure you have a Github API access token with the `repo` scope
+2. Checkout the commit you want to release (do not release commits that don't exist on master)
+3. Create a tag with the version you would like to release. Ex: `git tag -a v0.7.0 -m "v0.7.0"`
+4. Push the tag. Ex: `git push origin v0.7.0`
+5. Run `make GITHUB_TOKEN=<GITHUB_API_ACCESS_TOKEN> release`
+6. Update `CHANGELOG.md` and commit it to master
+7. Copy and paste the text from `CHANGELOG.md` into the release notes [on Github](https://github.com/m3db/m3/releases)

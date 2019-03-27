@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 
@@ -33,6 +34,8 @@ import (
 	"gopkg.in/validator.v2"
 	yaml "gopkg.in/yaml.v2"
 )
+
+const testConfigFile = "./testdata/config.yml"
 
 func TestTagOptionsFromEmptyConfigErrors(t *testing.T) {
 	cfg := TagOptionsConfiguration{}
@@ -69,20 +72,112 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	assert.Equal(t, []byte(name), opts.MetricName())
 }
 
+func TestLimitsConfiguration_AsLimitManagerOptions(t *testing.T) {
+	cases := []struct {
+		Input interface {
+			AsLimitManagerOptions() cost.LimitManagerOptions
+		}
+		ExpectedDefault int64
+	}{{
+		Input: &PerQueryLimitsConfiguration{
+			MaxFetchedDatapoints: 5,
+		},
+		ExpectedDefault: 5,
+	}, {
+		Input: &GlobalLimitsConfiguration{
+			MaxFetchedDatapoints: 6,
+		},
+		ExpectedDefault: 6,
+	}}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("type_%T", tc.Input), func(t *testing.T) {
+			res := tc.Input.AsLimitManagerOptions()
+			assert.Equal(t, cost.Limit{
+				Threshold: cost.Cost(tc.ExpectedDefault),
+				Enabled:   true,
+			}, res.DefaultLimit())
+		})
+	}
+}
+
+func TestLimitsConfiguration_MaxComputedDatapoints(t *testing.T) {
+	t.Run("uses PerQuery value if provided", func(t *testing.T) {
+		lc := &LimitsConfiguration{
+			DeprecatedMaxComputedDatapoints: 6,
+			PerQuery: PerQueryLimitsConfiguration{
+				PrivateMaxComputedDatapoints: 5,
+			},
+		}
+
+		assert.Equal(t, int64(5), lc.MaxComputedDatapoints())
+	})
+
+	t.Run("uses deprecated value if PerQuery not provided", func(t *testing.T) {
+		lc := &LimitsConfiguration{
+			DeprecatedMaxComputedDatapoints: 6,
+		}
+
+		assert.Equal(t, int64(6), lc.MaxComputedDatapoints())
+	})
+}
+
+func TestToLimitManagerOptions(t *testing.T) {
+	cases := []struct {
+		Name          string
+		Input         int64
+		ExpectedLimit cost.Limit
+	}{{
+		Name:  "negative is disabled",
+		Input: -5,
+		ExpectedLimit: cost.Limit{
+			Threshold: cost.Cost(-5),
+			Enabled:   false,
+		},
+	}, {
+		Name:  "zero is disabled",
+		Input: 0,
+		ExpectedLimit: cost.Limit{
+			Threshold: cost.Cost(0),
+			Enabled:   false,
+		},
+	}, {
+		Name:  "positive is enabled",
+		Input: 5,
+		ExpectedLimit: cost.Limit{
+			Threshold: cost.Cost(5),
+			Enabled:   true,
+		},
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			assert.Equal(t, tc.ExpectedLimit, toLimitManagerOptions(tc.Input).DefaultLimit())
+		})
+	}
+}
+
 func TestConfigLoading(t *testing.T) {
 	var cfg Configuration
-	require.NoError(t, xconfig.LoadFile(&cfg, "./testdata/sample_config.yml", xconfig.Options{}))
+	require.NoError(t, xconfig.LoadFile(&cfg, testConfigFile, xconfig.Options{}))
 
 	assert.Equal(t, &LimitsConfiguration{
-		MaxComputedDatapoints: 12000,
-	}, cfg.Limits)
+		DeprecatedMaxComputedDatapoints: 10555,
+		PerQuery: PerQueryLimitsConfiguration{
+			PrivateMaxComputedDatapoints: 12000,
+			MaxFetchedDatapoints:         11000,
+		},
+		Global: GlobalLimitsConfiguration{
+			MaxFetchedDatapoints: 13000,
+		},
+	}, &cfg.Limits)
 	// TODO: assert on more fields here.
 }
 
 func TestConfigValidation(t *testing.T) {
 	baseCfg := func(t *testing.T) *Configuration {
 		var cfg Configuration
-		require.NoError(t, xconfig.LoadFile(&cfg, "./testdata/sample_config.yml", xconfig.Options{}),
+		require.NoError(t, xconfig.LoadFile(&cfg, testConfigFile, xconfig.Options{}),
 			"sample configuration is no longer valid or loadable. Fix it up to provide a base config here")
 
 		return &cfg
@@ -106,9 +201,10 @@ func TestConfigValidation(t *testing.T) {
 	for _, tc := range limitsCfgCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			cfg := baseCfg(t)
-			cfg.Limits = &LimitsConfiguration{
-				MaxComputedDatapoints: 5,
-			}
+			cfg.Limits = LimitsConfiguration{
+				PerQuery: PerQueryLimitsConfiguration{
+					PrivateMaxComputedDatapoints: tc.Limit,
+				}}
 
 			assert.NoError(t, validator.Validate(cfg))
 		})
@@ -178,4 +274,14 @@ func TestNilQueryConversionSize(t *testing.T) {
 
 	err := q.Validate()
 	require.NoError(t, err)
+}
+
+func TestKeepNaNsDefault(t *testing.T) {
+	r := ResultOptions{
+		KeepNans: true,
+	}
+	assert.Equal(t, true, r.KeepNans)
+
+	r = ResultOptions{}
+	assert.Equal(t, false, r.KeepNans)
 }

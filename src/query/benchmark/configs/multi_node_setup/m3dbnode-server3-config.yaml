@@ -35,14 +35,16 @@ bootstrap:
       - peers
       - uninitialized_topology
   fs:
-      numProcessorsPerCPU: 0.125
+    numProcessorsPerCPU: 0.125
+  commitlog:
+    returnUnfulfilledForCorruptCommitLogFiles: false
 
 commitlog:
   flushMaxBytes: 524288
   flushEvery: 1s
   queue:
-      calculationType: fixed
-      size: 2097152
+    calculationType: fixed
+    size: 2097152
 
 fs:
   filePathPrefix: /var/lib/m3db

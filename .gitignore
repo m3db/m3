@@ -52,6 +52,7 @@ yarn-error.log*
 
 # Used to serve m3db.io site
 !m3db.io/**/*.html
+!m3db.io/**/*.xml
 # glide does not manage this
 !m3db.io/**/vendor
 # Automatically populated from asset sources

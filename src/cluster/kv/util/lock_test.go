@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/generated/proto/testpb"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 
 	"github.com/fortytw2/leaktest"
@@ -896,6 +898,99 @@ func TestWatchAndUpdateWithValidationTime(t *testing.T) {
 	}
 }
 
+// NB: uses a map[string]int64 as a standin for a generic type
+func TestWatchAndUpdateWithValidationGeneric(t *testing.T) {
+	testConfig := struct {
+		sync.RWMutex
+		v map[string]int64
+	}{}
+
+	valueFn := func() map[string]int64 {
+		testConfig.RLock()
+		defer testConfig.RUnlock()
+
+		clonedMap := make(map[string]int64, len(testConfig.v))
+		for k, v := range testConfig.v {
+			clonedMap[k] = v
+		}
+
+		return clonedMap
+	}
+
+	var (
+		store      = mem.NewStore()
+		opts       = NewOptions().SetValidateFn(testValidateIntMapFn)
+		invalidMap = map[string]int64{"1": 1, "2": 2}
+		defaultMap = map[string]int64{"1": 1, "2": 2, "3": 3}
+		newMap     = map[string]int64{"1": 1, "2": 2, "5": 5}
+		newMap2    = map[string]int64{"1": 1, "2": 2, "100": 100}
+	)
+
+	genericGetFn := func(v kv.Value) (interface{}, error) {
+		var mapProto testpb.MapProto
+		if err := v.Unmarshal(&mapProto); err != nil {
+			return nil, err
+		}
+
+		return mapProto.GetValue(), nil
+	}
+
+	genericUpdateFn := func(i interface{}) {
+		testConfig.v = i.(map[string]int64)
+	}
+
+	waitForExpectedValue := func(m map[string]int64) {
+		start := time.Now()
+		for {
+			value := valueFn()
+			if time.Since(start) >= time.Second*5 {
+				require.FailNow(t, fmt.Sprintf("Exceeded timeout while waiting for "+
+					"generic update result; expected %v, got %v", m, value))
+			}
+
+			if len(value) != len(m) {
+				continue
+			}
+
+			for k, v := range m {
+				if xv, found := value[k]; !found || xv != v {
+					continue
+				}
+			}
+
+			break
+		}
+	}
+
+	_, err := WatchAndUpdateGeneric(store, "foo", genericGetFn, genericUpdateFn,
+		&testConfig.RWMutex, defaultMap, opts)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo", &testpb.MapProto{Value: newMap})
+	require.NoError(t, err)
+
+	waitForExpectedValue(newMap)
+
+	// Invalid updates should not be applied.
+	_, err = store.Set("foo", &testpb.MapProto{Value: invalidMap})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+
+	// NB: should still be old value.
+	waitForExpectedValue(newMap)
+
+	_, err = store.Set("foo", &testpb.MapProto{Value: newMap2})
+	require.NoError(t, err)
+
+	waitForExpectedValue(newMap2)
+
+	// Check default values with a different kv key.
+	_, err = WatchAndUpdateGeneric(store, "bar", genericGetFn, genericUpdateFn,
+		&testConfig.RWMutex, defaultMap, opts)
+	require.NoError(t, err)
+	waitForExpectedValue(defaultMap)
+}
+
 func testValidateBoolFn(val interface{}) error {
 	v, ok := val.(bool)
 	if !ok {
@@ -956,6 +1051,20 @@ func testValidateStringArrayFn(val interface{}) error {
 
 	if len(v) != 2 {
 		return fmt.Errorf("val must contain 2 entries, is %v", v)
+	}
+
+	return nil
+}
+
+func testValidateIntMapFn(val interface{}) error {
+	v, ok := val.(map[string]int64)
+	if !ok {
+		return fmt.Errorf("invalid type for val, expected int map, received %T", val)
+	}
+
+	// NB: for the purpose of this test, valid maps must have 3 values.
+	if len(v) != 3 {
+		return fmt.Errorf("val must contain 3 entries, has %v", v)
 	}
 
 	return nil

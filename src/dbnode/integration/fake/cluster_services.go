@@ -210,6 +210,12 @@ func (s *m3ClusterServices) SetMetadata(
 	return fmt.Errorf("not implemented")
 }
 
+func (s *m3ClusterServices) DeleteMetadata(
+	sid services.ServiceID,
+) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (s *m3ClusterServices) PlacementService(
 	service services.ServiceID,
 	popts placement.Options,

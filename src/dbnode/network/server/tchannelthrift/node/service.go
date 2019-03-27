@@ -80,6 +80,9 @@ var (
 
 	// errNodeIsNotBootstrapped
 	errNodeIsNotBootstrapped = errors.New("node is not bootstrapped")
+
+	// errNotImplemented raised when attempting to execute an un-implemented method
+	errNotImplemented = errors.New("method is not implemented")
 )
 
 type serviceMetrics struct {
@@ -452,6 +455,14 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	return response, nil
 }
 
+func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
+	return nil, tterrors.NewInternalError(errNotImplemented)
+}
+
+func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
+	return nil, tterrors.NewInternalError(errNotImplemented)
+}
+
 func (s *service) encodeTags(
 	enc serialize.TagEncoder,
 	tags ident.TagIterator,
@@ -741,6 +752,11 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -777,6 +793,11 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -825,6 +846,11 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -845,8 +871,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
 		return convert.ToRPCError(err)
-		return err
 	}
+	// The lifecycle of the annotations is more involved than the rest of the data
+	// so we set the annotation pool put method as the finalization function and
+	// let the database take care of returning them to the pool.
+	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
@@ -899,6 +928,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -920,6 +954,10 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
+	// The lifecycle of the annotations is more involved than the rest of the data
+	// so we set the annotation pool put method as the finalization function and
+	// let the database take care of returning them to the pool.
+	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
@@ -1287,13 +1325,14 @@ func (r *writeBatchPooledReq) Finalize() {
 	}
 	r.pooledIDsUsed = 0
 
-	// Return any pooled thrift byte slices to the thrift pool
+	// Return any pooled thrift byte slices to the thrift pool.
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			if elem.Datapoint.Annotation != nil {
-				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-			}
+			// Ownership of the annotations has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
 		}
 		r.writeReq = nil
 	}
@@ -1301,9 +1340,7 @@ func (r *writeBatchPooledReq) Finalize() {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
 			apachethrift.BytesPoolPut(elem.EncodedTags)
-			if elem.Datapoint.Annotation != nil {
-				apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-			}
+			// See comment above about not finalizing annotations here.
 		}
 		r.writeTaggedReq = nil
 	}
@@ -1409,4 +1446,11 @@ func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 	p.pool.Put(v)
+}
+
+// finalizeAnnotationFn implements ts.FinalizeAnnotationFn because
+// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeAnnotationFn
+// does not.
+func finalizeAnnotationFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }

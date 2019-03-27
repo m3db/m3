@@ -359,7 +359,9 @@ func (c *baseNode) processSingleRequest(request processRequest) (block.Block, er
 				newVal = c.processor.Process(flattenedValues, alignedTime)
 			}
 
-			builder.AppendValue(i, newVal)
+			if err := builder.AppendValue(i, newVal); err != nil {
+				return nil, err
+			}
 		}
 	}
 

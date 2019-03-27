@@ -70,7 +70,7 @@ import:
     version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 
   - package: github.com/uber/tchannel-go
-    version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+    version: v1.12.0
     subpackages:
       - thrift
 
@@ -238,6 +238,9 @@ import:
     version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
     repo: https://github.com/go-yaml/yaml.git
     vcs: git
+
+  - package: github.com/russross/blackfriday
+    version: ^2.0.1
 
   - package: github.com/mauricelam/genny
     version: eb2c5232c885956af3565a20ecf48555cab2b9bc

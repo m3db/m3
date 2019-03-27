@@ -22,13 +22,10 @@ package cost
 
 import (
 	"fmt"
-
-	"github.com/uber-go/tally"
 )
 
 const (
-	defaultCostExceededErrorFmt = "%s exceeds limit of %s"
-	customCostExceededErrorFmt  = "%s exceeds limit of %s: %s"
+	defaultCostExceededErrorFmt = "limit reached (current = %v, limit = %v)"
 )
 
 var (
@@ -55,7 +52,7 @@ type enforcer struct {
 	tracker Tracker
 
 	costMsg string
-	metrics enforcerMetrics
+	metrics EnforcerReporter
 }
 
 // NewEnforcer returns a new enforcer for cost limits.
@@ -64,28 +61,36 @@ func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) Enforcer {
 		opts = NewEnforcerOptions()
 	}
 
+	reporter := opts.Reporter()
+	if reporter == nil {
+		reporter = NoopEnforcerReporter()
+	}
+
 	return &enforcer{
 		LimitManager: m,
 		tracker:      t,
 		costMsg:      opts.CostExceededMessage(),
-		metrics:      newEnforcerMetrics(opts.InstrumentOptions().MetricsScope(), opts.ValueBuckets()),
+		metrics:      reporter,
 	}
+}
+
+func (e *enforcer) Reporter() EnforcerReporter {
+	return e.metrics
 }
 
 // Add adds the cost of an operation to the enforcer's current total. If the operation exceeds
 // the enforcer's limit the enforcer will return a CostLimit error in addition to the new total.
 func (e *enforcer) Add(cost Cost) Report {
+	e.metrics.ReportCost(cost)
 	current := e.tracker.Add(cost)
+	e.metrics.ReportCurrent(current)
 
 	limit := e.Limit()
 	overLimit := e.checkLimit(current, limit)
 
 	if overLimit != nil {
 		// Emit metrics on number of operations that are over the limit even when not enabled.
-		e.metrics.overLimit.Inc(1)
-		if limit.Enabled {
-			e.metrics.overLimitAndEnabled.Inc(1)
-		}
+		e.metrics.ReportOverLimit(limit.Enabled)
 	}
 
 	return Report{
@@ -122,27 +127,35 @@ func (e *enforcer) checkLimit(cost Cost, limit Limit) error {
 		return nil
 	}
 
-	if e.costMsg == "" {
-		return defaultCostExceededError(cost, limit)
-	}
-	return costExceededError(e.costMsg, cost, limit)
+	return NewCostExceededError(e.costMsg, cost, limit.Threshold)
 }
 
-func defaultCostExceededError(cost Cost, limit Limit) error {
-	return fmt.Errorf(
+type costExceededError struct {
+	Threshold Cost
+	Current   Cost
+	CustomMsg string
+}
+
+func (ce costExceededError) Error() string {
+	baseMsg := fmt.Sprintf(
 		defaultCostExceededErrorFmt,
-		fmt.Sprintf("%v", float64(cost)),
-		fmt.Sprintf("%v", float64(limit.Threshold)),
+		float64(ce.Current),
+		float64(ce.Threshold),
 	)
+	if ce.CustomMsg == "" {
+		return baseMsg
+	}
+
+	return fmt.Sprintf("%s: %s", ce.CustomMsg, baseMsg)
 }
 
-func costExceededError(customMessage string, cost Cost, limit Limit) error {
-	return fmt.Errorf(
-		customCostExceededErrorFmt,
-		fmt.Sprintf("%v", float64(cost)),
-		fmt.Sprintf("%v", float64(limit.Threshold)),
-		customMessage,
-	)
+// NewCostExceededError returns an error for going over an Enforcer's limit.
+func NewCostExceededError(customMessage string, cost Cost, threshold Cost) error {
+	return costExceededError{
+		CustomMsg: customMessage,
+		Current:   cost,
+		Threshold: threshold,
+	}
 }
 
 // NoopEnforcer returns a new enforcer that always returns a current cost of 0 and
@@ -151,14 +164,13 @@ func NoopEnforcer() Enforcer {
 	return noopEnforcer
 }
 
-type enforcerMetrics struct {
-	overLimit           tally.Counter
-	overLimitAndEnabled tally.Counter
-}
+type noopEnforcerReporter struct{}
 
-func newEnforcerMetrics(s tally.Scope, b tally.ValueBuckets) enforcerMetrics {
-	return enforcerMetrics{
-		overLimit:           s.Counter("over-limit"),
-		overLimitAndEnabled: s.Counter("over-limit-and-enabled"),
-	}
+func (noopEnforcerReporter) ReportCost(c Cost)            {}
+func (noopEnforcerReporter) ReportCurrent(c Cost)         {}
+func (noopEnforcerReporter) ReportOverLimit(enabled bool) {}
+
+// NoopEnforcerReporter returns an EnforcerReporter which does nothing on all events.
+func NoopEnforcerReporter() EnforcerReporter {
+	return noopEnforcerReporter{}
 }

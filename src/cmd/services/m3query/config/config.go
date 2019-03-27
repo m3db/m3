@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
@@ -62,12 +63,6 @@ var (
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
-
-	// defaultLimitsConfiguration is applied if `limits` isn't specified.
-	defaultLimitsConfiguration = &LimitsConfiguration{
-		// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-		MaxComputedDatapoints: 86400,
-	}
 )
 
 // Configuration is the configuration for the query service.
@@ -121,13 +116,16 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Limits specifies limits on per-query resource usage.
-	Limits *LimitsConfiguration `yaml:"limits"`
+	Limits LimitsConfiguration `yaml:"limits"`
 
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
 
 	// Cache configurations.
 	Cache CacheConfiguration `yaml:"cache"`
+
+	// ResultOptions are the results options for query.
+	ResultOptions ResultOptions `yaml:"resultOptions"`
 }
 
 // Filter is a query filter type.
@@ -149,6 +147,13 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// ResultOptions are the result options for query.
+type ResultOptions struct {
+	// KeepNans keeps NaNs before returning query results.
+	// The default is false, which matches Prometheus
+	KeepNans bool `yaml:"keepNans"`
 }
 
 // CacheConfiguration is the cache configurations.
@@ -191,9 +196,69 @@ func (q *QueryConversionCacheConfiguration) Validate() error {
 	return nil
 }
 
-// LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
+// LimitsConfiguration represents limitations on resource usage in the query instance. Limits are split between per-query
+// and global limits.
 type LimitsConfiguration struct {
-	MaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	// deprecated: use PerQuery.MaxComputedDatapoints instead.
+	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+
+	// Global configures limits which apply across all queries running on this
+	// instance.
+	Global GlobalLimitsConfiguration `yaml:"global"`
+
+	// PerQuery configures limits which apply to each query individually.
+	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
+}
+
+// MaxComputedDatapoints is a getter providing backwards compatibility between
+// LimitsConfiguration.DeprecatedMaxComputedDatapoints and
+// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
+// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
+// the semantics.
+func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
+	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
+		return lc.PerQuery.PrivateMaxComputedDatapoints
+	}
+
+	return lc.DeprecatedMaxComputedDatapoints
+}
+
+// GlobalLimitsConfiguration represents limits on resource usage across a query instance. Zero or negative values imply no limit.
+type GlobalLimitsConfiguration struct {
+	// MaxFetchedDatapoints limits the total number of datapoints actually fetched by all queries at any given time.
+	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+}
+
+// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
+	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+// PerQueryLimitsConfiguration represents limits on resource usage within a single query. Zero or negative values imply no limit.
+type PerQueryLimitsConfiguration struct {
+	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
+	// returned by a query. It's determined purely
+	// from the size of the time range and the step size (end - start / step).
+	//
+	// N.B.: the hacky "Private" prefix is to indicate that callers should use
+	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
+	// this field directly.
+	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+
+	// MaxFetchedDatapoints limits the number of datapoints actually used by a given query.
+	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+}
+
+// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
+	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
+	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
+		Threshold: cost.Cost(limit),
+		Enabled:   limit > 0,
+	})
 }
 
 // IngestConfiguration is the configuration for ingestion server.
@@ -230,16 +295,6 @@ func (c Configuration) LookbackDurationOrDefault() (time.Duration, error) {
 	}
 
 	return v, nil
-}
-
-// LimitsOrDefault returns the specified limit configuration if provided, or the
-// default value otherwise.
-func (c Configuration) LimitsOrDefault() *LimitsConfiguration {
-	if c.Limits != nil {
-		return c.Limits
-	}
-
-	return defaultLimitsConfiguration
 }
 
 // ListenAddressOrDefault returns the specified carbon ingester listen address if provided, or the

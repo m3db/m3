@@ -197,6 +197,8 @@ type electionManagerMetrics struct {
 	electionState                          tally.Gauge
 	campaignState                          tally.Gauge
 	campaigning                            tally.Gauge
+	leadersWithActiveShards                tally.Gauge
+	followersWithActiveShards              tally.Gauge
 }
 
 func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
@@ -232,6 +234,8 @@ func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
 		electionState:                          scope.Gauge("election-state"),
 		campaignState:                          scope.Gauge("campaign-state"),
 		campaigning:                            scope.Gauge("campaigning"),
+		leadersWithActiveShards:                scope.Gauge("leaders-with-active-shards"),
+		followersWithActiveShards:              scope.Gauge("follower-with-active-shards"),
 	}
 }
 
@@ -651,6 +655,12 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 		hasNotCutoff := nowNanos < shard.CutoffNanos()-int64(mgr.shardCutoffCheckOffset)
 		if hasCutover && hasNotCutoff {
 			mgr.metrics.campaignCheckHasActiveShards.Inc(1)
+			if mgr.ElectionState() == LeaderState {
+				mgr.metrics.leadersWithActiveShards.Update(float64(1))
+			}
+			if mgr.ElectionState() == FollowerState {
+				mgr.metrics.followersWithActiveShards.Update(float64(1))
+			}
 			return true, nil
 		}
 		noCutoverShards = noCutoverShards && !hasCutover

@@ -233,7 +233,9 @@ func (n *countValuesNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.
 				bucketBlock.columns[columnIndex],
 				len(bucketBlock.indexMapping),
 			)
-			builder.AppendValues(columnIndex, valsToAdd)
+			if err := builder.AppendValues(columnIndex, valsToAdd); err != nil {
+				return nil, err
+			}
 		}
 	}
 

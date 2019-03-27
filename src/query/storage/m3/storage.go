@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -106,10 +107,16 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
 	fetchResult, err := storage.SeriesIteratorsToFetchResult(
 		iters,
 		s.readWorkerPool,
 		false,
+		enforcer,
 		s.opts.TagOptions(),
 	)
 
@@ -141,7 +148,7 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration())
+		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration(), options.Enforcer)
 	}
 
 	// If using multiblock, update options to reflect this.
@@ -161,7 +168,26 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, opts)
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	// TODO: mutating this array breaks the abstraction a bit, but it's the least fussy way I can think of to do this
+	// while maintaining the original pooling.
+	// Alternative would be to fetch a new MutableSeriesIterators() instance from the pool, populate it,
+	// and then return the original to the pool, which feels wasteful.
+	iters := raw.Iters()
+	for i, iter := range iters {
+		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
+	}
+
+	blocks, err := m3db.ConvertM3DBSeriesIterators(
+		raw,
+		bounds,
+		opts,
+	)
+
 	if err != nil {
 		return block.Result{}, err
 	}
