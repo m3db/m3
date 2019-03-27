@@ -21,6 +21,8 @@
 package context
 
 import (
+	stdctx "context"
+
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/resource"
 )
@@ -63,6 +65,12 @@ type Context interface {
 
 	// Reset will reset the context for reuse.
 	Reset()
+
+	// GoContext returns the Go std context
+	GoContext() (stdctx.Context, bool)
+
+	// SetGoContext sets the Go std context
+	SetGoContext(stdctx.Context)
 }
 
 // Pool provides a pool for contexts.
