@@ -21,6 +21,7 @@
 package context
 
 import (
+	stdctx "context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -148,4 +149,29 @@ func testDependsOn(t *testing.T, c *ctx) {
 
 	// Ensure closed now.
 	assert.Equal(t, int32(1), atomic.LoadInt32(&closed))
+}
+
+func TestGoContext(t *testing.T) {
+	goCtx := stdctx.Background()
+	xCtx := NewContext().(*ctx)
+
+	var (
+		exists    bool
+		returnCtx stdctx.Context
+	)
+
+	returnCtx, exists = xCtx.GoContext()
+	assert.False(t, exists)
+	assert.Nil(t, returnCtx)
+
+	xCtx.SetGoContext(goCtx)
+
+	returnCtx, exists = xCtx.GoContext()
+	assert.True(t, exists)
+	assert.Equal(t, goCtx, returnCtx)
+
+	xCtx.Reset()
+	returnCtx, exists = xCtx.GoContext()
+	assert.False(t, exists)
+	assert.Nil(t, returnCtx)
 }
