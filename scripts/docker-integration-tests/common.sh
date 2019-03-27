@@ -50,7 +50,7 @@ function wait_for_db_init {
   curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
-    "retentionTime": "24h",
+    "retentionTime": "6h",
     "replicationFactor": 1,
     "hosts": [
       {
@@ -75,7 +75,7 @@ function wait_for_db_init {
   echo "Adding unagg namespace"
   curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/database/namespace/create -d '{
     "namespaceName": "unagg",
-    "retentionTime": "24h"
+    "retentionTime": "6h"
   }'
 
   echo "Wait until unagg namespace is init'd"

@@ -272,6 +272,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			err = fmt.Errorf("could not create remote aggregator client: %v", err)
 			return agg{}, err
 		}
+		if err := client.Init(); err != nil {
+			return agg{}, fmt.Errorf("could not initialize remote aggregator client: %v", err)
+		}
 
 		return agg{
 			clientRemote:           client,

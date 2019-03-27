@@ -78,7 +78,7 @@ kvClient:
     etcdClusters:
       - zone: embedded
         endpoints:
-          - m3db_seed:2379
+          - dbnode01:2379
 
 runtimeOptions:
   kvConfig:
