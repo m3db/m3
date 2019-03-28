@@ -1400,7 +1400,7 @@
 <h4 id="recommended-easy-way">Recommended (Easy way)</h4>
 <p>The recommended way to add a namespace to M3DB is to use our <code>api/v1/database/namespace</code> endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.</p>
 <p>For example, the following cURL:</p>
-<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;api/v1/database/namespace/create -d '{
+<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/database/namespace/create -d '{
   &quot;namespaceName&quot;: &quot;default_unaggregated&quot;,
   &quot;retentionTime&quot;: &quot;24h&quot;
 }'
@@ -1412,7 +1412,7 @@
 <h4 id="advanced-hard-way">Advanced (Hard Way)</h4>
 <p>The "advanced" API allows you to configure every aspect of the namespace that you're adding which can sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
 Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/namespace</code> API on an M3Coordinator instance.</p>
-<pre><code>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;api/v1/namespace -d '{
+<pre><code>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/namespace -d '{
   &quot;name&quot;: &quot;default_unaggregated&quot;,
   &quot;options&quot;: {
     &quot;bootstrapEnabled&quot;: true,
