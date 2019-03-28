@@ -355,8 +355,7 @@ func (it *iterator) readProtoValues() error {
 
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
-			err := it.lastIterated.TryClearFieldByNumber(fieldNum)
-			if err != nil {
+			if err := it.lastIterated.TryClearFieldByNumber(fieldNum); err != nil {
 				return fmt.Errorf(
 					"%s: error clearing field number: %d, err: %v",
 					itErrPrefix, fieldNum, err)
