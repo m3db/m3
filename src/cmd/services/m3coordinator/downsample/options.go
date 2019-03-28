@@ -208,6 +208,19 @@ type Configuration struct {
 type RemoteAggregatorConfiguration struct {
 	// Client is the remote aggregator client.
 	Client client.Configuration `yaml:"client"`
+	// clientOverride can be used in tests to test initializing a mock client.
+	clientOverride client.Client
+}
+
+func (c RemoteAggregatorConfiguration) newClient(
+	kvClient clusterclient.Client,
+	clockOpts clock.Options,
+	instrumentOpts instrument.Options,
+) (client.Client, error) {
+	if c.clientOverride != nil {
+		return c.clientOverride, nil
+	}
+	return c.Client.NewClient(kvClient, clockOpts, instrumentOpts)
 }
 
 // NewDownsampler returns a new downsampler.
@@ -266,7 +279,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
 		// If downsampling setup to use a remote aggregator instead of local
 		// aggregator, set that up instead.
-		client, err := remoteAgg.Client.NewClient(o.ClusterClient, clockOpts,
+		client, err := remoteAgg.newClient(o.ClusterClient, clockOpts,
 			instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("remote-aggregator-client")))
 		if err != nil {

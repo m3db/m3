@@ -14,6 +14,7 @@ mkdir -p ./bin
 # for docker much smaller
 cp ./src/query/config/m3coordinator-local-etcd.yml ./bin
 cp ./src/dbnode/config/m3dbnode-local-etcd.yml ./bin
+cp ./src/aggregator/config/m3aggregator.yml ./bin
 
 # build images
 echo "building docker images"
