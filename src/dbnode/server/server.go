@@ -1168,7 +1168,6 @@ func withEncodingAndPoolingOptions(
 
 	writeBatchPool.Init()
 
-	// TODO: Should we default the bucket pool sizes here if policy.Size == 0?
 	bucketPool := series.NewBufferBucketPool(
 		poolOptions(policy.BufferBucketPool, scope.SubScope("buffer-bucket-pool")))
 	bucketVersionsPool := series.NewBufferBucketVersionsPool(
