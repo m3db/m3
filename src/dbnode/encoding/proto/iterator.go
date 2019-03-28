@@ -630,63 +630,12 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 }
 
 func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
-	xor, err = it.readXOR(i)
-	if err != nil {
+	xor = it.m3tszIterator.ReadXOR(it.customFields[i].prevXOR)
+	if err := it.m3tszIterator.Err(); err != nil {
 		return 0, 0, err
 	}
 	prevFloatBits := it.customFields[i].prevFloatBits
 	return prevFloatBits ^ xor, xor, nil
-}
-
-func (it *iterator) readXOR(i int) (uint64, error) {
-	cb, err := it.readBits(1)
-	if err != nil {
-		return 0, err
-	}
-	if cb == m3tsz.OpcodeZeroValueXOR {
-		return 0, nil
-	}
-
-	cb2, err := it.readBits(1)
-	if err != nil {
-		return 0, err
-	}
-
-	cb = (cb << 1) | cb2
-	if cb == m3tsz.OpcodeContainedValueXOR {
-		var (
-			previousXOR                       = it.customFields[i].prevXOR
-			previousLeading, previousTrailing = encoding.LeadingAndTrailingZeros(previousXOR)
-			numMeaningfulBits                 = 64 - previousLeading - previousTrailing
-		)
-		meaningfulBits, err := it.readBits(numMeaningfulBits)
-		if err != nil {
-			return 0, err
-		}
-
-		return meaningfulBits << uint(previousTrailing), nil
-	}
-
-	numLeadingZerosBits, err := it.readBits(6)
-	if err != nil {
-		return 0, err
-	}
-	numMeaningfulBitsBits, err := it.readBits(6)
-	if err != nil {
-		return 0, err
-	}
-
-	var (
-		numLeadingZeros   = int(numLeadingZerosBits)
-		numMeaningfulBits = int(numMeaningfulBitsBits) + 1
-		numTrailingZeros  = 64 - numLeadingZeros - numMeaningfulBits
-	)
-	meaningfulBits, err := it.readBits(numMeaningfulBits)
-	if err != nil {
-		return 0, err
-	}
-
-	return meaningfulBits << uint(numTrailingZeros), nil
 }
 
 func (it *iterator) readFullFloatVal() (floatBits uint64, xor uint64, err error) {

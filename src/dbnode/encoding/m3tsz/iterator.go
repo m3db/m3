@@ -256,12 +256,12 @@ func (it *ReaderIterator) readFullFloatVal() {
 }
 
 func (it *ReaderIterator) readFloatXOR() {
-	it.xor = it.readXOR()
+	it.xor = it.ReadXOR(it.xor)
 	it.vb ^= it.xor
 }
 
 func (it *ReaderIterator) readIntSigMult() {
-	if it.readBits(1) == OpcodeUpdateSig {
+	if it.readBits(1) == opcodeUpdateSig {
 		if it.readBits(1) == OpcodeZeroSig {
 			it.sig = 0
 		} else {
@@ -312,15 +312,16 @@ func (it *ReaderIterator) readTimeUnit() {
 	it.tu = tu
 }
 
-func (it *ReaderIterator) readXOR() uint64 {
+// ReadXOR reads the next XOR value.
+func (it *ReaderIterator) ReadXOR(prevXOR uint64) uint64 {
 	cb := it.readBits(1)
-	if cb == OpcodeZeroValueXOR {
+	if cb == opcodeZeroValueXOR {
 		return 0
 	}
 
 	cb = (cb << 1) | it.readBits(1)
-	if cb == OpcodeContainedValueXOR {
-		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(it.xor)
+	if cb == opcodeContainedValueXOR {
+		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing
 		return it.readBits(numMeaningfulBits) << uint(previousTrailing)
 	}

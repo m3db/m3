@@ -31,17 +31,6 @@ const (
 	// DefaultIntOptimizationEnabled is the default switch for m3tsz int optimization
 	DefaultIntOptimizationEnabled = true
 
-	// OpcodeZeroValueXOR indicates the XOR was zero.
-	OpcodeZeroValueXOR = 0x0
-	// OpcodeContainedValueXOR is the OpcodeContainedValueXOR opcode.
-	OpcodeContainedValueXOR = 0x2
-	// OpcodeUncontainedValueXOR is the OpcodeUncontainedValueXOR opcode.
-	OpcodeUncontainedValueXOR = 0x3
-
-	// OpcodeNoUpdateSig indicates there was no change to the number of significant digits.
-	OpcodeNoUpdateSig = 0x0
-	// OpcodeUpdateSig indicates there was a change to the number of significant digits.
-	OpcodeUpdateSig = 0x1
 	// OpcodeZeroSig indicates that there were zero significant digits.
 	OpcodeZeroSig = 0x0
 	// OpcodeNonZeroSig indicates that there were a non-zero number of significant digits.
@@ -51,16 +40,21 @@ const (
 	// of significant digits.
 	NumSigBits = 6
 
-	opcodeUpdate       = 0x0
-	opcodeNoUpdate     = 0x1
-	opcodeUpdateMult   = 0x1
-	opcodeNoUpdateMult = 0x0
-	opcodePositive     = 0x0
-	opcodeNegative     = 0x1
-	opcodeRepeat       = 0x1
-	opcodeNoRepeat     = 0x0
-	opcodeFloatMode    = 0x1
-	opcodeIntMode      = 0x0
+	opcodeZeroValueXOR        = 0x0
+	opcodeContainedValueXOR   = 0x2
+	opcodeUncontainedValueXOR = 0x3
+	opcodeNoUpdateSig         = 0x0
+	opcodeUpdateSig           = 0x1
+	opcodeUpdate              = 0x0
+	opcodeNoUpdate            = 0x1
+	opcodeUpdateMult          = 0x1
+	opcodeNoUpdateMult        = 0x0
+	opcodePositive            = 0x0
+	opcodeNegative            = 0x1
+	opcodeRepeat              = 0x1
+	opcodeNoRepeat            = 0x0
+	opcodeFloatMode           = 0x1
+	opcodeIntMode             = 0x0
 
 	sigDiffThreshold   = uint8(3)
 	sigRepeatThreshold = uint8(5)
@@ -83,7 +77,7 @@ func WriteXOR(
 	stream encoding.OStream,
 	prevXOR, curXOR uint64) {
 	if curXOR == 0 {
-		stream.WriteBits(OpcodeZeroValueXOR, 1)
+		stream.WriteBits(opcodeZeroValueXOR, 1)
 		return
 	}
 
@@ -91,12 +85,12 @@ func WriteXOR(
 	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
 	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(curXOR)
 	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		stream.WriteBits(OpcodeContainedValueXOR, 2)
+		stream.WriteBits(opcodeContainedValueXOR, 2)
 		stream.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
 		return
 	}
 
-	stream.WriteBits(OpcodeUncontainedValueXOR, 2)
+	stream.WriteBits(opcodeUncontainedValueXOR, 2)
 	stream.WriteBits(uint64(curLeading), 6)
 	numMeaningfulBits := 64 - curLeading - curTrailing
 	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
@@ -108,7 +102,7 @@ func WriteXOR(
 // updates the IntSigBitsTracker.
 func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) {
 	if sigTracker.NumSig != sig {
-		os.WriteBit(OpcodeUpdateSig)
+		os.WriteBit(opcodeUpdateSig)
 		if sig == 0 {
 			os.WriteBit(OpcodeZeroSig)
 		} else {
@@ -116,7 +110,7 @@ func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) 
 			os.WriteBits(uint64(sig-1), NumSigBits)
 		}
 	} else {
-		os.WriteBit(OpcodeNoUpdateSig)
+		os.WriteBit(opcodeNoUpdateSig)
 	}
 
 	sigTracker.NumSig = sig
