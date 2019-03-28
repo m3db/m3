@@ -61,7 +61,7 @@ type options struct {
 	repairEnabled     bool
 	retentionOpts     retention.Options
 	indexOpts         IndexOptions
-	schema            Schema
+	schemaList        []Schema
 }
 
 // NewOptions creates a new namespace options
@@ -75,7 +75,7 @@ func NewOptions() Options {
 		repairEnabled:     defaultRepairEnabled,
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
-		schema:            NewSchema(),
+		schemaList:        []Schema{},
 	}
 }
 
@@ -112,7 +112,7 @@ func (o *options) Equal(value Options) bool {
 		o.repairEnabled == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
-		o.schema.Equal(value.Schema())
+		schemaListEqual(o.Schema(), value.Schema())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -195,12 +195,12 @@ func (o *options) IndexOptions() IndexOptions {
 	return o.indexOpts
 }
 
-func (o *options) SetSchema(schema Schema) Options {
+func (o *options) SetSchema(schemaList []Schema) Options {
 	opts := *o
-	opts.schema = schema
+	opts.schemaList = schemaList
 	return &opts
 }
 
-func (o *options) Schema() Schema {
-	return o.schema
+func (o *options) Schema() []Schema {
+	return o.schemaList
 }

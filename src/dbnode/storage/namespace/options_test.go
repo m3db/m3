@@ -27,6 +27,7 @@ import (
 
 	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
 	"github.com/m3db/m3/src/dbnode/retention"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -52,16 +53,15 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 	require.False(t, o2.Equal(o1))
 }
 
-func getTestSchema() Schema {
+func getTestSchemaOptions() []*nsproto.SchemaOption {
 	tm := &testproto.TestMessage{}
-	bytes, _ := tm.Descriptor()
-	ts, _ := ToSchema(bytes)
-	return ts
+	def, _ := tm.Descriptor()
+	return []*nsproto.SchemaOption{{Version:1, Message:"TestMessage", Definition:def}}
 }
 
 func TestOptionsEqualsSchema(t *testing.T) {
 	o1 := NewOptions()
-	s1, err := ToSchema(getTestSchema().Bytes())
+	s1, err := ToSchemaList(getTestSchemaOptions())
 	require.NoError(t, err)
 	o2 := o1.SetSchema(s1)
 	require.True(t, o1.Equal(o1))

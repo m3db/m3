@@ -117,9 +117,8 @@ func TestInitializerNoTimeout(t *testing.T) {
 	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
 	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
 
-	t.Logf("----%s", md.Options().Schema().String())
-	require.NotNil(t, md.Options().Schema())
-	require.True(t, bytes.Equal(expectedNsValue.Schema, md.Options().Schema().Bytes()))
+	require.Len(t, md.Options().Schema(), 1)
+	require.True(t, bytes.Equal(expectedNsValue.SchemaOptions[0].Definition, md.Options().Schema()[0].Bytes()))
 
 	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())
@@ -338,7 +337,7 @@ func singleTestValue() *testValue {
 						BufferFutureNanos:                        toNanosInt64(time.Minute * 10),
 						BufferPastNanos:                          toNanosInt64(time.Minute * 15),
 					},
-					Schema: getTestSchema().Bytes(),
+					SchemaOptions: getTestSchemaOptions(),
 				},
 			},
 		},

@@ -21,29 +21,26 @@
 package namespace_test
 
 import (
-	"bytes"
 	"testing"
 
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
-func getTestSchema() namespace.Schema {
+func getTestSchemaOptions() []*nsproto.SchemaOption {
 	tm := &testproto.TestMessage{}
-	bytes, _ := tm.Descriptor()
-	ts, _ := namespace.ToSchema(bytes)
-	return ts
+	def, _ := tm.Descriptor()
+	return []*nsproto.SchemaOption{{Version:1, Message:"TestMessage", Definition:def}}
 }
 
-func TestSchemaToFromBytes(t *testing.T) {
-	inschema := getTestSchema()
-	outschema, err := namespace.ToSchema(inschema.Bytes())
-	assert.NoError(t, err)
+func TestSchemaFromOption(t *testing.T) {
+	testSchemaOptions := getTestSchemaOptions()
+	testSchema, err := namespace.ToSchemaList(testSchemaOptions)
+	require.NoError(t, err)
 
-	require.EqualValues(t, "TestMessage", outschema.Get().GetName())
-	require.EqualValues(t, inschema.String(), outschema.String())
-	require.True(t, inschema.Equal(outschema))
-	require.True(t, bytes.Equal(inschema.Bytes(), outschema.Bytes()))
+	require.Len(t, testSchema, 1)
+	require.EqualValues(t, 1, testSchema[0].Version())
+	require.EqualValues(t, "TestMessage", testSchema[0].Get().GetName())
 }

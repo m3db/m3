@@ -313,7 +313,7 @@ func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
 }
 
 // SetSchema mocks base method
-func (m *MockOptions) SetSchema(schema Schema) Options {
+func (m *MockOptions) SetSchema(schema []Schema) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSchema", schema)
 	ret0, _ := ret[0].(Options)
@@ -327,10 +327,10 @@ func (mr *MockOptionsMockRecorder) SetSchema(schema interface{}) *gomock.Call {
 }
 
 // Schema mocks base method
-func (m *MockOptions) Schema() Schema {
+func (m *MockOptions) Schema() []Schema {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Schema")
-	ret0, _ := ret[0].(Schema)
+	ret0, _ := ret[0].([]Schema)
 	return ret0
 }
 
@@ -454,6 +454,20 @@ func NewMockSchema(ctrl *gomock.Controller) *MockSchema {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockSchema) EXPECT() *MockSchemaMockRecorder {
 	return m.recorder
+}
+
+// Version mocks base method
+func (m *MockSchema) Version() uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Version")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// Version indicates an expected call of Version
+func (mr *MockSchemaMockRecorder) Version() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockSchema)(nil).Version))
 }
 
 // Equal mocks base method

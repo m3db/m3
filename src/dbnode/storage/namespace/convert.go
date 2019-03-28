@@ -97,7 +97,7 @@ func ToMetadata(
 		return nil, err
 	}
 
-	sopt, err := ToSchema(opts.Schema)
+	sopt, err := ToSchemaList(opts.GetSchemaOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		SnapshotEnabled:   opts.SnapshotEnabled(),
 		RepairEnabled:     opts.RepairEnabled(),
 		WritesToCommitLog: opts.WritesToCommitLog(),
-		Schema:            opts.Schema().Bytes(),
+		SchemaOptions:     fromSchemaList(opts.Schema()),
 		RetentionOptions: &nsproto.RetentionOptions{
 			BlockSizeNanos:                           ropts.BlockSize().Nanoseconds(),
 			RetentionPeriodNanos:                     ropts.RetentionPeriod().Nanoseconds(),

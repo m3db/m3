@@ -36,6 +36,8 @@ import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
 import math "math"
 
+import binary "encoding/binary"
+
 import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -50,12 +52,21 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type TestMessage struct {
-	RetentionPeriodNanos                     int64 `protobuf:"varint,1,opt,name=retentionPeriodNanos,proto3" json:"retentionPeriodNanos,omitempty"`
-	BlockSizeNanos                           int64 `protobuf:"varint,2,opt,name=blockSizeNanos,proto3" json:"blockSizeNanos,omitempty"`
-	BufferFutureNanos                        int64 `protobuf:"varint,3,opt,name=bufferFutureNanos,proto3" json:"bufferFutureNanos,omitempty"`
-	BufferPastNanos                          int64 `protobuf:"varint,4,opt,name=bufferPastNanos,proto3" json:"bufferPastNanos,omitempty"`
-	BlockDataExpiry                          bool  `protobuf:"varint,5,opt,name=blockDataExpiry,proto3" json:"blockDataExpiry,omitempty"`
-	BlockDataExpiryAfterNotAccessPeriodNanos int64 `protobuf:"varint,6,opt,name=blockDataExpiryAfterNotAccessPeriodNanos,proto3" json:"blockDataExpiryAfterNotAccessPeriodNanos,omitempty"`
+	AInt32    int32   `protobuf:"varint,1,opt,name=a_int32,json=aInt32,proto3" json:"a_int32,omitempty"`
+	AInt64    int64   `protobuf:"varint,2,opt,name=a_int64,json=aInt64,proto3" json:"a_int64,omitempty"`
+	AUint32   uint32  `protobuf:"varint,3,opt,name=a_uint32,json=aUint32,proto3" json:"a_uint32,omitempty"`
+	AUint64   uint64  `protobuf:"varint,4,opt,name=a_uint64,json=aUint64,proto3" json:"a_uint64,omitempty"`
+	ASint32   int32   `protobuf:"zigzag32,5,opt,name=a_sint32,json=aSint32,proto3" json:"a_sint32,omitempty"`
+	ASint64   int64   `protobuf:"zigzag64,6,opt,name=a_sint64,json=aSint64,proto3" json:"a_sint64,omitempty"`
+	AFixed32  uint32  `protobuf:"fixed32,7,opt,name=a_fixed32,json=aFixed32,proto3" json:"a_fixed32,omitempty"`
+	AFixed64  uint64  `protobuf:"fixed64,8,opt,name=a_fixed64,json=aFixed64,proto3" json:"a_fixed64,omitempty"`
+	ASfixed32 int32   `protobuf:"fixed32,9,opt,name=a_sfixed32,json=aSfixed32,proto3" json:"a_sfixed32,omitempty"`
+	ASfixed64 int64   `protobuf:"fixed64,10,opt,name=a_sfixed64,json=aSfixed64,proto3" json:"a_sfixed64,omitempty"`
+	ABool     bool    `protobuf:"varint,11,opt,name=a_bool,json=aBool,proto3" json:"a_bool,omitempty"`
+	AString   string  `protobuf:"bytes,12,opt,name=a_string,json=aString,proto3" json:"a_string,omitempty"`
+	ABytes    []byte  `protobuf:"bytes,13,opt,name=a_bytes,json=aBytes,proto3" json:"a_bytes,omitempty"`
+	ADouble   float64 `protobuf:"fixed64,14,opt,name=a_double,json=aDouble,proto3" json:"a_double,omitempty"`
+	AFloat    float32 `protobuf:"fixed32,15,opt,name=a_float,json=aFloat,proto3" json:"a_float,omitempty"`
 }
 
 func (m *TestMessage) Reset()                    { *m = TestMessage{} }
@@ -63,44 +74,107 @@ func (m *TestMessage) String() string            { return proto.CompactTextStrin
 func (*TestMessage) ProtoMessage()               {}
 func (*TestMessage) Descriptor() ([]byte, []int) { return fileDescriptorTest1, []int{0} }
 
-func (m *TestMessage) GetRetentionPeriodNanos() int64 {
+func (m *TestMessage) GetAInt32() int32 {
 	if m != nil {
-		return m.RetentionPeriodNanos
+		return m.AInt32
 	}
 	return 0
 }
 
-func (m *TestMessage) GetBlockSizeNanos() int64 {
+func (m *TestMessage) GetAInt64() int64 {
 	if m != nil {
-		return m.BlockSizeNanos
+		return m.AInt64
 	}
 	return 0
 }
 
-func (m *TestMessage) GetBufferFutureNanos() int64 {
+func (m *TestMessage) GetAUint32() uint32 {
 	if m != nil {
-		return m.BufferFutureNanos
+		return m.AUint32
 	}
 	return 0
 }
 
-func (m *TestMessage) GetBufferPastNanos() int64 {
+func (m *TestMessage) GetAUint64() uint64 {
 	if m != nil {
-		return m.BufferPastNanos
+		return m.AUint64
 	}
 	return 0
 }
 
-func (m *TestMessage) GetBlockDataExpiry() bool {
+func (m *TestMessage) GetASint32() int32 {
 	if m != nil {
-		return m.BlockDataExpiry
+		return m.ASint32
+	}
+	return 0
+}
+
+func (m *TestMessage) GetASint64() int64 {
+	if m != nil {
+		return m.ASint64
+	}
+	return 0
+}
+
+func (m *TestMessage) GetAFixed32() uint32 {
+	if m != nil {
+		return m.AFixed32
+	}
+	return 0
+}
+
+func (m *TestMessage) GetAFixed64() uint64 {
+	if m != nil {
+		return m.AFixed64
+	}
+	return 0
+}
+
+func (m *TestMessage) GetASfixed32() int32 {
+	if m != nil {
+		return m.ASfixed32
+	}
+	return 0
+}
+
+func (m *TestMessage) GetASfixed64() int64 {
+	if m != nil {
+		return m.ASfixed64
+	}
+	return 0
+}
+
+func (m *TestMessage) GetABool() bool {
+	if m != nil {
+		return m.ABool
 	}
 	return false
 }
 
-func (m *TestMessage) GetBlockDataExpiryAfterNotAccessPeriodNanos() int64 {
+func (m *TestMessage) GetAString() string {
 	if m != nil {
-		return m.BlockDataExpiryAfterNotAccessPeriodNanos
+		return m.AString
+	}
+	return ""
+}
+
+func (m *TestMessage) GetABytes() []byte {
+	if m != nil {
+		return m.ABytes
+	}
+	return nil
+}
+
+func (m *TestMessage) GetADouble() float64 {
+	if m != nil {
+		return m.ADouble
+	}
+	return 0
+}
+
+func (m *TestMessage) GetAFloat() float32 {
+	if m != nil {
+		return m.AFloat
 	}
 	return 0
 }
@@ -123,40 +197,93 @@ func (m *TestMessage) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.RetentionPeriodNanos != 0 {
+	if m.AInt32 != 0 {
 		dAtA[i] = 0x8
 		i++
-		i = encodeVarintTest1(dAtA, i, uint64(m.RetentionPeriodNanos))
+		i = encodeVarintTest1(dAtA, i, uint64(m.AInt32))
 	}
-	if m.BlockSizeNanos != 0 {
+	if m.AInt64 != 0 {
 		dAtA[i] = 0x10
 		i++
-		i = encodeVarintTest1(dAtA, i, uint64(m.BlockSizeNanos))
+		i = encodeVarintTest1(dAtA, i, uint64(m.AInt64))
 	}
-	if m.BufferFutureNanos != 0 {
+	if m.AUint32 != 0 {
 		dAtA[i] = 0x18
 		i++
-		i = encodeVarintTest1(dAtA, i, uint64(m.BufferFutureNanos))
+		i = encodeVarintTest1(dAtA, i, uint64(m.AUint32))
 	}
-	if m.BufferPastNanos != 0 {
+	if m.AUint64 != 0 {
 		dAtA[i] = 0x20
 		i++
-		i = encodeVarintTest1(dAtA, i, uint64(m.BufferPastNanos))
+		i = encodeVarintTest1(dAtA, i, uint64(m.AUint64))
 	}
-	if m.BlockDataExpiry {
+	if m.ASint32 != 0 {
 		dAtA[i] = 0x28
 		i++
-		if m.BlockDataExpiry {
+		i = encodeVarintTest1(dAtA, i, uint64((uint32(m.ASint32)<<1)^uint32((m.ASint32>>31))))
+	}
+	if m.ASint64 != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintTest1(dAtA, i, uint64((uint64(m.ASint64)<<1)^uint64((m.ASint64>>63))))
+	}
+	if m.AFixed32 != 0 {
+		dAtA[i] = 0x3d
+		i++
+		binary.LittleEndian.PutUint32(dAtA[i:], uint32(m.AFixed32))
+		i += 4
+	}
+	if m.AFixed64 != 0 {
+		dAtA[i] = 0x41
+		i++
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.AFixed64))
+		i += 8
+	}
+	if m.ASfixed32 != 0 {
+		dAtA[i] = 0x4d
+		i++
+		binary.LittleEndian.PutUint32(dAtA[i:], uint32(m.ASfixed32))
+		i += 4
+	}
+	if m.ASfixed64 != 0 {
+		dAtA[i] = 0x51
+		i++
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.ASfixed64))
+		i += 8
+	}
+	if m.ABool {
+		dAtA[i] = 0x58
+		i++
+		if m.ABool {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
 		i++
 	}
-	if m.BlockDataExpiryAfterNotAccessPeriodNanos != 0 {
-		dAtA[i] = 0x30
+	if len(m.AString) > 0 {
+		dAtA[i] = 0x62
 		i++
-		i = encodeVarintTest1(dAtA, i, uint64(m.BlockDataExpiryAfterNotAccessPeriodNanos))
+		i = encodeVarintTest1(dAtA, i, uint64(len(m.AString)))
+		i += copy(dAtA[i:], m.AString)
+	}
+	if len(m.ABytes) > 0 {
+		dAtA[i] = 0x6a
+		i++
+		i = encodeVarintTest1(dAtA, i, uint64(len(m.ABytes)))
+		i += copy(dAtA[i:], m.ABytes)
+	}
+	if m.ADouble != 0 {
+		dAtA[i] = 0x71
+		i++
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.ADouble))))
+		i += 8
+	}
+	if m.AFloat != 0 {
+		dAtA[i] = 0x7d
+		i++
+		binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AFloat))))
+		i += 4
 	}
 	return i, nil
 }
@@ -173,23 +300,52 @@ func encodeVarintTest1(dAtA []byte, offset int, v uint64) int {
 func (m *TestMessage) Size() (n int) {
 	var l int
 	_ = l
-	if m.RetentionPeriodNanos != 0 {
-		n += 1 + sovTest1(uint64(m.RetentionPeriodNanos))
+	if m.AInt32 != 0 {
+		n += 1 + sovTest1(uint64(m.AInt32))
 	}
-	if m.BlockSizeNanos != 0 {
-		n += 1 + sovTest1(uint64(m.BlockSizeNanos))
+	if m.AInt64 != 0 {
+		n += 1 + sovTest1(uint64(m.AInt64))
 	}
-	if m.BufferFutureNanos != 0 {
-		n += 1 + sovTest1(uint64(m.BufferFutureNanos))
+	if m.AUint32 != 0 {
+		n += 1 + sovTest1(uint64(m.AUint32))
 	}
-	if m.BufferPastNanos != 0 {
-		n += 1 + sovTest1(uint64(m.BufferPastNanos))
+	if m.AUint64 != 0 {
+		n += 1 + sovTest1(uint64(m.AUint64))
 	}
-	if m.BlockDataExpiry {
+	if m.ASint32 != 0 {
+		n += 1 + sozTest1(uint64(m.ASint32))
+	}
+	if m.ASint64 != 0 {
+		n += 1 + sozTest1(uint64(m.ASint64))
+	}
+	if m.AFixed32 != 0 {
+		n += 5
+	}
+	if m.AFixed64 != 0 {
+		n += 9
+	}
+	if m.ASfixed32 != 0 {
+		n += 5
+	}
+	if m.ASfixed64 != 0 {
+		n += 9
+	}
+	if m.ABool {
 		n += 2
 	}
-	if m.BlockDataExpiryAfterNotAccessPeriodNanos != 0 {
-		n += 1 + sovTest1(uint64(m.BlockDataExpiryAfterNotAccessPeriodNanos))
+	l = len(m.AString)
+	if l > 0 {
+		n += 1 + l + sovTest1(uint64(l))
+	}
+	l = len(m.ABytes)
+	if l > 0 {
+		n += 1 + l + sovTest1(uint64(l))
+	}
+	if m.ADouble != 0 {
+		n += 9
+	}
+	if m.AFloat != 0 {
+		n += 5
 	}
 	return n
 }
@@ -238,9 +394,9 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RetentionPeriodNanos", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field AInt32", wireType)
 			}
-			m.RetentionPeriodNanos = 0
+			m.AInt32 = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTest1
@@ -250,16 +406,16 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.RetentionPeriodNanos |= (int64(b) & 0x7F) << shift
+				m.AInt32 |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BlockSizeNanos", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field AInt64", wireType)
 			}
-			m.BlockSizeNanos = 0
+			m.AInt64 = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTest1
@@ -269,16 +425,16 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.BlockSizeNanos |= (int64(b) & 0x7F) << shift
+				m.AInt64 |= (int64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BufferFutureNanos", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field AUint32", wireType)
 			}
-			m.BufferFutureNanos = 0
+			m.AUint32 = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTest1
@@ -288,16 +444,16 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.BufferFutureNanos |= (int64(b) & 0x7F) << shift
+				m.AUint32 |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 4:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BufferPastNanos", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field AUint64", wireType)
 			}
-			m.BufferPastNanos = 0
+			m.AUint64 = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTest1
@@ -307,14 +463,96 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.BufferPastNanos |= (int64(b) & 0x7F) << shift
+				m.AUint64 |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 5:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BlockDataExpiry", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ASint32", wireType)
+			}
+			var v int32
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTest1
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			v = int32((uint32(v) >> 1) ^ uint32(((v&1)<<31)>>31))
+			m.ASint32 = v
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ASint64", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTest1
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
+			m.ASint64 = int64(v)
+		case 7:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AFixed32", wireType)
+			}
+			m.AFixed32 = 0
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AFixed32 = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
+			iNdEx += 4
+		case 8:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AFixed64", wireType)
+			}
+			m.AFixed64 = 0
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AFixed64 = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+		case 9:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ASfixed32", wireType)
+			}
+			m.ASfixed32 = 0
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ASfixed32 = int32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
+			iNdEx += 4
+		case 10:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ASfixed64", wireType)
+			}
+			m.ASfixed64 = 0
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ASfixed64 = int64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ABool", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -331,12 +569,12 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-			m.BlockDataExpiry = bool(v != 0)
-		case 6:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BlockDataExpiryAfterNotAccessPeriodNanos", wireType)
+			m.ABool = bool(v != 0)
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AString", wireType)
 			}
-			m.BlockDataExpiryAfterNotAccessPeriodNanos = 0
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTest1
@@ -346,11 +584,74 @@ func (m *TestMessage) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.BlockDataExpiryAfterNotAccessPeriodNanos |= (int64(b) & 0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTest1
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AString = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ABytes", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTest1
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthTest1
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ABytes = append(m.ABytes[:0], dAtA[iNdEx:postIndex]...)
+			if m.ABytes == nil {
+				m.ABytes = []byte{}
+			}
+			iNdEx = postIndex
+		case 14:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ADouble", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.ADouble = float64(math.Float64frombits(v))
+		case 15:
+			if wireType != 5 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AFloat", wireType)
+			}
+			var v uint32
+			if (iNdEx + 4) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
+			iNdEx += 4
+			m.AFloat = float32(math.Float32frombits(v))
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTest1(dAtA[iNdEx:])
@@ -482,23 +783,28 @@ func init() {
 }
 
 var fileDescriptorTest1 = []byte{
-	// 273 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0xd0, 0x3f, 0x4e, 0xc3, 0x30,
-	0x14, 0xc7, 0x71, 0xdc, 0x42, 0x85, 0x8c, 0xc4, 0x1f, 0x8b, 0xa1, 0x53, 0x54, 0x31, 0xa0, 0x0c,
-	0xa8, 0x16, 0xf4, 0x04, 0x45, 0x94, 0x8d, 0xaa, 0x2a, 0x4c, 0x2c, 0xc8, 0x76, 0x5e, 0x52, 0x0b,
-	0x62, 0x57, 0x7e, 0x2f, 0x12, 0x70, 0x0a, 0x6e, 0x05, 0x23, 0x47, 0x40, 0xe1, 0x22, 0x28, 0x0e,
-	0x03, 0x0a, 0x0c, 0x2c, 0x19, 0xbe, 0xbf, 0x8f, 0xf4, 0x14, 0xf3, 0x59, 0x61, 0x69, 0x55, 0xe9,
-	0xb1, 0xf1, 0xa5, 0x2c, 0x27, 0x99, 0x96, 0xe5, 0x44, 0x62, 0x30, 0x32, 0xd3, 0xce, 0x67, 0x20,
-	0x0b, 0x70, 0x10, 0x14, 0x41, 0x26, 0xd7, 0xc1, 0x93, 0x97, 0x68, 0x56, 0x50, 0xaa, 0x3b, 0x02,
-	0x24, 0xd9, 0x7c, 0x4e, 0xc7, 0xb1, 0x0b, 0xde, 0x0e, 0x4d, 0x3a, 0x7a, 0xed, 0xf1, 0x9d, 0x1b,
-	0x40, 0xba, 0x02, 0x44, 0x55, 0x80, 0x38, 0xe3, 0x87, 0x01, 0x08, 0x1c, 0x59, 0xef, 0x16, 0x10,
-	0xac, 0xcf, 0xe6, 0xca, 0x79, 0x1c, 0xb2, 0x11, 0x4b, 0xfb, 0xcb, 0x3f, 0x37, 0x71, 0xcc, 0x77,
-	0xf5, 0x83, 0x37, 0xf7, 0xd7, 0xf6, 0x19, 0x5a, 0xdd, 0x8b, 0xba, 0x53, 0xc5, 0x09, 0x3f, 0xd0,
-	0x55, 0x9e, 0x43, 0xb8, 0xac, 0xa8, 0x0a, 0xdf, 0xb4, 0x1f, 0xe9, 0xef, 0x41, 0xa4, 0x7c, 0xaf,
-	0x8d, 0x0b, 0x85, 0xd4, 0xda, 0xcd, 0x68, 0xbb, 0x39, 0xca, 0xe6, 0xd2, 0x85, 0x22, 0x35, 0x7b,
-	0x5c, 0xdb, 0xf0, 0x34, 0xdc, 0x1a, 0xb1, 0x74, 0x7b, 0xd9, 0xcd, 0xe2, 0x96, 0xa7, 0x9d, 0x34,
-	0xcd, 0x09, 0xc2, 0xdc, 0xd3, 0xd4, 0x18, 0x40, 0xfc, 0xf9, 0xc7, 0x83, 0x78, 0xec, 0xdf, 0xfe,
-	0x7c, 0xff, 0xad, 0x4e, 0xd8, 0x7b, 0x9d, 0xb0, 0x8f, 0x3a, 0x61, 0x2f, 0x9f, 0xc9, 0x86, 0x1e,
-	0xc4, 0xe7, 0x9e, 0x7c, 0x05, 0x00, 0x00, 0xff, 0xff, 0xb4, 0xdb, 0xc6, 0x5c, 0xb7, 0x01, 0x00,
-	0x00,
+	// 368 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x4c, 0x91, 0x4f, 0x6e, 0xd4, 0x30,
+	0x14, 0x87, 0x79, 0x9d, 0x4e, 0xfe, 0xb8, 0x2d, 0x2d, 0x91, 0x10, 0x46, 0x88, 0xc8, 0x62, 0xe5,
+	0x55, 0x2d, 0x1a, 0xcb, 0x07, 0x18, 0x41, 0x25, 0x16, 0x6c, 0x5c, 0x58, 0x47, 0x2f, 0x13, 0x37,
+	0x8d, 0x94, 0xc4, 0x28, 0xf6, 0x48, 0x70, 0x0b, 0xce, 0xc0, 0x69, 0x58, 0x72, 0x04, 0x34, 0x5c,
+	0x04, 0x25, 0xce, 0xb4, 0xb3, 0x89, 0xf4, 0xfd, 0x3e, 0x7d, 0xd2, 0x53, 0x4c, 0x3e, 0x36, 0xad,
+	0x7f, 0xd8, 0x55, 0xd7, 0x5b, 0xdb, 0x8b, 0xbe, 0xa8, 0x2b, 0xd1, 0x17, 0xc2, 0x8d, 0x5b, 0x51,
+	0x57, 0x83, 0xad, 0x8d, 0x68, 0xcc, 0x60, 0x46, 0xf4, 0xa6, 0x16, 0xdf, 0x46, 0xeb, 0xad, 0x70,
+	0xdb, 0x07, 0xd3, 0x63, 0xe9, 0x8d, 0xf3, 0x62, 0xfa, 0xbc, 0xbf, 0x9e, 0xf7, 0x8c, 0x04, 0x31,
+	0x4d, 0xef, 0x7e, 0xad, 0xc8, 0xd9, 0x17, 0xe3, 0xfc, 0x67, 0xe3, 0x1c, 0x36, 0x26, 0x7b, 0x45,
+	0x62, 0x2c, 0xdb, 0xc1, 0x17, 0x37, 0x14, 0x18, 0xf0, 0xb5, 0x8e, 0xf0, 0xd3, 0x44, 0x8f, 0x42,
+	0x49, 0x7a, 0xc2, 0x80, 0xaf, 0x82, 0x50, 0x32, 0x7b, 0x4d, 0x12, 0x2c, 0x77, 0x21, 0x59, 0x31,
+	0xe0, 0x17, 0x3a, 0xc6, 0xaf, 0x33, 0x3e, 0x29, 0x25, 0xe9, 0x29, 0x03, 0x7e, 0xba, 0xa8, 0x43,
+	0xe5, 0x42, 0xb5, 0x66, 0xc0, 0x5f, 0xe8, 0x18, 0xef, 0x8e, 0x2a, 0x17, 0xaa, 0x88, 0x01, 0xcf,
+	0x16, 0xa5, 0x64, 0xf6, 0x86, 0xa4, 0x58, 0xde, 0xb7, 0xdf, 0x4d, 0x5d, 0xdc, 0xd0, 0x98, 0x01,
+	0x8f, 0x75, 0x82, 0xb7, 0x81, 0x8f, 0xa4, 0x92, 0x34, 0x61, 0xc0, 0xa3, 0x83, 0x54, 0x32, 0x7b,
+	0x4b, 0x08, 0x96, 0xee, 0x90, 0xa6, 0x0c, 0xf8, 0xa5, 0x4e, 0xf1, 0x6e, 0x19, 0x8e, 0xb5, 0x92,
+	0x94, 0x30, 0xe0, 0x57, 0x8f, 0x5a, 0xc9, 0xec, 0x25, 0x89, 0xb0, 0xac, 0xac, 0xed, 0xe8, 0x19,
+	0x03, 0x9e, 0xe8, 0x35, 0x6e, 0xac, 0xed, 0x96, 0x4b, 0xfd, 0xd8, 0x0e, 0x0d, 0x3d, 0x67, 0xc0,
+	0xd3, 0xe9, 0xd2, 0x19, 0xc3, 0xef, 0xaa, 0x7e, 0x78, 0xe3, 0xe8, 0x05, 0x03, 0x7e, 0xae, 0x23,
+	0xdc, 0x4c, 0x14, 0x9a, 0xda, 0xee, 0xaa, 0xce, 0xd0, 0xe7, 0x0c, 0x38, 0xe8, 0x18, 0x3f, 0xcc,
+	0x18, 0x9a, 0xfb, 0xce, 0xa2, 0xa7, 0x97, 0x0c, 0xf8, 0x89, 0x8e, 0xf0, 0x76, 0xa2, 0xcd, 0xd5,
+	0xef, 0x7d, 0x0e, 0x7f, 0xf6, 0x39, 0xfc, 0xdd, 0xe7, 0xf0, 0xf3, 0x5f, 0xfe, 0xac, 0x8a, 0xe6,
+	0x97, 0x2c, 0xfe, 0x07, 0x00, 0x00, 0xff, 0xff, 0xdb, 0x63, 0x5c, 0x0c, 0x12, 0x02, 0x00, 0x00,
 }

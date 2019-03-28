@@ -86,9 +86,9 @@ type Options interface {
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
 
-	SetSchema(schema Schema) Options
+	SetSchema(schema []Schema) Options
 
-	Schema() Schema
+	Schema() []Schema
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -111,6 +111,7 @@ type IndexOptions interface {
 
 // Schema represents namespace schema
 type Schema interface {
+	Version() uint32
 	Equal(Schema) bool
 	Get() *desc.MessageDescriptor
 	String() string

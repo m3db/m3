@@ -15,6 +15,12 @@ message IndexOptions {
     int64 blockSizeNanos = 2;
 }
 
+message SchemaOption {
+    uint32 version = 1;
+    bytes  definition = 2;
+    string message = 3;
+}
+
 message NamespaceOptions {
     bool bootstrapEnabled             = 1;
     bool flushEnabled                 = 2;
@@ -24,7 +30,7 @@ message NamespaceOptions {
     RetentionOptions retentionOptions = 6;
     bool snapshotEnabled              = 7;
     IndexOptions indexOptions         = 8;
-    bytes schema                      = 9;
+    repeated SchemaOption schemaOptions = 9;
 }
 
 message Registry {

@@ -60,7 +60,7 @@ var (
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
-			Schema:            getTestSchema().Bytes(),
+			SchemaOptions:     getTestSchemaOptions(),
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -76,7 +76,7 @@ var (
 	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
 			RetentionOptions: &validRetentionOpts,
-			Schema:           getTestSchema().Bytes(),
+			SchemaOptions:    getTestSchemaOptions(),
 		},
 	}
 
@@ -199,14 +199,17 @@ func TestSchemaFromProto(t *testing.T) {
 	require.NoError(t, err)
 	assertEqualMetadata(t, "testns1", validNamespaceSchemaOpts[0], md1)
 
-	require.NotNil(t, md1.Options().Schema().Get())
-	require.EqualValues(t, "TestMessage", md1.Options().Schema().Get().GetName())
+	require.Len(t, md1.Options().Schema(), 1)
+	require.NotNil(t, md1.Options().Schema()[0].Get())
+	require.EqualValues(t, "TestMessage", md1.Options().Schema()[0].Get().GetName())
+	require.EqualValues(t, 1, md1.Options().Schema()[0].Version())
 }
 
 func TestSchemaToProto(t *testing.T) {
 	// make ns map
+	testSchema, _ := namespace.ToSchemaList(getTestSchemaOptions())
 	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
-		namespace.NewOptions().SetSchema(getTestSchema()))
+		namespace.NewOptions().SetSchema(testSchema))
 	require.NoError(t, err)
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
 	require.NoError(t, err)
@@ -216,9 +219,12 @@ func TestSchemaToProto(t *testing.T) {
 	require.Len(t, reg.Namespaces, 1)
 
 	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
-	outschema, err := namespace.ToSchema(reg.Namespaces["ns1"].Schema)
+	outschema, err := namespace.ToSchemaList(reg.Namespaces["ns1"].SchemaOptions)
 	assert.NoError(t, err)
-	require.EqualValues(t, "TestMessage", outschema.Get().GetName())
+	require.Len(t, outschema, 1)
+	require.NotNil(t, outschema[0].Get())
+	require.EqualValues(t, 1, outschema[0].Version())
+	require.EqualValues(t, "TestMessage", outschema[0].Get().GetName())
 }
 
 func TestToProtoSnapshotEnabled(t *testing.T) {
@@ -269,7 +275,10 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, expected.CleanupEnabled, opts.CleanupEnabled())
 	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
-	require.True(t, bytes.Equal(expected.Schema, opts.Schema().Bytes()))
+	require.Equal(t, len(expected.SchemaOptions), len(opts.Schema()))
+	for i := 0; i < len(opts.Schema()); i++ {
+		require.True(t, bytes.Equal(expected.SchemaOptions[i].GetDefinition(), opts.Schema()[i].Bytes()))
+	}
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
 }
