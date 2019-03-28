@@ -81,6 +81,10 @@ type Encoder struct {
 	hasEncodedFirstSetOfCustomValues bool
 	closed                           bool
 
+	// We embed the m3tszEncoder (with a shared OStream) so that we can reuse
+	// the delta-of-delta timestamp encoding logic. In the future, we could find
+	// a nicer way to share this logic so that we don't have to store all of the
+	// m3tszEncoder state that we don't need.
 	m3tszEncoder *m3tsz.Encoder
 }
 

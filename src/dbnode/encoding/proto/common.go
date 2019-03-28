@@ -22,6 +22,7 @@ package proto
 
 import (
 	"reflect"
+	"sort"
 
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 
@@ -180,6 +181,11 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
 		s = append(s, fieldState)
 	}
+
+	// Should already be sorted by fieldNum, but do it again just to be sure.
+	sort.Slice(s, func(a, b int) bool {
+		return s[a].fieldNum < s[b].fieldNum
+	})
 
 	return s
 }
