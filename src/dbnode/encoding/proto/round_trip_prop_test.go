@@ -74,7 +74,7 @@ const (
 	maxNumMessages   = 100
 	maxNumEnumValues = 10
 
-	debugLogs = true
+	debugLogs = false
 )
 
 type fieldModifierProp int

@@ -21,6 +21,7 @@
 package proto
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -468,40 +469,91 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	var (
 		hash             = murmur3.Sum64(currBytes)
 		numPreviousBytes = len(customField.bytesFieldDict)
-		lastHashIdx      = numPreviousBytes - 1
+		lastStateIdx     = numPreviousBytes - 1
+		lastState        encoderBytesFieldDictState
 	)
-	if numPreviousBytes > 0 && hash == customField.bytesFieldDict[lastHashIdx] {
-		// No changes control bit.
-		enc.stream.WriteBit(opCodeNoChange)
-		return nil
+	if numPreviousBytes > 0 {
+		lastState = customField.bytesFieldDict[lastStateIdx]
+	}
+
+	if numPreviousBytes > 0 && hash == lastState.hash {
+		streamBytes, _ := enc.stream.Rawbytes()
+		match, err := enc.bytesMatchEncodedDictionaryValue(
+			streamBytes, lastState, currBytes)
+		if err != nil {
+			return fmt.Errorf(
+				"%s error checking if bytes match last encoded dictionary bytes: %v",
+				encErrPrefix, err)
+		}
+		if match {
+			// No changes control bit.
+			enc.stream.WriteBit(opCodeNoChange)
+			return nil
+		}
 	}
 
 	// Bytes changed control bit.
 	enc.stream.WriteBit(opCodeChange)
 
-	for j, prevHash := range customField.bytesFieldDict {
-		if hash == prevHash {
-			// Control bit means interpret next n bits as the index for the previous write
-			// that this matches where n is the number of bits required to represent all
-			// possible array indices in the configured LRU size.
-			enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsLRUIndex)
-			enc.stream.WriteBits(
-				uint64(j),
-				numBitsRequiredForNumUpToN(
-					enc.opts.ByteFieldDictionaryLRUSize()))
-			enc.moveToEndOfBytesDict(i, j)
-			return nil
+	streamBytes, _ := enc.stream.Rawbytes()
+	for j, state := range customField.bytesFieldDict {
+		if hash != state.hash {
+			continue
 		}
+
+		match, err := enc.bytesMatchEncodedDictionaryValue(
+			streamBytes, state, currBytes)
+		if err != nil {
+			return fmt.Errorf(
+				"%s error checking if bytes match encoded dictionary bytes: %v",
+				encErrPrefix, err)
+		}
+		if !match {
+			continue
+		}
+
+		// Control bit means interpret next n bits as the index for the previous write
+		// that this matches where n is the number of bits required to represent all
+		// possible array indices in the configured LRU size.
+		enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsLRUIndex)
+		enc.stream.WriteBits(
+			uint64(j),
+			numBitsRequiredForNumUpToN(
+				enc.opts.ByteFieldDictionaryLRUSize()))
+		enc.moveToEndOfBytesDict(i, j)
+		return nil
 	}
 
 	// Control bit means interpret subsequent bits as varInt encoding length of a new
 	// []byte we haven't seen before.
 	enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsBytesLengthVarInt)
-	enc.encodeVarInt((uint64(len(currBytes))))
-	for _, b := range currBytes {
-		enc.stream.WriteByte(b)
-	}
-	enc.addToBytesDict(i, hash)
+
+	length := len(currBytes)
+	enc.encodeVarInt((uint64(length)))
+
+	// Add padding bits until we reach the next byte. This ensures that the startPos
+	// that we're going to store in the dictionary LRU will be aligned on a physical
+	// byte boundary which makes retrieving the bytes again later for comparison much
+	// easier.
+	//
+	// Note that this will waste up to a maximum of 7 bits per []byte that we encode
+	// which is acceptable for now, but in the future we may want to make the code able
+	// to do the comparison even if the bytes aren't aligned on a byte boundary in order
+	// to improve the compression.
+	enc.padToNextByte()
+
+	// Track the byte position we're going to start at so we can store it in the LRU after.
+	streamBytes, _ = enc.stream.Rawbytes()
+	bytePos := len(streamBytes)
+
+	// Write the actual bytes.
+	enc.stream.WriteBytes(currBytes)
+
+	enc.addToBytesDict(i, encoderBytesFieldDictState{
+		hash:     hash,
+		startPos: bytePos,
+		length:   length,
+	})
 	return nil
 }
 
@@ -716,6 +768,37 @@ func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 	enc.stream.WriteBits(valBits, int(numSig))
 }
 
+func (enc *Encoder) bytesMatchEncodedDictionaryValue(
+	streamBytes []byte,
+	dictState encoderBytesFieldDictState,
+	currBytes []byte,
+) (bool, error) {
+	var (
+		prevEncodedBytesStart = dictState.startPos
+		prevEncodedBytesEnd   = prevEncodedBytesStart + dictState.length
+	)
+
+	if prevEncodedBytesEnd > len(streamBytes) {
+		// Should never happen.
+		return false, fmt.Errorf(
+			"bytes position in LRU is outside of stream bounds, streamSize: %d, startPos: %d, length: %d",
+			len(streamBytes), prevEncodedBytesStart, dictState.length)
+	}
+
+	return bytes.Equal(streamBytes[prevEncodedBytesStart:prevEncodedBytesEnd], currBytes), nil
+}
+
+// padToNextByte will add padding bits in the current byte until the ostream
+// reaches the beginning of the next byte. This allows us begin encoding data
+// with the guarantee that we're aligned at a physical byte boundary.
+func (enc *Encoder) padToNextByte() {
+	_, bitPos := enc.stream.Rawbytes()
+	for bitPos%8 != 0 {
+		enc.stream.WriteBit(0)
+		bitPos++
+	}
+}
+
 func (enc *Encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict
 	for j := i; j < len(existing); j++ {
@@ -731,10 +814,10 @@ func (enc *Encoder) moveToEndOfBytesDict(fieldIdx, i int) {
 	}
 }
 
-func (enc *Encoder) addToBytesDict(fieldIdx int, hash uint64) {
+func (enc *Encoder) addToBytesDict(fieldIdx int, state encoderBytesFieldDictState) {
 	existing := enc.customFields[fieldIdx].bytesFieldDict
 	if len(existing) < enc.opts.ByteFieldDictionaryLRUSize() {
-		enc.customFields[fieldIdx].bytesFieldDict = append(existing, hash)
+		enc.customFields[fieldIdx].bytesFieldDict = append(existing, state)
 		return
 	}
 
@@ -755,7 +838,7 @@ func (enc *Encoder) addToBytesDict(fieldIdx int, hash uint64) {
 		existing[i] = existing[nextIdx]
 	}
 
-	existing[len(existing)-1] = hash
+	existing[len(existing)-1] = state
 }
 
 // encodeBitset writes out a bitset in the form of:

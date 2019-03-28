@@ -261,6 +261,7 @@ type IStream interface {
 	ReadByte() (byte, error)
 	ReadBits(numBits int) (uint64, error)
 	PeekBits(numBits int) (uint64, error)
+	RemainingBitsInCurrentByte() int
 	Reset(r io.Reader)
 }
 

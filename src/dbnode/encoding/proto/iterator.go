@@ -537,6 +537,12 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"%s error trying to read bytes length: %v", itErrPrefix, err)
 	}
 
+	if err := it.skipToNextByte(); err != nil {
+		return fmt.Errorf(
+			"%s error trying to skip bytes value bit padding: %v",
+			itErrPrefix, err)
+	}
+
 	buf := make([]byte, 0, bytesLen)
 	for j := 0; j < int(bytesLen); j++ {
 		b, err := it.stream.ReadByte()
@@ -813,6 +819,22 @@ func (it *iterator) readIntValDiff(i int) error {
 
 		prev := int64(it.customFields[i].prevFloatBits)
 		it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
+	}
+
+	return nil
+}
+
+// skipToNextByte will skip over any remaining bits in the current byte
+// to reach the next byte. This is used in situations where the stream
+// has padding bits to keep portions of data aligned at the byte boundary.
+func (it *iterator) skipToNextByte() error {
+	remainingBitsInByte := it.stream.RemainingBitsInCurrentByte()
+	for remainingBitsInByte > 0 {
+		_, err := it.stream.ReadBit()
+		if err != nil {
+			return err
+		}
+		remainingBitsInByte--
 	}
 
 	return nil

@@ -142,6 +142,12 @@ func (is *istream) PeekBits(numBits int) (uint64, error) {
 	return res, nil
 }
 
+// RemainingBitsInCurrentByte returns the number of bits remaining to be read in
+// the current byte.
+func (is *istream) RemainingBitsInCurrentByte() int {
+	return is.remaining
+}
+
 // readBitsInByte reads numBits in byte b.
 func readBitsInByte(b byte, numBits int) byte {
 	return b >> uint(8-numBits)

@@ -138,11 +138,22 @@ type customFieldState struct {
 	prevFloatBits uint64
 
 	// Bytes State.
-	bytesFieldDict         []uint64
+	bytesFieldDict         []encoderBytesFieldDictState
 	iteratorBytesFieldDict [][]byte
 
 	// Int state.
 	intSigBitsTracker m3tsz.IntSigBitsTracker
+}
+
+type encoderBytesFieldDictState struct {
+	// We store the hash so we can perform fast equality checks, and
+	// we store the startPos + length so that when we have a value
+	// that matches a hash, we can be certain its not a hash collision
+	// by comparing the bytes against those we already wrote into the
+	// stream.
+	hash     uint64
+	startPos int
+	length   int
 }
 
 func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldState {
