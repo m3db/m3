@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -56,6 +57,7 @@ type options struct {
 	readerIteratorPool      encoding.ReaderIteratorPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
 	wiredList               *WiredList
+	schema                  namespace.Schema
 }
 
 // NewOptions creates new database block options
@@ -213,4 +215,14 @@ func (o *options) SetWiredList(value *WiredList) Options {
 
 func (o *options) WiredList() *WiredList {
 	return o.wiredList
+}
+
+func (o *options) SetSchema(schema namespace.Schema) Options {
+	opts := *o
+	opts.schema = schema
+	return &opts
+}
+
+func (o *options) Schema() namespace.Schema {
+	return o.schema
 }

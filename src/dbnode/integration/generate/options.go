@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -68,6 +69,7 @@ type options struct {
 	writeEmptyShards bool
 	writeSnapshot    bool
 	encoderPool      encoding.EncoderPool
+	schema           namespace.Schema
 }
 
 // NewOptions creates a new set of fs options
@@ -190,4 +192,14 @@ func (o *options) SetEncoderPool(value encoding.EncoderPool) Options {
 
 func (o *options) EncoderPool() encoding.EncoderPool {
 	return o.encoderPool
+}
+
+func (o *options) SetSchema(schema namespace.Schema) Options {
+	opts := *o
+	opts.schema = schema
+	return &opts
+}
+
+func (o *options) Schema() namespace.Schema {
+	return o.schema
 }

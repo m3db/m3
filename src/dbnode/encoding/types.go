@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // Encoder is the generic interface for different types of encoders.
@@ -64,6 +65,9 @@ type Encoder interface {
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
 	DiscardReset(t time.Time, capacity int) ts.Segment
+
+	// SetSchema sets schema for the encoder
+	SetSchema(schema namespace.Schema)
 }
 
 // NewEncoderFn creates a new encoder
@@ -112,6 +116,12 @@ type Options interface {
 
 	// SegmentReaderPool returns the segment reader pool.
 	SegmentReaderPool() xio.SegmentReaderPool
+
+	// SetSchema sets schema
+	SetSchema(schema namespace.Schema) Options
+
+	// Schema returns schema
+	Schema() namespace.Schema
 }
 
 // Iterator is the generic interface for iterating over encoded data.

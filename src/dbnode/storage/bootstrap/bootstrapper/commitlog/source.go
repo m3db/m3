@@ -726,6 +726,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		if !wroteExisting {
 			enc := encoderPool.Get()
 			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
+			enc.SetSchema(blopts.Schema())
 
 			err = enc.Encode(dp, unit, annotation)
 			if err == nil {
@@ -998,6 +999,7 @@ func (s *commitLogSource) mergeSeries(
 
 		enc := encoderPool.Get()
 		enc.Reset(start, blopts.DatabaseBlockAllocSize())
+		enc.SetSchema(blopts.Schema())
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
 			encodeErr := enc.Encode(dp, unit, annotation)

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type nullEncoder struct {
@@ -55,6 +56,7 @@ func (e *nullEncoder) Reset(t time.Time, capacity int)                   {}
 func (e *nullEncoder) Close()                                            {}
 func (e *nullEncoder) Discard() ts.Segment                               { return ts.Segment{} }
 func (e *nullEncoder) DiscardReset(t time.Time, capacity int) ts.Segment { return ts.Segment{} }
+func (e *nullEncoder) SetSchema(schema namespace.Schema)                 {}
 
 type nullReaderIterator struct{}
 

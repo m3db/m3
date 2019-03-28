@@ -1766,7 +1766,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 ) (result.ShardResult, error) {
 	var (
 		result = newBulkBlocksResult(s.opts, opts,
-			s.pools.tagDecoder, s.pools.id)
+			s.pools.tagDecoder, s.pools.id, nsMetadata)
 		doneCh   = make(chan struct{})
 		progress = s.newPeerMetadataStreamingProgressMetrics(shard,
 			resultTypeBootstrap)
@@ -1837,7 +1837,7 @@ func (s *session) FetchBlocksFromPeers(
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
 		result   = newStreamBlocksResult(s.opts, opts, outputCh,
-			s.pools.tagDecoder.Get(), s.pools.id)
+			s.pools.tagDecoder.Get(), s.pools.id, nsMetadata)
 		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
 			select {
@@ -2959,8 +2959,9 @@ type baseBlocksResult struct {
 func newBaseBlocksResult(
 	opts Options,
 	resultOpts result.Options,
+	nsMeta namespace.Metadata,
 ) baseBlocksResult {
-	blockOpts := resultOpts.DatabaseBlockOptions()
+	blockOpts := resultOpts.DatabaseBlockOptions().SetSchema(nsMeta.Options().Schema())
 	return baseBlocksResult{
 		blockOpts:               blockOpts,
 		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
@@ -2997,6 +2998,7 @@ func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration
 
 	encoder := b.encoderPool.Get()
 	encoder.Reset(start, b.blockAllocSize)
+	encoder.SetSchema(b.blockOpts.Schema())
 
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
@@ -3086,9 +3088,10 @@ func newStreamBlocksResult(
 	outputCh chan<- peerBlocksDatapoint,
 	tagDecoder serialize.TagDecoder,
 	idPool ident.Pool,
+	nsMeta namespace.Metadata,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(opts, resultOpts, nsMeta),
 		outputCh:         outputCh,
 		tagDecoder:       tagDecoder,
 		idPool:           idPool,
@@ -3184,9 +3187,10 @@ func newBulkBlocksResult(
 	resultOpts result.Options,
 	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
+	nsMeta namespace.Metadata,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(opts, resultOpts, nsMeta),
 		result:           result.NewShardResult(4096, resultOpts),
 		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,

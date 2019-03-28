@@ -121,6 +121,7 @@ func (w *writer) writeWithPredicate(
 		return err
 	}
 	encoder := gOpts.EncoderPool().Get()
+	encoder.SetSchema(gOpts.Schema())
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
 			writer, shardSet, encoder, start.ToTime(), namespace, blockSize,

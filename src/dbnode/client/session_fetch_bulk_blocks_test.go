@@ -1357,7 +1357,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
+	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id, testsNsMetadata(t))
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1510,7 +1510,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
+	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id, testsNsMetadata(t))
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert enqueueChannel contents (bad bar block)
@@ -1553,7 +1553,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	}
 
 	r := newBulkBlocksResult(opts, bopts,
-		testTagDecodingPool, testIDPool)
+		testTagDecodingPool, testIDPool, testsNsMetadata(t))
 	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
@@ -1639,7 +1639,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool, testsNsMetadata(t))
 	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
@@ -1683,7 +1683,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool, testsNsMetadata(t))
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
 	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
@@ -1694,7 +1694,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool, testsNsMetadata(t))
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
 	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
@@ -2334,3 +2334,5 @@ func (e *testEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
 	e.data = ts.Segment{}
 	return curr
 }
+
+func (e *testEncoder) SetSchema(schema namespace.Schema) {}

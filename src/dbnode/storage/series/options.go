@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type options struct {
@@ -43,6 +44,7 @@ type options struct {
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
 	identifierPool                ident.Pool
 	stats                         Stats
+	schema                        namespace.Schema
 }
 
 // NewOptions creates new database series options

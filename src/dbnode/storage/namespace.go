@@ -299,7 +299,10 @@ func newDatabaseNamespace(
 	tickWorkers.Init()
 
 	seriesOpts := NewSeriesOptionsFromOptions(opts, nopts.RetentionOptions()).
-		SetStats(series.NewStats(scope))
+		SetStats(series.NewStats(scope)).
+		SetRetentionOptions(nopts.RetentionOptions()).
+		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().SetSchema(nopts.Schema()))
+
 	if err := seriesOpts.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"unable to create namespace %v, invalid series options: %v",

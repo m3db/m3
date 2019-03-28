@@ -528,6 +528,7 @@ func (b *dbBufferBucket) resetTo(
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
+	encoder.SetSchema(bopts.Schema())
 
 	b.start = start
 	b.encoders = append(b.encoders, inOrderEncoder{
@@ -636,6 +637,7 @@ func (b *dbBufferBucket) write(
 
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
+	encoder.SetSchema(bopts.Schema())
 
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder:     encoder,
@@ -762,6 +764,7 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
+	encoder.SetSchema(bopts.Schema())
 
 	var (
 		start   = b.start

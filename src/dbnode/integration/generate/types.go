@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // BlockConfig represents the configuration to generate a SeriesBlock
@@ -155,6 +156,12 @@ type Options interface {
 
 	// EncoderPool returns the contextPool
 	EncoderPool() encoding.EncoderPool
+
+	// SetSchema sets the schema
+	SetSchema(schema namespace.Schema) Options
+
+	// Schema returns schema
+	Schema() namespace.Schema
 }
 
 // WriteDatapointPredicate returns a boolean indicating whether a datapoint should be written.

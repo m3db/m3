@@ -433,4 +433,10 @@ type Options interface {
 
 	// WiredList returns the database block wired list
 	WiredList() *WiredList
+
+	// SetSchema sets the schema
+	SetSchema(schema namespace.Schema) Options
+
+	// Schema returns schema
+	Schema() namespace.Schema
 }

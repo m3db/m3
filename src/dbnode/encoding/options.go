@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -43,6 +44,7 @@ type options struct {
 	readerIteratorPool   ReaderIteratorPool
 	bytesPool            pool.CheckedBytesPool
 	segmentReaderPool    xio.SegmentReaderPool
+	schema               namespace.Schema
 }
 
 func newOptions() Options {
@@ -126,4 +128,14 @@ func (o *options) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 
 func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
+}
+
+func (o *options) SetSchema(schema namespace.Schema) Options {
+	opts := *o
+	opts.schema = schema
+	return &opts
+}
+
+func (o *options) Schema() namespace.Schema {
+	return o.schema
 }

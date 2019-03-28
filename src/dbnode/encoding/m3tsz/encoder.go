@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -523,6 +524,10 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.numEncoded = 0
 	enc.closed = false
+}
+
+func (enc *encoder) SetSchema(schema namespace.Schema) {
+	enc.opts = enc.opts.SetSchema(schema)
 }
 
 func (enc *encoder) Stream() xio.SegmentReader {

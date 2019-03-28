@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -185,6 +186,18 @@ func (m *MockEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
 func (mr *MockEncoderMockRecorder) DiscardReset(t, capacity interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardReset", reflect.TypeOf((*MockEncoder)(nil).DiscardReset), t, capacity)
+}
+
+// SetSchema mocks base method
+func (m *MockEncoder) SetSchema(schema namespace.Schema) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", schema)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockEncoderMockRecorder) SetSchema(schema interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockEncoder)(nil).SetSchema), schema)
 }
 
 // MockOptions is a mock of Options interface
@@ -404,6 +417,34 @@ func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
 func (mr *MockOptionsMockRecorder) SegmentReaderPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SegmentReaderPool))
+}
+
+// SetSchema mocks base method
+func (m *MockOptions) SetSchema(schema namespace.Schema) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchema", schema)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockOptionsMockRecorder) SetSchema(schema interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockOptions)(nil).SetSchema), schema)
+}
+
+// Schema mocks base method
+func (m *MockOptions) Schema() namespace.Schema {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.Schema)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockOptionsMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockOptions)(nil).Schema))
 }
 
 // MockIterator is a mock of Iterator interface
