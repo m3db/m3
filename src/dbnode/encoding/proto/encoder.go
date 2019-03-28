@@ -533,7 +533,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsBytesLengthVarInt)
 
 	length := len(currBytes)
-	enc.encodeVarInt((uint64(length)))
+	enc.encodeVarInt(uint64(length))
 
 	// Add padding bits until we reach the next byte. This ensures that the startPos
 	// that we're going to store in the dictionary LRU will be aligned on a physical
