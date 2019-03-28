@@ -652,8 +652,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	if enc.lastEncoded == nil {
 		// Set lastEncoded to m so that subsequent encodings only need to encode fields
 		// that have changed.
-		enc.lastEncoded = dynamic.NewMessage(enc.schema)
-		enc.lastEncoded.Merge(m)
+		enc.lastEncoded = m
 	} else {
 		// lastEncoded has already been mutated to reflect the current state.
 	}
