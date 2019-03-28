@@ -789,7 +789,6 @@ func (it *iterator) skipToNextByte() error {
 	return nil
 }
 
-// TODO: Share logic with encoder if possible
 func (it *iterator) moveToEndOfBytesDict(fieldIdx, i int) {
 	existing := it.customFields[fieldIdx].iteratorBytesFieldDict
 	for j := i; j < len(existing); j++ {
@@ -805,7 +804,6 @@ func (it *iterator) moveToEndOfBytesDict(fieldIdx, i int) {
 	}
 }
 
-// TODO: Share logic with encoder if possible
 func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	existing := it.customFields[fieldIdx].iteratorBytesFieldDict
 	if len(existing) < it.byteFieldDictLRUSize {
