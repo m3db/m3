@@ -135,14 +135,14 @@ type customFieldState struct {
 	fieldType customFieldType
 
 	// Float state.
-	prevXOR       uint64
-	prevFloatBits uint64
+	floatXORState m3tsz.XOREncoderState
 
 	// Bytes State.
 	bytesFieldDict         []encoderBytesFieldDictState
 	iteratorBytesFieldDict [][]byte
 
 	// Int state.
+	prevIntBits       uint64
 	intSigBitsTracker m3tsz.IntSigBitsTracker
 }
 

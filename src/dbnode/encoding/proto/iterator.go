@@ -396,8 +396,8 @@ func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error
 		return err
 	}
 
-	it.customFields[i].prevFloatBits = fb
-	it.customFields[i].prevXOR = xor
+	it.customFields[i].floatXORState.PrevFloatBits = fb
+	it.customFields[i].floatXORState.PrevXOR = xor
 	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
 		return err
 	}
@@ -438,8 +438,8 @@ func (it *iterator) readNextTSZValue(i int, customField customFieldState) error 
 		return err
 	}
 
-	it.customFields[i].prevFloatBits = fb
-	it.customFields[i].prevXOR = xor
+	it.customFields[i].floatXORState.PrevFloatBits = fb
+	it.customFields[i].floatXORState.PrevXOR = xor
 	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
 		return err
 	}
@@ -590,7 +590,7 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	switch {
 	case isCustomFloatEncodedField(fieldType):
 		var (
-			val = math.Float64frombits(it.customFields[i].prevFloatBits)
+			val = math.Float64frombits(it.customFields[i].floatXORState.PrevFloatBits)
 			err error
 		)
 		if fieldType == cFloat64 {
@@ -603,19 +603,19 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
 		case cSignedInt64:
-			val := int64(it.customFields[i].prevFloatBits)
+			val := int64(it.customFields[i].prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case cUnsignedInt64:
-			val := it.customFields[i].prevFloatBits
+			val := it.customFields[i].prevIntBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case cSignedInt32:
-			val := int32(it.customFields[i].prevFloatBits)
+			val := int32(it.customFields[i].prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case cUnsignedInt32:
-			val := uint32(it.customFields[i].prevFloatBits)
+			val := uint32(it.customFields[i].prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		default:
@@ -630,11 +630,11 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 }
 
 func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
-	xor = it.m3tszIterator.ReadXOR(it.customFields[i].prevXOR)
+	xor = it.m3tszIterator.ReadXOR(it.customFields[i].floatXORState.PrevXOR)
 	if err := it.m3tszIterator.Err(); err != nil {
 		return 0, 0, err
 	}
-	prevFloatBits := it.customFields[i].prevFloatBits
+	prevFloatBits := it.customFields[i].floatXORState.PrevFloatBits
 	return prevFloatBits ^ xor, xor, nil
 }
 
@@ -753,11 +753,11 @@ func (it *iterator) readIntValDiff(i int) error {
 			shouldSubtract = true
 		}
 
-		prev := uint64(it.customFields[i].prevFloatBits)
+		prev := uint64(it.customFields[i].prevIntBits)
 		if shouldSubtract {
-			it.customFields[i].prevFloatBits = prev - diff
+			it.customFields[i].prevIntBits = prev - diff
 		} else {
-			it.customFields[i].prevFloatBits = prev + diff
+			it.customFields[i].prevIntBits = prev + diff
 		}
 	} else {
 		diff := int64(diffSigBits)
@@ -766,8 +766,8 @@ func (it *iterator) readIntValDiff(i int) error {
 			sign = -1.0
 		}
 
-		prev := int64(it.customFields[i].prevFloatBits)
-		it.customFields[i].prevFloatBits = uint64(prev + (sign * diff))
+		prev := int64(it.customFields[i].prevIntBits)
+		it.customFields[i].prevIntBits = uint64(prev + (sign * diff))
 	}
 
 	return nil

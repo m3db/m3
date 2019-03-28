@@ -662,22 +662,17 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 
 func (enc *Encoder) encodeFirstTSZValue(i int, v float64) {
 	fb := math.Float64bits(v)
-	enc.stream.WriteBits(fb, 64)
-	enc.customFields[i].prevFloatBits = fb
-	enc.customFields[i].prevXOR = fb
+	enc.customFields[i].floatXORState.WriteFullFloatVal(enc.stream, fb)
 }
 
 func (enc *Encoder) encodeNextTSZValue(i int, next float64) {
-	curFloatBits := math.Float64bits(next)
-	curXOR := enc.customFields[i].prevFloatBits ^ curFloatBits
-	m3tsz.WriteXOR(enc.stream, enc.customFields[i].prevXOR, curXOR)
-	enc.customFields[i].prevFloatBits = curFloatBits
-	enc.customFields[i].prevXOR = curXOR
+	fb := math.Float64bits(next)
+	enc.customFields[i].floatXORState.WriteFloatXOR(enc.stream, fb)
 }
 
 func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
 	neg := false
-	enc.customFields[i].prevFloatBits = uint64(v)
+	enc.customFields[i].prevIntBits = uint64(v)
 	if v < 0 {
 		neg = true
 		v = -1 * v
@@ -691,7 +686,7 @@ func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
 }
 
 func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
-	enc.customFields[i].prevFloatBits = uint64(v)
+	enc.customFields[i].prevIntBits = uint64(v)
 
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
@@ -701,7 +696,7 @@ func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 }
 
 func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
-	prev := int64(enc.customFields[i].prevFloatBits)
+	prev := int64(enc.customFields[i].prevIntBits)
 	diff := next - prev
 	if diff == 0 {
 		enc.stream.WriteBit(opCodeNoChange)
@@ -725,13 +720,13 @@ func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
 	// modify the value in the slice, not a copy of it.
 	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diffBits, neg, newSig)
-	enc.customFields[i].prevFloatBits = uint64(next)
+	enc.customFields[i].prevIntBits = uint64(next)
 }
 
 func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	var (
 		neg  = false
-		prev = uint64(enc.customFields[i].prevFloatBits)
+		prev = uint64(enc.customFields[i].prevIntBits)
 		diff uint64
 	)
 
@@ -756,7 +751,7 @@ func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	// modify the value in the slice, not a copy of it.
 	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
 	enc.encodeIntValDiff(diff, neg, newSig)
-	enc.customFields[i].prevFloatBits = uint64(next)
+	enc.customFields[i].prevIntBits = uint64(next)
 }
 
 func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {

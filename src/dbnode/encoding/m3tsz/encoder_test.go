@@ -109,7 +109,7 @@ func TestWriteValue(t *testing.T) {
 	}
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
-		xorState := XOREncoderState{prevXOR: input.previousXOR}
+		xorState := XOREncoderState{PrevXOR: input.previousXOR}
 		xorState.WriteXOR(encoder.os, input.currentXOR)
 		b, p := encoder.os.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)

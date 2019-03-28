@@ -48,7 +48,7 @@ type Encoder struct {
 	// internal bookkeeping
 	t               time.Time     // current time
 	dt              time.Duration // current time delta
-	xorEncoderState *XOREncoderState
+	xorEncoderState XOREncoderState
 
 	ant ts.Annotation // current annotation
 
@@ -67,8 +67,8 @@ type Encoder struct {
 // XOREncoderState encapsulates the state required for a logical stream of bits
 // that represent a stream of float values compressed with XOR.
 type XOREncoderState struct {
-	prevXOR       uint64
-	prevFloatBits uint64
+	PrevXOR       uint64
+	PrevFloatBits uint64
 }
 
 // TimestampEncoderState encapsulates the state required for a logical stream of
@@ -97,13 +97,12 @@ func NewEncoder(
 		os = encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool())
 	}
 	return &Encoder{
-		os:              os,
-		opts:            opts,
-		t:               start,
-		xorEncoderState: &XOREncoderState{},
-		tu:              tu,
-		closed:          false,
-		intOptimized:    intOptimized,
+		os:           os,
+		opts:         opts,
+		t:            start,
+		tu:           tu,
+		closed:       false,
+		intOptimized: intOptimized,
 	}
 }
 
@@ -350,7 +349,7 @@ func (enc *Encoder) writeFloatVal(val uint64, mult uint8) {
 		return
 	}
 
-	if val == enc.xorEncoderState.prevFloatBits {
+	if val == enc.xorEncoderState.PrevFloatBits {
 		// Value is repeated
 		enc.os.WriteBit(opcodeUpdate)
 		enc.os.WriteBit(opcodeRepeat)
@@ -363,17 +362,17 @@ func (enc *Encoder) writeFloatVal(val uint64, mult uint8) {
 
 // WriteFullFloatVal writes out the float value using a full 64 bits.
 func (enc *XOREncoderState) WriteFullFloatVal(stream encoding.OStream, val uint64) {
-	enc.prevFloatBits = val
-	enc.prevXOR = val
+	enc.PrevFloatBits = val
+	enc.PrevXOR = val
 	stream.WriteBits(val, 64)
 }
 
 // WriteFloatXOR writes out the float value using XOR compression.
 func (enc *XOREncoderState) WriteFloatXOR(stream encoding.OStream, val uint64) {
-	xor := enc.prevFloatBits ^ val
+	xor := enc.PrevFloatBits ^ val
 	enc.WriteXOR(stream, xor)
-	enc.prevXOR = xor
-	enc.prevFloatBits = val
+	enc.PrevXOR = xor
+	enc.PrevFloatBits = val
 }
 
 // WriteXOR writes out the new XOR based on the value of the previous XOR.
@@ -384,7 +383,7 @@ func (enc *XOREncoderState) WriteXOR(stream encoding.OStream, currXOR uint64) {
 	}
 
 	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
-	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(enc.prevXOR)
+	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(enc.PrevXOR)
 	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(currXOR)
 	if curLeading >= prevLeading && curTrailing >= prevTrailing {
 		stream.WriteBits(opcodeContainedValueXOR, 2)
@@ -481,7 +480,7 @@ func (enc *Encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 	enc.t = start
 	enc.dt = 0
-	enc.xorEncoderState = &XOREncoderState{}
+	enc.xorEncoderState = XOREncoderState{}
 	enc.intVal = 0
 	enc.isFloat = false
 	enc.maxMult = 0
@@ -519,7 +518,7 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 
 	result := ts.Datapoint{Timestamp: enc.t}
 	if enc.isFloat {
-		result.Value = math.Float64frombits(enc.xorEncoderState.prevFloatBits)
+		result.Value = math.Float64frombits(enc.xorEncoderState.PrevFloatBits)
 	} else {
 		result.Value = enc.intVal
 	}
