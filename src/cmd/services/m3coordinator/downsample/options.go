@@ -185,8 +185,9 @@ type agg struct {
 
 // Configuration configurates a downsampler.
 type Configuration struct {
-	// RemoteAggregator specifies that downsampling should be not
-	// done locally but sent to a remote aggregator.
+	// RemoteAggregator specifies that downsampling should be done remotely
+	// by sending values to a remote m3aggregator cluster which then
+	// can forward the aggregated values to stateless m3coordinator backends.
 	RemoteAggregator *RemoteAggregatorConfiguration `yaml:"remoteAggregator"`
 
 	// AggregationTypes configs the aggregation types.

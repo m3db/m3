@@ -1,6 +1,6 @@
 listenAddress:
   type: "config"
-  value: "0.0.0.0:7201"
+  value: "0.0.0.0:7202"
 
 metrics:
   scope:
@@ -18,13 +18,20 @@ tagOptions:
 carbon:
   ingester:
     listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*
+        aggregation:
+          type: mean
+        policies:
+          - resolution: 10s
+            retention: 6h
 
 clusters:
   - namespaces:
       - namespace: agg
         type: aggregated
-        retention: 6h
         resolution: 10s
+        retention: 6h
       - namespace: unagg
         type: unaggregated
         retention: 1s

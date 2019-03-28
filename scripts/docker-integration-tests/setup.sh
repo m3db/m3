@@ -5,7 +5,7 @@ set -xe
 # expected to be run from root of repository
 cd $GOPATH/src/github.com/m3db/m3
 
-SERVICES=(m3dbnode m3coordinator)
+SERVICES=(m3dbnode m3coordinator m3aggregator)
 REVISION=$(git rev-parse HEAD)
 make clean
 mkdir -p ./bin

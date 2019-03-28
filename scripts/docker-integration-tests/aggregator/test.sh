@@ -111,11 +111,15 @@ function read_carbon {
   return $?
 }
 
+# Send metric values 40 and 44 every second
 echo "Sending unaggregated carbon metrics to m3coordinator"
-bash -c 'for i in $(seq 1 100); do echo "foo.bar.baz 42 $(date +%s)" | nc 0.0.0.0 7204; sleep 1; done' &
+bash -c 'for i in $(seq 1 100); do t=$(date +%s); echo "foo.bar.baz 40 $t" | nc 0.0.0.0 7204; echo "foo.bar.baz 44 $t" | nc 0.0.0.0 7204; sleep 1; done' &
 
 # Track PID to kill on exit
 METRIC_EMIT_PID="$!"
 
-echo "Read back aggregated metric"
+# Read back the averaged averaged metric, we configured graphite
+# aggregation policy to average each tile and we are emitting
+# values 40 and 44 to get an average of 42 each tile
+echo "Read back aggregated averaged metric"
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.bar.* 42
