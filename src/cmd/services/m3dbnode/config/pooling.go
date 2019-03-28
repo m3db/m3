@@ -125,6 +125,16 @@ var (
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
+		"bufferBucket": poolPolicyDefault{
+			size:                262144,
+			refillLowWaterMark:  defaultRefillLowWaterMark,
+			refillHighWaterMark: defaultRefillHighWaterMark,
+		},
+		"bufferBucketVersions": poolPolicyDefault{
+			size:                262144,
+			refillLowWaterMark:  defaultRefillLowWaterMark,
+			refillHighWaterMark: defaultRefillHighWaterMark,
+		},
 
 		// Capacity pools.
 		"fetchBlockMetadataResults": poolPolicyDefault{
@@ -387,6 +397,12 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 		return err
 	}
 	if err := p.BytesPool.initDefaultsAndValidate("bytes"); err != nil {
+		return err
+	}
+	if err := p.BufferBucketPool.initDefaultsAndValidate("bufferBucket"); err != nil {
+		return err
+	}
+	if err := p.BufferBucketVersionsPool.initDefaultsAndValidate("bufferBucketVersions"); err != nil {
 		return err
 	}
 	return nil
