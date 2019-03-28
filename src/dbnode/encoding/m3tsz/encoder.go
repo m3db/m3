@@ -93,6 +93,10 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	}
 
 	var err error
+	if err = enc.tsEncoderState.WriteTime(enc.os, dp.Timestamp, ant, tu); err != nil {
+		return err
+	}
+
 	if enc.numEncoded == 0 {
 		err = enc.writeFirst(dp, ant, tu)
 	} else {
@@ -107,18 +111,12 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 
 // writeFirst writes the first datapoint with annotation.
 func (enc *Encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	if err := enc.tsEncoderState.WriteFirstTime(enc.os, dp.Timestamp, ant, tu); err != nil {
-		return err
-	}
 	enc.writeFirstValue(dp.Value)
 	return nil
 }
 
 // writeNext writes the next datapoint with annotation.
 func (enc *Encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	if err := enc.tsEncoderState.WriteNextTime(enc.os, dp.Timestamp, ant, tu); err != nil {
-		return err
-	}
 	enc.writeNextValue(dp.Value)
 	return nil
 }

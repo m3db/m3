@@ -87,6 +87,8 @@ type TimestampEncoderState struct {
 	TimeUnit xtime.Unit
 
 	Opts encoding.Options
+
+	hasWrittenFirst bool // Only taken into account if using the WriteTime() API.
 }
 
 // NewTimestampEncoderState creates a new TimestampEncoderState.
@@ -97,6 +99,21 @@ func NewTimestampEncoderState(
 		TimeUnit: initialTimeUnit(start, timeUnit),
 		Opts:     opts,
 	}
+}
+
+// WriteTime encode the timestamp using delta-of-delta compression.
+func (enc *TimestampEncoderState) WriteTime(
+	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	if enc.hasWrittenFirst {
+		return enc.WriteNextTime(stream, currTime, ant, timeUnit)
+	}
+
+	if err := enc.WriteFirstTime(stream, currTime, ant, timeUnit); err != nil {
+		return err
+	}
+
+	enc.hasWrittenFirst = true
+	return nil
 }
 
 // WriteFirstTime encodes the first timestamp.
