@@ -502,6 +502,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			"%s error trying to read bytes changed control bit: %v",
 			itErrPrefix, err)
 	}
+
 	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
 			numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize))
