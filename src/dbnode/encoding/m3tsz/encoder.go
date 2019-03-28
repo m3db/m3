@@ -21,10 +21,7 @@
 package m3tsz
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
@@ -46,27 +43,20 @@ type Encoder struct {
 	opts encoding.Options
 
 	// internal bookkeeping
-	t               time.Time     // current time
-	dt              time.Duration // current time delta
+	tsEncoderState  TimestampEncoderState
 	xorEncoderState XOREncoderState
 
 	ant ts.Annotation // current annotation
 
-	intVal       float64    // current int val
-	tu           xtime.Unit // current time unit
-	intOptimized bool       // whether the encoding scheme is optimized for ints
-	isFloat      bool       // whether we are encoding ints/floats
-	numEncoded   uint32     // whether any datapoints have been written yet
-	maxMult      uint8      // current max multiplier for int vals
+	intVal       float64 // current int val
+	intOptimized bool    // whether the encoding scheme is optimized for ints
+	isFloat      bool    // whether we are encoding ints/floats
+	numEncoded   uint32  // whether any datapoints have been written yet
+	maxMult      uint8   // current max multiplier for int vals
 
 	sigTracker IntSigBitsTracker
 
 	closed bool
-}
-
-// TimestampEncoderState encapsulates the state required for a logical stream of
-// bits that represent a stream of timestamps compressed using delta-of-delta
-type TimestampEncoderState struct {
 }
 
 // NewEncoder creates a new encoder.
@@ -84,34 +74,16 @@ func NewEncoder(
 	// will be used for this encoder.  If a pool is being used alloc when the
 	// `Reset` method is called.
 	initAllocIfEmpty := opts.EncoderPool() == nil
-	tu := initialTimeUnit(start, opts.DefaultTimeUnit())
-
 	if os == nil {
 		os = encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool())
 	}
 	return &Encoder{
-		os:           os,
-		opts:         opts,
-		t:            start,
-		tu:           tu,
-		closed:       false,
-		intOptimized: intOptimized,
+		os:             os,
+		opts:           opts,
+		tsEncoderState: NewTimestampEncoderState(start, opts.DefaultTimeUnit(), opts),
+		closed:         false,
+		intOptimized:   intOptimized,
 	}
-}
-
-func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
-	tv, err := tu.Value()
-	if err != nil {
-		return xtime.None
-	}
-	// If we want to use tu as the time unit for start, start must
-	// be a multiple of tu.
-	startInNano := xtime.ToNormalizedTime(start, time.Nanosecond)
-	tvInNano := xtime.ToNormalizedDuration(tv, time.Nanosecond)
-	if startInNano%tvInNano == 0 {
-		return tu
-	}
-	return xtime.None
 }
 
 // Encode encodes the timestamp and the value of a datapoint.
@@ -135,7 +107,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 
 // writeFirst writes the first datapoint with annotation.
 func (enc *Encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	if err := enc.WriteFirstTime(dp.Timestamp, ant, tu); err != nil {
+	if err := enc.tsEncoderState.WriteFirstTime(enc.os, dp.Timestamp, ant, tu); err != nil {
 		return err
 	}
 	enc.writeFirstValue(dp.Value)
@@ -144,125 +116,10 @@ func (enc *Encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit
 
 // writeNext writes the next datapoint with annotation.
 func (enc *Encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	if err := enc.WriteNextTime(dp.Timestamp, ant, tu); err != nil {
+	if err := enc.tsEncoderState.WriteNextTime(enc.os, dp.Timestamp, ant, tu); err != nil {
 		return err
 	}
 	enc.writeNextValue(dp.Value)
-	return nil
-}
-
-// shouldWriteAnnotation determines whether we should write ant as an annotation.
-// Returns true if ant is not empty and differs from the existing annotation, false otherwise.
-func (enc *Encoder) shouldWriteAnnotation(ant ts.Annotation) bool {
-	numAnnotationBytes := len(ant)
-	if numAnnotationBytes == 0 {
-		return false
-	}
-	return !bytes.Equal(enc.ant, ant)
-}
-
-func (enc *Encoder) writeAnnotation(ant ts.Annotation) {
-	if !enc.shouldWriteAnnotation(ant) {
-		return
-	}
-	scheme := enc.opts.MarkerEncodingScheme()
-	encoding.WriteSpecialMarker(enc.os, scheme, scheme.Annotation())
-
-	var buf [binary.MaxVarintLen32]byte
-	// NB: we subtract 1 for possible varint encoding savings
-	annotationLength := binary.PutVarint(buf[:], int64(len(ant)-1))
-
-	enc.os.WriteBytes(buf[:annotationLength])
-	enc.os.WriteBytes(ant)
-	enc.ant = ant
-}
-
-// shouldWriteTimeUnit determines whether we should write tu as a time unit.
-// Returns true if tu is valid and differs from the existing time unit, false otherwise.
-func (enc *Encoder) shouldWriteTimeUnit(tu xtime.Unit) bool {
-	if !tu.IsValid() || tu == enc.tu {
-		return false
-	}
-	return true
-}
-
-// writeTimeUnit encodes the time unit and returns true if the time unit has
-// changed, and false otherwise.
-func (enc *Encoder) writeTimeUnit(tu xtime.Unit) bool {
-	if !enc.shouldWriteTimeUnit(tu) {
-		return false
-	}
-	scheme := enc.opts.MarkerEncodingScheme()
-	encoding.WriteSpecialMarker(enc.os, scheme, scheme.TimeUnit())
-	enc.os.WriteByte(byte(tu))
-	enc.tu = tu
-	return true
-}
-
-// WriteFirstTime encodes the first timestamp.
-func (enc *Encoder) WriteFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
-	// NB(xichen): Always write the first time in nanoseconds because we don't know
-	// if the start time is going to be a multiple of the time unit provided.
-	nt := xtime.ToNormalizedTime(enc.t, time.Nanosecond)
-	enc.os.WriteBits(uint64(nt), 64)
-	return enc.WriteNextTime(t, ant, tu)
-}
-
-// WriteNextTime encodes the next (non-first) timestamp.
-func (enc *Encoder) WriteNextTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
-	enc.writeAnnotation(ant)
-	tuChanged := enc.writeTimeUnit(tu)
-
-	dt := t.Sub(enc.t)
-	enc.t = t
-	if tuChanged {
-		enc.writeDeltaOfDeltaTimeUnitChanged(enc.dt, dt)
-		// NB(xichen): if the time unit has changed, we reset the time delta to zero
-		// because we can't guarantee that dt is a multiple of the new time unit, which
-		// means we can't guarantee that the delta of delta when encoding the next
-		// data point is a multiple of the new time unit.
-		enc.dt = 0
-		return nil
-	}
-	err := enc.writeDeltaOfDeltaTimeUnitUnchanged(enc.dt, dt, tu)
-	enc.dt = dt
-	return err
-}
-
-func (enc *Encoder) writeDeltaOfDeltaTimeUnitChanged(prevDelta, curDelta time.Duration) {
-	// NB(xichen): if the time unit has changed, always normalize delta-of-delta
-	// to nanoseconds and encode it using 64 bits.
-	dodInNano := int64(curDelta - prevDelta)
-	enc.os.WriteBits(uint64(dodInNano), 64)
-}
-
-func (enc *Encoder) writeDeltaOfDeltaTimeUnitUnchanged(prevDelta, curDelta time.Duration, tu xtime.Unit) error {
-	u, err := tu.Value()
-	if err != nil {
-		return err
-	}
-	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	tes, exists := enc.opts.TimeEncodingSchemes()[tu]
-	if !exists {
-		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", tu)
-	}
-
-	if deltaOfDelta == 0 {
-		zeroBucket := tes.ZeroBucket()
-		enc.os.WriteBits(zeroBucket.Opcode(), zeroBucket.NumOpcodeBits())
-		return nil
-	}
-	buckets := tes.Buckets()
-	for i := 0; i < len(buckets); i++ {
-		if deltaOfDelta >= buckets[i].Min() && deltaOfDelta <= buckets[i].Max() {
-			enc.os.WriteBits(buckets[i].Opcode(), buckets[i].NumOpcodeBits())
-			enc.os.WriteBits(uint64(deltaOfDelta), buckets[i].NumValueBits())
-			return nil
-		}
-	}
-	defaultBucket := tes.DefaultBucket()
-	enc.os.WriteBits(defaultBucket.Opcode(), defaultBucket.NumOpcodeBits())
-	enc.os.WriteBits(uint64(deltaOfDelta), defaultBucket.NumValueBits())
 	return nil
 }
 
@@ -420,15 +277,16 @@ func (enc *Encoder) Reset(start time.Time, capacity int) {
 
 func (enc *Encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
-	enc.t = start
-	enc.dt = 0
+
+	tu := initialTimeUnit(start, enc.opts.DefaultTimeUnit())
+	enc.tsEncoderState = NewTimestampEncoderState(start, tu, enc.opts)
+
 	enc.xorEncoderState = XOREncoderState{}
 	enc.intVal = 0
 	enc.isFloat = false
 	enc.maxMult = 0
 	enc.sigTracker.Reset()
 	enc.ant = nil
-	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.numEncoded = 0
 	enc.closed = false
 }
@@ -458,7 +316,7 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
 
-	result := ts.Datapoint{Timestamp: enc.t}
+	result := ts.Datapoint{Timestamp: enc.tsEncoderState.PrevTime}
 	if enc.isFloat {
 		result.Value = math.Float64frombits(enc.xorEncoderState.PrevFloatBits)
 	} else {

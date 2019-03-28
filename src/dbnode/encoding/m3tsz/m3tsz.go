@@ -21,10 +21,16 @@
 package m3tsz
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -70,6 +76,167 @@ var (
 	multipliers          = createMultipliers()
 	errInvalidMultiplier = errors.New("supplied multiplier is invalid")
 )
+
+// TimestampEncoderState encapsulates the state required for a logical stream of
+// bits that represent a stream of timestamps compressed using delta-of-delta
+type TimestampEncoderState struct {
+	PrevTime       time.Time
+	PrevTimeDelta  time.Duration
+	PrevAnnotation []byte
+
+	TimeUnit xtime.Unit
+
+	Opts encoding.Options
+}
+
+// NewTimestampEncoderState creates a new TimestampEncoderState.
+func NewTimestampEncoderState(
+	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoderState {
+	return TimestampEncoderState{
+		PrevTime: start,
+		TimeUnit: initialTimeUnit(start, timeUnit),
+		Opts:     opts,
+	}
+}
+
+// WriteFirstTime encodes the first timestamp.
+func (enc *TimestampEncoderState) WriteFirstTime(
+	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	// NB(xichen): Always write the first time in nanoseconds because we don't know
+	// if the start time is going to be a multiple of the time unit provided.
+	nt := xtime.ToNormalizedTime(enc.PrevTime, time.Nanosecond)
+	stream.WriteBits(uint64(nt), 64)
+	return enc.WriteNextTime(stream, currTime, ant, timeUnit)
+}
+
+// WriteNextTime encodes the next (non-first) timestamp.
+func (enc *TimestampEncoderState) WriteNextTime(
+	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	enc.writeAnnotation(stream, ant)
+	tuChanged := enc.writeTimeUnit(stream, timeUnit)
+
+	timeDelta := currTime.Sub(enc.PrevTime)
+	enc.PrevTime = currTime
+	if tuChanged {
+		enc.writeDeltaOfDeltaTimeUnitChanged(stream, enc.PrevTimeDelta, timeDelta)
+		// NB(xichen): if the time unit has changed, we reset the time delta to zero
+		// because we can't guarantee that dt is a multiple of the new time unit, which
+		// means we can't guarantee that the delta of delta when encoding the next
+		// data point is a multiple of the new time unit.
+		enc.PrevTimeDelta = 0
+		return nil
+	}
+	err := enc.writeDeltaOfDeltaTimeUnitUnchanged(
+		stream, enc.PrevTimeDelta, timeDelta, timeUnit)
+	enc.PrevTimeDelta = timeDelta
+	return err
+}
+
+// shouldWriteTimeUnit determines whether we should write tu as a time unit.
+// Returns true if tu is valid and differs from the existing time unit, false otherwise.
+func (enc *TimestampEncoderState) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
+	if !timeUnit.IsValid() || timeUnit == enc.TimeUnit {
+		return false
+	}
+	return true
+}
+
+// writeTimeUnit encodes the time unit and returns true if the time unit has
+// changed, and false otherwise.
+func (enc *TimestampEncoderState) writeTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) bool {
+	if !enc.shouldWriteTimeUnit(timeUnit) {
+		return false
+	}
+
+	scheme := enc.Opts.MarkerEncodingScheme()
+	encoding.WriteSpecialMarker(stream, scheme, scheme.TimeUnit())
+	stream.WriteByte(byte(timeUnit))
+	enc.TimeUnit = timeUnit
+	return true
+}
+
+// shouldWriteAnnotation determines whether we should write ant as an annotation.
+// Returns true if ant is not empty and differs from the existing annotation, false otherwise.
+func (enc *TimestampEncoderState) shouldWriteAnnotation(ant ts.Annotation) bool {
+	numAnnotationBytes := len(ant)
+	if numAnnotationBytes == 0 {
+		return false
+	}
+	return !bytes.Equal(enc.PrevAnnotation, ant)
+}
+
+func (enc *TimestampEncoderState) writeAnnotation(stream encoding.OStream, ant ts.Annotation) {
+	if !enc.shouldWriteAnnotation(ant) {
+		return
+	}
+
+	scheme := enc.Opts.MarkerEncodingScheme()
+	encoding.WriteSpecialMarker(stream, scheme, scheme.Annotation())
+
+	var buf [binary.MaxVarintLen32]byte
+	// NB: we subtract 1 for possible varint encoding savings
+	annotationLength := binary.PutVarint(buf[:], int64(len(ant)-1))
+
+	stream.WriteBytes(buf[:annotationLength])
+	stream.WriteBytes(ant)
+	enc.PrevAnnotation = ant
+}
+
+func (enc *TimestampEncoderState) writeDeltaOfDeltaTimeUnitChanged(
+	stream encoding.OStream, prevDelta, curDelta time.Duration) {
+	// NB(xichen): if the time unit has changed, always normalize delta-of-delta
+	// to nanoseconds and encode it using 64 bits.
+	dodInNano := int64(curDelta - prevDelta)
+	stream.WriteBits(uint64(dodInNano), 64)
+}
+
+func (enc *TimestampEncoderState) writeDeltaOfDeltaTimeUnitUnchanged(
+	stream encoding.OStream, prevDelta, curDelta time.Duration, timeUnit xtime.Unit) error {
+	u, err := timeUnit.Value()
+	if err != nil {
+		return err
+	}
+
+	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
+	tes, exists := enc.Opts.TimeEncodingSchemes()[timeUnit]
+	if !exists {
+		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
+	}
+
+	if deltaOfDelta == 0 {
+		zeroBucket := tes.ZeroBucket()
+		stream.WriteBits(zeroBucket.Opcode(), zeroBucket.NumOpcodeBits())
+		return nil
+	}
+
+	buckets := tes.Buckets()
+	for i := 0; i < len(buckets); i++ {
+		if deltaOfDelta >= buckets[i].Min() && deltaOfDelta <= buckets[i].Max() {
+			stream.WriteBits(buckets[i].Opcode(), buckets[i].NumOpcodeBits())
+			stream.WriteBits(uint64(deltaOfDelta), buckets[i].NumValueBits())
+			return nil
+		}
+	}
+	defaultBucket := tes.DefaultBucket()
+	stream.WriteBits(defaultBucket.Opcode(), defaultBucket.NumOpcodeBits())
+	stream.WriteBits(uint64(deltaOfDelta), defaultBucket.NumValueBits())
+	return nil
+}
+
+func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
+	tv, err := tu.Value()
+	if err != nil {
+		return xtime.None
+	}
+	// If we want to use tu as the time unit for start, start must
+	// be a multiple of tu.
+	startInNano := xtime.ToNormalizedTime(start, time.Nanosecond)
+	tvInNano := xtime.ToNormalizedDuration(tv, time.Nanosecond)
+	if startInNano%tvInNano == 0 {
+		return tu
+	}
+	return xtime.None
+}
 
 // XOREncoderState encapsulates the state required for a logical stream of bits
 // that represent a stream of float values compressed with XOR.
@@ -140,7 +307,7 @@ type IntSigBitsTracker struct {
 
 // WriteIntValDiff writes the provided val diff bits along with
 // whether the bits are negative or not.
-func (enc *IntSigBitsTracker) WriteIntValDiff(
+func (t *IntSigBitsTracker) WriteIntValDiff(
 	stream encoding.OStream, valBits uint64, neg bool) {
 	if neg {
 		stream.WriteBit(opcodeNegative)
@@ -148,22 +315,22 @@ func (enc *IntSigBitsTracker) WriteIntValDiff(
 		stream.WriteBit(opcodePositive)
 	}
 
-	stream.WriteBits(valBits, int(enc.NumSig))
+	stream.WriteBits(valBits, int(t.NumSig))
 }
 
 // WriteIntSig writes the number of significant bits of the diff if it has changed and
 // updates the IntSigBitsTracker.
-func (t *IntSigBitsTracker) WriteIntSig(os encoding.OStream, sig uint8) {
+func (t *IntSigBitsTracker) WriteIntSig(stream encoding.OStream, sig uint8) {
 	if t.NumSig != sig {
-		os.WriteBit(opcodeUpdateSig)
+		stream.WriteBit(opcodeUpdateSig)
 		if sig == 0 {
-			os.WriteBit(OpcodeZeroSig)
+			stream.WriteBit(OpcodeZeroSig)
 		} else {
-			os.WriteBit(OpcodeNonZeroSig)
-			os.WriteBits(uint64(sig-1), NumSigBits)
+			stream.WriteBit(OpcodeNonZeroSig)
+			stream.WriteBits(uint64(sig-1), NumSigBits)
 		}
 	} else {
-		os.WriteBit(opcodeNoUpdateSig)
+		stream.WriteBit(opcodeNoUpdateSig)
 	}
 
 	t.NumSig = sig
