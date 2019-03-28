@@ -80,11 +80,7 @@ type Encoder struct {
 	hasEncodedFirstSetOfCustomValues bool
 	closed                           bool
 
-	// We embed the m3tszEncoder (with a shared OStream) so that we can reuse
-	// the delta-of-delta timestamp encoding logic. In the future, we could find
-	// a nicer way to share this logic so that we don't have to store all of the
-	// m3tszEncoder state that we don't need.
-	m3tszEncoder *m3tsz.Encoder
+	timestampEncoder m3tsz.TimestampEncoderState
 }
 
 // NewEncoder creates a new protobuf encoder.
@@ -92,10 +88,11 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	stream := encoding.NewOStream(nil, initAllocIfEmpty, opts.BytesPool())
 	return &Encoder{
-		opts:         opts,
-		stream:       stream,
-		m3tszEncoder: m3tsz.NewEncoder(start, nil, stream, false, opts).(*m3tsz.Encoder),
-		varIntBuf:    [8]byte{},
+		opts:   opts,
+		stream: stream,
+		timestampEncoder: m3tsz.NewTimestampEncoderState(
+			start, opts.DefaultTimeUnit(), opts),
+		varIntBuf: [8]byte{},
 	}
 }
 
@@ -104,7 +101,7 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 // only the Timestamp field will be used, the Value field will be ignored and will always
 // return 0 on subsequent iteration. In addition, the provided annotation is expected to
 // be a marshaled protobuf message that matches the configured schema.
-func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, protoBytes ts.Annotation) error {
+func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.Annotation) error {
 	if enc.closed {
 		return errEncoderClosed
 	}
@@ -134,7 +131,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, protoBytes ts.Annotat
 	// Control bit that indicates the stream has more data.
 	enc.stream.WriteBit(opCodeMoreData)
 
-	if err := enc.encodeTimestamp(dp.Timestamp, tu); err != nil {
+	err := enc.timestampEncoder.WriteTime(enc.stream, dp.Timestamp, nil, timeUnit)
+	if err != nil {
 		return fmt.Errorf(
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
@@ -245,13 +243,6 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 	}
 }
 
-func (enc *Encoder) encodeTimestamp(t time.Time, tu xtime.Unit) error {
-	if !enc.hasEncodedFirstSetOfCustomValues {
-		return enc.m3tszEncoder.WriteFirstTime(t, nil, tu)
-	}
-	return enc.m3tszEncoder.WriteNextTime(t, nil, tu)
-}
-
 // TODO: Add concept of hard/soft error and if there is a hard error
 // then the encoder cant be used anymore.
 func (enc *Encoder) encodeProto(m *dynamic.Message) error {
@@ -286,9 +277,9 @@ func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
 }
 
 func (enc *Encoder) reset(start time.Time, capacity int) {
-	// Resetting the m3tsz encoder will take care of resetting the shared ostream
-	// so we don't need to do that again in this function.
-	enc.m3tszEncoder.Reset(start, capacity)
+	enc.stream.Reset(enc.newBuffer(capacity))
+	enc.timestampEncoder = m3tsz.NewTimestampEncoderState(
+		start, enc.opts.DefaultTimeUnit(), enc.opts)
 	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
 	enc.unmarshaled = nil
@@ -319,7 +310,6 @@ func (enc *Encoder) Close() {
 	enc.closed = true
 	enc.Reset(time.Time{}, 0)
 	enc.stream.Reset(nil)
-	enc.m3tszEncoder.Reset(time.Time{}, 0)
 
 	if pool := enc.opts.EncoderPool(); pool != nil {
 		pool.Put(enc)
