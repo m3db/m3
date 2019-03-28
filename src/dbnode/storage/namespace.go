@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -45,9 +46,12 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	opentracing "github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 )
 
@@ -601,20 +605,49 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
+	var (
+		sp opentracing.Span
+		ok bool
+	)
+
+	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.NSQueryIDs)
+	if ok {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.Int("limit", opts.Limit),
+			xopentracing.Time("start", opts.StartInclusive),
+			xopentracing.Time("end", opts.EndExclusive),
+		)
+
+		defer sp.Finish()
+	}
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryResult{}, errNamespaceIndexingDisabled
+		err := errNamespaceIndexingDisabled
+		if ok {
+			sp.LogFields(opentracinglog.Error(err))
+		}
+		return index.QueryResult{}, err
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		err := errIndexNotBootstrappedToRead
+		if ok {
+			sp.LogFields(opentracinglog.Error(err))
+		}
 		return index.QueryResult{},
-			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+			xerrors.NewRetryableError(err)
 	}
 
 	res, err := n.reverseIndex.Query(ctx, query, opts)
+	if err != nil && ok {
+		sp.LogFields(opentracinglog.Error(err))
+	}
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

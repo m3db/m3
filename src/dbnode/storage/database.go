@@ -35,14 +35,18 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xlog "github.com/m3db/m3/src/x/log"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	opentracing "github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 )
 
@@ -708,8 +712,29 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
+	var (
+		sp opentracing.Span
+		ok bool
+	)
+
+	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.DBQueryIDs)
+	if ok {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Int("limit", opts.Limit),
+			xopentracing.Time("start", opts.StartInclusive),
+			xopentracing.Time("end", opts.EndExclusive),
+		)
+
+		defer sp.Finish()
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
+		if ok {
+			sp.LogFields(opentracinglog.Error(err))
+		}
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
 		return index.QueryResult{}, err
 	}

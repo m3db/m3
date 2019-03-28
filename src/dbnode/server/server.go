@@ -21,6 +21,7 @@
 package server
 
 import (
+	stdlib "context"
 	"errors"
 	"fmt"
 	"io"
@@ -68,21 +69,23 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	xdocs "github.com/m3db/m3/src/x/docs"
-	"github.com/m3db/m3/src/x/lockfile"
-	"github.com/m3db/m3/src/x/mmap"
-	"github.com/m3db/m3/src/x/serialize"
+	"github.com/m3db/m3/src/query/util/logging"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/lockfile"
 	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
 	"github.com/jhump/protoreflect/desc"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 )
 
@@ -92,6 +95,7 @@ const (
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 	filePathPrefixLockFile           = ".lock"
+	defaultServiceName               = "m3dbnode"
 )
 
 // RunOptions provides options for running the server
@@ -149,6 +153,13 @@ func Run(runOpts RunOptions) {
 		os.Exit(1)
 	}
 
+	// Currently, the zapLogger is being used for tracing only.
+	// todo: use the zapLogger everywhere instead of xlog logger.
+	logging.InitWithCores(nil)
+	ctx := stdlib.Background()
+	zapLogger := logging.WithContext(ctx)
+	defer zapLogger.Sync()
+
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		logger.Fatalf("could not parse new file mode: %v", err)
@@ -192,6 +203,30 @@ func Run(runOpts RunOptions) {
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {
 		logger.Fatalf("could not resolve local host ID: %v", err)
+	}
+
+	var (
+		tracer      opentracing.Tracer
+		traceCloser io.Closer
+	)
+
+	if cfg.Tracing == nil {
+		tracer = opentracing.NoopTracer{}
+		logger.Infof("tracing disabled for %s; set `tracing.backend` to enable", defaultServiceName)
+	} else {
+		// setup tracer
+		serviceName := cfg.Tracing.ServiceName
+		if serviceName == "" {
+			serviceName = defaultServiceName
+		}
+		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName, scope.SubScope("jaeger"), zapLogger)
+		if err != nil {
+			tracer = opentracing.NoopTracer{}
+			logger.Warnf("could not initialize tracing for %s: %v; using no-op tracer instead", serviceName, err)
+		} else {
+			defer traceCloser.Close()
+			logger.Infof("tracing enabled for %s", serviceName)
+		}
 	}
 
 	capnslog.SetGlobalLogLevel(capnslog.WARNING)
@@ -254,9 +289,13 @@ func Run(runOpts RunOptions) {
 	opts := storage.NewOptions()
 	iopts := opts.InstrumentOptions().
 		SetLogger(logger).
+		SetZapLogger(zapLogger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate())
+		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+		SetTracer(tracer)
 	opts = opts.SetInstrumentOptions(iopts)
+
+	opentracing.SetGlobalTracer(tracer)
 
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)

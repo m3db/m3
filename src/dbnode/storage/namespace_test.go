@@ -21,11 +21,14 @@
 package storage
 
 import (
+	stdlib "context"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -38,7 +41,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/metrics"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	xidx "github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -47,6 +51,8 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -1100,15 +1106,27 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewContext()
-	query := index.Query{}
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlib.Background(), sp))
+
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
 	opts := index.QueryOptions{}
 
-	idx.EXPECT().Query(ctx, query, opts)
+	idx.EXPECT().Query(gomock.Any(), query, opts)
 	_, err := ns.QueryIDs(ctx, query, opts)
 	require.NoError(t, err)
 
 	idx.EXPECT().Close().Return(nil)
 	require.NoError(t, ns.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.NSQueryIDs, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
 }
 
 func TestNamespaceAggregateQuery(t *testing.T) {

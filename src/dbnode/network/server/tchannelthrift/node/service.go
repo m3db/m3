@@ -35,21 +35,25 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/log"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	opentracing "github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -255,12 +259,37 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
+	var (
+		ctx context.Context
+		sp  opentracing.Span
+		ok  bool
+	)
+
+	ctx = tchannelthrift.Context(tctx)
+	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.Query)
+	if ok {
+		sp.LogFields(
+			opentracinglog.String("query", req.Query.String()),
+			opentracinglog.String("namespace", req.NameSpace),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeStart)),
+		)
+	}
+
+	result, err := s.query(ctx, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) query(ctx context.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
 	if s.isOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
-
-	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
@@ -396,13 +425,40 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	var (
+		ctx context.Context
+		sp  opentracing.Span
+		ok  bool
+	)
+
+	ctx = tchannelthrift.Context(tctx)
+	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.FetchTagged)
+	if ok {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
+
+	result, err := s.fetchTagged(ctx, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
 	if s.isOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
 
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))

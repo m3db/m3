@@ -40,7 +40,9 @@ func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, conte
 	server := thrift.NewServer(channel)
 	server.Register(service, thrift.OptPostResponse(postResponseFn))
 	server.SetContextFn(func(ctx xnetcontext.Context, method string, headers map[string]string) thrift.Context {
-		ctxWithValue := xnetcontext.WithValue(ctx, contextKey, contextPool.Get())
+		xCtx := contextPool.Get()
+		xCtx.SetGoContext(ctx)
+		ctxWithValue := xnetcontext.WithValue(ctx, contextKey, xCtx)
 		return thrift.WithHeaders(ctxWithValue, headers)
 	})
 }
