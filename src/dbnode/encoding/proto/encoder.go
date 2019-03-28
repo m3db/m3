@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
-	murmur3 "github.com/m3db/stackmurmur3"
 
+	"github.com/cespare/xxhash"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 )
@@ -471,7 +471,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	}
 
 	var (
-		hash             = murmur3.Sum64(currBytes)
+		hash             = xxhash.Sum64(currBytes)
 		numPreviousBytes = len(customField.bytesFieldDict)
 		lastStateIdx     = numPreviousBytes - 1
 		lastState        encoderBytesFieldDictState
