@@ -532,16 +532,35 @@ func (b *dbBuffer) putBucketVersionsInCache(newBuckets *BufferBucketVersions) {
 	b.bucketVersionsCache[0] = newBuckets
 }
 
+func (b *dbBuffer) removeBucketVersionsInCache(oldBuckets *BufferBucketVersions) {
+	nilIdx := -1
+	for i, buckets := range b.bucketVersionsCache {
+		if buckets == oldBuckets {
+			nilIdx = i
+		}
+	}
+	if nilIdx == -1 {
+		return
+	}
+
+	for i := nilIdx; i < bucketsCacheSize-1; i++ {
+		b.bucketVersionsCache[i] = b.bucketVersionsCache[i+1]
+	}
+
+	b.bucketVersionsCache[bucketsCacheSize-1] = nil
+}
+
 func (b *dbBuffer) removeBucketVersionsAt(blockStart time.Time) {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
 		return
 	}
+	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
+	b.removeBucketVersionsInCache(buckets)
+	b.inOrderBlockStartsRemove(blockStart)
 	// nil out pointers.
 	buckets.resetTo(timeZero, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
-	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
-	b.inOrderBlockStartsRemove(blockStart)
 }
 
 func (b *dbBuffer) inOrderBlockStartsAdd(newTime time.Time) {
