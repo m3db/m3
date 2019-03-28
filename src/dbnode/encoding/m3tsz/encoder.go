@@ -64,13 +64,6 @@ type Encoder struct {
 	closed bool
 }
 
-// XOREncoderState encapsulates the state required for a logical stream of bits
-// that represent a stream of float values compressed with XOR.
-type XOREncoderState struct {
-	PrevXOR       uint64
-	PrevFloatBits uint64
-}
-
 // TimestampEncoderState encapsulates the state required for a logical stream of
 // bits that represent a stream of timestamps compressed using delta-of-delta
 type TimestampEncoderState struct {
@@ -305,7 +298,7 @@ func (enc *Encoder) writeFirstValue(v float64) error {
 	valBits := uint64(int64(val))
 	numSig := encoding.NumSig(valBits)
 	enc.writeIntSigMult(numSig, mult, false)
-	enc.writeIntValDiff(valBits, negDiff)
+	enc.sigTracker.WriteIntValDiff(enc.os, valBits, negDiff)
 	return nil
 }
 
@@ -360,45 +353,6 @@ func (enc *Encoder) writeFloatVal(val uint64, mult uint8) {
 	enc.xorEncoderState.WriteFloatXOR(enc.os, val)
 }
 
-// WriteFullFloatVal writes out the float value using a full 64 bits.
-func (enc *XOREncoderState) WriteFullFloatVal(stream encoding.OStream, val uint64) {
-	enc.PrevFloatBits = val
-	enc.PrevXOR = val
-	stream.WriteBits(val, 64)
-}
-
-// WriteFloatXOR writes out the float value using XOR compression.
-func (enc *XOREncoderState) WriteFloatXOR(stream encoding.OStream, val uint64) {
-	xor := enc.PrevFloatBits ^ val
-	enc.WriteXOR(stream, xor)
-	enc.PrevXOR = xor
-	enc.PrevFloatBits = val
-}
-
-// WriteXOR writes out the new XOR based on the value of the previous XOR.
-func (enc *XOREncoderState) WriteXOR(stream encoding.OStream, currXOR uint64) {
-	if currXOR == 0 {
-		stream.WriteBits(opcodeZeroValueXOR, 1)
-		return
-	}
-
-	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
-	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(enc.PrevXOR)
-	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(currXOR)
-	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		stream.WriteBits(opcodeContainedValueXOR, 2)
-		stream.WriteBits(currXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
-		return
-	}
-
-	stream.WriteBits(opcodeUncontainedValueXOR, 2)
-	stream.WriteBits(uint64(curLeading), 6)
-	numMeaningfulBits := 64 - curLeading - curTrailing
-	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
-	stream.WriteBits(uint64(numMeaningfulBits-1), 6)
-	stream.WriteBits(currXOR>>uint(curTrailing), numMeaningfulBits)
-}
-
 // writeIntVal writes the val as a diff of ints
 func (enc *Encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff float64) {
 	if valDiff == 0 && isFloat == enc.isFloat && mult == enc.maxMult {
@@ -423,32 +377,20 @@ func (enc *Encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff f
 		enc.os.WriteBit(opcodeNoRepeat)
 		enc.os.WriteBit(opcodeIntMode)
 		enc.writeIntSigMult(newSig, mult, isFloatChanged)
-		enc.writeIntValDiff(valDiffBits, neg)
+		enc.sigTracker.WriteIntValDiff(enc.os, valDiffBits, neg)
 		enc.isFloat = false
 	} else {
 		enc.os.WriteBit(opcodeNoUpdate)
-		enc.writeIntValDiff(valDiffBits, neg)
+		enc.sigTracker.WriteIntValDiff(enc.os, valDiffBits, neg)
 	}
 
 	enc.intVal = val
 }
 
-// writeIntValDiff writes the provided val diff bits along with
-// whether the bits are negative or not
-func (enc *Encoder) writeIntValDiff(valBits uint64, neg bool) {
-	if neg {
-		enc.os.WriteBit(opcodeNegative)
-	} else {
-		enc.os.WriteBit(opcodePositive)
-	}
-
-	enc.os.WriteBits(valBits, int(enc.sigTracker.NumSig))
-}
-
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
 func (enc *Encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
-	WriteIntSig(enc.os, &enc.sigTracker, sig)
+	enc.sigTracker.WriteIntSig(enc.os, sig)
 
 	if mult > enc.maxMult {
 		enc.os.WriteBit(opcodeUpdateMult)

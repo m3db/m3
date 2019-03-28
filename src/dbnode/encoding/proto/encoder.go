@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -412,12 +411,7 @@ func (enc *Encoder) encodeTSZValue(i int, iVal interface{}) error {
 			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
 	}
 
-	if !enc.hasEncodedFirstSetOfCustomValues {
-		enc.encodeFirstTSZValue(i, val)
-	} else {
-		enc.encodeNextTSZValue(i, val)
-	}
-
+	enc.customFields[i].floatXORState.WriteFloat(enc.stream, val)
 	return nil
 }
 
@@ -658,16 +652,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	return nil
-}
-
-func (enc *Encoder) encodeFirstTSZValue(i int, v float64) {
-	fb := math.Float64bits(v)
-	enc.customFields[i].floatXORState.WriteFullFloatVal(enc.stream, fb)
-}
-
-func (enc *Encoder) encodeNextTSZValue(i int, next float64) {
-	fb := math.Float64bits(next)
-	enc.customFields[i].floatXORState.WriteFloatXOR(enc.stream, fb)
 }
 
 func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {

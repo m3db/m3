@@ -71,10 +71,90 @@ var (
 	errInvalidMultiplier = errors.New("supplied multiplier is invalid")
 )
 
+// XOREncoderState encapsulates the state required for a logical stream of bits
+// that represent a stream of float values compressed with XOR.
+type XOREncoderState struct {
+	HasWrittenFirst bool // Only taken into account if using the WriteFloat() API.
+	PrevXOR         uint64
+	PrevFloatBits   uint64
+}
+
+// WriteFloat writes a float into the stream, writing the full value or a compressed
+// XOR as appropriate.
+func (enc *XOREncoderState) WriteFloat(stream encoding.OStream, val float64) {
+	fb := math.Float64bits(val)
+	if enc.HasWrittenFirst {
+		enc.WriteFloatXOR(stream, fb)
+	} else {
+		enc.WriteFullFloatVal(stream, fb)
+		enc.HasWrittenFirst = true
+	}
+}
+
+// WriteFullFloatVal writes out the float value using a full 64 bits.
+func (enc *XOREncoderState) WriteFullFloatVal(stream encoding.OStream, val uint64) {
+	enc.PrevFloatBits = val
+	enc.PrevXOR = val
+	stream.WriteBits(val, 64)
+}
+
+// WriteFloatXOR writes out the float value using XOR compression.
+func (enc *XOREncoderState) WriteFloatXOR(stream encoding.OStream, val uint64) {
+	xor := enc.PrevFloatBits ^ val
+	enc.WriteXOR(stream, xor)
+	enc.PrevXOR = xor
+	enc.PrevFloatBits = val
+}
+
+// WriteXOR writes out the new XOR based on the value of the previous XOR.
+func (enc *XOREncoderState) WriteXOR(stream encoding.OStream, currXOR uint64) {
+	if currXOR == 0 {
+		stream.WriteBits(opcodeZeroValueXOR, 1)
+		return
+	}
+
+	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
+	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(enc.PrevXOR)
+	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(currXOR)
+	if curLeading >= prevLeading && curTrailing >= prevTrailing {
+		stream.WriteBits(opcodeContainedValueXOR, 2)
+		stream.WriteBits(currXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
+		return
+	}
+
+	stream.WriteBits(opcodeUncontainedValueXOR, 2)
+	stream.WriteBits(uint64(curLeading), 6)
+	numMeaningfulBits := 64 - curLeading - curTrailing
+	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
+	stream.WriteBits(uint64(numMeaningfulBits-1), 6)
+	stream.WriteBits(currXOR>>uint(curTrailing), numMeaningfulBits)
+}
+
+// IntSigBitsTracker is used to track the number of significant bits
+// which should be used to encode the delta between two integers.
+type IntSigBitsTracker struct {
+	NumSig             uint8 // current largest number of significant places for int diffs
+	CurHighestLowerSig uint8
+	NumLowerSig        uint8
+}
+
+// WriteIntValDiff writes the provided val diff bits along with
+// whether the bits are negative or not.
+func (enc *IntSigBitsTracker) WriteIntValDiff(
+	stream encoding.OStream, valBits uint64, neg bool) {
+	if neg {
+		stream.WriteBit(opcodeNegative)
+	} else {
+		stream.WriteBit(opcodePositive)
+	}
+
+	stream.WriteBits(valBits, int(enc.NumSig))
+}
+
 // WriteIntSig writes the number of significant bits of the diff if it has changed and
 // updates the IntSigBitsTracker.
-func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) {
-	if sigTracker.NumSig != sig {
+func (t *IntSigBitsTracker) WriteIntSig(os encoding.OStream, sig uint8) {
+	if t.NumSig != sig {
 		os.WriteBit(opcodeUpdateSig)
 		if sig == 0 {
 			os.WriteBit(OpcodeZeroSig)
@@ -86,15 +166,7 @@ func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) 
 		os.WriteBit(opcodeNoUpdateSig)
 	}
 
-	sigTracker.NumSig = sig
-}
-
-// IntSigBitsTracker is used to track the number of significant bits
-// which should be used to encode the delta between two integers.
-type IntSigBitsTracker struct {
-	NumSig             uint8 // current largest number of significant places for int diffs
-	CurHighestLowerSig uint8
-	NumLowerSig        uint8
+	t.NumSig = sig
 }
 
 // TrackNewSig gets the new number of significant bits given the
