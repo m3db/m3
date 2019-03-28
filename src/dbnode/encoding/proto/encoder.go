@@ -665,7 +665,7 @@ func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
+	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, numSig)
 	enc.encodeIntValDiff(vBits, neg, numSig)
 }
 
@@ -675,7 +675,7 @@ func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
 	vBits := uint64(v)
 	numSig := encoding.NumSig(vBits)
 
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, numSig)
+	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, numSig)
 	enc.encodeIntValDiff(vBits, false, numSig)
 }
 
@@ -700,9 +700,8 @@ func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
 		numSig   = encoding.NumSig(diffBits)
 		newSig   = enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
 	)
-	// Can't use an intermediary variable for the intSigBitsTracker because we need to
-	// modify the value in the slice, not a copy of it.
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
+
+	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, newSig)
 	enc.encodeIntValDiff(diffBits, neg, newSig)
 	enc.customFields[i].prevIntBits = uint64(next)
 }
@@ -731,9 +730,8 @@ func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 
 	numSig := encoding.NumSig(diff)
 	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
-	// Can't use an intermediary variable for the intSigBitsTracker because we need to
-	// modify the value in the slice, not a copy of it.
-	m3tsz.WriteIntSig(enc.stream, &enc.customFields[i].intSigBitsTracker, newSig)
+
+	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, newSig)
 	enc.encodeIntValDiff(diff, neg, newSig)
 	enc.customFields[i].prevIntBits = uint64(next)
 }
