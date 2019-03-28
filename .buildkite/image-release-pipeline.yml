@@ -1,4 +1,6 @@
 steps:
+  # We add a wait step here so that docker images and docs won't get built
+  # unless rest of CI passes.
   - wait
   - name: ":docker: build quay.io/m3db"
     command: ".ci/docker/build.sh"

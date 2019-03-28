@@ -1088,6 +1088,12 @@ func (s *session) FetchIDs(
 	return result, err
 }
 
+func (s *session) Aggregate(
+	ns ident.ID, q index.Query, opts index.AggregationOptions,
+) (AggregatedTagsIterator, bool, error) {
+	return nil, false, fmt.Errorf("unimplemented")
+}
+
 func (s *session) FetchTagged(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {

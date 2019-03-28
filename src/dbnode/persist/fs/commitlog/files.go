@@ -101,7 +101,7 @@ func ReadLogInfo(filePath string, opts Options) (int64, error) {
 		return 0, err
 	}
 	logDecoder := msgpack.NewDecoder(nil)
-	logDecoder.Reset(msgpack.NewDecoderStream(bytes))
+	logDecoder.Reset(msgpack.NewByteDecoderStream(bytes))
 	logInfo, decoderErr := logDecoder.DecodeLogInfo()
 
 	err = fd.Close()

@@ -56,6 +56,16 @@ const (
 	InsertAsync
 )
 
+// AggregationType specifies what granularity to aggregate upto.
+type AggregationType uint8
+
+const (
+	// AggregateTagNamesAndValues returns both the tag name and value.
+	AggregateTagNamesAndValues AggregationType = iota
+	// AggregateTagNames returns tag names only.
+	AggregateTagNames
+)
+
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
 	idx.Query
@@ -74,37 +84,38 @@ func (o QueryOptions) LimitExceeded(size int) bool {
 	return o.Limit > 0 && size >= o.Limit
 }
 
-// QueryResults is the collection of results for a query.
-type QueryResults struct {
-	Results    Results
+// AggregationOptions enables users to specify constraints on aggregations.
+type AggregationOptions struct {
+	QueryOptions
+	TermFilter AggregateTermFilter
+	Type       AggregationType
+}
+
+// QueryResult is the collection of results for a query.
+type QueryResult struct {
+	Results    QueryResults
 	Exhaustive bool
 }
 
-// Results is a collection of results for a query, it is synchronized
-// when access to the results set is used as documented by the methods.
-type Results interface {
-	// Reset resets the Results object to initial state.
-	Reset(nsID ident.ID, opts ResultsOptions)
+// AggregateQueryResult is the collection of results for an aggregate query.
+type AggregateQueryResult struct {
+	Results    AggregateResults
+	Exhaustive bool
+}
 
+// BaseResults is a collection of basic results for a generic query, it is
+// synchronized when access to the results set is used as documented by the
+// methods.
+type BaseResults interface {
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
 	// Size returns the number of IDs tracked.
 	Size() int
 
-	// Map returns the results map from seriesID -> seriesTags, comprising
-	// index results.
-	// Since a lock is not held when accessing the map after a call to this
-	// method it is not safe to read or write to the map if any other caller
-	// mutates the state of the results after obtainin a reference to the map
-	// with this call.
-	Map() *ResultsMap
-
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
-	// If documents with duplicate IDs are added, they are simply ignored and
-	// the first document added with an ID is returned.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size int, err error)
@@ -112,6 +123,23 @@ type Results interface {
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
 	Finalize()
+}
+
+// QueryResults is a collection of results for a query, it is synchronized
+// when access to the results set is used as documented by the methods.
+type QueryResults interface {
+	BaseResults
+
+	// Reset resets the Results object to initial state.
+	Reset(nsID ident.ID, opts QueryResultsOptions)
+
+	// Map returns the results map from seriesID -> seriesTags, comprising
+	// index results.
+	// Since a lock is not held when accessing the map after a call to this
+	// method, it is unsafe to read or write to the map if any other caller
+	// mutates the state of the results after obtaining a reference to the map
+	// with this call.
+	Map() *ResultsMap
 
 	// NoFinalize marks the Results such that a subsequent call to Finalize()
 	// will be a no-op and will not return the object to the pool or release any
@@ -119,26 +147,95 @@ type Results interface {
 	NoFinalize()
 }
 
-// ResultsOptions is a set of options to use for results.
-type ResultsOptions struct {
+// QueryResultsOptions is a set of options to use for query results.
+type QueryResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
 }
 
-// ResultsAllocator allocates Results types.
-type ResultsAllocator func() Results
+// QueryResultsAllocator allocates QueryResults types.
+type QueryResultsAllocator func() QueryResults
 
-// ResultsPool allows users to pool `Results` types.
-type ResultsPool interface {
-	// Init initialized the results pool.
-	Init(alloc ResultsAllocator)
+// QueryResultsPool allows users to pool `Results` types.
+type QueryResultsPool interface {
+	// Init initializes the QueryResults pool.
+	Init(alloc QueryResultsAllocator)
 
-	// Get retrieves a Results object for use.
-	Get() Results
+	// Get retrieves a QueryResults object for use.
+	Get() QueryResults
 
-	// Put returns the provide value to the pool.
-	Put(value Results)
+	// Put returns the provided QueryResults to the pool.
+	Put(value QueryResults)
+}
+
+// AggregateResults is a collection of results for an aggregation query, it is
+// synchronized when access to the results set is used as documented by the
+// methods.
+type AggregateResults interface {
+	BaseResults
+
+	// Reset resets the AggregateResults object to initial state.
+	Reset(
+		nsID ident.ID,
+		aggregateQueryOpts AggregateResultsOptions,
+	)
+
+	// Map returns a map from tag name -> possible tag values,
+	// comprising aggregate results.
+	// Since a lock is not held when accessing the map after a call to this
+	// method, it is unsafe to read or write to the map if any other caller
+	// mutates the state of the results after obtaining a reference to the map
+	// with this call.
+	Map() *AggregateResultsMap
+}
+
+// AggregateTermFilter dictates which fields will appear in the aggregated
+// result; if filter values exist, only those whose term matches a value in the
+// filter are returned.
+type AggregateTermFilter [][]byte
+
+// AggregateResultsOptions is a set of options to use for results.
+type AggregateResultsOptions struct {
+	// SizeLimit will limit the total results set to a given limit and if
+	// overflown will return early successfully.
+	SizeLimit int
+
+	// Optional param to filter aggregate values.
+	TermFilter AggregateTermFilter
+
+	// Type determines what result is required.
+	Type AggregationType
+}
+
+// AggregateResultsAllocator allocates AggregateResults types.
+type AggregateResultsAllocator func() AggregateResults
+
+// AggregateResultsPool allows users to pool `AggregateResults` types.
+type AggregateResultsPool interface {
+	// Init initializes the AggregateResults pool.
+	Init(alloc AggregateResultsAllocator)
+
+	// Get retrieves a AggregateResults object for use.
+	Get() AggregateResults
+
+	// Put returns the provided AggregateResults to the pool.
+	Put(value AggregateResults)
+}
+
+// AggregateValuesAllocator allocates AggregateValues types.
+type AggregateValuesAllocator func() AggregateValues
+
+// AggregateValuesPool allows users to pool `AggregateValues` types.
+type AggregateValuesPool interface {
+	// Init initializes the AggregateValues pool.
+	Init(alloc AggregateValuesAllocator)
+
+	// Get retrieves a AggregateValues object for use.
+	Get() AggregateValues
+
+	// Put returns the provided AggregateValues to the pool.
+	Put(value AggregateValues)
 }
 
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
@@ -173,7 +270,7 @@ type Block interface {
 		cancellable *resource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
-		results Results,
+		results BaseResults,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block, if c.
@@ -654,11 +751,23 @@ type Options interface {
 	// CheckedBytesPool returns the checked bytes pool.
 	CheckedBytesPool() pool.CheckedBytesPool
 
-	// SetResultsPool updates the results pool.
-	SetResultsPool(values ResultsPool) Options
+	// SetQueryResultsPool updates the query results pool.
+	SetQueryResultsPool(values QueryResultsPool) Options
 
 	// ResultsPool returns the results pool.
-	ResultsPool() ResultsPool
+	QueryResultsPool() QueryResultsPool
+
+	// SetAggregateResultsPool updates the aggregate results pool.
+	SetAggregateResultsPool(values AggregateResultsPool) Options
+
+	// AggregateResultsPool returns the aggregate results pool.
+	AggregateResultsPool() AggregateResultsPool
+
+	// SetAggregateValuesPool updates the aggregate values pool.
+	SetAggregateValuesPool(values AggregateValuesPool) Options
+
+	// AggregateValuesPool returns the aggregate values pool.
+	AggregateValuesPool() AggregateValuesPool
 
 	// SetDocumentArrayPool sets the document array pool.
 	SetDocumentArrayPool(value doc.DocumentArrayPool) Options

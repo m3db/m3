@@ -481,7 +481,8 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		exec.EXPECT().Close(),
 	)
 	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, NewResults(nil, ResultsOptions{}, testOpts))
+		Query{}, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts))
 	require.Error(t, err)
 }
 
@@ -513,15 +514,15 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 1
-	results := NewResults(nil, ResultsOptions{SizeLimit: limit}, testOpts)
+	results := NewQueryResults(nil,
+		QueryResultsOptions{SizeLimit: limit}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{}, QueryOptions{Limit: limit}, results)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
-	rMap := results.Map()
-	require.Equal(t, 1, rMap.Len())
-	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
@@ -553,7 +554,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		dIter.EXPECT().Close().Return(fmt.Errorf("random-err")),
 		exec.EXPECT().Close().Return(nil),
 	)
-	results := NewResults(nil, ResultsOptions{}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	_, err = b.Query(resource.NewCancellableLifetime(),
 		Query{}, QueryOptions{}, results)
 	require.Error(t, err)
@@ -584,7 +585,7 @@ func TestBlockMockQueryExecutorExecIterExecCloseErr(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(fmt.Errorf("randomerr")),
 	)
-	results := NewResults(nil, ResultsOptions{}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	_, err = b.Query(resource.NewCancellableLifetime(),
 		Query{}, QueryOptions{}, results)
 	require.Error(t, err)
@@ -618,15 +619,14 @@ func TestBlockMockQueryLimit(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 1
-	results := NewResults(nil, ResultsOptions{SizeLimit: 1}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{SizeLimit: 1}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{}, QueryOptions{Limit: limit}, results)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
-	rMap := results.Map()
-	require.Equal(t, 1, rMap.Len())
-	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
@@ -661,7 +661,8 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 2
-	results := NewResults(nil, ResultsOptions{SizeLimit: limit}, testOpts)
+	results := NewQueryResults(nil,
+		QueryResultsOptions{SizeLimit: limit}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{}, QueryOptions{Limit: limit}, results)
 	require.NoError(t, err)
@@ -695,7 +696,8 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	}
 
 	limit := 1
-	results := NewResults(nil, ResultsOptions{SizeLimit: limit}, testOpts)
+	results := NewQueryResults(nil,
+		QueryResultsOptions{SizeLimit: limit}, testOpts)
 	_, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
@@ -738,7 +740,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		return exec, nil
 	}
 
-	results := NewResults(nil, ResultsOptions{}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	_, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
@@ -1164,7 +1166,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
-	results := NewResults(nil, ResultsOptions{}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{q}, QueryOptions{}, results)
 	require.NoError(t, err)
@@ -1233,7 +1235,8 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	limit := 1
-	results := NewResults(nil, ResultsOptions{SizeLimit: limit}, testOpts)
+	results := NewQueryResults(nil,
+		QueryResultsOptions{SizeLimit: limit}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{q}, QueryOptions{Limit: limit}, results)
 	require.NoError(t, err)
@@ -1312,7 +1315,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
-	results := NewResults(nil, ResultsOptions{}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{q}, QueryOptions{}, results)
 	require.NoError(t, err)
@@ -1376,7 +1379,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
-	results := NewResults(nil, ResultsOptions{}, testOpts)
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
 		Query{q}, QueryOptions{}, results)
 	require.NoError(t, err)
@@ -1384,7 +1387,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.Equal(t, 2, results.Size())
 
 	rMap := results.Map()
-	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(

@@ -162,8 +162,9 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
-		inFlight      []*retrieveRequest
-		currBatchReqs []*retrieveRequest
+		seekerResources = NewReusableSeekerResources(r.fsOpts)
+		inFlight        []*retrieveRequest
+		currBatchReqs   []*retrieveRequest
 	)
 	for {
 		// Free references to the inflight requests
@@ -226,7 +227,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 				req.shard != currBatchShard {
 				// Fetch any outstanding in the current batch
 				if len(currBatchReqs) > 0 {
-					r.fetchBatch(seekerMgr, currBatchShard, currBatchStart, currBatchReqs)
+					r.fetchBatch(
+						seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
 					for i := range currBatchReqs {
 						currBatchReqs[i] = nil
 					}
@@ -244,7 +246,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 
 		// Fetch any finally outstanding in the current batch
 		if len(currBatchReqs) > 0 {
-			r.fetchBatch(seekerMgr, currBatchShard, currBatchStart, currBatchReqs)
+			r.fetchBatch(
+				seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
 			for i := range currBatchReqs {
 				currBatchReqs[i] = nil
 			}
@@ -260,6 +263,7 @@ func (r *blockRetriever) fetchBatch(
 	shard uint32,
 	blockStart time.Time,
 	reqs []*retrieveRequest,
+	seekerResources ReusableSeekerResources,
 ) {
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
@@ -273,7 +277,7 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
-		entry, err := seeker.SeekIndexEntry(req.id)
+		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
@@ -290,13 +294,16 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		var data checked.Bytes
-		var err error
+		var (
+			data checked.Bytes
+			err  error
+		)
 
-		// Only try to seek the ID if it exists, otherwise we'll get a checksum
-		// mismatch error because default offset value for indexEntry is zero.
-		if !req.notFound {
-			data, err = seeker.SeekByIndexEntry(req.indexEntry)
+		// Only try to seek the ID if it exists and there haven't been any errors so
+		// far, otherwise we'll get a checksum mismatch error because the default
+		// offset value for indexEntry is zero.
+		if req.foundAndHasNoError() {
+			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
 				continue
@@ -310,8 +317,8 @@ func (r *blockRetriever) fetchBatch(
 			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
 		}
 
-		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found
-		callOnRetrieve := req.onRetrieve != nil && !req.notFound
+		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
+		callOnRetrieve := req.onRetrieve != nil && req.foundAndHasNoError()
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
@@ -321,28 +328,34 @@ func (r *blockRetriever) fetchBatch(
 				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
-			if tags := req.indexEntry.EncodedTags; len(tags) != 0 {
-				tagsCopy := r.bytesPool.Get(len(tags))
-				tagsCopy.IncRef()
-				tagsCopy.AppendAll(req.indexEntry.EncodedTags)
-				tagsCopy.DecRef()
+			if tags := req.indexEntry.EncodedTags; tags != nil {
 				decoder := tagDecoderPool.Get()
-				decoder.Reset(tagsCopy)
+				// DecRef because we're transferring ownership from the index entry to
+				// the tagDecoder which will IncRef().
+				tags.DecRef()
+				decoder.Reset(tags)
 				req.tags = decoder
+			}
+		} else {
+			// If we didn't transfer ownership of the tags to the decoder above, then we
+			// no longer need them and we can can finalize them.
+			if tags := req.indexEntry.EncodedTags; tags != nil {
+				tags.DecRef()
+				tags.Finalize()
 			}
 		}
 
-		// Complete request
+		// Complete request.
 		req.onRetrieved(seg)
 
 		if !callOnRetrieve {
-			// No need to call the onRetrieve callback
+			// No need to call the onRetrieve callback.
 			req.onCallerOrRetrieverDone()
 			continue
 		}
 
 		go func(r *retrieveRequest) {
-			// Call the onRetrieve callback and finalize
+			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg)
 			r.onCallerOrRetrieverDone()
 		}(req)
@@ -395,9 +408,9 @@ func (r *blockRetriever) Stream(
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
-	// disk and we can return immediately
+	// disk and we can return immediately.
 	if !bloomFilter.Test(id.Bytes()) {
-		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
+		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
 		req.onRetrieved(ts.Segment{})
 		return req.toBlock(), nil
 	}
@@ -417,6 +430,11 @@ func (r *blockRetriever) Stream(
 		// Loop busy, already ready to consume notification
 	}
 
+	// The request may not have completed yet, but it has an internal
+	// waitgroup which the caller will have to wait for before retrieving
+	// the data. This means that even though we're returning nil for error
+	// here, the caller may still encounter an error when they attempt to
+	// read the data.
 	return req.toBlock(), nil
 }
 
@@ -536,8 +554,10 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onError(err error) {
-	req.err = err
-	req.resultWg.Done()
+	if req.err == nil {
+		req.err = err
+		req.resultWg.Done()
+	}
 }
 
 func (req *retrieveRequest) onRetrieved(segment ts.Segment) {
@@ -561,7 +581,10 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 
 func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.reader.Reset(segment)
-	req.resultWg.Done()
+	if req.err == nil {
+		// If there was an error, we've already called done.
+		req.resultWg.Done()
+	}
 }
 
 func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
@@ -629,6 +652,10 @@ func (req *retrieveRequest) resetForReuse() {
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
+}
+
+func (req *retrieveRequest) foundAndHasNoError() bool {
+	return !req.notFound && req.err == nil
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest

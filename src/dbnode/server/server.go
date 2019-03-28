@@ -63,7 +63,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/tchannel"
+	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -391,6 +391,12 @@ func Run(runOpts RunOptions) {
 		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
 	}
 
+	// Set the series cache policy.
+	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
+	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
+
+	// Apply pooling options.
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -399,13 +405,6 @@ func Run(runOpts RunOptions) {
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
 		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
-
-	// Set the series cache policy
-	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
-	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
-
-	// Apply pooling options
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 
 	// Setup the block retriever
 	switch seriesCachePolicy {
@@ -1202,8 +1201,10 @@ func withEncodingAndPoolingOptions(
 	postingsListOpts := poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 
-	resultsPool := index.NewResultsPool(
-		poolOptions(policy.IndexResultsPool, scope.SubScope("index-results-pool")))
+	queryResultsPool := index.NewQueryResultsPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
+	aggregateQueryResultsPool := index.NewAggregateResultsPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
@@ -1220,12 +1221,18 @@ func withEncodingAndPoolingOptions(
 				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
-		SetResultsPool(resultsPool)
+		SetQueryResultsPool(queryResultsPool).
+		SetAggregateResultsPool(aggregateQueryResultsPool)
 
-	resultsPool.Init(func() index.Results {
+	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so
 		// it sees the same reference of the options as is set for the DB.
-		return index.NewResults(nil, index.ResultsOptions{}, indexOpts)
+		return index.NewQueryResults(nil, index.QueryResultsOptions{}, indexOpts)
+	})
+	aggregateQueryResultsPool.Init(func() index.AggregateResults {
+		// NB(r): Need to initialize after setting the index opts so
+		// it sees the same reference of the options as is set for the DB.
+		return index.NewAggregateResults(nil, index.AggregateResultsOptions{}, indexOpts)
 	})
 
 	return opts.SetIndexOptions(indexOpts)

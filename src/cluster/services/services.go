@@ -124,8 +124,21 @@ func (c *client) SetMetadata(sid ServiceID, meta Metadata) error {
 	if err != nil {
 		return err
 	}
-
 	_, err = m.kv.Set(c.metadataKeyFn(sid), mp)
+	return err
+}
+
+func (c *client) DeleteMetadata(sid ServiceID) error {
+	if err := validateServiceID(sid); err != nil {
+		return err
+	}
+
+	m, err := c.getKVManager(sid.Zone())
+	if err != nil {
+		return err
+	}
+
+	_, err = m.kv.Delete(c.metadataKeyFn(sid))
 	return err
 }
 
