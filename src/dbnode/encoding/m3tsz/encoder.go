@@ -140,7 +140,6 @@ func (enc *Encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit
 
 // writeNext writes the next datapoint with annotation.
 func (enc *Encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	enc.writeAnnotation(ant)
 	if err := enc.WriteNextTime(dp.Timestamp, ant, tu); err != nil {
 		return err
 	}
@@ -202,12 +201,12 @@ func (enc *Encoder) WriteFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit
 	// if the start time is going to be a multiple of the time unit provided.
 	nt := xtime.ToNormalizedTime(enc.t, time.Nanosecond)
 	enc.os.WriteBits(uint64(nt), 64)
-	enc.writeAnnotation(ant)
 	return enc.WriteNextTime(t, ant, tu)
 }
 
 // WriteNextTime encodes the next (non-first) timestamp.
 func (enc *Encoder) WriteNextTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
+	enc.writeAnnotation(ant)
 	tuChanged := enc.writeTimeUnit(tu)
 
 	dt := t.Sub(enc.t)
