@@ -1,5 +1,5 @@
-hash: be677953e675589aaf15ae31c623336117551cb188e0f86dafd0c64f514324f8
-updated: 2019-03-26T12:06:00.366774-04:00
+hash: e37c3443cf51be0ed550078290ab6d3a3f745c71b7ef8cd879f06dfb62557a62
+updated: 2019-03-28T16:17:41.783517-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -63,7 +63,6 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
-  - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
   - pkg/fileutil
@@ -158,7 +157,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: aa810b61a9c79d51363740d207bb46cf8e620ed5
+  version: b5d812f8a3706043e23a9cd5babf2e5423744d30
   subpackages:
   - jsonpb
   - proto
@@ -210,8 +209,6 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-- name: github.com/kr/logfmt
-  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
   version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
@@ -396,7 +393,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 6d33b5a963d922d182c91e8a1c88d81fd150cfd4
+  version: 9e56dacc08fbbf8c9ee2dbc717553c758ce42bc9
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
@@ -409,7 +406,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: ff17f3c43c065c3c2991f571e740eee43ea3a14a
+  version: e9a67ec1839e1f6e5133dbcca2f57bec12fdeda2
   subpackages:
   - m3
   - m3/customtransports
@@ -579,8 +576,6 @@ testImports:
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/glycerine/go-unsnap-stream
   version: f9677308dec2b35e76737f9713df328ad11b1fea
-- name: github.com/mschoch/smat
-  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
