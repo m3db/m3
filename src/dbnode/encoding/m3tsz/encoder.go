@@ -21,6 +21,7 @@
 package m3tsz
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -154,16 +155,7 @@ func (enc *Encoder) shouldWriteAnnotation(ant ts.Annotation) bool {
 	if numAnnotationBytes == 0 {
 		return false
 	}
-	if numAnnotationBytes != len(enc.ant) {
-		return true
-	}
-	// TODO(rartoul): Use bytes.Equal()
-	for i := 0; i < numAnnotationBytes; i++ {
-		if enc.ant[i] != ant[i] {
-			return true
-		}
-	}
-	return false
+	return !bytes.Equal(enc.ant, ant)
 }
 
 func (enc *Encoder) writeAnnotation(ant ts.Annotation) {
