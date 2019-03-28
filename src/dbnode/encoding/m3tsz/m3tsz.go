@@ -71,33 +71,6 @@ var (
 	errInvalidMultiplier = errors.New("supplied multiplier is invalid")
 )
 
-// WriteTSZXOR writes the TSZ XOR into the provided stream given the previous
-// XOR and the current XOR.
-func WriteXOR(
-	stream encoding.OStream,
-	prevXOR, curXOR uint64) {
-	if curXOR == 0 {
-		stream.WriteBits(opcodeZeroValueXOR, 1)
-		return
-	}
-
-	// NB(xichen): can be further optimized by keeping track of leading and trailing zeros in enc.
-	prevLeading, prevTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
-	curLeading, curTrailing := encoding.LeadingAndTrailingZeros(curXOR)
-	if curLeading >= prevLeading && curTrailing >= prevTrailing {
-		stream.WriteBits(opcodeContainedValueXOR, 2)
-		stream.WriteBits(curXOR>>uint(prevTrailing), 64-prevLeading-prevTrailing)
-		return
-	}
-
-	stream.WriteBits(opcodeUncontainedValueXOR, 2)
-	stream.WriteBits(uint64(curLeading), 6)
-	numMeaningfulBits := 64 - curLeading - curTrailing
-	// numMeaningfulBits is at least 1, so we can subtract 1 from it and encode it in 6 bits
-	stream.WriteBits(uint64(numMeaningfulBits-1), 6)
-	stream.WriteBits(curXOR>>uint(curTrailing), numMeaningfulBits)
-}
-
 // WriteIntSig writes the number of significant bits of the diff if it has changed and
 // updates the IntSigBitsTracker.
 func WriteIntSig(os encoding.OStream, sigTracker *IntSigBitsTracker, sig uint8) {
