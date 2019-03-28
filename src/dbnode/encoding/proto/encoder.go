@@ -287,10 +287,8 @@ func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
 }
 
 func (enc *Encoder) reset(start time.Time, capacity int) {
-	// TODO: Probably don't want to make these both the same capacity.
-	// TODO: Won't this be a massive alloc on the m3tsz encoder side for no reason?
-	// probably need to be able to reset the encoder and also specify the OStream
-	enc.stream.Reset(enc.newBuffer(capacity))
+	// Resetting the m3tsz encoder will take care of resetting the shared ostream
+	// so we don't need to do that again in this function.
 	enc.m3tszEncoder.Reset(start, capacity)
 	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
