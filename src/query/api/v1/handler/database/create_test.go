@@ -163,7 +163,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
-						"schema": null
+						"schemaOptions": []
 					}
 				}
 			}
