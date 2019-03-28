@@ -162,7 +162,8 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schema": null
 					}
 				}
 			}
@@ -312,7 +313,8 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schema": null
 					}
 				}
 			}
@@ -417,7 +419,8 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
-						}
+						},
+						"schema": null
 					}
 				}
 			}
@@ -526,7 +529,8 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "%d"
-						}
+						},
+						"schema": null
 					}
 				}
 			}
@@ -765,7 +769,8 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schema": null
 					}
 				}
 			}
@@ -892,7 +897,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schema": null
 					}
 				}
 			}
