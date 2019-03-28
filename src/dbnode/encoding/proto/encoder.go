@@ -105,7 +105,7 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 // only the Timestamp field will be used, the Value field will be ignored and will always
 // return 0 on subsequent iteration. In addition, the provided annotation is expected to
 // be a marshaled protobuf message that matches the configured schema.
-func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, protoBytes ts.Annotation) error {
 	if enc.closed {
 		return errEncoderClosed
 	}
@@ -123,7 +123,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	// encoded message.
 	// TODO(rartoul): No need to alloate and unmarshal here, could do this in a streaming
 	// fashion if we write our own decoder or expose the one in the underlying library.
-	if err := enc.unmarshaled.Unmarshal(ant); err != nil {
+	if err := enc.unmarshaled.Unmarshal(protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
 	}

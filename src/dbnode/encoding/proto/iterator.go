@@ -55,7 +55,7 @@ type iterator struct {
 	stream                 encoding.IStream
 	consumedFirstMessage   bool
 	lastIterated           *dynamic.Message
-	lastIteratedAnnotation []byte
+	lastIteratedProtoBytes []byte
 	byteFieldDictLRUSize   int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
@@ -144,7 +144,7 @@ func (it *iterator) Next() bool {
 	// Keep the annotation version of the last iterated protobuf message up to
 	// date so we can return it in subsequent calls to Current(), otherwise we'd
 	// have to marshal it in the Current() call where we can't handle errors.
-	it.lastIteratedAnnotation, err = it.lastIterated.Marshal()
+	it.lastIteratedProtoBytes, err = it.lastIterated.Marshal()
 	if err != nil {
 		it.err = fmt.Errorf(
 			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
@@ -157,7 +157,7 @@ func (it *iterator) Next() bool {
 
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	dp, unit, _ := it.m3tszIterator.Current()
-	return dp, unit, it.lastIteratedAnnotation
+	return dp, unit, it.lastIteratedProtoBytes
 }
 
 func (it *iterator) Err() error {
@@ -171,7 +171,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.err = nil
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
-	it.lastIteratedAnnotation = nil
+	it.lastIteratedProtoBytes = nil
 	it.customFields = resetCustomFields(it.customFields, it.schema)
 	it.done = false
 	it.closed = false

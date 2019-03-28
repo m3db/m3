@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTSZFields(t *testing.T) {
+func TestCustomFields(t *testing.T) {
 	testCases := []struct {
 		schema   *desc.MessageDescriptor
 		expected []customFieldState
