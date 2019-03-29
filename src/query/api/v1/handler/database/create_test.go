@@ -314,7 +314,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
-						"schema": null
+						"schemaOptions": []
 					}
 				}
 			}
@@ -420,7 +420,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
 						},
-						"schema": null
+						"schemaOptions": []
 					}
 				}
 			}
@@ -530,7 +530,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "%d"
 						},
-						"schema": null
+						"schemaOptions": []
 					}
 				}
 			}
@@ -770,7 +770,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
-						"schema": null
+						"schemaOptions": []
 					}
 				}
 			}
@@ -898,7 +898,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
-						"schema": null
+						"schemaOptions": []
 					}
 				}
 			}
