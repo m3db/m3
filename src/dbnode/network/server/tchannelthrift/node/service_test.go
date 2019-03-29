@@ -1311,6 +1311,90 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestServiceAggregate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	nsID := "metrics"
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	resMap := index.NewAggregateResults(ident.StringID(nsID),
+		index.AggregateResultsOptions{}, testIndexOptions)
+	resMap.Map().Set(ident.StringID("foo"), index.MustNewAggregateValues(testIndexOptions))
+	resMap.Map().Set(ident.StringID("bar"), index.MustNewAggregateValues(testIndexOptions,
+		ident.StringID("baz"), ident.StringID("barf")))
+	mockDB.EXPECT().AggregateQuery(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.AggregationOptions{
+			QueryOptions: index.QueryOptions{
+				StartInclusive: start,
+				EndExclusive:   end,
+				Limit:          10,
+			},
+			TermFilter: index.AggregateTermFilter{
+				[]byte("foo"), []byte("bar"),
+			},
+			Type: index.AggregateTagNamesAndValues,
+		}).Return(
+		index.AggregateQueryResult{Results: resMap, Exhaustive: true}, nil)
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	var limit int64 = 10
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	r, err := service.AggregateRaw(tctx, &rpc.AggregateQueryRawRequest{
+		NameSpace:          []byte(nsID),
+		Query:              data,
+		RangeStart:         startNanos,
+		RangeEnd:           endNanos,
+		Limit:              &limit,
+		AggregateQueryType: rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE,
+		TagNameFilter: [][]byte{
+			[]byte("foo"), []byte("bar"),
+		},
+	})
+	require.NoError(t, err)
+
+	// sort to order results to make test deterministic.
+	sort.Slice(r.Results, func(i, j int) bool {
+		return bytes.Compare(r.Results[i].TagName, r.Results[j].TagName) < 0
+	})
+	require.Equal(t, 2, len(r.Results))
+	require.Equal(t, "bar", string(r.Results[0].TagName))
+	require.Equal(t, 2, len(r.Results[0].TagValues))
+	sort.Slice(r.Results[0].TagValues, func(i, j int) bool {
+		return bytes.Compare(
+			r.Results[0].TagValues[i].TagValue, r.Results[0].TagValues[j].TagValue) < 0
+	})
+	require.Equal(t, "barf", string(r.Results[0].TagValues[0].TagValue))
+	require.Equal(t, "baz", string(r.Results[0].TagValues[1].TagValue))
+
+	require.Equal(t, "foo", string(r.Results[1].TagName))
+	require.Equal(t, 0, len(r.Results[1].TagValues))
+}
+
 func TestServiceWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

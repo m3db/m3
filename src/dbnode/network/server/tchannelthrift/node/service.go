@@ -88,6 +88,7 @@ var (
 type serviceMetrics struct {
 	fetch               instrument.MethodMetrics
 	fetchTagged         instrument.MethodMetrics
+	aggregate           instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
@@ -104,6 +105,7 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 	return serviceMetrics{
 		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
 		fetchTagged:         instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
+		aggregate:           instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
 		writeTagged:         instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
@@ -456,11 +458,89 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	return nil, tterrors.NewInternalError(errNotImplemented)
+	if s.isOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	ns, query, opts, err := convert.FromRPCAggregateQueryRequest(req)
+	if err != nil {
+		s.metrics.aggregate.ReportError(s.nowFn().Sub(callStart))
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	queryResult, err := s.db.AggregateQuery(ctx, ns, query, opts)
+	if err != nil {
+		s.metrics.aggregate.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+
+	response := &rpc.AggregateQueryResult_{
+		Exhaustive: queryResult.Exhaustive,
+	}
+	results := queryResult.Results
+	for _, entry := range results.Map().Iter() {
+		responseElem := &rpc.AggregateQueryResultTagNameElement{
+			TagName: entry.Key().String(),
+		}
+		tagValues := entry.Value()
+		tagValuesMap := tagValues.Map()
+		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
+		for _, entry := range tagValuesMap.Iter() {
+			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
+				TagValue: entry.Key().String(),
+			})
+		}
+		response.Results = append(response.Results, responseElem)
+	}
+	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
+	return response, nil
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
-	return nil, tterrors.NewInternalError(errNotImplemented)
+	if s.isOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	ns, query, opts, err := convert.FromRPCAggregateQueryRawRequest(req, s.pools)
+	if err != nil {
+		s.metrics.aggregate.ReportError(s.nowFn().Sub(callStart))
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	queryResult, err := s.db.AggregateQuery(ctx, ns, query, opts)
+	if err != nil {
+		s.metrics.aggregate.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+
+	response := &rpc.AggregateQueryRawResult_{
+		Exhaustive: queryResult.Exhaustive,
+	}
+	results := queryResult.Results
+	for _, entry := range results.Map().Iter() {
+		responseElem := &rpc.AggregateQueryRawResultTagNameElement{
+			TagName: entry.Key().Bytes(),
+		}
+		tagValues := entry.Value()
+		tagValuesMap := tagValues.Map()
+		responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
+		for _, entry := range tagValuesMap.Iter() {
+			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+				TagValue: entry.Key().Bytes(),
+			})
+		}
+		response.Results = append(response.Results, responseElem)
+	}
+	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
+	return response, nil
 }
 
 func (s *service) encodeTags(

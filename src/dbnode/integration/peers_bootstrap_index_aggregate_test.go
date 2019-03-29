@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
+func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -120,8 +120,10 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 
-	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[1].startServer())
+	// Start the remaining servers with peers and filesystem bootstrappers
+	setups[1:].parallel(func(s *testSetup) {
+		require.NoError(t, s.startServer())
+	})
 	log.Debug("servers are now up")
 
 	// Stop the servers
@@ -137,39 +139,94 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
 	}
 
-	// Issue some index queries to the second node which bootstrapped the metadata
+	// Issue aggregate index queries to the second node which bootstrapped the metadata
 	session, err := setups[1].m3dbClient.DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())
 	end := now.Add(blockSize)
-	queryOpts := index.QueryOptions{StartInclusive: start, EndExclusive: end}
+	queryOpts := index.AggregationOptions{
+		QueryOptions: index.QueryOptions{StartInclusive: start, EndExclusive: end},
+	}
 
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
+	iter, exhaustive, err := session.Aggregate(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	require.True(t, exhaustive)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
-		exhaustive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
-	})
+	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
+		verifyQueryAggregateMetadataResultsOptions{
+			exhaustive: true,
+			expected: map[tagName]aggregateTagValues{
+				"city": aggregateTagValues{
+					"new_jersey": struct{}{},
+					"new_york":   struct{}{},
+				},
+				"foo": aggregateTagValues{
+					"foo": struct{}{},
+				},
+			},
+		})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
+	iter, exhaustive, err = session.Aggregate(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
-		exhaustive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
-	})
+	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
+		verifyQueryAggregateMetadataResultsOptions{
+			exhaustive: true,
+			expected: map[tagName]aggregateTagValues{
+				"city": aggregateTagValues{
+					"new_jersey": struct{}{},
+					"seattle":    struct{}{},
+				},
+			},
+		})
+
+	// Now test term filtering, match all new_*r*, filtering on `foo`
+	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
+	require.NoError(t, err)
+	queryOpts.TermFilter = index.AggregateTermFilter([][]byte{[]byte("foo")})
+	iter, exhaustive, err = session.Aggregate(ns1.ID(),
+		index.Query{regexpQuery}, queryOpts)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+	defer iter.Finalize()
+
+	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
+		verifyQueryAggregateMetadataResultsOptions{
+			exhaustive: true,
+			expected: map[tagName]aggregateTagValues{
+				"foo": aggregateTagValues{
+					"foo": struct{}{},
+				},
+			},
+		})
+
+	// Now test term filter and tag name filtering, match all new_*r*, names only, filtering on `city`
+	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
+	require.NoError(t, err)
+	queryOpts.TermFilter = index.AggregateTermFilter([][]byte{[]byte("city")})
+	queryOpts.Type = index.AggregateTagNames
+	iter, exhaustive, err = session.Aggregate(ns1.ID(),
+		index.Query{regexpQuery}, queryOpts)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+	defer iter.Finalize()
+
+	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
+		verifyQueryAggregateMetadataResultsOptions{
+			exhaustive: true,
+			expected: map[tagName]aggregateTagValues{
+				"city": nil,
+			},
+		})
 }

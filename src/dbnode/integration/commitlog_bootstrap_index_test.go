@@ -161,28 +161,28 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhausitive, err := session.FetchTaggedIDs(ns1.ID(),
+	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhausitive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:   ns1.ID(),
-		exhausitive: true,
+		exhaustive: true,
 		expected:    []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhausitive, err = session.FetchTaggedIDs(ns1.ID(),
+	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhausitive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:   ns1.ID(),
-		exhausitive: true,
+		exhaustive: true,
 		expected:    []generate.Series{barSeries, bazSeries},
 	})
 }
