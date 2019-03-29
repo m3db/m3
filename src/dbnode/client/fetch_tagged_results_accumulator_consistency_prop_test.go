@@ -121,6 +121,83 @@ func TestFetchTaggedResultsAccumulatorGenerativeConsistencyCheck(t *testing.T) {
 	}
 }
 
+func TestAggregateResultsAccumulatorGenerativeConsistencyCheck(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	seed := time.Now().UnixNano()
+	parameters.MinSuccessfulTests = 40
+	parameters.MaxSize = 40
+	parameters.Rng = rand.New(rand.NewSource(seed))
+	parameters.Workers = 1
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("accumulator handles read consistency level correctly", prop.ForAll(
+		func(input topoAndHostResponses, lvl topology.ReadConsistencyLevel) *gopter.PropResult {
+			topoMap := input.topoMap
+			success := input.success
+			numHosts := topoMap.HostsLen()
+			if numHosts > len(success) {
+				panic("invalid test setup")
+			}
+
+			situationMeetsLevel := input.meetsConsistencyCheckForLevel(t, lvl)
+
+			accum := newFetchTaggedResultAccumulator()
+			majority := topoMap.MajorityReplicas()
+			accum.Clear()
+			accum.Reset(testStartTime, testEndTime, topoMap, majority, lvl)
+			var (
+				done bool
+				err  error
+			)
+			for idx, host := range topoMap.Hosts() {
+				var hostErr error
+				opts := aggregateResultAccumulatorOpts{host: host}
+				if success[idx] {
+					opts.response = &rpc.AggregateQueryRawResult_{}
+				} else {
+					hostErr = fmt.Errorf("random err")
+				}
+				done, err = accum.AddAggregateResponse(opts, hostErr)
+				if done {
+					break
+				}
+			}
+			require.True(t, done)
+
+			if situationMeetsLevel {
+				if err != nil {
+					// something's fked
+					return &gopter.PropResult{
+						Error:  fmt.Errorf("situationMeetsLvl but err=%v", err),
+						Status: gopter.PropError,
+					}
+				}
+				return &gopter.PropResult{Status: gopter.PropTrue}
+			}
+			// i.e. !situationMeetsLevel
+			if err == nil {
+				return &gopter.PropResult{
+					Error:  fmt.Errorf("!situationMeetsLevel && err == nil"),
+					Status: gopter.PropError,
+				}
+			}
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		},
+		genTopologyAndResponse(t),
+		gen.OneConstOf(
+			topology.ReadConsistencyLevelAll,
+			topology.ReadConsistencyLevelMajority,
+			topology.ReadConsistencyLevelOne,
+			topology.ReadConsistencyLevelUnstrictMajority,
+		),
+	))
+
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
 type topoAndHostResponses struct {
 	topoMap topology.Map
 	success []bool

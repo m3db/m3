@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@ package client
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -31,11 +32,12 @@ import (
 )
 
 var (
-	testFetchTaggedSuccessResponse = rpc.FetchTaggedResult_{}
-	errTestFetchTagged             = fmt.Errorf("random error")
+	testStartTime, testEndTime   time.Time
+	testAggregateSuccessResponse = rpc.AggregateQueryRawResult_{}
+	errTestAggregate             = fmt.Errorf("random error")
 )
 
-func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOneSimpleTopo(t *testing.T) {
+func TestAggregateResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOneSimpleTopo(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -51,9 +53,9 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 			level:   topology.ReadConsistencyLevelOne,
 			steps: []testFetchTaggedWorklowStep{
 				testFetchTaggedWorklowStep{
-					hostname:          fmt.Sprintf("testhost%d", i),
-					fetchTaggedResult: &testFetchTaggedSuccessResponse,
-					expectedDone:      true,
+					hostname:        fmt.Sprintf("testhost%d", i),
+					aggregateResult: &testAggregateSuccessResponse,
+					expectedDone:    true,
 				},
 			},
 		}.run()
@@ -67,15 +69,15 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
 				hostname: "testhost0",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost1",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost1",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 				expectedErr:  true,
 			},
@@ -83,7 +85,7 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
+func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -99,9 +101,9 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 		level:   topology.ReadConsistencyLevelOne,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      false,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    false,
 			},
 		},
 	}.run()
@@ -113,16 +115,16 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost2",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost0",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 				expectedErr:  true,
 			},
@@ -136,16 +138,16 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 		level:   topology.ReadConsistencyLevelMajority,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost2",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost2",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost0",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 				expectedErr:  true,
 			},
@@ -159,24 +161,24 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 		level:   topology.ReadConsistencyLevelAll,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost2",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost2",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost0",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      true,
-				expectedErr:       true,
+				hostname:        "testhost0",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    true,
+				expectedErr:     true,
 			},
 		},
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOneComplexTopo(t *testing.T) {
+func TestAggregateResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOneComplexTopo(t *testing.T) {
 	// rf=3, 30 shards total; 2 identical hosts, one additional host with a subset of all shards
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -191,15 +193,15 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 		level:   topology.ReadConsistencyLevelOne,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost2",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      false,
+				hostname:        "testhost2",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    false,
 			},
 		},
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) {
+func TestAggregateResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -214,14 +216,14 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost0",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      false,
+				hostname:        "testhost0",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    false,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      true,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    true,
 			},
 		},
 	}.run()
@@ -234,16 +236,16 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
 				hostname: "testhost0",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost1",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      true,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    true,
 			},
 		},
 	}.run()
@@ -256,15 +258,15 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
 				hostname: "testhost0",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost1",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost1",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedErr:  true,
 				expectedDone: true,
 			},
@@ -272,7 +274,7 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajorityComplexTopo(t *testing.T) {
+func TestAggregateResultsAccumulatorConsistencyUnstrictMajorityComplexTopo(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Initializing),
@@ -288,27 +290,27 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajorityComplexTopo(t *
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost0",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost0",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost2",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost3",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
-				expectedDone:      true,
+				hostname:        "testhost3",
+				aggregateResult: &testAggregateSuccessResponse,
+				expectedDone:    true,
 			},
 		},
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorComplextTopoUnstrictMajorityPartialResponses(t *testing.T) {
+func TestAggregateResultsAccumulatorComplextTopoUnstrictMajorityPartialResponses(t *testing.T) {
 	// rf=3, 30 shards total; 2 identical "complete hosts", 2 additional hosts which together comprise a "complete" host.
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -324,27 +326,27 @@ func TestFetchTaggedResultsAccumulatorComplextTopoUnstrictMajorityPartialRespons
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost2",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost2",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost3",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost3",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost1",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost0",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 			},
 		},
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorComplexIncompleteTopoUnstrictMajorityPartialResponses(t *testing.T) {
+func TestAggregateResultsAccumulatorComplexIncompleteTopoUnstrictMajorityPartialResponses(t *testing.T) {
 	// rf=3, 30 shards total; 2 identical "complete hosts", 2 additional hosts which do not comprise a complete host.
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -360,20 +362,20 @@ func TestFetchTaggedResultsAccumulatorComplexIncompleteTopoUnstrictMajorityParti
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost2",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost2",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost3",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost3",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost1",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost0",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 				expectedErr:  true,
 			},
@@ -381,7 +383,7 @@ func TestFetchTaggedResultsAccumulatorComplexIncompleteTopoUnstrictMajorityParti
 	}.run()
 }
 
-func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
+func TestAggregateResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
 	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
 		"testhost0": tu.ShardsRange(0, 29, shard.Available),
@@ -397,9 +399,9 @@ func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) 
 			level:   topology.ReadConsistencyLevelMajority,
 			steps: []testFetchTaggedWorklowStep{
 				testFetchTaggedWorklowStep{
-					hostname:          fmt.Sprintf("testhost%d", i),
-					fetchTaggedResult: &testFetchTaggedSuccessResponse,
-					expectedDone:      false,
+					hostname:        fmt.Sprintf("testhost%d", i),
+					aggregateResult: &testAggregateSuccessResponse,
+					expectedDone:    false,
 				},
 			},
 		}.run()
@@ -413,15 +415,15 @@ func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) 
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
 				hostname: "testhost0",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname: "testhost1",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost2",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 				expectedErr:  true,
 			},
@@ -436,15 +438,15 @@ func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) 
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
 				hostname: "testhost0",
-				err:      errTestFetchTagged,
+				err:      errTestAggregate,
 			},
 			testFetchTaggedWorklowStep{
-				hostname:          "testhost1",
-				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+				hostname:        "testhost1",
+				aggregateResult: &testAggregateSuccessResponse,
 			},
 			testFetchTaggedWorklowStep{
 				hostname:     "testhost2",
-				err:          errTestFetchTagged,
+				err:          errTestAggregate,
 				expectedDone: true,
 				expectedErr:  true,
 			},

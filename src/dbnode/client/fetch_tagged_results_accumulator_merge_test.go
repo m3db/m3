@@ -64,17 +64,17 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 		endTime:   testEndTime,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
+				hostname:          "testhost0",
+				fetchTaggedResult: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
 			},
 			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				response: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
+				hostname:          "testhost1",
+				fetchTaggedResult: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
 			},
 			testFetchTaggedWorklowStep{
-				hostname:     "testhost2",
-				response:     testSerieses{}.toRPCResult(th, testStartTime, true),
-				expectedDone: true,
+				hostname:          "testhost2",
+				fetchTaggedResult: testSerieses{}.toRPCResult(th, testStartTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -120,13 +120,13 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 		endTime:   testEndTime,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
+				hostname:          "testhost0",
+				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
 			},
 			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				response:     newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
-				expectedDone: true,
+				hostname:          "testhost1",
+				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -156,13 +156,13 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 		endTime:   testEndTime,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
+				hostname:          "testhost0",
+				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
 			},
 			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				response:     newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
-				expectedDone: true,
+				hostname:          "testhost1",
+				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -210,13 +210,13 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 		endTime:   endTime,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: sg0.toRPCResult(th, startTime, false),
+				hostname:          "testhost0",
+				fetchTaggedResult: sg0.toRPCResult(th, startTime, false),
 			},
 			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				response:     sg1.toRPCResult(th, endTime, true),
-				expectedDone: true,
+				hostname:          "testhost1",
+				fetchTaggedResult: sg1.toRPCResult(th, endTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -260,17 +260,17 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 		endTime:   endTime,
 		steps: []testFetchTaggedWorklowStep{
 			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: groups[0].toRPCResult(th, startTime, true),
+				hostname:          "testhost0",
+				fetchTaggedResult: groups[0].toRPCResult(th, startTime, true),
 			},
 			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				response: groups[1].toRPCResult(th, endTime, true),
+				hostname:          "testhost1",
+				fetchTaggedResult: groups[1].toRPCResult(th, endTime, true),
 			},
 			testFetchTaggedWorklowStep{
-				hostname:     "testhost2",
-				response:     groups[2].toRPCResult(th, endTime, true),
-				expectedDone: true,
+				hostname:          "testhost2",
+				fetchTaggedResult: groups[2].toRPCResult(th, endTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -300,11 +300,12 @@ type testFetchTaggedWorkflow struct {
 }
 
 type testFetchTaggedWorklowStep struct {
-	hostname     string
-	response     *rpc.FetchTaggedResult_
-	err          error
-	expectedDone bool
-	expectedErr  bool
+	hostname          string
+	aggregateResult   *rpc.AggregateQueryRawResult_
+	fetchTaggedResult *rpc.FetchTaggedResult_
+	err               error
+	expectedDone      bool
+	expectedErr       bool
 }
 
 func (tm testFetchTaggedWorkflow) run() fetchTaggedResultAccumulator {
@@ -314,11 +315,24 @@ func (tm testFetchTaggedWorkflow) run() fetchTaggedResultAccumulator {
 	accum.Clear()
 	accum.Reset(tm.startTime, tm.endTime, tm.topoMap, majority, tm.level)
 	for _, s := range tm.steps {
-		opts := fetchTaggedResultAccumulatorOpts{
-			host:     host(tm.t, tm.topoMap, s.hostname),
-			response: s.response,
+		var (
+			done bool
+			err  error
+		)
+		if s.fetchTaggedResult != nil {
+			opts := fetchTaggedResultAccumulatorOpts{
+				host:     host(tm.t, tm.topoMap, s.hostname),
+				response: s.fetchTaggedResult,
+			}
+			done, err = accum.AddFetchTaggedResponse(opts, s.err)
+		} else {
+			opts := aggregateResultAccumulatorOpts{
+				host:     host(tm.t, tm.topoMap, s.hostname),
+				response: s.aggregateResult,
+			}
+			done, err = accum.AddAggregateResponse(opts, s.err)
+
 		}
-		done, err := accum.AddFetchTaggedResponse(opts, s.err)
 		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("%+v", s))
 		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("%+v", s))
 	}
@@ -375,6 +389,26 @@ func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters Aggre
 		require.NoError(t, values.Err())
 	}
 	require.NoError(t, iters.Err())
+}
+
+func (ts testSerieses) assertMatchesLimitedAggregatedTagsIter(t *testing.T, limit int, iters AggregatedTagsIterator) {
+	aggMap := ts.toRPCAggResultMap()
+	foundNames := make([]string, 0, limit)
+	for iters.Next() {
+		name, values := iters.Current()
+		valuesMap, ok := aggMap[name.String()]
+		require.True(t, ok)
+		require.Equal(t, len(valuesMap), values.Remaining())
+		for values.Next() {
+			v := values.Current()
+			_, ok := valuesMap[v.String()]
+			require.True(t, ok)
+		}
+		require.NoError(t, values.Err())
+		foundNames = append(foundNames, name.String())
+	}
+	require.NoError(t, iters.Err())
+	require.True(t, len(foundNames) <= limit, "limit: %d, foundNames: %+v", limit, foundNames)
 }
 
 // nolint
@@ -445,19 +479,21 @@ func newTestSerieses(i, j int) testSerieses {
 
 func newTestSeries(i int) testSeries {
 	return testSeries{
-		ns: ident.StringID("testNs"),
-		id: ident.StringID(fmt.Sprintf("id%03d", i)),
-		tags: ident.NewTags(
-			ident.StringTag(
-				fmt.Sprintf("tagName0%d", i),
-				fmt.Sprintf("tagValue0%d", i),
-			),
-			ident.StringTag(
-				fmt.Sprintf("tagName1%d", i),
-				fmt.Sprintf("tagValue1%d", i),
-			),
-		),
+		ns:   ident.StringID("testNs"),
+		id:   ident.StringID(fmt.Sprintf("id%03d", i)),
+		tags: newTestTags(i),
 	}
+}
+
+func newTestTags(i int) ident.Tags {
+	t := make([]ident.Tag, 0, i)
+	for j := 0; j < i; j++ {
+		t = append(t, ident.StringTag(
+			fmt.Sprintf("tagName0%d", i),
+			fmt.Sprintf("tagValue0%d", i),
+		))
+	}
+	return ident.NewTags(t...)
 }
 
 type testSeries struct {
