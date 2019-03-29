@@ -68,18 +68,12 @@ func (v *AggregateValues) Map() *AggregateValuesMap {
 
 // Size returns the number of IDs tracked.
 func (v *AggregateValues) Size() int {
-	if v.valuesMap == nil {
-		return 0
-	}
-
 	return v.valuesMap.Len()
 }
 
 func (v *AggregateValues) finalize() {
-	if v.valuesMap != nil {
-		// NB: resetting the value map will already finalize all copies of the keys.
-		v.valuesMap.Reset()
-	}
+	// NB: resetting the value map will already finalize all copies of the keys.
+	v.valuesMap.Reset()
 
 	if v.pool == nil {
 		return
