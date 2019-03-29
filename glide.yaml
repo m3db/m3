@@ -206,7 +206,7 @@ import:
     version: ^1.5.0
 
   - package: github.com/uber/jaeger-client-go
-    version: ^2.7.0
+    version: ~2.15.0
 
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
