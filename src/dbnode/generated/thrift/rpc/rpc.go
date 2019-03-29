@@ -7812,7 +7812,7 @@ func (p *HealthResult_) String() string {
 //  - AggregateQueryType
 //  - RangeType
 type AggregateQueryRawRequest struct {
-	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
+	Query              []byte             `thrift:"query,1" db:"query" json:"query,omitempty"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd           int64              `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
 	NameSpace          []byte             `thrift:"nameSpace,4,required" db:"nameSpace" json:"nameSpace"`
@@ -7830,12 +7830,9 @@ func NewAggregateQueryRawRequest() *AggregateQueryRawRequest {
 	}
 }
 
-var AggregateQueryRawRequest_Query_DEFAULT *Query
+var AggregateQueryRawRequest_Query_DEFAULT []byte
 
-func (p *AggregateQueryRawRequest) GetQuery() *Query {
-	if !p.IsSetQuery() {
-		return AggregateQueryRawRequest_Query_DEFAULT
-	}
+func (p *AggregateQueryRawRequest) GetQuery() []byte {
 	return p.Query
 }
 
@@ -7975,9 +7972,10 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *AggregateQueryRawRequest) ReadField1(iprot thrift.TProtocol) error {
-	p.Query = &Query{}
-	if err := p.Query.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Query), err)
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Query = v
 	}
 	return nil
 }
@@ -8101,11 +8099,11 @@ func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 
 func (p *AggregateQueryRawRequest) writeField1(oprot thrift.TProtocol) (err error) {
 	if p.IsSetQuery() {
-		if err := oprot.WriteFieldBegin("query", thrift.STRUCT, 1); err != nil {
+		if err := oprot.WriteFieldBegin("query", thrift.STRING, 1); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:query: ", p), err)
 		}
-		if err := p.Query.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Query), err)
+		if err := oprot.WriteBinary(p.Query); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.query (1) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:query: ", p), err)

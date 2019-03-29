@@ -272,6 +272,14 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.fetchTaggedAttempt = newFetchTaggedAttemptPool(s, fetchTaggedAttemptPoolImplOpts)
 	s.pools.fetchTaggedAttempt.Init()
 
+	aggregateAttemptPoolImplOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("aggregate-attempt-pool"),
+		))
+	s.pools.aggregateAttempt = newAggregateAttemptPool(s, aggregateAttemptPoolImplOpts)
+	s.pools.aggregateAttempt.Init()
+
 	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.TagEncoderPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
@@ -503,6 +511,14 @@ func (s *session) Open() error {
 		))
 	s.pools.fetchTaggedOp = newFetchTaggedOpPool(fetchTaggedOpPoolOpts)
 	s.pools.fetchTaggedOp.Init()
+
+	aggregateOpPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.AggregateOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("aggregate-op-pool"),
+		))
+	s.pools.aggregateOp = newAggregateOpPool(aggregateOpPoolOpts)
+	s.pools.aggregateOp.Init()
 
 	fetchStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
@@ -1103,7 +1119,7 @@ func (s *session) Aggregate(
 
 func (s *session) aggregateAttempt(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (AggregatedTagsIterator, bool, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
@@ -1111,7 +1127,8 @@ func (s *session) aggregateAttempt(
 	}
 
 	const fetchData = true
-	fetchState, err := s.newFetchStateWithRLock(ns, q, opts, fetchData)
+	fetchState, err := s.newFetchStateWithRLock(aggregateFetchState,
+		ns, q, index.QueryOptions{}, opts, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1125,7 +1142,7 @@ func (s *session) aggregateAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools)
+	iters, exhaustive, err := fetchState.asAggregatedTagsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1157,7 +1174,8 @@ func (s *session) fetchTaggedAttempt(
 	}
 
 	const fetchData = true
-	fetchState, err := s.newFetchStateWithRLock(ns, q, opts, fetchData)
+	fetchState, err := s.newFetchStateWithRLock(fetchTaggedFetchState,
+		ns, q, opts, index.AggregationOptions{}, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1203,7 +1221,8 @@ func (s *session) fetchTaggedIDsAttempt(
 	}
 
 	const fetchData = false
-	fetchState, err := s.newFetchStateWithRLock(ns, q, opts, fetchData)
+	fetchState, err := s.newFetchStateWithRLock(fetchTaggedFetchState,
+		ns, q, opts, index.AggregationOptions{}, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1230,44 +1249,76 @@ func (s *session) fetchTaggedIDsAttempt(
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
 func (s *session) newFetchStateWithRLock(
+	fetchStateType fetchStateType,
 	ns ident.ID,
 	q index.Query,
-	opts index.QueryOptions,
+	queryOpts index.QueryOptions,
+	aggregateOpts index.AggregationOptions,
 	fetchData bool,
 ) (*fetchState, error) {
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
 	// of the hostQueues responding is less than the lifecycle of the current method.
 	nsClone := s.pools.id.Clone(ns)
 
-	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
-	// native, un-pooled types; so we do not Clone() either. We will start doing so
-	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
-	// of the Clone()'d value to the `fetchState`.
-	req, err := convert.ToRPCFetchTaggedRequest(nsClone, q, opts, fetchData)
-	if err != nil {
-		nsClone.Finalize()
-		return nil, xerrors.NewNonRetryableError(err)
-	}
-
 	var (
 		topoMap    = s.state.topoMap
-		op         = s.pools.fetchTaggedOp.Get()
 		fetchState = s.pools.fetchState.Get()
+		op         op
+		opDecRef   func()
 	)
-
 	fetchState.nsID = nsClone // transfer ownership to `fetchState`
 	fetchState.incRef()       // indicate current go-routine has a reference to the fetchState
-	op.incRef()               // indicate current go-routine has a reference to the op
-	op.update(req, fetchState.completionFn)
 
-	fetchState.ResetFetchTagged(opts.StartInclusive, opts.EndExclusive, op, topoMap, s.state.majority, s.state.readLevel)
+	switch fetchStateType {
+	case fetchTaggedFetchState:
+		// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
+		// native, un-pooled types; so we do not Clone() either. We will start doing so
+		// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
+		// of the Clone()'d value to the `fetchState`.
+		req, err := convert.ToRPCFetchTaggedRequest(nsClone, q, queryOpts, fetchData)
+		if err != nil {
+			nsClone.Finalize()
+			return nil, xerrors.NewNonRetryableError(err)
+		}
+
+		fetchTaggedOp := s.pools.fetchTaggedOp.Get()
+		fetchTaggedOp.incRef() // indicate current go-routine has a reference to the op
+		fetchTaggedOp.update(req, fetchState.completionFn)
+
+		fetchState.ResetFetchTagged(queryOpts.StartInclusive, queryOpts.EndExclusive,
+			fetchTaggedOp, topoMap, s.state.majority, s.state.readLevel)
+		op = fetchTaggedOp
+		opDecRef = func() { fetchTaggedOp.decRef() }
+	case aggregateFetchState:
+		// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
+		// native, un-pooled types; so we do not Clone() either. We will start doing so
+		// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
+		// of the Clone()'d value to the `fetchState`.
+		req, err := convert.ToRPCAggregateQueryRawRequest(nsClone, q, aggregateOpts)
+		if err != nil {
+			nsClone.Finalize()
+			return nil, xerrors.NewNonRetryableError(err)
+		}
+
+		aggregateOp := s.pools.aggregateOp.Get()
+		aggregateOp.incRef() // indicate current go-routine has a reference to the op
+		aggregateOp.update(req, fetchState.completionFn)
+
+		fetchState.ResetAggregate(aggregateOpts.StartInclusive, aggregateOpts.EndExclusive,
+			aggregateOp, topoMap, s.state.majority, s.state.readLevel)
+		op = aggregateOp
+		opDecRef = func() { aggregateOp.decRef() }
+	default:
+		return nil, fmt.Errorf("unknown fetch state type: %v", fetchStateType)
+	}
+
 	fetchState.Lock()
 	for _, hq := range s.state.queues {
 		// inc to indicate the hostQueue has a reference to `op` which has a ref to the fetchState
 		fetchState.incRef()
 		if err := hq.Enqueue(op); err != nil {
 			fetchState.Unlock()
-			op.decRef()         // release the ref for the current go-routine
+			opDecRef()          // release the ref for the current go-routine
 			fetchState.decRef() // release the ref for the hostQueue
 			fetchState.decRef() // release the ref for the current go-routine
 
@@ -1279,7 +1330,7 @@ func (s *session) newFetchStateWithRLock(
 		}
 	}
 
-	op.decRef() // release the ref for the current go-routine
+	opDecRef() // release the ref for the current go-routine
 
 	// NB(prateek): the calling go-routine still holds the lock and a ref
 	// on the returned fetchState object.

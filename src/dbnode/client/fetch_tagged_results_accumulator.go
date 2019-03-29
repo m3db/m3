@@ -26,6 +26,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3x/ident"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -34,8 +36,9 @@ import (
 )
 
 type fetchTaggedResultAccumulatorOpts struct {
-	host     topology.Host
-	response *rpc.FetchTaggedResult_
+	host        topology.Host
+	response    *rpc.FetchTaggedResult_
+	aggResponse *rpc.AggregateQueryRawResult_
 }
 
 func newFetchTaggedResultAccumulator() fetchTaggedResultAccumulator {
@@ -52,9 +55,10 @@ type fetchTaggedResultAccumulator struct {
 	numHostsPending         int32
 	numShardsPending        int32
 
-	errors     xerrors.Errors
-	responses  fetchTaggedIDResults
-	exhaustive bool
+	errors       xerrors.Errors
+	responses    fetchTaggedIDResults
+	aggResponses aggregateResults
+	exhaustive   bool
 
 	startTime        time.Time
 	endTime          time.Time
@@ -79,7 +83,6 @@ func (accum *fetchTaggedResultAccumulator) Add(
 	resultErr error,
 ) (bool, error) {
 	host := opts.host
-	response := opts.response
 
 	if host == nil {
 		// should never happen, guarding against incompatible changes to the `client` package.
@@ -102,11 +105,22 @@ func (accum *fetchTaggedResultAccumulator) Add(
 	if resultErr != nil {
 		accum.errors = append(accum.errors, xerrors.NewRenamedError(resultErr,
 			fmt.Errorf("error fetching tagged from host %s: %v", host.ID(), resultErr)))
-	} else {
+	} else if response := opts.response; response != nil {
 		accum.exhaustive = accum.exhaustive && response.Exhaustive
 		for _, elem := range response.Elements {
 			accum.responses = append(accum.responses, elem)
 		}
+	} else if response := opts.aggResponse; response != nil {
+		accum.exhaustive = accum.exhaustive && response.Exhaustive
+		for _, elem := range response.Results {
+			accum.aggResponses = append(accum.aggResponses, elem)
+		}
+	} else {
+		// NB(r): Should never happen, as should have at least one type of response.
+		doneAccumulating := true
+		err := fmt.Errorf(
+			"[invariant violated] fetch tagged result accumulator nil response from host: %s", host.ID())
+		return doneAccumulating, xerrors.NewNonRetryableError(err)
 	}
 
 	// FOLLOWUP(prateek): once we transmit the shards successfully satisfied by a response, the
@@ -171,6 +185,10 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 		accum.responses[i] = nil
 	}
 	accum.responses = accum.responses[:0]
+	for i := range accum.aggResponses {
+		accum.aggResponses[i] = nil
+	}
+	accum.aggResponses = accum.aggResponses[:0]
 	for i := range accum.errors {
 		accum.errors[i] = nil
 	}
@@ -302,6 +320,112 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 	return iter, exhaustive, nil
 }
 
+func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
+	limit int,
+	pools fetchTaggedPools,
+) (AggregatedTagsIterator, bool, error) {
+	var (
+		iter      = newAggregateTagsIterator(pools)
+		count     = 0
+		moreElems = false
+	)
+	results := aggregateResultsSortedByTag(accum.aggResponses)
+	sort.Sort(results)
+
+	var tempValues []ident.ID
+
+	accum.aggResponses = aggregateResults(results)
+	accum.aggResponses.forEachTag(func(elems aggregateResults, hasMore bool) bool {
+		tagResult := iter.addTag(elems[0].TagName)
+
+		for _, tagResponse := range elems {
+			// Sort values before adding to final result.
+			values := aggregateValueResultsSortedByValue(tagResponse.TagValues)
+			sort.Sort(values)
+
+			if len(tagResult.tagValues) == 0 {
+				// If first response with values from host then add in order blindly.
+				for _, tagValueResponse := range values {
+					elem := ident.BytesID(tagValueResponse.TagValue)
+					tagResult.tagValues = append(tagResult.tagValues, elem)
+					count++
+				}
+				continue
+			}
+
+			// Otherwise add in order and deduplicate.
+			if tempValues == nil {
+				tempValues = make([]ident.ID, 0, len(tagResult.tagValues))
+			}
+			tempValues = tempValues[:0]
+
+			lastValueIdx := 0
+			addRemaining := false
+			nextLastValue := func() {
+				lastValueIdx++
+				if lastValueIdx >= len(tagResult.tagValues) {
+					// None left to compare against, just blindly add the remaining.
+					addRemaining = true
+				}
+			}
+
+			for i := 0; i < len(values); i++ {
+				tagValueResponse := values[i]
+				currValue := ident.BytesID(tagValueResponse.TagValue)
+				if addRemaining {
+					// Just add remaining values.
+					elem := ident.BytesID(tagValueResponse.TagValue)
+					tempValues = append(tempValues, elem)
+					count++
+					continue
+				}
+
+				existingValue := tagResult.tagValues[lastValueIdx]
+				cmp := bytes.Compare(currValue.Bytes(), existingValue.Bytes())
+				for !addRemaining && cmp > 0 {
+					// Take the existing value
+					tempValues = append(tempValues, existingValue)
+
+					// Move to next record
+					nextLastValue()
+					if addRemaining {
+						// None left to compare against, just blindly add the remaining.
+						break
+					}
+
+					// Re-run check
+					existingValue = tagResult.tagValues[lastValueIdx]
+					cmp = bytes.Compare(currValue.Bytes(), existingValue.Bytes())
+				}
+				if addRemaining {
+					// Reprocess this element
+					i--
+					continue
+				}
+
+				if cmp == 0 {
+					// Take existing record, skip this copy
+					tempValues = append(tempValues, existingValue)
+					nextLastValue()
+					continue
+				}
+
+				// This record must come before any existing value, take and move to next
+				tempValues = append(tempValues, currValue)
+			}
+
+			// Copy out of temp values back to final result
+			tagResult.tagValues = append(tagResult.tagValues[:0], tempValues...)
+		}
+
+		moreElems = hasMore
+		return count < limit
+	})
+
+	exhaustive := accum.exhaustive && count <= limit && !moreElems
+	return iter, exhaustive, nil
+}
+
 type fetchTaggedShardConsistencyResults []fetchTaggedShardConsistencyResult
 
 func (res fetchTaggedShardConsistencyResults) initialize(length int) fetchTaggedShardConsistencyResults {
@@ -320,13 +444,13 @@ func (res fetchTaggedShardConsistencyResults) initialize(length int) fetchTagged
 type fetchTaggedIDResults []*rpc.FetchTaggedIDResult_
 
 // lambda to iterate over fetchTagged responses a single id at a time, `hasMore` indicates
-// if there are more results to iterate after the current batch of elements. the returned
+// if there are more results to iterate after the current batch of elements, the returned
 // bool indicates if the iteration should be continued past the curent batch.
 type forEachFetchTaggedIDFn func(responsesForSingleID fetchTaggedIDResults, hasMore bool) (continueIterating bool)
 
 // forEachID iterates over the provide results, and calls `fn` on each
 // group of responses with the same ID.
-// NB: assumes the results array being operated upon has been sorted
+// NB: assumes the results array being operated upon has been sorted.
 func (results fetchTaggedIDResults) forEachID(fn forEachFetchTaggedIDFn) {
 	var (
 		startIdx = 0
@@ -364,4 +488,65 @@ func (a fetchTaggedIDResultsSortedByID) Len() int      { return len(a) }
 func (a fetchTaggedIDResultsSortedByID) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a fetchTaggedIDResultsSortedByID) Less(i, j int) bool {
 	return bytes.Compare(a[i].ID, a[j].ID) < 0
+}
+
+type aggregateResults []*rpc.AggregateQueryRawResultTagNameElement
+
+type aggregateValueResults []*rpc.AggregateQueryRawResultTagValueElement
+
+// lambda to iterate over aggregate tag responses a single tag at a time, `hasMore` indicates
+// if there are more results to iterate after the current batch of elements, the returned
+// bool indicates if the iteration should be continued past the curent batch.
+type forEachAggregateFn func(responsesForSingleTag aggregateResults, hasMore bool) (continueIterating bool)
+
+// forEachTag iterates over the provide results, and calls `fn` on each
+// group of responses with the same TagName.
+// NB: assumes the results array being operated upon has been sorted.
+func (results aggregateResults) forEachTag(fn forEachAggregateFn) {
+	var (
+		startIdx    = 0
+		lastTagName []byte
+	)
+	for i := 0; i < len(results); i++ {
+		elem := results[i]
+		if !bytes.Equal(elem.TagName, lastTagName) {
+			lastTagName = elem.TagName
+			// We only want to call the the forEachID fn once we have calculated the entire group,
+			// i.e. once we have gone past the last element for a given ID, but the first element
+			// in the results slice is a special case because we are always starting a new group
+			// at that point.
+			if i == 0 {
+				continue
+			}
+			continueIterating := fn(results[startIdx:i], i < len(results))
+			if !continueIterating {
+				return
+			}
+			startIdx = i
+		}
+	}
+	// spill over
+	if startIdx < len(results) {
+		fn(results[startIdx:], false)
+	}
+}
+
+// aggregateResultsSortedByTag implements sort.Interface for aggregateResults
+// based on the TagName field.
+type aggregateResultsSortedByTag aggregateResults
+
+func (a aggregateResultsSortedByTag) Len() int      { return len(a) }
+func (a aggregateResultsSortedByTag) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a aggregateResultsSortedByTag) Less(i, j int) bool {
+	return bytes.Compare(a[i].TagName, a[j].TagName) < 0
+}
+
+// aggregateValueResultsSortedByValue implements sort.Interface for aggregateValueResults
+// based on the TagValue field.
+type aggregateValueResultsSortedByValue aggregateValueResults
+
+func (a aggregateValueResultsSortedByValue) Len() int      { return len(a) }
+func (a aggregateValueResultsSortedByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a aggregateValueResultsSortedByValue) Less(i, j int) bool {
+	return bytes.Compare(a[i].TagValue, a[j].TagValue) < 0
 }

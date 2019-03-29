@@ -20,7 +20,9 @@
 
 package client
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+)
 
 type refCounter struct {
 	destructorFn func()

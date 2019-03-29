@@ -92,3 +92,72 @@ func verifyQueryMetadataResults(
 	assert.Equal(t, len(expected), compared,
 		fmt.Sprintf("matched: %v, not matched: %v", matched, notMatched))
 }
+
+type tagValue string
+type tagName string
+type aggregateTagValues map[tagValue]struct{}
+type aggregateTags map[tagName]aggregateTagValues
+type tagValueSeen bool
+
+type verifyQueryAggregateMetadataResultsOptions struct {
+	exhausitive bool
+	expected    aggregateTags
+}
+
+func verifyQueryAggregateMetadataResults(
+	t *testing.T,
+	iter client.AggregatedTagsIterator,
+	exhausitive bool,
+	opts verifyQueryAggregateMetadataResultsOptions,
+) {
+	assert.Equal(t, opts.exhausitive, exhausitive)
+
+	expected := make(map[tagName]map[tagValue]tagValueSeen, len(opts.expected))
+	for name, values := range opts.expected {
+		expected[name] = map[tagValue]tagValueSeen{}
+		for value := range values {
+			expected[name][value] = tagValueSeen(false)
+		}
+	}
+
+	compared := 0
+	for iter.Next() {
+		compared++
+
+		name, values := iter.Current()
+
+		result, ok := expected[tagName(name.String())]
+		require.True(t, ok,
+			fmt.Sprintf("not expecting tag: %s", name.String()))
+
+		for values.Next() {
+			value := values.Current()
+
+			entry, ok := result[tagValue(value.String())]
+			require.True(t, ok,
+				fmt.Sprintf("not expecting tag value: name=%s, value=%s",
+					name.String(), value.String()))
+			require.False(t, bool(entry))
+
+			result[tagValue(value.String())] = tagValueSeen(true)
+		}
+
+		require.NoError(t, values.Err())
+	}
+	require.NoError(t, iter.Err())
+
+	var matched, notMatched []string
+	for name, values := range expected {
+		for value, valueMatched := range values {
+			elem := fmt.Sprintf("(tagName=%s, tagValue=%s)", name, value)
+			if valueMatched {
+				matched = append(matched, elem)
+				continue
+			}
+			notMatched = append(notMatched, elem)
+		}
+	}
+
+	assert.Equal(t, len(expected), compared,
+		fmt.Sprintf("matched: %v, not matched: %v", matched, notMatched))
+}

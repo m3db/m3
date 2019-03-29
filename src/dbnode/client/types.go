@@ -78,7 +78,8 @@ type Session interface {
 	// FetchTaggedIDs resolves the provided query to known IDs.
 	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (iter TaggedIDsIterator, exhaustive bool, err error)
 
-	// Aggregate aggregates values from the database for the given set of constraints.
+	// TODO(r): Rename Aggregate to AggregateTagValues and add a separate AggregateTagNames method.
+	// Aggregate aggregates tagged values from the database for the given set of constraints.
 	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (iter AggregatedTagsIterator, exhaustive bool, err error)
 
 	// ShardID returns the given shard for an ID for callers
@@ -442,6 +443,12 @@ type Options interface {
 
 	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize.
 	FetchBatchOpPoolSize() int
+
+	// SetAggregateOpPoolSize sets the aggregateOpPoolSize.
+	SetAggregateOpPoolSize(value int) Options
+
+	// AggregateOpPoolSize returns the aggregateOpPoolSize.
+	AggregateOpPoolSize() int
 
 	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize.
 	SetCheckedBytesWrapperPoolSize(value int) Options

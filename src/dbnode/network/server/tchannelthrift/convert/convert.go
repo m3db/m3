@@ -49,6 +49,7 @@ var (
 
 const (
 	fetchTaggedTimeType = rpc.TimeType_UNIX_NANOSECONDS
+	aggregateTimeType   = rpc.TimeType_UNIX_NANOSECONDS
 )
 
 // ToTime converts a value to a time
@@ -262,11 +263,12 @@ func ToRPCFetchTaggedRequest(
 	}
 
 	request := rpc.FetchTaggedRequest{
-		NameSpace:  ns.Bytes(),
-		RangeStart: rangeStart,
-		RangeEnd:   rangeEnd,
-		FetchData:  fetchData,
-		Query:      query,
+		NameSpace:     ns.Bytes(),
+		RangeStart:    rangeStart,
+		RangeEnd:      rangeEnd,
+		FetchData:     fetchData,
+		Query:         query,
+		RangeTimeType: fetchTaggedTimeType,
 	}
 
 	if opts.Limit > 0 {
@@ -275,6 +277,108 @@ func ToRPCFetchTaggedRequest(
 	}
 
 	return request, nil
+}
+
+// ToRPCAggregateQueryRawRequest converts the Go `client/` types into rpc request type for AggregateQueryRawRequest.
+func ToRPCAggregateQueryRawRequest(
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
+) (rpc.AggregateQueryRawRequest, error) {
+	rangeStart, tsErr := ToValue(opts.StartInclusive, aggregateTimeType)
+	if tsErr != nil {
+		return rpc.AggregateQueryRawRequest{}, tsErr
+	}
+
+	rangeEnd, tsErr := ToValue(opts.EndExclusive, aggregateTimeType)
+	if tsErr != nil {
+		return rpc.AggregateQueryRawRequest{}, tsErr
+	}
+
+	query, queryErr := idx.Marshal(q.Query)
+	if queryErr != nil {
+		return rpc.AggregateQueryRawRequest{}, queryErr
+	}
+
+	var queryType rpc.AggregateQueryType
+	switch opts.Type {
+	case index.AggregateTagNames:
+		queryType = rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME
+	case index.AggregateTagNamesAndValues:
+		queryType = rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE
+	default:
+		err := fmt.Errorf("unknown aggregate query type: %v", opts.Type)
+		return rpc.AggregateQueryRawRequest{}, err
+	}
+
+	request := rpc.AggregateQueryRawRequest{
+		NameSpace:          ns.Bytes(),
+		RangeStart:         rangeStart,
+		RangeEnd:           rangeEnd,
+		Query:              query,
+		RangeType:          aggregateTimeType,
+		TagNameFilter:      opts.TermFilter,
+		AggregateQueryType: queryType,
+	}
+
+	if opts.Limit > 0 {
+		l := int64(opts.Limit)
+		request.Limit = &l
+	}
+
+	return request, nil
+}
+
+// FromRPCAggregateQueryRawRequest converts the rpc request type for AggregateQueryRawRequest into corresponding Go API types.
+func FromRPCAggregateQueryRawRequest(
+	req *rpc.AggregateQueryRawRequest, pools FetchTaggedConversionPools,
+) (ident.ID, index.Query, index.AggregationOptions, error) {
+	start, rangeStartErr := ToTime(req.RangeStart, aggregateTimeType)
+	if rangeStartErr != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, rangeStartErr
+	}
+
+	end, rangeEndErr := ToTime(req.RangeEnd, aggregateTimeType)
+	if rangeEndErr != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, rangeEndErr
+	}
+
+	var queryType index.AggregationType
+	switch req.AggregateQueryType {
+	case rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME:
+		queryType = index.AggregateTagNames
+	case rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE:
+		queryType = index.AggregateTagNamesAndValues
+	default:
+		err := fmt.Errorf("unknown aggregate query type: %v", req.AggregateQueryType)
+		return nil, index.Query{}, index.AggregationOptions{}, err
+	}
+
+	opts := index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		},
+		TermFilter: index.AggregateTermFilter(req.TagNameFilter),
+		Type:       queryType,
+	}
+	if l := req.Limit; l != nil {
+		opts.Limit = int(*l)
+	}
+
+	q, err := idx.Unmarshal(req.Query)
+	if err != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, err
+	}
+
+	var ns ident.ID
+	if pools != nil {
+		nsBytes := pools.CheckedBytesWrapper().Get(req.NameSpace)
+		ns = pools.ID().BinaryID(nsBytes)
+	} else {
+		ns = ident.StringID(string(req.NameSpace))
+	}
+	return ns, index.Query{Query: q}, opts, nil
 }
 
 // ToTagsIter returns a tag iterator over the given request.

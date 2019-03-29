@@ -326,7 +326,7 @@ enum AggregateQueryType {
 // (2) Given a filter query (optionally), return all know tag key+values matching this restriction
 // (3) For (1), (2) - filter results to a given set of keys
 struct AggregateQueryRawRequest {
-	1: optional Query query
+	1: optional binary query
 	2: required i64 rangeStart
 	3: required i64 rangeEnd
 	4: required binary nameSpace

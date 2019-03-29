@@ -195,6 +195,22 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools)
 }
 
+func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, bool, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if !f.done {
+		return nil, false, errFetchStateStillProcessing
+	}
+
+	if err := f.err; err != nil {
+		return nil, false, err
+	}
+
+	limit := f.aggregateOp.requestLimit(maxInt)
+	return f.tagResultAccumulator.AsAggregatedTagsIterator(limit, pools)
+}
+
 // NB(prateek): this is backed by the sessionPools struct, but we're restricting it to a narrow
 // interface to force the fetchTagged code-paths to be explicit about the pools they need access
 // to. The alternative is to either expose the sessionPools struct (which is a worse abstraction),

@@ -1956,6 +1956,34 @@ func (mr *MockOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockOptions)(nil).FetchBatchOpPoolSize))
 }
 
+// SetAggregateOpPoolSize mocks base method
+func (m *MockOptions) SetAggregateOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregateOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAggregateOpPoolSize indicates an expected call of SetAggregateOpPoolSize
+func (mr *MockOptionsMockRecorder) SetAggregateOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregateOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetAggregateOpPoolSize), value)
+}
+
+// AggregateOpPoolSize mocks base method
+func (m *MockOptions) AggregateOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// AggregateOpPoolSize indicates an expected call of AggregateOpPoolSize
+func (mr *MockOptionsMockRecorder) AggregateOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateOpPoolSize", reflect.TypeOf((*MockOptions)(nil).AggregateOpPoolSize))
+}
+
 // SetCheckedBytesWrapperPoolSize mocks base method
 func (m *MockOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
 	m.ctrl.T.Helper()
@@ -3153,6 +3181,34 @@ func (m *MockAdminOptions) FetchBatchOpPoolSize() int {
 func (mr *MockAdminOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetAggregateOpPoolSize mocks base method
+func (m *MockAdminOptions) SetAggregateOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregateOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAggregateOpPoolSize indicates an expected call of SetAggregateOpPoolSize
+func (mr *MockAdminOptionsMockRecorder) SetAggregateOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregateOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetAggregateOpPoolSize), value)
+}
+
+// AggregateOpPoolSize mocks base method
+func (m *MockAdminOptions) AggregateOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// AggregateOpPoolSize indicates an expected call of AggregateOpPoolSize
+func (mr *MockAdminOptionsMockRecorder) AggregateOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).AggregateOpPoolSize))
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method

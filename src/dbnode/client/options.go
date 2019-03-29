@@ -91,6 +91,9 @@ const (
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192
 
+	// defaultAggregateOpPoolSize is the default aggregate op pool size
+	defaultAggregateOpPoolSize = 1024
+
 	// defaultFetchBatchSize is the default fetch batch size
 	defaultFetchBatchSize = 128
 
@@ -226,6 +229,7 @@ type options struct {
 	writeOperationPoolSize                  int
 	writeTaggedOperationPoolSize            int
 	fetchBatchOpPoolSize                    int
+	aggregateOpPoolSize                     int
 	writeBatchSize                          int
 	fetchBatchSize                          int
 	identifierPool                          ident.Pool
@@ -305,6 +309,7 @@ func newOptions() *options {
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
+		aggregateOpPoolSize:                     defaultAggregateOpPoolSize,
 		writeBatchSize:                          DefaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
 		identifierPool:                          idPool,
@@ -677,6 +682,16 @@ func (o *options) SetFetchBatchOpPoolSize(value int) Options {
 
 func (o *options) FetchBatchOpPoolSize() int {
 	return o.fetchBatchOpPoolSize
+}
+
+func (o *options) SetAggregateOpPoolSize(value int) Options {
+	opts := *o
+	opts.aggregateOpPoolSize = value
+	return &opts
+}
+
+func (o *options) AggregateOpPoolSize() int {
+	return o.aggregateOpPoolSize
 }
 
 func (o *options) SetContextPool(value context.Pool) Options {

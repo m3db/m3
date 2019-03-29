@@ -103,13 +103,13 @@ func newHostQueue(
 	opArrayPool.Init()
 
 	return &queue{
-		opts:                                       opts,
-		nowFn:                                      opts.ClockOptions().NowFn(),
-		host:                                       host,
-		connPool:                                   newConnectionPool(host, opts),
-		writeBatchRawRequestPool:                   hostQueueOpts.writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
+		opts:                                 opts,
+		nowFn:                                opts.ClockOptions().NowFn(),
+		host:                                 host,
+		connPool:                             newConnectionPool(host, opts),
+		writeBatchRawRequestPool:             hostQueueOpts.writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool: hostQueueOpts.writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:       hostQueueOpts.writeTaggedBatchRawRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
 		workerPool:   workerPool,
 		size:         size,
@@ -237,8 +237,8 @@ func (q *queue) drain() {
 				idx := currTaggedWriteOpsByNamespace.indexOf(namespace)
 				if idx == -1 {
 					value := namespaceWriteTaggedBatchOps{
-						namespace:                                  namespace,
-						opsArrayPool:                               q.opsArrayPool,
+						namespace:    namespace,
+						opsArrayPool: q.opsArrayPool,
 						writeTaggedBatchRawRequestElementArrayPool: q.writeTaggedBatchRawRequestElementArrayPool,
 					}
 					idx = len(currTaggedWriteOpsByNamespace)
@@ -257,6 +257,8 @@ func (q *queue) drain() {
 				q.asyncFetch(v)
 			case *fetchTaggedOp:
 				q.asyncFetchTagged(v)
+			case *aggregateOp:
+				q.asyncAggregate(v)
 			case *truncateOp:
 				q.asyncTruncate(v)
 			default:
@@ -505,6 +507,39 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 	})
 }
 
+func (q *queue) asyncAggregate(op *aggregateOp) {
+	q.Add(1)
+	q.workerPool.Go(func() {
+		// NB(r): Defer is slow in the hot path unfortunately
+		cleanup := func() {
+			op.decRef()
+			q.Done()
+		}
+
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			cleanup()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		result, err := client.AggregateRaw(ctx, &op.request)
+		if err != nil {
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			cleanup()
+			return
+		}
+
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+			host:        q.host,
+			aggResponse: result,
+		}, err)
+		cleanup()
+	})
+}
+
 func (q *queue) asyncTruncate(op *truncateOp) {
 	q.Add(1)
 
@@ -544,6 +579,9 @@ func (q *queue) Enqueue(o op) error {
 		sOp.IncRef()
 	case *fetchTaggedOp:
 		// Need to take ownership if its a fetch tagged op
+		sOp.incRef()
+	case *aggregateOp:
+		// Need to take ownership if its an aggregate op
 		sOp.incRef()
 	}
 
