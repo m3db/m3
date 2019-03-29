@@ -21,15 +21,17 @@
 package graphite
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"go.uber.org/zap"
 )
@@ -57,6 +59,39 @@ func NewFindHandler(
 	}
 }
 
+func mergeTags(
+	terminatedResult *storage.CompleteTagsResult,
+	childResult *storage.CompleteTagsResult,
+) (map[string]bool, error) {
+	// sanity check the case.
+	if terminatedResult.CompleteNameOnly {
+		return nil, errors.New("terminated result is completing name only")
+	}
+
+	if childResult.CompleteNameOnly {
+		return nil, errors.New("child result is completing name only")
+	}
+
+	mapLength := len(terminatedResult.CompletedTags) + len(childResult.CompletedTags)
+	tagMap := make(map[string]bool, mapLength)
+
+	for _, tag := range terminatedResult.CompletedTags {
+		for _, value := range tag.Values {
+			tagMap[string(value)] = false
+		}
+	}
+
+	// NB: fine to overwrite any tags which were present in the `terminatedResult` map
+	// since if they appear in `childResult`, then they exist AND have children.
+	for _, tag := range childResult.CompletedTags {
+		for _, value := range tag.Values {
+			tagMap[string(value)] = true
+		}
+	}
+
+	return tagMap, nil
+}
+
 func (h *grahiteFindHandler) ServeHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -64,45 +99,54 @@ func (h *grahiteFindHandler) ServeHTTP(
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 	w.Header().Set("Content-Type", "application/json")
-	query, rErr := parseFindParamsToQuery(r)
+
+	// NB: need to run two separate queries, one of which will match only the
+	// provided matchers, and one which will match the provided matchers with at
+	// least one more child node. For further information, refer to the comment
+	// for parseFindParamsToQueries
+	terminatedQuery, childQuery, raw, rErr := parseFindParamsToQueries(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	opts := storage.NewFetchOptions()
-	result, err := h.storage.FetchTags(ctx, query, opts)
+	var (
+		terminatedResult *storage.CompleteTagsResult
+		tErr             error
+		childResult      *storage.CompleteTagsResult
+		cErr             error
+		opts             = storage.NewFetchOptions()
+
+		wg sync.WaitGroup
+	)
+
+	wg.Add(2)
+	go func() {
+		terminatedResult, tErr = h.storage.CompleteTags(ctx, terminatedQuery, opts)
+		wg.Done()
+	}()
+
+	go func() {
+		childResult, cErr = h.storage.CompleteTags(ctx, childQuery, opts)
+		wg.Done()
+	}()
+
+	wg.Wait()
+	if err := xerrors.FirstError(tErr, cErr); err != nil {
+		logger.Error("unable to complete tags", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	// NB: merge results from both queries to specify which series have children
+	seenMap, err := mergeTags(terminatedResult, childResult)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	partCount := graphite.CountMetricParts(query.Raw)
-	partName := graphite.TagName(partCount - 1)
-	seenMap := make(map[string]bool, len(result.Metrics))
-	for _, m := range result.Metrics {
-		tags := m.Tags.Tags
-		index := 0
-		// TODO: make this more performant by computing the index for the tag name.
-		for i, tag := range tags {
-			if bytes.Equal(partName, tag.Name) {
-				index = i
-				break
-			}
-		}
-
-		value := tags[index].Value
-		// If this value has already been encountered, check if
-		if hadExtra, seen := seenMap[string(value)]; seen && hadExtra {
-			continue
-		}
-
-		hasExtraParts := len(tags) > partCount
-		seenMap[string(value)] = hasExtraParts
-	}
-
-	prefix := graphite.DropLastMetricPart(query.Raw)
+	prefix := graphite.DropLastMetricPart(raw)
 	if len(prefix) > 0 {
 		prefix += "."
 	}

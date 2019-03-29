@@ -21,13 +21,13 @@
 package m3
 
 import (
-	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
@@ -291,7 +291,7 @@ func (s *m3storage) fetchCompressed(
 	return result, err
 }
 
-func (s *m3storage) FetchTags(
+func (s *m3storage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -329,58 +329,94 @@ func (s *m3storage) CompleteTags(
 	default:
 	}
 
-	// TODO: instead of aggregating locally, have the DB aggregate it before
-	// sending results back.
 	fetchQuery := &storage.FetchQuery{
 		TagMatchers: query.TagMatchers,
-		// NB: complete tags matches every tag from the start of time until now
-		Start: time.Time{},
-		End:   time.Now(),
 	}
 
-	results, cleanup, err := s.SearchCompressed(ctx, fetchQuery, options)
-	defer cleanup()
+	m3query, err := storage.FetchQueryToM3Query(fetchQuery, s.conversionCache)
 	if err != nil {
 		return nil, err
 	}
 
-	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
-	// only filter if there are tags to filter on.
-	filtering := len(query.FilterNameTags) > 0
-	for _, elem := range results {
-		it := elem.Iter
-		tags := make([]storage.CompletedTag, 0, it.Len())
-		for i := 0; it.Next(); i++ {
-			tag := it.Current()
-			name := tag.Name.Bytes()
-			if filtering {
-				found := false
-				for _, filterName := range query.FilterNameTags {
-					if bytes.Equal(filterName, name) {
-						found = true
-						break
-					}
+	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
+
+	var (
+		namespaces      = s.clusters.ClusterNamespaces()
+		accumulatedTags = storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+		multiErr        syncMultiErrs
+		wg              sync.WaitGroup
+	)
+
+	if len(namespaces) == 0 {
+		return nil, errNoNamespacesConfigured
+	}
+
+	var mu sync.Mutex
+	aggIterators := make([]client.AggregatedTagsIterator, 0, len(namespaces))
+	defer func() {
+		mu.Lock()
+		for _, it := range aggIterators {
+			it.Finalize()
+		}
+
+		mu.Unlock()
+	}()
+
+	wg.Add(len(namespaces))
+	for _, namespace := range namespaces {
+		namespace := namespace // Capture var
+		go func() {
+			defer wg.Done()
+			session := namespace.Session()
+			namespaceID := namespace.NamespaceID()
+			aggTagIter, _, err := session.Aggregate(namespaceID, m3query, aggOpts)
+			if err != nil {
+				multiErr.add(err)
+				return
+			}
+
+			mu.Lock()
+			aggIterators = append(aggIterators, aggTagIter)
+			mu.Unlock()
+
+			completedTags := make([]storage.CompletedTag, aggTagIter.Remaining())
+			for i := 0; aggTagIter.Next(); i++ {
+				name, values := aggTagIter.Current()
+				tagValues := make([][]byte, values.Remaining())
+				for j := 0; values.Next(); j++ {
+					tagValues[j] = values.Current().Bytes()
 				}
 
-				if !found {
-					continue
+				if err := values.Err(); err != nil {
+					multiErr.add(err)
+					return
+				}
+
+				completedTags[i] = storage.CompletedTag{
+					Name:   name.Bytes(),
+					Values: tagValues,
 				}
 			}
 
-			tags = append(tags, storage.CompletedTag{
-				Name:   name,
-				Values: [][]byte{tag.Value.Bytes()},
-			})
-		}
+			if err := aggTagIter.Err(); err != nil {
+				multiErr.add(err)
+				return
+			}
 
-		if err := elem.Iter.Err(); err != nil {
-			return nil, err
-		}
+			result := &storage.CompleteTagsResult{
+				CompleteNameOnly: query.CompleteNameOnly,
+				CompletedTags:    completedTags,
+			}
 
-		accumulatedTags.Add(&storage.CompleteTagsResult{
-			CompleteNameOnly: query.CompleteNameOnly,
-			CompletedTags:    tags,
-		})
+			if err := accumulatedTags.Add(result); err != nil {
+				multiErr.add(err)
+			}
+		}()
+	}
+
+	wg.Wait()
+	if err := multiErr.lastError(); err != nil {
+		return nil, err
 	}
 
 	built := accumulatedTags.Build()
