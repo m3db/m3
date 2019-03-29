@@ -14,12 +14,12 @@ Operators may need to tune their kernel configuration to allow a higher number o
 
 ## New Features
 
-- **M3DB**: Add dedicated aggreagion endpoint (#1463, #1502, #1483)
-- **M3DB**: Add coordinator capability to downsample using remote m3aggregator (#1403)
+- **M3DB**: Add dedicated aggregation endpoint (#1463, #1502, #1483)
 
 ## Performance
 
-- **M3Query**: Tag completion endpoints (Prometheus `match[]`, `/series`, and Graphite `find` endpoints) now use the new dedicated aggregation endpoint (#1481)
+- **M3DB**: Use Seek() and Read() APIs for index/data files instead of mmap + share expensive seeker resources among seekers (#1421)
+- **M3Query**: Tag completion endpoints (Prometheus (`match[]`, `/{foo}/series`), and Graphite (`find`) endpoints) now use the new dedicated aggregation endpoint (#1481)
 
 # 0.7.3 (2019-03-22)
 
