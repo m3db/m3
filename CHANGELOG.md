@@ -1,6 +1,6 @@
 # Changelog
 
-# 0.8.0 (T.B.D)
+# 0.8.0 (2019-03-29)
 
 ## Migration Disclaimer
 
@@ -12,6 +12,14 @@ As a result of this change, M3DB will allocate significantly less mmaps, but wil
 
 Operators may need to tune their kernel configuration to allow a higher number of open file descriptors. Please follow our [Kernel Configuration Guide](http://m3db.github.io/m3/operational_guide/kernel_configuration/) for more details.
 
+## New Features
+
+- **M3DB**: Add dedicated aggreagion endpoint (#1463, #1502, #1483)
+- **M3DB**: Add coordinator capability to downsample using remote m3aggregator (#1403)
+
+## Performance
+
+- **M3Query**: Tag completion endpoints (Prometheus `match[]`, `/series`, and Graphite `find` endpoints) now use the new dedicated aggregation endpoint (#1481)
 
 # 0.7.3 (2019-03-22)
 
@@ -26,8 +34,8 @@ Operators may need to tune their kernel configuration to allow a higher number o
 
 ## Performance
 
-- **M3DB**: Use a single results object for merging postings lists across blocks, rather than creating a result per block and discarding them immediately thereafter (#1474)
-- **M3DB**: Improvement to applying back pressure on writes with a full commitlog, which should improve recovery when dealing with spiky traffic (#1482)
+- **M3DB**: Use a single results object for merging postings lists across blocks, rather than creating a result per block and discarding them immediately thereafter. This should reduce memory utilization significantly for queries that look back over a large number of blocks (#1474)
+- **M3DB**: Improvement to applying back pressure on writes with a full commitlog, which should improve M3DB's ability to apply back pressure under load and recover quickly after being overwhelmed with traffic. (#1482)
 
 # 0.7.2 (2019-03-15)
 
