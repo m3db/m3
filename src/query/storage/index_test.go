@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3x/ident"
 
@@ -130,6 +131,11 @@ func TestFetchQueryToM3Query(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "all matchers",
+			expected: "all()",
+			matchers: models.Matchers{},
+		},
 	}
 
 	lru, err := NewQueryConversionLRU(10)
@@ -153,10 +159,12 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, m3Query.String())
 
-			k := queryKey(test.matchers)
-			q, ok := cache.get(k)
-			require.True(t, ok)
-			assert.Equal(t, test.expected, q.String())
+			if len(test.matchers) > 0 {
+				k := queryKey(test.matchers)
+				q, ok := cache.get(k)
+				require.True(t, ok)
+				assert.Equal(t, test.expected, q.String())
+			}
 		})
 	}
 }
@@ -224,4 +232,33 @@ func TestQueryKey(t *testing.T) {
 			assert.Equal(t, []byte(test.expected), keyByte)
 		})
 	}
+}
+
+func TestFetchOptionsToAggregateOptions(t *testing.T) {
+	fetchOptions := &FetchOptions{
+		Limit: 7,
+	}
+
+	end := time.Now()
+	start := end.Add(-1 * time.Hour)
+	filter := [][]byte{[]byte("filter")}
+	matchers := models.Matchers{
+		models.Matcher{Type: models.MatchNotRegexp,
+			Name: []byte("foo"), Value: []byte("bar")},
+	}
+
+	tagQuery := &CompleteTagsQuery{
+		Start:            start,
+		End:              end,
+		TagMatchers:      matchers,
+		FilterNameTags:   filter,
+		CompleteNameOnly: true,
+	}
+
+	aggOpts := FetchOptionsToAggregateOptions(fetchOptions, tagQuery)
+	assert.Equal(t, end, aggOpts.EndExclusive)
+	assert.Equal(t, start, aggOpts.StartInclusive)
+	assert.Equal(t, index.AggregateTagNames, aggOpts.Type)
+	require.Equal(t, 1, len(aggOpts.TermFilter))
+	require.Equal(t, "filter", string(aggOpts.TermFilter[0]))
 }

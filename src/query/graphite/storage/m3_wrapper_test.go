@@ -60,14 +60,14 @@ func TestTranslateQuery(t *testing.T) {
 	assert.Equal(t, query, translated.Raw)
 	matchers := translated.TagMatchers
 	expected := models.Matchers{
-		{Type: models.MatchRegexp, Name: graphite.TagName(0), Value: []byte("foo")},
+		{Type: models.MatchEqual, Name: graphite.TagName(0), Value: []byte("foo")},
 		{Type: models.MatchRegexp, Name: graphite.TagName(1), Value: []byte("ba[rz]")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(2), Value: []byte("q.*x")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(3), Value: []byte("terminator")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(4), Value: []byte("will")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(5), Value: []byte("be")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(6), Value: []byte(".*")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(7), Value: []byte("back?")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(2), Value: []byte(`q[^\.]*x`)},
+		{Type: models.MatchEqual, Name: graphite.TagName(3), Value: []byte("terminator")},
+		{Type: models.MatchEqual, Name: graphite.TagName(4), Value: []byte("will")},
+		{Type: models.MatchEqual, Name: graphite.TagName(5), Value: []byte("be")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(6), Value: []byte(`[^\.]*`)},
+		{Type: models.MatchRegexp, Name: graphite.TagName(7), Value: []byte(`back[^\.]`)},
 		{Type: models.MatchNotRegexp, Name: graphite.TagName(8), Value: []byte(".*")},
 	}
 
@@ -90,7 +90,7 @@ func TestTranslateQueryTrailingDot(t *testing.T) {
 	assert.Nil(t, translated)
 	assert.Error(t, err)
 
-	matchers, err := TranslateQueryToMatchers(query)
+	matchers, err := TranslateQueryToMatchersWithTerminator(query)
 	assert.Nil(t, matchers)
 	assert.Error(t, err)
 }

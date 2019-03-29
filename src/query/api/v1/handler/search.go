@@ -110,8 +110,12 @@ func (h *SearchHandler) parseURLParams(r *http.Request) *storage.FetchOptions {
 	return &fetchOptions
 }
 
-func (h *SearchHandler) search(ctx context.Context, query *storage.FetchQuery, opts *storage.FetchOptions) (*storage.SearchResults, error) {
-	return h.store.FetchTags(ctx, query, opts)
+func (h *SearchHandler) search(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *storage.FetchOptions,
+) (*storage.SearchResults, error) {
+	return h.store.SearchSeries(ctx, query, opts)
 }
 
 func newFetchOptions(limit int) storage.FetchOptions {

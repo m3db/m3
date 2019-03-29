@@ -153,8 +153,8 @@ type Querier interface {
 		options *FetchOptions,
 	) (block.Result, error)
 
-	// FetchTags returns search results for tags
-	FetchTags(
+	// SearchSeries returns series IDs matching the current query
+	SearchSeries(
 		ctx context.Context,
 		query *FetchQuery,
 		options *FetchOptions,
@@ -187,6 +187,8 @@ type CompleteTagsQuery struct {
 	CompleteNameOnly bool
 	FilterNameTags   [][]byte
 	TagMatchers      models.Matchers
+	Start            time.Time
+	End              time.Time
 }
 
 // SeriesMatchQuery represents a query that returns a set of series

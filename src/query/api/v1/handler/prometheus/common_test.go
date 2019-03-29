@@ -22,12 +22,13 @@ package prometheus
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/assert"
@@ -87,84 +88,68 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func makeResult() []*storage.CompleteTagsResult {
-	return []*storage.CompleteTagsResult{
-		&storage.CompleteTagsResult{
-			CompletedTags: []storage.CompletedTag{
-				storage.CompletedTag{
-					Name:   []byte("a"),
-					Values: [][]byte{[]byte("1"), []byte("2"), []byte("3")},
-				},
-				storage.CompletedTag{
-					Name:   []byte("b"),
-					Values: [][]byte{[]byte("1"), []byte("2")},
-				},
-				storage.CompletedTag{
-					Name:   []byte("c"),
-					Values: [][]byte{[]byte("1"), []byte("2"), []byte("3")},
-				},
-			},
-		},
-	}
+type tag struct {
+	name, value string
 }
 
-func TestRenderSeriesMatchResults(t *testing.T) {
-	w := &writer{value: ""}
-	seriesMatchResult := makeResult()
-
-	expectedWhitespace := `{
-		"status":"success",
-		"data":[
-			{"a":"1","b":"1","c":"1"},
-			{"a":"1","b":"1","c":"2"},
-			{"a":"1","b":"1","c":"3"},
-			{"a":"1","b":"2","c":"1"},
-			{"a":"1","b":"2","c":"2"},
-			{"a":"1","b":"2","c":"3"},
-			{"a":"2","b":"1","c":"1"},
-			{"a":"2","b":"1","c":"2"},
-			{"a":"2","b":"1","c":"3"},
-			{"a":"2","b":"2","c":"1"},
-			{"a":"2","b":"2","c":"2"},
-			{"a":"2","b":"2","c":"3"},
-			{"a":"3","b":"1","c":"1"},
-			{"a":"3","b":"1","c":"2"},
-			{"a":"3","b":"1","c":"3"},
-			{"a":"3","b":"2","c":"1"},
-			{"a":"3","b":"2","c":"2"},
-			{"a":"3","b":"2","c":"3"}
-		]
-	}`
-
-	err := RenderSeriesMatchResultsJSON(w, seriesMatchResult)
-	assert.NoError(t, err)
-	fields := strings.Fields(expectedWhitespace)
-	expected := ""
-	for _, field := range fields {
-		expected = expected + field
+func toTags(name string, tags ...tag) models.Metric {
+	tagOpts := models.NewTagOptions()
+	ts := models.NewTags(len(tags), tagOpts)
+	ts = ts.SetName([]byte(name))
+	for _, tag := range tags {
+		ts = ts.AddTag(models.Tag{Name: []byte(tag.name), Value: []byte(tag.value)})
 	}
 
-	assert.Equal(t, expected, w.value)
+	return models.Metric{Tags: ts}
 }
 
 func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
 	w := &writer{value: ""}
-	seriesMatchResult := []*storage.CompleteTagsResult{
-		&storage.CompleteTagsResult{},
+	tests := []struct {
+		dropRole   bool
+		additional string
+	}{
+		{
+			dropRole:   true,
+			additional: "",
+		},
+		{
+			dropRole:   false,
+			additional: `,"role":"appears"`,
+		},
 	}
 
-	expectedWhitespace := `{
+	seriesMatchResult := []models.Metrics{
+		models.Metrics{
+			toTags("name", tag{name: "a", value: "b"}, tag{name: "role", value: "appears"}),
+			toTags("name2", tag{name: "c", value: "d"}, tag{name: "e", value: "f"}),
+		},
+	}
+
+	for _, tt := range tests {
+		expectedWhitespace := fmt.Sprintf(`{
 		"status":"success",
-		"data":[]
-	}`
+		"data":[
+			{
+				"__name__":"name",
+				"a":"b"%s
+			},
+			{
+				"__name__":"name2",
+				"c":"d",
+				"e":"f"
+			}
+		]
+	}`, tt.additional)
 
-	err := RenderSeriesMatchResultsJSON(w, seriesMatchResult)
-	assert.NoError(t, err)
-	fields := strings.Fields(expectedWhitespace)
-	expected := ""
-	for _, field := range fields {
-		expected = expected + field
+		err := RenderSeriesMatchResultsJSON(w, seriesMatchResult, tt.dropRole)
+		assert.NoError(t, err)
+		fields := strings.Fields(expectedWhitespace)
+		expected := ""
+		for _, field := range fields {
+			expected = expected + field
+		}
+
+		assert.Equal(t, expected, w.value)
 	}
-
-	assert.Equal(t, expected, w.value)
 }

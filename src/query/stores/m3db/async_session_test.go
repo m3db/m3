@@ -106,6 +106,9 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
 	assert.Equal(t, err, errSessionUninitialized)
 
+	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
+	assert.Equal(t, err, errSessionUninitialized)
+
 	id, err := asyncSession.ShardID(nil)
 	assert.Equal(t, uint32(0), id)
 	assert.Equal(t, err, errSessionUninitialized)
@@ -152,6 +155,10 @@ func TestAsyncSessionInitialized(t *testing.T) {
 
 	mockSession.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
+	assert.NoError(t, err)
+
+	mockSession.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
+	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().ShardID(gomock.Any()).Return(uint32(0), nil)

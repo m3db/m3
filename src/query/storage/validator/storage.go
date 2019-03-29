@@ -158,12 +158,12 @@ func (s *debugStorage) Type() storage.Type {
 	return storage.TypeDebug
 }
 
-func (s *debugStorage) FetchTags(
+func (s *debugStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	return nil, errors.New("FetchTags not implemented")
+	return nil, errors.New("SearchSeries not implemented")
 }
 
 func (s *debugStorage) CompleteTags(
