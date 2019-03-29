@@ -155,6 +155,6 @@ func verifyQueryAggregateMetadataResults(
 		}
 	}
 
-	assert.Equal(t, 0, notMatched,
+	assert.Equal(t, 0, len(notMatched),
 		fmt.Sprintf("matched: %v, not matched: %v", matched, notMatched))
 }

@@ -211,22 +211,24 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 			},
 		})
 
-	// Now test term filter and tag name filtering, match all new_*r*, names only, filtering on `city`
-	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
-	require.NoError(t, err)
-	queryOpts.TermFilter = index.AggregateTermFilter([][]byte{[]byte("city")})
-	queryOpts.Type = index.AggregateTagNames
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
-	require.NoError(t, err)
-	require.True(t, exhaustive)
-	defer iter.Finalize()
+	/*
+		// Now test term filter and tag name filtering, match all new_*r*, names only, filtering on `city`
+		regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
+		require.NoError(t, err)
+		queryOpts.TermFilter = index.AggregateTermFilter([][]byte{[]byte("city")})
+		queryOpts.Type = index.AggregateTagNames
+		iter, exhaustive, err = session.Aggregate(ns1.ID(),
+			index.Query{regexpQuery}, queryOpts)
+		require.NoError(t, err)
+		require.True(t, exhaustive)
+		defer iter.Finalize()
 
-	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
-		verifyQueryAggregateMetadataResultsOptions{
-			exhaustive: true,
-			expected: map[tagName]aggregateTagValues{
-				"city": nil,
-			},
-		})
+		verifyQueryAggregateMetadataResults(t, iter, exhaustive,
+			verifyQueryAggregateMetadataResultsOptions{
+				exhaustive: true,
+				expected: map[tagName]aggregateTagValues{
+					"city": nil,
+				},
+			})
+	*/
 }
