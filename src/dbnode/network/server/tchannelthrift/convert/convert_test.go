@@ -51,6 +51,13 @@ func allQueryTestCase(t *testing.T) (idx.Query, []byte) {
 	return q, d
 }
 
+func fieldQueryTestCase(t *testing.T) (idx.Query, []byte) {
+	q1 := idx.NewFieldQuery([]byte("dat"))
+	data, err := idx.Marshal(q1)
+	require.NoError(t, err)
+	return q1, data
+}
+
 func termQueryTestCase(t *testing.T) (idx.Query, []byte) {
 	q1 := idx.NewTermQuery([]byte("dat"), []byte("baz"))
 	data, err := idx.Marshal(q1)
@@ -127,6 +134,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 			name string
 			fn   inputFn
 		}{
+			{"Field Query", fieldQueryTestCase},
 			{"Term Query", termQueryTestCase},
 			{"Regexp Query", regexpQueryTestCase},
 			{"Negate Term Query", negateTermQueryTestCase},
@@ -202,6 +210,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 			fn   inputFn
 		}{
 			{"All Query", allQueryTestCase},
+			{"Field Query", fieldQueryTestCase},
 			{"Term Query", termQueryTestCase},
 			{"Regexp Query", regexpQueryTestCase},
 			{"Negate Term Query", negateTermQueryTestCase},

@@ -48,6 +48,13 @@ func NewAllQuery() Query {
 	}
 }
 
+// NewFieldQuery returns a new query for finding documents which match a field exactly.
+func NewFieldQuery(field []byte) Query {
+	return Query{
+		query: query.NewFieldQuery(field),
+	}
+}
+
 // NewTermQuery returns a new query for finding documents which match a term exactly.
 func NewTermQuery(field, term []byte) Query {
 	return Query{

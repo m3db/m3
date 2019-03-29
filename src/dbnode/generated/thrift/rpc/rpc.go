@@ -10950,12 +10950,112 @@ func (p *AllQuery) String() string {
 }
 
 // Attributes:
+//  - Field
+type FieldQuery struct {
+	Field string `thrift:"field,1,required" db:"field" json:"field"`
+}
+
+func NewFieldQuery() *FieldQuery {
+	return &FieldQuery{}
+}
+
+func (p *FieldQuery) GetField() string {
+	return p.Field
+}
+func (p *FieldQuery) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetField bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetField = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetField {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Field is not set"))
+	}
+	return nil
+}
+
+func (p *FieldQuery) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadString(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Field = v
+	}
+	return nil
+}
+
+func (p *FieldQuery) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("FieldQuery"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *FieldQuery) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("field", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:field: ", p), err)
+	}
+	if err := oprot.WriteString(string(p.Field)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.field (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:field: ", p), err)
+	}
+	return err
+}
+
+func (p *FieldQuery) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("FieldQuery(%+v)", *p)
+}
+
+// Attributes:
 //  - Term
 //  - Regexp
 //  - Negation
 //  - Conjunction
 //  - Disjunction
 //  - All
+//  - Field
 type Query struct {
 	Term        *TermQuery        `thrift:"term,1" db:"term" json:"term,omitempty"`
 	Regexp      *RegexpQuery      `thrift:"regexp,2" db:"regexp" json:"regexp,omitempty"`
@@ -10963,6 +11063,7 @@ type Query struct {
 	Conjunction *ConjunctionQuery `thrift:"conjunction,4" db:"conjunction" json:"conjunction,omitempty"`
 	Disjunction *DisjunctionQuery `thrift:"disjunction,5" db:"disjunction" json:"disjunction,omitempty"`
 	All         *AllQuery         `thrift:"all,6" db:"all" json:"all,omitempty"`
+	Field       *FieldQuery       `thrift:"field,7" db:"field" json:"field,omitempty"`
 }
 
 func NewQuery() *Query {
@@ -11022,6 +11123,15 @@ func (p *Query) GetAll() *AllQuery {
 	}
 	return p.All
 }
+
+var Query_Field_DEFAULT *FieldQuery
+
+func (p *Query) GetField() *FieldQuery {
+	if !p.IsSetField() {
+		return Query_Field_DEFAULT
+	}
+	return p.Field
+}
 func (p *Query) IsSetTerm() bool {
 	return p.Term != nil
 }
@@ -11044,6 +11154,10 @@ func (p *Query) IsSetDisjunction() bool {
 
 func (p *Query) IsSetAll() bool {
 	return p.All != nil
+}
+
+func (p *Query) IsSetField() bool {
+	return p.Field != nil
 }
 
 func (p *Query) Read(iprot thrift.TProtocol) error {
@@ -11082,6 +11196,10 @@ func (p *Query) Read(iprot thrift.TProtocol) error {
 			}
 		case 6:
 			if err := p.ReadField6(iprot); err != nil {
+				return err
+			}
+		case 7:
+			if err := p.ReadField7(iprot); err != nil {
 				return err
 			}
 		default:
@@ -11147,6 +11265,14 @@ func (p *Query) ReadField6(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Query) ReadField7(iprot thrift.TProtocol) error {
+	p.Field = &FieldQuery{}
+	if err := p.Field.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Field), err)
+	}
+	return nil
+}
+
 func (p *Query) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Query"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -11168,6 +11294,9 @@ func (p *Query) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField6(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField7(oprot); err != nil {
 			return err
 		}
 	}
@@ -11265,6 +11394,21 @@ func (p *Query) writeField6(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:all: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *Query) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetField() {
+		if err := oprot.WriteFieldBegin("field", thrift.STRUCT, 7); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:field: ", p), err)
+		}
+		if err := p.Field.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Field), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:field: ", p), err)
 		}
 	}
 	return err

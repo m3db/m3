@@ -528,6 +528,13 @@ func parseQuery(query *rpc.Query) (*querypb.Query, error) {
 			All: &querypb.AllQuery{},
 		}
 	}
+	if query.Field != nil {
+		result.Query = &querypb.Query_Field{
+			Field: &querypb.FieldQuery{
+				Field: []byte(query.Field.Field),
+			},
+		}
+	}
 	if query.Term != nil {
 		result.Query = &querypb.Query_Term{
 			Term: &querypb.TermQuery{

@@ -54,6 +54,9 @@ func unmarshal(q *querypb.Query) (search.Query, error) {
 	case *querypb.Query_All:
 		return NewAllQuery(), nil
 
+	case *querypb.Query_Field:
+		return NewFieldQuery(q.Field.Field), nil
+
 	case *querypb.Query_Term:
 		return NewTermQuery(q.Term.Field, q.Term.Term), nil
 
