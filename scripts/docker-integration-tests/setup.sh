@@ -5,7 +5,7 @@ set -xe
 # expected to be run from root of repository
 cd $GOPATH/src/github.com/m3db/m3
 
-SERVICES=(m3dbnode m3coordinator)
+SERVICES=(m3dbnode m3coordinator m3aggregator)
 REVISION=$(git rev-parse HEAD)
 make clean
 mkdir -p ./bin
@@ -14,6 +14,7 @@ mkdir -p ./bin
 # for docker much smaller
 cp ./src/query/config/m3coordinator-local-etcd.yml ./bin
 cp ./src/dbnode/config/m3dbnode-local-etcd.yml ./bin
+cp ./src/aggregator/config/m3aggregator.yml ./bin
 
 # build images
 echo "building docker images"

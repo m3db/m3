@@ -284,7 +284,7 @@ func Run(runOpts RunOptions) {
 	}()
 
 	go func() {
-		logger.Info("starting server", zap.String("address", listenAddress))
+		logger.Info("starting API server", zap.String("address", listenAddress))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server error while listening",
 				zap.String("address", listenAddress), zap.Error(err))
@@ -292,7 +292,8 @@ func Run(runOpts RunOptions) {
 	}()
 
 	if cfg.Ingest != nil {
-		logger.Info("starting m3msg server")
+		logger.Info("starting m3msg server",
+			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
@@ -492,6 +493,7 @@ func newDownsampler(
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:          storage,
+		ClusterClient:    clusterManagementClient,
 		RulesKVStore:     kvStore,
 		AutoMappingRules: autoMappingRules,
 		ClockOptions:     clock.NewOptions(),
