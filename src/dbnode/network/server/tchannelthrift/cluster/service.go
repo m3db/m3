@@ -39,11 +39,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-var (
-	// errNotImplemented raised when attempting to execute an un-implemented method
-	errNotImplemented = errors.New("method is not implemented")
-)
-
 type service struct {
 	sync.RWMutex
 
@@ -299,7 +294,6 @@ func (s *service) Aggregate(ctx thrift.Context, req *rpc.AggregateQueryRequest) 
 		responseElem := &rpc.AggregateQueryResultTagNameElement{
 			TagName: name.String(),
 		}
-		defer values.Close()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, values.Remaining())
 		for values.Next() {
 			value := values.Current()
