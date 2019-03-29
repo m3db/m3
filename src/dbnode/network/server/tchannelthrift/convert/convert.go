@@ -498,7 +498,8 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 	}
 }
 
-// FromRPCQuery will create a m3ninx index query from an RPC query
+// FromRPCQuery will create a m3ninx index query from an RPC query.
+// NB: a nil query is considered equivalent to an `All` query.
 func FromRPCQuery(query *rpc.Query) (idx.Query, error) {
 	if query == nil {
 		return idx.NewAllQuery(), nil

@@ -1332,10 +1332,8 @@ func (s *session) newFetchStateWithRLock(
 	switch opts.stateType {
 	case fetchTaggedFetchState:
 		fetchOp := s.pools.fetchTaggedOp.Get()
-		fetchOp.incRef() // indicate current go-routine has a reference to the op
-		closer = func() {
-			fetchOp.decRef() // release the ref for the current go-routine
-		}
+		fetchOp.incRef()        // indicate current go-routine has a reference to the op
+		closer = fetchOp.decRef // release the ref for the current go-routine
 		fetchOp.update(opts.fetchTaggedRequest, fetchState.completionFn)
 		fetchState.ResetFetchTagged(opts.startInclusive, opts.endExclusive,
 			fetchOp, topoMap, s.state.majority, s.state.readLevel)
@@ -1343,10 +1341,8 @@ func (s *session) newFetchStateWithRLock(
 
 	case aggregateFetchState:
 		aggOp := s.pools.aggregateOp.Get()
-		aggOp.incRef() // indicate current go-routine has a reference to the op
-		closer = func() {
-			aggOp.decRef() // release the ref for the current go-routine
-		}
+		aggOp.incRef()        // indicate current go-routine has a reference to the op
+		closer = aggOp.decRef // release the ref for the current go-routine
 		aggOp.update(opts.aggregateRequest, fetchState.completionFn)
 		fetchState.ResetAggregate(opts.startInclusive, opts.endExclusive,
 			aggOp, topoMap, s.state.majority, s.state.readLevel)
@@ -1365,7 +1361,7 @@ func (s *session) newFetchStateWithRLock(
 		fetchState.incRef()
 		if err := hq.Enqueue(op); err != nil {
 			fetchState.Unlock()
-			closer()
+			closer() // release the ref for the current go-routine
 			fetchState.decRef() // release the ref for the hostQueue
 			fetchState.decRef() // release the ref for the current go-routine
 
@@ -1378,7 +1374,8 @@ func (s *session) newFetchStateWithRLock(
 			return nil, wrappedErr
 		}
 	}
-	closer()
+
+	closer() // release the ref for the current go-routine
 
 	// NB(prateek): the calling go-routine still holds the lock and a ref
 	// on the returned fetchState object.

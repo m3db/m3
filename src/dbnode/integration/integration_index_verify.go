@@ -33,9 +33,9 @@ import (
 )
 
 type verifyQueryMetadataResultsOptions struct {
-	namespace   ident.ID
-	exhausitive bool
-	expected    []generate.Series
+	namespace  ident.ID
+	exhaustive bool
+	expected   []generate.Series
 }
 
 type verifyQueryMetadataResult struct {
@@ -46,10 +46,10 @@ type verifyQueryMetadataResult struct {
 func verifyQueryMetadataResults(
 	t *testing.T,
 	iter client.TaggedIDsIterator,
-	exhausitive bool,
+	exhaustive bool,
 	opts verifyQueryMetadataResultsOptions,
 ) {
-	assert.Equal(t, opts.exhausitive, exhausitive)
+	assert.Equal(t, opts.exhaustive, exhaustive)
 
 	expected := make(map[string]*verifyQueryMetadataResult, len(opts.expected))
 	for _, series := range opts.expected {
@@ -100,17 +100,17 @@ type aggregateTags map[tagName]aggregateTagValues
 type tagValueSeen bool
 
 type verifyQueryAggregateMetadataResultsOptions struct {
-	exhausitive bool
-	expected    aggregateTags
+	exhaustive bool
+	expected   aggregateTags
 }
 
 func verifyQueryAggregateMetadataResults(
 	t *testing.T,
 	iter client.AggregatedTagsIterator,
-	exhausitive bool,
+	exhaustive bool,
 	opts verifyQueryAggregateMetadataResultsOptions,
 ) {
-	assert.Equal(t, opts.exhausitive, exhausitive)
+	assert.Equal(t, opts.exhaustive, exhaustive)
 
 	expected := make(map[tagName]map[tagValue]tagValueSeen, len(opts.expected))
 	for name, values := range opts.expected {
@@ -120,10 +120,7 @@ func verifyQueryAggregateMetadataResults(
 		}
 	}
 
-	compared := 0
 	for iter.Next() {
-		compared++
-
 		name, values := iter.Current()
 
 		result, ok := expected[tagName(name.String())]
@@ -158,6 +155,6 @@ func verifyQueryAggregateMetadataResults(
 		}
 	}
 
-	assert.Equal(t, len(expected), compared,
+	assert.Equal(t, 0, notMatched,
 		fmt.Sprintf("matched: %v, not matched: %v", matched, notMatched))
 }

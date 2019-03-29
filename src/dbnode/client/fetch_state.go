@@ -157,7 +157,8 @@ func (f *fetchState) completionFn(
 		done = true
 		err = fmt.Errorf(
 			"[invariant violated] expected result to be one of %v, received: %v",
-			[]string{"fetchTaggedResultAccumulatorOpts"}, result)
+			[]string{"fetchTaggedResultAccumulatorOpts", "aggregateResultAccumulatorOpts"},
+			result)
 	}
 
 	if done {
@@ -175,6 +176,12 @@ func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsItera
 	f.Lock()
 	defer f.Unlock()
 
+	if expected := fetchTaggedFetchState; f.stateType != expected {
+		return nil, false,
+			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
+				expected, f.stateType)
+	}
+
 	if !f.done {
 		return nil, false, errFetchStateStillProcessing
 	}
@@ -191,6 +198,12 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 	f.Lock()
 	defer f.Unlock()
 
+	if expected := fetchTaggedFetchState; f.stateType != expected {
+		return nil, false,
+			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
+				expected, f.stateType)
+	}
+
 	if !f.done {
 		return nil, false, errFetchStateStillProcessing
 	}
@@ -206,6 +219,12 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, bool, error) {
 	f.Lock()
 	defer f.Unlock()
+
+	if expected := aggregateFetchState; f.stateType != expected {
+		return nil, false,
+			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
+				expected, f.stateType)
+	}
 
 	if !f.done {
 		return nil, false, errFetchStateStillProcessing

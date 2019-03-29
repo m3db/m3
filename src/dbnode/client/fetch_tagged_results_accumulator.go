@@ -26,13 +26,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 )
 
 type fetchTaggedResultAccumulatorOpts struct {
@@ -59,10 +58,10 @@ type fetchTaggedResultAccumulator struct {
 	numHostsPending         int32
 	numShardsPending        int32
 
-	errors       xerrors.Errors
-	responses    fetchTaggedIDResults
-	aggResponses aggregateResults
-	exhaustive   bool
+	errors         xerrors.Errors
+	fetchResponses fetchTaggedIDResults
+	aggResponses   aggregateResults
+	exhaustive     bool
 
 	startTime        time.Time
 	endTime          time.Time
@@ -89,7 +88,7 @@ func (accum *fetchTaggedResultAccumulator) AddFetchTaggedResponse(
 	if opts.response != nil && resultErr == nil {
 		accum.exhaustive = accum.exhaustive && opts.response.Exhaustive
 		for _, elem := range opts.response.Elements {
-			accum.responses = append(accum.responses, elem)
+			accum.fetchResponses = append(accum.fetchResponses, elem)
 		}
 	}
 
@@ -194,10 +193,10 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 }
 
 func (accum *fetchTaggedResultAccumulator) Clear() {
-	for i := range accum.responses {
-		accum.responses[i] = nil
+	for i := range accum.fetchResponses {
+		accum.fetchResponses[i] = nil
 	}
-	accum.responses = accum.responses[:0]
+	accum.fetchResponses = accum.fetchResponses[:0]
 	for i := range accum.aggResponses {
 		accum.aggResponses[i] = nil
 	}
@@ -284,12 +283,12 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	limit int, pools fetchTaggedPools,
 ) (encoding.SeriesIterators, bool, error) {
-	results := fetchTaggedIDResultsSortedByID(accum.responses)
+	results := fetchTaggedIDResultsSortedByID(accum.fetchResponses)
 	sort.Sort(results)
-	accum.responses = fetchTaggedIDResults(results)
+	accum.fetchResponses = fetchTaggedIDResults(results)
 
 	numElements := 0
-	accum.responses.forEachID(func(_ fetchTaggedIDResults, _ bool) bool {
+	accum.fetchResponses.forEachID(func(_ fetchTaggedIDResults, _ bool) bool {
 		numElements++
 		return numElements < limit
 	})
@@ -298,7 +297,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	result.Reset(numElements)
 	count := 0
 	moreElems := false
-	accum.responses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
+	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
 		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems)
 		result.SetAt(count, seriesIter)
 		count++
@@ -319,10 +318,10 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 		count     = 0
 		moreElems = false
 	)
-	results := fetchTaggedIDResultsSortedByID(accum.responses)
+	results := fetchTaggedIDResultsSortedByID(accum.fetchResponses)
 	sort.Sort(results)
-	accum.responses = fetchTaggedIDResults(results)
-	accum.responses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
+	accum.fetchResponses = fetchTaggedIDResults(results)
+	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
 		iter.addBacking(elems[0].NameSpace, elems[0].ID, elems[0].EncodedTags)
 		count++
 		moreElems = hasMore
@@ -349,6 +348,7 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 
 	accum.aggResponses = aggregateResults(results)
 	accum.aggResponses.forEachTag(func(elems aggregateResults, hasMore bool) bool {
+		// NB(r): Guaranteed to only get called for results that actually have tags.
 		tagResult := iter.addTag(elems[0].TagName)
 
 		for _, tagResponse := range elems {

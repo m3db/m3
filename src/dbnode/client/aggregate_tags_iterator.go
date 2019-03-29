@@ -58,6 +58,8 @@ func (i *aggregateTagsIterator) Next() bool {
 	if i.err != nil || i.currentIdx >= len(i.backing) {
 		return false
 	}
+
+	i.release()
 	i.currentIdx++
 	if i.currentIdx >= len(i.backing) {
 		return false
@@ -76,7 +78,13 @@ func (i *aggregateTagsIterator) addTag(tagName []byte) *aggregateTagsIteratorTag
 	return tag
 }
 
+func (i *aggregateTagsIterator) release() {
+	i.current.tagName = nil
+	i.current.tagValues = nil
+}
+
 func (i *aggregateTagsIterator) Finalize() {
+	i.release()
 	for _, b := range i.backing {
 		b.tagName.Finalize()
 		for _, v := range b.tagValues {
@@ -87,10 +95,7 @@ func (i *aggregateTagsIterator) Finalize() {
 }
 
 func (i *aggregateTagsIterator) Remaining() int {
-	if i.currentIdx < 0 {
-		return len(i.backing)
-	}
-	return len(i.backing) - i.currentIdx
+	return len(i.backing) - (i.currentIdx + 1)
 }
 
 func (i *aggregateTagsIterator) Current() (tagName ident.ID, tagValues ident.Iterator) {

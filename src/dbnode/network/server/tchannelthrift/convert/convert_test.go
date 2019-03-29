@@ -209,7 +209,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 			{"Conjunction Query A", conjunctionQueryATestCase},
 		}
 		for _, tc := range testCases {
-			t.Run(fmt.Sprintf("(%s pools) Forward %s", pools.name, tc.name), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s forward %s", pools.name, tc.name), func(t *testing.T) {
 				q, rpcQ := tc.fn(t)
 				expectedReq := &(*requestSkeleton)
 				expectedReq.Query = rpcQ
@@ -217,7 +217,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 				require.NoError(t, err)
 				requireEqual(expectedReq, &observedReq)
 			})
-			t.Run(fmt.Sprintf("(%s pools) Backward %s", pools.name, tc.name), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s backward %s", pools.name, tc.name), func(t *testing.T) {
 				expectedQuery, rpcQ := tc.fn(t)
 				rpcRequest := &(*requestSkeleton)
 				rpcRequest.Query = rpcQ
