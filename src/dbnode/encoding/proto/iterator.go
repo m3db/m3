@@ -123,9 +123,14 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	_, err = it.tsIterator.ReadTimestamp(it.stream)
+	_, done, err := it.tsIterator.ReadTimestamp(it.stream)
 	if err != nil {
 		it.err = fmt.Errorf("%s error reading timestamp: %v", itErrPrefix, err)
+		return false
+	}
+	if done {
+		// This should never happen since we never encode the EndOfStream marker.
+		it.err = fmt.Errorf("%s unexpected end of timestamp stream", itErrPrefix)
 		return false
 	}
 
