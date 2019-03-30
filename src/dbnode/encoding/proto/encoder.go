@@ -77,6 +77,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	unmarshaled            *dynamic.Message
 
+	hardErr                          error
 	hasEncodedFirstSetOfCustomValues bool
 	closed                           bool
 
@@ -102,9 +103,10 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 // return 0 on subsequent iteration. In addition, the provided annotation is expected to
 // be a marshaled protobuf message that matches the configured schema.
 func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.Annotation) error {
-	if enc.closed {
-		return errEncoderClosed
+	if unusableErr := enc.isUsable(); unusableErr != nil {
+		return unusableErr
 	}
+
 	if enc.schema == nil {
 		return errEncoderSchemaIsRequired
 	}
@@ -117,12 +119,22 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// Unmarshal the ProtoBuf message first to ensure we have a valid message before
 	// we do anything else to reduce the change that we'll end up with a partially
 	// encoded message.
-	// TODO(rartoul): No need to alloate and unmarshal here, could do this in a streaming
+	// TODO(rartoul): No need to allocate and unmarshal here, could do this in a streaming
 	// fashion if we write our own decoder or expose the one in the underlying library.
 	if err := enc.unmarshaled.Unmarshal(protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
 	}
+
+	if len(enc.unmarshaled.GetUnknownFields()) > 0 {
+		// TODO(rartoul): Make this behavior configurable / this may change once we implement
+		// mid-stream schema changes to make schema upgrades easier for clients.
+		// https://github.com/m3db/m3/issues/1471
+		return errEncoderMessageHasUnknownFields
+	}
+
+	// From this point onwards all errors are "hard errors" meaning that they should render
+	// the encoder unsable since we may have encoded partial data.
 
 	if enc.numEncoded == 0 {
 		enc.encodeHeader()
@@ -133,11 +145,13 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	err := enc.timestampEncoder.WriteTime(enc.stream, dp.Timestamp, nil, timeUnit)
 	if err != nil {
+		enc.hardErr = err
 		return fmt.Errorf(
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
 	if err := enc.encodeProto(enc.unmarshaled); err != nil {
+		enc.hardErr = err
 		return fmt.Errorf(
 			"%s error encoding proto portion of message: %v", encErrPrefix, err)
 	}
@@ -192,6 +206,10 @@ func (enc *Encoder) NumEncoded() int {
 // LastEncoded returns the last encoded datapoint. Does not include
 // annotation / protobuf message for interface purposes.
 func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
+	if unusableErr := enc.isUsable(); unusableErr != nil {
+		return ts.Datapoint{}, unusableErr
+	}
+
 	if enc.numEncoded == 0 {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
@@ -243,14 +261,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 	}
 }
 
-// TODO: Add concept of hard/soft error and if there is a hard error
-// then the encoder cant be used anymore.
 func (enc *Encoder) encodeProto(m *dynamic.Message) error {
-	if len(m.GetUnknownFields()) > 0 {
-		// TODO(rartoul): Make this behavior configurable.
-		return errEncoderMessageHasUnknownFields
-	}
-
 	if err := enc.encodeCustomValues(m); err != nil {
 		return err
 	}
@@ -307,9 +318,9 @@ func (enc *Encoder) Close() {
 		return
 	}
 
-	enc.closed = true
 	enc.Reset(time.Time{}, 0)
 	enc.stream.Reset(nil)
+	enc.closed = true
 
 	if pool := enc.opts.EncoderPool(); pool != nil {
 		pool.Put(enc)
@@ -340,8 +351,8 @@ func (enc *Encoder) discard() ts.Segment {
 // Bytes returns the raw bytes of the underlying data stream. Does not
 // transfer ownership and is generally unsafe.
 func (enc *Encoder) Bytes() ([]byte, error) {
-	if enc.closed {
-		return nil, errEncoderClosed
+	if unusableErr := enc.isUsable(); unusableErr != nil {
+		return nil, unusableErr
 	}
 
 	bytes, _ := enc.stream.Rawbytes()
@@ -736,6 +747,20 @@ func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
 	}
 
 	enc.stream.WriteBits(valBits, int(numSig))
+}
+
+func (enc *Encoder) isUsable() error {
+	if enc.closed {
+		return errEncoderClosed
+	}
+
+	if enc.hardErr != nil {
+		return fmt.Errorf(
+			"%s err encoder unusable due to hard err: %v",
+			encErrPrefix, enc.hardErr)
+	}
+
+	return nil
 }
 
 func (enc *Encoder) bytesMatchEncodedDictionaryValue(

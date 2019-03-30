@@ -22,8 +22,11 @@ package proto
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jhump/protoreflect/desc"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,4 +50,15 @@ func TestCustomFields(t *testing.T) {
 		tszFields := customFields(nil, tc.schema)
 		require.Equal(t, tc.expected, tszFields)
 	}
+}
+
+func TestClosedEncoderIsNotUsable(t *testing.T) {
+	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	enc.Close()
+
+	err := enc.Encode(ts.Datapoint{}, xtime.Second, nil)
+	require.Equal(t, errEncoderClosed, err)
+
+	_, err = enc.LastEncoded()
+	require.Equal(t, errEncoderClosed, err)
 }
