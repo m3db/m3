@@ -90,7 +90,7 @@ func NewOptions() Options {
 		SetSegmentReaderPool(segmentReaderPool)
 
 	o.encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	o.readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)

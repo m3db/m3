@@ -393,7 +393,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 
 	// initialize encoder pool
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.encoderPool = encoderPool
 

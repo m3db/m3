@@ -1150,7 +1150,7 @@ func withEncodingAndPoolingOptions(
 			return enc
 		}
 
-		return m3tsz.NewEncoder(time.Time{}, nil, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {

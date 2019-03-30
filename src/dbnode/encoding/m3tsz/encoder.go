@@ -66,7 +66,6 @@ type encoder struct {
 func NewEncoder(
 	start time.Time,
 	bytes checked.Bytes,
-	os encoding.OStream,
 	intOptimized bool,
 	opts encoding.Options,
 ) encoding.Encoder {
@@ -77,11 +76,8 @@ func NewEncoder(
 	// will be used for this encoder.  If a pool is being used alloc when the
 	// `Reset` method is called.
 	initAllocIfEmpty := opts.EncoderPool() == nil
-	if os == nil {
-		os = encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool())
-	}
 	return &encoder{
-		os:             os,
+		os:             encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
 		opts:           opts,
 		tsEncoderState: NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
 		closed:         false,
