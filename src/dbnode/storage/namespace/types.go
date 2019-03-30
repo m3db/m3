@@ -86,9 +86,9 @@ type Options interface {
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
 
-	SetSchema(schema []Schema) Options
+	SetSchemaRegistry(value SchemaRegistry) Options
 
-	Schema() []Schema
+	SchemaRegistry() SchemaRegistry
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -109,13 +109,30 @@ type IndexOptions interface {
 	BlockSize() time.Duration
 }
 
-// Schema represents namespace schema
-type Schema interface {
+// Schema represents a schema for a complex type value
+type SchemaDescr interface {
+	// ID returns id for this schema descriptor
+	ID () ident.ID
+	// Version returns the version of the schema
 	Version() uint32
-	Equal(Schema) bool
+	// Get returns the message descriptor for the schema
 	Get() *desc.MessageDescriptor
+	// String returns the compact text of the message descriptor
 	String() string
-	Bytes() []byte
+	// Equal returns true if the provided value is equal to this one
+	Equal(SchemaDescr) bool
+}
+
+// SchemaRegistry represents namespace schema registry
+type SchemaRegistry interface {
+	// Equal returns ture if the provided value is equal to this one
+	Equal(SchemaRegistry) bool
+
+	// Get gets the schema descriptor for the provided ID
+	Get(id ident.ID) (SchemaDescr, error)
+
+	// IDs returns the ID of known schemas
+	IDs() []ident.ID
 }
 
 // Metadata represents namespace metadata information

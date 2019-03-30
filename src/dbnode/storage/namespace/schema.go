@@ -25,120 +25,162 @@ import (
 	"compress/gzip"
 	"errors"
 	"io/ioutil"
+	"sort"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	xerrors "github.com/m3db/m3x/errors"
-	"sort"
-	"strings"
+	"github.com/m3db/m3x/ident"
 )
 
 var (
-	errInvalidSchema = errors.New("invalid schema")
+	errInvalidSchema = errors.New("invalid schema definition")
+	errSchemaNotFound = errors.New("schema is not found")
 )
 
-type schema struct {
-	fdp []byte
-	md  *desc.MessageDescriptor
+type schemaDescr struct {
+	id      ident.ID
 	version uint32
+	md      *desc.MessageDescriptor
 }
 
-func (s *schema) Version() uint32 {
+func (s *schemaDescr) ID() ident.ID {
+	return s.id
+}
+
+func (s *schemaDescr) Version() uint32 {
 	return s.version
 }
 
-func (s *schema) Equal(o Schema) bool {
-	return s.Version() == o.Version() && bytes.Equal(s.Bytes(), o.Bytes())
+func (s *schemaDescr) Equal(o SchemaDescr) bool {
+	if s == nil && o == nil {
+		return true
+	}
+	if s != nil && o == nil || s == nil && o != nil {
+		return false
+	}
+	return s.ID().String() == o.ID().String() && s.Version() == o.Version()
 }
 
-func (s *schema) Get() *desc.MessageDescriptor {
+func (s *schemaDescr) Get() *desc.MessageDescriptor {
 	return s.md
 }
 
-func (s *schema) String() string {
+func (s *schemaDescr) String() string {
 	if s.md == nil {
 		return ""
 	}
 	return s.md.String()
 }
 
-func (s *schema) Bytes() []byte {
-	return s.fdp
+type schemaRegistry struct {
+	options *nsproto.SchemaOptions
+	schemas map[string]*schemaDescr
 }
 
-func schemaListEqual(l, r []Schema) bool {
-	if len(l) != len(r) {
+func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
+	var osr *schemaRegistry
+	var ok bool
+	if sr == nil && o == nil {
+		return true
+	}
+	if sr != nil && o == nil || sr == nil && o != nil {
 		return false
 	}
-	for i := 0; i < len(l); i++ {
-		if !l[i].Equal(r[i]) {
+
+	if osr, ok = o.(*schemaRegistry); !ok {
+		return false
+	}
+	if len(sr.schemas) != len(osr.schemas) {
+		return false
+	}
+	for n, sd := range sr.schemas {
+		var osd *schemaDescr
+		if osd, ok = osr.schemas[n]; !ok {
+			return false
+		}
+		if !sd.Equal(osd) {
 			return false
 		}
 	}
 	return true
 }
 
-func schemaToOption (s Schema) *nsproto.SchemaOption {
-	return &nsproto.SchemaOption{Version: s.Version(), Message: s.Get().GetName(), Definition: s.Bytes()}
-}
-
-func fromSchemaList(schemaList []Schema) []*nsproto.SchemaOption {
-	result := make([]*nsproto.SchemaOption, len(schemaList))
-	for i := 0; i < len(schemaList); i++ {
-		result[i] = schemaToOption(schemaList[i])
+func (sr *schemaRegistry) Get(id ident.ID) (SchemaDescr, error) {
+	sd, ok := sr.schemas[id.String()]
+	if !ok {
+		return nil, errSchemaNotFound
 	}
-	return result
+	return sd, nil
 }
 
-// ToSchemaList converts schema options to an array of schema, most recent schema version first.
-func ToSchemaList(options []*nsproto.SchemaOption) ([]Schema, error) {
-	var result []Schema
-	for _, o := range options {
-		s, err := ToSchema(o)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, s)
+func (sr *schemaRegistry) IDs() []ident.ID {
+	ids := make([]ident.ID, len(sr.schemas))
+	i := 0
+	for id := range sr.schemas {
+		ids[i] = ident.StringID(id)
+		i++
 	}
-	// sorted by version in decending order
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Version() > result[j].Version()
-	})
-	return result, nil
+	return ids
 }
 
-func ToSchema(o *nsproto.SchemaOption) (Schema, error) {
-	if o == nil {
+func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
+	if sr == nil {
+		return nil
+	}
+	_, ok := sr.(*schemaRegistry)
+	if !ok {
+		return nil
+	}
+	return sr.(*schemaRegistry).options
+}
+
+// LoadSchemaRegistry loads schema registry from SchemaOptions proto
+func LoadSchemaRegistry(options *nsproto.SchemaOptions) (SchemaRegistry, error) {
+	if options.GetRepo() == nil || len(options.GetRepo().GetHistory()) == 0 ||
+		len(options.GetSchemas()) == 0 {
 		return nil, nil
 	}
+	// sorted by version in descending order (most recent first)
+	hist := options.GetRepo().GetHistory()
+	sort.Slice(hist, func(i, j int) bool {
+		return hist[i].Version > hist[j].Version
+	})
 
-	fdp, err := decodeProtoFileDescriptor(o.Definition)
-	if err != nil {
-		return nil, xerrors.Wrap(err, "failed to decode schema file descriptor")
-	}
+	// take the most recent version
+	fdbSet := hist[0].Descriptors
+	version := hist[0].Version
 
-	fd, err := desc.CreateFileDescriptor(fdp)
-	if err != nil {
-		return nil, xerrors.Wrap(err, "failed to create schema file descriptor")
-	}
-	mds := fd.GetMessageTypes()
-	if len(mds) == 0 {
-		return nil, xerrors.Wrap(errInvalidSchema, "schema does not contain any messages")
-	}
+	// assuming file descriptors are topological sorted
+	var dependencies []*desc.FileDescriptor
+	msgDescr := make(map[string]*desc.MessageDescriptor)
+	for i, fdb := range fdbSet {
+		fdp, err := decodeProtoFileDescriptor(fdb)
+		if err != nil {
+			return nil, xerrors.Wrapf(err, "failed to decode file descriptor(%d) in version(%d)", i, version)
+		}
+		fd, err := desc.CreateFileDescriptor(fdp, dependencies...)
+		if err != nil {
+			return nil, xerrors.Wrapf(err, "failed to create file descriptor(%d) in version(%d)", i, version)
+		}
+		dependencies = append(dependencies, fd)
 
-	var found *desc.MessageDescriptor
-	for _, md := range mds {
-		if strings.EqualFold(md.GetName(), o.Message) {
-			found = md
+		for _, md := range fd.GetMessageTypes() {
+			msgDescr[md.GetName()] = md
 		}
 	}
-	if found == nil {
-		return nil, xerrors.Wrapf(errInvalidSchema, "schema does not contain %v", o.Message)
-	}
 
-	return &schema{fdp: o.Definition, md: found, version: o.Version}, nil
+	sr := &schemaRegistry{options: options, schemas: make(map[string]*schemaDescr)}
+	for n, sm := range options.GetSchemas() {
+		md, ok := msgDescr[sm.GetMessageName()]
+		if !ok {
+			return nil, xerrors.Wrapf(errInvalidSchema, "message %s is not found in version(%d)", sm.MessageName, version)
+		}
+		sr.schemas[n] = &schemaDescr{id: ident.StringID(n), version: version, md: md}
+	}
+	return sr, nil
 }
 
 // decodeProtoFileDescriptor decodes the bytes of proto file descriptor.

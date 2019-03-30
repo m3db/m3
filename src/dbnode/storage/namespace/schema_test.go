@@ -24,23 +24,34 @@ import (
 	"testing"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
+	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
 	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3x/ident"
 )
 
-func getTestSchemaOptions() []*nsproto.SchemaOption {
-	tm := &testproto.TestMessage{}
-	def, _ := tm.Descriptor()
-	return []*nsproto.SchemaOption{{Version:1, Message:"TestMessage", Definition:def}}
+func getTestSchemaOptions() *nsproto.SchemaOptions {
+	imported := &testproto.ImportedMessage{}
+	importedD, _ := imported.Descriptor()
+	main := &testproto.TestMessage{}
+	mainD, _ := main.Descriptor()
+	return &nsproto.SchemaOptions{
+		Repo: &nsproto.FileDescriptorRepo{
+			History: []*nsproto.FileDescriptorSet{
+				{Version: 1, Descriptors: [][]byte{importedD, mainD}},
+			},
+		},
+		Schemas: map[string]*nsproto.SchemaMeta{"id1":{MessageName: "TestMessage"}},
+	}
 }
 
-func TestSchemaFromOption(t *testing.T) {
+func TestLoadSchemaRegistry(t *testing.T) {
 	testSchemaOptions := getTestSchemaOptions()
-	testSchema, err := namespace.ToSchemaList(testSchemaOptions)
+	testSchemaReg, err := namespace.LoadSchemaRegistry(testSchemaOptions)
 	require.NoError(t, err)
 
-	require.Len(t, testSchema, 1)
-	require.EqualValues(t, 1, testSchema[0].Version())
-	require.EqualValues(t, "TestMessage", testSchema[0].Get().GetName())
+	testSchema, err := testSchemaReg.Get(ident.StringID("id1"))
+	require.NoError(t, err)
+	require.NotNil(t, testSchema)
+	require.EqualValues(t, "TestMessage", testSchema.Get().GetName())
 }

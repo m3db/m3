@@ -91,7 +91,7 @@ func genMetadata() gopter.Gen {
 			bools     = values[1].([]bool)
 			retention = values[2].(retention.Options)
 		)
-		testSchema, _ := namespace.ToSchemaList(getTestSchemaOptions())
+		testSchemaReg, _ := namespace.LoadSchemaRegistry(getTestSchemaOptions())
 		md, err := namespace.NewMetadata(ident.StringID(id), namespace.NewOptions().
 			SetBootstrapEnabled(bools[0]).
 			SetCleanupEnabled(bools[1]).
@@ -99,7 +99,7 @@ func genMetadata() gopter.Gen {
 			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
 			SetSnapshotEnabled(bools[5]).
-			SetSchema(testSchema).
+			SetSchemaRegistry(testSchemaReg).
 			SetRetentionOptions(retention).
 			SetIndexOptions(namespace.NewIndexOptions().
 				SetEnabled(bools[6]).

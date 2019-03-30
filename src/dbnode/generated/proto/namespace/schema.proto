@@ -1,0 +1,20 @@
+syntax = "proto3";
+package namespace;
+
+message SchemaMeta {
+    string messageName = 1;
+}
+
+message SchemaOptions {
+    FileDescriptorRepo repo = 1;
+    map<string, SchemaMeta> schemas = 2;
+}
+
+message FileDescriptorRepo {
+    repeated FileDescriptorSet history = 1;
+}
+
+message FileDescriptorSet {
+    uint32 version = 1;
+    repeated bytes descriptors = 2;
+}

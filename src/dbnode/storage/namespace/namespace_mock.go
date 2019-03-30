@@ -312,32 +312,32 @@ func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
-// SetSchema mocks base method
-func (m *MockOptions) SetSchema(schema []Schema) Options {
+// SetSchemaRegistry mocks base method
+func (m *MockOptions) SetSchemaRegistry(value SchemaRegistry) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSchema", schema)
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetSchema indicates an expected call of SetSchema
-func (mr *MockOptionsMockRecorder) SetSchema(schema interface{}) *gomock.Call {
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockOptionsMockRecorder) SetSchemaRegistry(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockOptions)(nil).SetSchema), schema)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SetSchemaRegistry), value)
 }
 
-// Schema mocks base method
-func (m *MockOptions) Schema() []Schema {
+// SchemaRegistry mocks base method
+func (m *MockOptions) SchemaRegistry() SchemaRegistry {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Schema")
-	ret0, _ := ret[0].([]Schema)
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(SchemaRegistry)
 	return ret0
 }
 
-// Schema indicates an expected call of Schema
-func (mr *MockOptionsMockRecorder) Schema() *gomock.Call {
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockOptions)(nil).Schema))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
 }
 
 // MockIndexOptions is a mock of IndexOptions interface
@@ -433,31 +433,45 @@ func (mr *MockIndexOptionsMockRecorder) BlockSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockSize", reflect.TypeOf((*MockIndexOptions)(nil).BlockSize))
 }
 
-// MockSchema is a mock of Schema interface
-type MockSchema struct {
+// MockSchemaDescr is a mock of SchemaDescr interface
+type MockSchemaDescr struct {
 	ctrl     *gomock.Controller
-	recorder *MockSchemaMockRecorder
+	recorder *MockSchemaDescrMockRecorder
 }
 
-// MockSchemaMockRecorder is the mock recorder for MockSchema
-type MockSchemaMockRecorder struct {
-	mock *MockSchema
+// MockSchemaDescrMockRecorder is the mock recorder for MockSchemaDescr
+type MockSchemaDescrMockRecorder struct {
+	mock *MockSchemaDescr
 }
 
-// NewMockSchema creates a new mock instance
-func NewMockSchema(ctrl *gomock.Controller) *MockSchema {
-	mock := &MockSchema{ctrl: ctrl}
-	mock.recorder = &MockSchemaMockRecorder{mock}
+// NewMockSchemaDescr creates a new mock instance
+func NewMockSchemaDescr(ctrl *gomock.Controller) *MockSchemaDescr {
+	mock := &MockSchemaDescr{ctrl: ctrl}
+	mock.recorder = &MockSchemaDescrMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSchema) EXPECT() *MockSchemaMockRecorder {
+func (m *MockSchemaDescr) EXPECT() *MockSchemaDescrMockRecorder {
 	return m.recorder
 }
 
+// ID mocks base method
+func (m *MockSchemaDescr) ID() ident.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ID")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+// ID indicates an expected call of ID
+func (mr *MockSchemaDescrMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockSchemaDescr)(nil).ID))
+}
+
 // Version mocks base method
-func (m *MockSchema) Version() uint32 {
+func (m *MockSchemaDescr) Version() uint32 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Version")
 	ret0, _ := ret[0].(uint32)
@@ -465,27 +479,13 @@ func (m *MockSchema) Version() uint32 {
 }
 
 // Version indicates an expected call of Version
-func (mr *MockSchemaMockRecorder) Version() *gomock.Call {
+func (mr *MockSchemaDescrMockRecorder) Version() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockSchema)(nil).Version))
-}
-
-// Equal mocks base method
-func (m *MockSchema) Equal(arg0 Schema) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Equal", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Equal indicates an expected call of Equal
-func (mr *MockSchemaMockRecorder) Equal(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSchema)(nil).Equal), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockSchemaDescr)(nil).Version))
 }
 
 // Get mocks base method
-func (m *MockSchema) Get() *desc.MessageDescriptor {
+func (m *MockSchemaDescr) Get() *desc.MessageDescriptor {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(*desc.MessageDescriptor)
@@ -493,13 +493,13 @@ func (m *MockSchema) Get() *desc.MessageDescriptor {
 }
 
 // Get indicates an expected call of Get
-func (mr *MockSchemaMockRecorder) Get() *gomock.Call {
+func (mr *MockSchemaDescrMockRecorder) Get() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSchema)(nil).Get))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSchemaDescr)(nil).Get))
 }
 
 // String mocks base method
-func (m *MockSchema) String() string {
+func (m *MockSchemaDescr) String() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
@@ -507,23 +507,89 @@ func (m *MockSchema) String() string {
 }
 
 // String indicates an expected call of String
-func (mr *MockSchemaMockRecorder) String() *gomock.Call {
+func (mr *MockSchemaDescrMockRecorder) String() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockSchema)(nil).String))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockSchemaDescr)(nil).String))
 }
 
-// Bytes mocks base method
-func (m *MockSchema) Bytes() []byte {
+// Equal mocks base method
+func (m *MockSchemaDescr) Equal(arg0 SchemaDescr) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bytes")
-	ret0, _ := ret[0].([]byte)
+	ret := m.ctrl.Call(m, "Equal", arg0)
+	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// Bytes indicates an expected call of Bytes
-func (mr *MockSchemaMockRecorder) Bytes() *gomock.Call {
+// Equal indicates an expected call of Equal
+func (mr *MockSchemaDescrMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockSchema)(nil).Bytes))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSchemaDescr)(nil).Equal), arg0)
+}
+
+// MockSchemaRegistry is a mock of SchemaRegistry interface
+type MockSchemaRegistry struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaRegistryMockRecorder
+}
+
+// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
+type MockSchemaRegistryMockRecorder struct {
+	mock *MockSchemaRegistry
+}
+
+// NewMockSchemaRegistry creates a new mock instance
+func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
+	mock := &MockSchemaRegistry{ctrl: ctrl}
+	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
+	return m.recorder
+}
+
+// Equal mocks base method
+func (m *MockSchemaRegistry) Equal(arg0 SchemaRegistry) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Equal", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equal indicates an expected call of Equal
+func (mr *MockSchemaRegistryMockRecorder) Equal(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSchemaRegistry)(nil).Equal), arg0)
+}
+
+// Get mocks base method
+func (m *MockSchemaRegistry) Get(id ident.ID) (SchemaDescr, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", id)
+	ret0, _ := ret[0].(SchemaDescr)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get
+func (mr *MockSchemaRegistryMockRecorder) Get(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSchemaRegistry)(nil).Get), id)
+}
+
+// IDs mocks base method
+func (m *MockSchemaRegistry) IDs() []ident.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IDs")
+	ret0, _ := ret[0].([]ident.ID)
+	return ret0
+}
+
+// IDs indicates an expected call of IDs
+func (mr *MockSchemaRegistryMockRecorder) IDs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IDs", reflect.TypeOf((*MockSchemaRegistry)(nil).IDs))
 }
 
 // MockMetadata is a mock of Metadata interface

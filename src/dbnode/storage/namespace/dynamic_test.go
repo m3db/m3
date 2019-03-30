@@ -31,8 +31,6 @@ import (
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
-	"bytes"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
@@ -117,8 +115,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
 	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
 
-	require.Len(t, md.Options().Schema(), 1)
-	require.True(t, bytes.Equal(expectedNsValue.SchemaOptions[0].Definition, md.Options().Schema()[0].Bytes()))
+	require.Len(t, md.Options().SchemaRegistry().IDs(), 1)
 
 	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())

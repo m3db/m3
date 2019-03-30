@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schema_test"
+	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
 	"github.com/m3db/m3/src/dbnode/retention"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 
@@ -53,17 +53,27 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 	require.False(t, o2.Equal(o1))
 }
 
-func getTestSchemaOptions() []*nsproto.SchemaOption {
-	tm := &testproto.TestMessage{}
-	def, _ := tm.Descriptor()
-	return []*nsproto.SchemaOption{{Version:1, Message:"TestMessage", Definition:def}}
+func getTestSchemaOptions() *nsproto.SchemaOptions {
+	imported := &testproto.ImportedMessage{}
+	importedD, _ := imported.Descriptor()
+	main := &testproto.TestMessage{}
+	mainD, _ := main.Descriptor()
+	return &nsproto.SchemaOptions{
+		Repo: &nsproto.FileDescriptorRepo{
+			History: []*nsproto.FileDescriptorSet{
+				{Version: 1, Descriptors: [][]byte{importedD, mainD}},
+			},
+		},
+		Schemas: map[string]*nsproto.SchemaMeta{"id1":{MessageName: "TestMessage"}},
+	}
 }
 
 func TestOptionsEqualsSchema(t *testing.T) {
 	o1 := NewOptions()
-	s1, err := ToSchemaList(getTestSchemaOptions())
+	s1, err := LoadSchemaRegistry(getTestSchemaOptions())
 	require.NoError(t, err)
-	o2 := o1.SetSchema(s1)
+	require.NotNil(t, s1)
+	o2 := o1.SetSchemaRegistry(s1)
 	require.True(t, o1.Equal(o1))
 	require.True(t, o2.Equal(o2))
 	require.False(t, o1.Equal(o2))
