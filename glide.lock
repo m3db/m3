@@ -1,25 +1,5 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-hash: e37c3443cf51be0ed550078290ab6d3a3f745c71b7ef8cd879f06dfb62557a62
-updated: 2019-03-28T16:17:41.783517-04:00
-=======
-hash: d3237b672e4ee92a2a7744b9bb858923e888b1539643f96eae68ec38f3377597
-updated: 2019-03-01T17:29:06.029256-08:00
->>>>>>> complex types wip
-=======
-hash: 3dfb3e5faf5ede6fab1b1948f41beb57a7c5c3584797ffa4933d1a9ad29d13ed
-updated: 2019-03-17T16:46:54.46084-04:00
->>>>>>> update deps
-=======
-hash: 561d704e896574e57538159b64d74691b93b3accc3aaf1a6884a2f460ba6e5ed
-updated: 2019-03-17T16:53:28.101078-04:00
->>>>>>> point to forked vellum
-=======
-hash: 9091b10875a4b672431ead881eca698d947e726d656cd4b7d796c3b167c92a2a
-updated: 2019-03-17T16:58:19.993344-04:00
->>>>>>> add jsonpb
+hash: 2331d9d10c13d2f20a163f66ff38a3eed59b8a0c01d49e42a7b8ff9bf500716b
+updated: 2019-03-30T15:56:38.110777-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -83,6 +63,7 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
+  - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
   - pkg/fileutil
@@ -175,15 +156,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-<<<<<<< HEAD
-<<<<<<< HEAD
   version: b5d812f8a3706043e23a9cd5babf2e5423744d30
-=======
-  version: c823c79ea1570fb5ff454033735a8e68575d1d0f
->>>>>>> complex types wip
-=======
-  version: b5d812f8a3706043e23a9cd5babf2e5423744d30
->>>>>>> update deps
   subpackages:
   - jsonpb
   - proto
@@ -258,16 +231,8 @@ imports:
   - internal
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-- name: github.com/jroimartin/gocui
-  version: c055c87ae801372cd74a0839b972db4f7697ae5f
-=======
->>>>>>> update deps
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
->>>>>>> complex types wip
 - name: github.com/leanovate/gopter
   version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
@@ -399,11 +364,8 @@ imports:
   - fs
 - name: github.com/RoaringBitmap/roaring
   version: 8d778e47dd84f169ef4436abb474b0e0101a6dae
-<<<<<<< HEAD
 - name: github.com/russross/blackfriday
   version: d3b5b032dc8e8927d31a5071b56e14c89f045135
-=======
->>>>>>> update deps
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
@@ -616,6 +578,8 @@ testImports:
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/glycerine/go-unsnap-stream
   version: f9677308dec2b35e76737f9713df328ad11b1fea
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
