@@ -76,9 +76,12 @@ func (it *ReaderIterator) Next() bool {
 		return false
 	}
 
-	first, err := it.tsIterator.ReadTimestamp(it.is)
+	first, done, err := it.tsIterator.ReadTimestamp(it.is)
 	if err != nil {
 		it.err = err
+		return false
+	}
+	if done {
 		return false
 	}
 
@@ -279,7 +282,7 @@ func NewTimestampIteratorState(opts encoding.Options) TimestampIteratorState {
 }
 
 // ReadTimestamp reads the first or next timestamp.
-func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, error) {
+func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, bool, error) {
 	it.PrevAnt = nil
 	it.TimeUnitChanged = false
 
@@ -294,7 +297,7 @@ func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, 
 		err = it.readNextTimestamp(stream)
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	// NB(xichen): reset time delta to 0 when there is a time unit change to be
@@ -303,7 +306,7 @@ func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, 
 		it.PrevTimeDelta = 0
 	}
 
-	return first, nil
+	return first, it.Done, nil
 }
 
 func (it *TimestampIteratorState) readFirstTimestamp(stream encoding.IStream) error {
@@ -399,6 +402,9 @@ func (it *TimestampIteratorState) readMarkerOrDeltaOfDelta(stream encoding.IStre
 	dod, success, err := it.tryReadMarker(stream)
 	if err != nil {
 		return 0, err
+	}
+	if it.Done {
+		return 0, nil
 	}
 
 	if success {
