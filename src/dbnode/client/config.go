@@ -282,7 +282,7 @@ func (c Configuration) NewAdminClient(
 
 	v = v.SetReaderIteratorAllocate(func(r io.Reader) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, nil, intOptimized, encodingOpts)
+		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})
 
 	if c.Proto != nil {

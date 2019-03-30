@@ -56,14 +56,9 @@ type readerIterator struct {
 }
 
 // NewReaderIterator returns a new iterator for a given reader
-func NewReaderIterator(reader io.Reader, is encoding.IStream, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
-	if is == nil {
-		// Only allocate a new IStream if one isn't provided because in some cases we want
-		// to share an IStream between multiple iterators so we can reuse some of the logic.
-		is = encoding.NewIStream(reader)
-	}
+func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
 	return &readerIterator{
-		is:           is,
+		is:           encoding.NewIStream(reader),
 		opts:         opts,
 		tsIterator:   NewTimestampIterator(opts),
 		intOptimized: intOptimized,

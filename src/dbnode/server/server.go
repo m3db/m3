@@ -1157,7 +1157,7 @@ func withEncodingAndPoolingOptions(
 		if schema != nil {
 			return proto.NewIterator(r, schema, encodingOpts)
 		}
-		return m3tsz.NewReaderIterator(r, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
