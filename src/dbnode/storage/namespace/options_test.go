@@ -25,9 +25,10 @@ import (
 	"testing"
 	"time"
 
-	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
-	"github.com/m3db/m3/src/dbnode/retention"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
+	testproto2 "github.com/m3db/m3/src/dbnode/generated/proto/schematest2"
+	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -56,15 +57,17 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 func getTestSchemaOptions() *nsproto.SchemaOptions {
 	imported := &testproto.ImportedMessage{}
 	importedD, _ := imported.Descriptor()
+	otherpkg := &testproto2.MessageFromOtherPkg{}
+	otherpkgD, _ := otherpkg.Descriptor()
 	main := &testproto.TestMessage{}
 	mainD, _ := main.Descriptor()
 	return &nsproto.SchemaOptions{
 		Repo: &nsproto.FileDescriptorRepo{
 			History: []*nsproto.FileDescriptorSet{
-				{Version: 1, Descriptors: [][]byte{importedD, mainD}},
+				{Version: 1, Descriptors: [][]byte{importedD, otherpkgD, mainD}},
 			},
 		},
-		Schemas: map[string]*nsproto.SchemaMeta{"id1":{MessageName: "TestMessage"}},
+		Schemas: map[string]*nsproto.SchemaMeta{"id1": {MessageName: "TestMessage"}},
 	}
 }
 

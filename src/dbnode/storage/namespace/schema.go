@@ -27,16 +27,16 @@ import (
 	"io/ioutil"
 	"sort"
 
-	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 )
 
 var (
-	errInvalidSchema = errors.New("invalid schema definition")
+	errInvalidSchema  = errors.New("invalid schema definition")
 	errSchemaNotFound = errors.New("schema is not found")
 )
 
@@ -126,6 +126,7 @@ func (sr *schemaRegistry) IDs() []ident.ID {
 	return ids
 }
 
+// toSchemaOptions returns the corresponding SchemaOptions proto for the provided SchemaRegistry
 func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
 	if sr == nil {
 		return nil
@@ -137,7 +138,7 @@ func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
 	return sr.(*schemaRegistry).options
 }
 
-// LoadSchemaRegistry loads schema registry from SchemaOptions proto
+// LoadSchemaRegistry loads schema registry from SchemaOptions proto.
 func LoadSchemaRegistry(options *nsproto.SchemaOptions) (SchemaRegistry, error) {
 	if options.GetRepo() == nil || len(options.GetRepo().GetHistory()) == 0 ||
 		len(options.GetSchemas()) == 0 {

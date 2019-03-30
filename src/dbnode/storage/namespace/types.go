@@ -23,11 +23,11 @@ package namespace
 import (
 	"time"
 
+	"github.com/jhump/protoreflect/desc"
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
-	"github.com/jhump/protoreflect/desc"
 )
 
 // Options controls namespace behavior
@@ -86,8 +86,10 @@ type Options interface {
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
 
+	// SetSchemaRegistry sets the schema registry for this namespace.
 	SetSchemaRegistry(value SchemaRegistry) Options
 
+	// SchemaRegistry returns the schema registry for this namespace.
 	SchemaRegistry() SchemaRegistry
 }
 
@@ -109,29 +111,29 @@ type IndexOptions interface {
 	BlockSize() time.Duration
 }
 
-// Schema represents a schema for a complex type value
+// SchemaDescr describes the schema for a complex type value.
 type SchemaDescr interface {
-	// ID returns id for this schema descriptor
-	ID () ident.ID
-	// Version returns the version of the schema
+	// ID returns id for this schema descriptor.
+	ID() ident.ID
+	// Version returns the version of the schema.
 	Version() uint32
-	// Get returns the message descriptor for the schema
+	// Get returns the message descriptor for the schema.
 	Get() *desc.MessageDescriptor
-	// String returns the compact text of the message descriptor
+	// String returns the compact text of the message descriptor.
 	String() string
-	// Equal returns true if the provided value is equal to this one
+	// Equal returns true if the provided value is equal to this one.
 	Equal(SchemaDescr) bool
 }
 
-// SchemaRegistry represents namespace schema registry
+// SchemaRegistry represents namespace schema registry.
 type SchemaRegistry interface {
-	// Equal returns ture if the provided value is equal to this one
+	// Equal returns ture if the provided value is equal to this one.
 	Equal(SchemaRegistry) bool
 
-	// Get gets the schema descriptor for the provided ID
+	// Get gets the schema descriptor for the provided ID.
 	Get(id ident.ID) (SchemaDescr, error)
 
-	// IDs returns the ID of known schemas
+	// IDs returns the ID of known schemas.
 	IDs() []ident.ID
 }
 
