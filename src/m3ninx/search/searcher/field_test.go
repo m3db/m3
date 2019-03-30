@@ -50,10 +50,10 @@ func TestFieldSearcher(t *testing.T) {
 
 	gomock.InOrder(
 		// Query the first reader.
-		firstReader.EXPECT().MatchRegexp(field, gomock.Any()).Return(firstPL, nil),
+		firstReader.EXPECT().MatchField(field).Return(firstPL, nil),
 
 		// Query the second reader.
-		secondReader.EXPECT().MatchRegexp(field, gomock.Any()).Return(secondPL, nil),
+		secondReader.EXPECT().MatchField(field).Return(secondPL, nil),
 	)
 
 	s, err := NewFieldSearcher(field)

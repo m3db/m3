@@ -57,6 +57,11 @@ func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) index.Reade
 	}
 }
 
+func (r *reader) MatchField(field []byte) (postings.List, error) {
+	// falling back to regexp .* as this segment implementation is only used in tests.
+	return r.MatchRegexp(field, index.DotStarCompiledRegex)
+}
+
 func (r *reader) MatchTerm(field, term []byte) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()

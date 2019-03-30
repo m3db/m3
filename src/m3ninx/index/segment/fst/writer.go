@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
 )
 
@@ -41,6 +42,7 @@ var (
 )
 
 type writer struct {
+	version Version
 	builder sgmt.Builder
 	size    int64
 
@@ -54,9 +56,12 @@ type writer struct {
 	docsDataFileWritten bool
 	postingsFileWritten bool
 	fstTermsFileWritten bool
-	postingsOffsets     []uint64
-	fstTermsOffsets     []uint64
 	docOffsets          []docOffset
+	fstTermsOffsets     []uint64
+	termPostingsOffsets []uint64
+
+	// only used by versions >= 1.1
+	fieldPostingsOffsets []uint64
 }
 
 // WriterOptions is a set of options used when writing an FST.
@@ -67,20 +72,34 @@ type WriterOptions struct {
 	// amount (e.g. 2x). You can disable this to speed up high fixed cost
 	// lookups to during building of the FST however.
 	DisableRegistry bool
+
+	// ForTestsOnly_Version allows users to override behaviour of the
+	// writer. NB: this is intended to be used only during tests.
+	ForTestsOnly_Version *Version
 }
 
 // NewWriter returns a new writer.
-func NewWriter(opts WriterOptions) Writer {
-	return &writer{
-		intEncoder:      encoding.NewEncoder(defaultInitialIntEncoderSize),
-		postingsEncoder: pilosa.NewEncoder(),
-		fstWriter:       newFSTWriter(opts),
-		docDataWriter:   docs.NewDataWriter(nil),
-		docIndexWriter:  docs.NewIndexWriter(nil),
-		postingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
-		fstTermsOffsets: make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
-		docOffsets:      make([]docOffset, 0, defaultInitialDocOffsetsSize),
+func NewWriter(opts WriterOptions) (Writer, error) {
+	v := CurrentVersion
+	if opts.ForTestsOnly_Version != nil {
+		v = *opts.ForTestsOnly_Version
 	}
+	if err := v.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &writer{
+		version:              v,
+		intEncoder:           encoding.NewEncoder(defaultInitialIntEncoderSize),
+		postingsEncoder:      pilosa.NewEncoder(),
+		fstWriter:            newFSTWriter(opts),
+		docDataWriter:        docs.NewDataWriter(nil),
+		docIndexWriter:       docs.NewIndexWriter(nil),
+		docOffsets:           make([]docOffset, 0, defaultInitialDocOffsetsSize),
+		fstTermsOffsets:      make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
+		termPostingsOffsets:  make([]uint64, 0, defaultInitialPostingsOffsetsSize),
+		fieldPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
+	}, nil
 }
 
 func (w *writer) clear() {
@@ -98,9 +117,10 @@ func (w *writer) clear() {
 	w.fstTermsFileWritten = false
 	// NB(r): Use a call to reset here instead of creating a new bitmaps
 	// when roaring supports a call to reset.
-	w.postingsOffsets = w.postingsOffsets[:0]
-	w.fstTermsOffsets = w.fstTermsOffsets[:0]
 	w.docOffsets = w.docOffsets[:0]
+	w.fstTermsOffsets = w.fstTermsOffsets[:0]
+	w.termPostingsOffsets = w.termPostingsOffsets[:0]
+	w.fieldPostingsOffsets = w.fieldPostingsOffsets[:0]
 }
 
 func (w *writer) Reset(b sgmt.Builder) error {
@@ -125,11 +145,11 @@ func (w *writer) Reset(b sgmt.Builder) error {
 }
 
 func (w *writer) MajorVersion() int {
-	return MajorVersion
+	return w.version.Major
 }
 
 func (w *writer) MinorVersion() int {
-	return MinorVersion
+	return w.version.Minor
 }
 
 func (w *writer) Metadata() []byte {
@@ -181,7 +201,25 @@ func (w *writer) WriteDocumentsIndex(iow io.Writer) error {
 }
 
 func (w *writer) WritePostingsOffsets(iow io.Writer) error {
-	currentOffset := uint64(0)
+	var (
+		writeFieldsPostingList = w.version.supportsFieldPostingsList()
+		currentOffset          = uint64(0)
+	)
+	writePL := func(pl postings.List) error { // helper method
+		// serialize the postings list
+		w.postingsEncoder.Reset()
+		postingsBytes, err := w.postingsEncoder.Encode(pl)
+		if err != nil {
+			return err
+		}
+		n, err := w.writePayloadAndSizeAndMagicNumber(iow, postingsBytes)
+		if err != nil {
+			return err
+		}
+		// update offset with the number of bytes we've written
+		currentOffset += n
+		return nil
+	}
 
 	// retrieve known fields
 	fields, err := w.builder.Fields()
@@ -198,27 +236,32 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 			return err
 		}
 
+		fieldsPL := roaring.NewPostingsList()
 		// for each term corresponding to the current field
 		for terms.Next() {
 			_, pl := terms.Current()
-
-			// serialize the postings list
-			w.postingsEncoder.Reset()
-			postingsBytes, err := w.postingsEncoder.Encode(pl)
-			if err != nil {
+			// write the postings list
+			if err := writePL(pl); err != nil {
 				return err
 			}
-
-			n, err := w.writePayloadAndSizeAndMagicNumber(iow, postingsBytes)
-			if err != nil {
-				return err
-			}
-
-			// update offset with the number of bytes we've written
-			currentOffset += n
-
 			// track current offset as the offset for the current field/term
-			w.postingsOffsets = append(w.postingsOffsets, currentOffset)
+			w.termPostingsOffsets = append(w.termPostingsOffsets, currentOffset)
+
+			// update field level postings list
+			if writeFieldsPostingList {
+				if err := fieldsPL.Union(pl); err != nil {
+					return err
+				}
+			}
+		}
+
+		// write the field level postings list
+		if writeFieldsPostingList {
+			if err := writePL(fieldsPL); err != nil {
+				return err
+			}
+			// track current offset as the offset for the current field
+			w.fieldPostingsOffsets = append(w.fieldPostingsOffsets, currentOffset)
 		}
 
 		if err := terms.Err(); err != nil {
@@ -247,8 +290,10 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		return fmt.Errorf("postings offsets have to be written before fst terms can be written")
 	}
 
-	// track offset of writes into `iow`.
-	currentOffset := uint64(0)
+	var (
+		writeFieldsPostingList = w.version.supportsFieldPostingsList()
+		currentOffset          = uint64(0) // track offset of writes into `iow`.
+	)
 
 	// retrieve all known fields
 	fields, err := w.builder.Fields()
@@ -256,12 +301,35 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		return err
 	}
 
-	// iterate postings offsets
-	offsets := w.postingsOffsets
+	// iterate term|field postings offsets
+	var (
+		termOffsets  = w.termPostingsOffsets
+		fieldOffsets = w.fieldPostingsOffsets
+	)
 
 	// build a fst for each field's terms
 	for fields.Next() {
 		f := fields.Current()
+
+		// write fields level postings list if required
+		if writeFieldsPostingList {
+			po := fieldOffsets[0]
+			fieldOffsets = fieldOffsets[1:]
+			md, err := fieldsMetadata(po)
+			if err != nil {
+				return err
+			}
+			if _, err := iow.Write(md); err != nil {
+				return err
+			}
+			numBytesMD := uint64(len(md))
+			numBytesMDSize, err := w.writeUint64(iow, numBytesMD)
+			if err != nil {
+				return err
+			}
+			currentOffset += numBytesMD + numBytesMDSize
+		}
+
 		// reset writer for this field's fst
 		if err := w.fstWriter.Reset(iow); err != nil {
 			return err
@@ -278,12 +346,12 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 			t, _ := terms.Current()
 
 			// retieve postsings offset for the current field,term
-			if len(offsets) == 0 {
+			if len(termOffsets) == 0 {
 				return fmt.Errorf("postings offset not found for: field=%s, term=%s", f, t)
 			}
 
-			po := offsets[0]
-			offsets = offsets[1:]
+			po := termOffsets[0]
+			termOffsets = termOffsets[1:]
 
 			// add the term -> posting offset into the term's fst
 			if err := w.fstWriter.Add(t, po); err != nil {
@@ -309,7 +377,6 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		if err != nil {
 			return err
 		}
-
 		// update offset with the number of bytes we've written
 		currentOffset += numBytesFST + n
 
@@ -326,14 +393,25 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	}
 
 	// make sure we consumed all the postings offsets
-	if len(offsets) != 0 {
-		return fmt.Errorf("postings offsets remain at end of terms: remaining=%d",
-			len(offsets))
+	if len(termOffsets) != 0 {
+		return fmt.Errorf("term postings offsets remain at end of terms: remaining=%d",
+			len(termOffsets))
+	}
+
+	// make sure we consumed all the postings offsets
+	if len(fieldOffsets) != 0 {
+		return fmt.Errorf("field postings offsets remain at end of terms: remaining=%d",
+			len(fieldOffsets))
 	}
 
 	// all good!
 	w.fstTermsFileWritten = true
 	return nil
+}
+
+func fieldsMetadata(fieldPostingsOffset uint64) ([]byte, error) {
+	d := fswriter.FieldData{FieldPostingsListOffset: fieldPostingsOffset}
+	return d.Marshal()
 }
 
 func (w *writer) WriteFSTFields(iow io.Writer) error {
@@ -408,6 +486,20 @@ func (w *writer) writePayloadAndSizeAndMagicNumber(iow io.Writer, payload []byte
 	}
 	numBytesWritten += n
 	return numBytesWritten, nil
+}
+
+func (w *writer) writeUint64(iow io.Writer, x uint64) (uint64, error) {
+	// serialize the size, magicNumber
+	w.intEncoder.Reset()
+	w.intEncoder.PutUint64(x)
+	xBytes := w.intEncoder.Bytes()
+
+	// write out the size
+	n, err := iow.Write(xBytes)
+	if err != nil {
+		return 0, err
+	}
+	return uint64(n), nil
 }
 
 func (w *writer) writeSizeAndMagicNumber(iow io.Writer, size uint64) (uint64, error) {

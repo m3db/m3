@@ -21,6 +21,7 @@
 package fst
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -29,12 +30,27 @@ import (
 
 const (
 	magicNumber = 0x6D33D0C5
+)
 
-	// MajorVersion is the currently supported MajorVersion.
-	MajorVersion = 1
+// Version controls internal behaviour of the fst package.
+type Version struct {
+	Major int
+	Minor int
+}
 
-	// MinorVersion is the current MinorVersion.
-	MinorVersion = 0
+var (
+	// CurrentVersion describes the default current Version.
+	CurrentVersion Version = Version{Major: 1, Minor: 1}
+
+	// SupportedVersions lists all supported versions of the FST package.
+	SupportedVersions = []Version{
+		// 1.1 Adds support for field level metadata in a proto object,
+		// and an additional postings list per Field referencing all
+		// documents which have that Field.
+		Version{Major: 1, Minor: 1},
+		// 1.0 is the initial release.
+		Version{Major: 1, Minor: 0},
+	}
 )
 
 // Segment represents a FST segment.
@@ -76,4 +92,26 @@ type Writer interface {
 	// WriteFSTFields writes out the FSTFields file using the provided writer.
 	// NB(prateek): this must be called after WriteFSTTerm().
 	WriteFSTFields(w io.Writer) error
+}
+
+// Validate returns an error if the provided version is invalid, or else nil.
+func (v Version) Validate() error {
+	if v.IsSupported() {
+		return nil
+	}
+	return fmt.Errorf("unsupported version: %+v, supported versions: %+v", v, SupportedVersions)
+}
+
+// IsSupported returns a bool indicating if the version is supported.
+func (v Version) IsSupported() bool {
+	for _, o := range SupportedVersions {
+		if v.Major == o.Major && v.Minor == o.Minor {
+			return true
+		}
+	}
+	return false
+}
+
+func (v Version) supportsFieldPostingsList() bool {
+	return v.Major == 1 && v.Minor >= 1
 }

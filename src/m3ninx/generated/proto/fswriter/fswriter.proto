@@ -41,3 +41,10 @@ message Metadata {
   PostingsFormat postingsFormat = 1;
   int64          numDocs        = 2;
 }
+
+// additional metadata stored per Field in the corpus.
+message FieldData {
+  // postingsOffset for the pl corresponding to the union of all documents
+  // which have a given field.
+  uint64 fieldPostingsListOffset = 1;
+}

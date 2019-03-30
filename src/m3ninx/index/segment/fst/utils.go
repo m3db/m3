@@ -34,11 +34,17 @@ func ToTestSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segme
 	return newFSTSegment(t, s, opts)
 }
 
-func newFSTSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segment {
-	err := s.Seal()
+func newFSTSegmentWithVersion(
+	t *testing.T,
+	s sgmt.MutableSegment,
+	opts Options,
+	writerVersion, readeVersion Version,
+) sgmt.Segment {
+	s.Seal()
+	w, err := NewWriter(WriterOptions{
+		ForTestsOnly_Version: &writerVersion,
+	})
 	require.NoError(t, err)
-
-	w := NewWriter(WriterOptions{})
 	require.NoError(t, w.Reset(s))
 
 	var (
@@ -56,8 +62,7 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segme
 	require.NoError(t, w.WriteFSTFields(&fstFieldsBuffer))
 
 	data := SegmentData{
-		MajorVersion:  w.MajorVersion(),
-		MinorVersion:  w.MinorVersion(),
+		Version:       readeVersion,
 		Metadata:      w.Metadata(),
 		DocsData:      docsDataBuffer.Bytes(),
 		DocsIdxData:   docsIndexBuffer.Bytes(),
@@ -69,4 +74,8 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segme
 	require.NoError(t, err)
 
 	return reader
+}
+
+func newFSTSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segment {
+	return newFSTSegmentWithVersion(t, s, opts, CurrentVersion, CurrentVersion)
 }

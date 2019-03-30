@@ -176,7 +176,7 @@ func NewBlock(
 ) (Block, error) {
 	docsPool := indexOpts.DocumentArrayPool()
 
-	foregroundCompactor := compaction.NewCompactor(docsPool,
+	foregroundCompactor, err := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
 		indexOpts.SegmentBuilderOptions(),
 		indexOpts.FSTSegmentOptions(),
@@ -189,14 +189,20 @@ func NewBlock(
 			},
 			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
 		})
+	if err != nil {
+		return nil, err
+	}
 
-	backgroundCompactor := compaction.NewCompactor(docsPool,
+	backgroundCompactor, err := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
 		indexOpts.SegmentBuilderOptions(),
 		indexOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
 			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
 		})
+	if err != nil {
+		return nil, err
+	}
 
 	segmentBuilder, err := builder.NewBuilderFromDocuments(indexOpts.SegmentBuilderOptions())
 	if err != nil {
