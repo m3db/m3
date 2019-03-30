@@ -40,8 +40,8 @@ var (
 	errNoEncodedDatapoints = errors.New("encoder has no encoded datapoints")
 )
 
-// Encoder is an M3TSZ encoder that can encode a stream of data in M3TSZ format.
-type Encoder struct {
+// encoder is an M3TSZ encoder that can encode a stream of data in M3TSZ format.
+type encoder struct {
 	os   encoding.OStream
 	opts encoding.Options
 
@@ -80,7 +80,7 @@ func NewEncoder(
 	if os == nil {
 		os = encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool())
 	}
-	return &Encoder{
+	return &encoder{
 		os:             os,
 		opts:           opts,
 		tsEncoderState: NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
@@ -90,7 +90,7 @@ func NewEncoder(
 }
 
 // Encode encodes the timestamp and the value of a datapoint.
-func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
 	if enc.closed {
 		return errEncoderClosed
 	}
@@ -113,18 +113,18 @@ func (enc *Encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 }
 
 // writeFirst writes the first datapoint with annotation.
-func (enc *Encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
+func (enc *encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
 	enc.writeFirstValue(dp.Value)
 	return nil
 }
 
 // writeNext writes the next datapoint with annotation.
-func (enc *Encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
+func (enc *encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
 	enc.writeNextValue(dp.Value)
 	return nil
 }
 
-func (enc *Encoder) writeFirstValue(v float64) error {
+func (enc *encoder) writeFirstValue(v float64) error {
 	if !enc.intOptimized {
 		enc.xorEncoderState.WriteFullFloatVal(enc.os, math.Float64bits(v))
 		return nil
@@ -160,7 +160,7 @@ func (enc *Encoder) writeFirstValue(v float64) error {
 	return nil
 }
 
-func (enc *Encoder) writeNextValue(v float64) error {
+func (enc *encoder) writeNextValue(v float64) error {
 	if !enc.intOptimized {
 		enc.xorEncoderState.WriteFloatXOR(enc.os, math.Float64bits(v))
 		return nil
@@ -188,7 +188,7 @@ func (enc *Encoder) writeNextValue(v float64) error {
 
 // writeFloatVal writes the value as XOR of the
 // bits that represent the float
-func (enc *Encoder) writeFloatVal(val uint64, mult uint8) {
+func (enc *encoder) writeFloatVal(val uint64, mult uint8) {
 	if !enc.isFloat {
 		// Converting from int to float
 		enc.os.WriteBit(opcodeUpdate)
@@ -212,7 +212,7 @@ func (enc *Encoder) writeFloatVal(val uint64, mult uint8) {
 }
 
 // writeIntVal writes the val as a diff of ints
-func (enc *Encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff float64) {
+func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff float64) {
 	if valDiff == 0 && isFloat == enc.isFloat && mult == enc.maxMult {
 		// Value is repeated
 		enc.os.WriteBit(opcodeUpdate)
@@ -247,7 +247,7 @@ func (enc *Encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff f
 
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
-func (enc *Encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
+func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 	enc.sigTracker.WriteIntSig(enc.os, sig)
 
 	if mult > enc.maxMult {
@@ -264,7 +264,7 @@ func (enc *Encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 	}
 }
 
-func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
+func (enc *encoder) newBuffer(capacity int) checked.Bytes {
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
 		return bytesPool.Get(capacity)
 	}
@@ -272,11 +272,11 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 }
 
 // Reset resets the encoder for reuse.
-func (enc *Encoder) Reset(start time.Time, capacity int) {
+func (enc *encoder) Reset(start time.Time, capacity int) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
 
-func (enc *Encoder) reset(start time.Time, bytes checked.Bytes) {
+func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 
 	timeUnit := initialTimeUnit(start, enc.opts.DefaultTimeUnit())
@@ -293,7 +293,7 @@ func (enc *Encoder) reset(start time.Time, bytes checked.Bytes) {
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *Encoder) Stream() xio.SegmentReader {
+func (enc *encoder) Stream() xio.SegmentReader {
 	segment := enc.segment(byCopyResultType)
 	if segment.Len() == 0 {
 		return nil
@@ -307,12 +307,12 @@ func (enc *Encoder) Stream() xio.SegmentReader {
 }
 
 // NumEncoded returns the number of encoded datapoints.
-func (enc *Encoder) NumEncoded() int {
+func (enc *encoder) NumEncoded() int {
 	return int(enc.numEncoded)
 }
 
 // LastEncoded returns the last encoded datapoint.
-func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
+func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	if enc.numEncoded == 0 {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
@@ -327,12 +327,12 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 }
 
 // Len returns the length of the data stream.
-func (enc *Encoder) Len() int {
+func (enc *encoder) Len() int {
 	return enc.os.Len()
 }
 
 // Close closes the encoder.
-func (enc *Encoder) Close() {
+func (enc *encoder) Close() {
 	if enc.closed {
 		return
 	}
@@ -347,13 +347,13 @@ func (enc *Encoder) Close() {
 	}
 }
 
-func (enc *Encoder) discard() ts.Segment {
+func (enc *encoder) discard() ts.Segment {
 	return enc.segment(byRefResultType)
 }
 
 // Discard closes the encoder and transfers ownership of the data stream to
 // the caller.
-func (enc *Encoder) Discard() ts.Segment {
+func (enc *encoder) Discard() ts.Segment {
 	segment := enc.discard()
 
 	// Close the encoder no longer needed
@@ -364,13 +364,13 @@ func (enc *Encoder) Discard() ts.Segment {
 
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
-func (enc *Encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
 	segment := enc.discard()
 	enc.Reset(start, capacity)
 	return segment
 }
 
-func (enc *Encoder) segment(resType resultType) ts.Segment {
+func (enc *encoder) segment(resType resultType) ts.Segment {
 	length := enc.os.Len()
 	if length == 0 {
 		return ts.Segment{}

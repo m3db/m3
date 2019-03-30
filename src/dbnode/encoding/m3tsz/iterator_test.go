@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getTestReaderIterator(rawBytes []byte) *ReaderIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), nil, false, encoding.NewOptions()).(*ReaderIterator)
+func getTestReaderIterator(rawBytes []byte) *readerIterator {
+	return NewReaderIterator(bytes.NewReader(rawBytes), nil, false, encoding.NewOptions()).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {

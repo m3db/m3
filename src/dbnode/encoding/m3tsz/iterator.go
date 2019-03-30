@@ -34,7 +34,7 @@ import (
 
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
-type ReaderIterator struct {
+type readerIterator struct {
 	is   encoding.IStream
 	opts encoding.Options
 
@@ -62,7 +62,7 @@ func NewReaderIterator(reader io.Reader, is encoding.IStream, intOptimized bool,
 		// to share an IStream between multiple iterators so we can reuse some of the logic.
 		is = encoding.NewIStream(reader)
 	}
-	return &ReaderIterator{
+	return &readerIterator{
 		is:           is,
 		opts:         opts,
 		tsIterator:   NewTimestampIterator(opts),
@@ -71,7 +71,7 @@ func NewReaderIterator(reader io.Reader, is encoding.IStream, intOptimized bool,
 }
 
 // Next moves to the next item
-func (it *ReaderIterator) Next() bool {
+func (it *readerIterator) Next() bool {
 	if !it.hasNext() {
 		return false
 	}
@@ -90,7 +90,7 @@ func (it *ReaderIterator) Next() bool {
 	return it.hasNext()
 }
 
-func (it *ReaderIterator) readValue(first bool) {
+func (it *readerIterator) readValue(first bool) {
 	if first {
 		it.readFirstValue()
 	} else {
@@ -98,7 +98,7 @@ func (it *ReaderIterator) readValue(first bool) {
 	}
 }
 
-func (it *ReaderIterator) readFirstValue() {
+func (it *readerIterator) readFirstValue() {
 	if !it.intOptimized {
 		it.readFullFloatVal()
 		return
@@ -114,7 +114,7 @@ func (it *ReaderIterator) readFirstValue() {
 	it.readIntValDiff()
 }
 
-func (it *ReaderIterator) readNextValue() {
+func (it *readerIterator) readNextValue() {
 	if !it.intOptimized {
 		it.readFloatXOR()
 		return
@@ -145,12 +145,12 @@ func (it *ReaderIterator) readNextValue() {
 	}
 }
 
-func (it *ReaderIterator) readFullFloatVal() {
+func (it *readerIterator) readFullFloatVal() {
 	it.vb = it.readBits(64)
 	it.xor = it.vb
 }
 
-func (it *ReaderIterator) readFloatXOR() {
+func (it *readerIterator) readFloatXOR() {
 	var err error
 	it.xor, err = ReadXOR(it.is, it.xor)
 	if err != nil {
@@ -159,7 +159,7 @@ func (it *ReaderIterator) readFloatXOR() {
 	it.vb ^= it.xor
 }
 
-func (it *ReaderIterator) readIntSigMult() {
+func (it *readerIterator) readIntSigMult() {
 	if it.readBits(1) == opcodeUpdateSig {
 		if it.readBits(1) == OpcodeZeroSig {
 			it.sig = 0
@@ -176,7 +176,7 @@ func (it *ReaderIterator) readIntSigMult() {
 	}
 }
 
-func (it *ReaderIterator) readIntValDiff() {
+func (it *readerIterator) readIntValDiff() {
 	sign := -1.0
 	if it.readBits(1) == opcodeNegative {
 		sign = 1.0
@@ -185,7 +185,7 @@ func (it *ReaderIterator) readIntValDiff() {
 	it.intVal += sign * float64(it.readBits(int(it.sig)))
 }
 
-func (it *ReaderIterator) readBits(numBits int) uint64 {
+func (it *readerIterator) readBits(numBits int) uint64 {
 	if !it.hasNext() {
 		return 0
 	}
@@ -197,7 +197,7 @@ func (it *ReaderIterator) readBits(numBits int) uint64 {
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
-func (it *ReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	if !it.intOptimized || it.isFloat {
 		return ts.Datapoint{
 			Timestamp: it.tsIterator.PrevTime,
@@ -212,28 +212,28 @@ func (it *ReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 }
 
 // Err returns the error encountered
-func (it *ReaderIterator) Err() error {
+func (it *readerIterator) Err() error {
 	return it.err
 }
 
-func (it *ReaderIterator) hasError() bool {
+func (it *readerIterator) hasError() bool {
 	return it.err != nil
 }
 
-func (it *ReaderIterator) isDone() bool {
+func (it *readerIterator) isDone() bool {
 	return it.tsIterator.Done
 }
 
-func (it *ReaderIterator) isClosed() bool {
+func (it *readerIterator) isClosed() bool {
 	return it.closed
 }
 
-func (it *ReaderIterator) hasNext() bool {
+func (it *readerIterator) hasNext() bool {
 	return !it.hasError() && !it.isDone() && !it.isClosed()
 }
 
 // Reset resets the ReadIterator for reuse.
-func (it *ReaderIterator) Reset(reader io.Reader) {
+func (it *readerIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
 	it.tsIterator = NewTimestampIterator(it.opts)
 	it.vb = 0
@@ -247,7 +247,7 @@ func (it *ReaderIterator) Reset(reader io.Reader) {
 }
 
 // Close closes the ReaderIterator.
-func (it *ReaderIterator) Close() {
+func (it *readerIterator) Close() {
 	if it.closed {
 		return
 	}
