@@ -41,9 +41,10 @@ var (
 	errSessionUninitialized = errors.New("M3DB session not yet initialized")
 )
 
-// AsyncSession is a thin wrapper around an M3DB session that does not block on initialization.
-// Calls to methods while uninitialized will return an uninitialized error. The done channel
-// is to notify the caller that the session has finished _attempting_ to get initialized.
+// AsyncSession is a thin wrapper around an M3DB session that does not block
+// on initialization.  Calls to methods while uninitialized will return an
+// uninitialized error. The done channel  is to notify the caller that the
+// session has finished _attempting_ to get initialized.
 type AsyncSession struct {
 	sync.RWMutex
 	session client.Session
@@ -54,7 +55,7 @@ type AsyncSession struct {
 // NewClientFn provides a DB client.
 type NewClientFn func() (client.Client, error)
 
-// NewAsyncSession returns a new AsyncSession
+// NewAsyncSession returns a new AsyncSession.
 func NewAsyncSession(fn NewClientFn, done chan<- struct{}) *AsyncSession {
 	asyncSession := &AsyncSession{
 		done: done,
@@ -92,8 +93,9 @@ func NewAsyncSession(fn NewClientFn, done chan<- struct{}) *AsyncSession {
 	return asyncSession
 }
 
-// Write writes a value to the database for an ID
-func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+// Write writes a value to the database for an ID.
+func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
+	unit xtime.Unit, annotation []byte) error {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -103,8 +105,9 @@ func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
 	return s.session.Write(namespace, id, t, value, unit, annotation)
 }
 
-// WriteTagged writes a value to the database for an ID and given tags
-func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+// WriteTagged writes a value to the database for an ID and given tags.
+func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator,
+	t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -114,8 +117,9 @@ func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterato
 	return s.session.WriteTagged(namespace, id, tags, t, value, unit, annotation)
 }
 
-// Fetch fetches values from the database for an ID
-func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+// Fetch fetches values from the database for an ID.
+func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive,
+	endExclusive time.Time) (encoding.SeriesIterator, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -125,8 +129,9 @@ func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive, endExclusiv
 	return s.session.Fetch(namespace, id, startInclusive, endExclusive)
 }
 
-// FetchIDs fetches values from the database for a set of IDs
-func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+// FetchIDs fetches values from the database for a set of IDs.
+func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator,
+	startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -136,8 +141,11 @@ func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInc
 	return s.session.FetchIDs(namespace, ids, startInclusive, endExclusive)
 }
 
-// FetchTagged resolves the provided query to known IDs, and fetches the data for them
-func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error) {
+// FetchTagged resolves the provided query to known IDs, and
+// fetches the data for them.
+func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query,
+	opts index.QueryOptions) (results encoding.SeriesIterators,
+	exhaustive bool, err error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -148,7 +156,8 @@ func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query, opts index
 }
 
 // FetchTaggedIDs resolves the provided query to known IDs.
-func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (client.TaggedIDsIterator, bool, error) {
+func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query,
+	opts index.QueryOptions) (client.TaggedIDsIterator, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -171,7 +180,7 @@ func (s *AsyncSession) Aggregate(namespace ident.ID, q index.Query, opts index.A
 
 // ShardID returns the given shard for an ID for callers
 // to easily discern what shard is failing when operations
-// for given IDs begin failing
+// for given IDs begin failing.
 func (s *AsyncSession) ShardID(id ident.ID) (uint32, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -182,7 +191,8 @@ func (s *AsyncSession) ShardID(id ident.ID) (uint32, error) {
 	return s.session.ShardID(id)
 }
 
-// IteratorPools exposes the internal iterator pools used by the session to clients
+// IteratorPools exposes the internal iterator pools used by the session to
+// clients.
 func (s *AsyncSession) IteratorPools() (encoding.IteratorPools, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -192,7 +202,7 @@ func (s *AsyncSession) IteratorPools() (encoding.IteratorPools, error) {
 	return s.session.IteratorPools()
 }
 
-// Close closes the session
+// Close closes the session.
 func (s *AsyncSession) Close() error {
 	s.RLock()
 	defer s.RUnlock()

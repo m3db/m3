@@ -69,6 +69,7 @@ type downsampler struct {
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return newMetricsAppender(metricsAppenderOptions{
 		agg:                    d.agg.aggregator,
+		clientRemote:           d.agg.clientRemote,
 		defaultStagedMetadatas: d.agg.defaultStagedMetadatas,
 		clockOpts:              d.agg.clockOpts,
 		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),

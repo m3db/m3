@@ -28,10 +28,6 @@ clusters:
             - zone: embedded
               endpoints:
                 - 127.0.0.1:2379
-        seedNodes:
-          initialCluster:
-            - hostID: m3db_local
-              endpoint: http://127.0.0.1:2380
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 

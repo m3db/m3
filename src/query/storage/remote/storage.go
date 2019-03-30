@@ -54,12 +54,12 @@ func (s *remoteStorage) FetchBlocks(
 	return s.client.FetchBlocks(ctx, query, options)
 }
 
-func (s *remoteStorage) FetchTags(
+func (s *remoteStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	return s.client.FetchTags(ctx, query, options)
+	return s.client.SearchSeries(ctx, query, options)
 }
 
 func (s *remoteStorage) CompleteTags(

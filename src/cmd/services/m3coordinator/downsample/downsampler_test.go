@@ -22,14 +22,19 @@ package downsample
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
+	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
@@ -43,6 +48,7 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,6 +58,10 @@ var (
 	testAggregationStoragePolicies = []policy.StoragePolicy{
 		policy.MustParseStoragePolicy("2s:1d"),
 	}
+)
+
+const (
+	nameTag = "__name__"
 )
 
 func TestDownsamplerAggregationWithAutoMappingRules(t *testing.T) {
@@ -163,9 +173,214 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create mock client
+	remoteClientMock := client.NewMockClient(ctrl)
+	remoteClientMock.EXPECT().Init().Return(nil)
+
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []MappingRule{
+			{
+				Aggregations: []aggregation.Type{testAggregationType},
+				Policies:     testAggregationStoragePolicies,
+			},
+		},
+		remoteClientMock: remoteClientMock,
+	})
+
+	// Test expected output
+	testDownsamplerRemoteAggregation(t, testDownsampler)
+}
+
+type testCounterMetric struct {
+	tags     map[string]string
+	samples  []int64
+	expected int64
+}
+
+type testGaugeMetric struct {
+	tags     map[string]string
+	samples  []float64
+	expected float64
+}
+
+func testCounterMetrics() []testCounterMetric {
+	return []testCounterMetric{
+		{
+			tags:     map[string]string{nameTag: "counter0", "app": "testapp", "foo": "bar"},
+			samples:  []int64{1, 2, 3},
+			expected: 6,
+		},
+	}
+}
+
+func testGaugeMetrics() []testGaugeMetric {
+	return []testGaugeMetric{
+		{
+			tags:     map[string]string{nameTag: "gauge0", "app": "testapp", "qux": "qaz"},
+			samples:  []float64{4, 5, 6},
+			expected: 15,
+		},
+	}
+}
+
 func testDownsamplerAggregation(
 	t *testing.T,
 	testDownsampler testDownsampler,
+) {
+	testOpts := testDownsampler.testOpts
+
+	logger := testDownsampler.instrumentOpts.Logger().
+		WithFields(xlog.NewField("test", t.Name()))
+
+	testCounterMetrics := testCounterMetrics()
+	testGaugeMetrics := testGaugeMetrics()
+
+	// Ingest points
+	testDownsamplerAggregationIngest(t, testDownsampler,
+		testCounterMetrics, testGaugeMetrics)
+
+	// Wait for writes
+	logger.Infof("wait for test metrics to appear")
+	for {
+		writes := testDownsampler.storage.Writes()
+		if len(writes) == len(testCounterMetrics)+len(testGaugeMetrics) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Verify writes
+	logger.Infof("verify test metrics")
+	writes := testDownsampler.storage.Writes()
+	for _, metric := range testCounterMetrics {
+		name := metric.tags["__name__"]
+		expected := metric.expected
+		if v, ok := testOpts.expectedAdjusted[name]; ok {
+			expected = int64(v)
+		}
+
+		write := mustFindWrite(t, writes, name)
+		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
+		require.Equal(t, 1, len(write.Datapoints))
+		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
+	}
+	for _, metric := range testGaugeMetrics {
+		name := metric.tags["__name__"]
+		expected := metric.expected
+		if v, ok := testOpts.expectedAdjusted[name]; ok {
+			expected = v
+		}
+
+		write := mustFindWrite(t, writes, name)
+		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
+		require.Equal(t, 1, len(write.Datapoints))
+		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
+	}
+}
+
+func testDownsamplerRemoteAggregation(
+	t *testing.T,
+	testDownsampler testDownsampler,
+) {
+	testOpts := testDownsampler.testOpts
+
+	testCounterMetrics, expectTestCounterMetrics := testCounterMetrics(), testCounterMetrics()
+	testGaugeMetrics, expectTestGaugeMetrics := testGaugeMetrics(), testGaugeMetrics()
+
+	remoteClientMock := testOpts.remoteClientMock
+	require.NotNil(t, remoteClientMock)
+
+	// Expect ingestion
+	checkedCounterSamples := 0
+	remoteClientMock.EXPECT().
+		WriteUntimedCounter(gomock.Any(), gomock.Any()).
+		AnyTimes().
+		Do(func(counter unaggregated.Counter,
+			metadatas metadata.StagedMetadatas,
+		) error {
+			for _, c := range expectTestCounterMetrics {
+				if !strings.Contains(counter.ID.String(), c.tags[nameTag]) {
+					continue
+				}
+
+				var remainingSamples []int64
+				found := false
+				for _, s := range c.samples {
+					if !found && s == counter.Value {
+						found = true
+					} else {
+						remainingSamples = append(remainingSamples, s)
+					}
+				}
+				c.samples = remainingSamples
+				if found {
+					checkedCounterSamples++
+				}
+
+				break
+			}
+
+			return nil
+		})
+
+	checkedGaugeSamples := 0
+	remoteClientMock.EXPECT().
+		WriteUntimedGauge(gomock.Any(), gomock.Any()).
+		AnyTimes().
+		Do(func(gauge unaggregated.Gauge,
+			metadatas metadata.StagedMetadatas,
+		) error {
+			for _, g := range expectTestGaugeMetrics {
+				if !strings.Contains(gauge.ID.String(), g.tags[nameTag]) {
+					continue
+				}
+
+				var remainingSamples []float64
+				found := false
+				for _, s := range g.samples {
+					if !found && s == gauge.Value {
+						found = true
+					} else {
+						remainingSamples = append(remainingSamples, s)
+					}
+				}
+				g.samples = remainingSamples
+				if found {
+					checkedGaugeSamples++
+				}
+
+				break
+			}
+
+			return nil
+		})
+
+	// Ingest points
+	testDownsamplerAggregationIngest(t, testDownsampler,
+		testCounterMetrics, testGaugeMetrics)
+
+	// Ensure we checked counters and gauges
+	samplesCounters := 0
+	for _, c := range testCounterMetrics {
+		samplesCounters += len(c.samples)
+	}
+	samplesGauges := 0
+	for _, c := range testGaugeMetrics {
+		samplesGauges += len(c.samples)
+	}
+	require.Equal(t, samplesCounters, checkedCounterSamples)
+	require.Equal(t, samplesGauges, checkedGaugeSamples)
+}
+
+func testDownsamplerAggregationIngest(
+	t *testing.T,
+	testDownsampler testDownsampler,
+	testCounterMetrics []testCounterMetric,
+	testGaugeMetrics []testGaugeMetric,
 ) {
 	downsampler := testDownsampler.downsampler
 
@@ -173,30 +388,6 @@ func testDownsamplerAggregation(
 
 	logger := testDownsampler.instrumentOpts.Logger().
 		WithFields(xlog.NewField("test", t.Name()))
-
-	testCounterMetrics := []struct {
-		tags     map[string]string
-		samples  []int64
-		expected int64
-	}{
-		{
-			tags:     map[string]string{"__name__": "counter0", "app": "testapp", "foo": "bar"},
-			samples:  []int64{1, 2, 3},
-			expected: 6,
-		},
-	}
-
-	testGaugeMetrics := []struct {
-		tags     map[string]string
-		samples  []float64
-		expected float64
-	}{
-		{
-			tags:     map[string]string{"__name__": "gauge0", "app": "testapp", "qux": "qaz"},
-			samples:  []float64{4, 5, 6},
-			expected: 15,
-		},
-	}
 
 	logger.Infof("write test metrics")
 	appender, err := downsampler.NewMetricsAppender()
@@ -243,44 +434,6 @@ func testDownsamplerAggregation(
 			require.NoError(t, err)
 		}
 	}
-
-	// Wait for writes
-	logger.Infof("wait for test metrics to appear")
-	for {
-		writes := testDownsampler.storage.Writes()
-		if len(writes) == len(testCounterMetrics)+len(testGaugeMetrics) {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Verify writes
-	logger.Infof("verify test metrics")
-	writes := testDownsampler.storage.Writes()
-	for _, metric := range testCounterMetrics {
-		name := metric.tags["__name__"]
-		expected := metric.expected
-		if v, ok := testOpts.expectedAdjusted[name]; ok {
-			expected = int64(v)
-		}
-
-		write := mustFindWrite(t, writes, name)
-		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
-		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
-	}
-	for _, metric := range testGaugeMetrics {
-		name := metric.tags["__name__"]
-		expected := metric.expected
-		if v, ok := testOpts.expectedAdjusted[name]; ok {
-			expected = v
-		}
-
-		write := mustFindWrite(t, writes, name)
-		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
-		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
-	}
 }
 
 func tagsToStringMap(tags models.Tags) map[string]string {
@@ -310,6 +463,7 @@ type testDownsamplerOptions struct {
 	autoMappingRules   []MappingRule
 	timedSamples       bool
 	sampleAppenderOpts *SampleAppenderOptions
+	remoteClientMock   *client.MockClient
 
 	// Expected values overrides
 	expectedAdjusted map[string]float64
@@ -352,8 +506,17 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 				SubScope("tag-decoder-pool")))
 
 	var cfg Configuration
+	if opts.remoteClientMock != nil {
+		// Optionally set an override to use remote aggregation
+		// with a mock client
+		cfg.RemoteAggregator = &RemoteAggregatorConfiguration{
+			clientOverride: opts.remoteClientMock,
+		}
+	}
+
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:               storage,
+		ClusterClient:         clusterclient.NewMockClient(gomock.NewController(t)),
 		RulesKVStore:          rulesKVStore,
 		AutoMappingRules:      opts.autoMappingRules,
 		ClockOptions:          clockOpts,

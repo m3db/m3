@@ -7812,7 +7812,7 @@ func (p *HealthResult_) String() string {
 //  - AggregateQueryType
 //  - RangeType
 type AggregateQueryRawRequest struct {
-	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
+	Query              []byte             `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd           int64              `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
 	NameSpace          []byte             `thrift:"nameSpace,4,required" db:"nameSpace" json:"nameSpace"`
@@ -7830,12 +7830,7 @@ func NewAggregateQueryRawRequest() *AggregateQueryRawRequest {
 	}
 }
 
-var AggregateQueryRawRequest_Query_DEFAULT *Query
-
-func (p *AggregateQueryRawRequest) GetQuery() *Query {
-	if !p.IsSetQuery() {
-		return AggregateQueryRawRequest_Query_DEFAULT
-	}
+func (p *AggregateQueryRawRequest) GetQuery() []byte {
 	return p.Query
 }
 
@@ -7877,10 +7872,6 @@ var AggregateQueryRawRequest_RangeType_DEFAULT TimeType = 0
 func (p *AggregateQueryRawRequest) GetRangeType() TimeType {
 	return p.RangeType
 }
-func (p *AggregateQueryRawRequest) IsSetQuery() bool {
-	return p.Query != nil
-}
-
 func (p *AggregateQueryRawRequest) IsSetLimit() bool {
 	return p.Limit != nil
 }
@@ -7902,6 +7893,7 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
+	var issetQuery bool = false
 	var issetRangeStart bool = false
 	var issetRangeEnd bool = false
 	var issetNameSpace bool = false
@@ -7919,6 +7911,7 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
+			issetQuery = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
 				return err
@@ -7962,6 +7955,9 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
+	if !issetQuery {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Query is not set"))
+	}
 	if !issetRangeStart {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field RangeStart is not set"))
 	}
@@ -7975,9 +7971,10 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *AggregateQueryRawRequest) ReadField1(iprot thrift.TProtocol) error {
-	p.Query = &Query{}
-	if err := p.Query.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Query), err)
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Query = v
 	}
 	return nil
 }
@@ -8100,16 +8097,14 @@ func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *AggregateQueryRawRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetQuery() {
-		if err := oprot.WriteFieldBegin("query", thrift.STRUCT, 1); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:query: ", p), err)
-		}
-		if err := p.Query.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Query), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:query: ", p), err)
-		}
+	if err := oprot.WriteFieldBegin("query", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:query: ", p), err)
+	}
+	if err := oprot.WriteBinary(p.Query); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.query (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:query: ", p), err)
 	}
 	return err
 }
@@ -10899,18 +10894,75 @@ func (p *DisjunctionQuery) String() string {
 	return fmt.Sprintf("DisjunctionQuery(%+v)", *p)
 }
 
+type AllQuery struct {
+}
+
+func NewAllQuery() *AllQuery {
+	return &AllQuery{}
+}
+
+func (p *AllQuery) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *AllQuery) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("AllQuery"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *AllQuery) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("AllQuery(%+v)", *p)
+}
+
 // Attributes:
 //  - Term
 //  - Regexp
 //  - Negation
 //  - Conjunction
 //  - Disjunction
+//  - All
 type Query struct {
 	Term        *TermQuery        `thrift:"term,1" db:"term" json:"term,omitempty"`
 	Regexp      *RegexpQuery      `thrift:"regexp,2" db:"regexp" json:"regexp,omitempty"`
 	Negation    *NegationQuery    `thrift:"negation,3" db:"negation" json:"negation,omitempty"`
 	Conjunction *ConjunctionQuery `thrift:"conjunction,4" db:"conjunction" json:"conjunction,omitempty"`
 	Disjunction *DisjunctionQuery `thrift:"disjunction,5" db:"disjunction" json:"disjunction,omitempty"`
+	All         *AllQuery         `thrift:"all,6" db:"all" json:"all,omitempty"`
 }
 
 func NewQuery() *Query {
@@ -10961,6 +11013,15 @@ func (p *Query) GetDisjunction() *DisjunctionQuery {
 	}
 	return p.Disjunction
 }
+
+var Query_All_DEFAULT *AllQuery
+
+func (p *Query) GetAll() *AllQuery {
+	if !p.IsSetAll() {
+		return Query_All_DEFAULT
+	}
+	return p.All
+}
 func (p *Query) IsSetTerm() bool {
 	return p.Term != nil
 }
@@ -10979,6 +11040,10 @@ func (p *Query) IsSetConjunction() bool {
 
 func (p *Query) IsSetDisjunction() bool {
 	return p.Disjunction != nil
+}
+
+func (p *Query) IsSetAll() bool {
+	return p.All != nil
 }
 
 func (p *Query) Read(iprot thrift.TProtocol) error {
@@ -11013,6 +11078,10 @@ func (p *Query) Read(iprot thrift.TProtocol) error {
 			}
 		case 5:
 			if err := p.ReadField5(iprot); err != nil {
+				return err
+			}
+		case 6:
+			if err := p.ReadField6(iprot); err != nil {
 				return err
 			}
 		default:
@@ -11070,6 +11139,14 @@ func (p *Query) ReadField5(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Query) ReadField6(iprot thrift.TProtocol) error {
+	p.All = &AllQuery{}
+	if err := p.All.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.All), err)
+	}
+	return nil
+}
+
 func (p *Query) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Query"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -11088,6 +11165,9 @@ func (p *Query) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField5(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField6(oprot); err != nil {
 			return err
 		}
 	}
@@ -11170,6 +11250,21 @@ func (p *Query) writeField5(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:disjunction: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *Query) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAll() {
+		if err := oprot.WriteFieldBegin("all", thrift.STRUCT, 6); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:all: ", p), err)
+		}
+		if err := p.All.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.All), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:all: ", p), err)
 		}
 	}
 	return err

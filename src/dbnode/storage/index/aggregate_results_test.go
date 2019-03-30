@@ -365,7 +365,7 @@ func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
 		require.False(t, xtest.ByteSlicesBackedBySameData(n, name))
 		found = true
 		v := entry.Value()
-		require.Nil(t, v.Map())
+		require.NotNil(t, v.Map())
 		require.Equal(t, 0, v.Size())
 	}
 

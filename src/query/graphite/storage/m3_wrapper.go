@@ -60,40 +60,33 @@ func NewM3WrappedStorage(
 	return &m3WrappedStore{m3: m3storage, enforcer: enforcer}
 }
 
-// translates a graphite query to tag matcher pairs.
-func translateQueryToMatchers(
+// TranslateQueryToMatchersWithTerminator converts a graphite query to tag
+// matcher pairs, and adds a terminator matcher to the end.
+func TranslateQueryToMatchersWithTerminator(
 	query string,
-	withTerminator bool,
 ) (models.Matchers, error) {
 	metricLength := graphite.CountMetricParts(query)
-	matchersLength := metricLength
-	if withTerminator {
-		// Add space for a terminator character.
-		matchersLength++
-	}
-
+	// Add space for a terminator character.
+	matchersLength := metricLength + 1
 	matchers := make(models.Matchers, matchersLength)
 	for i := 0; i < metricLength; i++ {
 		metric := graphite.ExtractNthMetricPart(query, i)
 		if len(metric) > 0 {
-			matchers[i] = convertMetricPartToMatcher(i, metric)
+			m, err := convertMetricPartToMatcher(i, metric)
+			if err != nil {
+				return nil, err
+			}
+
+			matchers[i] = m
 		} else {
 			return nil, fmt.Errorf("invalid matcher format: %s", query)
 		}
 	}
 
-	if withTerminator {
-		// Add a terminator matcher at the end to ensure expansion is terminated at
-		// the last given metric part.
-		matchers[metricLength] = matcherTerminator(metricLength)
-	}
-
+	// Add a terminator matcher at the end to ensure expansion is terminated at
+	// the last given metric part.
+	matchers[metricLength] = matcherTerminator(metricLength)
 	return matchers, nil
-}
-
-// TranslateQueryToMatchers converts a graphite query to tag matcher pairs.
-func TranslateQueryToMatchers(query string) (models.Matchers, error) {
-	return translateQueryToMatchers(query, false)
 }
 
 // GetQueryTerminatorTagName will return the name for the terminator matcher in
@@ -104,7 +97,7 @@ func GetQueryTerminatorTagName(query string) []byte {
 }
 
 func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error) {
-	matchers, err := translateQueryToMatchers(query, true)
+	matchers, err := TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, err
 	}

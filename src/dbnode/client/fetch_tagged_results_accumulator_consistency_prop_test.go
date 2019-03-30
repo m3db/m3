@@ -80,7 +80,7 @@ func TestFetchTaggedResultsAccumulatorGenerativeConsistencyCheck(t *testing.T) {
 				} else {
 					hostErr = fmt.Errorf("random err")
 				}
-				done, err = accum.Add(opts, hostErr)
+				done, err = accum.AddFetchTaggedResponse(opts, hostErr)
 				if done {
 					break
 				}

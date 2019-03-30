@@ -35,7 +35,7 @@ func TestFetchStatePool(t *testing.T) {
 	s := p.Get()
 	require.Equal(t, p, s.pool)
 	require.Equal(t, int32(0), s.refCounter.n)
-	require.Nil(t, s.op)
+	require.Nil(t, s.fetchTaggedOp)
 	require.NotNil(t, s.tagResultAccumulator)
 	p.Put(s)
 }

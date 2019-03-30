@@ -65,7 +65,7 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	query, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
+	queries, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
 	if err != nil {
 		logger.Error("unable to parse series match values to query", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
@@ -73,29 +73,22 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	opts := storage.NewFetchOptions()
-	matchers := query.TagMatchers
-	results := make([]*storage.CompleteTagsResult, len(matchers))
-	// TODO: parallel execution
-	for i, matcher := range matchers {
-		completeTagsQuery := &storage.CompleteTagsQuery{
-			CompleteNameOnly: false,
-			TagMatchers:      matcher,
-		}
-
-		result, err := h.storage.CompleteTags(ctx, completeTagsQuery, opts)
+	results := make([]models.Metrics, len(queries))
+	for i, query := range queries {
+		result, err := h.storage.SearchSeries(ctx, query, opts)
 		if err != nil {
 			logger.Error("unable to get matched series", zap.Error(err))
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
 
-		results[i] = result
+		results[i] = result.Metrics
 	}
 
 	// TODO: Support multiple result types
-	if renderErr := prometheus.RenderSeriesMatchResultsJSON(w, results); renderErr != nil {
-		logger.Error("unable to write matched series", zap.Error(renderErr))
-		xhttp.Error(w, renderErr, http.StatusBadRequest)
+	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
+		logger.Error("unable to write matched series", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 }
