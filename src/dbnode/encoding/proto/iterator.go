@@ -71,7 +71,7 @@ type iterator struct {
 	// Can i just reuse done for this?
 	closed bool
 
-	tsIterator m3tsz.TimestampIteratorState
+	tsIterator m3tsz.TimestampIterator
 }
 
 // NewIterator creates a new iterator.
@@ -93,7 +93,7 @@ func NewIterator(
 		lastIterated: dynamic.NewMessage(schema),
 		customFields: currCustomFields,
 
-		tsIterator: m3tsz.NewTimestampIteratorState(opts),
+		tsIterator: m3tsz.NewTimestampIterator(opts),
 	}
 }
 
@@ -176,7 +176,7 @@ func (it *iterator) Err() error {
 
 func (it *iterator) Reset(reader io.Reader) {
 	it.stream.Reset(reader)
-	it.tsIterator = m3tsz.NewTimestampIteratorState(it.opts)
+	it.tsIterator = m3tsz.NewTimestampIterator(it.opts)
 
 	it.err = nil
 	it.consumedFirstMessage = false

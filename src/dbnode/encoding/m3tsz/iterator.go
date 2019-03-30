@@ -39,7 +39,7 @@ type ReaderIterator struct {
 	opts encoding.Options
 
 	// internal bookkeeping
-	tsIterator TimestampIteratorState
+	tsIterator TimestampIterator
 	vb         uint64 // current float value
 	xor        uint64 // current float xor
 	err        error  // current error
@@ -65,7 +65,7 @@ func NewReaderIterator(reader io.Reader, is encoding.IStream, intOptimized bool,
 	return &ReaderIterator{
 		is:           is,
 		opts:         opts,
-		tsIterator:   NewTimestampIteratorState(opts),
+		tsIterator:   NewTimestampIterator(opts),
 		intOptimized: intOptimized,
 	}
 }
@@ -235,7 +235,7 @@ func (it *ReaderIterator) hasNext() bool {
 // Reset resets the ReadIterator for reuse.
 func (it *ReaderIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
-	it.tsIterator = NewTimestampIteratorState(it.opts)
+	it.tsIterator = NewTimestampIterator(it.opts)
 	it.vb = 0
 	it.xor = 0
 	it.err = nil
@@ -259,9 +259,9 @@ func (it *ReaderIterator) Close() {
 	}
 }
 
-// TimestampIteratorState encapsulates all the state required for iterator over
+// TimestampIterator encapsulates all the state required for iterator over
 // delta-of-delta compresed timestamps.
-type TimestampIteratorState struct {
+type TimestampIterator struct {
 	PrevTime      time.Time
 	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
@@ -274,15 +274,15 @@ type TimestampIteratorState struct {
 	Opts encoding.Options
 }
 
-// NewTimestampIteratorState creates a new TimestampIteratorState.
-func NewTimestampIteratorState(opts encoding.Options) TimestampIteratorState {
-	return TimestampIteratorState{
+// NewTimestampIterator creates a new TimestampIterator.
+func NewTimestampIterator(opts encoding.Options) TimestampIterator {
+	return TimestampIterator{
 		Opts: opts,
 	}
 }
 
 // ReadTimestamp reads the first or next timestamp.
-func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, bool, error) {
+func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool, error) {
 	it.PrevAnt = nil
 	it.TimeUnitChanged = false
 
@@ -309,7 +309,7 @@ func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, 
 	return first, it.Done, nil
 }
 
-func (it *TimestampIteratorState) readFirstTimestamp(stream encoding.IStream) error {
+func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 	ntBits, err := stream.ReadBits(64)
 	if err != nil {
 		return err
@@ -329,7 +329,7 @@ func (it *TimestampIteratorState) readFirstTimestamp(stream encoding.IStream) er
 	return nil
 }
 
-func (it *TimestampIteratorState) readNextTimestamp(stream encoding.IStream) error {
+func (it *TimestampIterator) readNextTimestamp(stream encoding.IStream) error {
 	dod, err := it.readMarkerOrDeltaOfDelta(stream)
 	if err != nil {
 		return err
@@ -340,7 +340,7 @@ func (it *TimestampIteratorState) readNextTimestamp(stream encoding.IStream) err
 	return nil
 }
 
-func (it *TimestampIteratorState) tryReadMarker(stream encoding.IStream) (time.Duration, bool, error) {
+func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Duration, bool, error) {
 	mes := it.Opts.MarkerEncodingScheme()
 	numBits := mes.NumOpcodeBits() + mes.NumValueBits()
 	opcodeAndValue, success := it.tryPeekBits(stream, numBits)
@@ -398,7 +398,7 @@ func (it *TimestampIteratorState) tryReadMarker(stream encoding.IStream) (time.D
 	}
 }
 
-func (it *TimestampIteratorState) readMarkerOrDeltaOfDelta(stream encoding.IStream) (time.Duration, error) {
+func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (time.Duration, error) {
 	dod, success, err := it.tryReadMarker(stream)
 	if err != nil {
 		return 0, err
@@ -419,7 +419,7 @@ func (it *TimestampIteratorState) readMarkerOrDeltaOfDelta(stream encoding.IStre
 	return it.readDeltaOfDelta(stream, tes)
 }
 
-func (it *TimestampIteratorState) readDeltaOfDelta(
+func (it *TimestampIterator) readDeltaOfDelta(
 	stream encoding.IStream, tes encoding.TimeEncodingScheme) (time.Duration, error) {
 	if it.TimeUnitChanged {
 		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
@@ -480,7 +480,7 @@ func (it *TimestampIteratorState) readDeltaOfDelta(
 	return xtime.FromNormalizedDuration(dod, timeUnit), nil
 }
 
-func (it *TimestampIteratorState) readAnnotation(stream encoding.IStream) error {
+func (it *TimestampIterator) readAnnotation(stream encoding.IStream) error {
 	antLen, err := it.readVarint(stream)
 	if err != nil {
 		return err
@@ -508,7 +508,7 @@ func (it *TimestampIteratorState) readAnnotation(stream encoding.IStream) error 
 	return nil
 }
 
-func (it *TimestampIteratorState) readTimeUnit(stream encoding.IStream) error {
+func (it *TimestampIterator) readTimeUnit(stream encoding.IStream) error {
 	tuBits, err := stream.ReadBits(8)
 	if err != nil {
 		return err
@@ -523,12 +523,12 @@ func (it *TimestampIteratorState) readTimeUnit(stream encoding.IStream) error {
 	return nil
 }
 
-func (it *TimestampIteratorState) readVarint(stream encoding.IStream) (int, error) {
+func (it *TimestampIterator) readVarint(stream encoding.IStream) (int, error) {
 	res, err := binary.ReadVarint(stream)
 	return int(res), err
 }
 
-func (it *TimestampIteratorState) tryPeekBits(stream encoding.IStream, numBits int) (uint64, bool) {
+func (it *TimestampIterator) tryPeekBits(stream encoding.IStream, numBits int) (uint64, bool) {
 	res, err := stream.PeekBits(numBits)
 	if err != nil {
 		return 0, false

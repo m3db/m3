@@ -67,7 +67,7 @@ func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewOStream(nil, false, nil)
-		tsEncoder := NewTimestampEncoderState(testStartTime, input.timeUnit, encoding.NewOptions())
+		tsEncoder := NewTimestampEncoder(testStartTime, input.timeUnit, encoding.NewOptions())
 		tsEncoder.writeDeltaOfDeltaTimeUnitUnchanged(stream, 0, input.delta, input.timeUnit)
 		b, p := stream.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
@@ -87,7 +87,7 @@ func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewOStream(nil, false, nil)
-		tsEncoder := NewTimestampEncoderState(testStartTime, xtime.Nanosecond, nil)
+		tsEncoder := NewTimestampEncoder(testStartTime, xtime.Nanosecond, nil)
 		tsEncoder.writeDeltaOfDeltaTimeUnitChanged(stream, 0, input.delta)
 		b, p := stream.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
@@ -109,7 +109,7 @@ func TestWriteValue(t *testing.T) {
 	}
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
-		xorState := XOREncoderState{PrevXOR: input.previousXOR}
+		xorState := XOREncoder{PrevXOR: input.previousXOR}
 		xorState.WriteXOR(encoder.os, input.currentXOR)
 		b, p := encoder.os.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
@@ -141,7 +141,7 @@ func TestWriteAnnotation(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewOStream(nil, false, nil)
-		tsEncoder := NewTimestampEncoderState(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
+		tsEncoder := NewTimestampEncoder(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
 		tsEncoder.writeAnnotation(stream, input.annotation)
 		b, p := stream.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
@@ -186,7 +186,7 @@ func TestWriteTimeUnit(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewOStream(nil, false, nil)
-		tsEncoder := NewTimestampEncoderState(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
+		tsEncoder := NewTimestampEncoder(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
 		tsEncoder.TimeUnit = xtime.None
 		assert.Equal(t, input.expectedResult, tsEncoder.writeTimeUnit(stream, input.timeUnit))
 		b, p := stream.Rawbytes()

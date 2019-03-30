@@ -135,7 +135,7 @@ type customFieldState struct {
 	fieldType customFieldType
 
 	// Float state.
-	floatXORState m3tsz.XOREncoderState
+	floatXORState m3tsz.XOREncoder
 
 	// Bytes State.
 	bytesFieldDict         []encoderBytesFieldDictState

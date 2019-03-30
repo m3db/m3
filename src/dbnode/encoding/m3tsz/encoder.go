@@ -46,8 +46,8 @@ type Encoder struct {
 	opts encoding.Options
 
 	// internal bookkeeping
-	tsEncoderState  TimestampEncoderState
-	xorEncoderState XOREncoderState
+	tsEncoderState  TimestampEncoder
+	xorEncoderState XOREncoder
 
 	ant ts.Annotation // current annotation
 
@@ -83,7 +83,7 @@ func NewEncoder(
 	return &Encoder{
 		os:             os,
 		opts:           opts,
-		tsEncoderState: NewTimestampEncoderState(start, opts.DefaultTimeUnit(), opts),
+		tsEncoderState: NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
 		closed:         false,
 		intOptimized:   intOptimized,
 	}
@@ -280,9 +280,9 @@ func (enc *Encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 
 	timeUnit := initialTimeUnit(start, enc.opts.DefaultTimeUnit())
-	enc.tsEncoderState = NewTimestampEncoderState(start, timeUnit, enc.opts)
+	enc.tsEncoderState = NewTimestampEncoder(start, timeUnit, enc.opts)
 
-	enc.xorEncoderState = XOREncoderState{}
+	enc.xorEncoderState = XOREncoder{}
 	enc.intVal = 0
 	enc.isFloat = false
 	enc.maxMult = 0
@@ -411,9 +411,9 @@ func (enc *Encoder) segment(resType resultType) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead)
 }
 
-// TimestampEncoderState encapsulates the state required for a logical stream of
+// TimestampEncoder encapsulates the state required for a logical stream of
 // bits that represent a stream of timestamps compressed using delta-of-delta
-type TimestampEncoderState struct {
+type TimestampEncoder struct {
 	PrevTime       time.Time
 	PrevTimeDelta  time.Duration
 	PrevAnnotation []byte
@@ -425,10 +425,10 @@ type TimestampEncoderState struct {
 	hasWrittenFirst bool // Only taken into account if using the WriteTime() API.
 }
 
-// NewTimestampEncoderState creates a new TimestampEncoderState.
-func NewTimestampEncoderState(
-	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoderState {
-	return TimestampEncoderState{
+// NewTimestampEncoder creates a new TimestampEncoder.
+func NewTimestampEncoder(
+	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
+	return TimestampEncoder{
 		PrevTime: start,
 		TimeUnit: initialTimeUnit(start, timeUnit),
 		Opts:     opts,
@@ -436,7 +436,7 @@ func NewTimestampEncoderState(
 }
 
 // WriteTime encode the timestamp using delta-of-delta compression.
-func (enc *TimestampEncoderState) WriteTime(
+func (enc *TimestampEncoder) WriteTime(
 	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
 	if enc.hasWrittenFirst {
 		return enc.WriteNextTime(stream, currTime, ant, timeUnit)
@@ -451,7 +451,7 @@ func (enc *TimestampEncoderState) WriteTime(
 }
 
 // WriteFirstTime encodes the first timestamp.
-func (enc *TimestampEncoderState) WriteFirstTime(
+func (enc *TimestampEncoder) WriteFirstTime(
 	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
@@ -461,7 +461,7 @@ func (enc *TimestampEncoderState) WriteFirstTime(
 }
 
 // WriteNextTime encodes the next (non-first) timestamp.
-func (enc *TimestampEncoderState) WriteNextTime(
+func (enc *TimestampEncoder) WriteNextTime(
 	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
 	enc.writeAnnotation(stream, ant)
 	tuChanged := enc.writeTimeUnit(stream, timeUnit)
@@ -485,7 +485,7 @@ func (enc *TimestampEncoderState) WriteNextTime(
 
 // shouldWriteTimeUnit determines whether we should write tu as a time unit.
 // Returns true if tu is valid and differs from the existing time unit, false otherwise.
-func (enc *TimestampEncoderState) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
+func (enc *TimestampEncoder) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
 	if !timeUnit.IsValid() || timeUnit == enc.TimeUnit {
 		return false
 	}
@@ -494,7 +494,7 @@ func (enc *TimestampEncoderState) shouldWriteTimeUnit(timeUnit xtime.Unit) bool 
 
 // writeTimeUnit encodes the time unit and returns true if the time unit has
 // changed, and false otherwise.
-func (enc *TimestampEncoderState) writeTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) bool {
+func (enc *TimestampEncoder) writeTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) bool {
 	if !enc.shouldWriteTimeUnit(timeUnit) {
 		return false
 	}
@@ -508,7 +508,7 @@ func (enc *TimestampEncoderState) writeTimeUnit(stream encoding.OStream, timeUni
 
 // shouldWriteAnnotation determines whether we should write ant as an annotation.
 // Returns true if ant is not empty and differs from the existing annotation, false otherwise.
-func (enc *TimestampEncoderState) shouldWriteAnnotation(ant ts.Annotation) bool {
+func (enc *TimestampEncoder) shouldWriteAnnotation(ant ts.Annotation) bool {
 	numAnnotationBytes := len(ant)
 	if numAnnotationBytes == 0 {
 		return false
@@ -516,7 +516,7 @@ func (enc *TimestampEncoderState) shouldWriteAnnotation(ant ts.Annotation) bool 
 	return !bytes.Equal(enc.PrevAnnotation, ant)
 }
 
-func (enc *TimestampEncoderState) writeAnnotation(stream encoding.OStream, ant ts.Annotation) {
+func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Annotation) {
 	if !enc.shouldWriteAnnotation(ant) {
 		return
 	}
@@ -533,7 +533,7 @@ func (enc *TimestampEncoderState) writeAnnotation(stream encoding.OStream, ant t
 	enc.PrevAnnotation = ant
 }
 
-func (enc *TimestampEncoderState) writeDeltaOfDeltaTimeUnitChanged(
+func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitChanged(
 	stream encoding.OStream, prevDelta, curDelta time.Duration) {
 	// NB(xichen): if the time unit has changed, always normalize delta-of-delta
 	// to nanoseconds and encode it using 64 bits.
@@ -541,7 +541,7 @@ func (enc *TimestampEncoderState) writeDeltaOfDeltaTimeUnitChanged(
 	stream.WriteBits(uint64(dodInNano), 64)
 }
 
-func (enc *TimestampEncoderState) writeDeltaOfDeltaTimeUnitUnchanged(
+func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	stream encoding.OStream, prevDelta, curDelta time.Duration, timeUnit xtime.Unit) error {
 	u, err := timeUnit.Value()
 	if err != nil {
@@ -589,9 +589,9 @@ func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
 	return xtime.None
 }
 
-// XOREncoderState encapsulates the state required for a logical stream of bits
+// XOREncoder encapsulates the state required for a logical stream of bits
 // that represent a stream of float values compressed with XOR.
-type XOREncoderState struct {
+type XOREncoder struct {
 	HasWrittenFirst bool // Only taken into account if using the WriteFloat() API.
 	PrevXOR         uint64
 	PrevFloatBits   uint64
@@ -599,7 +599,7 @@ type XOREncoderState struct {
 
 // WriteFloat writes a float into the stream, writing the full value or a compressed
 // XOR as appropriate.
-func (enc *XOREncoderState) WriteFloat(stream encoding.OStream, val float64) {
+func (enc *XOREncoder) WriteFloat(stream encoding.OStream, val float64) {
 	fb := math.Float64bits(val)
 	if enc.HasWrittenFirst {
 		enc.WriteFloatXOR(stream, fb)
@@ -610,14 +610,14 @@ func (enc *XOREncoderState) WriteFloat(stream encoding.OStream, val float64) {
 }
 
 // WriteFullFloatVal writes out the float value using a full 64 bits.
-func (enc *XOREncoderState) WriteFullFloatVal(stream encoding.OStream, val uint64) {
+func (enc *XOREncoder) WriteFullFloatVal(stream encoding.OStream, val uint64) {
 	enc.PrevFloatBits = val
 	enc.PrevXOR = val
 	stream.WriteBits(val, 64)
 }
 
 // WriteFloatXOR writes out the float value using XOR compression.
-func (enc *XOREncoderState) WriteFloatXOR(stream encoding.OStream, val uint64) {
+func (enc *XOREncoder) WriteFloatXOR(stream encoding.OStream, val uint64) {
 	xor := enc.PrevFloatBits ^ val
 	enc.WriteXOR(stream, xor)
 	enc.PrevXOR = xor
@@ -625,7 +625,7 @@ func (enc *XOREncoderState) WriteFloatXOR(stream encoding.OStream, val uint64) {
 }
 
 // WriteXOR writes out the new XOR based on the value of the previous XOR.
-func (enc *XOREncoderState) WriteXOR(stream encoding.OStream, currXOR uint64) {
+func (enc *XOREncoder) WriteXOR(stream encoding.OStream, currXOR uint64) {
 	if currXOR == 0 {
 		stream.WriteBits(opcodeZeroValueXOR, 1)
 		return

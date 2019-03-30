@@ -80,7 +80,7 @@ type Encoder struct {
 	hasEncodedFirstSetOfCustomValues bool
 	closed                           bool
 
-	timestampEncoder m3tsz.TimestampEncoderState
+	timestampEncoder m3tsz.TimestampEncoder
 }
 
 // NewEncoder creates a new protobuf encoder.
@@ -90,7 +90,7 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 	return &Encoder{
 		opts:   opts,
 		stream: stream,
-		timestampEncoder: m3tsz.NewTimestampEncoderState(
+		timestampEncoder: m3tsz.NewTimestampEncoder(
 			start, opts.DefaultTimeUnit(), opts),
 		varIntBuf: [8]byte{},
 	}
@@ -278,7 +278,7 @@ func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
 
 func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.stream.Reset(enc.newBuffer(capacity))
-	enc.timestampEncoder = m3tsz.NewTimestampEncoderState(
+	enc.timestampEncoder = m3tsz.NewTimestampEncoder(
 		start, enc.opts.DefaultTimeUnit(), enc.opts)
 	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}

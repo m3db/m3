@@ -58,7 +58,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 
 	for _, input := range inputs {
 		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes))
-		it := NewTimestampIteratorState(encoding.NewOptions())
+		it := NewTimestampIterator(encoding.NewOptions())
 
 		it.TimeUnit = input.timeUnit
 		it.PrevTimeDelta = input.previousTimeDelta
@@ -69,7 +69,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 	}
 
 	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}))
-	it := NewTimestampIteratorState(encoding.NewOptions())
+	it := NewTimestampIterator(encoding.NewOptions())
 	err := it.readNextTimestamp(stream)
 	require.Error(t, err)
 
@@ -128,7 +128,7 @@ func TestReaderIteratorReadAnnotation(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes))
-		it := NewTimestampIteratorState(encoding.NewOptions())
+		it := NewTimestampIterator(encoding.NewOptions())
 
 		err := it.readAnnotation(stream)
 		require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestReaderIteratorReadTimeUnit(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes))
-		it := NewTimestampIteratorState(encoding.NewOptions())
+		it := NewTimestampIterator(encoding.NewOptions())
 		it.TimeUnit = input.timeUnit
 
 		err := it.readTimeUnit(stream)
