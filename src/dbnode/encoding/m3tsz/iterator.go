@@ -76,7 +76,12 @@ func (it *ReaderIterator) Next() bool {
 		return false
 	}
 
-	first := it.tsIterator.ReadTimestamp(it.is)
+	first, err := it.tsIterator.ReadTimestamp(it.is)
+	if err != nil {
+		it.err = err
+		return false
+	}
+
 	it.readValue(first)
 
 	return it.hasNext()
@@ -143,7 +148,11 @@ func (it *ReaderIterator) readFullFloatVal() {
 }
 
 func (it *ReaderIterator) readFloatXOR() {
-	it.xor = it.ReadXOR(it.xor)
+	var err error
+	it.xor, err = ReadXOR(it.is, it.xor)
+	if err != nil {
+		it.err = err
+	}
 	it.vb ^= it.xor
 }
 
@@ -171,27 +180,6 @@ func (it *ReaderIterator) readIntValDiff() {
 	}
 
 	it.intVal += sign * float64(it.readBits(int(it.sig)))
-}
-
-// ReadXOR reads the next XOR value.
-func (it *ReaderIterator) ReadXOR(prevXOR uint64) uint64 {
-	cb := it.readBits(1)
-	if cb == opcodeZeroValueXOR {
-		return 0
-	}
-
-	cb = (cb << 1) | it.readBits(1)
-	if cb == opcodeContainedValueXOR {
-		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
-		numMeaningfulBits := 64 - previousLeading - previousTrailing
-		return it.readBits(numMeaningfulBits) << uint(previousTrailing)
-	}
-
-	numLeadingZeros := int(it.readBits(6))
-	numMeaningfulBits := int(it.readBits(6)) + 1
-	numTrailingZeros := 64 - numLeadingZeros - numMeaningfulBits
-	meaningfulBits := it.readBits(numMeaningfulBits)
-	return meaningfulBits << uint(numTrailingZeros)
 }
 
 func (it *ReaderIterator) readBits(numBits int) uint64 {
@@ -291,16 +279,22 @@ func NewTimestampIteratorState(opts encoding.Options) TimestampIteratorState {
 }
 
 // ReadTimestamp reads the first or next timestamp.
-func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) bool {
+func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) (bool, error) {
 	it.PrevAnt = nil
 	it.TimeUnitChanged = false
 
-	first := false
+	var (
+		first = false
+		err   error
+	)
 	if it.PrevTime.IsZero() {
 		first = true
-		it.readFirstTimestamp(stream)
+		err = it.readFirstTimestamp(stream)
 	} else {
-		it.readNextTimestamp(stream)
+		err = it.readNextTimestamp(stream)
+	}
+	if err != nil {
+		return false, err
 	}
 
 	// NB(xichen): reset time delta to 0 when there is a time unit change to be
@@ -309,7 +303,7 @@ func (it *TimestampIteratorState) ReadTimestamp(stream encoding.IStream) bool {
 		it.PrevTimeDelta = 0
 	}
 
-	return first
+	return first, nil
 }
 
 func (it *TimestampIteratorState) readFirstTimestamp(stream encoding.IStream) error {
@@ -534,4 +528,51 @@ func (it *TimestampIteratorState) tryPeekBits(stream encoding.IStream, numBits i
 		return 0, false
 	}
 	return res, true
+}
+
+// ReadXOR reads the next XOR value.
+func ReadXOR(stream encoding.IStream, prevXOR uint64) (uint64, error) {
+	cb, err := stream.ReadBits(1)
+	if err != nil {
+		return 0, err
+	}
+	if cb == opcodeZeroValueXOR {
+		return 0, nil
+	}
+
+	nextCB, err := stream.ReadBits(1)
+	if err != nil {
+		return 0, err
+	}
+
+	cb = (cb << 1) | nextCB
+	if cb == opcodeContainedValueXOR {
+		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
+		numMeaningfulBits := 64 - previousLeading - previousTrailing
+		meaningfulBits, err := stream.ReadBits(numMeaningfulBits)
+		if err != nil {
+			return 0, err
+		}
+
+		return meaningfulBits << uint(previousTrailing), nil
+	}
+
+	numLeadingZeros, err := stream.ReadBits(6)
+	if err != nil {
+		return 0, err
+	}
+
+	numMeaningfulBits, err := stream.ReadBits(6)
+	if err != nil {
+		return 0, err
+	}
+	numMeaningfulBits = numMeaningfulBits + 1
+
+	meaningfulBits, err := stream.ReadBits(int(numMeaningfulBits))
+	if err != nil {
+		return 0, err
+	}
+
+	numTrailingZeros := 64 - numLeadingZeros - numMeaningfulBits
+	return meaningfulBits << uint(numTrailingZeros), nil
 }

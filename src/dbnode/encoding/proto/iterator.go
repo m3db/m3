@@ -71,7 +71,7 @@ type iterator struct {
 	// Can i just reuse done for this?
 	closed bool
 
-	m3tszIterator *m3tsz.ReaderIterator
+	tsIterator m3tsz.TimestampIteratorState
 }
 
 // NewIterator creates a new iterator.
@@ -93,7 +93,7 @@ func NewIterator(
 		lastIterated: dynamic.NewMessage(schema),
 		customFields: currCustomFields,
 
-		m3tszIterator: m3tsz.NewReaderIterator(nil, stream, false, opts).(*m3tsz.ReaderIterator),
+		tsIterator: m3tsz.NewTimestampIteratorState(opts),
 	}
 }
 
@@ -123,9 +123,9 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	it.m3tszIterator.ReadTimestamp()
-	if it.m3tszIterator.Err() != nil {
-		it.err = it.m3tszIterator.Err()
+	_, err = it.tsIterator.ReadTimestamp(it.stream)
+	if err != nil {
+		it.err = fmt.Errorf("%s error reading timestamp: %v", itErrPrefix, err)
 		return false
 	}
 
@@ -156,7 +156,12 @@ func (it *iterator) Next() bool {
 }
 
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	dp, unit, _ := it.m3tszIterator.Current()
+	var (
+		dp = ts.Datapoint{
+			Timestamp: it.tsIterator.PrevTime,
+		}
+		unit = it.tsIterator.TimeUnit
+	)
 	return dp, unit, it.lastIteratedProtoBytes
 }
 
@@ -166,7 +171,7 @@ func (it *iterator) Err() error {
 
 func (it *iterator) Reset(reader io.Reader) {
 	it.stream.Reset(reader)
-	it.m3tszIterator.Reset(reader)
+	it.tsIterator = m3tsz.NewTimestampIteratorState(it.opts)
 
 	it.err = nil
 	it.consumedFirstMessage = false
@@ -192,7 +197,6 @@ func (it *iterator) Close() {
 	it.closed = true
 	it.Reset(nil)
 	it.stream.Reset(nil)
-	it.m3tszIterator.Reset(nil)
 
 	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() > maxCapacityUnmarshalBufferRetain {
 		// Only finalize the buffer if its grown too large to prevent pooled
@@ -630,8 +634,8 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 }
 
 func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
-	xor = it.m3tszIterator.ReadXOR(it.customFields[i].floatXORState.PrevXOR)
-	if err := it.m3tszIterator.Err(); err != nil {
+	xor, err = m3tsz.ReadXOR(it.stream, it.customFields[i].floatXORState.PrevXOR)
+	if err != nil {
 		return 0, 0, err
 	}
 	prevFloatBits := it.customFields[i].floatXORState.PrevFloatBits
