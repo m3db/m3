@@ -314,7 +314,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
-						"schemaOptions": []
+						"schemaOptions": null
 					}
 				}
 			}
