@@ -407,7 +407,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, schema, opts, cfg.PoolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
