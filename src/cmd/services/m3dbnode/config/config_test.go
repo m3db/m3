@@ -606,6 +606,7 @@ func TestConfiguration(t *testing.T) {
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  proto: null
 coordinator: null
 `
 
