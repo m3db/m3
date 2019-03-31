@@ -171,7 +171,9 @@ func TestRoundtripProp(t *testing.T) {
 			}
 
 			require.Equal(t, unit, xtime.Nanosecond)
-			require.True(t, times[i].Equal(dp.Timestamp))
+			require.True(t,
+				times[i].Equal(dp.Timestamp),
+				"%s does not match %s", times[i], dp.Timestamp)
 
 			if !dynamic.MessagesEqual(m, decodedM) {
 				for _, field := range m.GetKnownFields() {

@@ -91,7 +91,7 @@ func NewIterator(
 		lastIterated: dynamic.NewMessage(schema),
 		customFields: currCustomFields,
 
-		tsIterator: m3tsz.NewTimestampIterator(opts),
+		tsIterator: m3tsz.NewTimestampIterator(opts, true),
 	}
 }
 
@@ -113,7 +113,6 @@ func (it *iterator) Next() bool {
 
 	moreDataControlBit, err := it.stream.ReadBit()
 	if err == io.EOF {
-		// TODO Do I need this?
 		it.done = true
 		return false
 	}
@@ -126,6 +125,10 @@ func (it *iterator) Next() bool {
 		// The next bit will tell us whether we've reached the end of the stream
 		// or that the time unit changed.
 		noMoreDataControlBit, err := it.stream.ReadBit()
+		if err == io.EOF {
+			it.done = true
+			return false
+		}
 		if err != nil {
 			it.err = err
 			return false
@@ -134,6 +137,14 @@ func (it *iterator) Next() bool {
 		if noMoreDataControlBit == opCodeNoMoreData {
 			it.done = true
 			return false
+		}
+
+		if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
+			it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
+			return false
+		}
+		if !it.consumedFirstMessage {
+			it.tsIterator.TimeUnitChanged = false
 		}
 	}
 
@@ -190,7 +201,7 @@ func (it *iterator) Err() error {
 
 func (it *iterator) Reset(reader io.Reader) {
 	it.stream.Reset(reader)
-	it.tsIterator = m3tsz.NewTimestampIterator(it.opts)
+	it.tsIterator = m3tsz.NewTimestampIterator(it.opts, true)
 
 	it.err = nil
 	it.consumedFirstMessage = false

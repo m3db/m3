@@ -60,7 +60,7 @@ func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Option
 	return &readerIterator{
 		is:           encoding.NewIStream(reader),
 		opts:         opts,
-		tsIterator:   NewTimestampIterator(opts),
+		tsIterator:   NewTimestampIterator(opts, false),
 		intOptimized: intOptimized,
 	}
 }
@@ -230,7 +230,7 @@ func (it *readerIterator) hasNext() bool {
 // Reset resets the ReadIterator for reuse.
 func (it *readerIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
-	it.tsIterator = NewTimestampIterator(it.opts)
+	it.tsIterator = NewTimestampIterator(it.opts, it.tsIterator.SkipMarkers)
 	it.vb = 0
 	it.xor = 0
 	it.err = nil
@@ -263,16 +263,21 @@ type TimestampIterator struct {
 
 	TimeUnit        xtime.Unit
 	TimeUnitChanged bool
-
-	Done bool
+	Done            bool
 
 	Opts encoding.Options
+
+	// Controls whether the iterator will "look ahead" for marker encoding
+	// schemes. Setting SkipMarkers to true disables the look ahead behavior
+	// for situations where looking ahead is not safe.
+	SkipMarkers bool
 }
 
 // NewTimestampIterator creates a new TimestampIterator.
-func NewTimestampIterator(opts encoding.Options) TimestampIterator {
+func NewTimestampIterator(opts encoding.Options, skipMarkers bool) TimestampIterator {
 	return TimestampIterator{
-		Opts: opts,
+		Opts:        opts,
+		SkipMarkers: skipMarkers,
 	}
 }
 
@@ -304,6 +309,24 @@ func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool,
 	return first, it.Done, nil
 }
 
+// ReadTimeUnit reads an encoded time unit and updates the iterator's state
+// accordingly. It is exposed as a public method so that callers can control
+// the encoding / decoding of the time unit on their own if they choose.
+func (it *TimestampIterator) ReadTimeUnit(stream encoding.IStream) error {
+	tuBits, err := stream.ReadByte()
+	if err != nil {
+		return err
+	}
+
+	tu := xtime.Unit(tuBits)
+	if tu.IsValid() && tu != it.TimeUnit {
+		it.TimeUnitChanged = true
+	}
+	it.TimeUnit = tu
+
+	return nil
+}
+
 func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 	ntBits, err := stream.ReadBits(64)
 	if err != nil {
@@ -313,7 +336,9 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 	nt := int64(ntBits)
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
-	it.TimeUnit = initialTimeUnit(st, it.Opts.DefaultTimeUnit())
+	if it.TimeUnit == xtime.None {
+		it.TimeUnit = initialTimeUnit(st, it.Opts.DefaultTimeUnit())
+	}
 
 	err = it.readNextTimestamp(stream)
 	if err != nil {
@@ -379,7 +404,7 @@ func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Durati
 		if err != nil {
 			return 0, false, err
 		}
-		err = it.readTimeUnit(stream)
+		err = it.ReadTimeUnit(stream)
 		if err != nil {
 			return 0, false, err
 		}
@@ -394,16 +419,18 @@ func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Durati
 }
 
 func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (time.Duration, error) {
-	dod, success, err := it.tryReadMarker(stream)
-	if err != nil {
-		return 0, err
-	}
-	if it.Done {
-		return 0, nil
-	}
+	if !it.SkipMarkers {
+		dod, success, err := it.tryReadMarker(stream)
+		if err != nil {
+			return 0, err
+		}
+		if it.Done {
+			return 0, nil
+		}
 
-	if success {
-		return dod, nil
+		if success {
+			return dod, nil
+		}
 	}
 
 	tes, exists := it.Opts.TimeEncodingSchemes()[it.TimeUnit]
@@ -499,21 +526,6 @@ func (it *TimestampIterator) readAnnotation(stream encoding.IStream) error {
 			antLen, n)
 	}
 	it.PrevAnt = buf
-
-	return nil
-}
-
-func (it *TimestampIterator) readTimeUnit(stream encoding.IStream) error {
-	tuBits, err := stream.ReadByte()
-	if err != nil {
-		return err
-	}
-
-	tu := xtime.Unit(tuBits)
-	if tu.IsValid() && tu != it.TimeUnit {
-		it.TimeUnitChanged = true
-	}
-	it.TimeUnit = tu
 
 	return nil
 }
