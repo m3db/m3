@@ -1,19 +1,28 @@
 syntax = "proto3";
 package namespace;
 
+// SchemaMeta contains schema metadata.
 message SchemaMeta {
+    // message name as it appears in proto file descriptor.
     string messageName = 1;
 }
 
+// SchemaOptions contains schema options for a namespace.
 message SchemaOptions {
+    // repo contains a history of deployed schema defintions in form of proto file descriptors.
     FileDescriptorRepo repo = 1;
+    // schemas contains a set of named schemas for a namespace.
+    // a namespace can have multiple schemas.
+    // series identifies its schema by schema name (the map key) and a version (repo version).
     map<string, SchemaMeta> schemas = 2;
 }
 
+// FileDescriptorRepo is a history of FileDescriptorSet sorted by version in descending order.
 message FileDescriptorRepo {
     repeated FileDescriptorSet history = 1;
 }
 
+// FileDescriptorSet is a set of proto file descriptors sorted by dependency in topological order.
 message FileDescriptorSet {
     uint32 version = 1;
     repeated bytes descriptors = 2;
