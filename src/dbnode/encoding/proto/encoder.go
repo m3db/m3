@@ -671,13 +671,11 @@ func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
 }
 
 func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
-	enc.customFields[i].prevIntBits = uint64(v)
+	enc.customFields[i].prevIntBits = v
 
-	vBits := uint64(v)
-	numSig := encoding.NumSig(vBits)
-
+	numSig := encoding.NumSig(v)
 	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, numSig)
-	enc.encodeIntValDiff(vBits, false, numSig)
+	enc.encodeIntValDiff(v, false, numSig)
 }
 
 func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
@@ -710,7 +708,7 @@ func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
 func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 	var (
 		neg  = false
-		prev = uint64(enc.customFields[i].prevIntBits)
+		prev = enc.customFields[i].prevIntBits
 		diff uint64
 	)
 
@@ -734,7 +732,7 @@ func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
 
 	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, newSig)
 	enc.encodeIntValDiff(diff, neg, newSig)
-	enc.customFields[i].prevIntBits = uint64(next)
+	enc.customFields[i].prevIntBits = next
 }
 
 func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {

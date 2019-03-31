@@ -311,7 +311,7 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 			// Due to the way ProtoBuf encoding works where there is no way to
 			// distinguish between an "unset" field and a field set to its default
 			// value, we intentionally force some of the values to their default values
-			// to exercise those code paths. This is important because the probabily of
+			// to exercise those code paths. This is important because the probability of
 			// randomly generating a uint64 with the default value of zero is so unlikely
 			// that it will basically never happen.
 			continue

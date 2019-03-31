@@ -23,8 +23,6 @@ package client
 import (
 	"time"
 
-	"github.com/jhump/protoreflect/desc"
-
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -42,6 +40,7 @@ import (
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/jhump/protoreflect/desc"
 	tchannel "github.com/uber/tchannel-go"
 )
 

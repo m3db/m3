@@ -48,6 +48,7 @@ type encoder struct {
 	// internal bookkeeping
 	tsEncoderState  TimestampEncoder
 	xorEncoderState XOREncoder
+	sigTracker      IntSigBitsTracker
 
 	ant ts.Annotation // current annotation
 
@@ -56,8 +57,6 @@ type encoder struct {
 	isFloat      bool    // whether we are encoding ints/floats
 	numEncoded   uint32  // whether any datapoints have been written yet
 	maxMult      uint8   // current max multiplier for int vals
-
-	sigTracker IntSigBitsTracker
 
 	closed bool
 }

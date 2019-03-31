@@ -24,9 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jhump/protoreflect/desc"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
 

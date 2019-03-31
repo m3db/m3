@@ -30,6 +30,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 )
 
+// Schema represents a schema for a protobuf message.
 type Schema *desc.MessageDescriptor
 
 const (

@@ -31,6 +31,7 @@ const (
 	schemaMessageName = "Schema"
 )
 
+// ParseProtoSchema parses a Protobuf schema.
 // TODO(rartoul): This is temporary code that will eventually be replaced with
 // storing the schemas in etcd.
 func ParseProtoSchema(filePath string) (*desc.MessageDescriptor, error) {

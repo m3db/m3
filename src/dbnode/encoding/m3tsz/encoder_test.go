@@ -39,11 +39,11 @@ var (
 )
 
 func getTestEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, nil, false, nil).(*encoder)
+	return NewEncoder(startTime, nil, false, nil).(*encoder)
 }
 
 func getTestOptEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, nil, true, nil).(*encoder)
+	return NewEncoder(startTime, nil, true, nil).(*encoder)
 }
 
 func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {

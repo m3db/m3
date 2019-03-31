@@ -26,14 +26,13 @@ import (
 	"io"
 	"math"
 
-	"github.com/m3db/m3x/checked"
-
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -53,7 +52,6 @@ type iterator struct {
 	err                    error
 	schema                 *desc.MessageDescriptor
 	stream                 encoding.IStream
-	consumedFirstMessage   bool
 	lastIterated           *dynamic.Message
 	lastIteratedProtoBytes []byte
 	byteFieldDictLRUSize   int
@@ -61,17 +59,17 @@ type iterator struct {
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
 	customFields []customFieldState
 
+	tsIterator m3tsz.TimestampIterator
+
 	// Fields that are reused between function calls to
 	// avoid allocations.
 	varIntBuf         [8]byte
 	bitsetValues      []int
 	unmarshalProtoBuf checked.Bytes
 
-	done bool
-	// Can i just reuse done for this?
-	closed bool
-
-	tsIterator m3tsz.TimestampIterator
+	consumedFirstMessage bool
+	done                 bool
+	closed               bool
 }
 
 // NewIterator creates a new iterator.
@@ -756,13 +754,13 @@ func (it *iterator) readIntValDiff(i int) error {
 	}
 
 	if it.customFields[i].fieldType == cUnsignedInt64 {
-		diff := uint64(diffSigBits)
+		diff := diffSigBits
 		shouldSubtract := false
 		if negativeControlBit == opCodeIntDeltaNegative {
 			shouldSubtract = true
 		}
 
-		prev := uint64(it.customFields[i].prevIntBits)
+		prev := it.customFields[i].prevIntBits
 		if shouldSubtract {
 			it.customFields[i].prevIntBits = prev - diff
 		} else {

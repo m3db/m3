@@ -27,8 +27,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/jhump/protoreflect/desc"
-
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -42,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 
+	"github.com/jhump/protoreflect/desc"
 	"github.com/uber/tchannel-go"
 )
 

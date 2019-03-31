@@ -63,9 +63,10 @@ type fetchState struct {
 	nsID                 ident.ID
 	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
-	done                 bool
 
 	pool fetchStatePool
+
+	done bool
 }
 
 func newFetchState(pool fetchStatePool) *fetchState {

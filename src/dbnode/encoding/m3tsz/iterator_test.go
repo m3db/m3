@@ -33,7 +33,7 @@ import (
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), nil, false, encoding.NewOptions()).(*readerIterator)
+	return NewReaderIterator(bytes.NewReader(rawBytes), false, encoding.NewOptions()).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {
