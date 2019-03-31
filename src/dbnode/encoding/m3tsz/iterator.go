@@ -38,13 +38,11 @@ type readerIterator struct {
 	is   encoding.IStream
 	opts encoding.Options
 
-	// internal bookkeeping
+	vb         uint64  // current float value
+	xor        uint64  // current float xor
+	err        error   // current error
+	intVal     float64 // current int value
 	tsIterator TimestampIterator
-	vb         uint64 // current float value
-	xor        uint64 // current float xor
-	err        error  // current error
-
-	intVal float64 // current int value
 
 	mult uint8 // current int multiplier
 	sig  uint8 // current number of significant bits for int diff
