@@ -237,8 +237,6 @@ type generatedWrite struct {
 	// Whether we should use one of the randomly generated values in the slice below,
 	// or just the default value for the given type.
 	useDefaultValue []bool
-	// Whether we should use the same value as the previous write.
-	usePrevValue []bool
 
 	bools    []bool
 	enums    []int32
