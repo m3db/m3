@@ -52,13 +52,13 @@ type encoder struct {
 
 	ant ts.Annotation // current annotation
 
-	intVal       float64 // current int val
-	intOptimized bool    // whether the encoding scheme is optimized for ints
-	isFloat      bool    // whether we are encoding ints/floats
-	numEncoded   uint32  // whether any datapoints have been written yet
-	maxMult      uint8   // current max multiplier for int vals
+	intVal     float64 // current int val
+	numEncoded uint32  // whether any datapoints have been written yet
+	maxMult    uint8   // current max multiplier for int vals
 
-	closed bool
+	intOptimized bool // whether the encoding scheme is optimized for ints
+	isFloat      bool // whether we are encoding ints/floats
+	closed       bool
 }
 
 // NewEncoder creates a new encoder.
@@ -433,16 +433,15 @@ func NewTimestampEncoder(
 // WriteTime encode the timestamp using delta-of-delta compression.
 func (enc *TimestampEncoder) WriteTime(
 	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
-	if enc.hasWrittenFirst {
-		return enc.WriteNextTime(stream, currTime, ant, timeUnit)
+	if !enc.hasWrittenFirst {
+		if err := enc.WriteFirstTime(stream, currTime, ant, timeUnit); err != nil {
+			return err
+		}
+		enc.hasWrittenFirst = true
+		return nil
 	}
 
-	if err := enc.WriteFirstTime(stream, currTime, ant, timeUnit); err != nil {
-		return err
-	}
-
-	enc.hasWrittenFirst = true
-	return nil
+	return enc.WriteNextTime(stream, currTime, ant, timeUnit)
 }
 
 // WriteFirstTime encodes the first timestamp.

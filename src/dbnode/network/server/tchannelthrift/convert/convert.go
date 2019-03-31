@@ -317,7 +317,7 @@ func FromRPCAggregateQueryRequest(
 		opts.Type = index.AggregateTagNames
 	}
 
-	ns := ident.StringID(string(req.NameSpace))
+	ns := ident.StringID(req.NameSpace)
 	return ns, index.Query{Query: query}, opts, nil
 }
 

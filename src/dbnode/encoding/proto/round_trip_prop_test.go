@@ -584,10 +584,6 @@ func genFieldModifier() gopter.Gen {
 		fieldModifierRegular, fieldModifierReserved, fieldModifierRepeated, fieldModifierMap)
 }
 
-func genFieldModifierNoMapKey() gopter.Gen {
-	return gen.OneConstOf()
-}
-
 func genMapKeyType() gopter.Gen {
 	return gen.OneConstOf(validMapKeyTypes...)
 }

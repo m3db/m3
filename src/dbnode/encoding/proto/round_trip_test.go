@@ -158,15 +158,6 @@ func newTestEncoder(t time.Time) *Encoder {
 	return e
 }
 
-func marshalVL(m *dynamic.Message) []byte {
-	marshaled, err := m.Marshal()
-	if err != nil {
-		panic(err)
-	}
-
-	return marshaled
-}
-
 func newVL(lat, long float64, epoch int64, deliveryID []byte) *dynamic.Message {
 	newMessage := dynamic.NewMessage(testVLSchema)
 	newMessage.SetFieldByName("latitude", lat)
