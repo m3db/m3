@@ -144,6 +144,8 @@ func (it *iterator) Next() bool {
 			return false
 		}
 		if !it.consumedFirstMessage {
+			// Don't interpret the initial time unit as a "change" since the encoder special
+			// cases the first one.
 			it.tsIterator.TimeUnitChanged = false
 		}
 	}
