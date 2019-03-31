@@ -123,8 +123,13 @@ func TestRoundtripProp(t *testing.T) {
 
 		times := make([]time.Time, 0, len(input.messages))
 		currTime := time.Now()
-		for range input.messages {
-			currTime = currTime.Add(time.Nanosecond)
+		for _, m := range input.messages {
+			duration, err := m.timeUnit.Value()
+			if err != nil {
+				return false, fmt.Errorf("error getting duration from xtime.Unit: %v", err)
+			}
+
+			currTime = currTime.Add(duration).Truncate(duration)
 			times = append(times, currTime)
 		}
 
@@ -134,14 +139,14 @@ func TestRoundtripProp(t *testing.T) {
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
 			clone := dynamic.NewMessage(input.schema)
-			clone.MergeFrom(m)
+			clone.MergeFrom(m.message)
 			cloneBytes, err := clone.Marshal()
 			if err != nil {
 				return false, fmt.Errorf("error marshaling proto message: %v", err)
 			}
 
 			if debugLogs {
-				printMessage("encoding", m)
+				printMessage("encoding", m.message)
 			}
 			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
@@ -161,7 +166,7 @@ func TestRoundtripProp(t *testing.T) {
 		i := 0
 		for iter.Next() {
 			var (
-				m                    = input.messages[i]
+				m                    = input.messages[i].message
 				dp, unit, annotation = iter.Current()
 			)
 			decodedM := dynamic.NewMessage(input.schema)
@@ -208,7 +213,12 @@ func TestRoundtripProp(t *testing.T) {
 
 type propTestInput struct {
 	schema   *desc.MessageDescriptor
-	messages []*dynamic.Message
+	messages []messageAndTimeUnit
+}
+
+type messageAndTimeUnit struct {
+	message  *dynamic.Message
+	timeUnit xtime.Unit
 }
 
 // generatedWrite contains numFields values for every type of ProtoBuf
@@ -222,6 +232,8 @@ type propTestInput struct {
 // fields, then we will populate the first 5 booleans fields with generatedWrite.bools[:5]
 // and the next 5 string fields with generatedWrite.strings[5:].
 type generatedWrite struct {
+	timeUnit xtime.Unit
+
 	// Whether we should use one of the randomly generated values in the slice below,
 	// or just the default value for the given type.
 	useDefaultValue []bool
@@ -274,9 +286,10 @@ func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Ge
 		gen.SliceOfN(numMessages, gen.SliceOfN(len(schema.GetFields()), gen.Bool())),
 	).Map(func(input []interface{}) propTestInput {
 
-		messages := input[0].([]*dynamic.Message)
+		messages := input[0].([]messageAndTimeUnit)
 		perMessageShouldBeSameAsPrevWrite := input[1].([][]bool)
-		for i, m := range messages {
+		for i, messageAndUnit := range messages {
+			m := messageAndUnit.message
 			if i == 0 {
 				// Can't make the same as previous if there is no previous.
 				continue
@@ -287,7 +300,7 @@ func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Ge
 			for j, field := range fields {
 				if perFieldShouldBeSameAsPrevWrite[j] {
 					fieldNumInt := int(field.GetNumber())
-					prevFieldVal := messages[i-1].GetFieldByNumber(fieldNumInt)
+					prevFieldVal := messages[i-1].message.GetFieldByNumber(fieldNumInt)
 					m.SetFieldByNumber(fieldNumInt, prevFieldVal)
 				}
 			}
@@ -295,18 +308,18 @@ func genPropTestInput(schema *desc.MessageDescriptor, numMessages int) gopter.Ge
 
 		return propTestInput{
 			schema:   schema,
-			messages: input[0].([]*dynamic.Message),
+			messages: messages,
 		}
 	})
 }
 
 func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
-	return genWrite().Map(func(input generatedWrite) *dynamic.Message {
+	return genWrite().Map(func(input generatedWrite) messageAndTimeUnit {
 		return newMessageWithValues(schema, input)
 	})
 }
 
-func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) *dynamic.Message {
+func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) messageAndTimeUnit {
 	message := dynamic.NewMessage(schema)
 	for i, field := range message.GetKnownFields() {
 		fieldNumber := int(field.GetNumber())
@@ -333,19 +346,32 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 				mapValuesForType         = interfaceSlice(mapValuesForTypeIFace)
 			)
 			for j, key := range mapKeysForType {
-				message.PutMapFieldByNumber(fieldNumber, key, mapValuesForType[j])
+				if messageAndTU, ok := mapValuesForType[j].(messageAndTimeUnit); ok {
+					message.PutMapFieldByNumber(fieldNumber, key, messageAndTU.message)
+				} else {
+					message.PutMapFieldByNumber(fieldNumber, key, mapValuesForType[j])
+				}
 			}
 		default:
-			var idx = i
-			if i > 0 && input.usePrevValue[i] {
-				idx = i - 1
-			}
-
-			sliceValues, singleValue := valuesOfType(schema, idx, field, input)
+			sliceValues, singleValue := valuesOfType(schema, i, field, input)
 			if field.IsRepeated() {
-				message.SetFieldByNumber(fieldNumber, sliceValues)
+				valuesToSet := interfaceSlice(sliceValues)
+				if _, ok := singleValue.(messageAndTimeUnit); ok {
+					// If its a slice of messageAndTimeUnit (indiciating a field with repeated
+					// nested messages) then we need to convert it to a slice of *dynamic.Message.
+					valuesToSet = make([]interface{}, 0, len(valuesToSet))
+					for _, v := range interfaceSlice(sliceValues) {
+						valuesToSet = append(valuesToSet, v.(messageAndTimeUnit).message)
+					}
+				}
+
+				message.SetFieldByNumber(fieldNumber, valuesToSet)
 			} else {
-				message.SetFieldByNumber(fieldNumber, singleValue)
+				if messageAndTU, ok := singleValue.(messageAndTimeUnit); ok {
+					message.SetFieldByNumber(fieldNumber, messageAndTU.message)
+				} else {
+					message.SetFieldByNumber(fieldNumber, singleValue)
+				}
 			}
 		}
 	}
@@ -365,7 +391,10 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 		panic("generated message that is not equal after being marshaled and unmarshaled")
 	}
 
-	return message
+	return messageAndTimeUnit{
+		message:  message,
+		timeUnit: input.timeUnit,
+	}
 }
 
 func valuesOfType(
@@ -426,7 +455,7 @@ func valuesOfType(
 		} else {
 			nestedMessageSchema = field.GetMessageType()
 		}
-		nestedMessages := make([]*dynamic.Message, 0, i)
+		nestedMessages := make([]messageAndTimeUnit, 0, i)
 		for j := 0; j <= i; j++ {
 			nestedMessages = append(nestedMessages, newMessageWithValues(nestedMessageSchema, input))
 		}
@@ -438,7 +467,7 @@ func valuesOfType(
 
 func genWrite() gopter.Gen {
 	return gopter.CombineGens(
-		gen.SliceOfN(maxNumFields, gen.Bool()),
+		genTimeUnit(),
 		gen.SliceOfN(maxNumFields, gen.Bool()),
 		gen.SliceOfN(maxNumFields, gen.Bool()),
 		gen.SliceOfN(maxNumFields, gen.Int32Range(0, int32(maxNumEnumValues)-1)),
@@ -455,8 +484,8 @@ func genWrite() gopter.Gen {
 		gen.SliceOfN(maxNumFields, gen.UInt64()),
 	).Map(func(input []interface{}) generatedWrite {
 		return generatedWrite{
-			useDefaultValue: input[0].([]bool),
-			usePrevValue:    input[1].([]bool),
+			timeUnit:        input[0].(xtime.Unit),
+			useDefaultValue: input[1].([]bool),
 			bools:           input[2].([]bool),
 			enums:           input[3].([]int32),
 			strings:         input[4].([]string),
@@ -584,6 +613,11 @@ func newBuilderFieldType(
 	}
 
 	return builder.FieldTypeScalar(fieldType)
+}
+
+func genTimeUnit() gopter.Gen {
+	return gen.OneConstOf(
+		xtime.Second, xtime.Millisecond, xtime.Microsecond, xtime.Nanosecond)
 }
 
 func genFieldModifier() gopter.Gen {
