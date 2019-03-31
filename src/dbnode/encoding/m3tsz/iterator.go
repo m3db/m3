@@ -504,7 +504,7 @@ func (it *TimestampIterator) readAnnotation(stream encoding.IStream) error {
 }
 
 func (it *TimestampIterator) readTimeUnit(stream encoding.IStream) error {
-	tuBits, err := stream.ReadBits(8)
+	tuBits, err := stream.ReadByte()
 	if err != nil {
 		return err
 	}

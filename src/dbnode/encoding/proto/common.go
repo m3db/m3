@@ -76,8 +76,11 @@ const (
 	// Single bit op codes that get encoded into the compressed stream and
 	// inform the iterator / decoder how it should interpret subsequent
 	// bits.
-	opCodeNoMoreData = 0
-	opCodeMoreData   = 1
+	opCodeNoMoreDataOrTimeUnitChange = 0
+	opCodeMoreData                   = 1
+
+	opCodeNoMoreData     = 0
+	opCodeTimeUnitChange = 1
 
 	opCodeNoChange = 0
 	opCodeChange   = 1

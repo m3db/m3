@@ -112,13 +112,29 @@ func (it *iterator) Next() bool {
 	}
 
 	moreDataControlBit, err := it.stream.ReadBit()
-	if err == io.EOF || (err == nil && moreDataControlBit == opCodeNoMoreData) {
+	if err == io.EOF {
+		// TODO Do I need this?
 		it.done = true
 		return false
 	}
 	if err != nil {
 		it.err = err
 		return false
+	}
+
+	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChange {
+		// The next bit will tell us whether we've reached the end of the stream
+		// or that the time unit changed.
+		noMoreDataControlBit, err := it.stream.ReadBit()
+		if err != nil {
+			it.err = err
+			return false
+		}
+
+		if noMoreDataControlBit == opCodeNoMoreData {
+			it.done = true
+			return false
+		}
 	}
 
 	_, done, err := it.tsIterator.ReadTimestamp(it.stream)

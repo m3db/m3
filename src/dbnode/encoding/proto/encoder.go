@@ -139,8 +139,23 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		enc.encodeHeader()
 	}
 
-	// Control bit that indicates the stream has more data.
-	enc.stream.WriteBit(opCodeMoreData)
+	if timeUnit != enc.timestampEncoder.TimeUnit {
+		// We handle encoding time unit changes ourselves because by default the WriteTime()
+		// API will use a marker encoding scheme which relies on looking ahead into the stream
+		// for bit combinations that could not possibly exist in the M3TSZ encoding scheme. We don't
+		// want to rely on this behavior because its possible that we could encode a legit set of bits
+		// that matches the "impossible" M3TSZ markers exactly.
+
+		// First bit means either there is no more data OR the time unit has changed.
+		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChange)
+		// Next bit means there is more data, but the time unit has changed.
+		enc.stream.WriteBit(opCodeTimeUnitChange)
+
+		enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+	} else {
+		// Control bit that indicates the stream has more data.
+		enc.stream.WriteBit(opCodeMoreData)
+	}
 
 	err := enc.timestampEncoder.WriteTime(enc.stream, dp.Timestamp, nil, timeUnit)
 	if err != nil {

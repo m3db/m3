@@ -188,7 +188,7 @@ func TestWriteTimeUnit(t *testing.T) {
 		stream := encoding.NewOStream(nil, false, nil)
 		tsEncoder := NewTimestampEncoder(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
 		tsEncoder.TimeUnit = xtime.None
-		assert.Equal(t, input.expectedResult, tsEncoder.writeTimeUnit(stream, input.timeUnit))
+		assert.Equal(t, input.expectedResult, tsEncoder.maybeWriteTimeUnitChange(stream, input.timeUnit))
 		b, p := stream.Rawbytes()
 		assert.Equal(t, input.expectedBytes, b)
 		assert.Equal(t, input.expectedPos, p)
