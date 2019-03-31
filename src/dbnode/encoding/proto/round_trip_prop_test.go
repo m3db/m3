@@ -309,7 +309,9 @@ func genMessage(schema *desc.MessageDescriptor) gopter.Gen {
 func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) *dynamic.Message {
 	message := dynamic.NewMessage(schema)
 	for i, field := range message.GetKnownFields() {
-		if input.useDefaultValue[i] {
+		fieldNumber := int(field.GetNumber())
+		switch {
+		case input.useDefaultValue[i]:
 			// Due to the way ProtoBuf encoding works where there is no way to
 			// distinguish between an "unset" field and a field set to its default
 			// value, we intentionally force some of the values to their default values
@@ -317,10 +319,6 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 			// randomly generating a uint64 with the default value of zero is so unlikely
 			// that it will basically never happen.
 			continue
-		}
-
-		fieldNumber := int(field.GetNumber())
-		switch {
 		case field.IsMap():
 			// Maps require special handling because the type will look like a message, they'll
 			// have the repeated label, and to construct them properly we need to look at both
@@ -338,7 +336,12 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 				message.PutMapFieldByNumber(fieldNumber, key, mapValuesForType[j])
 			}
 		default:
-			sliceValues, singleValue := valuesOfType(schema, i, field, input)
+			var idx = i
+			if i > 0 && input.usePrevValue[i] {
+				idx = i - 1
+			}
+
+			sliceValues, singleValue := valuesOfType(schema, idx, field, input)
 			if field.IsRepeated() {
 				message.SetFieldByNumber(fieldNumber, sliceValues)
 			} else {
@@ -437,6 +440,7 @@ func genWrite() gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(maxNumFields, gen.Bool()),
 		gen.SliceOfN(maxNumFields, gen.Bool()),
+		gen.SliceOfN(maxNumFields, gen.Bool()),
 		gen.SliceOfN(maxNumFields, gen.Int32Range(0, int32(maxNumEnumValues)-1)),
 		gen.SliceOfN(maxNumFields, gen.Identifier()),
 		gen.SliceOfN(maxNumFields, gen.Float32()),
@@ -452,19 +456,20 @@ func genWrite() gopter.Gen {
 	).Map(func(input []interface{}) generatedWrite {
 		return generatedWrite{
 			useDefaultValue: input[0].([]bool),
-			bools:           input[1].([]bool),
-			enums:           input[2].([]int32),
-			strings:         input[3].([]string),
-			float32s:        input[4].([]float32),
-			float64s:        input[5].([]float64),
-			int8s:           input[6].([]int8),
-			int16s:          input[7].([]int16),
-			int32s:          input[8].([]int32),
-			int64s:          input[9].([]int64),
-			uint8s:          input[10].([]uint8),
-			uint16s:         input[11].([]uint16),
-			uint32s:         input[12].([]uint32),
-			uint64s:         input[13].([]uint64),
+			usePrevValue:    input[1].([]bool),
+			bools:           input[2].([]bool),
+			enums:           input[3].([]int32),
+			strings:         input[4].([]string),
+			float32s:        input[5].([]float32),
+			float64s:        input[6].([]float64),
+			int8s:           input[7].([]int8),
+			int16s:          input[8].([]int16),
+			int32s:          input[9].([]int32),
+			int64s:          input[10].([]int64),
+			uint8s:          input[11].([]uint8),
+			uint16s:         input[12].([]uint16),
+			uint32s:         input[13].([]uint32),
+			uint64s:         input[14].([]uint64),
 		}
 	})
 }
