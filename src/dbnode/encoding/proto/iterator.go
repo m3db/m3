@@ -44,7 +44,6 @@ const (
 
 var (
 	itErrPrefix                 = "proto iterator:"
-	errIteratorReaderIsRequired = fmt.Errorf("%s reader is required", itErrPrefix)
 	errIteratorSchemaIsRequired = fmt.Errorf("%s schema is required", itErrPrefix)
 )
 
@@ -406,11 +405,8 @@ func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error
 
 	it.customFields[i].floatXORState.PrevFloatBits = fb
 	it.customFields[i].floatXORState.PrevXOR = xor
-	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
-		return err
-	}
 
-	return nil
+	return it.updateLastIteratedWithCustomValues(i)
 }
 
 func (it *iterator) readNextCustomValues() error {
@@ -448,11 +444,8 @@ func (it *iterator) readNextTSZValue(i int, customField customFieldState) error 
 
 	it.customFields[i].floatXORState.PrevFloatBits = fb
 	it.customFields[i].floatXORState.PrevXOR = xor
-	if err := it.updateLastIteratedWithCustomValues(i); err != nil {
-		return err
-	}
 
-	return nil
+	return it.updateLastIteratedWithCustomValues(i)
 }
 
 func (it *iterator) readIntValue(i int, customField customFieldState, first bool) error {
