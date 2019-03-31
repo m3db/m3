@@ -231,24 +231,24 @@ func (it *iterator) readHeader() error {
 }
 
 func (it *iterator) readCustomFieldsSchema() error {
-	maxCustomFieldNum, err := it.readVarInt()
+	numCustomFields, err := it.readVarInt()
 	if err != nil {
 		return err
 	}
 
-	if maxCustomFieldNum > maxCustomFieldNum {
+	if numCustomFields > maxCustomFieldNum {
 		return fmt.Errorf(
-			"%s maximum custom field in header is %d but maximum allowed is %d",
-			itErrPrefix, maxCustomFieldNum, maxCustomFieldNum)
+			"%s num custom fields in header is %d but maximum allowed is %d",
+			itErrPrefix, numCustomFields, maxCustomFieldNum)
 	}
 
-	if maxCustomFieldNum <= maxTSZFieldsCapacityRetain && it.customFields != nil {
+	if numCustomFields <= maxTSZFieldsCapacityRetain && it.customFields != nil {
 		it.customFields = it.customFields[:0]
 	} else {
-		it.customFields = make([]customFieldState, 0, maxCustomFieldNum)
+		it.customFields = make([]customFieldState, 0, numCustomFields)
 	}
 
-	for i := 1; i <= int(maxCustomFieldNum); i++ {
+	for i := 1; i <= int(numCustomFields); i++ {
 		fieldTypeBits, err := it.stream.ReadBits(3)
 		if err != nil {
 			return err

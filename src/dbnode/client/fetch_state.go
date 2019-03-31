@@ -54,9 +54,6 @@ type fetchState struct {
 	sync.Mutex
 	refCounter
 
-	// NB: stateType determines which type of op this fetchState
-	// is used for - fetchTagged or Aggregate.
-	stateType     fetchStateType
 	fetchTaggedOp *fetchTaggedOp
 	aggregateOp   *aggregateOp
 
@@ -65,6 +62,10 @@ type fetchState struct {
 	err                  error
 
 	pool fetchStatePool
+
+	// NB: stateType determines which type of op this fetchState
+	// is used for - fetchTagged or Aggregate.
+	stateType fetchStateType
 
 	done bool
 }

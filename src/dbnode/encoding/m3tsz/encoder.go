@@ -413,9 +413,9 @@ type TimestampEncoder struct {
 	PrevTimeDelta  time.Duration
 	PrevAnnotation []byte
 
-	TimeUnit xtime.Unit
-
 	Opts encoding.Options
+
+	TimeUnit xtime.Unit
 
 	hasWrittenFirst bool // Only taken into account if using the WriteTime() API.
 }
@@ -458,7 +458,7 @@ func (enc *TimestampEncoder) WriteFirstTime(
 func (enc *TimestampEncoder) WriteNextTime(
 	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
 	enc.writeAnnotation(stream, ant)
-	tuChanged := enc.writeTimeUnit(stream, timeUnit)
+	tuChanged := enc.maybeWriteTimeUnitChange(stream, timeUnit)
 
 	timeDelta := currTime.Sub(enc.PrevTime)
 	enc.PrevTime = currTime
@@ -477,26 +477,32 @@ func (enc *TimestampEncoder) WriteNextTime(
 	return err
 }
 
-// shouldWriteTimeUnit determines whether we should write tu as a time unit.
-// Returns true if tu is valid and differs from the existing time unit, false otherwise.
-func (enc *TimestampEncoder) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
-	if !timeUnit.IsValid() || timeUnit == enc.TimeUnit {
-		return false
-	}
-	return true
+// WriteTimeUnit writes the new time unit into the stream. It exists as a standalone method
+// so that other calls can encode time unit changes without relying on the marker scheme.
+func (enc *TimestampEncoder) WriteTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) {
+	stream.WriteByte(byte(timeUnit))
+	enc.TimeUnit = timeUnit
 }
 
-// writeTimeUnit encodes the time unit and returns true if the time unit has
+// maybeWriteTimeUnitChange encodes the time unit and returns true if the time unit has
 // changed, and false otherwise.
-func (enc *TimestampEncoder) writeTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) bool {
+func (enc *TimestampEncoder) maybeWriteTimeUnitChange(stream encoding.OStream, timeUnit xtime.Unit) bool {
 	if !enc.shouldWriteTimeUnit(timeUnit) {
 		return false
 	}
 
 	scheme := enc.Opts.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(stream, scheme, scheme.TimeUnit())
-	stream.WriteByte(byte(timeUnit))
-	enc.TimeUnit = timeUnit
+	enc.WriteTimeUnit(stream, timeUnit)
+	return true
+}
+
+// shouldWriteTimeUnit determines whether we should write tu as a time unit.
+// Returns true if tu is valid and differs from the existing time unit, false otherwise.
+func (enc *TimestampEncoder) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
+	if !timeUnit.IsValid() || timeUnit == enc.TimeUnit {
+		return false
+	}
 	return true
 }
 
