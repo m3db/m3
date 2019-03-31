@@ -48,12 +48,11 @@ const (
 )
 
 var (
-	encErrPrefix                         = "proto encoder:"
-	errEncoderSchemaIsRequired           = fmt.Errorf("%s schema is required", encErrPrefix)
-	errEncoderEncodingOptionsAreRequired = fmt.Errorf("%s encoding options are required", encErrPrefix)
-	errEncoderMessageHasUnknownFields    = fmt.Errorf("%s message has unknown fields", encErrPrefix)
-	errEncoderClosed                     = fmt.Errorf("%s encoder is closed", encErrPrefix)
-	errNoEncodedDatapoints               = fmt.Errorf("%s encoder has no encoded datapoints", encErrPrefix)
+	encErrPrefix                      = "proto encoder:"
+	errEncoderSchemaIsRequired        = fmt.Errorf("%s schema is required", encErrPrefix)
+	errEncoderMessageHasUnknownFields = fmt.Errorf("%s message has unknown fields", encErrPrefix)
+	errEncoderClosed                  = fmt.Errorf("%s encoder is closed", encErrPrefix)
+	errNoEncodedDatapoints            = fmt.Errorf("%s encoder has no encoded datapoints", encErrPrefix)
 )
 
 // Encoder compresses arbitrary ProtoBuf streams given a schema.
