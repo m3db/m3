@@ -279,7 +279,6 @@ func NewTimestampIterator(opts encoding.Options) TimestampIterator {
 // ReadTimestamp reads the first or next timestamp.
 func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool, error) {
 	it.PrevAnt = nil
-	it.TimeUnitChanged = false
 
 	var (
 		first = false
@@ -299,6 +298,7 @@ func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool,
 	// consistent with the encoder.
 	if it.TimeUnitChanged {
 		it.PrevTimeDelta = 0
+		it.TimeUnitChanged = false
 	}
 
 	return first, it.Done, nil
