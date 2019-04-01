@@ -45,8 +45,9 @@ var (
 // will make sure that the cache is purged of all the segments postings lists before
 // the segment itself is closed.
 type ReadThroughSegment struct {
-	segment.Segment
 	sync.RWMutex
+
+	segment segment.Segment
 
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
@@ -72,8 +73,7 @@ func NewReadThroughSegment(
 	opts ReadThroughSegmentOptions,
 ) segment.Segment {
 	return &ReadThroughSegment{
-		Segment: seg,
-
+		segment:           seg,
 		opts:              opts,
 		uuid:              uuid.NewUUID(),
 		postingsListCache: cache,
@@ -88,7 +88,7 @@ func (r *ReadThroughSegment) Reader() (index.Reader, error) {
 		return nil, errCantGetReaderFromClosedSegment
 	}
 
-	reader, err := r.Segment.Reader()
+	reader, err := r.segment.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,31 @@ func (r *ReadThroughSegment) Close() error {
 		// bytes are no longer mmap'd.
 		r.postingsListCache.PurgeSegment(r.uuid)
 	}
-	return r.Segment.Close()
+	return r.segment.Close()
+}
+
+// FieldsIterable is a pass through call to the segment, since there's no
+// postings lists to cache for queries.
+func (r *ReadThroughSegment) FieldsIterable() segment.FieldsIterable {
+	return r.segment.FieldsIterable()
+}
+
+// TermsIterable is a pass through call to the segment, since there's no
+// postings lists to cache for queries.
+func (r *ReadThroughSegment) TermsIterable() segment.TermsIterable {
+	return r.segment.TermsIterable()
+}
+
+// ContainsID is a pass through call to the segment, since there's no
+// postings lists to cache for queries.
+func (r *ReadThroughSegment) ContainsID(id []byte) (bool, error) {
+	return r.segment.ContainsID(id)
+}
+
+// Size is a pass through call to the segment, since there's no
+// postings lists to cache for queries.
+func (r *ReadThroughSegment) Size() int64 {
+	return r.segment.Size()
 }
 
 type readThroughSegmentReader struct {
