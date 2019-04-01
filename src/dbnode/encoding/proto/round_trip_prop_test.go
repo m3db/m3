@@ -123,13 +123,13 @@ func TestRoundtripProp(t *testing.T) {
 
 		times := make([]time.Time, 0, len(input.messages))
 		currTime := time.Now()
-		for _, m := range input.messages {
+		for i, m := range input.messages {
 			duration, err := m.timeUnit.Value()
 			if err != nil {
 				return false, fmt.Errorf("error getting duration from xtime.Unit: %v", err)
 			}
 
-			currTime = currTime.Add(duration).Truncate(duration)
+			currTime = currTime.Add(time.Duration(i) * duration).Truncate(duration)
 			times = append(times, currTime)
 		}
 
