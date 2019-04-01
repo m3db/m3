@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,48 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package query;
+package searcher
 
-option go_package = "querypb";
+import (
+	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/search"
+)
 
-message FieldQuery {
-  bytes field = 1;
+type fieldSearcher struct {
+	field    []byte
+	compiled index.CompiledRegex
 }
 
-message TermQuery {
-  bytes field = 1;
-  bytes term  = 2;
+// NewFieldSearcher returns a new searcher for finding documents which match the given field.
+func NewFieldSearcher(field []byte) (search.Searcher, error) {
+	compiledAll, err := index.CompileRegex([]byte(".*"))
+	if err != nil {
+		return nil, err
+	}
+
+	return &fieldSearcher{
+		field:    field,
+		compiled: compiledAll,
+	}, nil
 }
 
-message RegexpQuery {
-  bytes field  = 1;
-  bytes regexp = 2;
-}
-
-message NegationQuery {
-  Query query = 1;
-}
-
-message ConjunctionQuery {
-  repeated Query queries = 1;
-}
-
-message DisjunctionQuery {
-  repeated Query queries = 1;
-}
-
-message AllQuery {
-}
-
-message Query {
-  oneof query {
-    TermQuery term               = 1;
-    RegexpQuery regexp           = 2;
-    NegationQuery negation       = 3;
-    ConjunctionQuery conjunction = 4;
-    DisjunctionQuery disjunction = 5;
-    AllQuery all                 = 6;
-    FieldQuery field             = 7;
-  }
+func (s *fieldSearcher) Search(r index.Reader) (postings.List, error) {
+	// TODO: expose a new method on the reader to support such operations
+	return r.MatchRegexp(s.field, s.compiled)
 }

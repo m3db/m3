@@ -423,6 +423,10 @@ struct DisjunctionQuery {
 
 struct AllQuery {}
 
+struct FieldQuery {
+  1: required string field
+}
+
 struct Query {
   1: optional TermQuery        term
   2: optional RegexpQuery      regexp
@@ -430,4 +434,5 @@ struct Query {
   4: optional ConjunctionQuery conjunction
   5: optional DisjunctionQuery disjunction
   6: optional AllQuery         all
+  7: optional FieldQuery       field
 }
