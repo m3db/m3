@@ -24,6 +24,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -116,8 +117,10 @@ func (r *ReadThroughSegment) Close() error {
 }
 
 type readThroughSegmentReader struct {
-	index.Reader
-
+	// reader is explicitly not embedded at the top level
+	// of the struct to force new methods added to index.Reader
+	// to be explicitly supported by the read through cache.
+	reader            index.Reader
 	opts              ReadThroughSegmentOptions
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
@@ -130,8 +133,7 @@ func newReadThroughSegmentReader(
 	opts ReadThroughSegmentOptions,
 ) index.Reader {
 	return &readThroughSegmentReader{
-		Reader: reader,
-
+		reader:            reader,
 		opts:              opts,
 		uuid:              uuid,
 		postingsListCache: cache,
@@ -145,7 +147,7 @@ func (s *readThroughSegmentReader) MatchRegexp(
 	c index.CompiledRegex,
 ) (postings.List, error) {
 	if s.postingsListCache == nil || !s.opts.CacheRegexp {
-		return s.Reader.MatchRegexp(field, c)
+		return s.reader.MatchRegexp(field, c)
 	}
 
 	// TODO(rartoul): Would be nice to not allocate strings here.
@@ -156,7 +158,7 @@ func (s *readThroughSegmentReader) MatchRegexp(
 		return pl, nil
 	}
 
-	pl, err := s.Reader.MatchRegexp(field, c)
+	pl, err := s.reader.MatchRegexp(field, c)
 	if err == nil {
 		s.postingsListCache.PutRegexp(s.uuid, fieldStr, patternStr, pl)
 	}
@@ -169,7 +171,7 @@ func (s *readThroughSegmentReader) MatchTerm(
 	field []byte, term []byte,
 ) (postings.List, error) {
 	if s.postingsListCache == nil || !s.opts.CacheTerms {
-		return s.Reader.MatchTerm(field, term)
+		return s.reader.MatchTerm(field, term)
 	}
 
 	// TODO(rartoul): Would be nice to not allocate strings here.
@@ -180,9 +182,37 @@ func (s *readThroughSegmentReader) MatchTerm(
 		return pl, nil
 	}
 
-	pl, err := s.Reader.MatchTerm(field, term)
+	pl, err := s.reader.MatchTerm(field, term)
 	if err == nil {
 		s.postingsListCache.PutTerm(s.uuid, fieldStr, patternStr, pl)
 	}
 	return pl, err
+}
+
+// MatchAll is a pass through call, since there's no postings list to cache.
+// NB(r): The postings list returned by match all is just an iterator
+// from zero to the maximum document number indexed by the segment and as such
+// causes no allocations to compute and construct.
+func (s *readThroughSegmentReader) MatchAll() (postings.MutableList, error) {
+	return s.reader.MatchAll()
+}
+
+// AllDocs is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) AllDocs() (index.IDDocIterator, error) {
+	return s.reader.AllDocs()
+}
+
+// Doc is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Document, error) {
+	return s.reader.Doc(id)
+}
+
+// Docs is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
+	return s.reader.Docs(pl)
+}
+
+// Close is a pass through call.
+func (s *readThroughSegmentReader) Close() error {
+	return s.reader.Close()
 }
