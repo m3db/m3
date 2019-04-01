@@ -140,19 +140,19 @@ func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
 
 // LoadSchemaRegistry loads schema registry from SchemaOptions proto.
 func LoadSchemaRegistry(options *nsproto.SchemaOptions) (SchemaRegistry, error) {
-	if options.GetRepo() == nil || len(options.GetRepo().GetHistory()) == 0 ||
+	if options.GetHistory() == nil || len(options.GetHistory().GetVersions()) == 0 ||
 		len(options.GetSchemas()) == 0 {
 		return nil, nil
 	}
 	// sorted by version in descending order (most recent first)
-	hist := options.GetRepo().GetHistory()
-	sort.Slice(hist, func(i, j int) bool {
-		return hist[i].Version > hist[j].Version
+	versions := options.GetHistory().GetVersions()
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].Version > versions[j].Version
 	})
 
 	// take the most recent version
-	fdbSet := hist[0].Descriptors
-	version := hist[0].Version
+	fdbSet := versions[0].Descriptors
+	version := versions[0].Version
 
 	// assuming file descriptors are topological sorted
 	var dependencies []*desc.FileDescriptor

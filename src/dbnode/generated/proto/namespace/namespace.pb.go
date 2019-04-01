@@ -33,9 +33,9 @@
 		IndexOptions
 		NamespaceOptions
 		Registry
-		SchemaMeta
+		SchemaDesc
 		SchemaOptions
-		FileDescriptorRepo
+		SchemaHistory
 		FileDescriptorSet
 */
 package namespace

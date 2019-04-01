@@ -39,12 +39,12 @@ func getTestSchemaOptions() *nsproto.SchemaOptions {
 	main := &testproto.TestMessage{}
 	mainD, _ := main.Descriptor()
 	return &nsproto.SchemaOptions{
-		Repo: &nsproto.FileDescriptorRepo{
-			History: []*nsproto.FileDescriptorSet{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
 				{Version: 1, Descriptors: [][]byte{importedD, otherpkgD, mainD}},
 			},
 		},
-		Schemas: map[string]*nsproto.SchemaMeta{"id1": {MessageName: "TestMessage"}},
+		Schemas: map[string]*nsproto.SchemaDesc{"id1": {MessageName: "TestMessage"}},
 	}
 }
 

@@ -34,25 +34,31 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-type SchemaMeta struct {
+// SchemaDesc contains schema information
+type SchemaDesc struct {
+	// messageName is the name of the proto message that describes series schema
 	MessageName string `protobuf:"bytes,1,opt,name=messageName,proto3" json:"messageName,omitempty"`
 }
 
-func (m *SchemaMeta) Reset()                    { *m = SchemaMeta{} }
-func (m *SchemaMeta) String() string            { return proto.CompactTextString(m) }
-func (*SchemaMeta) ProtoMessage()               {}
-func (*SchemaMeta) Descriptor() ([]byte, []int) { return fileDescriptorSchema, []int{0} }
+func (m *SchemaDesc) Reset()                    { *m = SchemaDesc{} }
+func (m *SchemaDesc) String() string            { return proto.CompactTextString(m) }
+func (*SchemaDesc) ProtoMessage()               {}
+func (*SchemaDesc) Descriptor() ([]byte, []int) { return fileDescriptorSchema, []int{0} }
 
-func (m *SchemaMeta) GetMessageName() string {
+func (m *SchemaDesc) GetMessageName() string {
 	if m != nil {
 		return m.MessageName
 	}
 	return ""
 }
 
+// SchemaOptions contains schema information for a namespace.
 type SchemaOptions struct {
-	Repo    *FileDescriptorRepo    `protobuf:"bytes,1,opt,name=repo" json:"repo,omitempty"`
-	Schemas map[string]*SchemaMeta `protobuf:"bytes,2,rep,name=schemas" json:"schemas,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
+	// history contains a history of deployed schema definitions.
+	History *SchemaHistory `protobuf:"bytes,1,opt,name=history" json:"history,omitempty"`
+	// schemas contains a set of named schema descriptors for a namespace.
+	// schema is identified by schema name (the map key).
+	Schemas map[string]*SchemaDesc `protobuf:"bytes,2,rep,name=schemas" json:"schemas,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
 }
 
 func (m *SchemaOptions) Reset()                    { *m = SchemaOptions{} }
@@ -60,38 +66,43 @@ func (m *SchemaOptions) String() string            { return proto.CompactTextStr
 func (*SchemaOptions) ProtoMessage()               {}
 func (*SchemaOptions) Descriptor() ([]byte, []int) { return fileDescriptorSchema, []int{1} }
 
-func (m *SchemaOptions) GetRepo() *FileDescriptorRepo {
-	if m != nil {
-		return m.Repo
-	}
-	return nil
-}
-
-func (m *SchemaOptions) GetSchemas() map[string]*SchemaMeta {
-	if m != nil {
-		return m.Schemas
-	}
-	return nil
-}
-
-type FileDescriptorRepo struct {
-	History []*FileDescriptorSet `protobuf:"bytes,1,rep,name=history" json:"history,omitempty"`
-}
-
-func (m *FileDescriptorRepo) Reset()                    { *m = FileDescriptorRepo{} }
-func (m *FileDescriptorRepo) String() string            { return proto.CompactTextString(m) }
-func (*FileDescriptorRepo) ProtoMessage()               {}
-func (*FileDescriptorRepo) Descriptor() ([]byte, []int) { return fileDescriptorSchema, []int{2} }
-
-func (m *FileDescriptorRepo) GetHistory() []*FileDescriptorSet {
+func (m *SchemaOptions) GetHistory() *SchemaHistory {
 	if m != nil {
 		return m.History
 	}
 	return nil
 }
 
+func (m *SchemaOptions) GetSchemas() map[string]*SchemaDesc {
+	if m != nil {
+		return m.Schemas
+	}
+	return nil
+}
+
+// SchemaHistory is versioned FileDescriptorSet.
+type SchemaHistory struct {
+	// history is a list of FileDescriptorSet sorted by version in descending order.
+	Versions []*FileDescriptorSet `protobuf:"bytes,1,rep,name=versions" json:"versions,omitempty"`
+}
+
+func (m *SchemaHistory) Reset()                    { *m = SchemaHistory{} }
+func (m *SchemaHistory) String() string            { return proto.CompactTextString(m) }
+func (*SchemaHistory) ProtoMessage()               {}
+func (*SchemaHistory) Descriptor() ([]byte, []int) { return fileDescriptorSchema, []int{2} }
+
+func (m *SchemaHistory) GetVersions() []*FileDescriptorSet {
+	if m != nil {
+		return m.Versions
+	}
+	return nil
+}
+
+// FileDescriptorSet is a set of proto file descriptors.
 type FileDescriptorSet struct {
-	Version     uint32   `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	// version is the deployed version of the descriptors.
+	Version uint32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	// descriptors is a list of proto file descriptors sorted by dependency in topological order.
 	Descriptors [][]byte `protobuf:"bytes,2,rep,name=descriptors" json:"descriptors,omitempty"`
 }
 
@@ -115,12 +126,12 @@ func (m *FileDescriptorSet) GetDescriptors() [][]byte {
 }
 
 func init() {
-	proto.RegisterType((*SchemaMeta)(nil), "namespace.SchemaMeta")
+	proto.RegisterType((*SchemaDesc)(nil), "namespace.SchemaDesc")
 	proto.RegisterType((*SchemaOptions)(nil), "namespace.SchemaOptions")
-	proto.RegisterType((*FileDescriptorRepo)(nil), "namespace.FileDescriptorRepo")
+	proto.RegisterType((*SchemaHistory)(nil), "namespace.SchemaHistory")
 	proto.RegisterType((*FileDescriptorSet)(nil), "namespace.FileDescriptorSet")
 }
-func (m *SchemaMeta) Marshal() (dAtA []byte, err error) {
+func (m *SchemaDesc) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -130,7 +141,7 @@ func (m *SchemaMeta) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *SchemaMeta) MarshalTo(dAtA []byte) (int, error) {
+func (m *SchemaDesc) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -159,11 +170,11 @@ func (m *SchemaOptions) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Repo != nil {
+	if m.History != nil {
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintSchema(dAtA, i, uint64(m.Repo.Size()))
-		n1, err := m.Repo.MarshalTo(dAtA[i:])
+		i = encodeVarintSchema(dAtA, i, uint64(m.History.Size()))
+		n1, err := m.History.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
@@ -200,7 +211,7 @@ func (m *SchemaOptions) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *FileDescriptorRepo) Marshal() (dAtA []byte, err error) {
+func (m *SchemaHistory) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -210,13 +221,13 @@ func (m *FileDescriptorRepo) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *FileDescriptorRepo) MarshalTo(dAtA []byte) (int, error) {
+func (m *SchemaHistory) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.History) > 0 {
-		for _, msg := range m.History {
+	if len(m.Versions) > 0 {
+		for _, msg := range m.Versions {
 			dAtA[i] = 0xa
 			i++
 			i = encodeVarintSchema(dAtA, i, uint64(msg.Size()))
@@ -270,7 +281,7 @@ func encodeVarintSchema(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *SchemaMeta) Size() (n int) {
+func (m *SchemaDesc) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.MessageName)
@@ -283,8 +294,8 @@ func (m *SchemaMeta) Size() (n int) {
 func (m *SchemaOptions) Size() (n int) {
 	var l int
 	_ = l
-	if m.Repo != nil {
-		l = m.Repo.Size()
+	if m.History != nil {
+		l = m.History.Size()
 		n += 1 + l + sovSchema(uint64(l))
 	}
 	if len(m.Schemas) > 0 {
@@ -303,11 +314,11 @@ func (m *SchemaOptions) Size() (n int) {
 	return n
 }
 
-func (m *FileDescriptorRepo) Size() (n int) {
+func (m *SchemaHistory) Size() (n int) {
 	var l int
 	_ = l
-	if len(m.History) > 0 {
-		for _, e := range m.History {
+	if len(m.Versions) > 0 {
+		for _, e := range m.Versions {
 			l = e.Size()
 			n += 1 + l + sovSchema(uint64(l))
 		}
@@ -343,7 +354,7 @@ func sovSchema(x uint64) (n int) {
 func sozSchema(x uint64) (n int) {
 	return sovSchema(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *SchemaMeta) Unmarshal(dAtA []byte) error {
+func (m *SchemaDesc) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -366,10 +377,10 @@ func (m *SchemaMeta) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: SchemaMeta: wiretype end group for non-group")
+			return fmt.Errorf("proto: SchemaDesc: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: SchemaMeta: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: SchemaDesc: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -453,7 +464,7 @@ func (m *SchemaOptions) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Repo", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field History", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -477,10 +488,10 @@ func (m *SchemaOptions) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Repo == nil {
-				m.Repo = &FileDescriptorRepo{}
+			if m.History == nil {
+				m.History = &SchemaHistory{}
 			}
-			if err := m.Repo.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.History.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -511,10 +522,10 @@ func (m *SchemaOptions) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Schemas == nil {
-				m.Schemas = make(map[string]*SchemaMeta)
+				m.Schemas = make(map[string]*SchemaDesc)
 			}
 			var mapkey string
-			var mapvalue *SchemaMeta
+			var mapvalue *SchemaDesc
 			for iNdEx < postIndex {
 				entryPreIndex := iNdEx
 				var wire uint64
@@ -585,7 +596,7 @@ func (m *SchemaOptions) Unmarshal(dAtA []byte) error {
 					if postmsgIndex > l {
 						return io.ErrUnexpectedEOF
 					}
-					mapvalue = &SchemaMeta{}
+					mapvalue = &SchemaDesc{}
 					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
 						return err
 					}
@@ -628,7 +639,7 @@ func (m *SchemaOptions) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *FileDescriptorRepo) Unmarshal(dAtA []byte) error {
+func (m *SchemaHistory) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -651,15 +662,15 @@ func (m *FileDescriptorRepo) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: FileDescriptorRepo: wiretype end group for non-group")
+			return fmt.Errorf("proto: SchemaHistory: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: FileDescriptorRepo: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: SchemaHistory: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field History", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Versions", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -683,8 +694,8 @@ func (m *FileDescriptorRepo) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.History = append(m.History, &FileDescriptorSet{})
-			if err := m.History[len(m.History)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			m.Versions = append(m.Versions, &FileDescriptorSet{})
+			if err := m.Versions[len(m.Versions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -917,26 +928,26 @@ func init() {
 }
 
 var fileDescriptorSchema = []byte{
-	// 333 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x91, 0xc1, 0x4a, 0xfb, 0x40,
-	0x10, 0xc6, 0xff, 0xdb, 0xfe, 0xb5, 0x74, 0xda, 0x42, 0x5d, 0x10, 0x82, 0x68, 0x28, 0x01, 0xa1,
-	0x20, 0x64, 0xb1, 0x05, 0x11, 0x2f, 0x82, 0x54, 0x4f, 0x6a, 0x71, 0xfb, 0x04, 0x9b, 0x64, 0x68,
-	0x83, 0xdd, 0x6c, 0xd8, 0xdd, 0x16, 0xfa, 0x16, 0x3e, 0x96, 0x47, 0x4f, 0x9e, 0xa5, 0xbe, 0x88,
-	0x64, 0xd3, 0x96, 0x48, 0xf1, 0x96, 0xf9, 0xe6, 0x9b, 0x2f, 0xbf, 0x99, 0x85, 0xd1, 0x34, 0xb5,
-	0xb3, 0x45, 0x14, 0xc6, 0x4a, 0x32, 0x39, 0x4c, 0x22, 0x26, 0x87, 0xcc, 0xe8, 0x98, 0x25, 0x51,
-	0xa6, 0x12, 0x64, 0x53, 0xcc, 0x50, 0x0b, 0x8b, 0x09, 0xcb, 0xb5, 0xb2, 0x8a, 0x65, 0x42, 0xa2,
-	0xc9, 0x45, 0x8c, 0xcc, 0xc4, 0x33, 0x94, 0x22, 0x74, 0x32, 0x6d, 0xee, 0xf4, 0x20, 0x04, 0x98,
-	0xb8, 0xd6, 0x13, 0x5a, 0x41, 0x7b, 0xd0, 0x92, 0x68, 0x8c, 0x98, 0xe2, 0xb3, 0x90, 0xe8, 0x91,
-	0x1e, 0xe9, 0x37, 0x79, 0x55, 0x0a, 0x3e, 0x09, 0x74, 0xca, 0x81, 0x71, 0x6e, 0x53, 0x95, 0x19,
-	0x7a, 0x09, 0xff, 0x35, 0xe6, 0xca, 0x99, 0x5b, 0x83, 0xb3, 0x70, 0x97, 0x1d, 0x3e, 0xa4, 0x73,
-	0x1c, 0xa1, 0x89, 0x75, 0x9a, 0x5b, 0xa5, 0x39, 0xe6, 0x8a, 0x3b, 0x2b, 0xbd, 0x85, 0x46, 0xc9,
-	0x63, 0xbc, 0x5a, 0xaf, 0xde, 0x6f, 0x0d, 0xce, 0x2b, 0x53, 0xbf, 0xd2, 0x37, 0x95, 0xb9, 0xcf,
-	0xac, 0x5e, 0xf1, 0xed, 0xd4, 0xc9, 0x0b, 0xb4, 0xab, 0x0d, 0xda, 0x85, 0xfa, 0x2b, 0xae, 0x36,
-	0xbc, 0xc5, 0x27, 0xbd, 0x80, 0x83, 0xa5, 0x98, 0x2f, 0xd0, 0xab, 0x39, 0xac, 0xe3, 0xbd, 0x1f,
-	0x14, 0xfb, 0xf2, 0xd2, 0x73, 0x53, 0xbb, 0x26, 0xc1, 0x23, 0xd0, 0x7d, 0x5e, 0x7a, 0x05, 0x8d,
-	0x59, 0x6a, 0xac, 0xd2, 0x45, 0x78, 0x41, 0x7a, 0xfa, 0xe7, 0x7e, 0x13, 0xb4, 0x7c, 0x6b, 0x0e,
-	0xc6, 0x70, 0xb4, 0xd7, 0xa5, 0x1e, 0x34, 0x96, 0xa8, 0x4d, 0xaa, 0x32, 0x47, 0xda, 0xe1, 0xdb,
-	0xb2, 0xb8, 0x7b, 0xb2, 0xb3, 0x96, 0x47, 0x69, 0xf3, 0xaa, 0x74, 0xd7, 0x7d, 0x5f, 0xfb, 0xe4,
-	0x63, 0xed, 0x93, 0xaf, 0xb5, 0x4f, 0xde, 0xbe, 0xfd, 0x7f, 0xd1, 0xa1, 0x7b, 0xcb, 0xe1, 0x4f,
-	0x00, 0x00, 0x00, 0xff, 0xff, 0xde, 0xd1, 0x19, 0x53, 0x13, 0x02, 0x00, 0x00,
+	// 330 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0x91, 0xd1, 0x4a, 0xfb, 0x30,
+	0x14, 0xc6, 0xff, 0xd9, 0xf8, 0x3b, 0x77, 0xb6, 0xc1, 0x0c, 0x08, 0x45, 0xa4, 0x8c, 0x82, 0x30,
+	0x10, 0x1a, 0xd8, 0x6e, 0x86, 0x37, 0x82, 0x4c, 0xd1, 0x1b, 0x87, 0xdd, 0x13, 0xa4, 0xed, 0x61,
+	0x2b, 0x2e, 0x4d, 0x49, 0xb2, 0xc1, 0xde, 0xc2, 0xc7, 0xf2, 0xd2, 0x3b, 0x6f, 0x65, 0xbe, 0x88,
+	0x34, 0xcd, 0x4a, 0x61, 0x77, 0xcd, 0xf7, 0x7d, 0xe7, 0xeb, 0x2f, 0x27, 0x30, 0x5f, 0x65, 0x66,
+	0xbd, 0x8d, 0xc3, 0x44, 0x0a, 0x26, 0xa6, 0x69, 0xcc, 0xc4, 0x94, 0x69, 0x95, 0xb0, 0x34, 0xce,
+	0x65, 0x8a, 0x6c, 0x85, 0x39, 0x2a, 0x6e, 0x30, 0x65, 0x85, 0x92, 0x46, 0xb2, 0x9c, 0x0b, 0xd4,
+	0x05, 0x4f, 0x90, 0xe9, 0x64, 0x8d, 0x82, 0x87, 0x56, 0xa6, 0xdd, 0x5a, 0x0f, 0x42, 0x80, 0xa5,
+	0xb5, 0xe6, 0xa8, 0x13, 0x3a, 0x82, 0x9e, 0x40, 0xad, 0xf9, 0x0a, 0x5f, 0xb9, 0x40, 0x8f, 0x8c,
+	0xc8, 0xb8, 0x1b, 0x35, 0xa5, 0xe0, 0x9b, 0xc0, 0xa0, 0x1a, 0x58, 0x14, 0x26, 0x93, 0xb9, 0xa6,
+	0x13, 0xe8, 0xac, 0x33, 0x6d, 0xa4, 0xda, 0xdb, 0x7c, 0x6f, 0xe2, 0x85, 0x75, 0x7d, 0x58, 0x45,
+	0x9f, 0x2b, 0x3f, 0x3a, 0x06, 0xe9, 0x3d, 0x74, 0x2a, 0x20, 0xed, 0xb5, 0x46, 0xed, 0x71, 0x6f,
+	0x72, 0x73, 0x32, 0xe3, 0xea, 0xdd, 0x49, 0x3f, 0xe6, 0xa6, 0x2c, 0x70, 0x53, 0x57, 0x6f, 0xd0,
+	0x6f, 0x1a, 0x74, 0x08, 0xed, 0x77, 0xdc, 0x3b, 0xe0, 0xf2, 0x93, 0xde, 0xc2, 0xff, 0x1d, 0xdf,
+	0x6c, 0xd1, 0x6b, 0x59, 0xa8, 0xcb, 0x93, 0x1f, 0x94, 0x17, 0x8e, 0xaa, 0xcc, 0x5d, 0x6b, 0x46,
+	0x82, 0x97, 0xe3, 0xc5, 0x1c, 0x2d, 0x9d, 0xc1, 0xf9, 0x0e, 0x95, 0x2e, 0x29, 0x3c, 0x62, 0x29,
+	0xaf, 0x1b, 0x25, 0x4f, 0xd9, 0x06, 0xcb, 0x0a, 0x95, 0x15, 0x46, 0xaa, 0x25, 0x9a, 0xa8, 0x4e,
+	0x07, 0x0b, 0xb8, 0x38, 0xb1, 0xa9, 0x07, 0x1d, 0x17, 0xb0, 0x98, 0x83, 0xe8, 0x78, 0x2c, 0xb7,
+	0x9e, 0xd6, 0xd1, 0x6a, 0x23, 0xfd, 0xa8, 0x29, 0x3d, 0x0c, 0x3f, 0x0f, 0x3e, 0xf9, 0x3a, 0xf8,
+	0xe4, 0xe7, 0xe0, 0x93, 0x8f, 0x5f, 0xff, 0x5f, 0x7c, 0x66, 0x5f, 0x72, 0xfa, 0x17, 0x00, 0x00,
+	0xff, 0xff, 0x68, 0x0b, 0x08, 0x3a, 0x11, 0x02, 0x00, 0x00,
 }
