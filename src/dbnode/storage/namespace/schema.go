@@ -138,12 +138,19 @@ func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
 	return sr.(*schemaRegistry).options
 }
 
+func emptySchemaRegistry() SchemaRegistry {
+	return &schemaRegistry{options: nil, schemas: make(map[string]*schemaDescr)}
+}
+
 // LoadSchemaRegistry loads schema registry from SchemaOptions proto.
 func LoadSchemaRegistry(options *nsproto.SchemaOptions) (SchemaRegistry, error) {
-	if options.GetHistory() == nil || len(options.GetHistory().GetVersions()) == 0 ||
+	if options == nil ||
+		options.GetHistory() == nil ||
+		len(options.GetHistory().GetVersions()) == 0 ||
 		len(options.GetSchemas()) == 0 {
-		return nil, nil
+		return &schemaRegistry{options: options, schemas: make(map[string]*schemaDescr)}, nil
 	}
+
 	// sorted by version in descending order (most recent first)
 	versions := options.GetHistory().GetVersions()
 	sort.Slice(versions, func(i, j int) bool {

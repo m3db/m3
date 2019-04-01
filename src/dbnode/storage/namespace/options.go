@@ -75,6 +75,7 @@ func NewOptions() Options {
 		repairEnabled:     defaultRepairEnabled,
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
+		schemaReg:         emptySchemaRegistry(),
 	}
 }
 

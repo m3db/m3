@@ -282,8 +282,8 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
 	expectedSchemaReg, err := namespace.LoadSchemaRegistry(expected.SchemaOptions)
 	require.NoError(t, err)
-	require.True(t, expectedSchemaReg == nil && observed.Options().SchemaRegistry() == nil ||
-		(expectedSchemaReg != nil && expectedSchemaReg.Equal(observed.Options().SchemaRegistry())))
+	require.NotNil(t, expectedSchemaReg)
+	require.True(t, expectedSchemaReg.Equal(observed.Options().SchemaRegistry()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
 }
