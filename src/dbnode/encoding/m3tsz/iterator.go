@@ -259,11 +259,12 @@ type TimestampIterator struct {
 	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
 
-	TimeUnit        xtime.Unit
-	TimeUnitChanged bool
-	Done            bool
+	TimeUnit xtime.Unit
 
 	Opts encoding.Options
+
+	TimeUnitChanged bool
+	Done            bool
 
 	// Controls whether the iterator will "look ahead" for marker encoding
 	// schemes. Setting SkipMarkers to true disables the look ahead behavior
