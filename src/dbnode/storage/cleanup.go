@@ -375,7 +375,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 					// retained.
 					m.metrics.corruptSnapshotFile.Inc(1)
 					m.opts.InstrumentOptions().Logger().WithFields(
-						xlog.NewField("err", err),
+						xlog.NewField("err", err.Error()),
 						xlog.NewField("files", snapshot.AbsoluteFilepaths),
 					).Errorf(
 						"encountered corrupt snapshot file during cleanup, marking files for deletion")

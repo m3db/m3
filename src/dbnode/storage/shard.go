@@ -381,6 +381,7 @@ func (s *dbShard) OnRetrieveBlock(
 		s.logger.WithFields(
 			xlog.NewField("id", id.String()),
 			xlog.NewField("startTime", startTime.String()),
+			xlog.NewField("err", err.Error()),
 		).Errorf("[invariant violated] unable to create shardEntry from retrieved block data")
 		return
 	}
