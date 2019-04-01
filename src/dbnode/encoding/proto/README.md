@@ -185,3 +185,29 @@ Note that the values we encoded for both fields are "self contained" in that the
 
 ##### Protobuf Marshaled Fields
 
+We recommend reading the [Protocol Buffers Encoding](https://developers.google.com/protocol-buffers/docs/encoding) section of the official documentation before reading this section. Specifically, understanding how protobuf messages are (basically) encoded as a stream of tuples in the form of <field number, wire type, value> will make understanding this section much easier.
+
+The Protobuf marshaled fields section of the encoding scheme contains all the values that we don't currently support performing custom compression on. For the most part, the output of this section is similar to the result of calling `Marshal()` on a message in which all the custom compressed fields have already been removed and all that remains is the fields for which we wish to rely upon the Protobuf logic for encoding. This is possible because, as described in the protobuf encoding section linked above, the protobuf wire format does not encode **any** data for fields which are not set or are set to a default value, so by "clearing" the fields that we've already encoded on our own, we can prevent them from taking up any space when we marshal the remainder of the Protobuf message.
+
+While we do lean heavily on the Protobuf wire format in this section, we do make the most basic optimization of avoiding re-encoding fields that haven't changed since the previous value where "haven't changed" is defined at the top most level of the message. For example, lets imagine we were trying to encode messages with the following schema:
+
+```protobuf
+message Outer {
+  message Nested
+    message NestedDeeper {
+      int64 ival = 1;
+      bool  booly = 2;
+    }
+		int64 outer = 1;
+		NestedDeeper deeper = 2;
+  }
+
+	Nested nested = 1;
+}
+```
+
+If none of the values inside nested have changed since the previous message, we don't need to encode the `Nested` field at all. However, if any of the fields have changed, like `nested.deeper.booly` for example, then we need to re-encode the entire `nested` field, including the `outer` field even though only the `deeper` field changed.
+
+We can perform this top-level delta encoding because when we're decoding the stream later, we can reconstruct the original message by merging the previously decoded message with the current "delta" message that only contains the fields that have changed since the previous message.
+
+Only marshaling the fields that have changed since the previous message works for the most part, but there is one important edge case. As we said earlier, the protobuf wire format does not encode **any** data for fields that are set to a default value (zero for integers and floats, empty array for `bytes` and strings, etc).
