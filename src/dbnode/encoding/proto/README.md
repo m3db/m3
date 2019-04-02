@@ -2,9 +2,7 @@
 
 ## Overview
 
-<!-- TODO somewhere talk about how the physical encoding can be thought of an interleaving of several different logical streams -->
-
-This package contains the encoder/decoder(iterator) for compressing streams of ProtoBuf messages matching a provided schema. All compression is performed in a streaming manner
+This package contains the encoder/decoder(iterator) for compressing streams of ProtoBuf messages matching a provided schema. All compression is performed in a streaming manner such that we update the encoded stream with each write; there is no internal buffering or batching in which we gather multiple writes before performing encoding.
 
 ## Features
 
@@ -14,7 +12,7 @@ This package contains the encoder/decoder(iterator) for compressing streams of P
 
 ## Supported Syntax
 
-This package strives to support compressing any ProtoBuf messages specified using syntax version 3, however, only the following have been tested:
+This package strives to support compressing any ProtoBuf messages specified using syntax version 3, however, only the following features have been tested:
 
 1. All [scalar value type](https://developers.google.com/protocol-buffers/docs/proto3#scalar)
 2. Nested Messages
@@ -22,22 +20,22 @@ This package strives to support compressing any ProtoBuf messages specified usin
 4. Map fields
 5. Reserved fields
 
-We have explicitly not performed any testing of the following features:
+We have explicitly not performed any testing of the following features and thus they are not supported:
 
-1. `Any` fields are not supported
-2. `Oneof` fields are not supported
-3. `Options` are not supported
-
-## Compression Limitations
-
-This package will attempt to compress all scalar type fields at the top level of a message, but will not compress any data that is part of a `repeated`, `map` or `nested message` field. The `nested message` restriction may be lifted in the future, but the `repeated` and `map` restrictions are unlikely to change.
+1. `Any` fields
+2. `Oneof` fields
+3. Options of any type
+4. Custom field types
 
 ## Compression Techniques
 
-1. The timestamps for all of the ProtoBuf messages are compressed using [Gorilla style delta of delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
-2. Float fields are compressed using [Gorilla style XOR compression](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
-3. Integer fields are compressed using M3TSZ significant digit integer compression. We don't currently have any documentation on this compression format.
-4. `bytes` and `string` fields are compressed using a custom dictionary based compression scheme which we will refer to as "LRU Dictionary Compression".
+This package compresses the timestamps for the Protobuf messages using [Gorilla style delta of delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+
+Additionally, we perform a different type of compression for each field in the Protobuf message based on its type so that we can use compression techniques that are highly efficient for that specific type.
+
+1. Float fields are compressed using [Gorilla style XOR compression](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+2. Integer fields are compressed using M3TSZ significant digit integer compression. We don't currently have any documentation on this compression format.
+3. `bytes` and `string` fields are compressed using a custom dictionary based compression scheme which we will refer to as "LRU Dictionary Compression".
 
 ### LRU Dictionary Compression
 
@@ -49,6 +47,10 @@ The LRU dictionary compression scheme provides high levels of compression for `b
 Similar to `LZ77` and its variants, this compression strategy has an implicit assumption that patterns in the input data occur close together. Data stream that don't satisfy this assumption will compress poorly.
 
 In the future, we may replace this simple algorithm with a more sophisticated dictionary compression scheme such as `LZ77`, `LZ78`, `LZW` (and its variants like `LZMW` and `LZAP`).
+
+### Compression Limitations
+
+This package will attempt to compress all scalar type fields at the top level of a message, but will not compress any data that is part of a `repeated`, `map` or `nested message` field. The `nested message` restriction may be lifted in the future, but the `repeated` and `map` restrictions are unlikely to change.
 
 #### Algorithm
 
@@ -78,6 +80,13 @@ The second control bit determines how we will interpret the subsequent bits. If 
 If the second control bit is set to `1` then the remainder should be interpreted as a `varint` encoding the length of the `bytes` followed by the `bytes` themselves.
 
 ## Binary Format
+
+At a high level you can think about the way we perform compression of Protobuf messages as being akin to doing the following:
+
+1. Scanning each schema to identify which fields we can "extract out" and perform some form of streaming compression for as described in the `Compression Techniques` section.
+2. Maintaining an independent "stream" of compressed data for each field that we're applying custom compression to. When a new write comes in, we would iterate over all the fields that we're compressing and encode the next value into the appropriate stream.
+
+In practice, a Protbuf message can have dozens of different fields and for performance reasons we don't want to maintain an independent stream for each field. So instead what we do is maintain one physical stream in which we interleave multiple different "logical" streams on a per-write basis.
 
 ### Header
 
