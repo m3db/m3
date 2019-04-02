@@ -210,4 +210,19 @@ If none of the values inside nested have changed since the previous message, we 
 
 We can perform this top-level delta encoding because when we're decoding the stream later, we can reconstruct the original message by merging the previously decoded message with the current "delta" message that only contains the fields that have changed since the previous message.
 
-Only marshaling the fields that have changed since the previous message works for the most part, but there is one important edge case. As we said earlier, the protobuf wire format does not encode **any** data for fields that are set to a default value (zero for integers and floats, empty array for `bytes` and strings, etc).
+Only marshaling the fields that have changed since the previous message works for the most part, but there is one important edge case. As we said earlier, the protobuf wire format does not encode **any** data for fields that are set to a default value (zero for integers and floats, empty array for `bytes` and strings, etc). This means that using the standard Protobuf marshaling format with our "only encode the field if it has changed" scheme works in every scenario *except* for the case where a field is changed from a non-default value to a default value because there is no way to express that in the Protobuf wire format.
+
+To get around this issue, if any of the Protobuf marshaled fields are changed to their default value, then we encode an additional bitset which specifies which field numbers were set to default values.
+
+###### Fields Changed to Default Value Bitset
+
+The bitset encoding is straightforward. It begins with a `varint` that encodes the length (number of bits) of the bitset, and then the remaining `n` bits are interpreted as a 1-indexed bitset (because field numbers start at 1 not 0) where the value of `1` means the field was changed to its default and the value of `0` means it was not.
+
+###### Protobuf Marshaled Fields Encoding Format
+
+The Protobuf marshaled fields section of the encoding begins with a single control bit that indicates whether there have been any changes to the Protobuf encoded portion of the message at all. If the control bit is set to `1`  then there have been changed and we need to continue decoding, and if it is set to `0` then there were no changes and we can begin decoding the next write (or we've reached the end of the stream).
+
+If the previous control bit was set to `1`, indicating that there have been changes, then there will be another control bit. The next control bit indicates whether any fields have been set to a default value. If so, then its value will be `1` and the subsequent bits should be interpreted as a `varint` encoding the length of the bitset followed by the actual bitset bits as discussed in the `Fields changed to Default Value Bitset` section.
+If the value is `0` then there is no bitset to decode.
+
+Finally, this portion of the encoding will end with a final `varint` that encodes the length of the bytes that resulted from calling `Marshal()` on the message (in which we've cleared any fields that were custome encoded or weren't custom encoded but also haven't changed since the previous message) followed by the actual marshaled bytes themselves.
