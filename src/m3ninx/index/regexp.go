@@ -29,8 +29,9 @@ import (
 )
 
 var (
-	// DotStartCompiledRegex is a CompileRegex that matches any input.
-	DotStarCompiledRegex CompiledRegex
+	// dotStartCompiledRegex is a CompileRegex that matches any input.
+	// NB: It can be accessed through DotStartCompiledRegex().
+	dotStarCompiledRegex CompiledRegex
 )
 
 func init() {
@@ -38,7 +39,12 @@ func init() {
 	if err != nil {
 		panic(err.Error())
 	}
-	DotStarCompiledRegex = re
+	dotStarCompiledRegex = re
+}
+
+// DotStarCompiledRegex returns a regexp which matches ".*".
+func DotStarCompiledRegex() CompiledRegex {
+	return dotStarCompiledRegex
 }
 
 // CompileRegex compiles the provided regexp into an object that can be used to query the various

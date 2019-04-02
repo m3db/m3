@@ -75,7 +75,7 @@ type SegmentData struct {
 
 // Validate validates the provided segment data, returning an error if it's not.
 func (sd SegmentData) Validate() error {
-	if err := sd.Version.Validate(); err != nil {
+	if err := sd.Version.Supported(); err != nil {
 		return err
 	}
 
@@ -320,7 +320,7 @@ func (r *fsSegment) MatchField(field []byte) (postings.List, error) {
 	}
 	if !r.data.Version.supportsFieldPostingsList() {
 		// i.e. don't have the field level postings list, so fall back to regexp
-		return r.matchRegexpWithRLock(field, index.DotStarCompiledRegex)
+		return r.matchRegexpWithRLock(field, index.DotStarCompiledRegex())
 	}
 
 	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
@@ -390,8 +390,9 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 
 func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	r.RLock()
-	defer r.RUnlock()
-	return r.matchRegexpWithRLock(field, compiled)
+	pl, err := r.matchRegexpWithRLock(field, compiled)
+	r.RUnlock()
+	return pl, err
 }
 
 func (r *fsSegment) matchRegexpWithRLock(field []byte, compiled index.CompiledRegex) (postings.List, error) {
@@ -685,73 +686,88 @@ var _ index.Reader = &fsSegmentReader{}
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchField(field)
+	pl, err := sr.fsSegment.MatchField(field)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchTerm(field, term)
+	pl, err := sr.fsSegment.MatchTerm(field, term)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchRegexp(field, compiled)
+	pl, err := sr.fsSegment.MatchRegexp(field, compiled)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchAll()
+	pl, err := sr.fsSegment.MatchAll()
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return doc.Document{}, errReaderClosed
 	}
-	return sr.fsSegment.Doc(id)
+	pl, err := sr.fsSegment.Doc(id)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.Docs(pl)
+	iter, err := sr.fsSegment.Docs(pl)
+	sr.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.AllDocs()
+	iter, err := sr.fsSegment.AllDocs()
+	sr.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) Close() error {
 	sr.Lock()
-	defer sr.Unlock()
 	if sr.closed {
+		sr.Unlock()
 		return errReaderClosed
 	}
 	sr.closed = true
+	sr.Unlock()
 	return nil
 }
