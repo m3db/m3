@@ -299,10 +299,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
 
 			expectedTags := ident.NewTags(testTagsFromTestID(id)...)
-			if !tags.Equal(expectedTags) {
-				fmt.Println("expected: ", len(expectedTags.Values()))
-				fmt.Println("actual: ", len(tags.Values()))
-			}
 			require.True(t, tags.Equal(expectedTags))
 		}
 	}
@@ -420,6 +416,9 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 			segment ts.Segment,
 		) {
 			require.Equal(t, tagsIter, ident.EmptyTagIterator)
+			for tagsIter.Next() {
+			}
+			require.NoError(t, tagsIter.Err())
 		}))
 
 	_, err = retriever.Stream(ctx, shard,
