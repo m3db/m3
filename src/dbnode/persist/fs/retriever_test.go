@@ -415,7 +415,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 			startTime time.Time,
 			segment ts.Segment,
 		) {
-			require.Equal(t, tagsIter, ident.EmptyTagIterator)
+			require.Equal(t, ident.EmptyTagIterator, tagsIter)
 			for tagsIter.Next() {
 			}
 			require.NoError(t, tagsIter.Err())
