@@ -350,6 +350,91 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.Equal(t, nil, segment.Tail)
 }
 
+// TestBlockRetrieverOnlyCreatesTagItersIfTagsExists verifies that the block retriever
+// only creates a tag iterator in the OnRetrieve pathway if the series has tags.
+func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
+	// Make sure reader/writer are looking at the same test directory.
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config.
+	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+	rOpts := testNs1Metadata(t).Options().RetentionOptions()
+	shard := uint32(0)
+	blockStart := time.Now().Truncate(rOpts.BlockSize())
+
+	// Setup the reader.
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: NewBlockRetrieverOptions(),
+		fsOpts:        fsOpts,
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Write out a test file.
+	var (
+		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart)
+		tag       = ident.Tag{
+			Name:  ident.StringID("name"),
+			Value: ident.StringID("value"),
+		}
+		tags = ident.NewTags(tag)
+	)
+	for _, write := range []struct {
+		id   string
+		tags ident.Tags
+	}{
+		{
+			id:   "no-tags",
+			tags: ident.Tags{},
+		},
+		{
+			id:   "tags",
+			tags: tags,
+		},
+	} {
+		data := checked.NewBytes([]byte("Hello world!"), nil)
+		data.IncRef()
+		defer data.DecRef()
+
+		err = w.Write(ident.StringID(write.id), write.tags, data, digest.Checksum(data.Bytes()))
+		require.NoError(t, err)
+	}
+	closer()
+
+	// Make sure we return the correct error if the ID does not exist
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	_, err = retriever.Stream(ctx, shard,
+		ident.StringID("no-tags"), blockStart, block.OnRetrieveBlockFn(func(
+			id ident.ID,
+			tagsIter ident.TagIterator,
+			startTime time.Time,
+			segment ts.Segment,
+		) {
+			require.Equal(t, tagsIter, ident.EmptyTagIterator)
+		}))
+
+	_, err = retriever.Stream(ctx, shard,
+		ident.StringID("tags"), blockStart, block.OnRetrieveBlockFn(func(
+			id ident.ID,
+			tagsIter ident.TagIterator,
+			startTime time.Time,
+			segment ts.Segment,
+		) {
+			for tagsIter.Next() {
+				currTag := tagsIter.Current()
+				require.True(t, tag.Equal(currTag))
+			}
+			require.NoError(t, tagsIter.Err())
+		}))
+
+	require.NoError(t, err)
+}
+
 // TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method
 // on the retriever in the case where the SeekIndexEntry function returns an
 // error.
