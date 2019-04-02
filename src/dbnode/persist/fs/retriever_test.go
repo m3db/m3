@@ -299,7 +299,10 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
 
 			expectedTags := ident.NewTags(testTagsFromTestID(id)...)
-			require.True(t, tags.Equal(expectedTags))
+			require.True(
+				t,
+				tags.Equal(expectedTags),
+				fmt.Sprintf("expectedNumTags=%d, actualNumTags=%d", len(expectedTags.Values()), len(tags.Values())))
 		}
 	}
 }
