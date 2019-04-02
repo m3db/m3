@@ -427,7 +427,7 @@ func (s *seeker) SeekIndexEntry(
 			// because we're passing ownership of the bytes to the entry / caller.
 			var checkedEncodedTags checked.Bytes
 			if len(entry.EncodedTags) > 0 {
-				checkedEncodedTags := s.opts.bytesPool.Get(len(entry.EncodedTags))
+				checkedEncodedTags = s.opts.bytesPool.Get(len(entry.EncodedTags))
 				checkedEncodedTags.IncRef()
 				checkedEncodedTags.AppendAll(entry.EncodedTags)
 			}
