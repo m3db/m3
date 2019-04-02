@@ -5,7 +5,7 @@
 ## Bug Fixes
 
 - **M3DB**: Fixed a bug that would sometimes prevent successfully retrieved time series data from being loaded into the cache.
-- **M3DB**: Fixed a bug where an error would was not being properly logged.
+- **M3DB**: Fixed a bug where an error was not being properly logged.
 
 # 0.8.0 (2019-03-29)
 
