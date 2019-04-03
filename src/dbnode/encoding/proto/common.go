@@ -140,7 +140,7 @@ type customFieldState struct {
 
 	// Float state.
 	// TODO: rename this.
-	floatXORState m3tsz.XOREncoder
+	floatXORState m3tsz.FloatEncoderAndIterator
 
 	// Bytes State.
 	bytesFieldDict         []encoderBytesFieldDictState
