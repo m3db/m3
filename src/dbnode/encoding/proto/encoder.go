@@ -42,8 +42,6 @@ import (
 var _ encoding.Encoder = &Encoder{}
 
 const (
-	// Maximum capacity of a slice of TSZ fields that will be retained between resets.
-	maxTSZFieldsCapacityRetain   = 24
 	currentEncodingSchemeVersion = 1
 )
 
@@ -133,7 +131,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	}
 
 	// From this point onwards all errors are "hard errors" meaning that they should render
-	// the encoder unsable since we may have encoded partial data.
+	// the encoder unusable since we may have encoded partial data.
 
 	if enc.numEncoded == 0 {
 		enc.encodeHeader()
@@ -322,6 +320,9 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
 	enc.customFields = resetCustomFields(enc.customFields, enc.schema)
 
+	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
+	// schemas to see if they have changed:
+	// https://github.com/m3db/m3/issues/1471
 	enc.lastEncoded = dynamic.NewMessage(schema)
 	enc.unmarshaled = dynamic.NewMessage(schema)
 }

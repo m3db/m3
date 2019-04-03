@@ -233,13 +233,6 @@ func isCustomField(fieldType dpb.FieldDescriptorProto_Type, isRepeated bool) (cu
 	return customFieldType, ok
 }
 
-func resetCustomFields(fields []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
-	if cap(fields) <= maxTSZFieldsCapacityRetain {
-		return customFields(fields, schema)
-	}
-	return customFields(nil, schema)
-}
-
 func fieldsContains(fieldNum int32, fields []*desc.FieldDescriptor) bool {
 	for _, field := range fields {
 		if field.GetNumber() == fieldNum {

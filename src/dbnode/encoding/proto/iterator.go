@@ -271,7 +271,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 			itErrPrefix, numCustomFields, maxCustomFieldNum)
 	}
 
-	if numCustomFields <= maxTSZFieldsCapacityRetain && it.customFields != nil {
+	if it.customFields != nil {
 		it.customFields = it.customFields[:0]
 	} else {
 		it.customFields = make([]customFieldState, 0, numCustomFields)
