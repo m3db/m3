@@ -121,6 +121,17 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			},
 		},
 		{
+			name:     "regexp match -> field",
+			expected: "field(t1)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".*"),
+				},
+			},
+		},
+		{
 			name:     "regexp match negated",
 			expected: "negation(regexp(t1, v1))",
 			matchers: models.Matchers{
@@ -128,6 +139,17 @@ func TestFetchQueryToM3Query(t *testing.T) {
 					Type:  models.MatchNotRegexp,
 					Name:  []byte("t1"),
 					Value: []byte("v1"),
+				},
+			},
+		},
+		{
+			name:     "regexp match negated",
+			expected: "negation(field(t1))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".*"),
 				},
 			},
 		},
