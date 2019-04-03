@@ -41,9 +41,7 @@ func newFSTSegmentWithVersion(
 	writerVersion, readerVersion Version,
 ) sgmt.Segment {
 	s.Seal()
-	w, err := NewWriter(WriterOptions{
-		ForTestsOnly_Version: &writerVersion,
-	})
+	w, err := newWriterWithVersion(WriterOptions{}, &writerVersion)
 	require.NoError(t, err)
 	require.NoError(t, w.Reset(s))
 

@@ -32,15 +32,17 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
+	pilosaroaring "github.com/m3db/pilosa/roaring"
 
 	"github.com/golang/protobuf/proto"
 )
 
 var (
-	defaultInitialPostingsOffsetsSize = 1024
-	defaultInitialFSTTermsOffsetsSize = 1024
-	defaultInitialDocOffsetsSize      = 1024
-	defaultInitialIntEncoderSize      = 128
+	defaultInitialPostingsOffsetsSize    = 1024
+	defaultInitialFSTTermsOffsetsSize    = 1024
+	defaultInitialDocOffsetsSize         = 1024
+	defaultInitialIntEncoderSize         = 128
+	defaultPilosaRoaringMaxContainerSize = 128
 )
 
 type writer struct {
@@ -64,6 +66,7 @@ type writer struct {
 
 	// only used by versions >= 1.1
 	fieldPostingsOffsets []uint64
+	fieldsPilosaBitmap   *pilosaroaring.Bitmap
 	fieldsPostingsList   postings.MutableList
 	fieldData            *fswriter.FieldData
 	fieldBuffer          proto.Buffer
@@ -77,21 +80,25 @@ type WriterOptions struct {
 	// amount (e.g. 2x). You can disable this to speed up high fixed cost
 	// lookups to during building of the FST however.
 	DisableRegistry bool
-
-	// ForTestsOnly_Version allows users to override behaviour of the
-	// writer. NB: this is intended to be used only during tests.
-	ForTestsOnly_Version *Version
 }
 
 // NewWriter returns a new writer.
 func NewWriter(opts WriterOptions) (Writer, error) {
+	return newWriterWithVersion(opts, nil)
+}
+
+// newWriterWithVersion is a constructor used by tests to override version.
+func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 	v := CurrentVersion
-	if opts.ForTestsOnly_Version != nil {
-		v = *opts.ForTestsOnly_Version
+	if vers != nil {
+		v = *vers
 	}
 	if err := v.Supported(); err != nil {
 		return nil, err
 	}
+
+	bitmap := pilosaroaring.NewBitmapWithDefaultPooling(defaultPilosaRoaringMaxContainerSize)
+	pl := roaring.NewPostingsListFromBitmap(bitmap)
 
 	return &writer{
 		version:             v,
@@ -105,7 +112,8 @@ func NewWriter(opts WriterOptions) (Writer, error) {
 		termPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
 
 		fieldPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
-		fieldsPostingsList:   roaring.NewPostingsList(),
+		fieldsPilosaBitmap:   bitmap,
+		fieldsPostingsList:   pl,
 		fieldData:            &fswriter.FieldData{},
 	}, nil
 }
@@ -130,6 +138,7 @@ func (w *writer) clear() {
 	w.termPostingsOffsets = w.termPostingsOffsets[:0]
 
 	w.fieldPostingsOffsets = w.fieldPostingsOffsets[:0]
+	w.fieldsPilosaBitmap.Reset()
 	w.fieldsPostingsList.Reset()
 	w.fieldData.Reset()
 	w.fieldBuffer.Reset()
