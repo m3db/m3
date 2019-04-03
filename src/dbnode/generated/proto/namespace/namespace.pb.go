@@ -33,7 +33,6 @@
 		IndexOptions
 		NamespaceOptions
 		Registry
-		SchemaDesc
 		SchemaOptions
 		SchemaHistory
 		FileDescriptorSet

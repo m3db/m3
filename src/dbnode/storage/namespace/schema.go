@@ -25,33 +25,28 @@ import (
 	"compress/gzip"
 	"errors"
 	"io/ioutil"
-	"sort"
-
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
+	"strings"
 )
 
 var (
-	errInvalidSchema  = errors.New("invalid schema definition")
-	errSchemaNotFound = errors.New("schema is not found")
+	errInvalidSchema        = errors.New("invalid schema definition")
+	errSchemaNotFound       = errors.New("schema is not found")
+	errSchemaRegistryEmpty  = errors.New("schema registry is empty")
+	errInvalidSchemaOptions = errors.New("invalid schema options")
 )
 
 type schemaDescr struct {
-	id      ident.ID
-	version uint32
-	md      *desc.MessageDescriptor
+	deployId string
+	md       *desc.MessageDescriptor
 }
 
-func (s *schemaDescr) ID() ident.ID {
-	return s.id
-}
-
-func (s *schemaDescr) Version() uint32 {
-	return s.version
+func (s *schemaDescr) DeployId() string {
+	return s.deployId
 }
 
 func (s *schemaDescr) Equal(o SchemaDescr) bool {
@@ -61,7 +56,10 @@ func (s *schemaDescr) Equal(o SchemaDescr) bool {
 	if s != nil && o == nil || s == nil && o != nil {
 		return false
 	}
-	return s.ID().String() == o.ID().String() && s.Version() == o.Version()
+	if _, ok := o.(*schemaDescr); !ok {
+		return false
+	}
+	return s.DeployId() == o.DeployId()
 }
 
 func (s *schemaDescr) Get() *desc.MessageDescriptor {
@@ -76,8 +74,10 @@ func (s *schemaDescr) String() string {
 }
 
 type schemaRegistry struct {
-	options *nsproto.SchemaOptions
-	schemas map[string]*schemaDescr
+	options  *nsproto.SchemaOptions
+	latestId string
+	// a map of schema version to schema descriptor.
+	versions map[string]*schemaDescr
 }
 
 func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
@@ -93,37 +93,38 @@ func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 	if osr, ok = o.(*schemaRegistry); !ok {
 		return false
 	}
-	if len(sr.schemas) != len(osr.schemas) {
+	// compare latest version
+	if sr.latestId != osr.latestId {
 		return false
 	}
-	for n, sd := range sr.schemas {
-		var osd *schemaDescr
-		if osd, ok = osr.schemas[n]; !ok {
+
+	// compare version map
+	if len(sr.versions) != len(osr.versions) {
+		return false
+	}
+	for v, sd := range sr.versions {
+		osd, ok := osr.versions[v]
+		if !ok {
 			return false
 		}
 		if !sd.Equal(osd) {
 			return false
 		}
 	}
+
 	return true
 }
 
-func (sr *schemaRegistry) Get(id ident.ID) (SchemaDescr, error) {
-	sd, ok := sr.schemas[id.String()]
+func (sr *schemaRegistry) Get(id string) (SchemaDescr, error) {
+	sd, ok := sr.versions[id]
 	if !ok {
 		return nil, errSchemaNotFound
 	}
 	return sd, nil
 }
 
-func (sr *schemaRegistry) IDs() []ident.ID {
-	ids := make([]ident.ID, len(sr.schemas))
-	i := 0
-	for id := range sr.schemas {
-		ids[i] = ident.StringID(id)
-		i++
-	}
-	return ids
+func (sr *schemaRegistry) GetLatest() (SchemaDescr, error) {
+	return sr.Get(sr.latestId)
 }
 
 // toSchemaOptions returns the corresponding SchemaOptions proto for the provided SchemaRegistry
@@ -139,56 +140,62 @@ func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
 }
 
 func emptySchemaRegistry() SchemaRegistry {
-	return &schemaRegistry{options: nil, schemas: make(map[string]*schemaDescr)}
+	return &schemaRegistry{options: nil, versions: make(map[string]*schemaDescr)}
 }
 
 // LoadSchemaRegistry loads schema registry from SchemaOptions proto.
 func LoadSchemaRegistry(options *nsproto.SchemaOptions) (SchemaRegistry, error) {
+	sr := &schemaRegistry{options: options, versions: make(map[string]*schemaDescr)}
 	if options == nil ||
 		options.GetHistory() == nil ||
-		len(options.GetHistory().GetVersions()) == 0 ||
-		len(options.GetSchemas()) == 0 {
-		return &schemaRegistry{options: options, schemas: make(map[string]*schemaDescr)}, nil
+		len(options.GetHistory().GetVersions()) == 0 {
+		return sr, nil
 	}
 
-	// sorted by version in descending order (most recent first)
-	versions := options.GetHistory().GetVersions()
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].Version > versions[j].Version
-	})
+	msgName := options.GetDefaultMessageName()
+	if len(msgName) == 0 {
+		return nil, xerrors.Wrap(errInvalidSchemaOptions, "default message name is not specified")
+	}
 
-	// take the most recent version
-	fdbSet := versions[0].Descriptors
-	version := versions[0].Version
+	var prevId string
+	for _, fdbSet := range options.GetHistory().GetVersions() {
+		if len(prevId) > 0 && fdbSet.PrevId != prevId {
+			return nil, xerrors.Wrapf(errInvalidSchemaOptions, "schema history is not sorted by deploy id in ascending order")
+		}
+		sd, err := loadFileDescriptorSet(fdbSet, msgName)
+		if err != nil {
+			return nil, err
+		}
+		sr.versions[sd.DeployId()] = sd
+		prevId = sd.DeployId()
+	}
+	sr.latestId = prevId
 
+	return sr, nil
+}
+
+func loadFileDescriptorSet(fdSet *nsproto.FileDescriptorSet, msgName string) (*schemaDescr, error) {
 	// assuming file descriptors are topological sorted
 	var dependencies []*desc.FileDescriptor
-	msgDescr := make(map[string]*desc.MessageDescriptor)
-	for i, fdb := range fdbSet {
+	var curfd *desc.FileDescriptor
+	for i, fdb := range fdSet.Descriptors {
 		fdp, err := decodeProtoFileDescriptor(fdb)
 		if err != nil {
-			return nil, xerrors.Wrapf(err, "failed to decode file descriptor(%d) in version(%d)", i, version)
+			return nil, xerrors.Wrapf(err, "failed to decode file descriptor(%d) in version(%d)", i, fdSet.DeployId)
 		}
 		fd, err := desc.CreateFileDescriptor(fdp, dependencies...)
 		if err != nil {
-			return nil, xerrors.Wrapf(err, "failed to create file descriptor(%d) in version(%d)", i, version)
+			return nil, xerrors.Wrapf(err, "failed to create file descriptor(%d) in version(%d)", i, fdSet.DeployId)
 		}
-		dependencies = append(dependencies, fd)
-
-		for _, md := range fd.GetMessageTypes() {
-			msgDescr[md.GetName()] = md
+		curfd = fd
+		dependencies = append(dependencies, curfd)
+	}
+	for _, md := range curfd.GetMessageTypes() {
+		if strings.EqualFold(msgName, md.GetName()) {
+			return &schemaDescr{deployId: fdSet.DeployId, md: md}, nil
 		}
 	}
-
-	sr := &schemaRegistry{options: options, schemas: make(map[string]*schemaDescr)}
-	for n, sm := range options.GetSchemas() {
-		md, ok := msgDescr[sm.GetMessageName()]
-		if !ok {
-			return nil, xerrors.Wrapf(errInvalidSchema, "message %s is not found in version(%d)", sm.MessageName, version)
-		}
-		sr.schemas[n] = &schemaDescr{id: ident.StringID(n), version: version, md: md}
-	}
-	return sr, nil
+	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in version(%d)", msgName, fdSet.DeployId)
 }
 
 // decodeProtoFileDescriptor decodes the bytes of proto file descriptor.

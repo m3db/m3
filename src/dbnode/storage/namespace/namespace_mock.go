@@ -456,32 +456,18 @@ func (m *MockSchemaDescr) EXPECT() *MockSchemaDescrMockRecorder {
 	return m.recorder
 }
 
-// ID mocks base method
-func (m *MockSchemaDescr) ID() ident.ID {
+// DeployId mocks base method
+func (m *MockSchemaDescr) DeployId() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(ident.ID)
+	ret := m.ctrl.Call(m, "DeployId")
+	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// ID indicates an expected call of ID
-func (mr *MockSchemaDescrMockRecorder) ID() *gomock.Call {
+// DeployId indicates an expected call of DeployId
+func (mr *MockSchemaDescrMockRecorder) DeployId() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockSchemaDescr)(nil).ID))
-}
-
-// Version mocks base method
-func (m *MockSchemaDescr) Version() uint32 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Version")
-	ret0, _ := ret[0].(uint32)
-	return ret0
-}
-
-// Version indicates an expected call of Version
-func (mr *MockSchemaDescrMockRecorder) Version() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockSchemaDescr)(nil).Version))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeployId", reflect.TypeOf((*MockSchemaDescr)(nil).DeployId))
 }
 
 // Get mocks base method
@@ -564,7 +550,7 @@ func (mr *MockSchemaRegistryMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 }
 
 // Get mocks base method
-func (m *MockSchemaRegistry) Get(id ident.ID) (SchemaDescr, error) {
+func (m *MockSchemaRegistry) Get(id string) (SchemaDescr, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", id)
 	ret0, _ := ret[0].(SchemaDescr)
@@ -578,18 +564,19 @@ func (mr *MockSchemaRegistryMockRecorder) Get(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSchemaRegistry)(nil).Get), id)
 }
 
-// IDs mocks base method
-func (m *MockSchemaRegistry) IDs() []ident.ID {
+// GetLatest mocks base method
+func (m *MockSchemaRegistry) GetLatest() (SchemaDescr, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IDs")
-	ret0, _ := ret[0].([]ident.ID)
-	return ret0
+	ret := m.ctrl.Call(m, "GetLatest")
+	ret0, _ := ret[0].(SchemaDescr)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// IDs indicates an expected call of IDs
-func (mr *MockSchemaRegistryMockRecorder) IDs() *gomock.Call {
+// GetLatest indicates an expected call of GetLatest
+func (mr *MockSchemaRegistryMockRecorder) GetLatest() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IDs", reflect.TypeOf((*MockSchemaRegistry)(nil).IDs))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatest", reflect.TypeOf((*MockSchemaRegistry)(nil).GetLatest))
 }
 
 // MockMetadata is a mock of Metadata interface

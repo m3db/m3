@@ -1,31 +1,26 @@
 syntax = "proto3";
 package namespace;
 
-// SchemaDesc contains schema information
-message SchemaDesc {
-    // messageName is the name of the proto message that describes series schema
-    string messageName = 1;
-}
-
 // SchemaOptions contains schema information for a namespace.
 message SchemaOptions {
     // history contains a history of deployed schema definitions.
     SchemaHistory history = 1;
-    // schemas contains a set of named schema descriptors for a namespace.
-    // schema is identified by schema name (the map key).
-    map<string, SchemaDesc> schemas = 2;
+    // defaultMessageName identifies the proto message that contains the default schema for the namespace.
+    string defaultMessageName = 2;
 }
 
 // SchemaHistory is versioned FileDescriptorSet.
 message SchemaHistory {
-    // history is a list of FileDescriptorSet sorted by version in descending order.
+    // versions is a list of FileDescriptorSet sorted by version in ascending order.
     repeated FileDescriptorSet versions = 1;
 }
 
 // FileDescriptorSet is a set of proto file descriptors.
 message FileDescriptorSet {
-    // version is the deployed version of the descriptors.
-    uint32 version = 1;
+    // id identifies a deployed version of FileDescriptorSet.
+    string deployId = 1;
+    // prevId identifies the previous deploy id of FileDescriptorSet.
+    string prevId = 2;
     // descriptors is a list of proto file descriptors sorted by dependency in topological order.
-    repeated bytes descriptors = 2;
+    repeated bytes descriptors = 3;
 }

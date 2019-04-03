@@ -199,11 +199,10 @@ func TestSchemaFromProto(t *testing.T) {
 	assertEqualMetadata(t, "testns1", validNamespaceSchemaOpts[0], md1)
 
 	require.NotNil(t, md1.Options().SchemaRegistry())
-	require.Len(t, md1.Options().SchemaRegistry().IDs(), 1)
-	testSchema, err := md1.Options().SchemaRegistry().Get(ident.StringID("id1"))
+	testSchema, err := md1.Options().SchemaRegistry().GetLatest()
 	require.NoError(t, err)
 	require.NotNil(t, testSchema)
-	require.EqualValues(t, 1, testSchema.Version())
+	require.EqualValues(t, "third", testSchema.DeployId())
 	require.EqualValues(t, "TestMessage", testSchema.Get().GetName())
 }
 
@@ -224,11 +223,10 @@ func TestSchemaToProto(t *testing.T) {
 	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
 	outSchemaReg, err := namespace.LoadSchemaRegistry(reg.Namespaces["ns1"].SchemaOptions)
 	require.NoError(t, err)
-	require.Len(t, outSchemaReg.IDs(), 1)
-	outSchema, err := outSchemaReg.Get(ident.StringID("id1"))
+	outSchema, err := outSchemaReg.GetLatest()
 	require.NoError(t, err)
 	require.NotNil(t, outSchema)
-	require.EqualValues(t, 1, outSchema.Version())
+	require.EqualValues(t, "third", outSchema.DeployId())
 	require.EqualValues(t, "TestMessage", outSchema.Get().GetName())
 }
 

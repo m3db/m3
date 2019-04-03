@@ -27,7 +27,6 @@ import (
 	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
 	testproto2 "github.com/m3db/m3/src/dbnode/generated/proto/schematest2"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,10 +40,12 @@ func getTestSchemaOptions() *nsproto.SchemaOptions {
 	return &nsproto.SchemaOptions{
 		History: &nsproto.SchemaHistory{
 			Versions: []*nsproto.FileDescriptorSet{
-				{Version: 1, Descriptors: [][]byte{importedD, otherpkgD, mainD}},
+				{DeployId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
+				{DeployId: "second", PrevId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
+				{DeployId: "third", PrevId: "second", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
 			},
 		},
-		Schemas: map[string]*nsproto.SchemaDesc{"id1": {MessageName: "TestMessage"}},
+		DefaultMessageName: "TestMessage",
 	}
 }
 
@@ -53,8 +54,14 @@ func TestLoadSchemaRegistry(t *testing.T) {
 	testSchemaReg, err := namespace.LoadSchemaRegistry(testSchemaOptions)
 	require.NoError(t, err)
 
-	testSchema, err := testSchemaReg.Get(ident.StringID("id1"))
+	testSchema, err := testSchemaReg.Get("first")
 	require.NoError(t, err)
 	require.NotNil(t, testSchema)
 	require.EqualValues(t, "TestMessage", testSchema.Get().GetName())
+
+	latestSchema, err := testSchemaReg.GetLatest()
+	require.NoError(t, err)
+	require.NotNil(t, latestSchema)
+	require.EqualValues(t, "TestMessage", latestSchema.Get().GetName())
+
 }

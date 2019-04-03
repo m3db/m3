@@ -64,10 +64,12 @@ func getTestSchemaOptions() *nsproto.SchemaOptions {
 	return &nsproto.SchemaOptions{
 		History: &nsproto.SchemaHistory{
 			Versions: []*nsproto.FileDescriptorSet{
-				{Version: 1, Descriptors: [][]byte{importedD, otherpkgD, mainD}},
+				{DeployId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
+				{DeployId: "second", PrevId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
+				{DeployId: "third", PrevId: "second", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
 			},
 		},
-		Schemas: map[string]*nsproto.SchemaDesc{"id1": {MessageName: "TestMessage"}},
+		DefaultMessageName: "TestMessage",
 	}
 }
 

@@ -113,10 +113,8 @@ type IndexOptions interface {
 
 // SchemaDescr describes the schema for a complex type value.
 type SchemaDescr interface {
-	// ID returns id for this schema descriptor.
-	ID() ident.ID
-	// Version returns the version of the schema.
-	Version() uint32
+	// DeployId returns the deploy id of the schema.
+	DeployId() string
 	// Get returns the message descriptor for the schema.
 	Get() *desc.MessageDescriptor
 	// String returns the compact text of the message descriptor.
@@ -127,14 +125,15 @@ type SchemaDescr interface {
 
 // SchemaRegistry represents namespace schema registry.
 type SchemaRegistry interface {
-	// Equal returns ture if the provided value is equal to this one.
+	// Equal returns true if the provided value is equal to this one.
 	Equal(SchemaRegistry) bool
 
-	// Get gets the schema descriptor for the provided ID.
-	Get(id ident.ID) (SchemaDescr, error)
+	// Get gets the schema descriptor for the specified deploy id.
+	Get(id string) (SchemaDescr, error)
 
-	// IDs returns the ID of known schemas.
-	IDs() []ident.ID
+	// GetLatest gets the latest version of schema descriptor.
+	GetLatest() (SchemaDescr, error)
+
 }
 
 // Metadata represents namespace metadata information
