@@ -456,15 +456,3 @@ func testMultiplePasses(t *testing.T, test multiplePassesTest) {
 		}
 	}
 }
-
-var lastFloat32 float32
-var lastFloat322 float32
-var lastFloat64 float64
-
-func BenchmarkYolo(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		lastFloat32++
-		lastFloat322 = lastFloat32
-		// lastFloat64 = float64(lastFloat32)
-	}
-}
