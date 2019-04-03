@@ -152,14 +152,15 @@ var _ convert.FetchTaggedConversionPools = pools{}
 func (p pools) ID() ident.Pool                                     { return p.id }
 func (p pools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool { return p.checkedBytesWrapper }
 
-// NodeService is the interface for the node RPC service.
-type NodeService interface {
+// Service is the interface for the node RPC service.
+type Service interface {
 	rpc.TChanNode
+
 	SetDatabase(db storage.Database)
 }
 
 // NewService creates a new node TChannel Thrift service
-func NewService(db storage.Database, opts tchannelthrift.Options) NodeService {
+func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	if opts == nil {
 		opts = tchannelthrift.NewOptions()
 	}

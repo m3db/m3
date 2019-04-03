@@ -25,13 +25,14 @@ import (
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3x/context"
 
 	"github.com/uber/tchannel-go"
 )
 
 type server struct {
-	service     rpc.TChanNode
+	service     NodeService
 	address     string
 	contextPool context.Pool
 	opts        *tchannel.ChannelOptions
@@ -39,7 +40,7 @@ type server struct {
 
 // NewServer creates a new node TChannel Thrift network service
 func NewServer(
-	service rpc.TChanNode,
+	service NodeService,
 	address string,
 	contextPool context.Pool,
 	opts *tchannel.ChannelOptions,
@@ -68,4 +69,8 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 	channel.ListenAndServe(s.address)
 
 	return channel.Close, nil
+}
+
+func (s *server) SetDatabase(db storage.Database) {
+	s.service.SetDatabase(db)
 }
