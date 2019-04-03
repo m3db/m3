@@ -132,9 +132,6 @@ var (
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
 type customFieldState struct {
-	// TODO(rartoul): This could be made more efficient by separating out fields required
-	// for encoding and those required for enumeration, as well as trying to reuse some
-	// of the fields for multiple types to save memory, but its ok for now.
 	fieldNum  int
 	fieldType customFieldType
 
@@ -142,12 +139,13 @@ type customFieldState struct {
 	// the encode methods and the iterator calls the read methods).
 	floatEncAndIter m3tsz.FloatEncoderAndIterator
 
-	// Bytes State.
+	// Bytes State. TODO(rartoul): Wrap this up in an encoderAndIterator like
+	// the floats and ints.
 	bytesFieldDict         []encoderBytesFieldDictState
 	iteratorBytesFieldDict [][]byte
 
 	// Int state.
-	intEncoder intEncoder
+	intEncAndIter intEncoderAndIterator
 }
 
 type encoderBytesFieldDictState struct {
@@ -184,7 +182,7 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 
 		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
 		if isUnsignedInt(customFieldType) {
-			fieldState.intEncoder.unsigned = true
+			fieldState.intEncAndIter.unsigned = true
 		}
 		s = append(s, fieldState)
 	}

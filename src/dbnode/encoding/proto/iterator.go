@@ -515,7 +515,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 }
 
 func (it *iterator) readIntValue(i int) error {
-	if err := it.customFields[i].intEncoder.readIntValue(it.stream); err != nil {
+	if err := it.customFields[i].intEncAndIter.readIntValue(it.stream); err != nil {
 		return err
 	}
 
@@ -552,19 +552,19 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
 		case signedInt64Field:
-			val := int64(it.customFields[i].intEncoder.prevIntBits)
+			val := int64(it.customFields[i].intEncAndIter.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case unsignedInt64Field:
-			val := it.customFields[i].intEncoder.prevIntBits
+			val := it.customFields[i].intEncAndIter.prevIntBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case signedInt32Field:
-			val := int32(it.customFields[i].intEncoder.prevIntBits)
+			val := int32(it.customFields[i].intEncAndIter.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case unsignedInt32Field:
-			val := uint32(it.customFields[i].intEncoder.prevIntBits)
+			val := uint32(it.customFields[i].intEncAndIter.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		default:
@@ -729,116 +729,4 @@ func (it *iterator) isDone() bool {
 
 func (it *iterator) isClosed() bool {
 	return it.closed
-}
-
-func (it *intEncoder) readIntValue(stream encoding.IStream) error {
-	if it.hasEncodedFirst {
-		changeExistsControlBit, err := stream.ReadBit()
-		if err != nil {
-			return fmt.Errorf(
-				"%s: error trying to read int change exists control bit: %v",
-				itErrPrefix, err)
-		}
-
-		if changeExistsControlBit == opCodeNoChange {
-			// No change.
-			return nil
-		}
-	}
-
-	if err := it.readIntSig(stream); err != nil {
-		return fmt.Errorf(
-			"%s error trying to read number of significant digits: %v",
-			itErrPrefix, err)
-	}
-
-	if err := it.readIntValDiff(stream); err != nil {
-		return fmt.Errorf(
-			"%s error trying to read int diff: %v",
-			itErrPrefix, err)
-	}
-
-	if !it.hasEncodedFirst {
-		it.hasEncodedFirst = true
-	}
-
-	return nil
-}
-
-func (it *intEncoder) readIntSig(stream encoding.IStream) error {
-	updateControlBit, err := stream.ReadBit()
-	if err != nil {
-		return fmt.Errorf(
-			"%s error reading int significant digits update control bit: %v",
-			itErrPrefix, err)
-	}
-	if updateControlBit == opCodeNoChange {
-		// No change.
-		return nil
-	}
-
-	sigDigitsControlBit, err := stream.ReadBit()
-	if err != nil {
-		return fmt.Errorf(
-			"%s error reading zero significant digits control bit: %v",
-			itErrPrefix, err)
-	}
-	// TODO: copy my own opcode
-	if sigDigitsControlBit == m3tsz.OpcodeZeroSig {
-		it.intSigBitsTracker.NumSig = 0
-	} else {
-		numSigBits, err := stream.ReadBits(6)
-		if err != nil {
-			return fmt.Errorf(
-				"%s error reading number of significant digits: %v",
-				itErrPrefix, err)
-		}
-
-		it.intSigBitsTracker.NumSig = uint8(numSigBits) + 1
-	}
-
-	return nil
-}
-
-func (it *intEncoder) readIntValDiff(stream encoding.IStream) error {
-	negativeControlBit, err := stream.ReadBit()
-	if err != nil {
-		return fmt.Errorf(
-			"%s error reading negative control bit: %v",
-			itErrPrefix, err)
-	}
-
-	numSig := int(it.intSigBitsTracker.NumSig)
-	diffSigBits, err := stream.ReadBits(numSig)
-	if err != nil {
-		return fmt.Errorf(
-			"%s error reading significant digits: %v",
-			itErrPrefix, err)
-	}
-
-	if it.unsigned {
-		diff := diffSigBits
-		shouldSubtract := false
-		if negativeControlBit == opCodeIntDeltaNegative {
-			shouldSubtract = true
-		}
-
-		prev := it.prevIntBits
-		if shouldSubtract {
-			it.prevIntBits = prev - diff
-		} else {
-			it.prevIntBits = prev + diff
-		}
-	} else {
-		diff := int64(diffSigBits)
-		sign := int64(1)
-		if negativeControlBit == opCodeIntDeltaNegative {
-			sign = -1.0
-		}
-
-		prev := int64(it.prevIntBits)
-		it.prevIntBits = uint64(prev + (sign * diff))
-	}
-
-	return nil
 }
