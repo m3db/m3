@@ -86,7 +86,3 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 		xclose.TryClose(service)
 	}, nil
 }
-
-func (s *server) SetDatabase() {
-	// Cluster service doesn't require a database so this is a noop.
-}

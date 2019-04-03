@@ -25,7 +25,6 @@ import (
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3x/context"
 
 	"github.com/uber/tchannel-go"
@@ -69,8 +68,4 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 	channel.ListenAndServe(s.address)
 
 	return channel.Close, nil
-}
-
-func (s *server) SetDatabase(db storage.Database) {
-	s.service.SetDatabase(db)
 }

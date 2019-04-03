@@ -20,18 +20,10 @@
 
 package server
 
-import (
-	"github.com/m3db/m3/src/dbnode/storage"
-)
-
 // NetworkService is a network service that can serve remote clients
 type NetworkService interface {
 	// ListenAndServe will listen and serve traffic, returns a close and any error that occurred
 	ListenAndServe() (Close, error)
-
-	// SetDatabase sets the database, allowing the services to be started before the database is
-	// initialized.
-	SetDatabase(db storage.Database)
 }
 
 // Close is a method to call to close a resource or procedure
