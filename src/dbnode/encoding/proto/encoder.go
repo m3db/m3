@@ -308,7 +308,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.unmarshaled = nil
 
 	if enc.schema != nil {
-		enc.customFields = resetCustomFields(enc.customFields, enc.schema)
+		enc.customFields = customFields(enc.customFields, enc.schema)
 	}
 
 	enc.hasEncodedFirstSetOfCustomValues = false
@@ -318,7 +318,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.customFields = resetCustomFields(enc.customFields, enc.schema)
+	enc.customFields = customFields(enc.customFields, enc.schema)
 
 	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
 	// schemas to see if they have changed:
@@ -435,7 +435,6 @@ func (enc *Encoder) encodeIntValue(i int, iVal interface{}) error {
 	var (
 		signedVal   int64
 		unsignedVal uint64
-		customField = enc.customFields[i]
 	)
 	switch typedVal := iVal.(type) {
 	case uint64:
@@ -448,21 +447,13 @@ func (enc *Encoder) encodeIntValue(i int, iVal interface{}) error {
 		signedVal = int64(typedVal)
 	default:
 		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
+			"%s found unknown type in fieldNum %d", encErrPrefix, enc.customFields[i].fieldNum)
 	}
 
-	if isUnsignedInt(customField.fieldType) {
-		if !enc.hasEncodedFirstSetOfCustomValues {
-			enc.encodeFirstUnsignedIntValue(i, unsignedVal)
-		} else {
-			enc.encodeNextUnsignedIntValue(i, unsignedVal)
-		}
+	if isUnsignedInt(enc.customFields[i].fieldType) {
+		enc.customFields[i].intEncoder.encodeUnsignedIntValue(enc.stream, unsignedVal)
 	} else {
-		if !enc.hasEncodedFirstSetOfCustomValues {
-			enc.encodeFirstSignedIntValue(i, signedVal)
-		} else {
-			enc.encodeNextSignedIntValue(i, signedVal)
-		}
+		enc.customFields[i].intEncoder.encodeSignedIntValue(enc.stream, signedVal)
 	}
 
 	return nil
@@ -670,98 +661,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	return nil
 }
 
-func (enc *Encoder) encodeFirstSignedIntValue(i int, v int64) {
-	neg := false
-	enc.customFields[i].prevIntBits = uint64(v)
-	if v < 0 {
-		neg = true
-		v = -1 * v
-	}
-
-	vBits := uint64(v)
-	numSig := encoding.NumSig(vBits)
-
-	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, numSig)
-	enc.encodeIntValDiff(vBits, neg, numSig)
-}
-
-func (enc *Encoder) encodeFirstUnsignedIntValue(i int, v uint64) {
-	enc.customFields[i].prevIntBits = v
-
-	numSig := encoding.NumSig(v)
-	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, numSig)
-	enc.encodeIntValDiff(v, false, numSig)
-}
-
-func (enc *Encoder) encodeNextSignedIntValue(i int, next int64) {
-	prev := int64(enc.customFields[i].prevIntBits)
-	diff := next - prev
-	if diff == 0 {
-		enc.stream.WriteBit(opCodeNoChange)
-		return
-	}
-
-	enc.stream.WriteBit(opCodeChange)
-
-	neg := false
-	if diff < 0 {
-		neg = true
-		diff = -1 * diff
-	}
-
-	var (
-		diffBits = uint64(diff)
-		numSig   = encoding.NumSig(diffBits)
-		newSig   = enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
-	)
-
-	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, newSig)
-	enc.encodeIntValDiff(diffBits, neg, newSig)
-	enc.customFields[i].prevIntBits = uint64(next)
-}
-
-func (enc *Encoder) encodeNextUnsignedIntValue(i int, next uint64) {
-	var (
-		neg  = false
-		prev = enc.customFields[i].prevIntBits
-		diff uint64
-	)
-
-	// Avoid overflows.
-	if next > prev {
-		diff = next - prev
-	} else {
-		neg = true
-		diff = prev - next
-	}
-
-	if diff == 0 {
-		enc.stream.WriteBit(opCodeNoChange)
-		return
-	}
-
-	enc.stream.WriteBit(opCodeChange)
-
-	numSig := encoding.NumSig(diff)
-	newSig := enc.customFields[i].intSigBitsTracker.TrackNewSig(numSig)
-
-	enc.customFields[i].intSigBitsTracker.WriteIntSig(enc.stream, newSig)
-	enc.encodeIntValDiff(diff, neg, newSig)
-	enc.customFields[i].prevIntBits = next
-}
-
-func (enc *Encoder) encodeIntValDiff(valBits uint64, neg bool, numSig uint8) {
-	if neg {
-		// opCodeNegative
-		enc.stream.WriteBit(opCodeIntDeltaNegative)
-	} else {
-		// opCodePositive
-		enc.stream.WriteBit(opCodeIntDeltaPositive)
-	}
-
-	enc.stream.WriteBits(valBits, int(numSig))
-}
-
 func (enc *Encoder) isUsable() error {
 	if enc.closed {
 		return errEncoderClosed
@@ -908,4 +807,120 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 		return bytesPool.Get(capacity)
 	}
 	return checked.NewBytes(make([]byte, 0, capacity), nil)
+}
+
+type intEncoder struct {
+	prevIntBits       uint64
+	intSigBitsTracker m3tsz.IntSigBitsTracker
+	hasEncodedFirst   bool
+}
+
+func (enc *intEncoder) encodeSignedIntValue(stream encoding.OStream, v int64) {
+	if enc.hasEncodedFirst {
+		enc.encodeNextSignedIntValue(stream, v)
+	} else {
+		enc.encodeFirstSignedIntValue(stream, v)
+		enc.hasEncodedFirst = true
+	}
+}
+
+func (enc *intEncoder) encodeUnsignedIntValue(stream encoding.OStream, v uint64) {
+	if enc.hasEncodedFirst {
+		enc.encodeNextUnsignedIntValue(stream, v)
+	} else {
+		enc.encodeFirstUnsignedIntValue(stream, v)
+		enc.hasEncodedFirst = true
+	}
+}
+
+func (enc *intEncoder) encodeFirstSignedIntValue(stream encoding.OStream, v int64) {
+	neg := false
+	enc.prevIntBits = uint64(v)
+	if v < 0 {
+		neg = true
+		v = -1 * v
+	}
+
+	vBits := uint64(v)
+	numSig := encoding.NumSig(vBits)
+
+	enc.intSigBitsTracker.WriteIntSig(stream, numSig)
+	enc.encodeIntValDiff(stream, vBits, neg, numSig)
+}
+
+func (enc *intEncoder) encodeFirstUnsignedIntValue(stream encoding.OStream, v uint64) {
+	enc.prevIntBits = v
+
+	numSig := encoding.NumSig(v)
+	enc.intSigBitsTracker.WriteIntSig(stream, numSig)
+	enc.encodeIntValDiff(stream, v, false, numSig)
+}
+
+func (enc *intEncoder) encodeNextSignedIntValue(stream encoding.OStream, next int64) {
+	prev := int64(enc.prevIntBits)
+	diff := next - prev
+	if diff == 0 {
+		stream.WriteBit(opCodeNoChange)
+		return
+	}
+
+	stream.WriteBit(opCodeChange)
+
+	neg := false
+	if diff < 0 {
+		neg = true
+		diff = -1 * diff
+	}
+
+	var (
+		diffBits = uint64(diff)
+		numSig   = encoding.NumSig(diffBits)
+		newSig   = enc.intSigBitsTracker.TrackNewSig(numSig)
+	)
+
+	enc.intSigBitsTracker.WriteIntSig(stream, newSig)
+	enc.encodeIntValDiff(stream, diffBits, neg, newSig)
+	enc.prevIntBits = uint64(next)
+}
+
+func (enc *intEncoder) encodeNextUnsignedIntValue(stream encoding.OStream, next uint64) {
+	var (
+		neg  = false
+		prev = enc.prevIntBits
+		diff uint64
+	)
+
+	// Avoid overflows.
+	if next > prev {
+		diff = next - prev
+	} else {
+		neg = true
+		diff = prev - next
+	}
+
+	if diff == 0 {
+		stream.WriteBit(opCodeNoChange)
+		return
+	}
+
+	stream.WriteBit(opCodeChange)
+
+	numSig := encoding.NumSig(diff)
+	newSig := enc.intSigBitsTracker.TrackNewSig(numSig)
+
+	enc.intSigBitsTracker.WriteIntSig(stream, newSig)
+	enc.encodeIntValDiff(stream, diff, neg, newSig)
+	enc.prevIntBits = next
+}
+
+func (enc *intEncoder) encodeIntValDiff(stream encoding.OStream, valBits uint64, neg bool, numSig uint8) {
+	if neg {
+		// opCodeNegative
+		stream.WriteBit(opCodeIntDeltaNegative)
+	} else {
+		// opCodePositive
+		stream.WriteBit(opCodeIntDeltaPositive)
+	}
+
+	stream.WriteBits(valBits, int(numSig))
 }

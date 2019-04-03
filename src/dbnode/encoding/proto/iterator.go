@@ -209,7 +209,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.lastIteratedProtoBytes = nil
-	it.customFields = resetCustomFields(it.customFields, it.schema)
+	it.customFields = customFields(it.customFields, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
@@ -218,7 +218,7 @@ func (it *iterator) Reset(reader io.Reader) {
 // SetSchema sets the encoders schema.
 func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
 	it.schema = schema
-	it.customFields = resetCustomFields(it.customFields, it.schema)
+	it.customFields = customFields(it.customFields, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -633,19 +633,19 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
 		case signedInt64Field:
-			val := int64(it.customFields[i].prevIntBits)
+			val := int64(it.customFields[i].intEncoder.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case unsignedInt64Field:
-			val := it.customFields[i].prevIntBits
+			val := it.customFields[i].intEncoder.prevIntBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case signedInt32Field:
-			val := int32(it.customFields[i].prevIntBits)
+			val := int32(it.customFields[i].intEncoder.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case unsignedInt32Field:
-			val := uint32(it.customFields[i].prevIntBits)
+			val := uint32(it.customFields[i].intEncoder.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		default:
@@ -745,7 +745,7 @@ func (it *iterator) readIntSig(i int) error {
 			itErrPrefix, err)
 	}
 	if sigDigitsControlBit == m3tsz.OpcodeZeroSig {
-		it.customFields[i].intSigBitsTracker.NumSig = 0
+		it.customFields[i].intEncoder.intSigBitsTracker.NumSig = 0
 	} else {
 		numSigBits, err := it.readBits(6)
 		if err != nil {
@@ -754,7 +754,7 @@ func (it *iterator) readIntSig(i int) error {
 				itErrPrefix, err)
 		}
 
-		it.customFields[i].intSigBitsTracker.NumSig = uint8(numSigBits) + 1
+		it.customFields[i].intEncoder.intSigBitsTracker.NumSig = uint8(numSigBits) + 1
 	}
 
 	return nil
@@ -768,7 +768,7 @@ func (it *iterator) readIntValDiff(i int) error {
 			itErrPrefix, err)
 	}
 
-	numSig := int(it.customFields[i].intSigBitsTracker.NumSig)
+	numSig := int(it.customFields[i].intEncoder.intSigBitsTracker.NumSig)
 	diffSigBits, err := it.readBits(numSig)
 	if err != nil {
 		return fmt.Errorf(
@@ -783,11 +783,11 @@ func (it *iterator) readIntValDiff(i int) error {
 			shouldSubtract = true
 		}
 
-		prev := it.customFields[i].prevIntBits
+		prev := it.customFields[i].intEncoder.prevIntBits
 		if shouldSubtract {
-			it.customFields[i].prevIntBits = prev - diff
+			it.customFields[i].intEncoder.prevIntBits = prev - diff
 		} else {
-			it.customFields[i].prevIntBits = prev + diff
+			it.customFields[i].intEncoder.prevIntBits = prev + diff
 		}
 	} else {
 		diff := int64(diffSigBits)
@@ -796,8 +796,8 @@ func (it *iterator) readIntValDiff(i int) error {
 			sign = -1.0
 		}
 
-		prev := int64(it.customFields[i].prevIntBits)
-		it.customFields[i].prevIntBits = uint64(prev + (sign * diff))
+		prev := int64(it.customFields[i].intEncoder.prevIntBits)
+		it.customFields[i].intEncoder.prevIntBits = uint64(prev + (sign * diff))
 	}
 
 	return nil

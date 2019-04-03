@@ -146,8 +146,7 @@ type customFieldState struct {
 	iteratorBytesFieldDict [][]byte
 
 	// Int state.
-	prevIntBits       uint64
-	intSigBitsTracker m3tsz.IntSigBitsTracker
+	intEncoder intEncoder
 }
 
 type encoderBytesFieldDictState struct {

@@ -91,7 +91,7 @@ const (
 // TODO(rartoul): Modify this prop test to generate schemas with repeated fields and maps
 // (which are basically the same thing) as well as nested messages once we add support for
 // those features: https://github.com/m3db/m3/issues/1471
-func TestRoundtripProp(t *testing.T) {
+func TestRoundTripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
 		seed       = time.Now().UnixNano()
