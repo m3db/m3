@@ -45,12 +45,12 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 
 	// any response should satisfy consistency lvl one
 	for i := 0; i < 3; i++ {
-		testFetchTaggedWorkflow{
+		testFetchStateWorkflow{
 			t:       t,
 			topoMap: topoMap,
 			level:   topology.ReadConsistencyLevelOne,
-			steps: []testFetchTaggedWorklowStep{
-				testFetchTaggedWorklowStep{
+			steps: []testFetchStateWorklowStep{
+				testFetchStateWorklowStep{
 					hostname:          fmt.Sprintf("testhost%d", i),
 					fetchTaggedResult: &testFetchTaggedSuccessResponse,
 					expectedDone:      true,
@@ -60,24 +60,24 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 	}
 
 	// should terminate only after all failures, and say it failed
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelOne,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				err:      errTestFetchTagged,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				err:          errTestFetchTagged,
-				expectedDone: true,
-				expectedErr:  true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
 			},
 		},
 	}.run()
@@ -93,12 +93,12 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 
 	// responses from testhost1 should not count towards success
 	// for consistency level 1
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelOne,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      false,
@@ -107,66 +107,66 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 	}.run()
 
 	// for consistency level unstrict majority
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost2",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost2",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost0",
-				err:          errTestFetchTagged,
-				expectedDone: true,
-				expectedErr:  true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
 			},
 		},
 	}.run()
 
 	// for consistency level majority
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost0",
-				err:          errTestFetchTagged,
-				expectedDone: true,
-				expectedErr:  true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
 			},
 		},
 	}.run()
 
 	// for consistency level all
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelAll,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      true,
@@ -185,12 +185,12 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 	})
 
 	// a single response from a host with partial shards isn't enough
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelOne,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      false,
@@ -208,17 +208,17 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 	})
 
 	// two success responses should succeed immediately
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      false,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      true,
@@ -227,20 +227,20 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 	}.run()
 
 	// two failures, and one success response should succeed
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				err:      errTestFetchTagged,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      true,
@@ -249,24 +249,24 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 	}.run()
 
 	// should terminate only after all failures
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				err:      errTestFetchTagged,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				err:          errTestFetchTagged,
-				expectedErr:  true,
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedErr:    true,
+				expectedDone:   true,
 			},
 		},
 	}.run()
@@ -282,24 +282,24 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajorityComplexTopo(t *
 	})
 
 	// one success responses should succeed
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost2",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost2",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost3",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 				expectedDone:      true,
@@ -318,27 +318,27 @@ func TestFetchTaggedResultsAccumulatorComplextTopoUnstrictMajorityPartialRespons
 	})
 
 	// response from testhost2+testhost3 should be sufficient
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost3",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost0",
-				err:          errTestFetchTagged,
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
 			},
 		},
 	}.run()
@@ -354,28 +354,28 @@ func TestFetchTaggedResultsAccumulatorComplexIncompleteTopoUnstrictMajorityParti
 	})
 
 	// response from testhost2+testhost3 should be in-sufficient, as they're not complete together
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost3",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost0",
-				err:          errTestFetchTagged,
-				expectedDone: true,
-				expectedErr:  true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
 			},
 		},
 	}.run()
@@ -391,12 +391,12 @@ func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) 
 
 	// any single success response should not satisfy consistency majority
 	for i := 0; i < 3; i++ {
-		testFetchTaggedWorkflow{
+		testFetchStateWorkflow{
 			t:       t,
 			topoMap: topoMap,
 			level:   topology.ReadConsistencyLevelMajority,
-			steps: []testFetchTaggedWorklowStep{
-				testFetchTaggedWorklowStep{
+			steps: []testFetchStateWorklowStep{
+				testFetchStateWorklowStep{
 					hostname:          fmt.Sprintf("testhost%d", i),
 					fetchTaggedResult: &testFetchTaggedSuccessResponse,
 					expectedDone:      false,
@@ -406,47 +406,47 @@ func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) 
 	}
 
 	// all responses failing should fail consistency lvl majority
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				err:      errTestFetchTagged,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				err:      errTestFetchTagged,
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost2",
-				err:          errTestFetchTagged,
-				expectedDone: true,
-				expectedErr:  true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost2",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
 			},
 		},
 	}.run()
 
 	// any two responses failing should fail regardless of third response
-	testFetchTaggedWorkflow{
+	testFetchStateWorkflow{
 		t:       t,
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelMajority,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				err:      errTestFetchTagged,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: &testFetchTaggedSuccessResponse,
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost2",
-				err:          errTestFetchTagged,
-				expectedDone: true,
-				expectedErr:  true,
+			testFetchStateWorklowStep{
+				hostname:       "testhost2",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
 			},
 		},
 	}.run()

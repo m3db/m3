@@ -47,22 +47,22 @@ func TestAggregateResultsAccumulatorIdsMerge(t *testing.T) {
 	th := newTestFetchTaggedHelper(t)
 	ts1 := newTestSeries(1)
 	ts2 := newTestSeries(2)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelAll,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost0",
 				aggregateResult: testSerieses{ts1}.toRPCAggResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost1",
 				aggregateResult: testSerieses{ts1, ts2}.toRPCAggResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost2",
 				aggregateResult: testSerieses{}.toRPCAggResult(th, testStartTime, true),
 				expectedDone:    true,
@@ -100,18 +100,18 @@ func TestAggregateResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost0",
 				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost1",
 				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
 				expectedDone:    true,
@@ -135,18 +135,18 @@ func TestAggregateResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *testin
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost0",
 				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, false),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:        "testhost1",
 				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
 				expectedDone:    true,

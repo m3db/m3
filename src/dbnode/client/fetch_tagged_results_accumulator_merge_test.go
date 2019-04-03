@@ -56,22 +56,22 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 	th := newTestFetchTaggedHelper(t)
 	ts1 := newTestSeries(1)
 	ts2 := newTestSeries(2)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelAll,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: testSerieses{}.toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -112,18 +112,18 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -148,18 +148,18 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -202,18 +202,18 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	sg1.addDatapoints(numPoints, startTime, endTime)
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: startTime,
 		endTime:   endTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: sg0.toRPCResult(th, startTime, false),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: sg1.toRPCResult(th, endTime, true),
 				expectedDone:      true,
@@ -252,22 +252,22 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	groups := sg0.nsplit(3)
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelAll,
 		startTime: startTime,
 		endTime:   endTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost0",
 				fetchTaggedResult: groups[0].toRPCResult(th, startTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost1",
 				fetchTaggedResult: groups[1].toRPCResult(th, endTime, true),
 			},
-			testFetchTaggedWorklowStep{
+			testFetchStateWorklowStep{
 				hostname:          "testhost2",
 				fetchTaggedResult: groups[2].toRPCResult(th, endTime, true),
 				expectedDone:      true,
@@ -290,25 +290,26 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	sg0.assertMatchesEncodingIters(t, iters)
 }
 
-type testFetchTaggedWorkflow struct {
+type testFetchStateWorkflow struct {
 	t         *testing.T
 	topoMap   topology.Map
 	level     topology.ReadConsistencyLevel
 	startTime time.Time
 	endTime   time.Time
-	steps     []testFetchTaggedWorklowStep
+	steps     []testFetchStateWorklowStep
 }
 
-type testFetchTaggedWorklowStep struct {
+type testFetchStateWorklowStep struct {
 	hostname          string
-	aggregateResult   *rpc.AggregateQueryRawResult_
 	fetchTaggedResult *rpc.FetchTaggedResult_
-	err               error
+	fetchTaggedErr    error
+	aggregateResult   *rpc.AggregateQueryRawResult_
+	aggregateErr      error
 	expectedDone      bool
 	expectedErr       bool
 }
 
-func (tm testFetchTaggedWorkflow) run() fetchTaggedResultAccumulator {
+func (tm testFetchStateWorkflow) run() fetchTaggedResultAccumulator {
 	var accum fetchTaggedResultAccumulator
 	majority := tm.topoMap.MajorityReplicas()
 	accum = newFetchTaggedResultAccumulator()
@@ -319,19 +320,21 @@ func (tm testFetchTaggedWorkflow) run() fetchTaggedResultAccumulator {
 			done bool
 			err  error
 		)
-		if s.fetchTaggedResult != nil {
+		switch {
+		case s.fetchTaggedResult != nil || s.fetchTaggedErr != nil:
 			opts := fetchTaggedResultAccumulatorOpts{
 				host:     host(tm.t, tm.topoMap, s.hostname),
 				response: s.fetchTaggedResult,
 			}
-			done, err = accum.AddFetchTaggedResponse(opts, s.err)
-		} else {
+			done, err = accum.AddFetchTaggedResponse(opts, s.fetchTaggedErr)
+		case s.aggregateResult != nil || s.aggregateErr != nil:
 			opts := aggregateResultAccumulatorOpts{
 				host:     host(tm.t, tm.topoMap, s.hostname),
 				response: s.aggregateResult,
 			}
-			done, err = accum.AddAggregateResponse(opts, s.err)
-
+			done, err = accum.AddAggregateResponse(opts, s.aggregateErr)
+		default:
+			assert.FailNow(tm.t, "unexpected workflow step", fmt.Sprintf("%+v", s))
 		}
 		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("%+v", s))
 		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("%+v", s))
