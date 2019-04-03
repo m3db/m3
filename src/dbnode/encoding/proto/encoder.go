@@ -812,6 +812,7 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 type intEncoder struct {
 	prevIntBits       uint64
 	intSigBitsTracker m3tsz.IntSigBitsTracker
+	unsigned          bool
 	hasEncodedFirst   bool
 }
 

@@ -182,6 +182,9 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 		}
 
 		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
+		if isUnsignedInt(customFieldType) {
+			fieldState.intEncoder.unsigned = true
+		}
 		s = append(s, fieldState)
 	}
 
