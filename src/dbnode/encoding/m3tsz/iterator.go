@@ -89,14 +89,14 @@ func (it *readerIterator) readValue(first bool) {
 
 func (it *readerIterator) readFirstValue() {
 	if !it.intOptimized {
-		if err := it.floatIter.readFullFloatVal(it.is); err != nil {
+		if err := it.floatIter.readFullFloat(it.is); err != nil {
 			it.err = err
 		}
 		return
 	}
 
 	if it.readBits(1) == opcodeFloatMode {
-		if err := it.floatIter.readFullFloatVal(it.is); err != nil {
+		if err := it.floatIter.readFullFloat(it.is); err != nil {
 			it.err = err
 		}
 		it.isFloat = true
@@ -109,7 +109,7 @@ func (it *readerIterator) readFirstValue() {
 
 func (it *readerIterator) readNextValue() {
 	if !it.intOptimized {
-		if err := it.floatIter.readNextFloatVal(it.is); err != nil {
+		if err := it.floatIter.readNextFloat(it.is); err != nil {
 			it.err = err
 		}
 		return
@@ -122,7 +122,7 @@ func (it *readerIterator) readNextValue() {
 
 		if it.readBits(1) == opcodeFloatMode {
 			// Change to floatVal
-			if err := it.floatIter.readFullFloatVal(it.is); err != nil {
+			if err := it.floatIter.readFullFloat(it.is); err != nil {
 				it.err = err
 			}
 			it.isFloat = true
@@ -136,7 +136,7 @@ func (it *readerIterator) readNextValue() {
 	}
 
 	if it.isFloat {
-		if err := it.floatIter.readNextFloatVal(it.is); err != nil {
+		if err := it.floatIter.readNextFloat(it.is); err != nil {
 			it.err = err
 		}
 	} else {
