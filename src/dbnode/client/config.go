@@ -97,7 +97,7 @@ func (c *ProtoConfiguration) Validate() error {
 	}
 
 	if c.SchemaFilePath == "" {
-		return errors.New("schemaFilePath is required for Proto data mode ")
+		return errors.New("schemaFilePath is required for Proto data mode")
 	}
 
 	return nil

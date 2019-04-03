@@ -90,33 +90,21 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 		return errEncoderClosed
 	}
 
-	var err error
-	if err = enc.tsEncoderState.WriteTime(enc.os, dp.Timestamp, ant, tu); err != nil {
+	err := enc.tsEncoderState.WriteTime(enc.os, dp.Timestamp, ant, tu)
+	if err != nil {
 		return err
 	}
 
 	if enc.numEncoded == 0 {
-		err = enc.writeFirst(dp, ant, tu)
+		err = enc.writeFirstValue(dp.Value)
 	} else {
-		err = enc.writeNext(dp, ant, tu)
+		err = enc.writeNextValue(dp.Value)
 	}
 	if err == nil {
 		enc.numEncoded++
 	}
 
 	return err
-}
-
-// writeFirst writes the first datapoint with annotation.
-func (enc *encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	enc.writeFirstValue(dp.Value)
-	return nil
-}
-
-// writeNext writes the next datapoint with annotation.
-func (enc *encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
-	enc.writeNextValue(dp.Value)
-	return nil
 }
 
 func (enc *encoder) writeFirstValue(v float64) error {
@@ -281,7 +269,7 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.intVal = 0
 	enc.isFloat = false
 	enc.maxMult = 0
-	enc.sigTracker.Reset()
+	enc.sigTracker = IntSigBitsTracker{}
 	enc.ant = nil
 	enc.numEncoded = 0
 	enc.closed = false
@@ -413,7 +401,7 @@ type TimestampEncoder struct {
 	PrevTimeDelta  time.Duration
 	PrevAnnotation []byte
 
-	Opts encoding.Options
+	Options encoding.Options
 
 	TimeUnit xtime.Unit
 
@@ -426,7 +414,7 @@ func NewTimestampEncoder(
 	return TimestampEncoder{
 		PrevTime: start,
 		TimeUnit: initialTimeUnit(start, timeUnit),
-		Opts:     opts,
+		Options:  opts,
 	}
 }
 
@@ -491,7 +479,7 @@ func (enc *TimestampEncoder) maybeWriteTimeUnitChange(stream encoding.OStream, t
 		return false
 	}
 
-	scheme := enc.Opts.MarkerEncodingScheme()
+	scheme := enc.Options.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(stream, scheme, scheme.TimeUnit())
 	enc.WriteTimeUnit(stream, timeUnit)
 	return true
@@ -521,7 +509,7 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 		return
 	}
 
-	scheme := enc.Opts.MarkerEncodingScheme()
+	scheme := enc.Options.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(stream, scheme, scheme.Annotation())
 
 	var buf [binary.MaxVarintLen32]byte
@@ -549,7 +537,7 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	tes, exists := enc.Opts.TimeEncodingSchemes()[timeUnit]
+	tes, exists := enc.Options.TimeEncodingSchemes()[timeUnit]
 	if !exists {
 		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
 	}
@@ -714,13 +702,6 @@ func (t *IntSigBitsTracker) TrackNewSig(numSig uint8) uint8 {
 	}
 
 	return newSig
-}
-
-// Reset resets the IntSigBitsTracker for reuse.
-func (t *IntSigBitsTracker) Reset() {
-	t.NumSig = 0
-	t.CurHighestLowerSig = 0
-	t.NumLowerSig = 0
 }
 
 type resultType int
