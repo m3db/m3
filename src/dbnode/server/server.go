@@ -547,25 +547,15 @@ func Run(runOpts RunOptions) {
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
 
-	// Initialize clustered database
-	clusterTopoWatch, err := topo.Watch()
-	if err != nil {
-		logger.Fatalf("could not create cluster topology watch: %v", err)
-	}
-	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
-	if err != nil {
-		logger.Fatalf("could not construct database: %v", err)
-	}
-
-	if err := db.Open(); err != nil {
-		logger.Fatalf("could not open database: %v", err)
-	}
-
-	contextPool := opts.ContextPool()
-
-	tchannelOpts := xtchannel.NewDefaultChannelOptions()
-	service := ttnode.NewService(db, ttopts)
-
+	// Start servers before constructing the DB so orchestration tools can check health endpoints
+	// before topology is set.
+	var (
+		contextPool  = opts.ContextPool()
+		tchannelOpts = xtchannel.NewDefaultChannelOptions()
+		// Pass nil for the database argument because we haven't constructed it yet. We'll call
+		// SetDatabase() once we've initialized it.
+		service = ttnode.NewService(nil, ttopts)
+	)
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
@@ -609,6 +599,23 @@ func Run(runOpts RunOptions) {
 			}
 		}()
 	}
+
+	// Initialize clustered database
+	clusterTopoWatch, err := topo.Watch()
+	if err != nil {
+		logger.Fatalf("could not create cluster topology watch: %v", err)
+	}
+
+	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
+	if err != nil {
+		logger.Fatalf("could not construct database: %v", err)
+	}
+
+	if err := db.Open(); err != nil {
+		logger.Fatalf("could not open database: %v", err)
+	}
+	// Now that we've initialized the database we can set it on the service.
+	service.SetDatabase(db)
 
 	go func() {
 		if runOpts.BootstrapCh != nil {
