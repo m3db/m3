@@ -293,6 +293,112 @@ func TestClose(t *testing.T) {
 	require.Equal(t, errCantGetReaderFromClosedSegment, err)
 }
 
+func TestReadThroughSegmentMatchField(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	segment := fst.NewMockSegment(ctrl)
+	reader := index.NewMockReader(ctrl)
+	segment.EXPECT().Reader().Return(reader, nil)
+
+	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	require.NoError(t, err)
+	defer stopReporting()
+
+	var (
+		field = []byte("some-field")
+
+		originalPL = roaring.NewPostingsList()
+	)
+	require.NoError(t, originalPL.Insert(1))
+
+	readThrough, err := NewReadThroughSegment(
+		segment, cache, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
+	reader.EXPECT().MatchField(field).Return(originalPL, nil)
+
+	// Make sure it goes to the segment when the cache misses.
+	pl, err := readThrough.MatchField(field)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+
+	// Make sure it relies on the cache if its present (mock only expects
+	// one call.)
+	pl, err = readThrough.MatchField(field)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+}
+
+func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	segment := fst.NewMockSegment(ctrl)
+	reader := index.NewMockReader(ctrl)
+	segment.EXPECT().Reader().Return(reader, nil)
+
+	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	require.NoError(t, err)
+	defer stopReporting()
+
+	var (
+		field = []byte("some-field")
+
+		originalPL = roaring.NewPostingsList()
+	)
+	require.NoError(t, originalPL.Insert(1))
+
+	readThrough, err := NewReadThroughSegment(segment, cache, ReadThroughSegmentOptions{
+		CacheTerms: false,
+	}).Reader()
+	require.NoError(t, err)
+
+	reader.EXPECT().
+		MatchField(field).
+		Return(originalPL, nil).
+		Times(2)
+
+	// Make sure it goes to the segment when the cache misses.
+	pl, err := readThrough.MatchField(field)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+
+	// Make sure it goes to the segment the second time - meaning the cache was
+	// disabled.
+	pl, err = readThrough.MatchField(field)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+}
+
+func TestReadThroughSegmentMatchFieldNoCache(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		segment = fst.NewMockSegment(ctrl)
+		reader  = index.NewMockReader(ctrl)
+
+		field = []byte("some-field")
+
+		originalPL = roaring.NewPostingsList()
+	)
+	require.NoError(t, originalPL.Insert(1))
+
+	segment.EXPECT().Reader().Return(reader, nil)
+
+	readThrough, err := NewReadThroughSegment(
+		segment, nil, defaultReadThroughSegmentOptions).Reader()
+	require.NoError(t, err)
+
+	reader.EXPECT().MatchField(field).Return(originalPL, nil)
+
+	// Make sure it it works with no cache.
+	pl, err := readThrough.MatchField(field)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(originalPL))
+}
+
 func TestCloseNoCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
