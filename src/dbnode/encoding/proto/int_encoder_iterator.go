@@ -27,6 +27,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
+const (
+	opcodeZeroSig = 0x0
+)
+
 type intEncoderAndIterator struct {
 	prevIntBits       uint64
 	intSigBitsTracker m3tsz.IntSigBitsTracker
@@ -196,7 +200,6 @@ func (it *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
 			"%s error reading zero significant digits control bit: %v",
 			itErrPrefix, err)
 	}
-	// TODO: copy my own opcode
 	if sigDigitsControlBit == m3tsz.OpcodeZeroSig {
 		it.intSigBitsTracker.NumSig = 0
 	} else {
