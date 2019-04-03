@@ -70,11 +70,8 @@ func (it *readerIterator) Next() bool {
 	}
 
 	first, done, err := it.tsIterator.ReadTimestamp(it.is)
-	if err != nil {
+	if err != nil || done {
 		it.err = err
-		return false
-	}
-	if done {
 		return false
 	}
 
@@ -252,7 +249,7 @@ func (it *readerIterator) Close() {
 	}
 }
 
-// TimestampIterator encapsulates all the state required for iterator over
+// TimestampIterator encapsulates all the state required for iterating over
 // delta-of-delta compresed timestamps.
 type TimestampIterator struct {
 	PrevTime      time.Time

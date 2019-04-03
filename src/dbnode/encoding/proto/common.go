@@ -56,14 +56,14 @@ const (
 	// int32, sfixed32, and enums are all are treated as int32s and there
 	// is no reasonm to distinguish between them for the purposes of encoding
 	// and decoding.
-	cNotCustomEncoded customFieldType = iota
-	cSignedInt64
-	cSignedInt32
-	cUnsignedInt64
-	cUnsignedInt32
-	cFloat64
-	cFloat32
-	cBytes
+	notCustomEncodedField customFieldType = iota
+	signedInt64Field
+	signedInt32Field
+	unsignedInt64Field
+	unsignedInt32Field
+	float64Field
+	float32Field
+	bytesField
 
 	numCustomTypes = 8
 )
@@ -103,29 +103,29 @@ var (
 
 	// Maps protobuf types to our custom type as described above.
 	mapProtoTypeToCustomFieldType = map[dpb.FieldDescriptorProto_Type]customFieldType{
-		dpb.FieldDescriptorProto_TYPE_DOUBLE: cFloat64,
-		dpb.FieldDescriptorProto_TYPE_FLOAT:  cFloat32,
+		dpb.FieldDescriptorProto_TYPE_DOUBLE: float64Field,
+		dpb.FieldDescriptorProto_TYPE_FLOAT:  float32Field,
 
-		dpb.FieldDescriptorProto_TYPE_INT64:    cSignedInt64,
-		dpb.FieldDescriptorProto_TYPE_SFIXED64: cSignedInt64,
+		dpb.FieldDescriptorProto_TYPE_INT64:    signedInt64Field,
+		dpb.FieldDescriptorProto_TYPE_SFIXED64: signedInt64Field,
 
-		dpb.FieldDescriptorProto_TYPE_UINT64:  cUnsignedInt64,
-		dpb.FieldDescriptorProto_TYPE_FIXED64: cUnsignedInt64,
+		dpb.FieldDescriptorProto_TYPE_UINT64:  unsignedInt64Field,
+		dpb.FieldDescriptorProto_TYPE_FIXED64: unsignedInt64Field,
 
-		dpb.FieldDescriptorProto_TYPE_INT32:    cSignedInt32,
-		dpb.FieldDescriptorProto_TYPE_SFIXED32: cSignedInt32,
+		dpb.FieldDescriptorProto_TYPE_INT32:    signedInt32Field,
+		dpb.FieldDescriptorProto_TYPE_SFIXED32: signedInt32Field,
 		// Signed because thats how Proto encodes it (can technically have negative
 		// enum values but its not recommended for compression reasons).
-		dpb.FieldDescriptorProto_TYPE_ENUM: cSignedInt32,
+		dpb.FieldDescriptorProto_TYPE_ENUM: signedInt32Field,
 
-		dpb.FieldDescriptorProto_TYPE_UINT32:  cUnsignedInt32,
-		dpb.FieldDescriptorProto_TYPE_FIXED32: cUnsignedInt32,
+		dpb.FieldDescriptorProto_TYPE_UINT32:  unsignedInt32Field,
+		dpb.FieldDescriptorProto_TYPE_FIXED32: unsignedInt32Field,
 
-		dpb.FieldDescriptorProto_TYPE_SINT32: cSignedInt32,
-		dpb.FieldDescriptorProto_TYPE_SINT64: cSignedInt64,
+		dpb.FieldDescriptorProto_TYPE_SINT32: signedInt32Field,
+		dpb.FieldDescriptorProto_TYPE_SINT64: signedInt64Field,
 
-		dpb.FieldDescriptorProto_TYPE_STRING: cBytes,
-		dpb.FieldDescriptorProto_TYPE_BYTES:  cBytes,
+		dpb.FieldDescriptorProto_TYPE_STRING: bytesField,
+		dpb.FieldDescriptorProto_TYPE_BYTES:  bytesField,
 	}
 )
 
@@ -195,18 +195,18 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 }
 
 func isCustomFloatEncodedField(t customFieldType) bool {
-	return t == cFloat64 || t == cFloat32
+	return t == float64Field || t == float32Field
 }
 
 func isCustomIntEncodedField(t customFieldType) bool {
-	return t == cSignedInt64 ||
-		t == cUnsignedInt64 ||
-		t == cSignedInt32 ||
-		t == cUnsignedInt32
+	return t == signedInt64Field ||
+		t == unsignedInt64Field ||
+		t == signedInt32Field ||
+		t == unsignedInt32Field
 }
 
 func isUnsignedInt(t customFieldType) bool {
-	return t == cUnsignedInt64 || t == cUnsignedInt32
+	return t == unsignedInt64Field || t == unsignedInt32Field
 }
 
 func numCustomFields(schema *desc.MessageDescriptor) int {

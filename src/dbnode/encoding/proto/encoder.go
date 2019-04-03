@@ -261,7 +261,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 	// Start at 1 because we're zero-indexed.
 	for i := 1; i <= maxFieldNum; i++ {
-		customTypeBits := uint64(cNotCustomEncoded)
+		customTypeBits := uint64(notCustomEncodedField)
 		for _, customField := range enc.customFields {
 			if customField.fieldNum == i {
 				customTypeBits = uint64(customField.fieldType)
@@ -392,7 +392,7 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 			if err := enc.encodeIntValue(i, iVal); err != nil {
 				return err
 			}
-		case customField.fieldType == cBytes:
+		case customField.fieldType == bytesField:
 			if err := enc.encodeBytesValue(i, iVal); err != nil {
 				return err
 			}

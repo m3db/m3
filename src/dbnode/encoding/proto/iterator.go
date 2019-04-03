@@ -284,7 +284,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 		}
 
 		fieldType := customFieldType(fieldTypeBits)
-		if fieldType == cNotCustomEncoded {
+		if fieldType == notCustomEncodedField {
 			continue
 		}
 
@@ -409,7 +409,7 @@ func (it *iterator) readFirstCustomValues() error {
 			if err := it.readFirstTSZValue(i, customField); err != nil {
 				return err
 			}
-		case customField.fieldType == cBytes:
+		case customField.fieldType == bytesField:
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
@@ -446,7 +446,7 @@ func (it *iterator) readNextCustomValues() error {
 				return err
 			}
 
-		case customField.fieldType == cBytes:
+		case customField.fieldType == bytesField:
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
@@ -623,7 +623,7 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 			val = math.Float64frombits(it.customFields[i].floatXORState.PrevFloatBits)
 			err error
 		)
-		if fieldType == cFloat64 {
+		if fieldType == float64Field {
 			err = it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 		} else {
 			err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
@@ -632,19 +632,19 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
-		case cSignedInt64:
+		case signedInt64Field:
 			val := int64(it.customFields[i].prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
-		case cUnsignedInt64:
+		case unsignedInt64Field:
 			val := it.customFields[i].prevIntBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
-		case cSignedInt32:
+		case signedInt32Field:
 			val := int32(it.customFields[i].prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
-		case cUnsignedInt32:
+		case unsignedInt32Field:
 			val := uint32(it.customFields[i].prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
@@ -776,7 +776,7 @@ func (it *iterator) readIntValDiff(i int) error {
 			itErrPrefix, err)
 	}
 
-	if it.customFields[i].fieldType == cUnsignedInt64 {
+	if it.customFields[i].fieldType == unsignedInt64Field {
 		diff := diffSigBits
 		shouldSubtract := false
 		if negativeControlBit == opCodeIntDeltaNegative {
