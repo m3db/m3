@@ -148,8 +148,8 @@ func (eit *intEncoderAndIterator) encodeIntValDiff(stream encoding.OStream, valB
 	stream.WriteBits(valBits, int(numSig))
 }
 
-func (it *intEncoderAndIterator) readIntValue(stream encoding.IStream) error {
-	if it.hasEncodedFirst {
+func (eit *intEncoderAndIterator) readIntValue(stream encoding.IStream) error {
+	if eit.hasEncodedFirst {
 		changeExistsControlBit, err := stream.ReadBit()
 		if err != nil {
 			return fmt.Errorf(
@@ -163,26 +163,26 @@ func (it *intEncoderAndIterator) readIntValue(stream encoding.IStream) error {
 		}
 	}
 
-	if err := it.readIntSig(stream); err != nil {
+	if err := eit.readIntSig(stream); err != nil {
 		return fmt.Errorf(
 			"%s error trying to read number of significant digits: %v",
 			itErrPrefix, err)
 	}
 
-	if err := it.readIntValDiff(stream); err != nil {
+	if err := eit.readIntValDiff(stream); err != nil {
 		return fmt.Errorf(
 			"%s error trying to read int diff: %v",
 			itErrPrefix, err)
 	}
 
-	if !it.hasEncodedFirst {
-		it.hasEncodedFirst = true
+	if !eit.hasEncodedFirst {
+		eit.hasEncodedFirst = true
 	}
 
 	return nil
 }
 
-func (it *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
+func (eit *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
 	updateControlBit, err := stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -201,7 +201,7 @@ func (it *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
 			itErrPrefix, err)
 	}
 	if sigDigitsControlBit == m3tsz.OpcodeZeroSig {
-		it.intSigBitsTracker.NumSig = 0
+		eit.intSigBitsTracker.NumSig = 0
 	} else {
 		numSigBits, err := stream.ReadBits(6)
 		if err != nil {
@@ -210,13 +210,13 @@ func (it *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
 				itErrPrefix, err)
 		}
 
-		it.intSigBitsTracker.NumSig = uint8(numSigBits) + 1
+		eit.intSigBitsTracker.NumSig = uint8(numSigBits) + 1
 	}
 
 	return nil
 }
 
-func (it *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error {
+func (eit *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error {
 	negativeControlBit, err := stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -224,7 +224,7 @@ func (it *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error {
 			itErrPrefix, err)
 	}
 
-	numSig := int(it.intSigBitsTracker.NumSig)
+	numSig := int(eit.intSigBitsTracker.NumSig)
 	diffSigBits, err := stream.ReadBits(numSig)
 	if err != nil {
 		return fmt.Errorf(
@@ -232,18 +232,18 @@ func (it *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error {
 			itErrPrefix, err)
 	}
 
-	if it.unsigned {
+	if eit.unsigned {
 		diff := diffSigBits
 		shouldSubtract := false
 		if negativeControlBit == opCodeIntDeltaNegative {
 			shouldSubtract = true
 		}
 
-		prev := it.prevIntBits
+		prev := eit.prevIntBits
 		if shouldSubtract {
-			it.prevIntBits = prev - diff
+			eit.prevIntBits = prev - diff
 		} else {
-			it.prevIntBits = prev + diff
+			eit.prevIntBits = prev + diff
 		}
 	} else {
 		diff := int64(diffSigBits)
@@ -252,8 +252,8 @@ func (it *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error {
 			sign = -1.0
 		}
 
-		prev := int64(it.prevIntBits)
-		it.prevIntBits = uint64(prev + (sign * diff))
+		prev := int64(eit.prevIntBits)
+		eit.prevIntBits = uint64(prev + (sign * diff))
 	}
 
 	return nil
