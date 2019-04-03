@@ -427,7 +427,7 @@ func (enc *Encoder) encodeTSZValue(i int, iVal interface{}) error {
 			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
 	}
 
-	enc.customFields[i].floatXORState.WriteFloat(enc.stream, val)
+	enc.customFields[i].floatEncAndIter.WriteFloat(enc.stream, val)
 	return nil
 }
 

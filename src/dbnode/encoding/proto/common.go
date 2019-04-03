@@ -138,9 +138,9 @@ type customFieldState struct {
 	fieldNum  int
 	fieldType customFieldType
 
-	// Float state.
-	// TODO: rename this.
-	floatXORState m3tsz.FloatEncoderAndIterator
+	// Float state. Works as both an encoder and iterator (I.E the encoder calls
+	// the encode methods and the iterator calls the read methods).
+	floatEncAndIter m3tsz.FloatEncoderAndIterator
 
 	// Bytes State.
 	bytesFieldDict         []encoderBytesFieldDictState

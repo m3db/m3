@@ -143,6 +143,7 @@ func (it *iterator) Next() bool {
 			it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
 			return false
 		}
+
 		if !it.consumedFirstMessage {
 			// Don't interpret the initial time unit as a "change" since the encoder special
 			// cases the first one.
@@ -295,15 +296,27 @@ func (it *iterator) readCustomFieldsSchema() error {
 }
 
 func (it *iterator) readCustomValues() error {
-	var err error
-
-	if !it.consumedFirstMessage {
-		err = it.readFirstCustomValues()
-	} else {
-		err = it.readNextCustomValues()
+	for i, customField := range it.customFields {
+		switch {
+		case isCustomFloatEncodedField(customField.fieldType):
+			if err := it.readFloatValue(i); err != nil {
+				return err
+			}
+		case customField.fieldType == bytesField:
+			if err := it.readBytesValue(i, customField); err != nil {
+				return err
+			}
+		case isCustomIntEncodedField(customField.fieldType):
+			if err := it.readIntValue(i); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf(
+				"%s: unhandled custom field type: %v", itErrPrefix, customField.fieldType)
+		}
 	}
 
-	return err
+	return nil
 }
 
 func (it *iterator) readProtoValues() error {
@@ -402,78 +415,10 @@ func (it *iterator) readProtoValues() error {
 	return nil
 }
 
-// TODO: Get rid of first/next i we can (if TSZ doesnt need it.)
-func (it *iterator) readFirstCustomValues() error {
-	for i, customField := range it.customFields {
-		switch {
-		case isCustomFloatEncodedField(customField.fieldType):
-			if err := it.readFirstTSZValue(i, customField); err != nil {
-				return err
-			}
-		case customField.fieldType == bytesField:
-			if err := it.readBytesValue(i, customField); err != nil {
-				return err
-			}
-		case isCustomIntEncodedField(customField.fieldType):
-			if err := it.readIntValue(i); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf(
-				"%s: unhandled custom field type: %v", itErrPrefix, customField.fieldType)
-		}
-	}
-
-	return nil
-}
-
-func (it *iterator) readFirstTSZValue(i int, customField customFieldState) error {
-	fb, xor, err := it.readFullFloatVal()
-	if err != nil {
+func (it *iterator) readFloatValue(i int) error {
+	if err := it.customFields[i].floatEncAndIter.ReadFloat(it.stream); err != nil {
 		return err
 	}
-
-	it.customFields[i].floatXORState.PrevFloatBits = fb
-	it.customFields[i].floatXORState.PrevXOR = xor
-
-	return it.updateLastIteratedWithCustomValues(i)
-}
-
-func (it *iterator) readNextCustomValues() error {
-	for i, customField := range it.customFields {
-		switch {
-		case isCustomFloatEncodedField(customField.fieldType):
-			if err := it.readNextTSZValue(i, customField); err != nil {
-				return err
-			}
-
-		case customField.fieldType == bytesField:
-			if err := it.readBytesValue(i, customField); err != nil {
-				return err
-			}
-
-		case isCustomIntEncodedField(customField.fieldType):
-			if err := it.readIntValue(i); err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf(
-				"%s: unknown custom field type: %v", itErrPrefix, customField.fieldType)
-		}
-	}
-
-	return nil
-}
-
-func (it *iterator) readNextTSZValue(i int, customField customFieldState) error {
-	fb, xor, err := it.readFloatXOR(i)
-	if err != nil {
-		return err
-	}
-
-	it.customFields[i].floatXORState.PrevFloatBits = fb
-	it.customFields[i].floatXORState.PrevXOR = xor
 
 	return it.updateLastIteratedWithCustomValues(i)
 }
@@ -594,7 +539,7 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	switch {
 	case isCustomFloatEncodedField(fieldType):
 		var (
-			val = math.Float64frombits(it.customFields[i].floatXORState.PrevFloatBits)
+			val = math.Float64frombits(it.customFields[i].floatEncAndIter.PrevFloatBits)
 			err error
 		)
 		if fieldType == float64Field {
@@ -631,24 +576,6 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		return fmt.Errorf(
 			"%s unhandled fieldType: %v", itErrPrefix, fieldType)
 	}
-}
-
-func (it *iterator) readFloatXOR(i int) (floatBits, xor uint64, err error) {
-	xor, err = m3tsz.ReadXOR(it.stream, it.customFields[i].floatXORState.PrevXOR)
-	if err != nil {
-		return 0, 0, err
-	}
-	prevFloatBits := it.customFields[i].floatXORState.PrevFloatBits
-	return prevFloatBits ^ xor, xor, nil
-}
-
-func (it *iterator) readFullFloatVal() (floatBits uint64, xor uint64, err error) {
-	floatBits, err = it.readBits(64)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return floatBits, floatBits, nil
 }
 
 // readBitset does the inverse of encodeBitset on the encoder struct.

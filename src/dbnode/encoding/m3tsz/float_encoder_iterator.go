@@ -42,21 +42,23 @@ type FloatEncoderAndIterator struct {
 func (eit *FloatEncoderAndIterator) WriteFloat(stream encoding.OStream, val float64) {
 	fb := math.Float64bits(val)
 	if eit.NotFirst {
-		eit.writeFullFloat(stream, fb)
-	} else {
 		eit.writeNextFloat(stream, fb)
+	} else {
+		eit.writeFullFloat(stream, fb)
 		eit.NotFirst = true
 	}
 }
 
 // ReadFloat reads a compressed float from the stream.
-func (eit *FloatEncoderAndIterator) ReadFloat(stream encoding.IStream) {
+func (eit *FloatEncoderAndIterator) ReadFloat(stream encoding.IStream) error {
 	if eit.NotFirst {
-		eit.readNextFloat(stream)
-	} else {
-		eit.readFullFloat(stream)
-		eit.NotFirst = true
+		return eit.readNextFloat(stream)
 	}
+
+	err := eit.readFullFloat(stream)
+	eit.NotFirst = true
+	return err
+
 }
 
 func (eit *FloatEncoderAndIterator) writeFullFloat(stream encoding.OStream, val uint64) {
