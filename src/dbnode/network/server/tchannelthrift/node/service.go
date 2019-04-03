@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -81,8 +82,12 @@ var (
 	// errNodeIsNotBootstrapped
 	errNodeIsNotBootstrapped = errors.New("node is not bootstrapped")
 
-	// errDatabaseIsNotInitializedYet
-	errDatabaseIsNotInitializedYet = errors.New("databasee is not yet initialized")
+	// errDatabaseIsNotInitializedYet is raised when an RPC attempt is made before the database
+	// has been set.
+	errDatabaseIsNotInitializedYet = errors.New("database is not yet initialized")
+
+	// errDatabaseHasAlreadyBeenSet is raised when SetDatabase() is called more than one time.
+	errDatabaseHasAlreadyBeenSet = errors.New("database has already been set")
 
 	// errNotImplemented raised when attempting to execute an un-implemented method
 	errNotImplemented = errors.New("method is not implemented")
@@ -127,6 +132,8 @@ type service struct {
 	sync.RWMutex
 
 	db      storage.Database
+	dbIsSet uint64 // Atomic, 1 for true 0 for false.
+
 	logger  log.Logger
 	opts    tchannelthrift.Options
 	nowFn   clock.NowFn
@@ -156,7 +163,8 @@ func (p pools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool { return p.ch
 type Service interface {
 	rpc.TChanNode
 
-	SetDatabase(db storage.Database)
+	// Only safe to be called one time once the service has started.
+	SetDatabase(db storage.Database) error
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -1294,26 +1302,29 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
-func (s *service) SetDatabase(db storage.Database) {
-	s.Lock()
+func (s *service) SetDatabase(db storage.Database) error {
+	if atomic.LoadUint64(&s.dbIsSet) == 1 {
+		// Technically this check is racey in that it may not necessarily
+		// catch multiple calls to SetDatabase() if they happen concurrently,
+		// but it provides some basic sanity test against this function being
+		// called more than one time.
+		return errDatabaseHasAlreadyBeenSet
+	}
+
 	if db != nil {
 		s.db = db
 		s.nowFn = db.Options().ClockOptions().NowFn()
 		s.pools.id = db.Options().IdentifierPool()
+		atomic.StoreUint64(&s.dbIsSet, 1)
 	}
-	s.Unlock()
 }
 
 func (s *service) canDoRPC() error {
-	s.RLock()
-	db := s.db
-	s.RUnlock()
-
-	if db == nil {
+	if atomic.LoadUint64(&s.dbIsSet) != 1 {
 		return convert.ToRPCError(errDatabaseIsNotInitializedYet)
 	}
 
-	if db.IsOverloaded() {
+	if s.db.IsOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return convert.ToRPCError(errServerIsOverloaded)
 	}
