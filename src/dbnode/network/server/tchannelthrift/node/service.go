@@ -1317,6 +1317,8 @@ func (s *service) SetDatabase(db storage.Database) error {
 		s.pools.id = db.Options().IdentifierPool()
 		atomic.StoreUint64(&s.dbIsSet, 1)
 	}
+
+	return nil
 }
 
 func (s *service) canDoRPC() error {
