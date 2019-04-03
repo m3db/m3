@@ -81,6 +81,9 @@ var (
 	// errNodeIsNotBootstrapped
 	errNodeIsNotBootstrapped = errors.New("node is not bootstrapped")
 
+	// errDatabaseIsNotInitializedYet
+	errDatabaseIsNotInitializedYet = errors.New("databasee is not yet initialized")
+
 	// errNotImplemented raised when attempting to execute an un-implemented method
 	errNotImplemented = errors.New("method is not implemented")
 )
@@ -149,8 +152,14 @@ var _ convert.FetchTaggedConversionPools = pools{}
 func (p pools) ID() ident.Pool                                     { return p.id }
 func (p pools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool { return p.checkedBytesWrapper }
 
+// NodeService is the interface for the node RPC service.
+type NodeService interface {
+	rpc.TChanNode
+	SetDatabase(db storage.Database)
+}
+
 // NewService creates a new node TChannel Thrift service
-func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode {
+func NewService(db storage.Database, opts tchannelthrift.Options) NodeService {
 	if opts == nil {
 		opts = tchannelthrift.NewOptions()
 	}
@@ -190,13 +199,11 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		db:      db,
 		logger:  iopts.Logger(),
 		opts:    opts,
-		nowFn:   db.Options().ClockOptions().NowFn(),
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		pools: pools{
 			checkedBytesWrapper:     wrapperPool,
 			tagEncoder:              opts.TagEncoderPool(),
 			tagDecoder:              opts.TagDecoderPool(),
-			id:                      db.Options().IdentifierPool(),
 			segmentsArray:           segmentPool,
 			writeBatchPooledReqPool: writeBatchPooledReqPool,
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
@@ -208,6 +215,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			Bootstrapped: false,
 		},
 	}
+	s.SetDatabase(db)
 
 	return s
 }
@@ -217,25 +225,27 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	health := s.health
 	s.RUnlock()
 
-	// Update bootstrapped field if not up to date. Note that we use
-	// IsBootstrappedAndDurable instead of IsBootstrapped to make sure
-	// that in the scenario where a topology change has occurred, none of
-	// our automated tooling will assume a node is healthy until it has
-	// marked all its shards as available and is able to bootstrap all the
-	// shards it owns from its own local disk.
-	bootstrapped := s.db.IsBootstrappedAndDurable()
+	if s.db != nil {
+		// Update bootstrapped field if not up to date. Note that we use
+		// IsBootstrappedAndDurable instead of IsBootstrapped to make sure
+		// that in the scenario where a topology change has occurred, none of
+		// our automated tooling will assume a node is healthy until it has
+		// marked all its shards as available and is able to bootstrap all the
+		// shards it owns from its own local disk.
+		bootstrapped := s.db.IsBootstrappedAndDurable()
 
-	if health.Bootstrapped != bootstrapped {
-		newHealth := &rpc.NodeHealthResult_{}
-		*newHealth = *health
-		newHealth.Bootstrapped = bootstrapped
+		if health.Bootstrapped != bootstrapped {
+			newHealth := &rpc.NodeHealthResult_{}
+			*newHealth = *health
+			newHealth.Bootstrapped = bootstrapped
 
-		s.Lock()
-		s.health = newHealth
-		s.Unlock()
+			s.Lock()
+			s.health = newHealth
+			s.Unlock()
 
-		// Update response
-		health = newHealth
+			// Update response
+			health = newHealth
+		}
 	}
 
 	return health, nil
@@ -246,6 +256,10 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 // endpoint because while the Health endpoint provides the same information, this endpoint does not
 // require parsing the response to determine if the node is bootstrapped or not.
 func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
+	if s.db == nil {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+
 	// Note that we use IsBootstrappedAndDurable instead of IsBootstrapped to make sure
 	// that in the scenario where a topology change has occurred, none of our automated
 	// tooling will assume a node is healthy until it has marked all its shards as available
@@ -258,16 +272,15 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
-	ctx := tchannelthrift.Context(tctx)
-
-	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
-
+	var (
+		ctx                  = tchannelthrift.Context(tctx)
+		start, rangeStartErr = convert.ToTime(req.RangeStart, req.RangeType)
+		end, rangeEndErr     = convert.ToTime(req.RangeEnd, req.RangeType)
+	)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
@@ -326,17 +339,17 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
-	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+	var (
+		callStart = s.nowFn()
+		ctx       = tchannelthrift.Context(tctx)
 
-	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
-
+		start, rangeStartErr = convert.ToTime(req.RangeStart, req.RangeType)
+		end, rangeEndErr     = convert.ToTime(req.RangeEnd, req.RangeType)
+	)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
@@ -399,9 +412,8 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
 	callStart := s.nowFn()
@@ -458,9 +470,8 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
 	callStart := s.nowFn()
@@ -501,9 +512,8 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
 	callStart := s.nowFn()
@@ -568,9 +578,8 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
 	callStart := s.nowFn()
@@ -624,17 +633,17 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	if s.isOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
-	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
-
-	nsID := s.newID(ctx, req.NameSpace)
-	// check if the namespace if known
-	nsMetadata, ok := s.db.Namespace(nsID)
+	var (
+		callStart = s.nowFn()
+		ctx       = tchannelthrift.Context(tctx)
+		nsID      = s.newID(ctx, req.NameSpace)
+		// check if the namespace if known
+		nsMetadata, ok = s.db.Namespace(nsID)
+	)
 	if !ok {
 		return nil, tterrors.NewBadRequestError(fmt.Errorf("unable to find specified namespace: %v", nsID.String()))
 	}
@@ -697,9 +706,8 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
-	if s.db.IsOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
 	}
 
 	var err error
@@ -832,9 +840,8 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
-	if s.db.IsOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return err
 	}
 
 	callStart := s.nowFn()
@@ -873,9 +880,8 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	if s.db.IsOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return err
 	}
 
 	callStart := s.nowFn()
@@ -926,9 +932,8 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
-	if s.db.IsOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return err
 	}
 
 	callStart := s.nowFn()
@@ -1008,9 +1013,8 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	if s.db.IsOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return tterrors.NewInternalError(errServerIsOverloaded)
+	if err := s.canDoRPC(); err != nil {
+		return err
 	}
 
 	callStart := s.nowFn()
@@ -1097,6 +1101,10 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 }
 
 func (s *service) Repair(tctx thrift.Context) error {
+	if err := s.canDoRPC(); err != nil {
+		return err
+	}
+
 	callStart := s.nowFn()
 
 	if err := s.db.Repair(); err != nil {
@@ -1110,6 +1118,10 @@ func (s *service) Repair(tctx thrift.Context) error {
 }
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 	truncated, err := s.db.Truncate(s.newID(ctx, req.NameSpace))
@@ -1129,6 +1141,10 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 func (s *service) GetPersistRateLimit(
 	ctx thrift.Context,
 ) (*rpc.NodePersistRateLimitResult_, error) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	opts := runtimeOptsMgr.Get().PersistRateLimitOptions()
 	limitEnabled := opts.LimitEnabled()
@@ -1146,6 +1162,10 @@ func (s *service) SetPersistRateLimit(
 	ctx thrift.Context,
 	req *rpc.NodeSetPersistRateLimitRequest,
 ) (*rpc.NodePersistRateLimitResult_, error) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	runopts := runtimeOptsMgr.Get()
 	opts := runopts.PersistRateLimitOptions()
@@ -1167,6 +1187,10 @@ func (s *service) SetPersistRateLimit(
 func (s *service) GetWriteNewSeriesAsync(
 	ctx thrift.Context,
 ) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := runtimeOptsMgr.Get().WriteNewSeriesAsync()
 	return &rpc.NodeWriteNewSeriesAsyncResult_{
@@ -1178,6 +1202,10 @@ func (s *service) SetWriteNewSeriesAsync(
 	ctx thrift.Context,
 	req *rpc.NodeSetWriteNewSeriesAsyncRequest,
 ) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesAsync(req.WriteNewSeriesAsync)
 	if err := runtimeOptsMgr.Update(set); err != nil {
@@ -1192,6 +1220,10 @@ func (s *service) GetWriteNewSeriesBackoffDuration(
 	*rpc.NodeWriteNewSeriesBackoffDurationResult_,
 	error,
 ) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := runtimeOptsMgr.Get().WriteNewSeriesBackoffDuration()
 	return &rpc.NodeWriteNewSeriesBackoffDurationResult_{
@@ -1207,6 +1239,10 @@ func (s *service) SetWriteNewSeriesBackoffDuration(
 	*rpc.NodeWriteNewSeriesBackoffDurationResult_,
 	error,
 ) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	unit, err := convert.ToDuration(req.DurationType)
 	if err != nil {
 		return nil, tterrors.NewBadRequestError(xerrors.NewInvalidParamsError(err))
@@ -1226,6 +1262,10 @@ func (s *service) GetWriteNewSeriesLimitPerShardPerSecond(
 	*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_,
 	error,
 ) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := runtimeOptsMgr.Get().WriteNewSeriesLimitPerShardPerSecond()
 	return &rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_{
@@ -1240,6 +1280,10 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_,
 	error,
 ) {
+	if err := s.canDoRPC(); err != nil {
+		return nil, err
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := int(req.WriteNewSeriesLimitPerShardPerSecond)
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesLimitPerShardPerSecond(value)
@@ -1249,11 +1293,31 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
-func (s *service) isOverloaded() bool {
-	// NB(xichen): for now we only use the database load to determine
-	// whether the server is overloaded. In the future we may also take
-	// into account other metrics such as CPU load, disk I/O rate, etc.
-	return s.db.IsOverloaded()
+func (s *service) SetDatabase(db storage.Database) {
+	s.Lock()
+	if db != nil {
+		s.db = db
+		s.nowFn = db.Options().ClockOptions().NowFn()
+		s.pools.id = db.Options().IdentifierPool()
+	}
+	s.Unlock()
+}
+
+func (s *service) canDoRPC() error {
+	s.RLock()
+	db := s.db
+	s.RUnlock()
+
+	if db == nil {
+		return convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return nil
 }
 
 func (s *service) newID(ctx context.Context, id []byte) ident.ID {
