@@ -139,6 +139,7 @@ type customFieldState struct {
 	fieldType customFieldType
 
 	// Float state.
+	// TODO: rename this.
 	floatXORState m3tsz.XOREncoder
 
 	// Bytes State.

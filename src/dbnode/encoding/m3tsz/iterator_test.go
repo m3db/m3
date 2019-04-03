@@ -91,11 +91,11 @@ func TestReaderIteratorReadNextValue(t *testing.T) {
 	}
 	for _, input := range inputs {
 		it := getTestReaderIterator(input.rawBytes)
-		it.vb = input.previousValue
-		it.xor = input.previousValueXOR
+		it.xorIterator.PrevFloatBits = input.previousValue
+		it.xorIterator.PrevXOR = input.previousValueXOR
 		it.readNextValue()
-		require.Equal(t, input.expectedValueXOR, it.xor)
-		require.Equal(t, input.expectedValue, it.vb)
+		require.Equal(t, input.expectedValueXOR, it.xorIterator.PrevXOR)
+		require.Equal(t, input.expectedValue, it.xorIterator.PrevFloatBits)
 		require.NoError(t, it.Err())
 	}
 

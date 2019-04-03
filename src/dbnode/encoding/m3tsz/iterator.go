@@ -38,11 +38,11 @@ type readerIterator struct {
 	is   encoding.IStream
 	opts encoding.Options
 
-	vb         uint64  // current float value
-	xor        uint64  // current float xor
 	err        error   // current error
 	intVal     float64 // current int value
 	tsIterator TimestampIterator
+	// TODO(rartoul): Rename this struct
+	xorIterator XOREncoder
 
 	mult uint8 // current int multiplier
 	sig  uint8 // current number of significant bits for int diff
@@ -90,12 +90,16 @@ func (it *readerIterator) readValue(first bool) {
 
 func (it *readerIterator) readFirstValue() {
 	if !it.intOptimized {
-		it.readFullFloatVal()
+		if err := it.xorIterator.readFullFloatVal(it.is); err != nil {
+			it.err = err
+		}
 		return
 	}
 
 	if it.readBits(1) == opcodeFloatMode {
-		it.readFullFloatVal()
+		if err := it.xorIterator.readFullFloatVal(it.is); err != nil {
+			it.err = err
+		}
 		it.isFloat = true
 		return
 	}
@@ -106,7 +110,9 @@ func (it *readerIterator) readFirstValue() {
 
 func (it *readerIterator) readNextValue() {
 	if !it.intOptimized {
-		it.readFloatXOR()
+		if err := it.xorIterator.readNextFloatVal(it.is); err != nil {
+			it.err = err
+		}
 		return
 	}
 
@@ -117,7 +123,9 @@ func (it *readerIterator) readNextValue() {
 
 		if it.readBits(1) == opcodeFloatMode {
 			// Change to floatVal
-			it.readFullFloatVal()
+			if err := it.xorIterator.readFullFloatVal(it.is); err != nil {
+				it.err = err
+			}
 			it.isFloat = true
 			return
 		}
@@ -129,24 +137,12 @@ func (it *readerIterator) readNextValue() {
 	}
 
 	if it.isFloat {
-		it.readFloatXOR()
+		if err := it.xorIterator.readNextFloatVal(it.is); err != nil {
+			it.err = err
+		}
 	} else {
 		it.readIntValDiff()
 	}
-}
-
-func (it *readerIterator) readFullFloatVal() {
-	it.vb = it.readBits(64)
-	it.xor = it.vb
-}
-
-func (it *readerIterator) readFloatXOR() {
-	var err error
-	it.xor, err = ReadXOR(it.is, it.xor)
-	if err != nil {
-		it.err = err
-	}
-	it.vb ^= it.xor
 }
 
 func (it *readerIterator) readIntSigMult() {
@@ -191,7 +187,7 @@ func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	if !it.intOptimized || it.isFloat {
 		return ts.Datapoint{
 			Timestamp: it.tsIterator.PrevTime,
-			Value:     math.Float64frombits(it.vb),
+			Value:     math.Float64frombits(it.xorIterator.PrevFloatBits),
 		}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 	}
 
@@ -226,8 +222,6 @@ func (it *readerIterator) hasNext() bool {
 func (it *readerIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
 	it.tsIterator = NewTimestampIterator(it.opts, it.tsIterator.SkipMarkers)
-	it.vb = 0
-	it.xor = 0
 	it.err = nil
 	it.isFloat = false
 	it.intVal = 0.0
@@ -539,49 +533,68 @@ func (it *TimestampIterator) tryPeekBits(stream encoding.IStream, numBits int) (
 	return res, true
 }
 
-// ReadXOR reads the next XOR value.
-func ReadXOR(stream encoding.IStream, prevXOR uint64) (uint64, error) {
+func (it *XOREncoder) readFullFloatVal(stream encoding.IStream) error {
+	vb, err := stream.ReadBits(64)
+	if err != nil {
+		return err
+	}
+
+	it.PrevFloatBits = vb
+	it.PrevXOR = vb
+
+	return nil
+}
+
+func (it *XOREncoder) readNextFloatVal(stream encoding.IStream) error {
 	cb, err := stream.ReadBits(1)
 	if err != nil {
-		return 0, err
+		return err
 	}
+
 	if cb == opcodeZeroValueXOR {
-		return 0, nil
+		it.PrevXOR = 0
+		it.PrevFloatBits ^= it.PrevXOR
+		return nil
 	}
 
 	nextCB, err := stream.ReadBits(1)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	cb = (cb << 1) | nextCB
 	if cb == opcodeContainedValueXOR {
-		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(prevXOR)
+		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(it.PrevXOR)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing
 		meaningfulBits, err := stream.ReadBits(numMeaningfulBits)
 		if err != nil {
-			return 0, err
+			return err
 		}
 
-		return meaningfulBits << uint(previousTrailing), nil
+		it.PrevXOR = meaningfulBits << uint(previousTrailing)
+		it.PrevFloatBits ^= it.PrevXOR
+		return nil
 	}
 
 	numLeadingZeros, err := stream.ReadBits(6)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	numMeaningfulBits, err := stream.ReadBits(6)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	numMeaningfulBits = numMeaningfulBits + 1
 
 	meaningfulBits, err := stream.ReadBits(int(numMeaningfulBits))
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	numTrailingZeros := 64 - numLeadingZeros - numMeaningfulBits
-	return meaningfulBits << uint(numTrailingZeros), nil
+
+	it.PrevXOR = meaningfulBits << uint(numTrailingZeros)
+	it.PrevFloatBits ^= it.PrevXOR
+	return nil
 }
