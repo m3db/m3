@@ -215,9 +215,23 @@ func (s *readThroughSegmentReader) MatchTerm(
 
 // MatchField returns a cached posting list or queries the underlying
 // segment if their is a cache miss.
-func (s *readThroughSegmentReader) MatchField(f []byte) (postings.List, error) {
-	// TODO(prateek): wire up the postings list cache
-	return s.reader.MatchField(f)
+func (s *readThroughSegmentReader) MatchField(field []byte) (postings.List, error) {
+	if s.postingsListCache == nil || !s.opts.CacheTerms {
+		return s.reader.MatchField(field)
+	}
+
+	// TODO(rartoul): Would be nice to not allocate strings here.
+	fieldStr := string(field)
+	pl, ok := s.postingsListCache.GetField(s.uuid, fieldStr)
+	if ok {
+		return pl, nil
+	}
+
+	pl, err := s.reader.MatchField(field)
+	if err == nil {
+		s.postingsListCache.PutField(s.uuid, fieldStr, pl)
+	}
+	return pl, err
 }
 
 // MatchAll is a pass through call, since there's no postings list to cache.
