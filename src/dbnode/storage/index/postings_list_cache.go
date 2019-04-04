@@ -241,7 +241,7 @@ func (q *PostingsListCache) emitCacheGetMetrics(patternType PatternType, hit boo
 	case PatternTypeField:
 		method = q.metrics.field
 	default:
-		method = q.metrics.unknown
+		method = q.metrics.unknown // should never happen
 	}
 	if hit {
 		method.hits.Inc(1)
@@ -259,7 +259,7 @@ func (q *PostingsListCache) emitCachePutMetrics(patternType PatternType) {
 	case PatternTypeField:
 		q.metrics.field.puts.Inc(1)
 	default:
-		q.metrics.unknown.puts.Inc(1)
+		q.metrics.unknown.puts.Inc(1) // should never happen
 	}
 }
 
