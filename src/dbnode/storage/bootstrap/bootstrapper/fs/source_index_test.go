@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -53,17 +54,25 @@ type testBootstrapIndexTimes struct {
 func newTestBootstrapIndexTimes(
 	opts testTimesOptions,
 ) testBootstrapIndexTimes {
-	at := time.Now()
-	start := at.Truncate(testBlockSize)
-	indexStart := start.Truncate(testIndexBlockSize)
-	for !start.Equal(indexStart) {
-		// make sure data blocks overlap, test block size is 2h
-		// and test index block size is 4h
-		start = start.Add(testBlockSize)
-		indexStart = start.Truncate(testIndexBlockSize)
+	var (
+		start, end time.Time
+		at         = time.Now()
+	)
+	switch opts.numBlocks {
+	case 2:
+		start = at.Truncate(testBlockSize)
+		indexStart := start.Truncate(testIndexBlockSize)
+		for !start.Equal(indexStart) {
+			// make sure data blocks overlap, test block size is 2h
+			// and test index block size is 4h
+			start = start.Add(testBlockSize)
+			indexStart = start.Truncate(testIndexBlockSize)
+		}
+		end = start.Add(time.Duration(opts.numBlocks) * testIndexBlockSize)
+	case 3:
+		end = at.Truncate(testIndexBlockSize)
+		start = end.Add(time.Duration(-1*opts.numBlocks) * testBlockSize)
 	}
-
-	end := start.Add(time.Duration(opts.numBlocks) * testIndexBlockSize)
 
 	shardTimeRanges := map[uint32]xtime.Ranges{
 		testShard: xtime.Ranges{}.AddRange(xtime.Range{
@@ -177,38 +186,76 @@ func writeTSDBPersistedIndexBlock(
 	require.NoError(t, err)
 }
 
+type expectedTaggedSeries struct {
+	indexBlockStart time.Time
+	series          map[string]testSeries
+}
+
+func expectedTaggedSeriesWithOptions(
+	t *testing.T,
+	start time.Time,
+	opts testTimesOptions,
+) []expectedTaggedSeries {
+	dataBlocks := testGoodTaggedSeriesDataBlocks()
+	switch opts.numBlocks {
+	case 2:
+		return []expectedTaggedSeries{
+			{
+				indexBlockStart: start,
+				series: map[string]testSeries{
+					dataBlocks[0][0].id: dataBlocks[0][0],
+					dataBlocks[0][1].id: dataBlocks[0][1],
+					dataBlocks[0][2].id: dataBlocks[0][2],
+					dataBlocks[1][1].id: dataBlocks[1][1],
+					dataBlocks[1][2].id: dataBlocks[1][2],
+				},
+			},
+			{
+				indexBlockStart: start.Add(testIndexBlockSize),
+				series: map[string]testSeries{
+					dataBlocks[2][0].id: dataBlocks[2][0],
+					dataBlocks[2][1].id: dataBlocks[2][1],
+					dataBlocks[2][2].id: dataBlocks[2][2],
+				},
+			},
+		}
+	case 3:
+		return []expectedTaggedSeries{
+			{
+				indexBlockStart: start,
+				series: map[string]testSeries{
+					dataBlocks[0][0].id: dataBlocks[0][0],
+					dataBlocks[0][1].id: dataBlocks[0][1],
+					dataBlocks[0][2].id: dataBlocks[0][2],
+				},
+			},
+			{
+				indexBlockStart: start.Add(testIndexBlockSize),
+				series: map[string]testSeries{
+					dataBlocks[1][1].id: dataBlocks[1][1],
+					dataBlocks[1][2].id: dataBlocks[1][2],
+					dataBlocks[2][0].id: dataBlocks[2][0],
+					dataBlocks[2][1].id: dataBlocks[2][1],
+					dataBlocks[2][2].id: dataBlocks[2][2],
+				},
+			},
+		}
+	default:
+		require.FailNow(t, "unsupported test times options")
+	}
+	return nil
+}
+
 func validateGoodTaggedSeries(
 	t *testing.T,
 	start time.Time,
 	indexResults result.IndexResults,
+	opts testTimesOptions,
 ) {
 	require.Equal(t, 2, len(indexResults))
 
-	dataBlocks := testGoodTaggedSeriesDataBlocks()
-
-	for _, expected := range []struct {
-		indexBlockStart time.Time
-		series          map[string]testSeries
-	}{
-		{
-			indexBlockStart: start,
-			series: map[string]testSeries{
-				dataBlocks[0][0].id: dataBlocks[0][0],
-				dataBlocks[0][1].id: dataBlocks[0][1],
-				dataBlocks[0][2].id: dataBlocks[0][2],
-				dataBlocks[1][1].id: dataBlocks[1][1],
-				dataBlocks[1][2].id: dataBlocks[1][2],
-			},
-		},
-		{
-			indexBlockStart: start.Add(testIndexBlockSize),
-			series: map[string]testSeries{
-				dataBlocks[2][0].id: dataBlocks[2][0],
-				dataBlocks[2][1].id: dataBlocks[2][1],
-				dataBlocks[2][2].id: dataBlocks[2][2],
-			},
-		},
-	} {
+	expectedSeriesByBlock := expectedTaggedSeriesWithOptions(t, start, opts)
+	for _, expected := range expectedSeriesByBlock {
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
 		indexBlock, ok := indexResults[expectedAt]
 		require.True(t, ok)
@@ -256,9 +303,10 @@ func TestBootstrapIndex(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	times := newTestBootstrapIndexTimes(testTimesOptions{
+	timesOpts := testTimesOptions{
 		numBlocks: 2,
-	})
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
 
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
@@ -268,16 +316,17 @@ func TestBootstrapIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	indexResults := res.IndexResults()
-	validateGoodTaggedSeries(t, times.start, indexResults)
+	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
 }
 
 func TestBootstrapIndexWithPersist(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	times := newTestBootstrapIndexTimes(testTimesOptions{
+	timesOpts := testTimesOptions{
 		numBlocks: 2,
-	})
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
 
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
@@ -325,7 +374,7 @@ func TestBootstrapIndexWithPersist(t *testing.T) {
 	require.True(t, mutable)
 
 	// Validate results
-	validateGoodTaggedSeries(t, times.start, indexResults)
+	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
 
 	// Validate that wrote the block out (and no index blocks
 	// were read as existing index blocks on disk)
@@ -338,9 +387,10 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	times := newTestBootstrapIndexTimes(testTimesOptions{
+	timesOpts := testTimesOptions{
 		numBlocks: 2,
-	})
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
 
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
@@ -380,7 +430,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	require.True(t, mutable)
 
 	// Validate results
-	validateGoodTaggedSeries(t, times.start, indexResults)
+	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
 
 	// Validate that no index blocks were read from disk and that no files were written out
 	counters := scope.Snapshot().Counters()
@@ -392,9 +442,10 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	times := newTestBootstrapIndexTimes(testTimesOptions{
+	timesOpts := testTimesOptions{
 		numBlocks: 2,
-	})
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
 
 	// Write data files
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
@@ -435,11 +486,101 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	require.True(t, mutable)
 
 	// Validate results
-	validateGoodTaggedSeries(t, times.start, indexResults)
+	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
 
 	// Validate that read the block and no blocks were written
 	// (ensure persist config didn't write it back out again)
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+}
+
+func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	timesOpts := testTimesOptions{
+		numBlocks: 3,
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
+	firstIndexBlockStart := times.start.Truncate(testIndexBlockSize)
+
+	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
+
+	opts := newTestOptionsWithPersistManager(t, dir)
+	scope := tally.NewTestScope("", nil)
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+
+	src := newFileSystemSource(opts).(*fileSystemSource)
+
+	ropts := testRetentionOptions.
+		SetBlockSize(testBlockSize).
+		SetRetentionPeriod(time.Duration(timesOpts.numBlocks) * testBlockSize)
+	ns, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
+		SetRetentionOptions(ropts).
+		SetIndexOptions(testNamespaceIndexOptions.
+			SetEnabled(true).
+			SetBlockSize(testIndexBlockSize)))
+	require.NoError(t, err)
+
+	res, err := src.ReadIndex(ns, times.shardTimeRanges,
+		runOpts)
+	require.NoError(t, err)
+
+	// Check that single persisted segment got written out
+	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
+		src.fsopts.InfoReaderBufferSize())
+	require.Equal(t, 2, len(infoFiles))
+
+	for _, infoFile := range infoFiles {
+		require.NoError(t, infoFile.Err.Error())
+
+		if infoFile.Info.BlockStart == firstIndexBlockStart.UnixNano() {
+			expectedStart := times.end.Add(-2 * testIndexBlockSize).UnixNano()
+			require.Equal(t, expectedStart, infoFile.Info.BlockStart,
+				fmt.Sprintf("expected=%v, actual=%v",
+					time.Unix(0, expectedStart).String(),
+					time.Unix(0, infoFile.Info.BlockStart)))
+		} else {
+			expectedStart := times.end.Add(-1 * testIndexBlockSize).UnixNano()
+			require.Equal(t, expectedStart, infoFile.Info.BlockStart,
+				fmt.Sprintf("expected=%v, actual=%v",
+					time.Unix(0, expectedStart).String(),
+					time.Unix(0, infoFile.Info.BlockStart)))
+		}
+
+		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
+		require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
+		require.Equal(t, 1, len(infoFile.Info.Segments))
+		require.Equal(t, 1, len(infoFile.Info.Shards))
+		require.Equal(t, testShard, infoFile.Info.Shards[0])
+	}
+
+	indexResults := res.IndexResults()
+
+	// Check that the segment is not a mutable segment
+	block, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+	require.True(t, ok)
+	require.Equal(t, 1, len(block.Segments()))
+	_, mutable := block.Segments()[0].(segment.MutableSegment)
+	require.False(t, mutable)
+
+	// Check that the second is not a mutable segment
+	block, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	require.Equal(t, 1, len(block.Segments()))
+	_, mutable = block.Segments()[0].(segment.MutableSegment)
+	require.False(t, mutable)
+
+	// Validate results
+	validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)
+
+	// Validate that wrote the block out (and no index blocks
+	// were read as existing index blocks on disk)
+	counters := scope.Snapshot().Counters()
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
+	require.Equal(t, int64(2), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }

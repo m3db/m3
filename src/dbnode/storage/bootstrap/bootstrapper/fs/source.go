@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -747,14 +748,27 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 	min, max := requestedRanges.MinMax()
 	blockSize := ns.Options().IndexOptions().BlockSize()
 	blockStart := min.Truncate(blockSize)
+	blockEnd := blockStart.Add(blockSize)
+	expectedRangeStart, expectedRangeEnd := blockStart, blockEnd
+
+	// If basically the index block covers multiple data blocks
+	// and hence the earliest the index block start is well before
+	// the earliest retention time, then we snap the time that is expected
+	// to the start of retention
+	retentionOpts := ns.Options().RetentionOptions()
+	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
+	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
+	if blockStart.Before(earliestRetentionTime) {
+		expectedRangeStart = earliestRetentionTime
+	}
 
 	shards := make(map[uint32]struct{})
 	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
 	for shard := range requestedRanges {
 		shards[shard] = struct{}{}
 		expectedRanges[shard] = xtime.Ranges{}.AddRange(xtime.Range{
-			Start: blockStart,
-			End:   blockStart.Add(blockSize),
+			Start: expectedRangeStart,
+			End:   expectedRangeEnd,
 		})
 	}
 
@@ -818,10 +832,12 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 	// and we didn't bootstrap any more/less
 	requireFulfilled := expectedRanges.Copy()
 	requireFulfilled.Subtract(fulfilled)
-	exactStartEnd := min.Equal(blockStart) && max.Equal(blockStart.Add(blockSize))
+	exactStartEnd := max.Equal(blockStart.Add(blockSize))
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
-		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: expected=%v, actual=%v, fulfilled=%v",
-			expectedRanges.String(), requestedRanges.String(), fulfilled.String())
+		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
+			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
+			expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
+			exactStartEnd, requireFulfilled.IsEmpty())
 	}
 
 	// NB(r): Need to get an exclusive lock to actually write the segment out
