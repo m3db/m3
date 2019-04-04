@@ -16,18 +16,6 @@ When an M3DB node is restarted it has to perform a bootstrap process before it c
 
 Obviously, there is also a small window of time during between when the process is stopped and then started again where it will also be unavailable for writes.
 
-## Deployment in a single zone
-
-For deployment in a single zone, it is recommended to set the `isolationGroup` host attribute to the name of the rack a host is in or another logical unit that separates groups of hosts in your zone.
-
-In this configuration, shards are distributed among hosts such that each will not be placed more than once in the same defined rack or logical unit. This allows an entire unit to be lost at any given time, as it is guaranteed to only affect one replica of data.
-
-For example, in a single-zone deployment with three shards spread over four racks:
-
-![Replication Single Zone](replication_single_zone.png)
-
-Typically, deployments have many more than three shards - this is a simple example that illustrates how M3DB maintains availability while losing a single rack, as two of three replicas are still intact.
-
 ## Deployment across multiple availability zones in a region
 
 For deployment in a region, it is recommended to set the `isolationGroup` host attribute to the name of the availability zone a host is in.
@@ -39,6 +27,18 @@ For example, in a multi-zone deployment with four shards spread over three avail
 ![Replication Region](replication_region.png)
 
 Typically, deployments have many more than four shards - this is a simple example that illustrates how M3DB maintains availability while losing an availability zone, as two of three replicas are still intact.
+
+## Deployment in a single zone
+
+For deployment in a single zone, it is recommended to set the `isolationGroup` host attribute to the name of the rack a host is in or another logical unit that separates groups of hosts in your zone.
+
+In this configuration, shards are distributed among hosts such that each will not be placed more than once in the same defined rack or logical unit. This allows an entire unit to be lost at any given time, as it is guaranteed to only affect one replica of data.
+
+For example, in a single-zone deployment with three shards spread over four racks:
+
+![Replication Single Zone](replication_single_zone.png)
+
+Typically, deployments have many more than three shards - this is a simple example that illustrates how M3DB maintains availability while losing a single rack, as two of three replicas are still intact.
 
 ## Deployment across multiple regions
 
