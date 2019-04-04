@@ -224,7 +224,7 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	d.Lock()
 	defer d.Unlock()
 
-	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
+	removes, adds, updates, schemaUpdates := d.namespaceDeltaWithLock(newNamespaces)
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Errorf("%v", enrichedErr)
@@ -238,9 +238,16 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return err
 	}
 
+	// update schemas
+	if err := d.updateNamespaceSchemasWithLock(schemaUpdates); err != nil {
+		enrichedErr := fmt.Errorf("unable to update namespace schema: %v", err)
+		d.log.Errorf("%v", enrichedErr)
+		return enrichedErr
+	}
+
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warnf("skipping namespace removals and updates, restart process if you want changes to take effect.")
+		d.log.Warnf("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
 	}
 
 	// enqueue bootstraps if new namespaces
@@ -251,12 +258,13 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	return nil
 }
 
-func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {
+func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata, []namespace.Metadata) {
 	var (
 		existing = d.namespaces
 		removes  []ident.ID
 		adds     []namespace.Metadata
 		updates  []namespace.Metadata
+		schemaUpdates []namespace.Metadata
 	)
 
 	// check if existing namespaces exist in newNamespaces
@@ -278,6 +286,10 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 			continue
 		}
 
+		if !newMd.Options().SchemaRegistry().Equal(ns.Options().SchemaRegistry()) {
+			schemaUpdates = append(schemaUpdates, newMd)
+		}
+
 		// if options are not the same, we mark for updates
 		updates = append(updates, newMd)
 	}
@@ -290,7 +302,7 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 		}
 	}
 
-	return removes, adds, updates
+	return removes, adds, updates, schemaUpdates
 }
 
 func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Metadata) error {
@@ -336,6 +348,23 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
+	}
+	return nil
+}
+
+func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) error {
+	for _, n := range schemaUpdates {
+		// ensure namespace exists
+		existing, ok := d.namespaces.Get(n.ID())
+		if !ok { // should never happen
+			return fmt.Errorf("non-existing namespace marked for schema update: %v", n.ID().String())
+		}
+		schema, err := n.Options().SchemaRegistry().GetLatest()
+		if err != nil {
+			return xerrors.Wrapf(err, "failed to get latest schema from namespace (%s) registry", n.ID().String())
+		}
+
+		existing.SetSchema(schema)
 	}
 	return nil
 }

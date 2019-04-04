@@ -116,6 +116,9 @@ type dbNamespace struct {
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
+	// contains the latest schema for the database namespace.
+	schema             namespace.SchemaDescr
+
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
 	reverseIndex    namespaceIndex
@@ -319,6 +322,11 @@ func newDatabaseNamespace(
 		}
 	}
 
+	schemaDesc, err := metadata.Options().SchemaRegistry().GetLatest()
+	if err != nil {
+		logger.Warnf("namespace (%s) do not have a schema: %v", id.String(), err)
+	}
+
 	n := &dbNamespace{
 		id:                     id,
 		shutdownCh:             make(chan struct{}),
@@ -328,6 +336,7 @@ func newDatabaseNamespace(
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
+		schema:                 schemaDesc,
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		snapshotFilesFn:        fs.SnapshotFiles,
@@ -391,6 +400,18 @@ func (n *dbNamespace) Shards() []Shard {
 	}
 	n.RUnlock()
 	return databaseShards
+}
+
+func (n *dbNamespace) Schema() namespace.SchemaDescr {
+	n.RLock()
+	defer n.RUnlock()
+	return n.schema
+}
+
+func (n *dbNamespace) SetSchema(v namespace.SchemaDescr) {
+	n.Lock()
+	defer n.Unlock()
+	n.schema = v
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
