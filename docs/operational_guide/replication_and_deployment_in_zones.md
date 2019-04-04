@@ -2,9 +2,11 @@
 
 ## Overview
 
-It is highly recommended that you use a replication factor of at least three for any M3DB deployment. This is due to the default write and read consistency levels requiring a majority of hosts to be available to complete an operation successfully. For more information see the documentation concerning tuning [availability, consistency and durability](availability_consistency_durability.md).
-
 M3DB supports deployment to both a single zone, with rack level isolation, and deployment across multiple zones in a region. You can also deploy M3DB across multiple regions for a global view of data, however you may experience higher ingestion latency and cross region bandwidth costs. You may want to use a replication factor of five for such a multi-region cluster to survive multiple regions suffering an outage, or be able to still upgrade hosts while a region is down.
+
+### Replication
+
+It is highly recommended that you use a replication factor of at least 3 for any M3DB deployment. This is due to the default write and read consistency levels requiring a majority of hosts to be available to complete an operation successfully. For more information see the documentation concerning tuning [availability, consistency and durability](availability_consistency_durability.md).
 
 ### Upgrading hosts in a deployment
 
@@ -36,7 +38,7 @@ Here's what a deployment in a region looks like, in this example the cluster has
 
 Typically deployments have many more than 4 shards, but this is a simple example that depicts how losing a single availability zone still maintains availability of two of the three replicas of each shard.
 
-**Note:** Placement of shards in a replica do not mirror other replicas and shards are placed in a way to best load balance shards across available hosts in a single isolation group. This could mean that hosts in an availability zones that have less hosts will do more work than those in an availability zone with more hosts.
+<!-- **Note:** Placement of shards in a replica do not mirror other replicas and shards are placed in a way to best load balance shards across available hosts in a single isolation group. This could mean that hosts in an availability zones that have less hosts will do more work than those in an availability zone with more hosts. -->
 
 ## Deployment across multiple regions
 
