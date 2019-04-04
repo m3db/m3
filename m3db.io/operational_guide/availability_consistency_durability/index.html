@@ -743,6 +743,18 @@
           
           
 
+
+  <li class="md-nav__item">
+    <a href="../replication_and_deployment_in_zones/" title="Replication and Deployment in Zones" class="md-nav__link">
+      Replication and Deployment in Zones
+    </a>
+  </li>
+
+        
+          
+          
+          
+
   
 
 
@@ -1276,7 +1288,7 @@ To address as many use cases as possible, M3DB can be tuned to achieve the desir
 <p>Generally speaking, <a href="https://github.com/m3db/m3/tree/master/src/dbnode/config">the default and example configuration for M3DB</a> favors performance and availability, as that is well-suited for M3DB's most common metrics and Observability use cases. To instead favor consistency and durability, consider tuning values as described in the "Tuning for Consistency and Durability" section.
 Database operators who are using M3DB for workloads that require stricter consistency and durability guarantees should consider tuning the default configuration to better suit their use case.</p>
 <p>The rest of this document describes the various configuration options that are available to M3DB operators to make such tradeoffs.
-While reading it, we recommend reffering to <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml">the default configuration file</a> (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.</p>
+While reading it, we recommend referring to <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml">the default configuration file</a> (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.</p>
 <h2 id="tuning-for-performance-and-availability">Tuning for Performance and Availability</h2>
 <h3 id="client-write-and-read-consistency">Client Write and Read consistency</h3>
 <p>We recommend running the client with <code>writeConsistencyLevel</code> set to <code>majority</code> and <code>readConsistencyLevel</code> set to <code>unstrict_majority</code>.
@@ -1374,7 +1386,7 @@ This issue requires an operator with significant M3DB operational experience to 
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../../how_to/query/" title="M3Query" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../replication_and_deployment_in_zones/" title="Replication and Deployment in Zones" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1383,7 +1395,7 @@ This issue requires an operator with significant M3DB operational experience to 
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                M3Query
+                Replication and Deployment in Zones
               </span>
             </div>
           </a>

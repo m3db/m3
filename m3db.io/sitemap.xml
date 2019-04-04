@@ -112,6 +112,12 @@
     
         
     <url>
+     <loc>/operational_guide/replication_and_deployment_in_zones/</loc>
+     <lastmod>2019-04-04</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
      <loc>/operational_guide/availability_consistency_durability/</loc>
      <lastmod>2019-04-04</lastmod>
      <changefreq>daily</changefreq>
