@@ -55,9 +55,8 @@ var (
 
 // SegmentData represent the collection of required parameters to construct a Segment.
 type SegmentData struct {
-	MajorVersion int
-	MinorVersion int
-	Metadata     []byte
+	Version  Version
+	Metadata []byte
 
 	DocsData      []byte
 	DocsIdxData   []byte
@@ -76,8 +75,8 @@ type SegmentData struct {
 
 // Validate validates the provided segment data, returning an error if it's not.
 func (sd SegmentData) Validate() error {
-	if sd.MajorVersion != MajorVersion {
-		return errUnsupportedMajorVersion
+	if err := sd.Version.Supported(); err != nil {
+		return err
 	}
 
 	if sd.PostingsData == nil {
@@ -313,6 +312,40 @@ func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset 
 	return b.UnmarshalBinary(postingsBytes)
 }
 
+func (r *fsSegment) MatchField(field []byte) (postings.List, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errReaderClosed
+	}
+	if !r.data.Version.supportsFieldPostingsList() {
+		// i.e. don't have the field level postings list, so fall back to regexp
+		return r.matchRegexpWithRLock(field, index.DotStarCompiledRegex())
+	}
+
+	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		// i.e. we don't know anything about the term, so can early return an empty postings list
+		return r.opts.PostingsListPool().Get(), nil
+	}
+
+	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData, termsFSTOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	var fieldData fswriter.FieldData
+	if err := fieldData.Unmarshal(protoBytes); err != nil {
+		return nil, err
+	}
+
+	postingsOffset := fieldData.FieldPostingsListOffset
+	return r.retrievePostingsListWithRLock(postingsOffset)
+}
+
 func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
@@ -357,7 +390,12 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 
 func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	r.RLock()
-	defer r.RUnlock()
+	pl, err := r.matchRegexpWithRLock(field, compiled)
+	r.RUnlock()
+	return pl, err
+}
+
+func (r *fsSegment) matchRegexpWithRLock(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
@@ -511,6 +549,83 @@ func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, 
 	return termsFST, true, nil
 }
 
+// retrieveTermsBytesWithRLock assumes the base []byte slice is a collection of
+// (protobuf payload, proto payload size, fst payload, fst payload size, magicNumber) tuples;
+// where all sizes/magicNumber are strictly uint64 (i.e. 8 bytes). It assumes the 8 bytes
+// preceding the offset are the magicNumber, the 8 bytes before that are the fst payload size,
+// and the `size` bytes before that are the payload, 8 bytes preceeding that are
+// `proto payload size`, and the `proto payload size` bytes before that are the proto payload.
+// It retrieves the payload while doing bounds checks to ensure no segfaults.
+func (r *fsSegment) retrieveTermsBytesWithRLock(base []byte, offset uint64) (proto []byte, fst []byte, err error) {
+	const sizeofUint64 = 8
+	var (
+		magicNumberEnd   = int64(offset) // to prevent underflows
+		magicNumberStart = offset - sizeofUint64
+	)
+	if magicNumberEnd > int64(len(base)) || magicNumberStart < 0 {
+		return nil, nil, fmt.Errorf("base bytes too small, length: %d, base-offset: %d", len(base), magicNumberEnd)
+	}
+	magicNumberBytes := base[magicNumberStart:magicNumberEnd]
+	d := encoding.NewDecoder(magicNumberBytes)
+	n, err := d.Uint64()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while decoding magicNumber: %v", err)
+	}
+	if n != uint64(magicNumber) {
+		return nil, nil, fmt.Errorf("mismatch while decoding magicNumber: %d", n)
+	}
+
+	var (
+		sizeEnd   = magicNumberStart
+		sizeStart = sizeEnd - sizeofUint64
+	)
+	if sizeStart < 0 {
+		return nil, nil, fmt.Errorf("base bytes too small, length: %d, size-offset: %d", len(base), sizeStart)
+	}
+	sizeBytes := base[sizeStart:sizeEnd]
+	d.Reset(sizeBytes)
+	size, err := d.Uint64()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while decoding size: %v", err)
+	}
+
+	var (
+		payloadEnd   = sizeStart
+		payloadStart = payloadEnd - size
+	)
+	if payloadStart < 0 {
+		return nil, nil, fmt.Errorf("base bytes too small, length: %d, payload-start: %d, payload-size: %d",
+			len(base), payloadStart, size)
+	}
+
+	var (
+		fstBytes       = base[payloadStart:payloadEnd]
+		protoSizeEnd   = payloadStart
+		protoSizeStart = protoSizeEnd - sizeofUint64
+	)
+	if protoSizeStart < 0 {
+		return nil, nil, fmt.Errorf("base bytes too small, length: %d, proto-size-offset: %d", len(base), protoSizeStart)
+	}
+
+	protoSizeBytes := base[protoSizeStart:protoSizeEnd]
+	d.Reset(protoSizeBytes)
+	protoSize, err := d.Uint64()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while decoding size: proto %v", err)
+	}
+
+	var (
+		protoEnd   = protoSizeStart
+		protoStart = protoEnd - protoSize
+	)
+	if protoStart < 0 {
+		return nil, nil, fmt.Errorf("base bytes too small, length: %d, proto-start: %d", len(base), protoStart)
+	}
+	protoBytes := base[protoStart:protoEnd]
+
+	return protoBytes, fstBytes, nil
+}
+
 // retrieveBytesWithRLock assumes the base []byte slice is a collection of (payload, size, magicNumber) triples,
 // where size/magicNumber are strictly uint64 (i.e. 8 bytes). It assumes the 8 bytes preceding the offset
 // are the magicNumber, the 8 bytes before that are the size, and the `size` bytes before that are the
@@ -569,66 +684,90 @@ type fsSegmentReader struct {
 
 var _ index.Reader = &fsSegmentReader{}
 
-func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
+func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchTerm(field, term)
+	pl, err := sr.fsSegment.MatchField(field)
+	sr.RUnlock()
+	return pl, err
+}
+
+func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
+	sr.RLock()
+	if sr.closed {
+		sr.RUnlock()
+		return nil, errReaderClosed
+	}
+	pl, err := sr.fsSegment.MatchTerm(field, term)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchRegexp(field, compiled)
+	pl, err := sr.fsSegment.MatchRegexp(field, compiled)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchAll()
+	pl, err := sr.fsSegment.MatchAll()
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return doc.Document{}, errReaderClosed
 	}
-	return sr.fsSegment.Doc(id)
+	pl, err := sr.fsSegment.Doc(id)
+	sr.RUnlock()
+	return pl, err
 }
 
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.Docs(pl)
+	iter, err := sr.fsSegment.Docs(pl)
+	sr.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
 	sr.RLock()
-	defer sr.RUnlock()
 	if sr.closed {
+		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.AllDocs()
+	iter, err := sr.fsSegment.AllDocs()
+	sr.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) Close() error {
 	sr.Lock()
-	defer sr.Unlock()
 	if sr.closed {
+		sr.Unlock()
 		return errReaderClosed
 	}
 	sr.closed = true
+	sr.Unlock()
 	return nil
 }

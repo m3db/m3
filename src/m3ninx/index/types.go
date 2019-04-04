@@ -63,6 +63,9 @@ type Writer interface {
 type Readable interface {
 	DocRetriever
 
+	// MatchField returns a postings list over all documents which match the given field.
+	MatchField(field []byte) (postings.List, error)
+
 	// MatchTerm returns a postings list over all documents which match the given term.
 	MatchTerm(field, term []byte) (postings.List, error)
 

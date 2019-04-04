@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 
@@ -28,6 +29,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3x/ident"
+)
+
+var (
+	dotStar = []byte(".*")
 )
 
 // QueryConversionCache represents the query conversion LRU cache.
@@ -220,7 +225,15 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 		negate = true
 		fallthrough
 	case models.MatchRegexp:
-		query, err := idx.NewRegexpQuery(matcher.Name, matcher.Value)
+		var (
+			query idx.Query
+			err   error
+		)
+		if bytes.Equal(dotStar, matcher.Value) {
+			query = idx.NewFieldQuery(matcher.Name)
+		} else {
+			query, err = idx.NewRegexpQuery(matcher.Name, matcher.Value)
+		}
 		if err != nil {
 			return idx.Query{}, err
 		}

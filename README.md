@@ -12,9 +12,21 @@ More information:
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
+## Community meetings
+
+M3 contributors and maintainers have monthly (every four weeks) meetings at 11:00 AM (USA Pacific) on Tuesday.
+
+An initial agenda is posted to the [community meeting shared Google doc](https://docs.google.com/document/d/1eGAd2A8FVtiip5wHxHnmSkz7e_qHc9k_4hGI0vUGdHM/edit?usp=sharing) a day before each meeting, and everyone is welcome to suggest additional topics or other agendas.
+
+Please download and import the following iCalendar (.ics) files to calendar system.
+
+Monthly: [us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862](https://us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862)
+
+Join Zoom Meeting: [us04web.zoom.us/j/519434268](https://us04web.zoom.us/j/519434268)
+
 ## Test it out
 
-(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/)).
+The easiest way to testing out M3 is to follow one of the guides from the documentation. For a fully comprehensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/).
 
 ### Starting a node
 
