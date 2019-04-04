@@ -18,50 +18,110 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace_test
+package namespace
 
 import (
 	"testing"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
-	testproto2 "github.com/m3db/m3/src/dbnode/generated/proto/schematest2"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	xerrors "github.com/m3db/m3x/errors"
+
 	"github.com/stretchr/testify/require"
 )
 
-func getTestSchemaOptions() *nsproto.SchemaOptions {
-	imported := &testproto.ImportedMessage{}
-	importedD, _ := imported.Descriptor()
-	otherpkg := &testproto2.MessageFromOtherPkg{}
-	otherpkgD, _ := otherpkg.Descriptor()
-	main := &testproto.TestMessage{}
-	mainD, _ := main.Descriptor()
-	return &nsproto.SchemaOptions{
-		History: &nsproto.SchemaHistory{
-			Versions: []*nsproto.FileDescriptorSet{
-				{DeployId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
-				{DeployId: "second", PrevId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
-				{DeployId: "third", PrevId: "second", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
-			},
-		},
-		DefaultMessageName: "TestMessage",
-	}
-}
-
 func TestLoadSchemaRegistry(t *testing.T) {
-	testSchemaOptions := getTestSchemaOptions()
-	testSchemaReg, err := namespace.LoadSchemaRegistry(testSchemaOptions)
+	testSchemaOptions := GenTestSchemaOptions()
+	testSchemaReg, err := LoadSchemaRegistry(testSchemaOptions)
 	require.NoError(t, err)
 
 	testSchema, err := testSchemaReg.Get("first")
 	require.NoError(t, err)
 	require.NotNil(t, testSchema)
-	require.EqualValues(t, "TestMessage", testSchema.Get().GetName())
+	require.EqualValues(t, testSchemaOptions.DefaultMessageName, testSchema.Get().GetFullyQualifiedName())
 
 	latestSchema, err := testSchemaReg.GetLatest()
 	require.NoError(t, err)
 	require.NotNil(t, latestSchema)
-	require.EqualValues(t, "TestMessage", latestSchema.Get().GetName())
+	require.EqualValues(t, testSchemaOptions.DefaultMessageName, latestSchema.Get().GetFullyQualifiedName())
+}
 
+func TestParseProto(t *testing.T) {
+	out, err := parseProto("mainpkg/main.proto", "schematest")
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+	require.NotNil(t, out[0].FindMessage("mainpkg.ImportedMessage"))
+	require.NotNil(t, out[1].FindMessage("otherpkg.MessageFromOtherPkg"))
+	require.NotNil(t, out[2].FindMessage("mainpkg.NestedMessage"))
+	require.NotNil(t, out[2].FindMessage("mainpkg.TestMessage"))
+}
+
+func TestInvalidSchemaOptions(t *testing.T) {
+	out, _ := parseProto("mainpkg/main.proto", "schematest")
+
+	dlist, _ := marshalFileDescriptors(out)
+
+	// missing dependency
+	schemaOpt1 := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist[1:]},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+	_, err := LoadSchemaRegistry(schemaOpt1)
+	require.Error(t, err)
+
+	// wrong message name
+	schemaOpt2 := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "WrongMessage",
+	}
+	_, err = LoadSchemaRegistry(schemaOpt2)
+	require.Error(t, err)
+	require.Equal(t, errInvalidSchemaOptions, xerrors.InnerError(err))
+
+	// reverse the list (so that it is not topologically sorted)
+	dlistR := make([][]byte, len(dlist))
+	for i := 0; i < len(dlist); i++ {
+		dlistR[i] = dlist[len(dlist)-i-1]
+	}
+
+	schemaOpt3 := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlistR},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+	_, err = LoadSchemaRegistry(schemaOpt3)
+	require.Error(t, err)
+}
+
+func TestParseNotProto3(t *testing.T) {
+	_, err := parseProto("mainpkg/notproto3.proto", "schematest")
+	require.Error(t, err)
+	require.Equal(t, errSyncNotProto3, xerrors.InnerError(err))
+}
+
+func GenTestSchemaOptions() *nsproto.SchemaOptions {
+	out, _ := parseProto("mainpkg/main.proto", "schematest")
+
+	dlist, _ := marshalFileDescriptors(out)
+
+	return &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+				{DeployId: "second", PrevId: "first", Descriptors: dlist},
+				{DeployId: "third", PrevId: "second", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
 }

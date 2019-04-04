@@ -1,8 +1,8 @@
 syntax = "proto3";
-package schematest;
+package mainpkg;
 
-import "github.com/m3db/m3/src/dbnode/generated/proto/schematest/imported.proto";
-import "github.com/m3db/m3/src/dbnode/generated/proto/schematest2/otherpkg.proto";
+import "mainpkg/imported.proto";
+import "otherpkg/otherpkg.proto";
 
 message TestMessage {
     int32 a_int32       = 1;
@@ -36,8 +36,8 @@ message TestMessage {
         PRODUCTS  = 5;
         VIDEO     = 6;
     }
-    Corpus an_enum                                                   = 21;
-    schematest2.MessageFromOtherPkg a_message_from_other_pkg         = 22;
+    Corpus an_enum                                                = 21;
+    otherpkg.MessageFromOtherPkg a_message_from_other_pkg         = 22;
 }
 
 message NestedMessage {

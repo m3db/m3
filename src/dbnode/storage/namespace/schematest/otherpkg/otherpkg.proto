@@ -1,5 +1,5 @@
 syntax = "proto3";
-package schematest2;
+package otherpkg;
 
 message MessageFromOtherPkg {
     int32 a_int32       = 1;

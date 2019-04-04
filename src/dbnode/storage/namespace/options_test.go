@@ -25,9 +25,6 @@ import (
 	"testing"
 	"time"
 
-	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	testproto "github.com/m3db/m3/src/dbnode/generated/proto/schematest"
-	testproto2 "github.com/m3db/m3/src/dbnode/generated/proto/schematest2"
 	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/golang/mock/gomock"
@@ -54,28 +51,9 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 	require.False(t, o2.Equal(o1))
 }
 
-func getTestSchemaOptions() *nsproto.SchemaOptions {
-	imported := &testproto.ImportedMessage{}
-	importedD, _ := imported.Descriptor()
-	otherpkg := &testproto2.MessageFromOtherPkg{}
-	otherpkgD, _ := otherpkg.Descriptor()
-	main := &testproto.TestMessage{}
-	mainD, _ := main.Descriptor()
-	return &nsproto.SchemaOptions{
-		History: &nsproto.SchemaHistory{
-			Versions: []*nsproto.FileDescriptorSet{
-				{DeployId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
-				{DeployId: "second", PrevId: "first", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
-				{DeployId: "third", PrevId: "second", Descriptors: [][]byte{importedD, otherpkgD, mainD}},
-			},
-		},
-		DefaultMessageName: "TestMessage",
-	}
-}
-
 func TestOptionsEqualsSchema(t *testing.T) {
 	o1 := NewOptions()
-	s1, err := LoadSchemaRegistry(getTestSchemaOptions())
+	s1, err := LoadSchemaRegistry(GenTestSchemaOptions())
 	require.NoError(t, err)
 	require.NotNil(t, s1)
 	o2 := o1.SetSchemaRegistry(s1)

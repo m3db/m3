@@ -1,5 +1,5 @@
 syntax = "proto3";
-package schematest;
+package mainpkg;
 
 message ImportedMessage {
     int32 a_int32       = 1;

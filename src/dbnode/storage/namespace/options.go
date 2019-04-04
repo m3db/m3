@@ -112,8 +112,7 @@ func (o *options) Equal(value Options) bool {
 		o.repairEnabled == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
-		(o.schemaReg == nil && value.SchemaRegistry() == nil ||
-			o.schemaReg != nil && o.schemaReg.Equal(value.SchemaRegistry()))
+		o.schemaReg.Equal(value.SchemaRegistry())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {

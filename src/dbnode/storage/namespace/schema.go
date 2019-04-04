@@ -21,16 +21,15 @@
 package namespace
 
 import (
-	"bytes"
-	"compress/gzip"
 	"errors"
-	"io/ioutil"
+
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	xerrors "github.com/m3db/m3x/errors"
+
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
-	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	xerrors "github.com/m3db/m3x/errors"
-	"strings"
+	"github.com/jhump/protoreflect/desc/protoparse"
 )
 
 var (
@@ -38,6 +37,8 @@ var (
 	errSchemaNotFound       = errors.New("schema is not found")
 	errSchemaRegistryEmpty  = errors.New("schema registry is empty")
 	errInvalidSchemaOptions = errors.New("invalid schema options")
+	errEmptyProtoFile       = errors.New("empty proto file")
+	errSyncNotProto3        = errors.New("proto sync is not proto3")
 )
 
 type schemaDescr struct {
@@ -179,48 +180,72 @@ func loadFileDescriptorSet(fdSet *nsproto.FileDescriptorSet, msgName string) (*s
 	var dependencies []*desc.FileDescriptor
 	var curfd *desc.FileDescriptor
 	for i, fdb := range fdSet.Descriptors {
-		fdp, err := decodeProtoFileDescriptor(fdb)
+		fdp, err := decodeFileDescriptorProto(fdb)
 		if err != nil {
-			return nil, xerrors.Wrapf(err, "failed to decode file descriptor(%d) in version(%d)", i, fdSet.DeployId)
+			return nil, xerrors.Wrapf(err, "failed to decode file descriptor(%d) in version(%s)", i, fdSet.DeployId)
 		}
 		fd, err := desc.CreateFileDescriptor(fdp, dependencies...)
 		if err != nil {
-			return nil, xerrors.Wrapf(err, "failed to create file descriptor(%d) in version(%d)", i, fdSet.DeployId)
+			return nil, xerrors.Wrapf(err, "failed to create file descriptor(%d) in version(%s)", i, fdSet.DeployId)
+		}
+		if !fd.IsProto3() {
+			return nil, xerrors.Wrapf(errSyncNotProto3, "file descriptor(%s) is not proto3", fd.GetFullyQualifiedName())
 		}
 		curfd = fd
 		dependencies = append(dependencies, curfd)
 	}
-	for _, md := range curfd.GetMessageTypes() {
-		if strings.EqualFold(msgName, md.GetName()) {
-			return &schemaDescr{deployId: fdSet.DeployId, md: md}, nil
-		}
+
+	md := curfd.FindMessage(msgName)
+	if md != nil {
+		return &schemaDescr{deployId: fdSet.DeployId, md: md}, nil
 	}
-	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in version(%d)", msgName, fdSet.DeployId)
+	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in version(%s)", msgName, fdSet.DeployId)
 }
 
-// decodeProtoFileDescriptor decodes the bytes of proto file descriptor.
-// proto file descriptor is proto encoded and gzipped, decode reverse the process.
-func decodeProtoFileDescriptor(fdb []byte) (*dpb.FileDescriptorProto, error) {
-	raw, err := decompress(fdb)
-	if err != nil {
-		return nil, err
-	}
+// decodeFileDescriptorProto decodes the bytes of proto file descriptor.
+func decodeFileDescriptorProto(fdb []byte) (*dpb.FileDescriptorProto, error) {
 	fd := dpb.FileDescriptorProto{}
 
-	if err := proto.Unmarshal(raw, &fd); err != nil {
+	if err := proto.Unmarshal(fdb, &fd); err != nil {
 		return nil, err
 	}
 	return &fd, nil
 }
 
-func decompress(b []byte) ([]byte, error) {
-	r, err := gzip.NewReader(bytes.NewReader(b))
-	if err != nil {
-		return nil, err
+func genDependencyDescriptors(infd *desc.FileDescriptor) []*desc.FileDescriptor {
+	var depfds []*desc.FileDescriptor
+	for _, d := range infd.GetDependencies() {
+		for _, dfd := range genDependencyDescriptors(d) {
+			depfds = append(depfds, dfd)
+		}
 	}
-	out, err := ioutil.ReadAll(r)
+	depfds = append(depfds, infd)
+	return depfds
+}
+
+func parseProto(protoFile string, importPaths ...string) ([]*desc.FileDescriptor, error) {
+	p := protoparse.Parser{ImportPaths: importPaths, IncludeSourceCodeInfo: true}
+	fds, err := p.ParseFiles(protoFile)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Wrapf(err, "failed to parse proto file: %s", protoFile)
 	}
-	return out, nil
+	if len(fds) == 0 {
+		return nil, xerrors.Wrapf(errEmptyProtoFile, "proto file (%s) can not be parsed", protoFile)
+	}
+	if !fds[0].IsProto3() {
+		return nil, xerrors.Wrapf(errSyncNotProto3, "proto file (%s) is not proto3", protoFile)
+	}
+	return genDependencyDescriptors(fds[0]), nil
+}
+
+func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
+	var dlist [][]byte
+	for _, fd := range fdList {
+		fdbytes, err := proto.Marshal(fd.AsProto())
+		if err != nil {
+			return nil, xerrors.Wrapf(err, "failed to marshal file descriptor: %s", fd.GetFullyQualifiedName())
+		}
+		dlist = append(dlist, fdbytes)
+	}
+	return dlist, nil
 }
