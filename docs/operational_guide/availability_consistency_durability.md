@@ -10,7 +10,7 @@ Generally speaking, [the default and example configuration for M3DB](https://git
 Database operators who are using M3DB for workloads that require stricter consistency and durability guarantees should consider tuning the default configuration to better suit their use case.
 
 The rest of this document describes the various configuration options that are available to M3DB operators to make such tradeoffs.
-While reading it, we recommend reffering to [the default configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml) (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.
+While reading it, we recommend referring to [the default configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-all-config.yml) (which has every possible configuration value set) to see how the described values fit into M3DB's configuration as a whole.
 
 ## Tuning for Performance and Availability
 

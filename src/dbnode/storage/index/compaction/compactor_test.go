@@ -89,8 +89,9 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 	_, err = seg.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
+	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
@@ -112,10 +113,11 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 	_, err = seg.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{
 			MmapDocsData: true,
 		})
+	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
@@ -140,8 +142,9 @@ func TestCompactorManySegments(t *testing.T) {
 	_, err = seg2.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
+	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
@@ -170,8 +173,9 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	_, err = seg2.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
+	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),

@@ -27,24 +27,16 @@ import (
 )
 
 type fieldSearcher struct {
-	field    []byte
-	compiled index.CompiledRegex
+	field []byte
 }
 
 // NewFieldSearcher returns a new searcher for finding documents which match the given field.
 func NewFieldSearcher(field []byte) (search.Searcher, error) {
-	compiledAll, err := index.CompileRegex([]byte(".*"))
-	if err != nil {
-		return nil, err
-	}
-
 	return &fieldSearcher{
-		field:    field,
-		compiled: compiledAll,
+		field: field,
 	}, nil
 }
 
 func (s *fieldSearcher) Search(r index.Reader) (postings.List, error) {
-	// TODO: expose a new method on the reader to support such operations
-	return r.MatchRegexp(s.field, s.compiled)
+	return r.MatchField(s.field)
 }
