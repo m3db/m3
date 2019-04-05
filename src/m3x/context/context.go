@@ -24,7 +24,11 @@ import (
 	stdctx "context"
 	"sync"
 
+	xopentracing "github.com/m3db/m3x/opentracing"
 	"github.com/m3db/m3x/resource"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 )
 
 // NB(r): using golang.org/x/net/context is too GC expensive.
@@ -32,11 +36,13 @@ import (
 type ctx struct {
 	sync.RWMutex
 
-	goCtx         stdctx.Context
-	pool          contextPool
-	done          bool
-	wg            sync.WaitGroup
-	finalizeables []finalizeable
+	goCtx                stdctx.Context
+	pool                 contextPool
+	done                 bool
+	wg                   sync.WaitGroup
+	finalizeables        []finalizeable
+	parent               Context
+	checkedAndNotSampled bool
 }
 
 type finalizeable struct {
@@ -46,12 +52,17 @@ type finalizeable struct {
 
 // NewContext creates a new context.
 func NewContext() Context {
-	return newPooledContext(nil)
+	return newContext()
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed.
 func newPooledContext(pool contextPool) Context {
 	return &ctx{pool: pool}
+}
+
+// newContext returns an empty ctx
+func newContext() *ctx {
+	return &ctx{}
 }
 
 func (c *ctx) GoContext() (stdctx.Context, bool) {
@@ -67,6 +78,11 @@ func (c *ctx) SetGoContext(v stdctx.Context) {
 }
 
 func (c *ctx) IsClosed() bool {
+	parent := c.parentCtx()
+	if parent != nil {
+		return parent.IsClosed()
+	}
+
 	c.RLock()
 	done := c.done
 	c.RUnlock()
@@ -75,10 +91,22 @@ func (c *ctx) IsClosed() bool {
 }
 
 func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
+	parent := c.parentCtx()
+	if parent != nil {
+		parent.RegisterFinalizer(f)
+		return
+	}
+
 	c.registerFinalizeable(finalizeable{finalizer: f})
 }
 
 func (c *ctx) RegisterCloser(f resource.Closer) {
+	parent := c.parentCtx()
+	if parent != nil {
+		parent.RegisterCloser(f)
+		return
+	}
+
 	c.registerFinalizeable(finalizeable{closer: f})
 }
 
@@ -108,6 +136,12 @@ func allocateFinalizeables() []finalizeable {
 }
 
 func (c *ctx) DependsOn(blocker Context) {
+	parent := c.parentCtx()
+	if parent != nil {
+		parent.DependsOn(blocker)
+		return
+	}
+
 	c.Lock()
 
 	if !c.done {
@@ -131,10 +165,28 @@ const (
 )
 
 func (c *ctx) Close() {
+	parent := c.parentCtx()
+	if parent != nil {
+		if !parent.IsClosed() {
+			parent.Close()
+		}
+		c.returnToPool()
+		return
+	}
+
 	c.close(closeAsync)
 }
 
 func (c *ctx) BlockingClose() {
+	parent := c.parentCtx()
+	if parent != nil {
+		if !parent.IsClosed() {
+			parent.BlockingClose()
+		}
+		c.returnToPool()
+		return
+	}
+
 	c.close(closeBlock)
 }
 
@@ -189,8 +241,14 @@ func (c *ctx) finalize(f []finalizeable) {
 }
 
 func (c *ctx) Reset() {
+	parent := c.parentCtx()
+	if parent != nil {
+		parent.Reset()
+		return
+	}
+
 	c.Lock()
-	c.done, c.finalizeables, c.goCtx = false, nil, nil
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, nil, false
 	c.Unlock()
 }
 
@@ -201,4 +259,85 @@ func (c *ctx) returnToPool() {
 
 	c.Reset()
 	c.pool.Put(c)
+}
+
+func (c *ctx) newChildContext() Context {
+	var childCtx *ctx
+	if c.pool != nil {
+		pooled, ok := c.pool.Get().(*ctx)
+		if ok {
+			childCtx = pooled
+		}
+	}
+
+	if childCtx == nil {
+		childCtx = newContext()
+	}
+
+	childCtx.setParentCtx(c)
+	return childCtx
+}
+
+func (c *ctx) setParentCtx(parentCtx Context) {
+	c.Lock()
+	c.parent = parentCtx
+	c.Unlock()
+}
+
+func (c *ctx) parentCtx() Context {
+	c.RLock()
+	parent := c.parent
+	c.RUnlock()
+
+	return parent
+}
+
+// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger span.
+// See https://github.com/opentracing/specification/issues/92 for more information.
+func (c *ctx) spanIsSampled(sp opentracing.Span) bool {
+	jaegerSpan, ok := sp.(*jaeger.Span)
+	if !ok {
+		return false
+	}
+
+	jaegerCtx := jaegerSpan.Context()
+	spanCtx, ok := jaegerCtx.(*jaeger.SpanContext)
+	if !ok {
+		return false
+	}
+
+	if !spanCtx.IsSampled() {
+		return false
+	}
+
+	return true
+}
+
+func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span, bool) {
+	goCtx, exists := c.GoContext()
+	if !exists || c.checkedAndNotSampled {
+		return c, nil, false
+	}
+
+	var (
+		sp    opentracing.Span
+		spCtx stdctx.Context
+	)
+
+	sp = opentracing.SpanFromContext(goCtx)
+	if sp == nil {
+		sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
+		if c.spanIsSampled(sp) {
+			child := c.newChildContext()
+			child.SetGoContext(spCtx)
+			return child, sp, true
+		}
+		c.checkedAndNotSampled = true
+		return c, nil, false
+	}
+
+	sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
+	child := c.newChildContext()
+	child.SetGoContext(spCtx)
+	return child, sp, true
 }

@@ -48,7 +48,7 @@ import:
   - cmp
 
 - package: github.com/uber/jaeger-lib
-  version: ^1.5.0
+  version: ^2.0.0
 
 - package: github.com/uber/jaeger-client-go
   version: ^2.7.0
