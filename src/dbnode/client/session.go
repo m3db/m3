@@ -161,10 +161,12 @@ type sessionMetrics struct {
 	sync.RWMutex
 	writeSuccess                         tally.Counter
 	writeErrors                          tally.Counter
+	writeLatencyHistogram                tally.Histogram
 	writeNodesRespondingErrors           []tally.Counter
 	writeNodesRespondingBadRequestErrors []tally.Counter
 	fetchSuccess                         tally.Counter
 	fetchErrors                          tally.Counter
+	fetchLatencyHistogram                tally.Histogram
 	fetchNodesRespondingErrors           []tally.Counter
 	fetchNodesRespondingBadRequestErrors []tally.Counter
 	topologyUpdatedSuccess               tally.Counter
@@ -176,8 +178,10 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 	return sessionMetrics{
 		writeSuccess:           scope.Counter("write.success"),
 		writeErrors:            scope.Counter("write.errors"),
+		writeLatencyHistogram:  histogramWithDurationBuckets(scope, "write.latency"),
 		fetchSuccess:           scope.Counter("fetch.success"),
 		fetchErrors:            scope.Counter("fetch.errors"),
+		fetchLatencyHistogram:  histogramWithDurationBuckets(scope, "fetch.latency"),
 		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
 		topologyUpdatedError:   scope.Counter("topology.updated-error"),
 		streamFromPeersMetrics: make(map[shardMetricsKey]streamFromPeersMetrics),
@@ -398,7 +402,7 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 	return &m
 }
 
-func (s *session) incWriteMetrics(consistencyResultErr error, respErrs int32) {
+func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32, start time.Time) {
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
 		if IsBadRequestError(consistencyResultErr) {
 			s.metrics.writeNodesRespondingBadRequestErrors[idx].Inc(1)
@@ -411,9 +415,10 @@ func (s *session) incWriteMetrics(consistencyResultErr error, respErrs int32) {
 	} else {
 		s.metrics.writeErrors.Inc(1)
 	}
+	s.metrics.writeLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
 }
 
-func (s *session) incFetchMetrics(consistencyResultErr error, respErrs int32) {
+func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32, start time.Time) {
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
 		if IsBadRequestError(consistencyResultErr) {
 			s.metrics.fetchNodesRespondingBadRequestErrors[idx].Inc(1)
@@ -426,6 +431,7 @@ func (s *session) incFetchMetrics(consistencyResultErr error, respErrs int32) {
 	} else {
 		s.metrics.fetchErrors.Inc(1)
 	}
+	s.metrics.fetchLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
 }
 
 func (s *session) nodesRespondingErrorsMetricIndex(respErrs int32) int32 {
@@ -925,6 +931,8 @@ func (s *session) writeAttempt(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	startWriteAttempt := s.nowFn()
+
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
 		return timeTypeErr
@@ -956,7 +964,7 @@ func (s *session) writeAttempt(
 	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued,
 		enqueued-state.pending, int32(len(state.errors)), state.errors)
 
-	s.incWriteMetrics(err, int32(len(state.errors)))
+	s.recordWriteMetrics(err, int32(len(state.errors)), startWriteAttempt)
 
 	// must Unlock before decRef'ing, as the latter releases the writeState back into a
 	// pool if ref count == 0.
@@ -1361,7 +1369,7 @@ func (s *session) newFetchStateWithRLock(
 		fetchState.incRef()
 		if err := hq.Enqueue(op); err != nil {
 			fetchState.Unlock()
-			closer() // release the ref for the current go-routine
+			closer()            // release the ref for the current go-routine
 			fetchState.decRef() // release the ref for the hostQueue
 			fetchState.decRef() // release the ref for the current go-routine
 
@@ -1399,6 +1407,7 @@ func (s *session) fetchIDsAttempt(
 		consistencyLevel       topology.ReadConsistencyLevel
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
+		startFetchAttempt      = s.nowFn()
 	)
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
@@ -1492,7 +1501,7 @@ func (s *session) fetchIDsAttempt(
 			responded := enqueued - atomic.LoadInt32(&pending)
 			err := s.readConsistencyResult(consistencyLevel, majority, enqueued,
 				responded, errsLen, reportErrors)
-			s.incFetchMetrics(err, errsLen)
+			s.recordFetchMetrics(err, errsLen, startFetchAttempt)
 			if err != nil {
 				resultErrLock.Lock()
 				if resultErr == nil {
@@ -3836,4 +3845,27 @@ func newTagsFromEncodedTags(
 	encodedTags.DecRef()
 
 	return tags, err
+}
+
+const (
+	// histogramDurationBucketsVersion must be bumped if histogramDurationBuckets is changed
+	// to namespace the different buckets from each other so they don't overlap and cause the
+	// histogram function to error out due to overlapping buckets in the same query.
+	histogramDurationBucketsVersion = "v1"
+	// histogramDurationBucketsVersionTag is the tag for the version of the buckets in use.
+	histogramDurationBucketsVersionTag = "schema"
+)
+
+// histogramDurationBuckets is a high resolution set of duration buckets.
+func histogramDurationBuckets() tally.DurationBuckets {
+	return append(tally.DurationBuckets{0},
+		tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 60)...)
+}
+
+// histogramWithDurationBuckets returns a histogram with the standard duration buckets.
+func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogram {
+	sub := scope.Tagged(map[string]string{
+		histogramDurationBucketsVersionTag: histogramDurationBucketsVersion,
+	})
+	return sub.Histogram(name, histogramDurationBuckets())
 }

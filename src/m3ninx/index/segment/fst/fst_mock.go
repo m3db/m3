@@ -311,6 +311,21 @@ func (mr *MockSegmentMockRecorder) MatchAll() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockSegment)(nil).MatchAll))
 }
 
+// MatchField mocks base method
+func (m *MockSegment) MatchField(arg0 []byte) (postings.List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MatchField", arg0)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchField indicates an expected call of MatchField
+func (mr *MockSegmentMockRecorder) MatchField(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchField", reflect.TypeOf((*MockSegment)(nil).MatchField), arg0)
+}
+
 // MatchRegexp mocks base method
 func (m *MockSegment) MatchRegexp(arg0 []byte, arg1 index.CompiledRegex) (postings.List, error) {
 	m.ctrl.T.Helper()

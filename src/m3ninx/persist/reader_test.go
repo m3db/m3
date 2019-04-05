@@ -61,7 +61,7 @@ func TestReaderValidateDataSlices(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.CurrentVersion.Major)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 	fset.EXPECT().Files().Return(nil).AnyTimes()
@@ -76,7 +76,7 @@ func TestReaderValidateByteAccess(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.CurrentVersion.Major)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -96,7 +96,7 @@ func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.CurrentVersion.Major)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -122,7 +122,7 @@ func TestReaderValidateSegmentFileType(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.CurrentVersion.Major)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -141,7 +141,7 @@ func TestReaderValidateAllByteAccess(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.CurrentVersion.Major)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 

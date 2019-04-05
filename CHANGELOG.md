@@ -1,5 +1,12 @@
 # Changelog
 
+# 0.8.1 (2019-04-02)
+
+## Bug Fixes
+
+- **M3DB**: Fixed a bug that would sometimes prevent successfully retrieved time series data from being loaded into the cache.
+- **M3DB**: Fixed a bug where an error was not being properly logged.
+
 # 0.8.0 (2019-03-29)
 
 ## Migration Disclaimer

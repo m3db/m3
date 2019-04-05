@@ -64,6 +64,7 @@ func (m *SchemaOptions) GetDefaultMessageName() string {
 // SchemaHistory is versioned FileDescriptorSet.
 type SchemaHistory struct {
 	// versions is a list of FileDescriptorSet sorted by version in ascending order.
+	// the list is a linked list and we use FileDescriptorSet.prevId to ensure the order is ascending.
 	Versions []*FileDescriptorSet `protobuf:"bytes,1,rep,name=versions" json:"versions,omitempty"`
 }
 

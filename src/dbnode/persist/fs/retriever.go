@@ -328,7 +328,7 @@ func (r *blockRetriever) fetchBatch(
 				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
-			if tags := req.indexEntry.EncodedTags; tags != nil {
+			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {
 				decoder := tagDecoderPool.Get()
 				// DecRef because we're transferring ownership from the index entry to
 				// the tagDecoder which will IncRef().

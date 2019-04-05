@@ -225,23 +225,16 @@ func Run(runOpts RunOptions) {
 
 		logger.Info("setup grpc backend")
 	} else {
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBClient, logger)
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
+			runOpts.DBClient, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
-			runOpts,
-			cfg,
-			tagOptions,
-			logger,
-			m3dbClusters,
-			m3dbPoolWrapper,
-			instrumentOptions,
-			readWorkerPool,
-			writeWorkerPool,
-		)
+			runOpts, cfg, tagOptions, m3dbClusters, m3dbPoolWrapper,
+			readWorkerPool, writeWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
@@ -351,14 +344,14 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
-	logger *zap.Logger,
 	clusters m3.Clusters,
 	poolWrapper *pools.PoolWrapper,
-	instrumentOptions instrument.Options,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
+		logger              = instrumentOptions.ZapLogger()
 		clusterClient       clusterclient.Client
 		clusterClientWaitCh <-chan struct{}
 	)
@@ -395,15 +388,8 @@ func newM3DBStorage(
 		}
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(
-		logger,
-		clusters,
-		cfg,
-		tagOptions,
-		poolWrapper,
-		readWorkerPool,
-		writeWorkerPool,
-	)
+	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg, tagOptions,
+		poolWrapper, readWorkerPool, writeWorkerPool, instrumentOptions)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -546,18 +532,22 @@ func newDownsamplerAutoMappingRules(
 func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
-	logger *zap.Logger,
+	instrumentOpts instrument.Options,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
+	instrumentOpts = instrumentOpts.
+		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
+
 	var (
+		logger      = instrumentOpts.ZapLogger()
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper
 		err         error
 	)
-
 	if len(cfg.Clusters) > 0 {
-		clusters, err = cfg.Clusters.NewClusters(m3.ClustersStaticConfigurationOptions{
-			AsyncSessions: true,
-		})
+		clusters, err = cfg.Clusters.NewClusters(instrumentOpts,
+			m3.ClustersStaticConfigurationOptions{
+				AsyncSessions: true,
+			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -582,9 +572,10 @@ func initClusters(
 			},
 		}
 
-		clusters, err = clustersCfg.NewClusters(m3.ClustersStaticConfigurationOptions{
-			ProvidedSession: session,
-		})
+		clusters, err = clustersCfg.NewClusters(instrumentOpts,
+			m3.ClustersStaticConfigurationOptions{
+				ProvidedSession: session,
+			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -605,15 +596,18 @@ func initClusters(
 }
 
 func newStorages(
-	logger *zap.Logger,
 	clusters m3.Clusters,
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
+	instrumentOpts instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
-	cleanup := func() error { return nil }
+	var (
+		logger  = instrumentOpts.ZapLogger()
+		cleanup = func() error { return nil }
+	)
 
 	// Setup query conversion cache.
 	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()

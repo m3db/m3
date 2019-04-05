@@ -76,20 +76,24 @@ func NewCompactor(
 	builderOpts builder.Options,
 	fstOpts fst.Options,
 	opts CompactorOptions,
-) *Compactor {
+) (*Compactor, error) {
 	var fstWriterOpts fst.WriterOptions
 	if v := opts.FSTWriterOptions; v != nil {
 		fstWriterOpts = *v
 	}
+	writer, err := fst.NewWriter(fstWriterOpts)
+	if err != nil {
+		return nil, err
+	}
 	return &Compactor{
 		opts:         opts,
-		writer:       fst.NewWriter(fstWriterOpts),
+		writer:       writer,
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
 		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
 		buff:         bytes.NewBuffer(nil),
-	}
+	}, nil
 }
 
 // Compact will take a set of segments and compact them into an immutable
@@ -241,10 +245,12 @@ func (c *Compactor) compactFromBuilderWithLock(
 	success := false
 	closers := new(closers)
 	fstData := fst.SegmentData{
-		MajorVersion: c.writer.MajorVersion(),
-		MinorVersion: c.writer.MinorVersion(),
-		Metadata:     append([]byte(nil), c.writer.Metadata()...),
-		Closer:       closers,
+		Version: fst.Version{
+			Major: c.writer.MajorVersion(),
+			Minor: c.writer.MinorVersion(),
+		},
+		Metadata: append([]byte(nil), c.writer.Metadata()...),
+		Closer:   closers,
 	}
 
 	// Cleanup incase we run into issues
