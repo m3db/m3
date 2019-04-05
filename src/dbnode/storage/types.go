@@ -236,8 +236,8 @@ type Namespace interface {
 	// Shards returns the shard description
 	Shards() []Shard
 
-	// Schema returns the schema descriptor
-	Schema() namespace.SchemaDescr
+	// Schema returns the schema registry
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -371,8 +371,8 @@ type databaseNamespace interface {
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
 
-	// SetSchema sets the schema for the namespace.
-	SetSchema(v namespace.SchemaDescr)
+	// SetSchemaRegistry sets the schema registry for the namespace.
+	SetSchemaRegistry(v namespace.SchemaRegistry)
 }
 
 // Shard is a time series database shard.

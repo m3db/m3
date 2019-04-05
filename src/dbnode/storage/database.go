@@ -365,12 +365,18 @@ func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) 
 		if !ok { // should never happen
 			return fmt.Errorf("non-existing namespace marked for schema update: %v", n.ID().String())
 		}
-		schema, err := n.Options().SchemaRegistry().GetLatest()
-		if err != nil {
-			return xerrors.Wrapf(err, "failed to get latest schema from namespace (%s) registry", n.ID().String())
+		currentId := "none"
+		current, err := existing.SchemaRegistry().GetLatest()
+		if err == nil {
+			currentId = current.DeployId()
 		}
-
-		existing.SetSchema(schema)
+		// log schema update
+		latest, err := n.Options().SchemaRegistry().GetLatest()
+		if err != nil {
+			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
+		}
+		d.log.Infof("updating database namespace (%s) schema from %s to %s", n.ID().String(), currentId, latest.DeployId())
+		existing.SetSchemaRegistry(n.Options().SchemaRegistry())
 	}
 	return nil
 }
