@@ -42,6 +42,8 @@ type encodedBlock struct {
 	lastBlock            bool
 	lookback             time.Duration
 	meta                 block.Metadata
+	offset               time.Duration
+	offsetBounds         models.Bounds
 	tagOptions           models.TagOptions
 	consolidation        consolidationSettings
 	seriesMetas          []block.SeriesMeta
@@ -53,6 +55,7 @@ func NewEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
 	bounds models.Bounds,
 	lastBlock bool,
+	options *storage.FetchOptions,
 	opts Options,
 ) (block.Block, error) {
 	consolidation := consolidationSettings{
@@ -61,14 +64,21 @@ func NewEncodedBlock(
 		bounds:          bounds,
 	}
 
+	offset := time.Duration(0)
+	if options != nil {
+		offset = options.Offset
+	}
+
 	bl := newEncodedBlock(
 		seriesBlockIterators,
 		opts.TagOptions(),
 		consolidation,
+		offset,
 		opts.LookbackDuration(),
 		lastBlock,
 	)
-	err := bl.generateMetas()
+
+	err := bl.generateMetas(offset)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +90,7 @@ func newEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
 	tagOptions models.TagOptions,
 	consolidation consolidationSettings,
+	offset time.Duration,
 	lookback time.Duration,
 	lastBlock bool,
 ) encodedBlock {
@@ -87,6 +98,7 @@ func newEncodedBlock(
 		seriesBlockIterators: seriesBlockIterators,
 		tagOptions:           tagOptions,
 		consolidation:        consolidation,
+		offset:               offset,
 		lookback:             lookback,
 		lastBlock:            lastBlock,
 	}
@@ -101,6 +113,8 @@ func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 		consolidation:        b.consolidation,
 		seriesMetas:          b.seriesMetas,
 		seriesBlockIterators: b.seriesBlockIterators,
+		offset:               b.offset,
+		offsetBounds:         b.offsetBounds,
 	}, nil
 }
 
@@ -138,13 +152,20 @@ func (b *encodedBlock) buildMeta() {
 	}
 }
 
-func (b *encodedBlock) generateMetas() error {
+func (b *encodedBlock) buildOffsetMeta() {
+	b.offsetBounds = b.meta.Bounds
+	b.offsetBounds.Start.Add(b.offset)
+}
+
+func (b *encodedBlock) generateMetas(offset time.Duration) error {
 	err := b.buildSeriesMeta()
 	if err != nil {
 		return err
 	}
 
 	b.buildMeta()
+	b.buildOffsetMeta()
+
 	return nil
 }
 
@@ -157,6 +178,7 @@ func (b *encodedBlock) WithMetadata(
 		b.tagOptions,
 		b.consolidation,
 		b.lookback,
+		b.offset,
 		b.lastBlock,
 	)
 

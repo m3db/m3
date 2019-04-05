@@ -37,7 +37,8 @@ type QueryConversionCache struct {
 	lru *QueryConversionLRU
 }
 
-// NewQueryConversionCache creates a new QueryConversionCache with a provided LRU cache.
+// NewQueryConversionCache creates a new QueryConversionCache with a provided
+// LRU cache.
 func NewQueryConversionCache(lru *QueryConversionLRU) *QueryConversionCache {
 	return &QueryConversionCache{
 		lru: lru,
@@ -92,7 +93,8 @@ func FromIdentTagIteratorToTags(
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags.
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
-	// TODO: get a tags and tag iterator from an ident.Pool here rather than allocing them here
+	// TODO: get a tags and tag iterator from an ident.Pool here rather than
+	// allocing them here
 	identTags := make([]ident.Tag, 0, tags.Len())
 	for _, t := range tags.Tags {
 		identTags = append(identTags, ident.Tag{
@@ -105,11 +107,14 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 }
 
 // FetchOptionsToM3Options converts a set of coordinator options to M3 options.
-func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
+func FetchOptionsToM3Options(
+	fetchOptions *FetchOptions,
+	fetchQuery *FetchQuery,
+) index.QueryOptions {
 	return index.QueryOptions{
 		Limit:          fetchOptions.Limit,
-		StartInclusive: fetchQuery.Start,
-		EndExclusive:   fetchQuery.End,
+		StartInclusive: fetchQuery.Start.Add(-1 * fetchOptions.Offset),
+		EndExclusive:   fetchQuery.End.Add(-1 * fetchOptions.Offset),
 	}
 }
 
@@ -239,6 +244,9 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 			query = idx.NewNegationQuery(query)
 		}
 		return query, nil
+
+	case models.MatchAll:
+		return idx.NewAllQuery(), nil
 
 	default:
 		return idx.Query{}, fmt.Errorf("unsupported query type: %v", matcher)

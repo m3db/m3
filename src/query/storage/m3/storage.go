@@ -117,6 +117,7 @@ func (s *m3storage) Fetch(
 		s.readWorkerPool,
 		false,
 		enforcer,
+		options,
 		s.opts.TagOptions(),
 	)
 
@@ -148,7 +149,8 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration(), options.Enforcer)
+		return storage.FetchResultToBlockResult(fetchResult, query,
+			s.opts.LookbackDuration(), options.Enforcer)
 	}
 
 	// If using multiblock, update options to reflect this.
@@ -173,10 +175,12 @@ func (s *m3storage) FetchBlocks(
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	// TODO: mutating this array breaks the abstraction a bit, but it's the least fussy way I can think of to do this
-	// while maintaining the original pooling.
-	// Alternative would be to fetch a new MutableSeriesIterators() instance from the pool, populate it,
-	// and then return the original to the pool, which feels wasteful.
+	// TODO(amains): mutating this array breaks the abstraction a bit, but it's
+	// the least fussy way I can think of to do this while maintaining the
+	// original pooling.
+	// Alternative would be to fetch a new MutableSeriesIterators() instance from
+	// the pool, populate it, and then return the original to the pool, which
+	// feels wasteful.
 	iters := raw.Iters()
 	for i, iter := range iters {
 		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
@@ -185,6 +189,7 @@ func (s *m3storage) FetchBlocks(
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
 		raw,
 		bounds,
+		options,
 		opts,
 	)
 

@@ -92,6 +92,9 @@ type FetchOptions struct {
 	// Enforcer is used to enforce resource limits on the number of datapoints
 	// used by a given query. Limits are imposed at time of decompression.
 	Enforcer cost.ChainedEnforcer
+	// Offset is applied to the fetch before the query, then applied after the
+	// fetch.
+	Offset time.Duration
 	// Scope is used to report metrics about the fetch.
 	Scope tally.Scope
 }

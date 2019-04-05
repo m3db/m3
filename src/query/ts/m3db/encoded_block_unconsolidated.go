@@ -33,6 +33,8 @@ type encodedBlockUnconsolidated struct {
 	lastBlock            bool
 	lookback             time.Duration
 	meta                 block.Metadata
+	offset               time.Duration
+	offsetBounds         models.Bounds
 	tagOptions           models.TagOptions
 	consolidation        consolidationSettings
 	seriesMetas          []block.SeriesMeta
@@ -48,6 +50,8 @@ func (b *encodedBlockUnconsolidated) Consolidate() (block.Block, error) {
 		consolidation:        b.consolidation,
 		seriesMetas:          b.seriesMetas,
 		seriesBlockIterators: b.seriesBlockIterators,
+		offset:               b.offset,
+		offsetBounds:         b.offsetBounds,
 	}, nil
 }
 
@@ -70,5 +74,7 @@ func (b *encodedBlockUnconsolidated) WithMetadata(
 		seriesBlockIterators: b.seriesBlockIterators,
 		meta:                 meta,
 		seriesMetas:          seriesMetas,
+		offset:               b.offset,
+		offsetBounds:         b.offsetBounds,
 	}, nil
 }

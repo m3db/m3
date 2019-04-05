@@ -53,6 +53,9 @@ func (b *encodedBlock) StepIter() (
 			meta:       b.meta,
 			seriesMeta: b.seriesMetas,
 
+			offset:       b.offset,
+			offsetBounds: b.offsetBounds,
+
 			collector:   consolidator,
 			seriesPeek:  make([]peekValue, len(iters)),
 			seriesIters: iters,
@@ -62,7 +65,7 @@ func (b *encodedBlock) StepIter() (
 
 func (it *encodedStepIter) Current() block.Step {
 	return block.NewColStep(
-		it.stepTime,
+		it.stepTime.Add(it.offset),
 		it.consolidator.ConsolidateAndMoveToNext(),
 	)
 }

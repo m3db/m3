@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	xts "github.com/m3db/m3/src/query/ts"
 )
 
@@ -33,6 +34,8 @@ type encodedSeriesIterUnconsolidated struct {
 	lookbackDuration time.Duration
 	err              error
 	meta             block.Metadata
+	offset           time.Duration
+	offsetBounds     models.Bounds
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator
@@ -45,6 +48,8 @@ func (b *encodedBlockUnconsolidated) SeriesIter() (
 	return &encodedSeriesIterUnconsolidated{
 		idx:              -1,
 		meta:             b.meta,
+		offset:           b.offset,
+		offsetBounds:     b.offsetBounds,
 		seriesMeta:       b.seriesMetas,
 		seriesIters:      b.seriesBlockIterators,
 		lookbackDuration: b.lookback,
@@ -76,7 +81,7 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		dp, _, _ := iter.Current()
 		values = append(values,
 			xts.Datapoint{
-				Timestamp: dp.Timestamp,
+				Timestamp: dp.Timestamp.Add(it.offset),
 				Value:     dp.Value,
 			})
 	}
@@ -100,7 +105,9 @@ func (it *encodedSeriesIterUnconsolidated) SeriesMeta() []block.SeriesMeta {
 }
 
 func (it *encodedSeriesIterUnconsolidated) Meta() block.Metadata {
-	return it.meta
+	meta := it.meta
+	meta.Bounds = it.offsetBounds
+	return meta
 }
 
 func (it *encodedSeriesIterUnconsolidated) Close() {

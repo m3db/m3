@@ -110,7 +110,7 @@ func (c *grpcClient) Fetch(
 	}
 
 	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool,
-		true, enforcer, c.tagOptions)
+		true, enforcer, options, c.tagOptions)
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -199,6 +199,7 @@ func (c *grpcClient) FetchBlocks(
 		c.readWorkerPool,
 		true,
 		enforcer,
+		options,
 		c.tagOptions,
 	)
 	if err != nil {

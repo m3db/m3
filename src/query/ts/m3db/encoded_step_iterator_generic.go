@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
@@ -32,9 +33,11 @@ type encodedStepIterWithCollector struct {
 	lastBlock bool
 	err       error
 
-	stepTime   time.Time
-	meta       block.Metadata
-	seriesMeta []block.SeriesMeta
+	stepTime     time.Time
+	meta         block.Metadata
+	offset       time.Duration
+	offsetBounds models.Bounds
+	seriesMeta   []block.SeriesMeta
 
 	collector   consolidators.StepCollector
 	seriesPeek  []peekValue
@@ -136,7 +139,9 @@ func (it *encodedStepIterWithCollector) SeriesMeta() []block.SeriesMeta {
 }
 
 func (it *encodedStepIterWithCollector) Meta() block.Metadata {
-	return it.meta
+	meta := it.meta
+	meta.Bounds = it.offsetBounds
+	return meta
 }
 
 func (it *encodedStepIterWithCollector) Err() error {

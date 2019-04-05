@@ -53,6 +53,9 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 			meta:       b.meta,
 			seriesMeta: b.seriesMetas,
 
+			offset:       b.offset,
+			offsetBounds: b.offsetBounds,
+
 			collector:   accumulator,
 			seriesPeek:  make([]peekValue, len(iters)),
 			seriesIters: iters,
@@ -62,5 +65,5 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 
 func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
 	points := it.accumulator.AccumulateAndMoveToNext()
-	return storage.NewUnconsolidatedStep(it.stepTime, points)
+	return storage.NewUnconsolidatedStep(it.stepTime.Add(it.offset), points)
 }

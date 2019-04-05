@@ -31,14 +31,21 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-// FetchResultToBlockResult converts a fetch result into coordinator blocks
-func FetchResultToBlockResult(result *FetchResult, query *FetchQuery, lookbackDuration time.Duration, enforcer cost.ChainedEnforcer) (block.Result, error) {
-	multiBlock, err := NewMultiSeriesBlock(result.SeriesList, query, lookbackDuration)
+// FetchResultToBlockResult converts a fetch result into coordinator blocks.
+func FetchResultToBlockResult(
+	result *FetchResult,
+	query *FetchQuery,
+	lookbackDuration time.Duration,
+	enforcer cost.ChainedEnforcer,
+) (block.Result, error) {
+	multiBlock, err := NewMultiSeriesBlock(result.SeriesList,
+		query, lookbackDuration)
 	if err != nil {
 		return block.Result{}, err
 	}
 
-	accountedBlock := block.NewAccountedBlock(NewMultiBlockWrapper(multiBlock), enforcer)
+	wrappedBlock := NewMultiBlockWrapper(multiBlock)
+	accountedBlock := block.NewAccountedBlock(wrappedBlock, enforcer)
 	return block.Result{
 		Blocks: []block.Block{accountedBlock},
 	}, nil
@@ -145,8 +152,12 @@ type multiSeriesBlock struct {
 	seriesList       ts.SeriesList
 }
 
-// NewMultiSeriesBlock returns a new unconsolidated block
-func NewMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery, lookbackDuration time.Duration) (block.UnconsolidatedBlock, error) {
+// NewMultiSeriesBlock returns a new unconsolidated block.
+func NewMultiSeriesBlock(
+	seriesList ts.SeriesList,
+	query *FetchQuery,
+	lookbackDuration time.Duration,
+) (block.UnconsolidatedBlock, error) {
 	meta := block.Metadata{
 		Bounds: models.Bounds{
 			Start:    query.Start,
@@ -155,7 +166,11 @@ func NewMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery, lookbackDu
 		},
 	}
 
-	return multiSeriesBlock{seriesList: seriesList, meta: meta, lookbackDuration: lookbackDuration}, nil
+	return multiSeriesBlock{
+		seriesList:       seriesList,
+		meta:             meta,
+		lookbackDuration: lookbackDuration,
+	}, nil
 }
 
 func (m multiSeriesBlock) Meta() block.Metadata {

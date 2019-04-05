@@ -35,6 +35,7 @@ type encodedSeriesIter struct {
 	err          error
 	meta         block.Metadata
 	bounds       models.Bounds
+	offsetBounds models.Bounds
 	series       block.Series
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
@@ -58,6 +59,7 @@ func (b *encodedBlock) SeriesIter() (
 		idx:          -1,
 		meta:         b.meta,
 		bounds:       bounds,
+		offsetBounds: b.offsetBounds,
 		seriesMeta:   b.seriesMetas,
 		seriesIters:  b.seriesBlockIterators,
 		consolidator: consolidator,
@@ -133,7 +135,9 @@ func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 }
 
 func (it *encodedSeriesIter) Meta() block.Metadata {
-	return it.meta
+	meta := it.meta
+	meta.Bounds = it.offsetBounds
+	return meta
 }
 
 func (it *encodedSeriesIter) Close() {
