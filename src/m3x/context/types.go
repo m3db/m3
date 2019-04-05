@@ -25,6 +25,8 @@ import (
 
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/resource"
+
+	"github.com/opentracing/opentracing-go"
 )
 
 // Cancellable is an object that can be cancelled
@@ -71,6 +73,10 @@ type Context interface {
 
 	// SetGoContext sets the Go std context
 	SetGoContext(stdctx.Context)
+
+	// StartTraceSpan starts a new span and returns a child ctx
+	// if the span is being sampled.
+	StartTraceSpan(name string) (Context, opentracing.Span, bool)
 }
 
 // Pool provides a pool for contexts.
