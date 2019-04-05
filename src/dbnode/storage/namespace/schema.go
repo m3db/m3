@@ -249,3 +249,20 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 	}
 	return dlist, nil
 }
+
+func GenTestSchemaOptions(importPathPrefix string) *nsproto.SchemaOptions {
+	out, _ := parseProto("mainpkg/main.proto", importPathPrefix)
+
+	dlist, _ := marshalFileDescriptors(out)
+
+	return &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+				{DeployId: "second", PrevId: "first", Descriptors: dlist},
+				{DeployId: "third", PrevId: "second", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+}

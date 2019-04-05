@@ -957,6 +957,20 @@ func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
+// Schema mocks base method
+func (m *MockNamespace) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockNamespaceMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockNamespace)(nil).Schema))
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1034,6 +1048,20 @@ func (m *MockdatabaseNamespace) Shards() []Shard {
 func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
+}
+
+// Schema mocks base method
+func (m *MockdatabaseNamespace) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockdatabaseNamespaceMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockdatabaseNamespace)(nil).Schema))
 }
 
 // Close mocks base method
@@ -1339,6 +1367,18 @@ func (m *MockdatabaseNamespace) BootstrapState() ShardBootstrapStates {
 func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
+}
+
+// SetSchema mocks base method
+func (m *MockdatabaseNamespace) SetSchema(v namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", v)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockdatabaseNamespaceMockRecorder) SetSchema(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetSchema), v)
 }
 
 // MockShard is a mock of Shard interface

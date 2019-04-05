@@ -30,7 +30,7 @@ import (
 )
 
 func TestLoadSchemaRegistry(t *testing.T) {
-	testSchemaOptions := GenTestSchemaOptions()
+	testSchemaOptions := GenTestSchemaOptions("schematest")
 	testSchemaReg, err := LoadSchemaRegistry(testSchemaOptions)
 	require.NoError(t, err)
 
@@ -107,21 +107,4 @@ func TestParseNotProto3(t *testing.T) {
 	_, err := parseProto("mainpkg/notproto3.proto", "schematest")
 	require.Error(t, err)
 	require.Equal(t, errSyncNotProto3, xerrors.InnerError(err))
-}
-
-func GenTestSchemaOptions() *nsproto.SchemaOptions {
-	out, _ := parseProto("mainpkg/main.proto", "schematest")
-
-	dlist, _ := marshalFileDescriptors(out)
-
-	return &nsproto.SchemaOptions{
-		History: &nsproto.SchemaHistory{
-			Versions: []*nsproto.FileDescriptorSet{
-				{DeployId: "first", Descriptors: dlist},
-				{DeployId: "second", PrevId: "first", Descriptors: dlist},
-				{DeployId: "third", PrevId: "second", Descriptors: dlist},
-			},
-		},
-		DefaultMessageName: "mainpkg.TestMessage",
-	}
 }

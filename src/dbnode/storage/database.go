@@ -225,7 +225,7 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	defer d.Unlock()
 
 	removes, adds, updates, schemaUpdates := d.namespaceDeltaWithLock(newNamespaces)
-	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
+	if err := d.logNamespaceUpdate(removes, adds, updates, schemaUpdates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Errorf("%v", enrichedErr)
 		return enrichedErr
@@ -305,7 +305,7 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 	return removes, adds, updates, schemaUpdates
 }
 
-func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Metadata) error {
+func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Metadata, schemaUpdates []namespace.Metadata) error {
 	removalString, err := tsIDs(removes).String()
 	if err != nil {
 		return fmt.Errorf("unable to format removal, err = %v", err)
@@ -321,10 +321,16 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 		return fmt.Errorf("unable to format updates, err = %v", err)
 	}
 
+	schemaUpdateString, err := metadatas(schemaUpdates).String()
+	if err != nil {
+		return fmt.Errorf("unable to format schema updates, err = %v", err)
+	}
+
 	// log scheduled operation
 	d.log.WithFields(
 		xlog.NewField("adds", addString),
 		xlog.NewField("updates", updateString),
+		xlog.NewField("schema updates", schemaUpdateString),
 		xlog.NewField("removals", removalString),
 	).Infof("updating database namespaces")
 
