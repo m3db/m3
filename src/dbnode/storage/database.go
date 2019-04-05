@@ -260,10 +260,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata, []namespace.Metadata) {
 	var (
-		existing = d.namespaces
-		removes  []ident.ID
-		adds     []namespace.Metadata
-		updates  []namespace.Metadata
+		existing      = d.namespaces
+		removes       []ident.ID
+		adds          []namespace.Metadata
+		updates       []namespace.Metadata
 		schemaUpdates []namespace.Metadata
 	)
 
@@ -366,14 +366,14 @@ func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) 
 			return fmt.Errorf("non-existing namespace marked for schema update: %v", n.ID().String())
 		}
 		currentId := "none"
-		current, err := existing.SchemaRegistry().GetLatest()
-		if err == nil {
+		current, found := existing.SchemaRegistry().GetLatest()
+		if found {
 			currentId = current.DeployId()
 		}
 		// log schema update
-		latest, err := n.Options().SchemaRegistry().GetLatest()
-		if err != nil {
-			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
+		latest, found := n.Options().SchemaRegistry().GetLatest()
+		if !found {
+			return fmt.Errorf("failed to update latest schema for namespace %s", n.ID().String())
 		}
 		d.log.Infof("updating database namespace (%s) schema from %s to %s", n.ID().String(), currentId, latest.DeployId())
 		existing.SetSchemaRegistry(n.Options().SchemaRegistry())

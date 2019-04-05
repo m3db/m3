@@ -643,11 +643,11 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
 
-	actualSchema, err := ns2.SchemaRegistry().GetLatest()
-	require.NoError(t, err)
+	actualSchema, found := ns2.SchemaRegistry().GetLatest()
+	require.True(t, found)
 	require.NotNil(t, actualSchema)
-	expectedSchema, err := sr.GetLatest()
-	require.NoError(t, err)
+	expectedSchema, found := sr.GetLatest()
+	require.True(t, found)
 	require.True(t, expectedSchema.Equal(actualSchema))
 }
 
