@@ -36,7 +36,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"github.com/stretchr/testify/assert"
 )
 
 func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) DynamicOptions {
@@ -117,7 +116,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
 
 	latest, found := md.Options().SchemaRegistry().GetLatest()
-	assert.True(t, found)
+	require.True(t, found)
 	require.EqualValues(t, "third", latest.DeployId())
 
 	require.NoError(t, rw.Close())
