@@ -41,25 +41,24 @@ var (
 )
 
 type schemaDescr struct {
-	deployId string
-	md       *desc.MessageDescriptor
+	deployId     string
+	prevDeployId string
+	md           *desc.MessageDescriptor
 }
 
 func (s *schemaDescr) DeployId() string {
 	return s.deployId
 }
 
+func (s *schemaDescr) PrevDeployId() string {
+	return s.prevDeployId
+}
+
 func (s *schemaDescr) Equal(o SchemaDescr) bool {
-	if s == nil && o == nil {
-		return true
-	}
-	if s != nil && o == nil || s == nil && o != nil {
-		return false
-	}
 	if _, ok := o.(*schemaDescr); !ok {
 		return false
 	}
-	return s.DeployId() == o.DeployId()
+	return s.DeployId() == o.DeployId() && s.PrevDeployId() == o.PrevDeployId()
 }
 
 type MessageDescriptor struct {
@@ -110,6 +109,19 @@ func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 		}
 	}
 
+	return true
+}
+
+func (sr *schemaRegistry) Lineage(v SchemaRegistry) bool {
+	cur, hasMore := v.GetLatest()
+
+	for hasMore {
+		srCur, inSr := sr.Get(cur.DeployId())
+		if !inSr || !cur.Equal(srCur) {
+			return false
+		}
+		cur, hasMore = v.Get(cur.PrevDeployId())
+	}
 	return true
 }
 
@@ -194,9 +206,9 @@ func loadFileDescriptorSet(fdSet *nsproto.FileDescriptorSet, msgName string) (*s
 
 	md := curfd.FindMessage(msgName)
 	if md != nil {
-		return &schemaDescr{deployId: fdSet.DeployId, md: md}, nil
+		return &schemaDescr{deployId: fdSet.DeployId, prevDeployId: fdSet.PrevId, md: md}, nil
 	}
-	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in version(%s)", msgName, fdSet.DeployId)
+	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in deployment(%s)", msgName, fdSet.DeployId)
 }
 
 // decodeFileDescriptorProto decodes the bytes of proto file descriptor.

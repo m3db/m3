@@ -376,7 +376,10 @@ func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) 
 			return fmt.Errorf("failed to update latest schema for namespace %s", n.ID().String())
 		}
 		d.log.Infof("updating database namespace (%s) schema from %s to %s", n.ID().String(), currentId, latest.DeployId())
-		existing.SetSchemaRegistry(n.Options().SchemaRegistry())
+		err := existing.SetSchemaRegistry(n.Options().SchemaRegistry())
+		if err != nil {
+			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
+		}
 	}
 	return nil
 }

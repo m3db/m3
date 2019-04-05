@@ -296,8 +296,8 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
-			"namespace": id.String(),
-		})
+		"namespace": id.String(),
+	})
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
@@ -403,10 +403,15 @@ func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
 	return n.schemaRegistry
 }
 
-func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) {
+func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
+	if !v.Lineage(n.SchemaRegistry()) {
+		return fmt.Errorf("failed to update schema registry that broke lineage to existing one")
+	}
+
 	n.Lock()
 	defer n.Unlock()
 	n.schemaRegistry = v
+	return nil
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {

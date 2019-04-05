@@ -1370,9 +1370,11 @@ func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
 }
 
 // SetSchemaRegistry mocks base method
-func (m *MockdatabaseNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) {
+func (m *MockdatabaseNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSchemaRegistry", v)
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", v)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // SetSchemaRegistry indicates an expected call of SetSchemaRegistry

@@ -372,7 +372,7 @@ type databaseNamespace interface {
 	BootstrapState() ShardBootstrapStates
 
 	// SetSchemaRegistry sets the schema registry for the namespace.
-	SetSchemaRegistry(v namespace.SchemaRegistry)
+	SetSchemaRegistry(v namespace.SchemaRegistry) error
 }
 
 // Shard is a time series database shard.

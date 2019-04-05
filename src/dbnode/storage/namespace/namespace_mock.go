@@ -469,6 +469,20 @@ func (mr *MockSchemaDescrMockRecorder) DeployId() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeployId", reflect.TypeOf((*MockSchemaDescr)(nil).DeployId))
 }
 
+// PrevDeployId mocks base method
+func (m *MockSchemaDescr) PrevDeployId() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PrevDeployId")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// PrevDeployId indicates an expected call of PrevDeployId
+func (mr *MockSchemaDescrMockRecorder) PrevDeployId() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrevDeployId", reflect.TypeOf((*MockSchemaDescr)(nil).PrevDeployId))
+}
+
 // Get mocks base method
 func (m *MockSchemaDescr) Get() MessageDescriptor {
 	m.ctrl.T.Helper()
@@ -546,6 +560,20 @@ func (m *MockSchemaRegistry) Equal(arg0 SchemaRegistry) bool {
 func (mr *MockSchemaRegistryMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSchemaRegistry)(nil).Equal), arg0)
+}
+
+// Lineage mocks base method
+func (m *MockSchemaRegistry) Lineage(arg0 SchemaRegistry) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Lineage", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Lineage indicates an expected call of Lineage
+func (mr *MockSchemaRegistryMockRecorder) Lineage(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lineage", reflect.TypeOf((*MockSchemaRegistry)(nil).Lineage), arg0)
 }
 
 // Get mocks base method
