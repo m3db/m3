@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
-	"github.com/jhump/protoreflect/desc"
 )
 
 // MockOptions is a mock of Options interface
@@ -471,10 +470,10 @@ func (mr *MockSchemaDescrMockRecorder) DeployId() *gomock.Call {
 }
 
 // Get mocks base method
-func (m *MockSchemaDescr) Get() *desc.MessageDescriptor {
+func (m *MockSchemaDescr) Get() MessageDescriptor {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
-	ret0, _ := ret[0].(*desc.MessageDescriptor)
+	ret0, _ := ret[0].(MessageDescriptor)
 	return ret0
 }
 
@@ -550,11 +549,11 @@ func (mr *MockSchemaRegistryMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 }
 
 // Get mocks base method
-func (m *MockSchemaRegistry) Get(id string) (SchemaDescr, error) {
+func (m *MockSchemaRegistry) Get(id string) (SchemaDescr, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", id)
 	ret0, _ := ret[0].(SchemaDescr)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
@@ -565,11 +564,11 @@ func (mr *MockSchemaRegistryMockRecorder) Get(id interface{}) *gomock.Call {
 }
 
 // GetLatest mocks base method
-func (m *MockSchemaRegistry) GetLatest() (SchemaDescr, error) {
+func (m *MockSchemaRegistry) GetLatest() (SchemaDescr, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLatest")
 	ret0, _ := ret[0].(SchemaDescr)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
