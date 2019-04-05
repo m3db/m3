@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
-	"github.com/stretchr/testify/assert"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -244,7 +244,7 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 
 	reg := namespace.ToProto(nsMap)
 	require.Len(t, reg.Namespaces, 1)
-	assert.Equal(t,
+	require.Equal(t,
 		!namespace.NewOptions().SnapshotEnabled(),
 		reg.Namespaces["ns1"].SnapshotEnabled,
 	)
@@ -266,7 +266,7 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 
 	md, err := nsMap.Get(ident.StringID("testns1"))
 	require.NoError(t, err)
-	assert.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
+	require.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
