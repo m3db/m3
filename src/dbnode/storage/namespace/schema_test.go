@@ -34,13 +34,13 @@ func TestLoadSchemaRegistry(t *testing.T) {
 	testSchemaReg, err := LoadSchemaRegistry(testSchemaOptions)
 	require.NoError(t, err)
 
-	testSchema, err := testSchemaReg.Get("first")
-	require.NoError(t, err)
+	testSchema, found := testSchemaReg.Get("first")
+	require.True(t, found)
 	require.NotNil(t, testSchema)
 	require.EqualValues(t, testSchemaOptions.DefaultMessageName, testSchema.Get().GetFullyQualifiedName())
 
-	latestSchema, err := testSchemaReg.GetLatest()
-	require.NoError(t, err)
+	latestSchema, found := testSchemaReg.GetLatest()
+	require.True(t, found)
 	require.NotNil(t, latestSchema)
 	require.EqualValues(t, testSchemaOptions.DefaultMessageName, latestSchema.Get().GetFullyQualifiedName())
 }
@@ -106,5 +106,5 @@ func TestInvalidSchemaOptions(t *testing.T) {
 func TestParseNotProto3(t *testing.T) {
 	_, err := parseProto("mainpkg/notproto3.proto", "schematest")
 	require.Error(t, err)
-	require.Equal(t, errSyncNotProto3, xerrors.InnerError(err))
+	require.Equal(t, errSyntaxNotProto3, xerrors.InnerError(err))
 }

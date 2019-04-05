@@ -12,6 +12,7 @@ message SchemaOptions {
 // SchemaHistory is versioned FileDescriptorSet.
 message SchemaHistory {
     // versions is a list of FileDescriptorSet sorted by version in ascending order.
+    // the list is a linked list and we use FileDescriptorSet.prevId to ensure the order is ascending.
     repeated FileDescriptorSet versions = 1;
 }
 

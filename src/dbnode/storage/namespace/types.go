@@ -23,7 +23,6 @@ package namespace
 import (
 	"time"
 
-	"github.com/jhump/protoreflect/desc"
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3x/ident"
@@ -116,7 +115,7 @@ type SchemaDescr interface {
 	// DeployId returns the deploy id of the schema.
 	DeployId() string
 	// Get returns the message descriptor for the schema.
-	Get() *desc.MessageDescriptor
+	Get() MessageDescriptor
 	// String returns the compact text of the message descriptor.
 	String() string
 	// Equal returns true if the provided value is equal to this one.
@@ -129,10 +128,10 @@ type SchemaRegistry interface {
 	Equal(SchemaRegistry) bool
 
 	// Get gets the schema descriptor for the specified deploy id.
-	Get(id string) (SchemaDescr, error)
+	Get(id string) (SchemaDescr, bool)
 
 	// GetLatest gets the latest version of schema descriptor.
-	GetLatest() (SchemaDescr, error)
+	GetLatest() (SchemaDescr, bool)
 
 }
 

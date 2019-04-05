@@ -34,11 +34,10 @@ import (
 
 var (
 	errInvalidSchema        = errors.New("invalid schema definition")
-	errSchemaNotFound       = errors.New("schema is not found")
 	errSchemaRegistryEmpty  = errors.New("schema registry is empty")
 	errInvalidSchemaOptions = errors.New("invalid schema options")
 	errEmptyProtoFile       = errors.New("empty proto file")
-	errSyncNotProto3        = errors.New("proto sync is not proto3")
+	errSyntaxNotProto3      = errors.New("proto syntax is not proto3")
 )
 
 type schemaDescr struct {
@@ -63,8 +62,12 @@ func (s *schemaDescr) Equal(o SchemaDescr) bool {
 	return s.DeployId() == o.DeployId()
 }
 
-func (s *schemaDescr) Get() *desc.MessageDescriptor {
-	return s.md
+type MessageDescriptor struct {
+	*desc.MessageDescriptor
+}
+
+func (s *schemaDescr) Get() MessageDescriptor {
+	return MessageDescriptor{s.md}
 }
 
 func (s *schemaDescr) String() string {
@@ -84,12 +87,6 @@ type schemaRegistry struct {
 func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 	var osr *schemaRegistry
 	var ok bool
-	if sr == nil && o == nil {
-		return true
-	}
-	if sr != nil && o == nil || sr == nil && o != nil {
-		return false
-	}
 
 	if osr, ok = o.(*schemaRegistry); !ok {
 		return false
@@ -116,15 +113,15 @@ func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 	return true
 }
 
-func (sr *schemaRegistry) Get(id string) (SchemaDescr, error) {
+func (sr *schemaRegistry) Get(id string) (SchemaDescr, bool) {
 	sd, ok := sr.versions[id]
 	if !ok {
-		return nil, errSchemaNotFound
+		return nil, false
 	}
-	return sd, nil
+	return sd, true
 }
 
-func (sr *schemaRegistry) GetLatest() (SchemaDescr, error) {
+func (sr *schemaRegistry) GetLatest() (SchemaDescr, bool) {
 	return sr.Get(sr.latestId)
 }
 
@@ -189,7 +186,7 @@ func loadFileDescriptorSet(fdSet *nsproto.FileDescriptorSet, msgName string) (*s
 			return nil, xerrors.Wrapf(err, "failed to create file descriptor(%d) in version(%s)", i, fdSet.DeployId)
 		}
 		if !fd.IsProto3() {
-			return nil, xerrors.Wrapf(errSyncNotProto3, "file descriptor(%s) is not proto3", fd.GetFullyQualifiedName())
+			return nil, xerrors.Wrapf(errSyntaxNotProto3, "file descriptor(%s) is not proto3", fd.GetFullyQualifiedName())
 		}
 		curfd = fd
 		dependencies = append(dependencies, curfd)
@@ -233,7 +230,7 @@ func parseProto(protoFile string, importPaths ...string) ([]*desc.FileDescriptor
 		return nil, xerrors.Wrapf(errEmptyProtoFile, "proto file (%s) can not be parsed", protoFile)
 	}
 	if !fds[0].IsProto3() {
-		return nil, xerrors.Wrapf(errSyncNotProto3, "proto file (%s) is not proto3", protoFile)
+		return nil, xerrors.Wrapf(errSyntaxNotProto3, "proto file (%s) is not proto3", protoFile)
 	}
 	return genDependencyDescriptors(fds[0]), nil
 }
