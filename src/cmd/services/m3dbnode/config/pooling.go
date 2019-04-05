@@ -126,12 +126,12 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"bufferBucket": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"bufferBucketVersions": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
