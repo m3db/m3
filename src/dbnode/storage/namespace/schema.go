@@ -235,7 +235,7 @@ func genDependencyDescriptors(infd *desc.FileDescriptor) []*desc.FileDescriptor 
 		depPairs = append(depPairs, pair{fd: dep, depCount: len(dep.GetDependencies())})
 	}
 	sort.Slice(depPairs, func(i, j int) bool {
-			return depPairs[i].depCount < depPairs[j].depCount
+		return depPairs[i].depCount < depPairs[j].depCount
 	})
 	for _, p := range depPairs {
 		depfds = append(depfds, p.fd)

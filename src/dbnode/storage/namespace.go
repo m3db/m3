@@ -399,8 +399,9 @@ func (n *dbNamespace) Shards() []Shard {
 
 func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
 	n.RLock()
-	defer n.RUnlock()
-	return n.schemaRegistry
+	sr := n.schemaRegistry
+	n.RUnlock()
+	return sr
 }
 
 func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
@@ -409,8 +410,8 @@ func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
 	}
 
 	n.Lock()
-	defer n.Unlock()
 	n.schemaRegistry = v
+	n.Unlock()
 	return nil
 }
 
