@@ -30,6 +30,7 @@ import (
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
+	"sort"
 )
 
 var (
@@ -223,10 +224,21 @@ func decodeFileDescriptorProto(fdb []byte) (*dpb.FileDescriptorProto, error) {
 
 func genDependencyDescriptors(infd *desc.FileDescriptor) []*desc.FileDescriptor {
 	var depfds []*desc.FileDescriptor
-	for _, d := range infd.GetDependencies() {
-		for _, dfd := range genDependencyDescriptors(d) {
-			depfds = append(depfds, dfd)
-		}
+
+	// sort dependency by dependency count should gets us topological order.
+	type pair struct {
+		fd       *desc.FileDescriptor
+		depCount int
+	}
+	var depPairs []pair
+	for _, dep := range infd.GetDependencies() {
+		depPairs = append(depPairs, pair{fd: dep, depCount: len(dep.GetDependencies())})
+	}
+	sort.Slice(depPairs, func(i, j int) bool {
+			return depPairs[i].depCount < depPairs[j].depCount
+	})
+	for _, p := range depPairs {
+		depfds = append(depfds, p.fd)
 	}
 	depfds = append(depfds, infd)
 	return depfds

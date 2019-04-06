@@ -49,10 +49,25 @@ func TestParseProto(t *testing.T) {
 	out, err := parseProto("mainpkg/main.proto", "schematest")
 	require.NoError(t, err)
 	require.Len(t, out, 3)
+	for _, o := range out {
+		t.Log(o.GetFullyQualifiedName())
+	}
 	require.NotNil(t, out[0].FindMessage("mainpkg.ImportedMessage"))
 	require.NotNil(t, out[1].FindMessage("otherpkg.MessageFromOtherPkg"))
 	require.NotNil(t, out[2].FindMessage("mainpkg.NestedMessage"))
 	require.NotNil(t, out[2].FindMessage("mainpkg.TestMessage"))
+}
+
+func TestDedupDependency(t *testing.T) {
+	out, err := parseProto("deduppkg/main.proto", "schematest")
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+	for _, o := range out {
+		t.Log(o.GetFullyQualifiedName())
+	}
+	require.NotNil(t, out[0].FindMessage("otherpkg.MessageFromOtherPkg"))
+	require.NotNil(t, out[1].FindMessage("deduppkg.ImportedMessage"))
+	require.NotNil(t, out[2].FindMessage("deduppkg.TestMessage"))
 }
 
 func TestInvalidSchemaOptions(t *testing.T) {
