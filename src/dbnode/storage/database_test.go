@@ -614,11 +614,11 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
+	sr, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions("namespace/schematest"))
+
 	// construct new namespace Map
 	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
 	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
-	require.NoError(t, err)
-	sr, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions("namespace/schematest"))
 	require.NoError(t, err)
 	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts.SetSchemaRegistry(sr))
 	require.NoError(t, err)
@@ -645,9 +645,7 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 
 	actualSchema, found := ns2.SchemaRegistry().GetLatest()
 	require.True(t, found)
-	require.NotNil(t, actualSchema)
-	expectedSchema, found := sr.GetLatest()
-	require.True(t, found)
+	expectedSchema, _ := sr.GetLatest()
 	require.True(t, expectedSchema.Equal(actualSchema))
 }
 
