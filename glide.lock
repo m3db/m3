@@ -207,6 +207,12 @@ imports:
   version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jhump/protoreflect
+  version: 8bfeffd6b414f964a56d8a0118b5f80906a59def
+  subpackages:
+  - desc
+  - desc/internal
+  - internal
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/leanovate/gopter

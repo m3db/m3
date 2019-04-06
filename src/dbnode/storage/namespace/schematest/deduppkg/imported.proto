@@ -1,0 +1,25 @@
+syntax = "proto3";
+package deduppkg;
+
+import "otherpkg/otherpkg.proto";
+import "deduppkg/indirect.proto";
+
+message ImportedMessage {
+    int32 a_int32       = 1;
+    int64 a_int64       = 2;
+    uint32 a_uint32     = 3;
+    uint64 a_uint64     = 4;
+    sint32 a_sint32     = 5;
+    sint64 a_sint64     = 6;
+    fixed32 a_fixed32   = 7;
+    fixed64 a_fixed64   = 8;
+    sfixed32 a_sfixed32 = 9;
+    sfixed64 a_sfixed64 = 10;
+    bool a_bool         = 11;
+    string a_string     = 12;
+    bytes a_bytes       = 13;
+    double a_double     = 14;
+    float a_float       = 15;
+    otherpkg.MessageFromOtherPkg a_message_from_other_pkg  = 16;
+    IndirectMessage an_indirect_message                    = 17;
+}

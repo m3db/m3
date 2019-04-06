@@ -60,6 +60,9 @@ import:
   - package: github.com/gogo/protobuf
     version: ^1
 
+  - package: github.com/jhump/protoreflect
+    version: 6feecbc20c4c369d6494c59ac5aee5d0df3c9d80
+
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
 
