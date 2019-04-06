@@ -58,16 +58,31 @@ func TestParseProto(t *testing.T) {
 	require.NotNil(t, out[2].FindMessage("mainpkg.TestMessage"))
 }
 
-func TestDedupDependency(t *testing.T) {
+func TestDistinctIndirectDependency(t *testing.T) {
 	out, err := parseProto("deduppkg/main.proto", "schematest")
 	require.NoError(t, err)
-	require.Len(t, out, 3)
+	require.Len(t, out, 4)
 	for _, o := range out {
 		t.Log(o.GetFullyQualifiedName())
 	}
 	require.NotNil(t, out[0].FindMessage("otherpkg.MessageFromOtherPkg"))
-	require.NotNil(t, out[1].FindMessage("deduppkg.ImportedMessage"))
-	require.NotNil(t, out[2].FindMessage("deduppkg.TestMessage"))
+	require.NotNil(t, out[1].FindMessage("deduppkg.IndirectMessage"))
+	require.NotNil(t, out[2].FindMessage("deduppkg.ImportedMessage"))
+	require.NotNil(t, out[3].FindMessage("deduppkg.TestMessage"))
+
+	// test it can be loaded back correctly
+	dlist, _ := marshalFileDescriptors(out)
+
+	schemaOpt := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "deduppkg.TestMessage",
+	}
+	_, err = LoadSchemaRegistry(schemaOpt)
+	require.NoError(t, err)
 }
 
 func TestInvalidSchemaOptions(t *testing.T) {

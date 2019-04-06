@@ -1,10 +1,7 @@
 syntax = "proto3";
 package deduppkg;
 
-import "otherpkg/otherpkg.proto";
-import "deduppkg/indirect.proto";
-
-message ImportedMessage {
+message IndirectMessage {
     int32 a_int32       = 1;
     int64 a_int64       = 2;
     uint32 a_uint32     = 3;
@@ -20,6 +17,4 @@ message ImportedMessage {
     bytes a_bytes       = 13;
     double a_double     = 14;
     float a_float       = 15;
-    otherpkg.MessageFromOtherPkg a_message_from_other_pkg  = 16;
-    IndirectMessage an_indirect_message                    = 17;
 }
