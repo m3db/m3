@@ -30,7 +30,6 @@ import (
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
-	"sort"
 )
 
 var (
@@ -222,25 +221,26 @@ func decodeFileDescriptorProto(fdb []byte) (*dpb.FileDescriptorProto, error) {
 	return &fd, nil
 }
 
+// genDependencyDescriptors produces a topological sort of the dependency descriptors for the provided
+// file descriptor, the result contains the input file descriptor as the last in the slice,
+// the result contains indirect dependencies as well, dependencies in the return are distinct.
 func genDependencyDescriptors(infd *desc.FileDescriptor) []*desc.FileDescriptor {
 	var depfds []*desc.FileDescriptor
+	dedup := make(map[string]struct{})
 
-	// sort dependency by dependency count should gets us topological order.
-	type pair struct {
-		fd       *desc.FileDescriptor
-		depCount int
-	}
-	var depPairs []pair
 	for _, dep := range infd.GetDependencies() {
-		depPairs = append(depPairs, pair{fd: dep, depCount: len(dep.GetDependencies())})
+		depfs2 := genDependencyDescriptors(dep)
+		for _, fd := range depfs2 {
+			if _, ok := dedup[fd.GetFullyQualifiedName()]; !ok {
+				dedup[fd.GetFullyQualifiedName()] = struct{}{}
+				depfds = append(depfds, fd)
+			}
+		}
 	}
-	sort.Slice(depPairs, func(i, j int) bool {
-		return depPairs[i].depCount < depPairs[j].depCount
-	})
-	for _, p := range depPairs {
-		depfds = append(depfds, p.fd)
+	if _, ok := dedup[infd.GetFullyQualifiedName()]; !ok {
+		depfds = append(depfds, infd)
+		dedup[infd.GetFullyQualifiedName()] = struct{}{}
 	}
-	depfds = append(depfds, infd)
 	return depfds
 }
 
