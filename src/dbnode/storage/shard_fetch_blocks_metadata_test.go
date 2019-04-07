@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"

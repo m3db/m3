@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	xsync "github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"google.golang.org/grpc"
 )

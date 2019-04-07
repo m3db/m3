@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // FetchRange is a fetch range.

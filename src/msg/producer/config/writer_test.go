@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -66,7 +66,7 @@ readBufferSize: 200
 func TestWriterConfiguration(t *testing.T) {
 	str := `
 topicName: testTopic
-topicServiceOverride: 
+topicServiceOverride:
   zone: z1
   namespace: n1
 topicWatchInitTimeout: 1s
@@ -83,7 +83,7 @@ messageQueueFullScanInterval: 10s
 messageQueueScanBatchSize: 1024
 initialAckMapSize: 1024
 closeCheckInterval: 2s
-ackErrorRetry: 
+ackErrorRetry:
   initialBackoff: 2ms
 connection:
   dialTimeout: 5s

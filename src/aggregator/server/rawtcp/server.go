@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3x/log"
-	xserver "github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/log"
+	xserver "github.com/m3db/m3/src/x/server"
 
 	"github.com/uber-go/tally"
 )

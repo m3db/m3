@@ -36,9 +36,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xlog "github.com/m3db/m3/src/x/log"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

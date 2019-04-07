@@ -25,7 +25,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/ctl/auth"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 )
 
 type r2HandlerFunc func(http.ResponseWriter, *http.Request) error

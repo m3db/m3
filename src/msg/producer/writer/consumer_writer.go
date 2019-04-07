@@ -30,9 +30,9 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"

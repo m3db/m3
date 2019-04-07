@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

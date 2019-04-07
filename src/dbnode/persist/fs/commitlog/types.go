@@ -27,11 +27,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Strategy describes the commit log writing strategy

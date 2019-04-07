@@ -23,11 +23,11 @@ package ingestm3msg
 import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/sampler"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const defaultLogSampleRate = 0.01

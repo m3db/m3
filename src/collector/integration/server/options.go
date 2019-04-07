@@ -24,8 +24,8 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3x/instrument"
-	xserver "github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/instrument"
+	xserver "github.com/m3db/m3/src/x/server"
 )
 
 const (

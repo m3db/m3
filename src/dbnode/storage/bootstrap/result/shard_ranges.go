@@ -26,7 +26,7 @@ import (
 	"sort"
 	"time"
 
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewShardTimeRanges returns a new ShardTimeRanges with provided shards and time range.

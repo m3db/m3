@@ -38,10 +38,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xclose "github.com/m3db/m3x/close"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
+	xclose "github.com/m3db/m3/src/x/close"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 )

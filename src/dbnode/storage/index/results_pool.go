@@ -20,7 +20,7 @@
 
 package index
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 type resultsPool struct {
 	pool pool.ObjectPool

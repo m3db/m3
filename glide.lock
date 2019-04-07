@@ -225,36 +225,6 @@ imports:
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
-- name: github.com/m3db/m3x
-  version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
-  vcs: git
-  subpackages:
-  - checked
-  - clock
-  - close
-  - config
-  - config/hostid
-  - config/listenaddress
-  - context
-  - errors
-  - ident
-  - ident/testutil
-  - instrument
-  - log
-  - net
-  - pool
-  - pprof
-  - process
-  - resource
-  - retry
-  - sampler
-  - server
-  - sync
-  - tcp
-  - test
-  - time
-  - unsafe
-  - watch
 - name: github.com/m3db/pilosa
   version: ac8920c6e1abe06e2b0a3deba79a9910c39700e6
   subpackages:

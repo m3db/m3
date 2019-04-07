@@ -52,12 +52,12 @@ import (
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3/src/m3em/node"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	m3xclock "github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xtcp "github.com/m3db/m3x/tcp"
+	m3xclock "github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
+	xtcp "github.com/m3db/m3/src/x/tcp"
 
 	"github.com/gogo/protobuf/proto"
 )

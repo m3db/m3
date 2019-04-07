@@ -25,8 +25,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
-	xclose "github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/context"
+	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/uber/tchannel-go"
 )

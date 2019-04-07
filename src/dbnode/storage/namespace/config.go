@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // MapConfiguration is the configuration for a registry of namespaces

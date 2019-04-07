@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 type indexReader struct {

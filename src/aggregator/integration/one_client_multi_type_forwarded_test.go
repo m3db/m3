@@ -31,8 +31,8 @@ import (
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3x/clock"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )

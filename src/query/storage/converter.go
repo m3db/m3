@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xcost "github.com/m3db/m3/src/x/cost"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (

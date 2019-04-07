@@ -24,7 +24,7 @@ import (
 	"errors"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"

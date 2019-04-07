@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3em/node"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 const (

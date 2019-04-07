@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	xerrors "github.com/m3db/m3x/errors"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // DownsampleAndWriteIter is an interface that can be implemented to use

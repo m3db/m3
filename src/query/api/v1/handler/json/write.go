@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )

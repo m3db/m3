@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (

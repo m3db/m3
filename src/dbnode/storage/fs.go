@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 type fileOpStatus int

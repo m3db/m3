@@ -1,7 +1,0 @@
-(vendor/)
-(proto/)
-(gen-go/)
-(mocks/)
-(.pb.go)
-(_mock.go)
-(_gen.go)

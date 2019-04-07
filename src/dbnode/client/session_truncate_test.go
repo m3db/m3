@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

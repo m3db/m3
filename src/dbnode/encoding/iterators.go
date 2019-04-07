@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (

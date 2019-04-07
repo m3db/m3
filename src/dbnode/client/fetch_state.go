@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type fetchStateType byte

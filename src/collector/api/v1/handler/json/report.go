@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

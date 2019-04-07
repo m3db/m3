@@ -31,8 +31,8 @@ import (
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

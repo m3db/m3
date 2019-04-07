@@ -32,9 +32,9 @@ import (
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
-	"github.com/m3db/m3x/config/hostid"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/config/hostid"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/etcd/pkg/transport"

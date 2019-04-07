@@ -31,8 +31,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"

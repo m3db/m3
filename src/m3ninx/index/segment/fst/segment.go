@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	pilosaroaring "github.com/m3db/pilosa/roaring"
 
 	"github.com/couchbase/vellum"

@@ -30,8 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )

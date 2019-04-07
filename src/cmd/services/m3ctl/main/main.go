@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/ctl/server/http"
 	"github.com/m3db/m3/src/ctl/service/health"
 	"github.com/m3db/m3/src/ctl/service/r2"
-	"github.com/m3db/m3x/clock"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

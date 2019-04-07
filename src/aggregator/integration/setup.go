@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	xsync "github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"

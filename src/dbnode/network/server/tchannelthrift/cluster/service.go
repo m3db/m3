@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber/tchannel-go/thrift"
 )

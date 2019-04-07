@@ -20,7 +20,7 @@
 
 package aggregation
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 // TypesAlloc allocates new aggregation types.
 type TypesAlloc func() Types

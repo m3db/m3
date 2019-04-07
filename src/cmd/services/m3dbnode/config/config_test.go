@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/environment"
 	xtest "github.com/m3db/m3/src/x/test"
-	xconfig "github.com/m3db/m3x/config"
+	xconfig "github.com/m3db/m3/src/x/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

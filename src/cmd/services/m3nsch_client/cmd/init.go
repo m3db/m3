@@ -25,8 +25,8 @@ import (
 	"log"
 
 	"github.com/m3db/m3/src/m3nsch/coordinator"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/spf13/cobra"
 )

@@ -24,8 +24,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/server"
 )
 
 type consumerHandler struct {

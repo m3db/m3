@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )

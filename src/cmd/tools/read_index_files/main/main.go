@@ -35,8 +35,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/ident"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/getopt"
 )

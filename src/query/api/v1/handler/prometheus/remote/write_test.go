@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/util/logging"
-	xclock "github.com/m3db/m3x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

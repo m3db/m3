@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/topology"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/retry"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
