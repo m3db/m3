@@ -34,11 +34,12 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/config/listenaddress"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/opentracing"
 )
 
 // BackendStorageType is an enum for different backends.
@@ -71,7 +72,7 @@ type Configuration struct {
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
-	Tracing instrument.TracingConfiguration `yaml:"tracing"`
+	Tracing opentracing.TracingConfiguration `yaml:"tracing"`
 
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.

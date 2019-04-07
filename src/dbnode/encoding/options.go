@@ -22,8 +22,8 @@ package encoding
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (

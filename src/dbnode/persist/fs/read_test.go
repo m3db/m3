@@ -35,9 +35,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

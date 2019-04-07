@@ -33,8 +33,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"

@@ -28,8 +28,8 @@ import (
 	"time"
 
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
-	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"google.golang.org/grpc"
 )

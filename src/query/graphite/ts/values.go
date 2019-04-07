@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
 	xts "github.com/m3db/m3/src/query/ts"
-	xpool "github.com/m3db/m3x/pool"
+	xpool "github.com/m3db/m3/src/x/pool"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface

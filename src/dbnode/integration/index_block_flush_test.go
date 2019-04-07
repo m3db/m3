@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

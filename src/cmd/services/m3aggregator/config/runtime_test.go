@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

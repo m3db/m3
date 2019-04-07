@@ -24,8 +24,8 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/watch"
 )
 
 // Value is a value that can be updated during runtime.

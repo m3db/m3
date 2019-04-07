@@ -31,8 +31,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/unsafe"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
 const (

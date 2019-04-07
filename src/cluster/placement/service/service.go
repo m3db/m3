@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/algo"
 	"github.com/m3db/m3/src/cluster/placement/selector"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 )
 
 type placementService struct {

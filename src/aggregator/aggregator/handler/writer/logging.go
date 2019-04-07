@@ -22,7 +22,7 @@ package writer
 
 import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 )
 
 type loggingWriter struct {

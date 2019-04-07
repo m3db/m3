@@ -4,22 +4,8 @@ include $(SELF_DIR)/../../.ci/common.mk
 gopath_prefix        := $(GOPATH)/src
 m3db_package         := github.com/m3db/m3
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
-m3x_package          := github.com/m3db/m3x
+m3x_package          := github.com/m3db/m3/src/x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver  := 76a586220279667a81eaaec4150de182f4d5077c
-
-.PHONY: install-m3x-repo
-install-m3x-repo: install-glide
-	# Check if repository exists, if not get it
-	test -d $(m3x_package_path) || go get -u $(m3x_package)
-	test -d $(m3x_package_path)/vendor || (cd $(m3x_package_path) && glide install)
-	test "$(shell cd $(m3x_package_path) && git diff --shortstat 2>/dev/null)" = "" || ( \
-		echo "WARNING: m3x repository is dirty, generated files might not be as expected" \
-	)
-	# If does exist but not at min version then update it
-	(cd $(m3x_package_path) && git cat-file -t $(m3x_package_min_ver) > /dev/null) || ( \
-		echo "WARNING: m3x repository is below commit $(m3x_package_min_ver), generated files might not be as expected" \
-	)
 
 # Generation rule for all generated types
 .PHONY: genny-all
@@ -41,7 +27,7 @@ genny-map-all:                                \
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
-genny-map-client-received-blocks: install-m3x-repo
+genny-map-client-received-blocks:
 	cd $(m3x_package_path) && make hashmap-gen         \
 		pkg=client                                       \
 		key_type=idAndBlockStart                         \
@@ -53,7 +39,7 @@ genny-map-client-received-blocks: install-m3x-repo
 
 # Map generation rule for storage/block/retrieverMap
 .PHONY: genny-map-storage-block-retriever
-genny-map-storage-block-retriever: install-m3x-repo
+genny-map-storage-block-retriever:
 	cd $(m3x_package_path) && make idhashmap-gen              \
 		pkg=block                                               \
 		value_type=DatabaseBlockRetriever                       \
@@ -67,7 +53,7 @@ genny-map-storage-block-retriever: install-m3x-repo
 
 # Map generation rule for storage/bootstrap/result/Map
 .PHONY: genny-map-storage-bootstrap-result
-genny-map-storage-bootstrap-result: install-m3x-repo
+genny-map-storage-bootstrap-result:
 	cd $(m3x_package_path) && make idhashmap-gen              \
 		pkg=result                                              \
 		value_type=DatabaseSeriesBlocks                         \
@@ -82,7 +68,7 @@ genny-map-storage:                      \
 
 # Map generation rule for storage/databaseNamespacesMap
 .PHONY: genny-map-storage-database-namespaces
-genny-map-storage-database-namespaces: install-m3x-repo
+genny-map-storage-database-namespaces:
 	cd $(m3x_package_path) && make idhashmap-gen              \
 		pkg=storage                                             \
 		value_type=databaseNamespace                            \
@@ -96,7 +82,7 @@ genny-map-storage-database-namespaces: install-m3x-repo
 
 # Map generation rule for storage/shardMap
 .PHONY: genny-map-storage-shard
-genny-map-storage-shard: install-m3x-repo
+genny-map-storage-shard:
 	cd $(m3x_package_path) && make idhashmap-gen        \
 		pkg=storage                                       \
 		value_type=shardListElement                       \
@@ -110,7 +96,7 @@ genny-map-storage-shard: install-m3x-repo
 
 # Map generation rule for storage/namespace/metadataMap
 .PHONY: genny-map-storage-namespace-metadata
-genny-map-storage-namespace-metadata: install-m3x-repo
+genny-map-storage-namespace-metadata:
 	cd $(m3x_package_path) && make idhashmap-gen                  \
 		pkg=namespace                                               \
 		value_type=Metadata                                         \
@@ -124,7 +110,7 @@ genny-map-storage-namespace-metadata: install-m3x-repo
 
 # Map generation rule for storage/repair/Map
 .PHONY: genny-map-storage-repair
-genny-map-storage-repair: install-m3x-repo
+genny-map-storage-repair:
 	cd $(m3x_package_path) && make idhashmap-gen    \
 		pkg=repair                                    \
 		value_type=ReplicaSeriesBlocksMetadata        \
@@ -132,7 +118,7 @@ genny-map-storage-repair: install-m3x-repo
 
 # Map generation rule for storage/bootstrap/bootstrapper/commitlog
 .PHONY: genny-map-storage-bootstrap-bootstrapper-commitlog
-genny-map-storage-bootstrap-bootstrapper-commitlog: install-m3x-repo
+genny-map-storage-bootstrap-bootstrapper-commitlog:
 	cd $(m3x_package_path) && make idhashmap-gen                                         \
 		pkg=commitlog                                                                      \
 		value_type=metadataAndEncodersByTime                                               \
@@ -145,7 +131,7 @@ genny-map-storage-bootstrap-bootstrapper-commitlog: install-m3x-repo
 
 # Map generation rule for storage/index/ResultsMap
 .PHONY: genny-map-storage-index-results
-genny-map-storage-index-results: install-m3x-repo
+genny-map-storage-index-results:
 	cd $(m3x_package_path) && make hashmap-gen                \
 		pkg=index                                               \
 		key_type=ident.ID                                       \
@@ -159,7 +145,7 @@ genny-map-storage-index-results: install-m3x-repo
 
 # Map generation rule for storage/index/AggregateValuesMap
 .PHONY: genny-map-storage-index-aggregate-values
-genny-map-storage-index-aggregate-values: install-m3x-repo
+genny-map-storage-index-aggregate-values:
 	cd $(m3x_package_path) && make hashmap-gen \
 		pkg=index                                \
 		key_type=ident.ID                        \
@@ -173,7 +159,7 @@ genny-map-storage-index-aggregate-values: install-m3x-repo
 
 # Map generation rule for storage/index/AggregateResultsMap
 .PHONY: genny-map-storage-index-aggregation-results
-genny-map-storage-index-aggregation-results: install-m3x-repo genny-map-storage-index-aggregate-values
+genny-map-storage-index-aggregation-results: genny-map-storage-index-aggregate-values
 	cd $(m3x_package_path) && make idhashmap-gen  \
 		pkg=index                                   \
 		value_type=AggregateValues                  \
@@ -190,7 +176,7 @@ genny-arraypool-all: genny-arraypool-node-segments
 
 # arraypool generation rule for ./network/server/tchannelthrift/node/segmentsArrayPool
 .PHONY: genny-arraypool-node-segments
-genny-arraypool-node-segments: install-m3x-repo
+genny-arraypool-node-segments:
 	cd $(m3x_package_path) && make genny-arraypool                               \
 	pkg=node                                                                     \
 	elem_type=*rpc.Segments                                                      \
@@ -211,7 +197,7 @@ genny-leakcheckpool-all:                   \
 
 # leakcheckpool generation rule for ./client/fetchTaggedAttemptPool
 .PHONY: genny-leakcheckpool-fetch-tagged-attempt
-genny-leakcheckpool-fetch-tagged-attempt: install-m3x-repo
+genny-leakcheckpool-fetch-tagged-attempt:
 	cd $(m3x_package_path) && make genny-leakcheckpool      \
 	pkg=client                                              \
 	elem_type=*fetchTaggedAttempt                           \
@@ -221,7 +207,7 @@ genny-leakcheckpool-fetch-tagged-attempt: install-m3x-repo
 
 # leakcheckpool generation rule for ./client/fetchStatePool
 .PHONY: genny-leakcheckpool-fetch-state
-genny-leakcheckpool-fetch-state: install-m3x-repo
+genny-leakcheckpool-fetch-state:
 	cd $(m3x_package_path) && make genny-leakcheckpool \
 	pkg=client                                         \
 	elem_type=*fetchState                              \
@@ -231,7 +217,7 @@ genny-leakcheckpool-fetch-state: install-m3x-repo
 
 # leakcheckpool generation rule for ./client/fetchTaggedOp
 .PHONY: genny-leakcheckpool-fetch-tagged-op
-genny-leakcheckpool-fetch-tagged-op: install-m3x-repo
+genny-leakcheckpool-fetch-tagged-op:
 	cd $(m3x_package_path) && make genny-leakcheckpool  \
 	pkg=client                                          \
 	elem_type=*fetchTaggedOp                            \
@@ -241,7 +227,7 @@ genny-leakcheckpool-fetch-tagged-op: install-m3x-repo
 
 # leakcheckpool generation rule for ./client/aggregateOp
 .PHONY: genny-leakcheckpool-aggregate-op
-genny-leakcheckpool-aggregate-op: install-m3x-repo
+genny-leakcheckpool-aggregate-op:
 	cd $(m3x_package_path) && make genny-leakcheckpool  \
 	pkg=client                                          \
 	elem_type=*aggregateOp                              \
@@ -251,7 +237,7 @@ genny-leakcheckpool-aggregate-op: install-m3x-repo
 
 # leakcheckpool generation rule for ./client/aggregateAttemptPool
 .PHONY: genny-leakcheckpool-aggregate-attempt
-genny-leakcheckpool-aggregate-attempt: install-m3x-repo
+genny-leakcheckpool-aggregate-attempt:
 	cd $(m3x_package_path) && make genny-leakcheckpool      \
 	pkg=client                                              \
 	elem_type=*aggregateAttempt                             \

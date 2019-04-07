@@ -22,7 +22,7 @@ package fst
 
 import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/couchbase/vellum"
 )

@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/ident"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/getopt"
 )

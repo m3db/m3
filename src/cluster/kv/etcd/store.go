@@ -29,9 +29,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
 	"github.com/m3db/m3/src/cluster/kv"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/golang/protobuf/proto"

@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )

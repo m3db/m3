@@ -20,7 +20,7 @@
 
 package policy
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 // PoliciesPool provides a pool for variable-sized policy slices.
 type PoliciesPool interface {

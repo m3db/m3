@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
-	"github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 type store struct {

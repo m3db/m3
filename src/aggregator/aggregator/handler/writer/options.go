@@ -21,9 +21,9 @@
 package writer
 
 import (
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (

@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/tchannel"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 var (

@@ -41,9 +41,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xretry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
+	xretry "github.com/m3db/m3/src/x/retry"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"

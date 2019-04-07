@@ -25,7 +25,7 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/dtest/config"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/spf13/cobra"
 )

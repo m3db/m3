@@ -36,9 +36,9 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	etcdheartbeat "github.com/m3db/m3/src/cluster/services/heartbeat/etcd"
 	"github.com/m3db/m3/src/cluster/services/leader"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/uber-go/tally"

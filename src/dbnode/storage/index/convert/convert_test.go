@@ -24,8 +24,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

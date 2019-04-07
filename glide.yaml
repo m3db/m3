@@ -1,20 +1,5 @@
 package: github.com/m3db/m3
 import:
-  - package: github.com/m3db/m3x
-    version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
-    vcs: git
-    subpackages:
-      - checked
-      - close
-      - errors
-      - instrument
-      - log
-      - pool
-      - retry
-      - time
-      - watch
-      - ident
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 

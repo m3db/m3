@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 const (

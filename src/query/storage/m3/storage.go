@@ -37,8 +37,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-	"github.com/m3db/m3x/ident"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (

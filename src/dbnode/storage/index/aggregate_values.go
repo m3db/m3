@@ -23,8 +23,8 @@ package index
 import (
 	"errors"
 
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (

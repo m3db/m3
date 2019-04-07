@@ -22,7 +22,7 @@ package cost
 
 import (
 	"github.com/m3db/m3/src/cluster/kv/util"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
 )

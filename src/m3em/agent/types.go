@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/os/exec"
-	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Agent is the remote executor of m3em operations

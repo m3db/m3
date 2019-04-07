@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/prometheus/common/model"
 )

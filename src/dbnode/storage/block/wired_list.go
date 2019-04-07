@@ -57,8 +57,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
 )

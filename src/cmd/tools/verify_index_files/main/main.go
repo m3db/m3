@@ -41,8 +41,8 @@ import (
 
 	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var flagParser = flag.NewFlagSet("Verify Index files", flag.ExitOnError)

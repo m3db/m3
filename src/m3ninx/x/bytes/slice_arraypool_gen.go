@@ -25,7 +25,7 @@
 package bytes
 
 import (
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // Copyright (c) 2018 Uber Technologies, Inc.

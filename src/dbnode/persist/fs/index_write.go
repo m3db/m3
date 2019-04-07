@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (

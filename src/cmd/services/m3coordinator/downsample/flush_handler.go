@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/instrument"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
 )

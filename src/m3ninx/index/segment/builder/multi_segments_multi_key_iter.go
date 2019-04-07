@@ -23,7 +23,7 @@ package builder
 import (
 	"bytes"
 
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 type keyIterator interface {

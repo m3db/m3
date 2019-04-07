@@ -28,8 +28,8 @@ import (
 	"time"
 
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
-	xclock "github.com/m3db/m3x/clock"
-	xlog "github.com/m3db/m3x/log"
+	xclock "github.com/m3db/m3/src/x/clock"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 type nodesWatcher struct {
