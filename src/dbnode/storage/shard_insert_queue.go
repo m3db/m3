@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/checked"
@@ -126,6 +127,7 @@ type dbShardPendingWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
+	wopts      series.WriteOptions
 }
 
 type dbShardPendingIndex struct {

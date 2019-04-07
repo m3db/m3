@@ -49,6 +49,7 @@ func ToRetention(
 
 	ropts := retention.NewOptions().
 		SetRetentionPeriod(fromNanos(ro.RetentionPeriodNanos)).
+		SetFutureRetentionPeriod(fromNanos(ro.FutureRetentionPeriodNanos)).
 		SetBlockSize(fromNanos(ro.BlockSizeNanos)).
 		SetBufferFuture(fromNanos(ro.BufferFutureNanos)).
 		SetBufferPast(fromNanos(ro.BufferPastNanos)).
@@ -111,7 +112,8 @@ func ToMetadata(
 		SetSnapshotEnabled(opts.SnapshotEnabled).
 		SetSchemaRegistry(sr).
 		SetRetentionOptions(ropts).
-		SetIndexOptions(iopts)
+		SetIndexOptions(iopts).
+		SetColdWritesEnabled(opts.ColdWritesEnabled)
 
 	return NewMetadata(ident.StringID(id), mopts)
 }
@@ -158,6 +160,7 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		RetentionOptions: &nsproto.RetentionOptions{
 			BlockSizeNanos:                           ropts.BlockSize().Nanoseconds(),
 			RetentionPeriodNanos:                     ropts.RetentionPeriod().Nanoseconds(),
+			FutureRetentionPeriodNanos:               ropts.FutureRetentionPeriod().Nanoseconds(),
 			BufferFutureNanos:                        ropts.BufferFuture().Nanoseconds(),
 			BufferPastNanos:                          ropts.BufferPast().Nanoseconds(),
 			BlockDataExpiry:                          ropts.BlockDataExpiry(),
@@ -167,5 +170,6 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 			Enabled:        iopts.Enabled(),
 			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
 		},
+		ColdWritesEnabled: opts.ColdWritesEnabled(),
 	}
 }

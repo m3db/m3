@@ -125,6 +125,16 @@ var (
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
+		"bufferBucket": poolPolicyDefault{
+			size:                65536,
+			refillLowWaterMark:  defaultRefillLowWaterMark,
+			refillHighWaterMark: defaultRefillHighWaterMark,
+		},
+		"bufferBucketVersions": poolPolicyDefault{
+			size:                65536,
+			refillLowWaterMark:  defaultRefillLowWaterMark,
+			refillHighWaterMark: defaultRefillHighWaterMark,
+		},
 
 		// Capacity pools.
 		"fetchBlockMetadataResults": poolPolicyDefault{
@@ -311,6 +321,12 @@ type PoolingPolicy struct {
 	// The policy for the WriteBatchPool.
 	WriteBatchPool WriteBatchPoolPolicy `yaml:"writeBatchPool"`
 
+	// The policy for the BufferBucket pool.
+	BufferBucketPool PoolPolicy `yaml:"bufferBucketPool"`
+
+	// The policy for the BufferBucketVersions pool.
+	BufferBucketVersionsPool PoolPolicy `yaml:"bufferBucketVersionsPool"`
+
 	// The policy for the PostingsListPool.
 	PostingsListPool PoolPolicy `yaml:"postingsListPool"`
 }
@@ -381,6 +397,12 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 		return err
 	}
 	if err := p.BytesPool.initDefaultsAndValidate("bytes"); err != nil {
+		return err
+	}
+	if err := p.BufferBucketPool.initDefaultsAndValidate("bufferBucket"); err != nil {
+		return err
+	}
+	if err := p.BufferBucketVersionsPool.initDefaultsAndValidate("bufferBucketVersions"); err != nil {
 		return err
 	}
 	return nil

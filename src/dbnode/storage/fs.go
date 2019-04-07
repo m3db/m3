@@ -39,6 +39,7 @@ const (
 
 type fileOpState struct {
 	Status      fileOpStatus
+	Version     int
 	NumFailures int
 }
 

@@ -342,14 +342,41 @@ func (s *dbShard) Stream(
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	switch flushState.Status {
+	return statusIsRetrievable(flushState.Status)
+}
+
+func statusIsRetrievable(status fileOpStatus) bool {
+	switch status {
 	case fileOpNotStarted, fileOpInProgress, fileOpFailed:
 		return false
 	case fileOpSuccess:
 		return true
 	}
 	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
-		flushState.Status))
+		status))
+}
+
+// RetrievableBlockVersion implements series.QueryableBlockRetriever
+func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
+	flushState := s.FlushState(blockStart)
+	return flushState.Version
+}
+
+// BlockStatesSnapshot implements series.QueryableBlockRetriever
+func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
+	s.flushState.RLock()
+	defer s.flushState.RUnlock()
+
+	states := s.flushState.statesByTime
+	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
+	for time, state := range states {
+		snapshot[time] = series.BlockState{
+			Retrievable: statusIsRetrievable(state.Status),
+			Version:     state.Version,
+		}
+	}
+
+	return snapshot
 }
 
 func (s *dbShard) OnRetrieveBlock(
@@ -617,6 +644,9 @@ func (s *dbShard) tickAndExpire(
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
+	// Acquire snapshot of block states here to avoid releasing the
+	// RLock and acquiring it right after.
+	blockStates := s.BlockStatesSnapshot()
 	s.RUnlock()
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
@@ -652,7 +682,7 @@ func (s *dbShard) tickAndExpire(
 			)
 			switch policy {
 			case tickPolicyRegular:
-				result, err = entry.Series.Tick()
+				result, err = entry.Series.Tick(blockStates)
 			case tickPolicyCloseShard:
 				err = series.ErrSeriesAllDatapointsExpired
 			}
@@ -666,13 +696,13 @@ func (s *dbShard) tickAndExpire(
 				}
 			}
 			r.activeBlocks += result.ActiveBlocks
-			r.openBlocks += result.OpenBlocks
 			r.wiredBlocks += result.WiredBlocks
 			r.unwiredBlocks += result.UnwiredBlocks
 			r.pendingMergeBlocks += result.PendingMergeBlocks
 			r.madeExpiredBlocks += result.MadeExpiredBlocks
 			r.madeUnwiredBlocks += result.MadeUnwiredBlocks
 			r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks
+			r.evictedBuckets += result.EvictedBuckets
 			i++
 		}
 
@@ -748,9 +778,10 @@ func (s *dbShard) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
-		value, unit, annotation, true)
+		value, unit, annotation, true, wopts)
 }
 
 func (s *dbShard) Write(
@@ -760,9 +791,10 @@ func (s *dbShard) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
-		value, unit, annotation, false)
+		value, unit, annotation, false, wopts)
 }
 
 func (s *dbShard) writeAndIndex(
@@ -774,6 +806,7 @@ func (s *dbShard) writeAndIndex(
 	unit xtime.Unit,
 	annotation []byte,
 	shouldReverseIndex bool,
+	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	// Prepare write
 	entry, opts, err := s.tryRetrieveWritableSeries(id)
@@ -824,7 +857,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
+		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wopts)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -864,6 +897,7 @@ func (s *dbShard) writeAndIndex(
 				value:      value,
 				unit:       unit,
 				annotation: annotationClone,
+				wopts:      wopts,
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
@@ -1307,7 +1341,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
 			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
-				write.unit, annotationBytes)
+				write.unit, annotationBytes, write.wopts)
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
 			}
@@ -1795,7 +1829,8 @@ func (s *dbShard) Bootstrap(
 		if fs.Status != fileOpNotStarted {
 			continue // Already recorded progress
 		}
-		s.markFlushStateSuccess(at)
+
+		s.markFlushStateSuccess(at, 0)
 	}
 
 	s.Lock()
@@ -1829,19 +1864,20 @@ func (s *dbShard) Flush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markFlushStateSuccessOrError(blockStart, err)
+		return s.markFlushStateSuccessOrError(blockStart, 0, err)
 	}
 
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
 	flushResult := dbShardFlushResult{}
+	version := s.RetrievableBlockVersion(blockStart) + 1
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist)
+		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1862,7 +1898,7 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+	return s.markFlushStateSuccessOrError(blockStart, version, multiErr.FinalError())
 }
 
 func (s *dbShard) Snapshot(
@@ -1934,28 +1970,32 @@ func (s *dbShard) Snapshot(
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	s.flushState.RLock()
+	defer s.flushState.RUnlock()
+
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		s.flushState.RUnlock()
 		return fileOpState{Status: fileOpNotStarted}
 	}
-	s.flushState.RUnlock()
 	return state
 }
 
-func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) error {
+func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, version int, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markFlushStateSuccess(blockStart)
+		s.markFlushStateSuccess(blockStart, version)
 	} else {
 		s.markFlushStateFail(blockStart)
 	}
 	return err
 }
 
-func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
+func (s *dbShard) markFlushStateSuccess(blockStart time.Time, version int) {
 	s.flushState.Lock()
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{Status: fileOpSuccess}
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
+		fileOpState{
+			Status:  fileOpSuccess,
+			Version: version,
+		}
 	s.flushState.Unlock()
 }
 

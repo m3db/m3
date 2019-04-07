@@ -97,6 +97,7 @@ type Database interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) error
 
 	// WriteTagged values to the database for an ID.
@@ -109,6 +110,7 @@ type Database interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) error
 
 	// BatchWriter returns a batch writer for the provided namespace that can
@@ -129,6 +131,7 @@ type Database interface {
 		namespace ident.ID,
 		writes ts.BatchWriter,
 		errHandler IndexedErrorHandler,
+		wopts series.WriteOptions,
 	) error
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
@@ -137,6 +140,7 @@ type Database interface {
 		namespace ident.ID,
 		writes ts.BatchWriter,
 		errHandler IndexedErrorHandler,
+		wopts series.WriteOptions,
 	) error
 
 	// QueryIDs resolves the given query into known IDs.
@@ -275,6 +279,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the namespace for an ID.
@@ -286,6 +291,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// QueryIDs resolves the given query into known IDs.
@@ -401,8 +407,7 @@ type databaseShard interface {
 	// Close will release the shard resources and close the shard.
 	Close() error
 
-	// Tick performs any updates to ensure series drain their buffers
-	// and blocks are flushed, etc.
+	// Tick performs all async updates
 	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(
@@ -412,6 +417,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the shard for an ID.
@@ -423,6 +429,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	ReadEncoded(
@@ -905,6 +912,18 @@ type Options interface {
 
 	// WriteBatchPool returns the WriteBatch pool.
 	WriteBatchPool() *ts.WriteBatchPool
+
+	// SetBufferBucketPool sets the BufferBucket pool.
+	SetBufferBucketPool(value *series.BufferBucketPool) Options
+
+	// BufferBucketPool returns the BufferBucket pool.
+	BufferBucketPool() *series.BufferBucketPool
+
+	// SetBufferBucketVersionsPool sets the BufferBucketVersions pool.
+	SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options
+
+	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
+	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

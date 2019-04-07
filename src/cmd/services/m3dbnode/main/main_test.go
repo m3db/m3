@@ -584,6 +584,14 @@ db:
             size: 128
             lowWatermark: 0.01
             highWatermark: 0.02
+        bufferBucketPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        bufferBucketVersionsPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
         bytesPool:
             buckets:
                 - capacity: 32

@@ -24,13 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var timeDistantFuture = time.Now().Add(10 * 365 * 24 * time.Hour)
@@ -41,16 +38,6 @@ func secs(x float64) time.Duration {
 
 func mins(x float64) time.Duration {
 	return time.Duration(x * float64(time.Minute))
-}
-
-func requireDrainedStream(
-	ctx context.Context,
-	t *testing.T,
-	b block.DatabaseBlock,
-) xio.SegmentReader {
-	stream, err := b.Stream(ctx)
-	require.NoError(t, err)
-	return stream
 }
 
 type value struct {
@@ -101,6 +88,36 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 
 func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options) {
 	decodedValues, err := decodedValues(results, opts)
+
+	assert.NoError(t, err)
+	assert.Len(t, decodedValues, len(values))
+	for i := 0; i < len(decodedValues); i++ {
+		assert.True(t, values[i].timestamp.Equal(decodedValues[i].timestamp))
+		assert.Equal(t, values[i].value, decodedValues[i].value)
+		assert.Equal(t, values[i].unit, decodedValues[i].unit)
+		assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
+	}
+}
+
+func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]decodedValue, error) {
+	iter := opts.MultiReaderIteratorPool().Get()
+	iter.Reset(results, time.Time{}, time.Duration(0))
+	defer iter.Close()
+
+	var all []decodedValue
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return all, nil
+}
+
+func assertSegmentValuesEqual(t *testing.T, values []value, results []xio.SegmentReader, opts Options) {
+	decodedValues, err := decodedSegmentValues(results, opts)
 
 	assert.NoError(t, err)
 	assert.Len(t, decodedValues, len(values))
