@@ -255,6 +255,34 @@ func (mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
 }
 
+// SetColdWritesEnabled mocks base method
+func (m *MockOptions) SetColdWritesEnabled(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetColdWritesEnabled", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetColdWritesEnabled indicates an expected call of SetColdWritesEnabled
+func (mr *MockOptionsMockRecorder) SetColdWritesEnabled(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).SetColdWritesEnabled), value)
+}
+
+// ColdWritesEnabled mocks base method
+func (m *MockOptions) ColdWritesEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdWritesEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ColdWritesEnabled indicates an expected call of ColdWritesEnabled
+func (mr *MockOptionsMockRecorder) ColdWritesEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).ColdWritesEnabled))
+}
+
 // SetRetentionOptions mocks base method
 func (m *MockOptions) SetRetentionOptions(value retention.Options) Options {
 	m.ctrl.T.Helper()
