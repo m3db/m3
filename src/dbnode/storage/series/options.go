@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type options struct {
@@ -220,7 +221,8 @@ func (o *options) BufferBucketPool() *BufferBucketPool {
 }
 
 type writeOptions struct {
-	writeType WriteType
+	writeType  WriteType
+	schemaDesc namespace.SchemaDescr
 }
 
 func (o *writeOptions) SetWriteType(value WriteType) WriteOptions {
@@ -236,4 +238,14 @@ func (o *writeOptions) WriteType() WriteType {
 // NewWriteOptions creates new write options.
 func NewWriteOptions() WriteOptions {
 	return &writeOptions{}
+}
+
+func (o *writeOptions) SetSchemaDescr(value namespace.SchemaDescr) WriteOptions {
+	opts := *o
+	opts.schemaDesc = value
+	return &opts
+}
+
+func (o *writeOptions) SchemaDescr() namespace.SchemaDescr {
+	return o.schemaDesc
 }

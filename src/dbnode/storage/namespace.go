@@ -119,6 +119,8 @@ type dbNamespace struct {
 	// contains the schema registry for the database namespace.
 	schemaRegistry namespace.SchemaRegistry
 
+	writeOpts series.WriteOptions
+
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
 	reverseIndex    namespaceIndex
@@ -333,6 +335,7 @@ func newDatabaseNamespace(
 		metadata:               metadata,
 		nopts:                  nopts,
 		schemaRegistry:         metadata.Options().SchemaRegistry(),
+		writeOpts:              series.NewWriteOptions(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		snapshotFilesFn:        fs.SnapshotFiles,
@@ -405,13 +408,25 @@ func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
 	return sr
 }
 
+func (n *dbNamespace) writeOptions() series.WriteOptions {
+	n.RLock()
+	wo := n.writeOpts
+	n.RUnlock()
+	return wo
+}
+
 func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
 	if !v.Lineage(n.SchemaRegistry()) {
 		return fmt.Errorf("failed to update schema registry that has no lineage to existing one")
 	}
+	sd, ok := v.GetLatest()
+	if !ok {
+		return fmt.Errorf("schema registry is empty")
+	}
 
 	n.Lock()
 	n.schemaRegistry = v
+	n.writeOpts = n.writeOpts.SetSchemaDescr(sd)
 	n.Unlock()
 	return nil
 }
@@ -581,7 +596,6 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
@@ -589,7 +603,7 @@ func (n *dbNamespace) Write(
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, wasWritten, err := shard.Write(ctx, id, timestamp, value, unit, annotation, wopts)
+	series, wasWritten, err := shard.Write(ctx, id, timestamp, value, unit, annotation, n.writeOptions())
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -602,7 +616,6 @@ func (n *dbNamespace) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
@@ -614,7 +627,7 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation, wopts)
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation, n.writeOptions())
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }

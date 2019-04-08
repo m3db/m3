@@ -155,8 +155,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 		ns.shards[i] = nil
 	}
 	now := time.Now()
-	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil,
-		nil)
+	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
@@ -179,18 +178,18 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant, nil).
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
 		Return(ts.Series{}, true, nil).Times(1)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant, nil).
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
 		Return(ts.Series{}, false, nil).Times(1)
 
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant, nil)
+	_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
-	_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant, nil)
+	_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
 	require.NoError(t, err)
 	require.False(t, wasWritten)
 }
@@ -1069,19 +1068,19 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil, nil).Return(ts.Series{}, true, nil)
+		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, true, nil)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil, nil).Return(ts.Series{}, false, nil)
+		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, false, nil)
 
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, nil)
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
 	_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, nil)
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.False(t, wasWritten)
 

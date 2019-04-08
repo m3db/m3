@@ -35,6 +35,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // DatabaseSeries is a series in the database.
@@ -351,4 +352,10 @@ type WriteOptions interface {
 
 	// WriteType returns the WriteType.
 	WriteType() WriteType
+
+	// SetSchemaDescr sets the schema descriptor for the write.
+	SetSchemaDescr(value namespace.SchemaDescr) WriteOptions
+
+	// SchemaDescr returns the schema descriptor for the write.
+	SchemaDescr() namespace.SchemaDescr
 }

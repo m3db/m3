@@ -97,7 +97,6 @@ type Database interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wopts series.WriteOptions,
 	) error
 
 	// WriteTagged values to the database for an ID.
@@ -110,7 +109,6 @@ type Database interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wopts series.WriteOptions,
 	) error
 
 	// BatchWriter returns a batch writer for the provided namespace that can
@@ -131,7 +129,6 @@ type Database interface {
 		namespace ident.ID,
 		writes ts.BatchWriter,
 		errHandler IndexedErrorHandler,
-		wopts series.WriteOptions,
 	) error
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
@@ -140,7 +137,6 @@ type Database interface {
 		namespace ident.ID,
 		writes ts.BatchWriter,
 		errHandler IndexedErrorHandler,
-		wopts series.WriteOptions,
 	) error
 
 	// QueryIDs resolves the given query into known IDs.
@@ -279,7 +275,6 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wopts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the namespace for an ID.
@@ -291,7 +286,6 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wopts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// QueryIDs resolves the given query into known IDs.
