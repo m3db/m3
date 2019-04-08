@@ -2,126 +2,116 @@
 
 ## Overview
 
-This package contains the encoder/decoder(iterator) for compressing streams of Protobuf messages matching a provided schema.
-All compression is performed in a streaming manner such that we update the encoded stream with each write; there is no internal buffering or batching during which we gather multiple writes before performing encoding.
+This package contains the encoder/decoder for compressing streams of Protobuf messages matching a provided schema.
+All compression is performed in a streaming manner such that the encoded stream is updated with each write; there is no internal buffering or batching during which we gather multiple writes before performing encoding.
 
 ## Features
 
-1. Compress the timestamps of the ProtoBuf messages using [Gorilla-style delta of delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
-2. Compress streams of ProtoBuf messages matching a provided schema by using different forms of compression for each field based on its type.
-3. Support changing the schema of a ProtoBuf message mid-stream (pending).
-4. Absolutely no lossiness for any of the compression types.
+1. Lossless compression.
+1. Compression of Protobuf message timestamps using [Gorilla-style delta-of-delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+2. Compression of Protobuf message streams that match a provided schema by using different forms of compression for each field based on its type.
+4. Changing Protobuf message schemas mid-stream (pending).
 
 ## Supported Syntax
 
-This package strives to support compressing any valid Protobuf messages as specified using [Protobuf syntax version 3](https://developers.google.com/protocol-buffers/docs/proto3), however, only the following features have been tested:
+While this package strives to support the entire [proto3 language spec](https://developers.google.com/protocol-buffers/docs/proto3), only the following features have been tested:
 
-1. [All scalar value types](https://developers.google.com/protocol-buffers/docs/proto3#scalar)
-2. Nested Messages
+1. [Scalar values](https://developers.google.com/protocol-buffers/docs/proto3#scalar)
+2. Nested messages
 3. Repeated fields
 4. Map fields
 5. Reserved fields
 
-We have explicitly not performed any testing of the following features and thus they are not supported:
+The following have not been tested, and thus are not currently officially supported:
 
 1. `Any` fields
-2. `Oneof` fields
+2. [`Oneof` fields](https://developers.google.com/protocol-buffers/docs/proto#oneof)
 3. Options of any type
 4. Custom field types
 
 ## Compression Techniques
 
-This package compresses the timestamps for the Protobuf messages using [Gorilla style delta of delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+This package compresses the timestamps for the Protobuf messages using [Gorilla style delta-of-delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
 
-Additionally, we perform a different type of compression for each field in the Protobuf message based on its type so that we can use compression techniques that are highly efficient for that specific type.
+Additionally, each field is compressed using a different form of compression that is optimal for its type:
 
-1. Float fields are compressed using [Gorilla style XOR compression](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
-2. Integer fields are compressed using M3TSZ significant digit integer compression. We don't currently have any documentation on this compression format.
-3. `bytes` and `string` fields are compressed using a custom dictionary based compression scheme which we will refer to as "LRU Dictionary Compression". This compression scheme is described in further detail below.
+1. Floating point values are compressed using [Gorilla style XOR compression](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+2. Integer values (including fixed-width types) are compressed using M3TSZ Significant Digit Integer Compression (documentation forthcoming).
+3. `bytes` and `string` values are compressed using LRU Dictionary Compression, which is described in further detail below.
 
 ### LRU Dictionary Compression
 
-The LRU dictionary compression scheme provides high levels of compression for `bytes` and `string` fields that match any of the following criteria:
+LRU Dictionary Compression is a compression scheme that provides high levels of compression for `bytes` and `string` fields that meet any of the following criteria:
 
 1. The value of the field changes infrequently.
 2. The value of the field changes frequently, but tends to rotate among a small number of frequently used values which may evolve over time.
 
+For example, the stream: `["value1", "value2", "value3", "value4", "value5", "value6", ...]` will compress poorly, but the stream: `["value1", "value1", "value2", "value1", "value3", "value2", ...]` will compress well.
+
 Similar to `LZ77` and its variants, this compression strategy has an implicit assumption that patterns in the input data occur close together. Data streams that don't satisfy this assumption will compress poorly.
 
-In the future, we may replace this simple algorithm with a more sophisticated dictionary compression scheme such as `LZ77`, `LZ78`, `LZW` (and its variants like `LZMW` and `LZAP`).
+In the future, we may replace this simple algorithm with a more sophisticated dictionary compression scheme such as `LZ77`, `LZ78`, `LZW` or variants like `LZMW` or `LZAP`.
 
 #### Algorithm
 
-The encoder maintains a list of recently encoded strings in a per-field LRU. Everytime the encoder is about to encode a new string it first checks if the string is in the LRU.
+The encoder maintains a list of recently encoded strings in a per-field LRU cache.
+Everytime the encoder encounters a string it, it checks the cache first.
 
-If the string *is not* in the LRU, then it encodes the string in its entirety and adds it to the LRU (evicting the least recently encoded string if necessary).
+If the string *is not* in the cache, then it encodes the string in its entirety and adds it to the cache (evicting the least recently encoded string if necessary).
 
-If the string *is* in the LRU, then it encodes the **index** of the string in the LRU which requires much less space.
-For example, it only takes 2 bits to encode the position of the string in an LRU with a maximum capacity of 4 strings.
+If the string *is* in the cache, then it encodes the **index** of the string in the cache which requires much less space.
+For example, it only takes 2 bits to encode the position of the string in a cache with a maximum capacity of 4 strings.
 
-Imagine compressing the following sequence of strings: `["foo", "bar", "baz", "bar"]` with an LRU of size 2.
-The steps below describe what is written into the stream, as well as what the state of the LRU is at the end:
+For example, given a sequence of strings: `["foo", "bar", "baz", "bar"]` and an LRU cache of size 2; the algorithm performs the following operations:
 
-1. Write the full string "foo" into the stream and add "foo" to the LRU -> `["foo"]`
-2. Write the full string "bar" into the stream and add "bar" to the LRU -> `["foo", "bar"]`
-3. Write the full string "baz" into the stream and and evict "foo" from the LRU -> `["bar", "baz"]`
-4. Encode index 0 into the stream with a single bit (representing the string "bar") and update the LRU -> `["baz", "bar"]`
+1. Check the cache to see if it contains "foo", which it does not, and then write the full string "foo" into the stream and add "foo" to the cache -> `["foo"]`
+2. Check the cache to see if it contains "bar", which it does not, and then write the full string "bar" into the stream and add "bar" to the cache -> `["foo", "bar"]`
+3. Check the cache to see if it contains "baz", which it does not, and then write the full string "baz" into the stream and and evict "foo" from the cache -> `["bar", "baz"]`
+4. Check the cache to see if it contains "bar", which it does, and then encode index 0 (because "bar" was at index 0 in the cache as of the end of step 3) into the stream with a single bit (which represents the string "bar" relative to the state of the cache at the end of step 3) and then update the cache to indicate that "bar" was the most recently encoded string -> `["baz", "bar"]`
 
-This compression scheme works because the decoder can maintain its own LRU (of the same maximum capacity) and apply the same operations in the same order when its decompressing the stream.
-As a result, when it encounters an encoded LRU index it can lookup the corresponding string in its own LRU at the specified index.
+This compression scheme works because the decoder can maintain an LRU cache (of the same maximum capacity) and apply the same operations in the same order when its decompressing the stream.
+As a result, when it encounters an encoded cache index it can look up the corresponding string in its own LRU cache at the specified index.
 
 ##### Encoding
 
-The LRU dictionary compression scheme uses 3 control bits to encode all the relevant information required to decode the stream.
+The LRU Dictionary Compression scheme uses 2 control bits to encode all the relevant information required to decode the stream. In order, they are:
 
-The first control bit is the "no change" control bit.
-If this is set to `1` then the value has not changed since its previous value and no further encoding/decoding is require.
-
-The second control bit determines how we will interpret the subsequent bits.
-If its `0` then we interpret the next `n` bits (where `n` is the number of bits required to encode the highest index of the configured LRU capacity) as the index into the LRU of recently encoded / decoded strings which this value corresponds to.
-
-If the second control bit is set to `1` then the remainder should be interpreted as a `varint` encoding the length of the `bytes` followed by the `bytes` themselves.
-One caveat to keep in mind is that if after encoding the length `varint` the encode is not aligned on a byte boundary we'll pad the stream with `0`s until the next byte.
-This isn't a strict requirement of the encoding scheme (in fact it reduces compression slightly), but it greatly simplifies the implementation because the encoder needs to be able to reference bytes that its already encoded so it can check if the bytes that are about to be encoded are in the LRU.
-The encoder could keep track of all the bytes that correspond to each LRU entry in memory, but that would be wasteful in terms of memory utilization.
-Instead, its more efficient if the LRU stores offsets into the encoded stream for the beginning and end of the bytes that have already been encoded.
-These offsets are much easier to keep track of and compare against if we can assume they always correspond to the beginning of a byte boundary and we don't have to keep track of the bit offset into an individual byte as well.
-In the future we may change the implement to favor complicating the code so that we don't have to waste any bits on the padding.
+1. **The "no change" control bit.** If this bit is set to `1`, the value is unchanged and no further encoding/decoding is required.
+2. **The "size" control bit.** If this bit is set to `0`, the size of the LRU cache capacity (N) is used to determine the number of subsequent bits that need to be read and interpreted as a cache index that holds the compressed value; otherwise, the subsequent bits are treated as a variable-width `length` and corresponding `bytes` pairs. Importantly, if the beginning of the `bytes` sequences is not byte-aligned, it is padded with zeroes up to the next byte boundary. While this isn't a strict requirement of the encoding scheme (in fact, it slightly lowers the compression ratio), it greatly simplifies the implementation because the encoder needs to reference previously-encoded bytes in order to check if the bytes currently being encoded are cached. Alternatively, the encoder could keep track of all the bytes that correspond to each cache entry in memory, but that would be a wasteful use of memory. Instead, it's more efficient if the cache stores offsets into the encoded stream for the beginning and end of the bytes that have already been encoded. These offsets are much easier to track of and compare against if they can be assumed to always correspond to the beginning of a byte boundary. In the future the implementation may be changed to favor wasting fewer bits in exchange for more complex logic.
 
 ### Compression Limitations
 
-This package will attempt to compress all scalar type fields at the top level of a message, but will not compress any data that is part of a `repeated`, `map` or `nested message` field.
-The `nested message` restriction may be lifted in the future, but the `repeated` and `map` restrictions are unlikely to change.
+While this compression applies to all scalar types at the top level of a message, it does not apply to any data that is part of `repeated` fields, `map` fields, or nested messages.
+The `nested message` restriction may be lifted in the future, but the `repeated` and `map` restrictions are unlikely to change due to the difficulty of compressing variably sized fields.
 
 ## Binary Format
 
-At a high level you can think about the way we perform compression of Protobuf messages as being akin to doing the following:
+At a high level, compressing Protobuf messages consists of the following:
 
-1. Scanning each schema to identify which fields we can "extract out" and perform some form of streaming compression for as described in the `Compression Techniques` section.
-2. Maintaining an independent "stream" of compressed data for each field that we're applying custom compression to, as well as for the timestamp that is shared by all fields. When a new write comes in, we would iterate over all the fields that we're compressing and encode the next value into the appropriate stream.
+1. Scanning each schema to identify which fields we can be extracted and compressed as described in the "Compression Techniques" section.
+2. Iterating over all fields (as well as the timestamp) for each messages as it arrives and encoding the next value for that field into its corresponding compressed stream.
 
-In practice, a Protbuf message can have dozens of different fields and for performance reasons we don't want to maintain an independent stream for each field.
-Instead, we maintain one physical stream in which we interleave multiple different "logical" streams on a per-write basis.
-The remainder of this section explains the exact binary format we use to accomplish this interleaving.
+In practice, a Protbuf message can have any number of different fields; for performance reasons, it's impractical to maintain an independent stream at the field level.
+Instead, multiple "logical" streams are interleaved on a per-write basis within one physical stream.
+The remainder of this section outlines the binary format used to accomplish this interleaving.
 
 ### Header
 
 Every compressed stream begins with a header which includes the following information:
 
 1. encoding scheme version (`varint`)
-2. dictionary compression LRU size (`varint`)
-3. a list of "custom" encoded fields with their type and field numbers
+2. dictionary compression LRU cache size (`varint`)
+3. a list of "custom" (compressed as described in this document as opposed to standard Protobuf encoding) encoded fields with their type and field numbers
 
 #3 can be thought of as a list of `<fieldNum, fieldType>` and is encoded as follows:
 
-1. highest field number (`n`) that will be described (`varint`)
-2. `n` sets of 3 bits where each combination of three bits corresponds to the "custom type" which is enough information to determine how the field should be compressed / decompressed.
+1. highest field number (`N`) that will be described (`varint`)
+2. `N` sets of 3 bits where each set corresponds to the "custom type", which is enough information to determine how the field should be compressed / decompressed. This is analogous to a Protobuf [`wire type`](https://developers.google.com/protocol-buffers/docs/encoding) in that it includes enough information to skip over the field if its not present in the schema that is being used to decode the message.
 
-The list only explicitly encodes the custom field type.
-The Protobuf field number is encoded implicitly by the position of the entry in the list.
-In other words, the list of custom encoded fields can be thought of as a bitset except instead of using a single bit to encode the value at a given position, we use 3.
+Notably, the list only *explicitly* encoders the custom field type. *Implicitly*, the Protobuf field number is encoded by the position of the entry in the list.
+In other words, the list of custom encoded fields can be thought of as a bitset, except that instead of using a single bit to encode the value at a given position, we use 3.
 
-For example, if we had the following Protobuf schema:
+For example, given the following Protobuf schema:
 
 ```protobuf
 message Foo {
@@ -131,19 +121,19 @@ message Foo {
 }
 ```
 
-We would begin by encoding `4` as a `varint` since that is the highest non-reserved field number.
+Encoding the list of custom compressed fields begins by encoding `4` as a `varint`, since that is the highest non-reserved field number.
 
-Next, we would begin encoding the field numbers and their field types 3 bits at a time where the field number is implied from their position in the list (starting at index 1 since Protobuf field numbers start at 1) and the type is encoded in the 3 bit combination:
+Next, the field numbers and their types are encoded, 3 bits at a time, where the field number is implied from their position in the list (starting at index 1 since Protobuf fields numbers start at 1), and the type is encoded in the 3 bit combination:
 
-`string query = 1;` is encoded as the first value (indicating field number 1) and with the bit combination `111` indicating that it should be treated as `bytes` for compression purposes.
+`string query = 1;` is encoded as the first value (indicating field number 1) with the bit combination `111` indicating that it should be treated as `bytes` for compression purposes.
 
-Next, we would encode `000` twice to indicate that we will not be performing any custom compression for field numbers `2` and `3` since they are reserved.
+Next, `000` is encoded twice to indicate that no custom compression will be performed for fields `2` or `3` since they are reserved.
 
-Finally, we'll encode `010` as the fourth item to indicate that field number `4` will be treated as a signed 32 bit integer.
+Finally, `010` is encoded as the fourth item to indicate that field number `4` will be treated as a signed 32 bit integer.
 
 #### Custom Types
 
-0. (`000`): Not custom encoded - This type means that we won't apply any custom compression to this field and we'll rely on the standard Protobuf marshaling to encode it.
+0. (`000`): Not custom encoded - This type indicates that no custom compression will be applied to this field; instead, the standard Protobuf encoding will be used.
 1. (`001`): Signed 64 bit integer (`int64`, `sint64`)
 2. (`010`): Signed 32 bit integer (`int32`, `sint32`, `enum`)
 3. (`011`): Unsigned 64 bit integer (`uint64`. `fixed64`)
@@ -154,7 +144,7 @@ Finally, we'll encode `010` as the fourth item to indicate that field number `4`
 
 ### Stream of Writes
 
-After encoding the header, the stream becomes a list of tuples in the form of `<control bit, compressed timestamp, compressed custom encoded fields, protobuf marshaled fields>`
+After encoding the header, the stream becomes a list of tuples in the form of `<control bit, compressed timestamp, compressed custom encoded fields, Protobuf marshaled fields>`
 
 #### Control Bit
 
@@ -162,44 +152,43 @@ TODO(rartoul): This will change slightly once we implement support for mid-strea
 
 Every write is prefixed with a control bit.
 
-If the control bit is set to `1` then we know that the stream contains another write that we need to decode and we can begin decoding the timestamp.
+If the control bit is set to `1`, then the stream contains another write that needs to be decoded, implying that the timestamp can be decoded as well.
 
-If the control bit is set to `0` then we have either: **a)** reached the end of the stream *or* **b)** encountered a time unit change.
+If the control bit is set to `0`, then either **(a)** the end of the stream *or* **(b)** a time unit change has been encountered.
 
-We resolve the ambiguity by reading the next control bit which will be `0` if we've reached the end of the stream or `1` if we should interpret the next 8 bits as the new time unit that we should use for delta of delta timestamp encoding.
+This ambiguity is resolved by reading the next control bit, which will be `0` (if this is the end of the stream) or `1` (if the next 8 bits contain a new time unit to be used for delta-of-delta timestamp encoding).
 
-We have to keep track of time unit changes on our own instead of deferring to the M3TSZ delta-of-delta encoder which can handle this independently because the M3TSZ encoder relies on a custom marker scheme to indicate time unit changes.
-It avoids using a control bit for each write by using a marker which contains a prefix that could not possibly be generated into the stream by any possible input and then the decoder frequently "looks ahead" for this marker to see if it needs to decode a time unit change.
-The Protobuf encoding scheme has no equivalent "impossible bit combination" so it uses explicit control bits to indicate a time unit change instead.
+Time unit changes must be tracked manually (instead of deferring to the M3TSZ delta-of-delta encoder, which can handle this independently) because the M3TSZ encoder relies on a custom marker scheme to indicate time unit changes.
+It avoids using a control bit for each write by using a marker which contains a prefix that could not be generated by any possible input, and the decoder frequently "looks ahead" for this marker to see if it needs to decode a time unit change.
+The Protobuf encoding scheme has no equivalent "impossible bit combination", so it uses explicit control bits to indicate a time unit change instead.
 
 ### Compressed Timestamp
 
-The Protobuf compression scheme reuses the delta of delta timestamp encoding logic that is implemented in the M3TSZ package and decribed in the [Facebook Gorilla paper](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+The Protobuf compression scheme reuses the delta-of-delta timestamp encoding logic that is implemented in the M3TSZ package and decribed in the [Facebook Gorilla paper](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
 
+After encoding a control bit with a value of `1` (indicating that there is another write in the stream), the delta-of-delta of the current and previous timestamp is encoded.
 
-After encoding a control bit with a value of `1` indicating that there is another write in the stream, we encode the delta of delta of the current timestamp and the previous one as described in the Gorilla paper.
-
-Similarly, when we're decoding the stream, we perform the inverse operation and reconstruct the current timestamp based on the previous one and the delta of delta encoded into the stream.
+Similarly, when decoding the stream, the inverse operation is performed to reconstruct the current timestamp based on both the previous timestamp and delta-of-delta encoded into the stream.
 
 ### Compressed Protobuf Fields
 
-Compressing the protobuf fields is broken into two stages:
+Compressing the Protobuf fields is broken into two stages:
 
 1. Custom compressed fields
 2. Protobuf marshaled fields
 
-In the first phase we compress any fields for which we're able to apply custom compression as described in the `Compression Techniques` section.
+In the first phase, any eligible custom fields are compressed as described in the "Compression Techniques" section.
 
-In the second phase we lean on the Protobuf marshaling format to encode the data for us with the caveat that we compare fields at the top-level and avoid re-encoding them if they haven't changed.
+In the second phase, the Protobuf marshaling format is used to encode and decode the data, with the caveat that fields are compared at the top level and re-encoding is avoided if they have not changed.
 
 #### Custom Compressed Protobuf Fields
 
-We encode the custom compressed field values similarly how to we encode their types as described in the `Header` section.
+The custom fields' compressed values are encoded similarly to how their types are encoded as described in the "Header" section.
 In fact, they're even encoded in the same order with the caveat that unlike when we're encoding the types, we don't need to encode a null value for non-contiguous field numbers for which we're not performing any compression.
 
-All of the compressed value are encoded one after the other with no separator or control bit inbetween which means that they all need to encode enough information that a decoder can determine where each one ends and the next one begins.
+All of the compressed values are encoded sequentially and no separator or control bits are placed between them, which means that they must encode enough information such that a decoder can determine where each one ends and the next one begins.
 
-The values themselves are encoded based on the field type and the compression technique that is being applied to it. For example, if we return to our sample Protobuf message from earlier:
+The values themselves are encoded based on the field type and the compression technique that is being applied to it. For example, considering the sample Protobuf message from earlier:
 
 ```protobuf
 message Foo {
@@ -209,23 +198,24 @@ message Foo {
 }
 ```
 
-If we had never seen the `query` `string` being encoded before, we would encode a single control bit indicating that the value had changed since its previous value, another control bit indicating that it was not found in the LRU, followed by a `varint` for the length of the string, and then the `string` bytes themselves.
+If the `string` field `query` had never been encoded before, the following control bits would be encoded: `1` (indicating that the value had changed since its previous empty value), followed by `1` again (indicating that the value was not found in the LRU cache and would be encoded in its entirety with a `varint` length prefix).
 
-Next, we would use 6 bits to encode the number of significant digits in the delta between current `page_number` and the previous `page_number`, followed by a control bit indicating if the delta is positive or negative, and then finally the significant bits themselves.
+Next, 6 bits would be used to encode the number of significant digits in the delta between current `page_number` and the previous `page_number`, followed by a control bit indicating if the delta is positive or negative, and then finally the significant bits themselves.
 
-Note that the values we encoded for both fields are "self contained" in that they encode all the information required to determine when we've reached the end.
+Note that the values encoded for both fields are "self contained" in that they encode all the information required to determine when the end has been reached.
 
 #### Protobuf Marshaled Fields
 
 We recommend reading the [Protocol Buffers Encoding](https://developers.google.com/protocol-buffers/docs/encoding) section of the official documentation before reading this section.
-Specifically, understanding how protobuf messages are (basically) encoded as a stream of tuples in the form of `<field number, wire type, value>` will make understanding this section much easier.
+Specifically, understanding how Protobuf messages are (basically) encoded as a stream of tuples in the form of `<field number, wire type, value>` will make understanding this section much easier.
 
-The Protobuf marshaled fields section of the encoding scheme contains all the values that we don't currently support performing custom compression on.
-For the most part, the output of this section is similar to the result of calling `Marshal()` on a message in which all the custom compressed fields have already been removed and all that remains is the fields for which we wish to rely upon the Protobuf logic for encoding.
-This is possible because, as described in the protobuf encoding section linked above, the protobuf wire format does not encode **any** data for fields which are not set or are set to a default value, so by "clearing" the fields that we've already encoded on our own, we can prevent them from taking up any space when we marshal the remainder of the Protobuf message.
+The Protobuf marshaled fields section of the encoding scheme contains all the values that don't currently support performing custom compression.
+For the most part, the output of this section is similar to the result of calling `Marshal()` on a message in which all the custom compressed fields have already been removed, and the only remaining fields are ones for which Protobuf will encode directly.
+This is possible because, as described in the Protobuf encoding section linked above, the Protobuf wire format does not encode **any** data for fields which are not set or are set to a default value, so by "clearing" the fields that have already been encoded, they can be omitted when marshaling the remainder of the Protobuf message.
 
-While we do lean heavily on the Protobuf wire format in this section, we do make the most basic optimization of avoiding re-encoding fields that haven't changed since the previous value where "haven't changed" is defined at the top most level of the message.
-For example, lets imagine we were trying to encode messages with the following schema:
+While Protobuf's wire format is leaned upon heavily, there is specific attention given to re-encoding fields that haven't changed since the previous value, where "haven't changed" is defined at the top most level of the message.
+
+For example, consider encoding messages with the following schema:
 
 ```protobuf
 message Outer {
@@ -242,28 +232,24 @@ message Outer {
 }
 ```
 
-If none of the values inside `nested` have changed since the previous message, we don't need to encode the `nested` field at all.
-However, if any of the fields have changed, like `nested.deeper.booly` for example, then we need to re-encode the entire `nested` field, including the `outer` field even though only the `deeper` field changed.
+If none of the values inside `nested` have changed since the previous message, the `nested` field doesn't need to be encoded at all.
+However, if any of the fields have changed, like `nested.deeper.booly` for example, then the entire `nested` field must be re-encoded (including the `outer` field, even though only the `deeper` field changed).
 
-We can perform this top-level "only if it has changed" encoding because when we're decoding the stream later, we can reconstruct the original message by merging the previously decoded message with the current "delta" message that only contains the fields that have changed since the previous message.
+This top-level "only if it has changed" delta encoding can be used because, when the stream is decoded later, the original message can be reconstructed by merging the previously-decoded message with the current delta message, which contains only fields that have changed since the previous message.
 
-Only marshaling the fields that have changed since the previous message works for the most part, but there is one important edge case.
-As we said earlier, the protobuf wire format does not encode **any** data for fields that are set to a default value (zero for `integers` and `floats`, empty array for `bytes` and `strings`, etc).
-This means that using the standard Protobuf marshaling format with our "only encode the field if it has changed" scheme works in every scenario *except* for the case where a field is changed from a non-default value to a default value because there is no way to express that in the Protobuf wire format.
+Only marshaling the fields that have changed since the previous message works for the most part, but there is one important edge case: because the Protobuf wire format does not encode **any** data for fields that are set to a default value (zero for `integers` and `floats`, empty array for `bytes` and `strings`, etc), using the standard Protobuf marshaling format with delta encoding works in every scenario *except* for the case where a field is changed from a non-default value to a default value because (because it is not possible to express explicitly setting a field to its default value).
 
-To get around this issue, if any of the Protobuf marshaled fields are changed to their default value, then we encode an additional bitset which specifies which field numbers were set to default values.
+This issue is mitigated by encoding an additional optional (as in it is only encoded when necessary) bitset which indicates any field numbers that were set to the default value of the field's type.
 
-The bitset encoding is straightforward.
-It begins with a `varint` that encodes the length (number of bits) of the bitset, and then the remaining `n` bits are interpreted as a 1-indexed bitset (because field numbers start at 1 not 0) where the value of `1` means the field was changed to its default and the value of `0` means it was not.
+The bitset encoding is straightforward: it begins with a `varint` that encodes the length (number of bits) of the bitset, and then the remaining `N` bits are interpreted as a 1-indexed bitset (because field numbers start at 1 not 0) where a value of `1` indicates the field was changed to its default value.
 
 ##### Protobuf Marshaled Fields Encoding Format
 
-The Protobuf marshaled fields section of the encoding begins with a single control bit that indicates whether there have been any changes to the Protobuf encoded portion of the message at all.
-If the control bit is set to `1`  then there have been changes and we need to continue decoding, and if it is set to `0` then there were no changes and we can begin decoding the next write (or we've reached the end of the stream).
+The Protobuf Marshaled Fields section of the encoding begins with a single control bit that indicates whether there have been any changes to the Protobuf encoded portion of the message at all.
+If the control bit is set to `1`, then there have been changes and decoding must continue; if it is set to `0`, then there were no changes and the decoder can skip to the next write (or stop, if at the end of the stream).
 
-If the previous control bit was set to `1`, indicating that there have been changes, then there will be another control bit.
-The next control bit indicates whether any fields have been set to a default value.
-If so, then its value will be `1` and the subsequent bits should be interpreted as a `varint` encoding the length of the bitset followed by the actual bitset bits as discussed Aabove.
-If the value is `0` then there is no bitset to decode.
+If the previous control bit was set to `1`, indicating that there have been changes, then there will be another control bit which indicates whether any fields have been set to a default value.
+If so, then its value will be `1` and the subsequent bits should be interpreted as a `varint` encoding the length of the bitset followed by the actual bitset bits as discussed above.
+If the value is `0`, then there is no bitset to decode.
 
-Finally, this portion of the encoding will end with a final `varint` that encodes the length of the bytes that resulted from calling `Marshal()` on the message (in which we've cleared any fields that were custom encoded or weren't custom encoded but also haven't changed since the previous message) followed by the actual marshaled bytes themselves.
+Finally, this portion of the encoding will end with a final `varint` that encodes the length of the bytes that resulted from calling `Marshal()` on the message (where any custom-encoded or unchanged fields were cleared) followed by the actual marshaled bytes themselves.
