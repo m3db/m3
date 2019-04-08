@@ -38,8 +38,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/x"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	pilosaroaring "github.com/m3db/pilosa/roaring"
-
-	"github.com/couchbase/vellum"
+	"github.com/m3db/vellum"
 )
 
 var (

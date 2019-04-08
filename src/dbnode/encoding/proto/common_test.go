@@ -18,44 +18,75 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package proto
 
 import (
-	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/models"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	wildcard = []byte(".*")
-)
-
-func convertMetricPartToMatcher(
-	count int,
-	metric string,
-) (models.Matcher, error) {
-	var matchType models.MatchType
-	value, isRegex, err := graphite.GlobToRegexPattern(metric)
-	if err != nil {
-		return models.Matcher{}, err
+func TestNumBitsRequiredForNumUpToN(t *testing.T) {
+	testCases := []struct {
+		input          int
+		expectedOutput int
+	}{
+		{
+			input:          0,
+			expectedOutput: 0,
+		},
+		{
+			input:          1,
+			expectedOutput: 1,
+		},
+		{
+			input:          2,
+			expectedOutput: 2,
+		},
+		{
+			input:          4,
+			expectedOutput: 3,
+		},
+		{
+			input:          5,
+			expectedOutput: 3,
+		},
+		{
+			input:          8,
+			expectedOutput: 4,
+		},
+		{
+			input:          9,
+			expectedOutput: 4,
+		},
+		{
+			input:          15,
+			expectedOutput: 4,
+		},
+		{
+			input:          16,
+			expectedOutput: 5,
+		},
+		{
+			input:          31,
+			expectedOutput: 5,
+		},
+		{
+			input:          32,
+			expectedOutput: 6,
+		},
+		{
+			input:          63,
+			expectedOutput: 6,
+		},
+		{
+			input:          64,
+			expectedOutput: 7,
+		},
 	}
 
-	if isRegex {
-		matchType = models.MatchRegexp
-	} else {
-		matchType = models.MatchEqual
-	}
-
-	return models.Matcher{
-		Type:  matchType,
-		Name:  graphite.TagName(count),
-		Value: value,
-	}, nil
-}
-
-func matcherTerminator(count int) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: wildcard,
+	for _, tc := range testCases {
+		output := numBitsRequiredForNumUpToN(tc.input)
+		require.Equal(t, tc.expectedOutput, output, "failed for input %d", tc.input)
 	}
 }

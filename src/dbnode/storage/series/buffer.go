@@ -253,7 +253,7 @@ func bucketTick(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	// Perform a drain and reset if necessary
 	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start)
 
-	// Try to merge any out of order encoders to amortize the cost of a drain
+	// Try to merge any out of order encoders to amortize the cost of a drain.
 	r, err := b.buckets[idx].merge()
 	if err != nil {
 		log := b.opts.InstrumentOptions().Logger()
@@ -388,6 +388,8 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 		// the sake of being able to persist it to disk as a single encoded stream.
 		_, err = bucket.merge()
 		if err != nil {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer merge bucket error: %v", err)
 			return
 		}
 
@@ -526,7 +528,7 @@ func (b *dbBufferBucket) resetTo(
 	b.finalize()
 
 	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
+	encoder := b.newEncoder()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 
 	b.start = start
@@ -634,7 +636,7 @@ func (b *dbBufferBucket) write(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
 
-	encoder := bopts.EncoderPool().Get()
+	encoder := b.newEncoder()
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 
 	b.encoders = append(b.encoders, inOrderEncoder{
@@ -748,6 +750,10 @@ func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
 	return encodersEmpty && len(b.bootstrapped) == 1
 }
 
+func (b *dbBufferBucket) newEncoder() encoding.Encoder {
+	return b.opts.EncoderPool().Get()
+}
+
 type mergeResult struct {
 	merges int
 }
@@ -760,7 +766,7 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 
 	merges := 0
 	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
+	encoder := b.newEncoder()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
 	var (

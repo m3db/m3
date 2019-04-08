@@ -18,44 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package proto
 
 import (
-	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/models"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/jhump/protoreflect/desc"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	wildcard = []byte(".*")
-)
-
-func convertMetricPartToMatcher(
-	count int,
-	metric string,
-) (models.Matcher, error) {
-	var matchType models.MatchType
-	value, isRegex, err := graphite.GlobToRegexPattern(metric)
-	if err != nil {
-		return models.Matcher{}, err
+func TestCustomFields(t *testing.T) {
+	testCases := []struct {
+		schema   *desc.MessageDescriptor
+		expected []customFieldState
+	}{
+		{
+			schema: newVLMessageDescriptor(),
+			expected: []customFieldState{
+				{fieldNum: 1, fieldType: float64Field},     // latitude
+				{fieldNum: 2, fieldType: float64Field},     // longitude
+				{fieldNum: 3, fieldType: signedInt64Field}, // numTrips
+				{fieldNum: 4, fieldType: bytesField},       // deliveryID
+			},
+		},
 	}
 
-	if isRegex {
-		matchType = models.MatchRegexp
-	} else {
-		matchType = models.MatchEqual
+	for _, tc := range testCases {
+		tszFields := customFields(nil, tc.schema)
+		require.Equal(t, tc.expected, tszFields)
 	}
-
-	return models.Matcher{
-		Type:  matchType,
-		Name:  graphite.TagName(count),
-		Value: value,
-	}, nil
 }
 
-func matcherTerminator(count int) models.Matcher {
-	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: wildcard,
-	}
+func TestClosedEncoderIsNotUsable(t *testing.T) {
+	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	enc.Close()
+
+	err := enc.Encode(ts.Datapoint{}, xtime.Second, nil)
+	require.Equal(t, errEncoderClosed, err)
+
+	_, err = enc.LastEncoded()
+	require.Equal(t, errEncoderClosed, err)
 }

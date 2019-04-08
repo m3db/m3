@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
@@ -81,6 +82,7 @@ import (
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
+	"github.com/jhump/protoreflect/desc"
 	"github.com/uber-go/tally"
 )
 
@@ -169,6 +171,15 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not acquire lock on %s: %v", lockPath, err)
 	}
 	defer fslock.Release()
+
+	var schema *desc.MessageDescriptor
+	if cfg.Proto != nil {
+		logger.Info("Probuf data mode enabled")
+		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
+		if err != nil {
+			logger.Fatalf("error parsing protobuffer schema: %v", err)
+		}
+	}
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -396,7 +407,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, schema, opts, cfg.PoolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -490,7 +501,17 @@ func Run(runOpts RunOptions) {
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetOrigin(origin)
-		})
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			if cfg.Proto != nil {
+				return opts.SetEncodingProto(
+					schema,
+					encoding.NewOptions(),
+				).(client.AdminOptions)
+			}
+			return opts
+		},
+	)
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
 	}
@@ -968,6 +989,7 @@ func kvWatchBootstrappers(
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
 	logger xlog.Logger,
+	schema *desc.MessageDescriptor,
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
@@ -1122,10 +1144,19 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
+		if schema != nil {
+			enc := proto.NewEncoder(time.Time{}, encodingOpts)
+			enc.SetSchema(schema)
+			return enc
+		}
+
 		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+		if schema != nil {
+			return proto.NewIterator(r, schema, encodingOpts)
+		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
@@ -1152,6 +1183,7 @@ func withEncodingAndPoolingOptions(
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(iteratorPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
 

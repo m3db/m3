@@ -58,6 +58,22 @@ func (is *istream) ReadBit() (Bit, error) {
 	return Bit(is.consumeBuffer(1)), nil
 }
 
+// Read reads len(b) bytes.
+func (is *istream) Read(b []byte) (int, error) {
+	var (
+		i   int
+		err error
+	)
+
+	for ; i < len(b); i++ {
+		b[i], err = is.ReadByte()
+		if err != nil {
+			return i, err
+		}
+	}
+	return i, nil
+}
+
 // ReadByte reads the next Byte
 func (is *istream) ReadByte() (byte, error) {
 	if is.err != nil {
@@ -124,6 +140,12 @@ func (is *istream) PeekBits(numBits int) (uint64, error) {
 	remainder := readBitsInByte(bytesRead[numBytesToRead-1], numBits-numBitsRead)
 	res = (res << uint(numBits-numBitsRead)) | uint64(remainder)
 	return res, nil
+}
+
+// RemainingBitsInCurrentByte returns the number of bits remaining to be read in
+// the current byte.
+func (is *istream) RemainingBitsInCurrentByte() int {
+	return is.remaining
 }
 
 // readBitsInByte reads numBits in byte b.

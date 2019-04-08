@@ -164,6 +164,13 @@ func (os *ostream) WriteBytes(bytes []byte) {
 	}
 }
 
+// Write writes a byte slice. This method exists in addition to WriteBytes()
+// to satisfy the io.Writer interface.
+func (os *ostream) Write(bytes []byte) (int, error) {
+	os.WriteBytes(bytes)
+	return len(bytes), nil
+}
+
 // WriteBits writes the lowest numBits of v to the stream, starting
 // from the most significant bit to the least significant bit.
 func (os *ostream) WriteBits(v uint64, numBits int) {
