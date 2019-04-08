@@ -275,13 +275,14 @@ func (b *dbBuffer) Snapshot(
 		return nil, nil
 	}
 
-	// A call to snapshot can only be for warm writes.
+	// We only snapshot warm writes since cold writes get force merged every
+	// tick anyway.
 	_, err := buckets.merge(WarmWrite)
 	if err != nil {
 		return nil, err
 	}
 
-	streams := buckets.streams(ctx, WarmWrite)
+	streams := buckets.streams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
 	// We may need to merge again here because the regular merge method does
 	// not merge buckets that have different versions.
 	numStreams := len(streams)
@@ -390,10 +391,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 			return nil
 		}
 
-		if streams := bv.streams(ctx, WarmWrite); len(streams) > 0 {
-			res = append(res, streams)
-		}
-		if streams := bv.streams(ctx, ColdWrite); len(streams) > 0 {
+		if streams := bv.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
 			res = append(res, streams)
 		}
 
@@ -418,11 +416,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			continue
 		}
 
-		if streams := buckets.streams(ctx, WarmWrite); len(streams) > 0 {
-			res = append(res, block.NewFetchBlockResult(start, streams, nil))
-		}
-
-		if streams := buckets.streams(ctx, ColdWrite); len(streams) > 0 {
+		if streams := buckets.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
 			res = append(res, block.NewFetchBlockResult(start, streams, nil))
 		}
 	}
@@ -618,10 +612,10 @@ func (b *BufferBucketVersions) resetTo(
 	b.bucketPool = bucketPool
 }
 
-func (b *BufferBucketVersions) streams(ctx context.Context, wType WriteType) []xio.BlockReader {
+func (b *BufferBucketVersions) streams(ctx context.Context, opts streamsOptions) []xio.BlockReader {
 	var res []xio.BlockReader
 	for _, bucket := range b.buckets {
-		if bucket.wType == wType {
+		if !opts.filterWriteType || bucket.wType == opts.writeType {
 			res = append(res, bucket.streams(ctx)...)
 		}
 	}
@@ -664,12 +658,18 @@ func (b *BufferBucketVersions) merge(wType WriteType) (int, error) {
 }
 
 func (b *BufferBucketVersions) removeBucketsUpToVersion(version int) {
+	// TODO(juchan): in order to support ColdWrites, we need to keep track of
+	// separate bucket versions for ColdWrites and WarmWrites, since they have
+	// different persist cycles. This will involve storing that state in the
+	// shard flush state management. That state will need to be passed down
+	// here so that this function will know which WriteType/version is safe to
+	// remove.
+
 	// Avoid allocating a new backing array.
 	nonEvictedBuckets := b.buckets[:0]
 
 	for _, bucket := range b.buckets {
 		bVersion := bucket.version
-		// TODO(juchan): deal with ColdWrite too.
 		if bucket.wType == WarmWrite && bVersion != writableBucketVer &&
 			bVersion <= version {
 			// We no longer need to keep any version which is equal to
@@ -736,6 +736,11 @@ func (b *BufferBucketVersions) toStreams(ctx context.Context) ([]xio.SegmentRead
 	}
 
 	return res, nil
+}
+
+type streamsOptions struct {
+	filterWriteType bool
+	writeType       WriteType
 }
 
 // BufferBucket is a bucket in the buffer.
