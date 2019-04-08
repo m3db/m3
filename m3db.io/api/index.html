@@ -323,6 +323,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../configuration/configuring_m3db/" title="Configuring M3DB" class="md-nav__link">
+      Configuring M3DB
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../configuration/pod_identity/" title="Pod Identity" class="md-nav__link">
       Pod Identity
     </a>
@@ -721,8 +733,14 @@
 <td>false</td>
 </tr>
 <tr>
+<td>etcdEndpoints</td>
+<td>EtcdEndpoints defines the etcd endpoints to use for service discovery. Must be set if no custom configmap is defined. If set, etcd endpoints will be templated in to the default configmap template.</td>
+<td>[]string</td>
+<td>false</td>
+</tr>
+<tr>
 <td>configMapName</td>
-<td>ConfigMapName specifies the ConfigMap to use for this cluster. If unset a sane default will be used.</td>
+<td>ConfigMapName specifies the ConfigMap to use for this cluster. If unset a default configmap with template variables for etcd endpoints will be used. See \"Configuring M3DB\" in the docs for more.</td>
 <td>*string</td>
 <td>false</td>
 </tr>
@@ -745,9 +763,33 @@
 <td>false</td>
 </tr>
 <tr>
+<td>podSecurityContext</td>
+<td>PodSecurityContext allows the user to specify an optional security context for pods.</td>
+<td>*corev1.PodSecurityContext</td>
+<td>false</td>
+</tr>
+<tr>
+<td>securityContext</td>
+<td>SecurityContext allows the user to specify a container-level security context.</td>
+<td>*corev1.SecurityContext</td>
+<td>false</td>
+</tr>
+<tr>
 <td>labels</td>
 <td>Labels sets the base labels that will be applied to resources created by the cluster. // TODO(schallert): design doc on labeling scheme.</td>
 <td>map[string]string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>tolerations</td>
+<td>Tolerations sets the tolerations that will be applied to all M3DB pods.</td>
+<td>[]corev1.Toleration</td>
+<td>false</td>
+</tr>
+<tr>
+<td>priorityClassName</td>
+<td>PriorityClassName sets the priority class for all M3DB pods.</td>
+<td>string</td>
 <td>false</td>
 </tr>
 </tbody>
@@ -767,14 +809,32 @@
 <tbody>
 <tr>
 <td>name</td>
-<td>Name</td>
+<td>Name is the value that will be used in StatefulSet labels, pod labels, and M3DB placement \"isolationGroup\" fields.</td>
+<td>string</td>
+<td>true</td>
+</tr>
+<tr>
+<td>nodeAffinityKey</td>
+<td>NodeAffinityKey is the node label that will be used in corresponding StatefulSet match expression to assign pods to nodes. Defaults to \"failure-domain.beta.kubernetes.io/zone\".</td>
 <td>string</td>
 <td>false</td>
 </tr>
 <tr>
+<td>nodeAffinityValues</td>
+<td>NodeSelectorValues is the node label value that will be used to assign pods to nodes. Defaults to the isolation group's name, but can be overridden to allow multiple IsolationGroups to be assigned to the same zone.</td>
+<td>[]string</td>
+<td>false</td>
+</tr>
+<tr>
 <td>numInstances</td>
-<td>NumInstances defines the number of instances</td>
+<td>NumInstances defines the number of instances.</td>
 <td>int32</td>
+<td>true</td>
+</tr>
+<tr>
+<td>storageClassName</td>
+<td>StorageClassName is the name of the StorageClass to use for this isolation group. This allows ensuring that PVs will be created in the same zone as the pinned statefulset on Kubernetes &lt; 1.12 (when topology aware volume scheduling was introduced). Only has effect if the clusters <code>dataDirVolumeClaimTemplate</code> is non-nil. If set, the volume claim template will have its storageClassName field overridden per-isolationgroup. If unset the storageClassName of the volumeClaimTemplate will be used.</td>
+<td>string</td>
 <td>false</td>
 </tr>
 </tbody>
@@ -906,7 +966,7 @@
 <tr>
 <td>blockSize</td>
 <td>BlockSize controls the index block size.</td>
-<td>time.Duration</td>
+<td>string</td>
 <td>false</td>
 </tr>
 </tbody>
@@ -1023,25 +1083,25 @@
 <tr>
 <td>retentionPeriod</td>
 <td>RetentionPeriod controls how long data for the namespace is retained.</td>
-<td>time.Duration</td>
+<td>string</td>
 <td>false</td>
 </tr>
 <tr>
 <td>blockSize</td>
 <td>BlockSize controls the block size for the namespace.</td>
-<td>time.Duration</td>
+<td>string</td>
 <td>false</td>
 </tr>
 <tr>
 <td>bufferFuture</td>
 <td>BufferFuture controls how far in the future metrics can be written.</td>
-<td>time.Duration</td>
+<td>string</td>
 <td>false</td>
 </tr>
 <tr>
 <td>bufferPast</td>
 <td>BufferPast controls how far in the past metrics can be written.</td>
-<td>time.Duration</td>
+<td>string</td>
 <td>false</td>
 </tr>
 <tr>
@@ -1053,7 +1113,7 @@
 <tr>
 <td>blockDataExpiryAfterNotAccessPeriod</td>
 <td>BlockDataExpiry controls the not after access period for expiration.</td>
-<td>time.Duration</td>
+<td>string</td>
 <td>false</td>
 </tr>
 </tbody>

@@ -417,6 +417,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../configuration/configuring_m3db/" title="Configuring M3DB" class="md-nav__link">
+      Configuring M3DB
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../configuration/pod_identity/" title="Pod Identity" class="md-nav__link">
       Pod Identity
     </a>
@@ -563,7 +575,7 @@ as possible (namely persistent storage). See below for instructions on creating 
 <p>Create an etcd cluster in the same namespace your M3DB cluster will be created in. If you don't have persistent storage
 available, this will create a cluster that will not use persistent storage and will likely become unavailable if any of
 the pods die:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.2/example/etcd/etcd-basic.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.4/example/etcd/etcd-basic.yaml
 
 # Verify etcd health once pods available
 kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
@@ -572,7 +584,7 @@ kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
 
 <p>If you have remote storage available and would like to jump straight to using it, apply the following manifest for etcd
 instead:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.2/example/etcd/etcd-pd.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.4/example/etcd/etcd-pd.yaml
 </code></pre>
 
 <h3 id="m3db">M3DB</h3>
@@ -586,6 +598,10 @@ spec:
   image: quay.io/m3db/m3dbnode:latest
   replicationFactor: 3
   numberOfShards: 256
+  etcdEndpoints:
+  - http://etcd-0.etcd:2379
+  - http://etcd-1.etcd:2379
+  - http://etcd-2.etcd:2379
   isolationGroups:
     - name: us-east1-b
       numInstances: 1
@@ -627,7 +643,7 @@ simple-cluster-rep2-0   1/1     Running   0          37s
 for performance reasons, and since M3DB already replicates your data.</p>
 <h3 id="etcd_1">Etcd</h3>
 <p>Create an etcd cluster with persistent volumes:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.2/example/etcd/etcd-pd.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.4/example/etcd/etcd-pd.yaml
 </code></pre>
 
 <p>We recommend modifying the <code>storageClassName</code> in the manifest to one that matches your cloud provider's fastest remote
@@ -648,6 +664,10 @@ spec:
       numInstances: 1
     - name: us-east1-d
       numInstances: 1
+  etcdEndpoints:
+  - http://etcd-0.etcd:2379
+  - http://etcd-1.etcd:2379
+  - http://etcd-2.etcd:2379
   podIdentityConfig:
     sources:
       # - NodeName
@@ -719,13 +739,13 @@ you will want to delete only the relevant keys (generally anything containing th
           </a>
         
         
-          <a href="../../configuration/pod_identity/" title="Pod Identity" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../../configuration/configuring_m3db/" title="Configuring M3DB" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Pod Identity
+                Configuring M3DB
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
