@@ -73,11 +73,7 @@ type Encoder struct {
 	changedValues          []int32
 	fieldsChangedToDefault []int32
 
-	// {
-		//
-	}
-
-	unmarshaled            *dynamic.Message
+	unmarshaled *dynamic.Message
 
 	hardErr                          error
 	hasEncodedFirstSetOfCustomValues bool
