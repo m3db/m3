@@ -1,5 +1,5 @@
-hash: e37c3443cf51be0ed550078290ab6d3a3f745c71b7ef8cd879f06dfb62557a62
-updated: 2019-03-28T16:17:41.783517-04:00
+hash: 5cdc8946311a6e8304a7a6a8182d6d6a5a45b600cfd0dc597d0d9e0985862d57
+updated: 2019-04-08T15:24:56.317181-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -16,7 +16,7 @@ imports:
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
 - name: github.com/codahale/hdrhistogram
-  version: 3a0bb77429bd3a61596f5e8a3172445844342120
+  version: f8ad88b59a584afeee9d334eff879b104439117b
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
@@ -63,6 +63,7 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
+  - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
   - pkg/fileutil
@@ -108,11 +109,9 @@ imports:
   version: 97fdf19511ea361ae1c100dd393cc47f8dcfa1e1
   subpackages:
   - capnslog
-- name: github.com/m3db/vellum
-  version: e766292d14de216c324bb60b17320af72dee59c6
-  repo: https://github.com/m3db/vellum
+- name: github.com/couchbase/vellum
+  version: e91b68ff3efe3cc11723aa25dd315cbc9276cd65
   subpackages:
-  - regexp
   - utf8
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -134,7 +133,7 @@ imports:
 - name: github.com/go-logfmt/logfmt
   version: 432dd90af23366a89a611c020003fc8ba281ae5d
 - name: github.com/go-playground/locales
-  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+  version: f63010822830b6fe52288ee52d5a1151088ce039
   subpackages:
   - currency
 - name: github.com/go-playground/universal-translator
@@ -162,11 +161,14 @@ imports:
   - jsonpb
   - proto
   - protoc-gen-go/descriptor
+  - protoc-gen-go/plugin
   - ptypes
   - ptypes/any
   - ptypes/duration
+  - ptypes/empty
   - ptypes/struct
   - ptypes/timestamp
+  - ptypes/wrappers
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/google/btree
@@ -182,7 +184,7 @@ imports:
 - name: github.com/google/uuid
   version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
 - name: github.com/gorilla/mux
-  version: a7962380ca08b5a188038c69871b8d3fbdf31e89
+  version: c5c6c98bc25355028a63748a498942a6398ccd22
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -208,13 +210,18 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jhump/protoreflect
-  version: 8bfeffd6b414f964a56d8a0118b5f80906a59def
+  version: 6feecbc20c4c369d6494c59ac5aee5d0df3c9d80
   subpackages:
   - desc
+  - desc/builder
   - desc/internal
+  - desc/protoparse
+  - dynamic
   - internal
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- name: github.com/kr/logfmt
+  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
   version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
@@ -250,6 +257,10 @@ imports:
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
+- name: github.com/m3db/vellum
+  version: e766292d14de216c324bb60b17320af72dee59c6
+  subpackages:
+  - regexp
 - name: github.com/magiconair/properties
   version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
 - name: github.com/matttproud/golang_protobuf_extensions
@@ -337,7 +348,7 @@ imports:
   - index
   - labels
 - name: github.com/rakyll/statik
-  version: 19b88da8fc15428620782ba18f68423130e7ac7d
+  version: 79258177a57a85a8ab2eca7ce0936aad80307f4e
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
@@ -503,6 +514,10 @@ imports:
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
+  - protobuf/api
+  - protobuf/field_mask
+  - protobuf/ptype
+  - protobuf/source_context
 - name: google.golang.org/grpc
   version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
   subpackages:
@@ -552,6 +567,8 @@ testImports:
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/glycerine/go-unsnap-stream
   version: f9677308dec2b35e76737f9713df328ad11b1fea
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
