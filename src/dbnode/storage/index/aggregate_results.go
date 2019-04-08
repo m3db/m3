@@ -104,6 +104,49 @@ func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, error) {
 	return size, err
 }
 
+func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
+	return r.aggregateOpts
+}
+
+func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
+	r.Lock()
+	for _, entry := range batch {
+		f := entry.Field
+		aggValues, ok := r.resultsMap.Get(f)
+		if !ok {
+			aggValues = r.valuesPool.Get()
+			// we can avoid the copy because we assume ownership of the passed ident.ID,
+			// but still need to finalize it.
+			r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: false,
+			})
+		} else {
+			// because we already have a entry for this field, we release the ident back to
+			// the underlying pool.
+			f.Finalize()
+		}
+		valuesMap := aggValues.Map()
+		for _, t := range entry.Terms {
+			if !valuesMap.Contains(t) {
+				// we can avoid the copy because we assume ownership of the passed ident.ID,
+				// but still need to finalize it.
+				valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: false,
+				})
+			} else {
+				// because we already have a entry for this term, we release the ident back to
+				// the underlying pool.
+				t.Finalize()
+			}
+		}
+	}
+	size := r.resultsMap.Len()
+	r.Unlock()
+	return size
+}
+
 func (r *aggregatedResults) addDocumentsBatchWithLock(
 	batch []doc.Document,
 ) error {
