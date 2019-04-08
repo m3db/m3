@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/checked"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/cespare/xxhash"
 	"github.com/jhump/protoreflect/desc"
@@ -72,6 +72,11 @@ type Encoder struct {
 	varIntBuf              [8]byte
 	changedValues          []int32
 	fieldsChangedToDefault []int32
+
+	// {
+		//
+	}
+
 	unmarshaled            *dynamic.Message
 
 	hardErr                          error
