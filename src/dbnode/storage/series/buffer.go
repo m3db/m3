@@ -161,6 +161,27 @@ func (b *dbBuffer) Reset(opts Options) {
 	b.futureRetentionPeriod = ropts.FutureRetentionPeriod()
 }
 
+// resolveWriteType returns whether a write is a cold write or warm write.
+func (b *dbBuffer) resolveWriteType(
+	timestamp time.Time,
+	now time.Time,
+	wopts WriteOptions,
+) WriteType {
+	if wopts != nil {
+		if writeType := wopts.WriteType(); writeType != UndefinedWriteType {
+			return writeType
+		}
+	}
+
+	pastLimit := now.Add(-1 * b.bufferPast)
+	futureLimit := now.Add(b.bufferFuture)
+	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
+		return ColdWrite
+	}
+
+	return WarmWrite
+}
+
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	timestamp time.Time,
@@ -170,7 +191,7 @@ func (b *dbBuffer) Write(
 	wopts WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
-	wType := wopts.ResolveWriteType(timestamp, now, b.bufferPast, b.bufferFuture)
+	wType := b.resolveWriteType(timestamp, now, wopts)
 
 	if wType == ColdWrite {
 		if !b.coldWritesEnabled {
