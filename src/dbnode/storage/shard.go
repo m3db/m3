@@ -764,7 +764,7 @@ func (s *dbShard) Write(
 	wOpts *series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
-		value, unit, annotation, wOpts,false)
+		value, unit, annotation, wOpts, false)
 }
 
 func (s *dbShard) writeAndIndex(
