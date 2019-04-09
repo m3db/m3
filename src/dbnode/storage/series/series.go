@@ -365,7 +365,10 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 	// Iterate over the encoders in the database buffer
 	if !s.buffer.IsEmpty() {
-		bufferResults := s.buffer.FetchBlocksMetadata(ctx, start, end, opts)
+		bufferResults, err := s.buffer.FetchBlocksMetadata(ctx, start, end, opts)
+		if err != nil {
+			return block.FetchBlocksMetadataResult{}, err
+		}
 		for _, result := range bufferResults.Results() {
 			res.Add(result)
 		}

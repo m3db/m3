@@ -644,7 +644,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().
 		FetchBlocksMetadata(ctx, start, end, fetchOpts).
-		Return(expectedResults)
+		Return(expectedResults, nil)
 
 	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
 	_, err := series.Bootstrap(nil)

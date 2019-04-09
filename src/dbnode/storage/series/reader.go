@@ -168,7 +168,10 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		}
 
 		if seriesBuffer != nil {
-			bufferResults := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size))
+			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size))
+			if err != nil {
+				return nil, err
+			}
 			// Multiple block results may be returned here (for the same block
 			// start) - one for warm writes and another for cold writes.
 			for _, bufferRes := range bufferResults {

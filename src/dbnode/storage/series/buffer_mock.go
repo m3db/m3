@@ -107,11 +107,12 @@ func (mr *MockdatabaseBufferMockRecorder) Flush(ctx, blockStart, id, tags, persi
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
+func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time) ([][]xio.BlockReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, start, end)
 	ret0, _ := ret[0].([][]xio.BlockReader)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ReadEncoded indicates an expected call of ReadEncoded
@@ -135,11 +136,12 @@ func (mr *MockdatabaseBufferMockRecorder) FetchBlocks(ctx, starts interface{}) *
 }
 
 // FetchBlocksMetadata mocks base method
-func (m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start, end time.Time, opts FetchBlocksMetadataOptions) block.FetchBlockMetadataResults {
+func (m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start, end time.Time, opts FetchBlocksMetadataOptions) (block.FetchBlockMetadataResults, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadata", ctx, start, end, opts)
 	ret0, _ := ret[0].(block.FetchBlockMetadataResults)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata

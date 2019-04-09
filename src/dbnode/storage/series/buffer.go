@@ -45,8 +45,9 @@ const (
 )
 
 var (
-	timeZero           time.Time
-	errIncompleteMerge = errors.New("[invariant violated] bucket merge did not result in only one encoder")
+	timeZero                   time.Time
+	errIncompleteMerge         = errors.New("[invariant violated] bucket merge did not result in only one encoder")
+	errBucketCacheInconsistent = errors.New("[invariant violated] buckets in map does not match the sorted keys cache")
 )
 
 const (
@@ -82,7 +83,7 @@ type databaseBuffer interface {
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
-	) [][]xio.BlockReader
+	) ([][]xio.BlockReader, error)
 
 	FetchBlocks(
 		ctx context.Context,
@@ -93,7 +94,7 @@ type databaseBuffer interface {
 		ctx context.Context,
 		start, end time.Time,
 		opts FetchBlocksMetadataOptions,
-	) block.FetchBlockMetadataResults
+	) (block.FetchBlockMetadataResults, error)
 
 	IsEmpty() bool
 
@@ -373,7 +374,11 @@ func (b *dbBuffer) Flush(
 	return FlushOutcomeFlushedToDisk, nil
 }
 
-func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
+func (b *dbBuffer) ReadEncoded(
+	ctx context.Context,
+	start time.Time,
+	end time.Time,
+) ([][]xio.BlockReader, error) {
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
 
@@ -388,7 +393,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 			// not match the sorted keys cache, which should never happen.
 			log := b.opts.InstrumentOptions().Logger()
 			log.Errorf(errBucketMapCacheNotInSync)
-			return nil
+			return nil, errBucketCacheInconsistent
 		}
 
 		if streams := bv.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
@@ -404,7 +409,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		bv.setLastRead(b.nowFn())
 	}
 
-	return res
+	return res, nil
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
@@ -431,7 +436,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
 	opts FetchBlocksMetadataOptions,
-) block.FetchBlockMetadataResults {
+) (block.FetchBlockMetadataResults, error) {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
 
@@ -446,7 +451,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 			// not match the sorted keys cache, which should never happen.
 			log := b.opts.InstrumentOptions().Logger()
 			log.Errorf(errBucketMapCacheNotInSync)
-			return nil
+			return nil, errBucketCacheInconsistent
 		}
 
 		size := int64(bv.streamsLen())
@@ -471,7 +476,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		})
 	}
 
-	return res
+	return res, nil
 }
 
 func (b *dbBuffer) bucketVersionsAt(
@@ -1011,9 +1016,7 @@ func mergeStreamsToEncoder(
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
 	iter := bopts.MultiReaderIteratorPool().Get()
-	defer func() {
-		iter.Close()
-	}()
+	defer iter.Close()
 
 	var lastWriteAt time.Time
 	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize())
@@ -1037,7 +1040,9 @@ func (b *BufferBucket) toStream(ctx context.Context) (xio.SegmentReader, error) 
 	if b.hasJustSingleEncoder() {
 		b.resetBootstrapped()
 		// Already merged as a single encoder.
-		return b.encoders[0].encoder.Stream(), nil
+		stream := b.encoders[0].encoder.Stream()
+		ctx.RegisterFinalizer(stream)
+		return stream, nil
 	}
 
 	if b.hasJustSingleBootstrappedBlock() {
@@ -1061,7 +1066,9 @@ func (b *BufferBucket) toStream(ctx context.Context) (xio.SegmentReader, error) 
 		return nil, errIncompleteMerge
 	}
 
-	return b.encoders[0].encoder.Stream(), nil
+	stream := b.encoders[0].encoder.Stream()
+	ctx.RegisterFinalizer(stream)
+	return stream, nil
 }
 
 // BufferBucketVersionsPool provides a pool for BufferBucketVersions.

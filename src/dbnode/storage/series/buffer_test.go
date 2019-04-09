@@ -140,7 +140,8 @@ func TestBufferWriteRead(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data, results, opts)
@@ -172,13 +173,15 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 	firstBucketStart := start.Truncate(time.Second)
 	firstBucketEnd := start.Add(mins(2)).Truncate(time.Second)
-	results := buffer.ReadEncoded(ctx, firstBucketStart, firstBucketEnd)
+	results, err := buffer.ReadEncoded(ctx, firstBucketStart, firstBucketEnd)
+	assert.NoError(t, err)
 	assert.NotNil(t, results)
 	assertValuesEqual(t, []value{data[0]}, results, opts)
 
 	secondBucketStart := start.Add(mins(2)).Truncate(time.Second)
 	secondBucketEnd := start.Add(mins(4)).Truncate(time.Second)
-	results = buffer.ReadEncoded(ctx, secondBucketStart, secondBucketEnd)
+	results, err = buffer.ReadEncoded(ctx, secondBucketStart, secondBucketEnd)
+	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, []value{data[1]}, results, opts)
@@ -222,7 +225,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data, results, opts)
@@ -509,7 +513,9 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 			IncludeLastRead:  true,
 		},
 	}
-	res := buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts).Results()
+	metadata, err := buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts)
+	require.NoError(t, err)
+	res := metadata.Results()
 	require.Equal(t, 1, len(res))
 	assert.Equal(t, b.start, res[0].Start)
 	assert.Equal(t, expectedSize, res[0].Size)
@@ -575,7 +581,8 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.ReadEncoded(ctx, start, end)
+	results, err := buffer.ReadEncoded(ctx, start, end)
+	assert.NoError(t, err)
 	expected := make([]value, len(data))
 	copy(expected, data)
 	sort.Sort(valuesByTime(expected))
