@@ -689,16 +689,16 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		}
 	)
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil, nil).Return(s, true, nil)
+		time.Time{}, 1.0, xtime.Second, nil, series.WriteOptions{}).Return(s, true, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
-		1.0, xtime.Second, nil, nil))
+		1.0, xtime.Second, nil, series.WriteOptions{}))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil, nil).Return(s, false, fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil, series.WriteOptions{}).Return(s, false, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
-		1.0, xtime.Second, nil, nil))
+		1.0, xtime.Second, nil, series.WriteOptions{}))
 
 	var (
 		q       = index.Query{}
@@ -750,7 +750,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(nil, notExistNamespace, nil, nil, nil)
+	err = d.WriteBatch(nil, notExistNamespace, nil, nil, series.WriteOptions{})
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -773,7 +773,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil, nil)
+	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil, series.WriteOptions{})
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -910,7 +910,7 @@ func testDatabaseWriteBatch(t *testing.T,
 			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
-				write.t, write.v, xtime.Second, nil, nil).Return(
+				write.t, write.v, xtime.Second, nil, series.WriteOptions{}).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
@@ -920,7 +920,7 @@ func testDatabaseWriteBatch(t *testing.T,
 			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
-				write.t, write.v, xtime.Second, nil, nil).Return(
+				write.t, write.v, xtime.Second, nil, series.WriteOptions{}).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
@@ -933,10 +933,10 @@ func testDatabaseWriteBatch(t *testing.T,
 	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
 		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
-			errHandler, nil)
+			errHandler, series.WriteOptions{})
 	} else {
 		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
-			errHandler, nil)
+			errHandler, series.WriteOptions{})
 	}
 
 	require.NoError(t, err)
@@ -1180,7 +1180,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	batchWriter.EXPECT().SetSkipWrite(3)
 
 	errHandler := &fakeIndexedErrorHandler{}
-	d.WriteBatch(ctx, namespace, batchWriter, errHandler, nil)
+	d.WriteBatch(ctx, namespace, batchWriter, errHandler, series.WriteOptions{})
 	require.Equal(t, 2, len(errHandler.errs))
 	require.Equal(t, err, errHandler.errs[0].err)
 	require.Equal(t, err, errHandler.errs[1].err)

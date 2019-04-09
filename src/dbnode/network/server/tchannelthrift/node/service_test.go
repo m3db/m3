@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -1417,7 +1418,7 @@ func TestServiceWrite(t *testing.T) {
 
 	mockDB.EXPECT().
 		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
-			xtime.Second, nil, nil).
+			xtime.Second, nil, series.WriteOptions{}).
 		Return(nil)
 
 	mockDB.EXPECT().IsOverloaded().Return(false)
@@ -1485,7 +1486,8 @@ func TestServiceWriteTagged(t *testing.T) {
 		ident.NewIDMatcher(nsID),
 		ident.NewIDMatcher(id),
 		gomock.Any(),
-		at, value, xtime.Second, nil, nil,
+		at, value, xtime.Second, nil,
+		series.WriteOptions{},
 	).Return(nil)
 
 	request := &rpc.WriteTaggedRequest{

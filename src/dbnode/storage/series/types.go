@@ -345,10 +345,26 @@ const (
 )
 
 // WriteOptions define different options for a write.
-type WriteOptions interface {
-	// SetWriteType sets the WriteType.
-	SetWriteType(value WriteType) WriteOptions
+type WriteOptions struct {
+	WriteType WriteType
+}
 
-	// WriteType returns the WriteType.
-	WriteType() WriteType
+// ResolveWriteType returns whether a write is a cold write or warm write.
+func (w *WriteOptions) ResolveWriteType(
+	timestamp time.Time,
+	now time.Time,
+	bufferPast time.Duration,
+	bufferFuture time.Duration,
+) WriteType {
+	if w.WriteType != UndefinedWriteType {
+		return w.WriteType
+	}
+
+	pastLimit := now.Add(-1 * bufferPast)
+	futureLimit := now.Add(bufferFuture)
+	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
+		return ColdWrite
+	}
+
+	return WarmWrite
 }

@@ -218,22 +218,3 @@ func (o *options) SetBufferBucketPool(value *BufferBucketPool) Options {
 func (o *options) BufferBucketPool() *BufferBucketPool {
 	return o.bufferBucketPool
 }
-
-type writeOptions struct {
-	writeType WriteType
-}
-
-func (o *writeOptions) SetWriteType(value WriteType) WriteOptions {
-	opts := *o
-	opts.writeType = value
-	return &opts
-}
-
-func (o *writeOptions) WriteType() WriteType {
-	return o.writeType
-}
-
-// NewWriteOptions creates new write options.
-func NewWriteOptions() WriteOptions {
-	return &writeOptions{}
-}
