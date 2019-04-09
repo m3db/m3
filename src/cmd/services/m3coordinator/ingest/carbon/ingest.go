@@ -39,12 +39,12 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	m3xserver "github.com/m3db/m3x/server"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/pool"
+	m3xserver "github.com/m3db/m3/src/x/server"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )

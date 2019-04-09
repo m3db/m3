@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"

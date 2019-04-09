@@ -70,3 +70,6 @@ db:
           initialCluster:
               - hostID: m3db_seed
                 endpoint: http://m3db_seed:2380
+
+  # proto:
+  #   schemaFilePath: /etc/m3dbnode/schema.proto

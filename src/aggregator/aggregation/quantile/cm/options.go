@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (

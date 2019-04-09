@@ -35,9 +35,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/ident/testutil"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/ident/testutil"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )

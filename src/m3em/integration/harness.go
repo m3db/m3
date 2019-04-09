@@ -38,9 +38,9 @@ import (
 	"github.com/m3db/m3/src/m3em/integration/resources"
 	"github.com/m3db/m3/src/m3em/node"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

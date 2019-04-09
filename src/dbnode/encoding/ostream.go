@@ -21,8 +21,8 @@
 package encoding
 
 import (
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
@@ -162,6 +162,13 @@ func (os *ostream) WriteBytes(bytes []byte) {
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}
+}
+
+// Write writes a byte slice. This method exists in addition to WriteBytes()
+// to satisfy the io.Writer interface.
+func (os *ostream) Write(bytes []byte) (int, error) {
+	os.WriteBytes(bytes)
+	return len(bytes), nil
 }
 
 // WriteBits writes the lowest numBits of v to the stream, starting

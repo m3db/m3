@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/environment"
 	xtest "github.com/m3db/m3/src/x/test"
-	xconfig "github.com/m3db/m3x/config"
+	xconfig "github.com/m3db/m3/src/x/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -370,6 +370,7 @@ func TestConfiguration(t *testing.T) {
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
       seed: 42
+    proto: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -606,6 +607,7 @@ func TestConfiguration(t *testing.T) {
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  proto: null
 coordinator: null
 `
 

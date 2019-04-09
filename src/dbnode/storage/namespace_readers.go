@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )

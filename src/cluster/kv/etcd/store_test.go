@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/mocks"
-	xclock "github.com/m3db/m3x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"

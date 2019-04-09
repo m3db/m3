@@ -38,9 +38,9 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/log"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

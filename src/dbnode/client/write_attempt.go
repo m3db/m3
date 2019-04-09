@@ -23,11 +23,11 @@ package client
 import (
 	"time"
 
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
-	xtime "github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type writeAttemptType byte

@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/coordinator"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/getopt"
 	"github.com/spf13/viper"

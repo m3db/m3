@@ -28,8 +28,8 @@ import (
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
 	ttcluster "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
-	xclose "github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/context"
+	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/context"
 )
 
 type server struct {

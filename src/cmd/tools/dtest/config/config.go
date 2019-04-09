@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/node"
 	"github.com/m3db/m3/src/m3em/x/grpc"
-	xconfig "github.com/m3db/m3x/config"
-	xlog "github.com/m3db/m3x/log"
+	xconfig "github.com/m3db/m3/src/x/config"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

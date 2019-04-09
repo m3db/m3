@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	xos "github.com/m3db/m3/src/x/os"
-	xerror "github.com/m3db/m3x/errors"
+	xerror "github.com/m3db/m3/src/x/errors"
 )
 
 const (

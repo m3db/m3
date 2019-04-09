@@ -22,7 +22,7 @@ package builder
 
 import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // Ensure for our use case that the multi key iterator we return

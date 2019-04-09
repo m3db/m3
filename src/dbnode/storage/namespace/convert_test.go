@@ -27,9 +27,8 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,6 +59,7 @@ var (
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
+			SchemaOptions:     namespace.GenTestSchemaOptions(),
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -69,6 +69,13 @@ var (
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
 			IndexOptions:      &validIndexOpts,
+		},
+	}
+
+	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
+		nsproto.NamespaceOptions{
+			RetentionOptions: &validRetentionOpts,
+			SchemaOptions:    namespace.GenTestSchemaOptions(),
 		},
 	}
 
@@ -178,6 +185,51 @@ func TestToProto(t *testing.T) {
 	assertEqualMetadata(t, "ns2", *(reg.Namespaces["ns2"]), md2)
 }
 
+func TestSchemaFromProto(t *testing.T) {
+	validRegistry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"testns1": &validNamespaceSchemaOpts[0],
+		},
+	}
+	nsMap, err := namespace.FromProto(validRegistry)
+	require.NoError(t, err)
+
+	md1, err := nsMap.Get(ident.StringID("testns1"))
+	require.NoError(t, err)
+	assertEqualMetadata(t, "testns1", validNamespaceSchemaOpts[0], md1)
+
+	require.NotNil(t, md1.Options().SchemaRegistry())
+	testSchema, found := md1.Options().SchemaRegistry().GetLatest()
+	require.True(t, found)
+	require.NotNil(t, testSchema)
+	require.EqualValues(t, "third", testSchema.DeployId())
+	require.EqualValues(t, "TestMessage", testSchema.Get().GetName())
+}
+
+func TestSchemaToProto(t *testing.T) {
+	// make ns map
+	testSchemaReg, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions())
+	require.NoError(t, err)
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
+		namespace.NewOptions().SetSchemaRegistry(testSchemaReg))
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// convert to nsproto map
+	reg := namespace.ToProto(nsMap)
+	require.Len(t, reg.Namespaces, 1)
+
+	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
+	outSchemaReg, err := namespace.LoadSchemaRegistry(reg.Namespaces["ns1"].SchemaOptions)
+	require.NoError(t, err)
+	outSchema, found := outSchemaReg.GetLatest()
+	require.True(t, found)
+	require.NotNil(t, outSchema)
+	require.EqualValues(t, "third", outSchema.DeployId())
+	require.EqualValues(t, "TestMessage", outSchema.Get().GetName())
+}
+
 func TestToProtoSnapshotEnabled(t *testing.T) {
 	md, err := namespace.NewMetadata(
 		ident.StringID("ns1"),
@@ -192,7 +244,7 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 
 	reg := namespace.ToProto(nsMap)
 	require.Len(t, reg.Namespaces, 1)
-	assert.Equal(t,
+	require.Equal(t,
 		!namespace.NewOptions().SnapshotEnabled(),
 		reg.Namespaces["ns1"].SnapshotEnabled,
 	)
@@ -214,7 +266,7 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 
 	md, err := nsMap.Get(ident.StringID("testns1"))
 	require.NoError(t, err)
-	assert.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
+	require.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
@@ -226,6 +278,10 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, expected.CleanupEnabled, opts.CleanupEnabled())
 	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
+	expectedSchemaReg, err := namespace.LoadSchemaRegistry(expected.SchemaOptions)
+	require.NoError(t, err)
+	require.NotNil(t, expectedSchemaReg)
+	require.True(t, expectedSchemaReg.Equal(observed.Options().SchemaRegistry()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
 }

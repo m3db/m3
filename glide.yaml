@@ -1,20 +1,5 @@
 package: github.com/m3db/m3
 import:
-  - package: github.com/m3db/m3x
-    version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
-    vcs: git
-    subpackages:
-      - checked
-      - close
-      - errors
-      - instrument
-      - log
-      - pool
-      - retry
-      - time
-      - watch
-      - ident
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
@@ -56,9 +41,13 @@ import:
     subpackages:
       - proto
       - ptypes/timestamp
+      - jsonpb
 
   - package: github.com/gogo/protobuf
     version: ^1
+
+  - package: github.com/jhump/protoreflect
+    version: 6feecbc20c4c369d6494c59ac5aee5d0df3c9d80
 
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
@@ -114,9 +103,8 @@ import:
     version: ^1.2.0
 
   # NB(r): make sure to use the master commit for vellum
-  # once all upstream changes are complete in github.com/couchbase/vellum.
-  - package: github.com/couchbase/vellum
-    repo: https://github.com/m3db/vellum
+  # once all upstream changes are complete in github.com/m3db/vellum.
+  - package: github.com/m3db/vellum
     version: e766292d14de216c324bb60b17320af72dee59c6
 
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum

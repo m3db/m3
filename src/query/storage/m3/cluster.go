@@ -29,8 +29,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 var (

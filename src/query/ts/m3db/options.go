@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (

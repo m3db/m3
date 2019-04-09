@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/collector/reporter/m3aggregator"
 	"github.com/m3db/m3/src/x/serialize"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 
 	"go.uber.org/zap"
 )

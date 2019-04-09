@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
-	vregex "github.com/couchbase/vellum/regexp"
+	vregex "github.com/m3db/vellum/regexp"
 )
 
 // ErrDocNotFound is the error returned when there is no document for a given postings ID.

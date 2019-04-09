@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

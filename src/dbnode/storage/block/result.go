@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // NewFetchBlockResult creates a new fetch block result

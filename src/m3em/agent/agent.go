@@ -36,8 +36,8 @@ import (
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/os/exec"
 	"github.com/m3db/m3/src/m3em/os/fs"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
 	context "golang.org/x/net/context"

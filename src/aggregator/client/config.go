@@ -28,10 +28,10 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
 )

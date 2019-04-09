@@ -51,9 +51,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/ident"
+	xlog "github.com/m3db/m3/src/x/log"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	tchannel "github.com/uber/tchannel-go"

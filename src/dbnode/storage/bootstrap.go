@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
 )

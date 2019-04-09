@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	xtest "github.com/m3db/m3/src/x/test"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )

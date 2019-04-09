@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
 )

@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"

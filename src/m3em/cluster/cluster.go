@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/m3em/node"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 var (

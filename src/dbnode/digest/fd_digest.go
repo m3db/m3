@@ -25,7 +25,7 @@ import (
 	"hash/adler32"
 	"os"
 
-	xclose "github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // FdWithDigest is a container for a file descriptor and the digest for the file contents.

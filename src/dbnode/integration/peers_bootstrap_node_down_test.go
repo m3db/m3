@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/stretchr/testify/require"
 )
