@@ -182,9 +182,10 @@ func (b *dbBuffer) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wOpts *WriteOptions,
+	wopts *WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
+	// TODO add logic for WriteType
 	futureLimit := now.Add(1 * b.bufferFuture)
 	pastLimit := now.Add(-1 * b.bufferPast)
 	if !futureLimit.After(timestamp) {
@@ -891,10 +892,10 @@ func resolveWriteType(
 	now time.Time,
 	bufferPast time.Duration,
 	bufferFuture time.Duration,
-	wOpts *WriteOptions,
+	wopts *WriteOptions,
 ) WriteType {
-	if wOpts.WriteType() != UndefinedWriteType {
-		return wOpts.WriteType()
+	if wopts.WriteType() != UndefinedWriteType {
+		return wopts.WriteType()
 	}
 
 	pastLimit := now.Add(-1 * bufferPast)
