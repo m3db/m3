@@ -27,7 +27,7 @@ import (
 	_ "github.com/m3db/m3/src/ctl/generated/ui/statik" // Generated UI statik package
 	mserver "github.com/m3db/m3/src/ctl/server"
 	"github.com/m3db/m3/src/ctl/service"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 
 	"github.com/gorilla/mux"
 	"github.com/rakyll/statik/fs"

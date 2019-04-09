@@ -44,10 +44,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -533,13 +533,13 @@ func genPropTestInput(
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
 			return propTestInput{
-				currentTime:     start,
-				bufferFuture:    bufferFuture,
-				bufferPast:      bufferPast,
-				snapshotTime:    snapshotTime,
-				snapshotExists:  snapshotExists,
-				commitLogExists: commitLogExists,
-				writes:          val,
+				currentTime:                   start,
+				bufferFuture:                  bufferFuture,
+				bufferPast:                    bufferPast,
+				snapshotTime:                  snapshotTime,
+				snapshotExists:                snapshotExists,
+				commitLogExists:               commitLogExists,
+				writes:                        val,
 				includeCorruptedCommitlogFile: includeCorruptedCommitlogFile,
 				multiNodeCluster:              multiNodeCluster,
 			}

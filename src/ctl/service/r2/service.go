@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/ctl/auth"
 	mservice "github.com/m3db/m3/src/ctl/service"
 	"github.com/m3db/m3/src/ctl/service/r2/store"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/log"
 
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"

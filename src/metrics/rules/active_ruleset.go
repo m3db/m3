@@ -32,7 +32,7 @@ import (
 	metricID "github.com/m3db/m3/src/metrics/metric/id"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // Matcher matches metrics against rules to determine applicable policies.

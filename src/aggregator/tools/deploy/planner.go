@@ -26,8 +26,8 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3x/errors"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/errors"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (

@@ -23,8 +23,8 @@ package runtime
 import (
 	"fmt"
 
-	xclose "github.com/m3db/m3x/close"
-	xwatch "github.com/m3db/m3x/watch"
+	xclose "github.com/m3db/m3/src/x/close"
+	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
 type optionsManager struct {

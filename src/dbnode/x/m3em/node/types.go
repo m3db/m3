@@ -22,7 +22,7 @@ package m3db
 
 import (
 	"github.com/m3db/m3/src/m3em/node"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Node represents a ServiceNode pointing to an M3DB process

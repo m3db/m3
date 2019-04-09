@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type fetchStateType byte
@@ -54,18 +54,20 @@ type fetchState struct {
 	sync.Mutex
 	refCounter
 
-	// NB: stateType determines which type of op this fetchState
-	// is used for - fetchTagged or Aggregate.
-	stateType     fetchStateType
 	fetchTaggedOp *fetchTaggedOp
 	aggregateOp   *aggregateOp
 
 	nsID                 ident.ID
 	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
-	done                 bool
 
 	pool fetchStatePool
+
+	// NB: stateType determines which type of op this fetchState
+	// is used for - fetchTagged or Aggregate.
+	stateType fetchStateType
+
+	done bool
 }
 
 func newFetchState(pool fetchStatePool) *fetchState {

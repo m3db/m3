@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3x/context"
-	xsync "github.com/m3db/m3x/sync"
-	xtest "github.com/m3db/m3x/test"
+	"github.com/m3db/m3/src/x/context"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"

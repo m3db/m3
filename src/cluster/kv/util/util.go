@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 )
 
 var (

@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

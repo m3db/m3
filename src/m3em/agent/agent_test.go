@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/m3em/os/exec"
 	mockexec "github.com/m3db/m3/src/m3em/os/exec/mocks"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	m3xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	m3xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

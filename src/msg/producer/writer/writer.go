@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
 )

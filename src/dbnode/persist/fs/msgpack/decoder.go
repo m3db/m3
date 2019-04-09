@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
 )

@@ -32,9 +32,9 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/golang/protobuf/proto"

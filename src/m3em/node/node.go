@@ -32,9 +32,9 @@ import (
 	"github.com/m3db/m3/src/m3em/build"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/os/fs"
-	xclock "github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xclock "github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/grpc"

@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message VehicleLocation {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+}

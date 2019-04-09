@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xretry "github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3/src/x/retry"
 )
 
 // newTestShardSet creates a default shard set

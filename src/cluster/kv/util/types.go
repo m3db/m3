@@ -22,7 +22,7 @@ package util
 
 import (
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/log"
 )
 
 // ValidateFn validates an update from KV.

@@ -24,7 +24,7 @@ import (
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/generated/convert"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
 	"golang.org/x/net/context"

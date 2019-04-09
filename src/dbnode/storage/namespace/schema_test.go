@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/stretchr/testify/require"
 )

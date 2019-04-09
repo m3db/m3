@@ -26,9 +26,9 @@ import (
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/uber-go/tally"
 )

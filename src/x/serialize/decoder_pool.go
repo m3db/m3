@@ -21,7 +21,7 @@
 package serialize
 
 import (
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type decoderPool struct {

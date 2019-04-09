@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/instrument"
-	xretry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	xretry "github.com/m3db/m3/src/x/retry"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"

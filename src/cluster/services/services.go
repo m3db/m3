@@ -33,8 +33,8 @@ import (
 	ps "github.com/m3db/m3/src/cluster/placement/service"
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/log"
-	xwatch "github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/log"
+	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
 )

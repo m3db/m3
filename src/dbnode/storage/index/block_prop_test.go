@@ -39,7 +39,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
 	"github.com/m3db/m3/src/m3ninx/util"
 	"github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"

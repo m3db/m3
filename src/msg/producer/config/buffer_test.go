@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/msg/producer/buffer"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"

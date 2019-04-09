@@ -22,7 +22,7 @@ package bootstrapper
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	xlog "github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3/src/x/log"
 )
 
 type bootstrapStep interface {

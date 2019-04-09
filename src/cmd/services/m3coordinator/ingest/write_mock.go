@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )

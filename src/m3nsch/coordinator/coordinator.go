@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/generated/convert"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 
 	"google.golang.org/grpc"
 )

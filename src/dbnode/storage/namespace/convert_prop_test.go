@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"

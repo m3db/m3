@@ -28,10 +28,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
-	xsync "github.com/m3db/m3x/sync"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/retry"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (

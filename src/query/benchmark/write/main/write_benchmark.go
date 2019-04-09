@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/benchmark/common"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pkg/profile"
 )
