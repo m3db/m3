@@ -1,5 +1,5 @@
-hash: 5cdc8946311a6e8304a7a6a8182d6d6a5a45b600cfd0dc597d0d9e0985862d57
-updated: 2019-04-08T15:24:56.317181-04:00
+hash: e6add7f147cdbbe96d8d94afa6a38be1a20bb1dad6c852910c6fee926d38ce02
+updated: 2019-04-09T09:48:41.197153-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -15,8 +15,6 @@ imports:
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
-- name: github.com/codahale/hdrhistogram
-  version: f8ad88b59a584afeee9d334eff879b104439117b
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
@@ -110,7 +108,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: e91b68ff3efe3cc11723aa25dd315cbc9276cd65
+  version: 462e86d8716b36a1397b30ef77fb11105065a232
   subpackages:
   - utf8
 - name: github.com/davecgh/go-spew
@@ -348,7 +346,7 @@ imports:
   - index
   - labels
 - name: github.com/rakyll/statik
-  version: 79258177a57a85a8ab2eca7ce0936aad80307f4e
+  version: 3bac566d30cdbeddef402a80f3d6305860e59f12
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
