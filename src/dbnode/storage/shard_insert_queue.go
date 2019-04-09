@@ -34,6 +34,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 )
 
 var (
@@ -126,6 +127,7 @@ type dbShardPendingWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
+	opts       *series.WriteOptions
 }
 
 type dbShardPendingIndex struct {

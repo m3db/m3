@@ -566,7 +566,7 @@ func (n *dbNamespace) Write(
 		return ts.Series{}, false, err
 	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
-		value, unit, annotation)
+		value, unit, annotation, nil)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -591,7 +591,7 @@ func (n *dbNamespace) WriteTagged(
 		return ts.Series{}, false, err
 	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
-		value, unit, annotation)
+		value, unit, annotation, nil)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
