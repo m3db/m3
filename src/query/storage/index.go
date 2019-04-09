@@ -113,8 +113,8 @@ func FetchOptionsToM3Options(
 ) index.QueryOptions {
 	return index.QueryOptions{
 		Limit:          fetchOptions.Limit,
-		StartInclusive: fetchQuery.Start.Add(-1 * fetchOptions.Offset),
-		EndExclusive:   fetchQuery.End.Add(-1 * fetchOptions.Offset),
+		StartInclusive: fetchQuery.Start,
+		EndExclusive:   fetchQuery.End,
 	}
 }
 
@@ -244,9 +244,6 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 			query = idx.NewNegationQuery(query)
 		}
 		return query, nil
-
-	case models.MatchAll:
-		return idx.NewAllQuery(), nil
 
 	default:
 		return idx.Query{}, fmt.Errorf("unsupported query type: %v", matcher)
