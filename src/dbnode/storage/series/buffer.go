@@ -838,7 +838,7 @@ func (b *BufferBucket) write(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
 
-	encoder := b.newEncoder()
+	encoder := b.opts.EncoderPool().Get()
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 
 	b.encoders = append(b.encoders, inOrderEncoder{
@@ -941,10 +941,6 @@ func (b *BufferBucket) hasJustSingleBootstrappedBlock() bool {
 	encodersEmpty := len(b.encoders) == 0 ||
 		(len(b.encoders) == 1 && b.encoders[0].encoder.Len() == 0)
 	return encodersEmpty && len(b.bootstrapped) == 1
-}
-
-func (b *BufferBucket) newEncoder() encoding.Encoder {
-	return b.opts.EncoderPool().Get()
 }
 
 func (b *BufferBucket) merge() (int, error) {
