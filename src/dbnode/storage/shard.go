@@ -778,10 +778,10 @@ func (s *dbShard) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
-		value, unit, annotation, true, wopts)
+		value, unit, annotation, true, wOpts)
 }
 
 func (s *dbShard) Write(
@@ -791,10 +791,10 @@ func (s *dbShard) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
-		value, unit, annotation, false, wopts)
+		value, unit, annotation, false, wOpts)
 }
 
 func (s *dbShard) writeAndIndex(
@@ -806,7 +806,7 @@ func (s *dbShard) writeAndIndex(
 	unit xtime.Unit,
 	annotation []byte,
 	shouldReverseIndex bool,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	// Prepare write
 	entry, opts, err := s.tryRetrieveWritableSeries(id)
@@ -857,7 +857,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wopts)
+		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -897,7 +897,7 @@ func (s *dbShard) writeAndIndex(
 				value:      value,
 				unit:       unit,
 				annotation: annotationClone,
-				wopts:      wopts,
+				wOpts:      wOpts,
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
@@ -1341,7 +1341,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
 			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
-				write.unit, annotationBytes, write.wopts)
+				write.unit, annotationBytes, write.wOpts)
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
 			}

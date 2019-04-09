@@ -58,7 +58,7 @@ type DatabaseSeries interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wopts WriteOptions,
+		wOpts WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -347,24 +347,4 @@ const (
 // WriteOptions define different options for a write.
 type WriteOptions struct {
 	WriteType WriteType
-}
-
-// ResolveWriteType returns whether a write is a cold write or warm write.
-func (w *WriteOptions) ResolveWriteType(
-	timestamp time.Time,
-	now time.Time,
-	bufferPast time.Duration,
-	bufferFuture time.Duration,
-) WriteType {
-	if w.WriteType != UndefinedWriteType {
-		return w.WriteType
-	}
-
-	pastLimit := now.Add(-1 * bufferPast)
-	futureLimit := now.Add(bufferFuture)
-	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
-		return ColdWrite
-	}
-
-	return WarmWrite
 }

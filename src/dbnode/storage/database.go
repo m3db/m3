@@ -543,7 +543,7 @@ func (d *db) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) error {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -551,7 +551,7 @@ func (d *db) Write(
 		return err
 	}
 
-	series, wasWritten, err := n.Write(ctx, id, timestamp, value, unit, annotation, wopts)
+	series, wasWritten, err := n.Write(ctx, id, timestamp, value, unit, annotation, wOpts)
 	if err != nil {
 		return err
 	}
@@ -573,7 +573,7 @@ func (d *db) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) error {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -581,7 +581,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, wasWritten, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation, wopts)
+	series, wasWritten, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation, wOpts)
 	if err != nil {
 		return err
 	}
@@ -614,9 +614,9 @@ func (d *db) WriteBatch(
 	namespace ident.ID,
 	writer ts.BatchWriter,
 	errHandler IndexedErrorHandler,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) error {
-	return d.writeBatch(ctx, namespace, writer, errHandler, false, wopts)
+	return d.writeBatch(ctx, namespace, writer, errHandler, false, wOpts)
 }
 
 func (d *db) WriteTaggedBatch(
@@ -624,9 +624,9 @@ func (d *db) WriteTaggedBatch(
 	namespace ident.ID,
 	writer ts.BatchWriter,
 	errHandler IndexedErrorHandler,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) error {
-	return d.writeBatch(ctx, namespace, writer, errHandler, true, wopts)
+	return d.writeBatch(ctx, namespace, writer, errHandler, true, wOpts)
 }
 
 func (d *db) writeBatch(
@@ -635,7 +635,7 @@ func (d *db) writeBatch(
 	writer ts.BatchWriter,
 	errHandler IndexedErrorHandler,
 	tagged bool,
-	wopts series.WriteOptions,
+	wOpts series.WriteOptions,
 ) error {
 	writes, ok := writer.(ts.WriteBatch)
 	if !ok {
@@ -669,7 +669,7 @@ func (d *db) writeBatch(
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
-				wopts,
+				wOpts,
 			)
 		} else {
 			series, wasWritten, err = n.Write(
@@ -679,7 +679,7 @@ func (d *db) writeBatch(
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
-				wopts,
+				wOpts,
 			)
 		}
 		if err != nil {

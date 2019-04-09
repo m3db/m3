@@ -127,7 +127,7 @@ type dbShardPendingWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
-	wopts      series.WriteOptions
+	wOpts      series.WriteOptions
 }
 
 type dbShardPendingIndex struct {
