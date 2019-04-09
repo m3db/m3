@@ -81,7 +81,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	defer ctx.Close()
 
 	wasWritten, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
-		xtime.Second, nil)
+		xtime.Second, nil, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 	assert.False(t, wasWritten)
@@ -101,7 +101,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	defer ctx.Close()
 
 	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1,
-		xtime.Second, nil)
+		xtime.Second, nil, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 	assert.False(t, wasWritten)
@@ -110,7 +110,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 // Writes to buffer, verifying no error and that further writes should happen.
 func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
 	ctx := context.NewContext()
-	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, nil)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -261,7 +261,7 @@ func TestBufferDrainSamePoint(t *testing.T) {
 	for i, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, nil)
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
 			assert.True(t, wasWritten)

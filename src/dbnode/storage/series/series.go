@@ -282,9 +282,10 @@ func (s *dbSeries) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts *WriteOptions,
 ) (bool, error) {
 	s.Lock()
-	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
+	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wopts)
 	s.Unlock()
 	return wasWritten, err
 }

@@ -58,6 +58,7 @@ type DatabaseSeries interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts *WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -282,4 +283,36 @@ func NewStats(scope tally.Scope) Stats {
 // IncCreatedEncoders incs the EncoderCreated stat.
 func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
+}
+
+// WriteType is an enum for warm/cold write types.
+type WriteType int
+
+const (
+	// UndefinedWriteType is an undefined write type.
+	UndefinedWriteType WriteType = iota
+
+	// WarmWrite represents warm writes (within the buffer past/future window).
+	WarmWrite
+
+	// ColdWrite represents cold writes (outside the buffer past/future window).
+	ColdWrite
+)
+
+type WriteOptions struct {
+	writeType WriteType
+}
+
+func (o *WriteOptions) SetWriteType(value WriteType) *WriteOptions {
+	opts := *o
+	opts.writeType = value
+	return &opts
+}
+
+func (o *WriteOptions) WriteType() WriteType {
+	return o.writeType
+}
+
+func NewWriteOptions() *WriteOptions {
+	return &WriteOptions{}
 }

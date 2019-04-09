@@ -65,6 +65,7 @@ type databaseBuffer interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts *WriteOptions,
 	) (bool, error)
 
 	Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, error)
@@ -181,8 +182,10 @@ func (b *dbBuffer) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts *WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
+	// TODO add logic for WriteType
 	futureLimit := now.Add(1 * b.bufferFuture)
 	pastLimit := now.Add(-1 * b.bufferPast)
 	if !futureLimit.After(timestamp) {
@@ -881,4 +884,25 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	b.resetBootstrapped()
 
 	return discardMergedResult{newBlock, result.merges}, nil
+}
+
+// resolveWriteType returns whether a write is a cold write or warm write.
+func resolveWriteType(
+	timestamp time.Time,
+	now time.Time,
+	bufferPast time.Duration,
+	bufferFuture time.Duration,
+	wopts *WriteOptions,
+) WriteType {
+	if wopts.WriteType() != UndefinedWriteType {
+		return wopts.WriteType()
+	}
+
+	pastLimit := now.Add(-1 * bufferPast)
+	futureLimit := now.Add(bufferFuture)
+	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
+		return ColdWrite
+	}
+
+	return WarmWrite
 }
