@@ -40,10 +40,18 @@ var (
 	errSyntaxNotProto3      = errors.New("proto syntax is not proto3")
 )
 
+type MessageDescriptor struct {
+	*desc.MessageDescriptor
+}
+
 type schemaDescr struct {
 	deployId     string
 	prevDeployId string
-	md           *desc.MessageDescriptor
+	md           MessageDescriptor
+}
+
+func newSchemaDescr(deployId, prevId string, md MessageDescriptor) *schemaDescr {
+	return &schemaDescr{deployId: deployId, prevDeployId: prevId, md: md}
 }
 
 func (s *schemaDescr) DeployId() string {
@@ -61,19 +69,15 @@ func (s *schemaDescr) Equal(o SchemaDescr) bool {
 	return s.DeployId() == o.DeployId() && s.PrevDeployId() == o.PrevDeployId()
 }
 
-type MessageDescriptor struct {
-	*desc.MessageDescriptor
-}
-
 func (s *schemaDescr) Get() MessageDescriptor {
-	return MessageDescriptor{s.md}
+	return s.md
 }
 
 func (s *schemaDescr) String() string {
-	if s.md == nil {
+	if s.md.MessageDescriptor == nil {
 		return ""
 	}
-	return s.md.String()
+	return s.md.MessageDescriptor.String()
 }
 
 type schemaRegistry struct {
@@ -206,7 +210,7 @@ func loadFileDescriptorSet(fdSet *nsproto.FileDescriptorSet, msgName string) (*s
 
 	md := curfd.FindMessage(msgName)
 	if md != nil {
-		return &schemaDescr{deployId: fdSet.DeployId, prevDeployId: fdSet.PrevId, md: md}, nil
+		return newSchemaDescr(fdSet.DeployId, fdSet.PrevId, MessageDescriptor{md}), nil
 	}
 	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in deployment(%s)", msgName, fdSet.DeployId)
 }

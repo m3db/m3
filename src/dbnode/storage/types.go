@@ -236,7 +236,7 @@ type Namespace interface {
 	// Shards returns the shard description
 	Shards() []Shard
 
-	// Schema returns the schema registry
+	// Schema returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
 }
 
