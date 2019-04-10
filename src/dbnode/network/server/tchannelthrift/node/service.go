@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -47,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
@@ -642,7 +642,8 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
 	ropts := nsMetadata.Options().RetentionOptions()
-	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
+	blockStarts := make([]time.Time, 0,
+		(ropts.RetentionPeriod()+ropts.FutureRetentionPeriod())/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
@@ -857,8 +858,13 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	}
 
 	if err = s.db.Write(
-		ctx, s.pools.id.GetStringID(ctx, req.NameSpace), s.pools.id.GetStringID(ctx, req.ID),
-		xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
+		ctx,
+		s.pools.id.GetStringID(ctx, req.NameSpace),
+		s.pools.id.GetStringID(ctx, req.ID),
+		xtime.FromNormalizedTime(dp.Timestamp, d),
+		dp.Value,
+		unit,
+		dp.Annotation,
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -980,7 +986,8 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}

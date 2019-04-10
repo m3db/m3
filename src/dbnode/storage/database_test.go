@@ -682,20 +682,20 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		ctx       = context.NewContext()
 		id        = ident.StringID("foo")
 		tagsIter  = ident.EmptyTagIterator
-		series    = ts.Series{
+		s         = ts.Series{
 			ID:        id,
 			Tags:      ident.Tags{},
 			Namespace: namespace,
 		}
 	)
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(series, true, nil)
+		time.Time{}, 1.0, xtime.Second, nil).Return(s, true, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(series, false, fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil).Return(s, false, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
@@ -932,9 +932,11 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
-		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+			errHandler)
 	} else {
-		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+			errHandler)
 	}
 
 	require.NoError(t, err)
