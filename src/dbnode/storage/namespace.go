@@ -50,7 +50,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 )
@@ -605,9 +604,7 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	var sp opentracing.Span
-
-	ctx, sp = ctx.StartTraceSpan(tracepoint.NSQueryIDs)
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSQueryIDs)
 	sp.LogFields(
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", n.ID().String()),

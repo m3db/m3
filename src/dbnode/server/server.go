@@ -21,7 +21,7 @@
 package server
 
 import (
-	stdlib "context"
+	stdlibctx "context"
 	"errors"
 	"fmt"
 	"io"
@@ -156,7 +156,7 @@ func Run(runOpts RunOptions) {
 	// Currently, the zapLogger is being used for tracing only.
 	// todo: use the zapLogger everywhere instead of xlog logger.
 	logging.InitWithCores(nil)
-	ctx := stdlib.Background()
+	ctx := stdlibctx.Background()
 	zapLogger := logging.WithContext(ctx)
 	defer zapLogger.Sync()
 

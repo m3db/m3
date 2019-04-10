@@ -21,14 +21,12 @@
 package storage
 
 import (
-	stdlib "context"
+	stdlibctx "context"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -40,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xidx "github.com/m3db/m3/src/m3ninx/idx"
@@ -1108,7 +1107,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	ctx := context.NewContext()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlib.Background(), sp))
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	query := index.Query{
 		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),

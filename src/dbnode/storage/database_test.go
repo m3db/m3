@@ -21,15 +21,13 @@
 package storage
 
 import (
-	stdlib "context"
+	stdlibctx "context"
 	"errors"
 	"fmt"
 	"sort"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -44,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -698,7 +697,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlib.Background(), sp))
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
 		time.Time{}, 1.0, xtime.Second, nil).Return(series, true, nil)
@@ -722,7 +721,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		aggRes  = index.AggregateQueryResult{}
 		err     error
 	)
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlib.Background(), sp))
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 	ns.EXPECT().QueryIDs(gomock.Any(), q, opts).Return(res, nil)
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
 	require.NoError(t, err)
