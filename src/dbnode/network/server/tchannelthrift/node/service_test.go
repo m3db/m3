@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -1486,7 +1485,7 @@ func TestServiceWriteTagged(t *testing.T) {
 		ident.NewIDMatcher(nsID),
 		ident.NewIDMatcher(id),
 		gomock.Any(),
-		at, value, xtime.Second, nil
+		at, value, xtime.Second, nil,
 	).Return(nil)
 
 	request := &rpc.WriteTaggedRequest{
@@ -1567,7 +1566,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		Return(writeBatch, nil)
 
 	mockDB.EXPECT().
-		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any(), gomock.Any()).
+		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
 		Return(nil)
 
 	var elements []*rpc.WriteBatchRawRequestElement
@@ -1652,7 +1651,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		Return(writeBatch, nil)
 
 	mockDB.EXPECT().
-		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any(), gomock.Any()).
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
 		Return(nil)
 
 	var elements []*rpc.WriteTaggedBatchRawRequestElement
