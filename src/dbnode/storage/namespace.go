@@ -409,8 +409,8 @@ func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
 }
 
 func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
-	if !v.Lineage(n.SchemaRegistry()) {
-		return fmt.Errorf("failed to update schema registry that has no lineage to existing one")
+	if !v.Extends(n.SchemaRegistry()) {
+		return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
 	}
 
 	n.Lock()

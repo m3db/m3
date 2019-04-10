@@ -204,10 +204,10 @@ func TestSchemaRegistryCheckLineage(t *testing.T) {
 	sr2, err := LoadSchemaRegistry(schemaOpt2)
 	require.NoError(t, err)
 
-	require.True(t, sr1.Lineage(emptySchemaRegistry()))
-	require.True(t, sr2.Lineage(emptySchemaRegistry()))
-	require.False(t, sr1.Lineage(sr2))
-	require.True(t, sr2.Lineage(sr1))
+	require.True(t, sr1.Extends(emptySchemaRegistry()))
+	require.True(t, sr2.Extends(emptySchemaRegistry()))
+	require.False(t, sr1.Extends(sr2))
+	require.True(t, sr2.Extends(sr1))
 
 	schemaOpt3 := &nsproto.SchemaOptions{
 		History: &nsproto.SchemaHistory{
@@ -221,6 +221,6 @@ func TestSchemaRegistryCheckLineage(t *testing.T) {
 	sr3, err := LoadSchemaRegistry(schemaOpt3)
 	require.NoError(t, err)
 
-	require.True(t, sr3.Lineage(sr1))
-	require.False(t, sr3.Lineage(sr2))
+	require.True(t, sr3.Extends(sr1))
+	require.False(t, sr3.Extends(sr2))
 }

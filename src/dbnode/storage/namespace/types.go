@@ -135,8 +135,8 @@ type SchemaRegistry interface {
 	// Equal returns true if the provided value is equal to this one.
 	Equal(SchemaRegistry) bool
 
-	// Lineage returns true iif the provided value has a lineage to this one.
-	Lineage(SchemaRegistry) bool
+	// Extends returns true iif the provided value has a lineage to this one.
+	Extends(SchemaRegistry) bool
 
 	// Get gets the schema descriptor for the specified deploy id.
 	Get(id string) (SchemaDescr, bool)

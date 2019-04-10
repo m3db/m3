@@ -590,18 +590,18 @@ func (mr *MockSchemaRegistryMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSchemaRegistry)(nil).Equal), arg0)
 }
 
-// Lineage mocks base method
-func (m *MockSchemaRegistry) Lineage(arg0 SchemaRegistry) bool {
+// Extends mocks base method
+func (m *MockSchemaRegistry) Extends(arg0 SchemaRegistry) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Lineage", arg0)
+	ret := m.ctrl.Call(m, "Extends", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// Lineage indicates an expected call of Lineage
-func (mr *MockSchemaRegistryMockRecorder) Lineage(arg0 interface{}) *gomock.Call {
+// Extends indicates an expected call of Extends
+func (mr *MockSchemaRegistryMockRecorder) Extends(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lineage", reflect.TypeOf((*MockSchemaRegistry)(nil).Lineage), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Extends", reflect.TypeOf((*MockSchemaRegistry)(nil).Extends), arg0)
 }
 
 // Get mocks base method

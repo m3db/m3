@@ -116,7 +116,7 @@ func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 	return true
 }
 
-func (sr *schemaRegistry) Lineage(v SchemaRegistry) bool {
+func (sr *schemaRegistry) Extends(v SchemaRegistry) bool {
 	cur, hasMore := v.GetLatest()
 
 	for hasMore {
