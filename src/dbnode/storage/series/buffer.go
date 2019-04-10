@@ -63,7 +63,6 @@ type databaseBuffer interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wOpts WriteOptions,
 	) (bool, error)
 
 	Snapshot(
@@ -166,12 +165,7 @@ func (b *dbBuffer) Reset(opts Options) {
 func (b *dbBuffer) ResolveWriteType(
 	timestamp time.Time,
 	now time.Time,
-	wOpts WriteOptions,
 ) WriteType {
-	if wOpts.WriteType != UndefinedWriteType {
-		return wOpts.WriteType
-	}
-
 	pastLimit := now.Add(-1 * b.bufferPast)
 	futureLimit := now.Add(b.bufferFuture)
 	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
@@ -187,10 +181,9 @@ func (b *dbBuffer) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wOpts WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
-	wType := b.ResolveWriteType(timestamp, now, wOpts)
+	wType := b.ResolveWriteType(timestamp, now)
 
 	if wType == ColdWrite {
 		if !b.coldWritesEnabled {

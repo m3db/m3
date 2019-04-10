@@ -58,7 +58,6 @@ type DatabaseSeries interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wOpts WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -343,8 +342,3 @@ const (
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
-
-// WriteOptions define different options for a write.
-type WriteOptions struct {
-	WriteType WriteType
-}

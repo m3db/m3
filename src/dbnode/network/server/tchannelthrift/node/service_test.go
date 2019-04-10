@@ -41,9 +41,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -1418,7 +1418,7 @@ func TestServiceWrite(t *testing.T) {
 
 	mockDB.EXPECT().
 		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
-			xtime.Second, nil, series.WriteOptions{}).
+			xtime.Second, nil).
 		Return(nil)
 
 	mockDB.EXPECT().IsOverloaded().Return(false)
@@ -1486,8 +1486,7 @@ func TestServiceWriteTagged(t *testing.T) {
 		ident.NewIDMatcher(nsID),
 		ident.NewIDMatcher(id),
 		gomock.Any(),
-		at, value, xtime.Second, nil,
-		series.WriteOptions{},
+		at, value, xtime.Second, nil
 	).Return(nil)
 
 	request := &rpc.WriteTaggedRequest{
