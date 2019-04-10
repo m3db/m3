@@ -1430,7 +1430,8 @@ func TestServiceWrite(t *testing.T) {
 	value := 42.42
 
 	mockDB.EXPECT().
-		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
+		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
+			xtime.Second, nil).
 		Return(nil)
 
 	mockDB.EXPECT().IsOverloaded().Return(false)

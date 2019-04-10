@@ -1207,6 +1207,11 @@ func withEncodingAndPoolingOptions(
 
 	writeBatchPool.Init()
 
+	bucketPool := series.NewBufferBucketPool(
+		poolOptions(policy.BufferBucketPool, scope.SubScope("buffer-bucket-pool")))
+	bucketVersionsPool := series.NewBufferBucketVersionsPool(
+		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -1216,7 +1221,9 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetFetchBlockMetadataResultsPool(fetchBlockMetadataResultsPool).
 		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
-		SetWriteBatchPool(writeBatchPool)
+		SetWriteBatchPool(writeBatchPool).
+		SetBufferBucketPool(bucketPool).
+		SetBufferBucketVersionsPool(bucketVersionsPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).

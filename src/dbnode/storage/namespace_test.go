@@ -159,8 +159,8 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"),
-		time.Now(), 0.0, xtime.Second, nil)
+	now := time.Now()
+	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
