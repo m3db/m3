@@ -44,6 +44,10 @@ type Options interface {
 	SetLookbackDuration(time.Duration) Options
 	// LookbackDuration returns the lookback duration.
 	LookbackDuration() time.Duration
+	// SetOffset sets the offset.
+	SetOffset(time.Duration) Options
+	// Offset returns the offset.
+	Offset() time.Duration
 	// SetLookbackDuration sets the consolidation function for the converter.
 	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
 	// LookbackDuration returns the consolidation function.

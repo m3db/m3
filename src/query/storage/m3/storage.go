@@ -117,7 +117,7 @@ func (s *m3storage) Fetch(
 		s.readWorkerPool,
 		false,
 		enforcer,
-		options,
+		options.Offset,
 		s.opts.TagOptions(),
 	)
 
@@ -189,7 +189,6 @@ func (s *m3storage) FetchBlocks(
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
 		raw,
 		bounds,
-		options,
 		opts,
 	)
 

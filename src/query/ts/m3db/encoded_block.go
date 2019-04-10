@@ -55,7 +55,6 @@ func NewEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
 	bounds models.Bounds,
 	lastBlock bool,
-	options *storage.FetchOptions,
 	opts Options,
 ) (block.Block, error) {
 	consolidation := consolidationSettings{
@@ -64,11 +63,7 @@ func NewEncodedBlock(
 		bounds:          bounds,
 	}
 
-	var offset time.Duration
-	if options != nil {
-		offset = options.Offset
-	}
-
+	offset := opts.Offset()
 	bl := newEncodedBlock(
 		seriesBlockIterators,
 		opts.TagOptions(),

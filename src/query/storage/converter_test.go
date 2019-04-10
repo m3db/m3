@@ -84,7 +84,7 @@ func verifyExpandSeries(
 
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true, enforcer, nil)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true, enforcer, 0, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -101,6 +101,7 @@ func verifyExpandSeries(
 
 func testExpandSeries(t *testing.T, pools xsync.PooledWorkerPool) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	for i := 0; i < 100; i++ {
 		verifyExpandSeries(t, ctrl, i, pools)
@@ -175,6 +176,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 		pool,
 		true,
 		enforcer,
+		0,
 		nil,
 	)
 	require.Nil(t, result)
@@ -215,10 +217,37 @@ func TestOverLimit(t *testing.T) {
 		pool,
 		true,
 		enforcer,
+		0,
 		nil,
 	)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
+}
+
+func TestExpandWithOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testTags := seriesiter.GenerateTag()
+	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2)
+
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Add(gomock.Any())
+
+	results, err := SeriesIteratorsToFetchResult(iters, nil,
+		true, enforcer, time.Hour, nil)
+	assert.NoError(t, err)
+
+	require.NotNil(t, results)
+	require.NotNil(t, results.SeriesList)
+	require.True(t, len(results.SeriesList) > 0)
+
+	vals := results.SeriesList[0].Values()
+	require.True(t, vals.Len() > 0)
+
+	expected := time.Now().Add(time.Hour)
+	dpTime := vals.DatapointAt(0).Timestamp
+	require.True(t, expected.Sub(dpTime) >= 0)
 }
 
 var (
@@ -332,7 +361,7 @@ func TestIteratorToTsSeries(t *testing.T) {
 		enforcer := cost.NewMockChainedEnforcer(ctrl)
 		enforcer.EXPECT().Add(xcost.Cost(2)).Times(1)
 
-		dps, err := iteratorToTsSeries(mockIter, enforcer, models.NewTagOptions())
+		dps, err := iteratorToTsSeries(mockIter, enforcer, 0, models.NewTagOptions())
 
 		assert.Nil(t, dps)
 		assert.EqualError(t, err, expectedErr.Error())

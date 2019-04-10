@@ -269,7 +269,7 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
-	opts *FetchOptions,
+	offset time.Duration,
 	tagOptions models.TagOptions,
 ) (*ts.Series, error) {
 	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
@@ -278,15 +278,10 @@ func iteratorToTsSeries(
 	}
 
 	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
-	// NB: re-apply the offset to every datapoint here to move the decompressed
-	// series back to the correct timeframe.
-	offset := time.Duration(0)
-	if opts != nil {
-		offset = opts.Offset
-	}
-
 	for iter.Next() {
 		dp, _, _ := iter.Current()
+		// NB: re-apply the offset to every datapoint here to move the decompressed
+		// series back to the correct timeframe.
 		datapoints = append(datapoints, ts.Datapoint{
 			Timestamp: dp.Timestamp.Add(offset),
 			Value:     dp.Value,
@@ -310,12 +305,12 @@ func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
-	opts *FetchOptions,
+	offset time.Duration,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
 	for _, iter := range iters {
-		series, err := iteratorToTsSeries(iter, enforcer, opts, tagOptions)
+		series, err := iteratorToTsSeries(iter, enforcer, offset, tagOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -332,7 +327,7 @@ func decompressConcurrently(
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
-	opts *FetchOptions,
+	offset time.Duration,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -359,7 +354,7 @@ func decompressConcurrently(
 				return
 			}
 
-			series, err := iteratorToTsSeries(iter, enforcer, opts, tagOptions)
+			series, err := iteratorToTsSeries(iter, enforcer, offset, tagOptions)
 			if err != nil {
 				// Return the first error that is encountered.
 				select {
@@ -390,7 +385,7 @@ func SeriesIteratorsToFetchResult(
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
 	enforcer cost.ChainedEnforcer,
-	opts *FetchOptions,
+	offset time.Duration,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	if cleanupSeriesIters {
@@ -400,9 +395,10 @@ func SeriesIteratorsToFetchResult(
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
 	if readWorkerPool == nil {
-		return decompressSequentially(iterLength, iters, enforcer, opts, tagOptions)
+		return decompressSequentially(iterLength, iters, enforcer,
+			offset, tagOptions)
 	}
 
 	return decompressConcurrently(iterLength, iters, readWorkerPool,
-		enforcer, opts, tagOptions)
+		enforcer, offset, tagOptions)
 }
