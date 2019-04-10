@@ -127,14 +127,15 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 
 	ctx := context.NewContext()
 	defer ctx.Close()
-
+	now := time.Now()
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		time.Now(), 1.0, xtime.Second, nil)
+		now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), time.Now(), 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now,
+		1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -143,7 +144,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 			ident.StringTag("all", "tags"),
 			ident.StringTag("should", "be-present"),
 		)),
-		time.Now(), 1.0, xtime.Second, nil)
+		now, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -289,6 +290,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil)
+
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 

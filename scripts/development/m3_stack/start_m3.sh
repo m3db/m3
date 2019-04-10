@@ -10,6 +10,19 @@ if [[ "$FORCE_BUILD" = true ]] ; then
 fi
 
 echo "Bringing up nodes in the background with docker compose, remember to run ./stop.sh when done"
+
+# need to start Jaeger before m3db or else m3db will not be able to talk to the Jaeger agent.
+if [[ "$USE_JAEGER" = true ]] ; then
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS jaeger
+    sleep 3
+    # rely on 204 status code until https://github.com/jaegertracing/jaeger/issues/1450 is resolved.
+    JAEGER_STATUS=$(curl -s -o /dev/null -w '%{http_code}' localhost:14269)
+    if [ $JAEGER_STATUS -ne 204 ]; then
+        echo "Jaeger could not start"
+        return 1
+    fi
+fi
+
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
@@ -211,6 +224,9 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     curl http://localhost:7206/api/v1/json/report -X POST -d '{"metrics":[{"type":"gauge","value":42,"tags":{"__name__":"foo_metric","foo":"bar"}}]}'
 fi
 
+if [[ "$USE_JAEGER" = true ]] ; then
+    echo "Jaeger UI available at localhost:16686"
+fi
 echo "Prometheus available at localhost:9090"
 echo "Grafana available at localhost:3000"
 echo "Run ./stop.sh to shutdown nodes when done"

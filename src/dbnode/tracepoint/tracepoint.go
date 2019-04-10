@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package retention
+package tracepoint
 
-import "time"
+// The tracepoint package is used to store operation names for tracing throughout dbnode.
+// The naming convention is as follows:
 
-// FlushTimeStart is the earliest flushable time
-func FlushTimeStart(opts Options, t time.Time) time.Time {
-	return FlushTimeStartForRetentionPeriod(opts.RetentionPeriod(), opts.BlockSize(), t)
-}
+// `packageName.objectName.method`
 
-// FlushTimeStartForRetentionPeriod is the earliest flushable time
-func FlushTimeStartForRetentionPeriod(retentionPeriod time.Duration, blockSize time.Duration, t time.Time) time.Time {
-	return t.Add(-retentionPeriod).Truncate(blockSize)
-}
+// If there isn't an object, use `packageName.method`.
 
-// FlushTimeEnd is the latest flushable time
-func FlushTimeEnd(opts Options, t time.Time) time.Time {
-	return FlushTimeEndForBlockSize(opts.BlockSize(),
-		t.Add(opts.FutureRetentionPeriod()).Add(-opts.BufferPast()))
-}
+const (
+	// FetchTagged is the operation name for the tchannelthrift FetchTagged path.
+	FetchTagged = "tchannelthrift/node.service.FetchTagged"
 
-// FlushTimeEndForBlockSize is the latest flushable time
-func FlushTimeEndForBlockSize(blockSize time.Duration, t time.Time) time.Time {
-	return t.Add(-blockSize).Truncate(blockSize)
-}
+	// Query is the operation name for the tchannelthrift Query path.
+	Query = "tchannelthrift/node.service.Query"
+
+	// DBQueryIDs is the operation name for the db QueryIDs path.
+	DBQueryIDs = "storage.db.QueryIDs"
+
+	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
+	NSQueryIDs = "storage.dbNamespace.QueryIDs"
+)

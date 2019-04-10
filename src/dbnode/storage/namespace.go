@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -45,9 +46,11 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 )
 
@@ -173,7 +176,6 @@ type databaseNamespaceTickMetrics struct {
 	activeSeries           tally.Gauge
 	expiredSeries          tally.Counter
 	activeBlocks           tally.Gauge
-	openBlocks             tally.Gauge
 	wiredBlocks            tally.Gauge
 	unwiredBlocks          tally.Gauge
 	pendingMergeBlocks     tally.Gauge
@@ -182,6 +184,7 @@ type databaseNamespaceTickMetrics struct {
 	mergedOutOfOrderBlocks tally.Counter
 	errors                 tally.Counter
 	index                  databaseNamespaceIndexTickMetrics
+	evictedBuckets         tally.Counter
 }
 
 type databaseNamespaceIndexTickMetrics struct {
@@ -245,7 +248,6 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeSeries:           tickScope.Gauge("active-series"),
 			expiredSeries:          tickScope.Counter("expired-series"),
 			activeBlocks:           tickScope.Gauge("active-blocks"),
-			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
 			pendingMergeBlocks:     tickScope.Gauge("pending-merge-blocks"),
@@ -260,6 +262,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 				numBlocksSealed:  indexTickScope.Counter("num-blocks-sealed"),
 				numBlocksEvicted: indexTickScope.Counter("num-blocks-evicted"),
 			},
+			evictedBuckets: tickScope.Counter("evicted-buckets"),
 		},
 		status: databaseNamespaceStatusMetrics{
 			activeSeries: statusScope.Gauge("active-series"),
@@ -304,7 +307,8 @@ func newDatabaseNamespace(
 	tickWorkers.Init()
 
 	seriesOpts := NewSeriesOptionsFromOptions(opts, nopts.RetentionOptions()).
-		SetStats(series.NewStats(scope))
+		SetStats(series.NewStats(scope)).
+		SetColdWritesEnabled(nopts.ColdWritesEnabled())
 	if err := seriesOpts.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"unable to create namespace %v, invalid series options: %v",
@@ -556,13 +560,13 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
-	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
 	n.metrics.tick.pendingMergeBlocks.Update(float64(r.pendingMergeBlocks))
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
+	n.metrics.tick.evictedBuckets.Inc(int64(r.evictedBuckets))
 	n.metrics.tick.index.numDocs.Update(float64(indexTickResults.NumTotalDocs))
 	n.metrics.tick.index.numBlocks.Update(float64(indexTickResults.NumBlocks))
 	n.metrics.tick.index.numSegments.Update(float64(indexTickResults.NumSegments))
@@ -587,8 +591,7 @@ func (n *dbNamespace) Write(
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, wasWritten, err := shard.Write(ctx, id, timestamp,
-		value, unit, annotation)
+	series, wasWritten, err := shard.Write(ctx, id, timestamp, value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -612,8 +615,7 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
-		value, unit, annotation)
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -623,20 +625,38 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSQueryIDs)
+	sp.LogFields(
+		opentracinglog.String("query", query.String()),
+		opentracinglog.String("namespace", n.ID().String()),
+		opentracinglog.Int("limit", opts.Limit),
+		xopentracing.Time("start", opts.StartInclusive),
+		xopentracing.Time("end", opts.EndExclusive),
+	)
+
+	defer sp.Finish()
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryResult{}, errNamespaceIndexingDisabled
+		err := errNamespaceIndexingDisabled
+		sp.LogFields(opentracinglog.Error(err))
+		return index.QueryResult{}, err
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		err := errIndexNotBootstrappedToRead
+		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{},
-			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+			xerrors.NewRetryableError(err)
 	}
 
 	res, err := n.reverseIndex.Query(ctx, query, opts)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -878,7 +898,7 @@ func (n *dbNamespace) Flush(
 	for _, shard := range shards {
 		// This is different than calling shard.IsBootstrapped() because it was determined
 		// before the start of the tick that preceded this flush, meaning it can be reliably
-		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
+		// used to determine if all of the bootstrapped blocks have been merged (ticked)
 		// and are ready to be flushed.
 		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
 		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {

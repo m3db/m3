@@ -148,7 +148,7 @@ func Run(runOpts RunOptions) {
 	defer traceCloser.Close()
 
 	if _, ok := tracer.(opentracing.NoopTracer); ok {
-		logger.Info("tracing disabled; set `tracing.backend` to enable")
+		logger.Info("tracing disabled for m3query; set `tracing.backend` to enable")
 	}
 
 	instrumentOptions := instrument.NewOptions().

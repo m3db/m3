@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/opentracing"
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/etcd/pkg/transport"
@@ -140,6 +141,9 @@ type DBConfiguration struct {
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
+
+	// Tracing configures opentracing. If not provided, tracing is disabled.
+	Tracing *opentracing.TracingConfiguration `yaml:"tracing"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
