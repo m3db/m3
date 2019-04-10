@@ -244,13 +244,12 @@ func TestDependsOnWithChild(t *testing.T) {
 	assert.True(t, c.IsClosed())
 }
 
-func TestTraceSpan(t *testing.T) {
+func TestSampledTraceSpan(t *testing.T) {
 	var (
 		xCtx  = NewContext()
 		goCtx = stdctx.Background()
 		sp    opentracing.Span
 		spCtx Context
-		ok    bool
 	)
 
 	// use a mock tracer to ensure sampling rate is set to 1.
@@ -261,8 +260,7 @@ func TestTraceSpan(t *testing.T) {
 	spGoCtx := opentracing.ContextWithSpan(goCtx, sp)
 
 	xCtx.SetGoContext(spGoCtx)
-	spCtx, sp, ok = xCtx.StartTraceSpan("test_op_2")
-	assert.True(t, ok)
+	spCtx, sp = xCtx.StartTraceSpan("test_op_2")
 	assert.NotNil(t, sp)
 	defer sp.Finish()
 

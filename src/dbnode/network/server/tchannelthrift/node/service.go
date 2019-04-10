@@ -262,19 +262,16 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	var (
 		ctx context.Context
 		sp  opentracing.Span
-		ok  bool
 	)
 
 	ctx = tchannelthrift.Context(tctx)
-	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.Query)
-	if ok {
-		sp.LogFields(
-			opentracinglog.String("query", req.Query.String()),
-			opentracinglog.String("namespace", req.NameSpace),
-			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-			xopentracing.Time("end", time.Unix(0, req.RangeStart)),
-		)
-	}
+	ctx, sp = ctx.StartTraceSpan(tracepoint.Query)
+	sp.LogFields(
+		opentracinglog.String("query", req.Query.String()),
+		opentracinglog.String("namespace", req.NameSpace),
+		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+		xopentracing.Time("end", time.Unix(0, req.RangeStart)),
+	)
 
 	result, err := s.query(ctx, req)
 	if err != nil {
@@ -428,19 +425,16 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	var (
 		ctx context.Context
 		sp  opentracing.Span
-		ok  bool
 	)
 
 	ctx = tchannelthrift.Context(tctx)
-	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.FetchTagged)
-	if ok {
-		sp.LogFields(
-			opentracinglog.String("query", string(req.Query)),
-			opentracinglog.String("namespace", string(req.NameSpace)),
-			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
-		)
-	}
+	ctx, sp = ctx.StartTraceSpan(tracepoint.FetchTagged)
+	sp.LogFields(
+		opentracinglog.String("query", string(req.Query)),
+		opentracinglog.String("namespace", string(req.NameSpace)),
+		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+		xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+	)
 
 	result, err := s.fetchTagged(ctx, req)
 	if err != nil {

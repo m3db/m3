@@ -1140,7 +1140,9 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewContext()
-	query := index.Query{}
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
 	aggOpts := index.AggregationOptions{}
 
 	idx.EXPECT().AggregateQuery(ctx, query, aggOpts)
@@ -1170,7 +1172,9 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewContext()
-	query := index.Query{}
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
 	opts := index.QueryOptions{}
 
 	_, err := ns.QueryIDs(ctx, query, opts)

@@ -317,7 +317,7 @@ func (c *ctx) spanIsSampled(sp opentracing.Span) bool {
 	return true
 }
 
-func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span, bool) {
+func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
 	goCtx, exists := c.GoContext()
 	if !exists || c.checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
@@ -344,4 +344,9 @@ func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span, bool) {
 	child := c.newChildContext()
 	child.SetGoContext(spCtx)
 	return child, sp, true
+}
+
+func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
+	ctx, sp, _ := c.StartSampledTraceSpan(name)
+	return ctx, sp
 }

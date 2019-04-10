@@ -75,8 +75,12 @@ type Context interface {
 	SetGoContext(stdctx.Context)
 
 	// StartTraceSpan starts a new span and returns a child ctx
-	// if the span is being sampled.
-	StartTraceSpan(name string) (Context, opentracing.Span, bool)
+	StartTraceSpan(string) (Context, opentracing.Span)
+
+	// StartSampledTraceSpan starts a new span and returns a child ctx
+	// and a bool if the span is being sampled. This is used over StartTraceSpan()
+	// for hot paths where performance is crucial.
+	StartSampledTraceSpan(string) (Context, opentracing.Span, bool)
 }
 
 // Pool provides a pool for contexts.

@@ -712,29 +712,21 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	var (
-		sp opentracing.Span
-		ok bool
+	var sp opentracing.Span
+	ctx, sp = ctx.StartTraceSpan(tracepoint.DBQueryIDs)
+	sp.LogFields(
+		opentracinglog.String("query", query.String()),
+		opentracinglog.String("namespace", namespace.String()),
+		opentracinglog.Int("limit", opts.Limit),
+		xopentracing.Time("start", opts.StartInclusive),
+		xopentracing.Time("end", opts.EndExclusive),
 	)
 
-	ctx, sp, ok = ctx.StartTraceSpan(tracepoint.DBQueryIDs)
-	if ok {
-		sp.LogFields(
-			opentracinglog.String("query", query.String()),
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Int("limit", opts.Limit),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
-		)
-
-		defer sp.Finish()
-	}
+	defer sp.Finish()
 
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		if ok {
-			sp.LogFields(opentracinglog.Error(err))
-		}
+		sp.LogFields(opentracinglog.Error(err))
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
 		return index.QueryResult{}, err
 	}
