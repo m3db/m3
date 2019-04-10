@@ -31,6 +31,10 @@ import (
 	"github.com/uber/jaeger-client-go"
 )
 
+var (
+	noopTracer opentracing.NoopTracer
+)
+
 // NB(r): using golang.org/x/net/context is too GC expensive.
 // Instead, we just embed one.
 type ctx struct {
@@ -313,10 +317,10 @@ func (c *ctx) spanIsSampled(sp opentracing.Span) bool {
 	return true
 }
 
-func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span, bool) {
+func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
 	goCtx, exists := c.GoContext()
 	if !exists || c.checkedAndNotSampled {
-		return c, nil, false
+		return c, noopTracer.StartSpan(name), false
 	}
 
 	var (
@@ -333,11 +337,16 @@ func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span, bool) {
 			return child, sp, true
 		}
 		c.checkedAndNotSampled = true
-		return c, nil, false
+		return c, noopTracer.StartSpan(name), false
 	}
 
 	sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
 	child := c.newChildContext()
 	child.SetGoContext(spCtx)
 	return child, sp, true
+}
+
+func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
+	ctx, sp, _ := c.StartSampledTraceSpan(name)
+	return ctx, sp
 }
