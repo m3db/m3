@@ -36,18 +36,19 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
-	errBucketMapCacheNotInSync = "[invariant violated] bucket map keys do not match sorted keys cache"
+	errBucketMapCacheNotInSync = "bucket map keys do not match sorted keys cache, blockStart: %d"
 )
 
 var (
-	timeZero                   time.Time
-	errIncompleteMerge         = errors.New("[invariant violated] bucket merge did not result in only one encoder")
-	errBucketCacheInconsistent = errors.New("[invariant violated] buckets in map does not match the sorted keys cache")
+	timeZero           time.Time
+	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
 )
 
 const (
@@ -190,11 +191,11 @@ func (b *dbBuffer) Write(
 			return false, m3dberrors.ErrColdWritesNotEnabled
 		}
 
-		if now.Add(-b.retentionPeriod).Truncate(b.blockSize).After(timestamp) {
+		if now.Add(-b.retentionPeriod).After(timestamp) {
 			return false, m3dberrors.ErrTooPast
 		}
 
-		if !now.Add(b.futureRetentionPeriod).Truncate(b.blockSize).Add(b.blockSize).After(timestamp) {
+		if !now.Add(b.futureRetentionPeriod).Add(b.blockSize).After(timestamp) {
 			return false, m3dberrors.ErrTooFuture
 		}
 	}
@@ -403,9 +404,13 @@ func (b *dbBuffer) ReadEncoded(
 		if !exists {
 			// Invariant violated. This means the keys in the bucket map does
 			// not match the sorted keys cache, which should never happen.
-			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf(errBucketMapCacheNotInSync)
-			return nil, errBucketCacheInconsistent
+			instrument.EmitAndLogInvariantViolation(
+				b.opts.InstrumentOptions(), func(l xlog.Logger) {
+					l.Errorf(
+						errBucketMapCacheNotInSync, blockStart.UnixNano())
+				})
+			return nil, instrument.InvariantErrorf(
+				errBucketMapCacheNotInSync, blockStart.UnixNano())
 		}
 
 		if streams := bv.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
@@ -461,9 +466,13 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if !exists {
 			// Invariant violated. This means the keys in the bucket map does
 			// not match the sorted keys cache, which should never happen.
-			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf(errBucketMapCacheNotInSync)
-			return nil, errBucketCacheInconsistent
+			instrument.EmitAndLogInvariantViolation(
+				b.opts.InstrumentOptions(), func(l xlog.Logger) {
+					l.Errorf(
+						errBucketMapCacheNotInSync, blockStart.UnixNano())
+				})
+			return nil, instrument.InvariantErrorf(
+				errBucketMapCacheNotInSync, blockStart.UnixNano())
 		}
 
 		size := int64(bv.streamsLen())
