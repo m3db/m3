@@ -57,7 +57,6 @@ if diff -qr m3db-operator/site m3db.io; then
 fi
 
 cp -r m3db-operator/site/* m3db.io
-rm -rf m3db-operator
 git add m3db.io
 git commit -m "Operator docs update $(date)"
 git push
