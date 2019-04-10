@@ -317,9 +317,6 @@ func (c *ctx) spanIsSampled(sp opentracing.Span) bool {
 	return true
 }
 
-// StartSampledTraceSpan starts a new span and returns a child ctx
-// and a bool if the span is being sampled. This is used over StartTraceSpan()
-// for hot paths where performance is crucial.
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
 	goCtx, exists := c.GoContext()
 	if !exists || c.checkedAndNotSampled {
@@ -349,7 +346,6 @@ func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, boo
 	return child, sp, true
 }
 
-// StartTraceSpan starts a new span and returns a child ctx
 func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
 	ctx, sp, _ := c.StartSampledTraceSpan(name)
 	return ctx, sp
