@@ -40,10 +40,10 @@ else
 fi
 
 # Also build & push the operator's docs.
-git clean -df
+git clean -dffx
 git checkout -t origin/operator
+git pull
 
-rm -rf m3db.io/*
 git clone git@github.com:m3db/m3db-operator.git
 
 (
@@ -56,7 +56,9 @@ if diff -qr m3db-operator/site m3db.io; then
   exit 0
 fi
 
+rm -rf m3db.io/*
 cp -r m3db-operator/site/* m3db.io
+git clean -dffx
 git add m3db.io
 git commit -m "Operator docs update $(date)"
 git push
