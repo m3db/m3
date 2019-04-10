@@ -256,7 +256,7 @@ func TestSeriesFlush(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
-	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil)
+	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil, WriteOptions{})
 	ctx.BlockingClose()
 
 	inputs := []error{errors.New("some error"), nil}

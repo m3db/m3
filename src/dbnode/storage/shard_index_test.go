@@ -131,7 +131,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	now := time.Now()
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil)
+		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 

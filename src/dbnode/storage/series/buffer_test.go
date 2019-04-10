@@ -75,7 +75,7 @@ func newBufferTestOptions() Options {
 // Writes to buffer, verifying no error and that further writes should happen.
 func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
 	ctx := context.NewContext()
-	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
