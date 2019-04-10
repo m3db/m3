@@ -29,15 +29,15 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-// Cancellable is an object that can be cancelled
+// Cancellable is an object that can be cancelled.
 type Cancellable interface {
-	// IsCancelled determines whether the object is cancelled
+	// IsCancelled determines whether the object is cancelled.
 	IsCancelled() bool
 
-	// Cancel cancels the object
+	// Cancel cancels the object.
 	Cancel()
 
-	// Reset resets the object
+	// Reset resets the object.
 	Reset()
 }
 
@@ -68,15 +68,19 @@ type Context interface {
 	// Reset will reset the context for reuse.
 	Reset()
 
-	// GoContext returns the Go std context
+	// GoContext returns the Go std context.
 	GoContext() (stdctx.Context, bool)
 
-	// SetGoContext sets the Go std context
+	// SetGoContext sets the Go std context.
 	SetGoContext(stdctx.Context)
 
-	// StartTraceSpan starts a new span and returns a child ctx
-	// if the span is being sampled.
-	StartTraceSpan(name string) (Context, opentracing.Span, bool)
+	// StartTraceSpan starts a new span and returns a child ctx.
+	StartTraceSpan(string) (Context, opentracing.Span)
+
+	// StartSampledTraceSpan starts a new span and returns a child ctx
+	// and a bool if the span is being sampled. This is used over StartTraceSpan()
+	// for hot paths where performance is crucial.
+	StartSampledTraceSpan(string) (Context, opentracing.Span, bool)
 }
 
 // Pool provides a pool for contexts.

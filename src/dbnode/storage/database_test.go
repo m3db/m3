@@ -21,6 +21,7 @@
 package storage
 
 import (
+	stdlibctx "context"
 	"errors"
 	"fmt"
 	"sort"
@@ -41,8 +42,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -53,6 +56,8 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -682,38 +687,46 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		ctx       = context.NewContext()
 		id        = ident.StringID("foo")
 		tagsIter  = ident.EmptyTagIterator
-		series    = ts.Series{
+		s         = ts.Series{
 			ID:        id,
 			Tags:      ident.Tags{},
 			Namespace: namespace,
 		}
 	)
+
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(series, true, nil)
+		time.Time{}, 1.0, xtime.Second, nil).Return(s, true, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(series, false, fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil).Return(s, false, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
 
 	var (
-		q       = index.Query{}
+		q = index.Query{
+			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+		}
 		opts    = index.QueryOptions{}
 		res     = index.QueryResult{}
 		aggOpts = index.AggregationOptions{}
 		aggRes  = index.AggregateQueryResult{}
 		err     error
 	)
-
-	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, nil)
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+	ns.EXPECT().QueryIDs(gomock.Any(), q, opts).Return(res, nil)
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
 	require.NoError(t, err)
 
-	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, fmt.Errorf("random err"))
+	ns.EXPECT().QueryIDs(gomock.Any(), q, opts).Return(res, fmt.Errorf("random err"))
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
 	require.Error(t, err)
 
@@ -731,6 +744,13 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
 	d.commitLog = commitlog
 	require.NoError(t, d.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 3)
+	assert.Equal(t, tracepoint.DBQueryIDs, spans[0].OperationName)
+	assert.Equal(t, tracepoint.DBQueryIDs, spans[1].OperationName)
+	assert.Equal(t, "root", spans[2].OperationName)
 }
 
 func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
@@ -932,9 +952,11 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
-		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+			errHandler)
 	} else {
-		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+			errHandler)
 	}
 
 	require.NoError(t, err)
