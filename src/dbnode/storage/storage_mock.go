@@ -1541,7 +1541,7 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.
 }
 
 // Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts *series.WriteOptions) (ts.Series, bool, error) {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (ts.Series, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(ts.Series)
@@ -1557,7 +1557,7 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts *series.WriteOptions) (ts.Series, bool, error) {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (ts.Series, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(ts.Series)

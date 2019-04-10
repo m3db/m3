@@ -285,7 +285,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Tick() *gomock.Call {
 }
 
 // Write mocks base method
-func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.Time, arg2 float64, arg3 time0.Unit, arg4 []byte, arg5 *WriteOptions) (bool, error) {
+func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.Time, arg2 float64, arg3 time0.Unit, arg4 []byte, arg5 WriteOptions) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(bool)

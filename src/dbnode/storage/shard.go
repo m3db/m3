@@ -748,10 +748,10 @@ func (s *dbShard) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts *series.WriteOptions,
+	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
-		value, unit, annotation, wopts, true)
+		value, unit, annotation, wOpts, true)
 }
 
 func (s *dbShard) Write(
@@ -761,10 +761,10 @@ func (s *dbShard) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts *series.WriteOptions,
+	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
-		value, unit, annotation, wopts, false)
+		value, unit, annotation, wOpts, false)
 }
 
 func (s *dbShard) writeAndIndex(
@@ -775,7 +775,7 @@ func (s *dbShard) writeAndIndex(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wopts *series.WriteOptions,
+	wOpts series.WriteOptions,
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
@@ -827,7 +827,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wopts)
+		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -867,7 +867,7 @@ func (s *dbShard) writeAndIndex(
 				value:      value,
 				unit:       unit,
 				annotation: annotationClone,
-				opts:       wopts,
+				opts:       wOpts,
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{

@@ -40,6 +40,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 )
 
 func TestShardInsertNamespaceIndex(t *testing.T) {
@@ -80,18 +81,18 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil, nil)
+		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 2.0, xtime.Second, nil, nil)
+		now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
 	_, wasWritten, err = shard.Write(
-		ctx, ident.StringID("baz"), now, 1.0, xtime.Second, nil, nil)
+		ctx, ident.StringID("baz"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
@@ -130,11 +131,11 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		time.Now(), 1.0, xtime.Second, nil, nil)
+		time.Now(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), time.Now(), 1.0, xtime.Second, nil, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), time.Now(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -143,7 +144,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 			ident.StringTag("all", "tags"),
 			ident.StringTag("should", "be-present"),
 		)),
-		time.Now(), 1.0, xtime.Second, nil, nil)
+		time.Now(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -216,7 +217,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil, nil)
+		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -230,14 +231,14 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	// ensure we don't index once we have already indexed
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now.Add(time.Second), 2.0, xtime.Second, nil, nil)
+		now.Add(time.Second), 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
 	// ensure attempting to write same point yields false and does not write
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now.Add(time.Second), 2.0, xtime.Second, nil, nil)
+		now.Add(time.Second), 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.False(t, wasWritten)
 
@@ -288,7 +289,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil, nil)
+		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -302,7 +303,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	nextWriteTime := now.Add(blockSize)
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		nextWriteTime, 2.0, xtime.Second, nil, nil)
+		nextWriteTime, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 

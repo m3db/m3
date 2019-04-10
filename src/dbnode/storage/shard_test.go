@@ -413,7 +413,7 @@ func writeShardAndVerify(
 	now time.Time, value float64, expectedShouldWrite bool, expectedIdx uint64,
 ) {
 	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
-		now, value, xtime.Second, nil, nil)
+		now, value, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, expectedShouldWrite, wasWritten)
 	assert.Equal(t, id, series.ID.String())
@@ -627,7 +627,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	defer ctx.Close()
 
 	for _, write := range writes {
-		shard.Write(ctx, ident.StringID(write.id), nowFn(), write.value, write.unit, write.annotation, nil)
+		shard.Write(ctx, ident.StringID(write.id), nowFn(), write.value, write.unit, write.annotation, series.WriteOptions{})
 	}
 
 	for {
@@ -822,7 +822,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
@@ -848,7 +848,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil, nil)
+		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)

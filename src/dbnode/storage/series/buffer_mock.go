@@ -60,7 +60,7 @@ func (m *MockdatabaseBuffer) EXPECT() *MockdatabaseBufferMockRecorder {
 }
 
 // Write mocks base method
-func (m *MockdatabaseBuffer) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts *WriteOptions) (bool, error) {
+func (m *MockdatabaseBuffer) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(bool)
