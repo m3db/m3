@@ -75,7 +75,7 @@ func newBufferTestOptions() Options {
 // Writes to buffer, verifying no error and that further writes should happen.
 func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
 	ctx := context.NewContext()
-	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -94,7 +94,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	defer ctx.Close()
 
 	wasWritten, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
-		xtime.Second, nil)
+		xtime.Second, nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
@@ -112,7 +112,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
-		nil)
+		nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))

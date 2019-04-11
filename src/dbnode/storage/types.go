@@ -408,6 +408,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the shard for an ID.
@@ -419,6 +420,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	ReadEncoded(

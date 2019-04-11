@@ -70,6 +70,7 @@ type databaseBuffer interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts WriteOptions,
 	) (bool, error)
 
 	Snapshot(
@@ -243,6 +244,7 @@ func (b *dbBuffer) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wOpts WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
 	writeType := b.ResolveWriteType(timestamp, now)
