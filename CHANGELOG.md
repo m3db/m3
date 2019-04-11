@@ -1,5 +1,21 @@
 # Changelog
 
+# 0.8.2 (2019-04-11)
+
+## New Features
+
+- **M3DB**: Add Jaeger tracing to M3DB QueryIDs path (#1506)
+
+## Performance
+
+- **M3DB**: Add postingsList caching for FieldQuery (#1530)
+- **M3DB**: Add write & read latency histogram metrics to M3DB client and emit from M3Coordinator (#1533)
+- **M3DB**: Persist block at retention edge when building index after peer streaming (#1531)
+
+## Bug Fixes
+
+- **M3Query**: Fixed a bug that could cause a panic when converting queries (#1546)
+
 # 0.8.1 (2019-04-02)
 
 ## Bug Fixes
