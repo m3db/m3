@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -58,6 +59,7 @@ type DatabaseSeries interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -342,3 +344,7 @@ const (
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
+
+type WriteOptions struct {
+	SchemaDesc namespace.SchemaDescr
+}
