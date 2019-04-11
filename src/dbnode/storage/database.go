@@ -227,8 +227,8 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	d.Lock()
 	defer d.Unlock()
 
-	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
-	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
+	removes, adds, updates, schemaUpdates := d.namespaceDeltaWithLock(newNamespaces)
+	if err := d.logNamespaceUpdate(removes, adds, updates, schemaUpdates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Errorf("%v", enrichedErr)
 		return enrichedErr
@@ -241,9 +241,16 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return err
 	}
 
+	// Update schemas.
+	if err := d.updateNamespaceSchemasWithLock(schemaUpdates); err != nil {
+		enrichedErr := fmt.Errorf("unable to update namespace schema: %v", err)
+		d.log.Errorf("%v", enrichedErr)
+		return enrichedErr
+	}
+
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warnf("skipping namespace removals and updates, restart process if you want changes to take effect.")
+		d.log.Warnf("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
 	}
 
 	// enqueue bootstraps if new namespaces
@@ -254,12 +261,13 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	return nil
 }
 
-func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {
+func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata, []namespace.Metadata) {
 	var (
-		existing = d.namespaces
-		removes  []ident.ID
-		adds     []namespace.Metadata
-		updates  []namespace.Metadata
+		existing      = d.namespaces
+		removes       []ident.ID
+		adds          []namespace.Metadata
+		updates       []namespace.Metadata
+		schemaUpdates []namespace.Metadata
 	)
 
 	// check if existing namespaces exist in newNamespaces
@@ -281,6 +289,10 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 			continue
 		}
 
+		if !newMd.Options().SchemaRegistry().Equal(ns.Options().SchemaRegistry()) {
+			schemaUpdates = append(schemaUpdates, newMd)
+		}
+
 		// if options are not the same, we mark for updates
 		updates = append(updates, newMd)
 	}
@@ -293,10 +305,10 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 		}
 	}
 
-	return removes, adds, updates
+	return removes, adds, updates, schemaUpdates
 }
 
-func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Metadata) error {
+func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Metadata, schemaUpdates []namespace.Metadata) error {
 	removalString, err := tsIDs(removes).String()
 	if err != nil {
 		return fmt.Errorf("unable to format removal, err = %v", err)
@@ -312,10 +324,16 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 		return fmt.Errorf("unable to format updates, err = %v", err)
 	}
 
+	schemaUpdateString, err := metadatas(schemaUpdates).String()
+	if err != nil {
+		return fmt.Errorf("unable to format schema updates, err = %v", err)
+	}
+
 	// log scheduled operation
 	d.log.WithFields(
 		xlog.NewField("adds", addString),
 		xlog.NewField("updates", updateString),
+		xlog.NewField("schema updates", schemaUpdateString),
 		xlog.NewField("removals", removalString),
 	).Infof("updating database namespaces")
 
@@ -339,6 +357,33 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
+	}
+	return nil
+}
+
+func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) error {
+	for _, n := range schemaUpdates {
+		// Ensure namespace exists.
+		curNamepsace, ok := d.namespaces.Get(n.ID())
+		if !ok {
+			// Should never happen.
+			return fmt.Errorf("non-existent namespace marked for schema update: %v", n.ID().String())
+		}
+		curSchemaId := "none"
+		curSchema, found := curNamepsace.SchemaRegistry().GetLatest()
+		if found {
+			curSchemaId = curSchema.DeployId()
+		}
+		// Log schema update.
+		latestSchema, found := n.Options().SchemaRegistry().GetLatest()
+		if !found {
+			return fmt.Errorf("can not update namespace (%s) schema from %s to empty", n.ID().String(), curSchemaId)
+		}
+		d.log.Infof("updating database namespace (%s) schema from %s to %s", n.ID().String(), curSchemaId, latestSchema.DeployId())
+		err := curNamepsace.SetSchemaRegistry(n.Options().SchemaRegistry())
+		if err != nil {
+			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
+		}
 	}
 	return nil
 }

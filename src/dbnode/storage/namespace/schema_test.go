@@ -30,7 +30,7 @@ import (
 )
 
 func TestLoadSchemaRegistry(t *testing.T) {
-	testSchemaOptions := GenTestSchemaOptions()
+	testSchemaOptions := GenTestSchemaOptions("schematest")
 	testSchemaReg, err := LoadSchemaRegistry(testSchemaOptions)
 	require.NoError(t, err)
 
@@ -139,19 +139,88 @@ func TestParseNotProto3(t *testing.T) {
 	require.Equal(t, errSyntaxNotProto3, xerrors.InnerError(err))
 }
 
-func GenTestSchemaOptions() *nsproto.SchemaOptions {
+func TestSchemaRegistrySortedDescending(t *testing.T) {
 	out, _ := parseProto("mainpkg/main.proto", "schematest")
 
 	dlist, _ := marshalFileDescriptors(out)
+	schemaOpt := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "third", PrevId: "second", Descriptors: dlist},
+				{DeployId: "second", PrevId: "first", Descriptors: dlist},
+				{DeployId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+	_, err := LoadSchemaRegistry(schemaOpt)
+	require.Error(t, err)
+	require.Equal(t, errInvalidSchemaOptions, xerrors.InnerError(err))
+}
 
-	return &nsproto.SchemaOptions{
+func TestSchemaOptionsLineageBroken(t *testing.T) {
+	out, _ := parseProto("mainpkg/main.proto", "schematest")
+
+	dlist, _ := marshalFileDescriptors(out)
+	schemaOpt := &nsproto.SchemaOptions{
 		History: &nsproto.SchemaHistory{
 			Versions: []*nsproto.FileDescriptorSet{
 				{DeployId: "first", Descriptors: dlist},
-				{DeployId: "second", PrevId: "first", Descriptors: dlist},
 				{DeployId: "third", PrevId: "second", Descriptors: dlist},
 			},
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
+	_, err := LoadSchemaRegistry(schemaOpt)
+	require.Error(t, err)
+	require.Equal(t, errInvalidSchemaOptions, xerrors.InnerError(err))
+}
+
+func TestSchemaRegistryCheckLineage(t *testing.T) {
+	out, _ := parseProto("mainpkg/main.proto", "schematest")
+
+	dlist, _ := marshalFileDescriptors(out)
+
+	schemaOpt1 := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+	sr1, err := LoadSchemaRegistry(schemaOpt1)
+	require.NoError(t, err)
+
+	schemaOpt2 := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+				{DeployId: "second", PrevId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+	sr2, err := LoadSchemaRegistry(schemaOpt2)
+	require.NoError(t, err)
+
+	require.True(t, sr1.Extends(emptySchemaRegistry()))
+	require.True(t, sr2.Extends(emptySchemaRegistry()))
+	require.False(t, sr1.Extends(sr2))
+	require.True(t, sr2.Extends(sr1))
+
+	schemaOpt3 := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+				{DeployId: "third", PrevId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
+	sr3, err := LoadSchemaRegistry(schemaOpt3)
+	require.NoError(t, err)
+
+	require.True(t, sr3.Extends(sr1))
+	require.False(t, sr3.Extends(sr2))
 }

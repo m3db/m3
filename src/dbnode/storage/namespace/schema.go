@@ -40,13 +40,26 @@ var (
 	errSyntaxNotProto3      = errors.New("proto syntax is not proto3")
 )
 
+type MessageDescriptor struct {
+	*desc.MessageDescriptor
+}
+
 type schemaDescr struct {
-	deployId string
-	md       *desc.MessageDescriptor
+	deployId     string
+	prevDeployId string
+	md           MessageDescriptor
+}
+
+func newSchemaDescr(deployId, prevId string, md MessageDescriptor) *schemaDescr {
+	return &schemaDescr{deployId: deployId, prevDeployId: prevId, md: md}
 }
 
 func (s *schemaDescr) DeployId() string {
 	return s.deployId
+}
+
+func (s *schemaDescr) PrevDeployId() string {
+	return s.prevDeployId
 }
 
 func (s *schemaDescr) Equal(o SchemaDescr) bool {
@@ -56,25 +69,18 @@ func (s *schemaDescr) Equal(o SchemaDescr) bool {
 	if s != nil && o == nil || s == nil && o != nil {
 		return false
 	}
-	if _, ok := o.(*schemaDescr); !ok {
-		return false
-	}
-	return s.DeployId() == o.DeployId()
-}
-
-type MessageDescriptor struct {
-	*desc.MessageDescriptor
+	return s.DeployId() == o.DeployId() && s.PrevDeployId() == o.PrevDeployId()
 }
 
 func (s *schemaDescr) Get() MessageDescriptor {
-	return MessageDescriptor{s.md}
+	return s.md
 }
 
 func (s *schemaDescr) String() string {
-	if s.md == nil {
+	if s.md.MessageDescriptor == nil {
 		return ""
 	}
-	return s.md.String()
+	return s.md.MessageDescriptor.String()
 }
 
 type schemaRegistry struct {
@@ -110,6 +116,19 @@ func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 		}
 	}
 
+	return true
+}
+
+func (sr *schemaRegistry) Extends(v SchemaRegistry) bool {
+	cur, hasMore := v.GetLatest()
+
+	for hasMore {
+		srCur, inSr := sr.Get(cur.DeployId())
+		if !inSr || !cur.Equal(srCur) {
+			return false
+		}
+		cur, hasMore = v.Get(cur.PrevDeployId())
+	}
 	return true
 }
 
@@ -194,9 +213,9 @@ func loadFileDescriptorSet(fdSet *nsproto.FileDescriptorSet, msgName string) (*s
 
 	md := curfd.FindMessage(msgName)
 	if md != nil {
-		return &schemaDescr{deployId: fdSet.DeployId, md: md}, nil
+		return newSchemaDescr(fdSet.DeployId, fdSet.PrevId, MessageDescriptor{md}), nil
 	}
-	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in version(%s)", msgName, fdSet.DeployId)
+	return nil, xerrors.Wrapf(errInvalidSchemaOptions, "failed to find message (%s) in deployment(%s)", msgName, fdSet.DeployId)
 }
 
 // decodeFileDescriptorProto decodes the bytes of proto file descriptor.
@@ -257,4 +276,21 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 		dlist = append(dlist, fdbytes)
 	}
 	return dlist, nil
+}
+
+func GenTestSchemaOptions(importPathPrefix string) *nsproto.SchemaOptions {
+	out, _ := parseProto("mainpkg/main.proto", importPathPrefix)
+
+	dlist, _ := marshalFileDescriptors(out)
+
+	return &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+				{DeployId: "second", PrevId: "first", Descriptors: dlist},
+				{DeployId: "third", PrevId: "second", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: "mainpkg.TestMessage",
+	}
 }
