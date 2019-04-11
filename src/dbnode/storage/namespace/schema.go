@@ -63,7 +63,10 @@ func (s *schemaDescr) PrevDeployId() string {
 }
 
 func (s *schemaDescr) Equal(o SchemaDescr) bool {
-	if _, ok := o.(*schemaDescr); !ok {
+	if s == nil && o == nil {
+		return true
+	}
+	if s != nil && o == nil || s == nil && o != nil {
 		return false
 	}
 	return s.DeployId() == o.DeployId() && s.PrevDeployId() == o.PrevDeployId()

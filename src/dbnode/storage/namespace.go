@@ -119,7 +119,7 @@ type dbNamespace struct {
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
-	// contains the schema registry for the database namespace.
+	// Contains the schema registry for the database namespace.
 	schemaRegistry namespace.SchemaRegistry
 
 	increasingIndex increasingIndex
