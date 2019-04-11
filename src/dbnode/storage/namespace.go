@@ -119,6 +119,9 @@ type dbNamespace struct {
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
+	// Contains the schema registry for the database namespace.
+	schemaRegistry namespace.SchemaRegistry
+
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
 	reverseIndex    namespaceIndex
@@ -296,8 +299,8 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
-			"namespace": id.String(),
-		})
+		"namespace": id.String(),
+	})
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
@@ -332,6 +335,7 @@ func newDatabaseNamespace(
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
+		schemaRegistry:         metadata.Options().SchemaRegistry(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		snapshotFilesFn:        fs.SnapshotFiles,
@@ -395,6 +399,24 @@ func (n *dbNamespace) Shards() []Shard {
 	}
 	n.RUnlock()
 	return databaseShards
+}
+
+func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
+	n.RLock()
+	sr := n.schemaRegistry
+	n.RUnlock()
+	return sr
+}
+
+func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
+	if !v.Extends(n.SchemaRegistry()) {
+		return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
+	}
+
+	n.Lock()
+	n.schemaRegistry = v
+	n.Unlock()
+	return nil
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {

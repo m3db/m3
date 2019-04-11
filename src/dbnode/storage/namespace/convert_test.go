@@ -59,7 +59,7 @@ var (
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
-			SchemaOptions:     namespace.GenTestSchemaOptions(),
+			SchemaOptions:     namespace.GenTestSchemaOptions("schematest"),
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -75,7 +75,7 @@ var (
 	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
 			RetentionOptions: &validRetentionOpts,
-			SchemaOptions:    namespace.GenTestSchemaOptions(),
+			SchemaOptions:    namespace.GenTestSchemaOptions("schematest"),
 		},
 	}
 
@@ -208,7 +208,7 @@ func TestSchemaFromProto(t *testing.T) {
 
 func TestSchemaToProto(t *testing.T) {
 	// make ns map
-	testSchemaReg, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions())
+	testSchemaReg, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions("schematest"))
 	require.NoError(t, err)
 	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
 		namespace.NewOptions().SetSchemaRegistry(testSchemaReg))

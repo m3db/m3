@@ -53,7 +53,7 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 
 func TestOptionsEqualsSchema(t *testing.T) {
 	o1 := NewOptions()
-	s1, err := LoadSchemaRegistry(GenTestSchemaOptions())
+	s1, err := LoadSchemaRegistry(GenTestSchemaOptions("schematest"))
 	require.NoError(t, err)
 	require.NotNil(t, s1)
 	o2 := o1.SetSchemaRegistry(s1)
