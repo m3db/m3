@@ -4,7 +4,7 @@
 
 ## Migration Disclaimer
 
-If you have the following set in your M3Query or M3Coordinator config, you should remove it:
+If you have the following set in your M3Query or M3Coordinator config, you should remove it. This is due to a bug in M3Query that is fixed in this release (see below).
 ```yaml
 cache:
   queryConversion:
@@ -19,7 +19,7 @@ cache:
 
 - **M3DB**: Add postingsList caching for FieldQuery (#1530)
 - **M3DB**: Add write & read latency histogram metrics to M3DB client and emit from M3Coordinator (#1533)
-- **M3DB**: Persist block at retention edge when building index after peer streaming (#1531_
+- **M3DB**: Persist block at retention edge when building index after peer streaming (#1531)
 
 ## Bug Fixes
 
