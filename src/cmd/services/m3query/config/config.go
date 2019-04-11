@@ -122,6 +122,11 @@ type Configuration struct {
 
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
+
+	// Cache configurations.
+	//
+	// Deprecated: cache configurations are no longer supported. Remove from file.
+	DeprecatedCache CacheConfiguration `yaml:"cache"`
 }
 
 // Filter is a query filter type.
@@ -143,6 +148,17 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
+}
+
+// CacheConfiguration contains the cache configurations.
+type CacheConfiguration struct {
+	// Deprecated: remove from config.
+	DeprecatedQueryConversion *DeprecatedQueryConversionCacheConfiguration `yaml:"queryConversion"`
+}
+
+// DeprecatedQueryConversionCacheConfiguration is deprecated: remove from config.
+type DeprecatedQueryConversionCacheConfiguration struct {
+	Size *int `yaml:"size"`
 }
 
 // ResultOptions are the result options for query.
