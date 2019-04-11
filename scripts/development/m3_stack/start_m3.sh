@@ -26,7 +26,7 @@ fi
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
-docker-compose -f docker-compose.yml up --build -d --force-recreate --renew-anon-volumes grafana
+docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
 
 if [[ "$MULTI_DB_NODE" = true ]] ; then
     echo "Running multi node"

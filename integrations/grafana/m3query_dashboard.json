@@ -11,7 +11,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "6.1.1"
+      "version": "6.1.3"
     },
     {
       "type": "panel",
@@ -43,7 +43,7 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "iteration": 1554502570182,
+  "iteration": 1555019566552,
   "links": [],
   "panels": [
     {
@@ -75,7 +75,7 @@
         "minValue": 0,
         "orientation": "auto",
         "showThresholdLabels": false,
-        "showThresholdMarkers": true,
+        "showThresholdMarkers": false,
         "thresholds": [
           {
             "color": "#7EB26D",
@@ -107,7 +107,7 @@
           "unit": "none"
         }
       },
-      "pluginVersion": "6.1.1",
+      "pluginVersion": "6.1.3",
       "targets": [
         {
           "expr": "coordinator_max_datapoints",
@@ -398,7 +398,6 @@
       }
     }
   ],
-  "refresh": false,
   "schemaVersion": 18,
   "style": "dark",
   "tags": [
