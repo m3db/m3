@@ -4,7 +4,7 @@
 
 ## Migration Disclaimer
 
-If you have the following set in your M3Query or M3Coordinator config, you should remove it. This is due to a bug in M3Query that is fixed in this release (see below).
+If you have the following set in your M3Query or M3Coordinator config, you should remove it. This is due to a bug in the LRU conversion cache within M3Query that is fixed in this release (see below).
 ```yaml
 cache:
   queryConversion:
