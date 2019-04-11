@@ -64,9 +64,7 @@ func NewStorageAndSession(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	queryCache, err := storage.NewQueryConversionLRU(100)
-	require.NoError(t, err)
-	storage, err := m3.NewStorage(clusters, nil, writePool, tagOptions, defaultLookbackDuration, storage.NewQueryConversionCache(queryCache))
+	storage, err := m3.NewStorage(clusters, nil, writePool, tagOptions, defaultLookbackDuration)
 	require.NoError(t, err)
 	return storage, session
 }
@@ -94,9 +92,7 @@ func NewStorageAndSessionWithAggregatedNamespaces(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	queryCache, err := storage.NewQueryConversionLRU(100)
-	require.NoError(t, err)
-	storage, err := m3.NewStorage(clusters, nil, writePool, tagOptions, defaultLookbackDuration, storage.NewQueryConversionCache(queryCache))
+	storage, err := m3.NewStorage(clusters, nil, writePool, tagOptions, defaultLookbackDuration)
 	require.NoError(t, err)
 	return storage, session
 }
