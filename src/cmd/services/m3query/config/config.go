@@ -124,7 +124,9 @@ type Configuration struct {
 	ResultOptions ResultOptions `yaml:"resultOptions"`
 
 	// Cache configurations.
-	Cache CacheConfiguration `yaml:"cache"`
+	//
+	// Deprecated: cache configurations are no longer supported. Remove from file.
+	DeprecatedCache CacheConfiguration `yaml:"cache"`
 }
 
 // Filter is a query filter type.
