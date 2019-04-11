@@ -48,17 +48,17 @@ func TestLoggingConfiguration(t *testing.T) {
 	log, err := cfg.BuildLogger()
 	require.NoError(t, err)
 
-	log.Infof("should not appear")
-	log.Warnf("should not appear")
-	log.Errorf("this should be appear")
+	log.Info("should not appear")
+	log.Warn("should not appear")
+	log.Error("this should appear")
 
 	b, err := ioutil.ReadAll(tmpfile)
 	require.NoError(t, err)
 
 	str := string(b)
-	pieces := strings.Split(str, "[")
-	assert.True(t, len(pieces) >= 2)
+	pieces := strings.Split(str, "\t")
+	assert.True(t, len(pieces) >= 4)
 
 	ts := pieces[0]
-	assert.EqualValues(t, ts+"[E] this should be appear [{my-field my-val}]\n", str)
+	assert.EqualValues(t, ts+"\tERROR\tthis should appear\t{\"my-field\": \"my-val\"}\n", str)
 }

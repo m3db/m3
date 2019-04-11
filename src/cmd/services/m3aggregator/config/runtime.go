@@ -29,7 +29,8 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	kvutil "github.com/m3db/m3/src/cluster/kv/util"
-	"github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 // RuntimeOptionsConfiguration configures runtime options.
@@ -55,16 +56,16 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 	client client.Client,
 	runtimeOptsManager runtime.OptionsManager,
 	placementManager aggregator.PlacementManager,
-	logger log.Logger,
+	logger *zap.Logger,
 ) {
 	kvOpts, err := c.KVConfig.NewOverrideOptions()
 	if err != nil {
-		logger.Errorf("unable to create kv config options: %v", err)
+		logger.Error("unable to create kv config options", zap.Error(err))
 		return
 	}
 	store, err := client.Store(kvOpts)
 	if err != nil {
-		logger.Errorf("unable to create kv store: %v", err)
+		logger.Error("unable to create kv store", zap.Error(err))
 		return
 	}
 
@@ -81,18 +82,19 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 	)
 	valueLimit, err = retrieveLimit(valueLimitKey, store, defaultValueLimit)
 	if err != nil {
-		logger.Errorf("unable to retrieve per-metric write value limit from kv: %v", err)
+		logger.Error("unable to retrieve per-metric write value limit from kv", zap.Error(err))
 	}
-	logger.Infof("current write value limit per second is: %d", valueLimit)
+	logger.Info("current write value limit per second", zap.Int64("limit", valueLimit))
 
 	newMetricClusterLimit, err = retrieveLimit(newMetricClusterLimitKey, store, defaultNewMetricClusterLimit)
 	if err == nil {
 		newMetricPerShardLimit, err = clusterLimitToPerShardLimit(newMetricClusterLimit, placementManager)
 	}
 	if err != nil {
-		logger.Errorf("unable to determine per-shard write new metric limit: %v", err)
+		logger.Error("unable to determine per-shard write new metric limit", zap.Error(err))
 	}
-	logger.Infof("current write new metric limit per shard per second is: %d", newMetricPerShardLimit)
+	logger.Info("current write new metric limit per shard per second",
+		zap.Int64("limit", newMetricPerShardLimit))
 
 	runtimeOpts := runtime.NewOptions().
 		SetWriteNewMetricNoLimitWarmupDuration(c.WriteNewMetricNoLimitWarmupDuration).
@@ -102,13 +104,13 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 
 	valueLimitWatch, err := store.Watch(valueLimitKey)
 	if err != nil {
-		logger.Errorf("unable to watch per-metric write value limit: %v", err)
+		logger.Error("unable to watch per-metric write value limit", zap.Error(err))
 	} else {
 		valueLimitCh = valueLimitWatch.C()
 	}
 	newMetricLimitWatch, err := store.Watch(newMetricClusterLimitKey)
 	if err != nil {
-		logger.Errorf("unable to watch cluster-wide write new metric limit: %v", err)
+		logger.Error("unable to watch cluster-wide write new metric limit", zap.Error(err))
 	} else {
 		newMetricLimitCh = newMetricLimitWatch.C()
 	}
@@ -125,15 +127,17 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 				valueLimitVal := valueLimitWatch.Get()
 				newValueLimit, err := kvutil.Int64FromValue(valueLimitVal, valueLimitKey, defaultValueLimit, utilOpts)
 				if err != nil {
-					logger.Errorf("unable to determine per-metric write value limit: %v", err)
+					logger.Error("unable to determine per-metric write value limit", zap.Error(err))
 					continue
 				}
 				currValueLimit := runtimeOpts.WriteValuesPerMetricLimitPerSecond()
 				if newValueLimit == currValueLimit {
-					logger.Infof("per-metric write value limit %d is unchanged, skipping", newValueLimit)
+					logger.Info("per-metric write value limit is unchanged, skipping", zap.Int64("limit", newValueLimit))
 					continue
 				}
-				logger.Infof("updating per-metric write value limit from %d to %d", currValueLimit, newValueLimit)
+				logger.Info("updating per-metric write value limit",
+					zap.Int64("current", currValueLimit),
+					zap.Int64("new", newValueLimit))
 				runtimeOpts = runtimeOpts.SetWriteValuesPerMetricLimitPerSecond(newValueLimit)
 				runtimeOptsManager.SetRuntimeOptions(runtimeOpts)
 			case <-newMetricLimitCh:
@@ -144,15 +148,18 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 					newNewMetricPerShardLimit, err = clusterLimitToPerShardLimit(newNewMetricClusterLimit, placementManager)
 				}
 				if err != nil {
-					logger.Errorf("unable to determine per-shard new metric limit: %v", err)
+					logger.Error("unable to determine per-shard new metric limit", zap.Error(err))
 					continue
 				}
 				currNewMetricPerShardLimit := runtimeOpts.WriteNewMetricLimitPerShardPerSecond()
 				if newNewMetricPerShardLimit == currNewMetricPerShardLimit {
-					logger.Infof("per-shard write new metric limit %d is unchanged, skipping", newNewMetricPerShardLimit)
+					logger.Info("per-shard write new metric limit is unchanged, skipping",
+						zap.Int64("limit", newNewMetricPerShardLimit))
 					continue
 				}
-				logger.Infof("updating per-shard write new metric limit from %d to %d", currNewMetricPerShardLimit, newNewMetricPerShardLimit)
+				logger.Info("updating per-shard write new metric limit",
+					zap.Int64("current", currNewMetricPerShardLimit),
+					zap.Int64("new", newNewMetricPerShardLimit))
 				runtimeOpts = runtimeOpts.SetWriteNewMetricLimitPerShardPerSecond(newNewMetricPerShardLimit)
 				runtimeOptsManager.SetRuntimeOptions(runtimeOpts)
 			}

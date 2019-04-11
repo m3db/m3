@@ -21,10 +21,10 @@
 package main
 
 import (
+	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
 	"runtime"
 	"time"
 
@@ -37,8 +37,8 @@ import (
 	"github.com/m3db/m3/src/m3nsch/datums"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 
+	"go.uber.org/zap"
 	"github.com/pborman/getopt"
 	"github.com/uber-go/tally"
 	"google.golang.org/grpc"
@@ -54,7 +54,12 @@ func main() {
 		return
 	}
 
-	logger := xlog.NewLogger(os.Stdout)
+	rawLogger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("unable to create logger: %v", err)
+	}
+
+	logger := rawLogger.Sugar()
 	conf, err := config.New(*configFile)
 	if err != nil {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
@@ -64,7 +69,7 @@ func main() {
 	logger.Infof("setting maxProcs = %d", maxProcs)
 	runtime.GOMAXPROCS(maxProcs)
 
-	StartPProfServer(conf.Server.DebugAddress, logger)
+	StartPProfServer(conf.Server.DebugAddress, rawLogger)
 
 	scope, closer, err := conf.Metrics.NewRootScope()
 	if err != nil {
@@ -79,7 +84,7 @@ func main() {
 
 	iopts := instrument.
 		NewOptions().
-		SetLogger(logger).
+		SetLogger(rawLogger).
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(conf.Metrics.SamplingRate)
 	datumRegistry := datums.NewDefaultRegistry(conf.M3nsch.NumPointsPerDatum)
@@ -87,7 +92,7 @@ func main() {
 		SetConcurrency(conf.M3nsch.Concurrency).
 		SetNewSessionFn(newSessionFn(conf, iopts))
 	agent := agent.New(datumRegistry, agentOpts)
-	ServeGRPCService(listener, agent, scope, logger)
+	ServeGRPCService(listener, agent, scope, rawLogger)
 }
 
 func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.NewSessionFn {
@@ -107,13 +112,13 @@ func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.Ne
 
 // StartPProfServer starts a pprof server at specified address, or crashes
 // the program on failure.
-func StartPProfServer(debugAddress string, logger xlog.Logger) {
+func StartPProfServer(debugAddress string, logger *zap.Logger) {
 	go func() {
 		if err := http.ListenAndServe(debugAddress, nil); err != nil {
-			logger.Fatalf("unable to serve debug server: %v", err)
+			logger.Fatal("unable to serve debug server", zap.Error(err))
 		}
 	}()
-	logger.Infof("serving pprof endpoints at: %v", debugAddress)
+	logger.Info("serving pprof endpoints", zap.String("address", debugAddress))
 }
 
 // ServeGRPCService serves m3nsch_server GRPC service at the specified address.
@@ -121,17 +126,17 @@ func ServeGRPCService(
 	listener net.Listener,
 	agent m3nsch.Agent,
 	scope tally.Scope,
-	logger xlog.Logger,
+	logger *zap.Logger,
 ) {
 	server := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
 	service, err := services.NewGRPCService(agent, scope, logger)
 	if err != nil {
-		logger.Fatalf("could not create grpc service: %v", err)
+		logger.Fatal("could not create grpc service", zap.Error(err))
 	}
 	proto.RegisterMenschServer(server, service)
-	logger.Infof("serving m3nsch endpoints at %v", listener.Addr().String())
+	logger.Info("serving m3nsch endpoints", zap.Stringer("address", listener.Addr()))
 	err = server.Serve(listener)
 	if err != nil {
-		logger.Fatalf("could not serve: %v", err)
+		logger.Fatal("could not serve", zap.Error(err))
 	}
 }

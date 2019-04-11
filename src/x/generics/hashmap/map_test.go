@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/cespare/xxhash"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -26,10 +26,10 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
-	"github.com/stretchr/testify/require"
 
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 func ExampleInvariantViolatedMetricInvocation() {
@@ -53,7 +53,7 @@ func TestEmitInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
 func TestEmitAndLogInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
 	opts := instrument.NewOptions()
 	require.NotPanics(t, func() {
-		instrument.EmitAndLogInvariantViolation(opts, func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(opts, func(l *zap.Logger) {
 			l.Error("some_error")
 		})
 	})
@@ -85,7 +85,7 @@ func TestEmitAndLogInvariantViolationPanicsIfEnvSet(t *testing.T) {
 
 	opts := instrument.NewOptions()
 	require.Panics(t, func() {
-		instrument.EmitAndLogInvariantViolation(opts, func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(opts, func(l *zap.Logger) {
 			l.Error("some_error")
 		})
 	})

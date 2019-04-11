@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"io"
+	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -46,9 +47,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 var flagParser = flag.NewFlagSet("Verify Commitlogs", flag.ExitOnError)
@@ -87,7 +89,11 @@ func main() {
 		endUnixTimestamp   = *endUnixTimestampArg
 	)
 
-	log := xlog.NewLogger(os.Stderr)
+	rawLogger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("unable to create logger: %+v", err)
+	}
+	log := rawLogger.Sugar()
 
 	if debugListenAddress != "" {
 		go func() {
@@ -134,14 +140,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.WithFields(
-		xlog.NewField("pathPrefix", pathPrefix),
-		xlog.NewField("namespace", namespaceStr),
-		xlog.NewField("shards", shardsAll),
+	log.With(
+		zap.String("pathPrefix", pathPrefix),
+		zap.String("namespace", namespaceStr),
+		zap.Uint32s("shards", shardsAll),
 	).Infof("configured")
 
 	instrumentOpts := instrument.NewOptions().
-		SetLogger(log)
+		SetLogger(rawLogger)
 
 	retentionOpts := retention.NewOptions().
 		SetBlockSize(blockSize).
@@ -265,15 +271,15 @@ func main() {
 		log.Fatalf("failed to bootstrap: %v", err)
 	}
 
-	log.WithFields(
-		xlog.NewField("shardResults", len(result.ShardResults())),
-		xlog.NewField("unfulfilled", len(result.Unfulfilled())),
-	).Infof("bootstrapped")
+	log.With(
+		zap.Any("shardResults", len(result.ShardResults())),
+		zap.Any("unfulfilled", len(result.Unfulfilled())),
+	).Info("bootstrapped")
 
 	for shard, result := range result.ShardResults() {
-		log.WithFields(
-			xlog.NewField("shard", shard),
-			xlog.NewField("series", result.AllSeries().Len()),
-		).Infof("shard result")
+		log.With(
+			zap.Any("shard", shard),
+			zap.Any("series", result.AllSeries().Len()),
+		).Info("shard result")
 	}
 }

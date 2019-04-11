@@ -21,16 +21,16 @@
 package main
 
 import (
-	"os"
+	"log"
 	"time"
 
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/coordinator"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/getopt"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	validator "gopkg.in/validator.v2"
 )
 
@@ -72,52 +72,56 @@ func main() {
 		return
 	}
 
-	var (
-		logger    = xlog.NewLogger(os.Stdout)
-		iopts     = instrument.NewOptions().SetLogger(logger)
-		opts      = coordinator.NewOptions(iopts)
-		conf, err = readConfiguration(*configFile)
-	)
+	logger, err := zap.NewDevelopment()
 	if err != nil {
-		logger.Fatalf("unable to read configuration file: %v", err)
+		log.Fatalf("unable to read configuration file: %v", err)
+	}
+
+	var (
+		iopts = instrument.NewOptions().SetLogger(logger)
+		opts  = coordinator.NewOptions(iopts)
+	)
+	conf, err := readConfiguration(*configFile)
+	if err != nil {
+		logger.Fatal("unable to read configuration file", zap.Error(err))
 	}
 
 	coord, err := coordinator.New(opts, conf.Endpoints)
 	if err != nil {
-		logger.Fatalf("unable to create coordinator: %v", err)
+		logger.Fatal("unable to create coordinator", zap.Error(err))
 	}
 
 	workload := conf.Workload.toM3nschType()
 	err = coord.Init(*token, workload, *force, conf.TargetZone, conf.TargetEnv)
 	if err != nil {
-		logger.Fatalf("unable to init coordinator: %v", err)
+		logger.Fatal("unable to init coordinator", zap.Error(err))
 	}
 	defer coord.Teardown()
 
 	if err := coord.Start(); err != nil {
-		logger.Fatalf("unable to start coordinator: %v", err)
+		logger.Fatal("unable to start coordinator", zap.Error(err))
 	}
 	defer coord.Stop()
 
 	stopTime := time.Now().Add(*duration)
 	for time.Now().Before(stopTime) {
-		logger.Infof("status [ time = %v ]", time.Now().String())
+		logger.Sugar().Infof("status [ time = %v ]", time.Now().String())
 		statusMap, err := coord.Status()
 		if err != nil {
-			logger.Fatalf("unable to retrieve status: %v", err)
+			logger.Sugar().Fatalf("unable to retrieve status: %v", err)
 		}
 		logStatus(logger, statusMap)
 		time.Sleep(time.Second * 5)
 	}
 }
 
-func logStatus(logger xlog.Logger, statusMap map[string]m3nsch.AgentStatus) {
+func logStatus(logger *zap.Logger, statusMap map[string]m3nsch.AgentStatus) {
 	for endpoint, status := range statusMap {
 		token := status.Token
 		if token == "" {
 			token = "<undefined>"
 		}
-		logger.Infof("[%v] MaxQPS: %d, Status: %v, Token: %v, Workload: %+v",
+		logger.Sugar().Infof("[%v] MaxQPS: %d, Status: %v, Token: %v, Workload: %+v",
 			endpoint, status.MaxQPS, status.Status, token, status.Workload)
 	}
 }

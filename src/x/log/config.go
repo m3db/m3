@@ -21,8 +21,9 @@
 package log
 
 import (
-	"io"
-	"os"
+	"fmt"
+
+	"go.uber.org/zap"
 )
 
 // Configuration defines configuration for logging.
@@ -33,36 +34,31 @@ type Configuration struct {
 }
 
 // BuildLogger builds a new Logger based on the configuration.
-func (cfg Configuration) BuildLogger() (Logger, error) {
-	writer := io.Writer(os.Stdout)
+func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
+	zc := zap.Config{
+		Level:             zap.NewAtomicLevelAt(zap.InfoLevel),
+		Development:       false,
+		DisableCaller:     true,
+		DisableStacktrace: true,
+		Encoding:          "console",
+		EncoderConfig:     zap.NewDevelopmentEncoderConfig(),
+		OutputPaths:       []string{"stdout"},
+		ErrorOutputPaths:  []string{"stdout"},
+		InitialFields:     cfg.Fields,
+	}
 
 	if cfg.File != "" {
-		fd, err := os.OpenFile(cfg.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return nil, err
-		}
-
-		writer = io.MultiWriter(writer, fd)
+		zc.OutputPaths = append(zc.OutputPaths, cfg.File)
+		zc.ErrorOutputPaths = append(zc.ErrorOutputPaths, cfg.File)
 	}
-
-	logger := NewLogger(writer)
 
 	if len(cfg.Level) != 0 {
-		level, err := ParseLevel(cfg.Level)
-		if err != nil {
-			return nil, err
+		var parsedLevel zap.AtomicLevel
+		if err := parsedLevel.UnmarshalText([]byte(cfg.Level)); err != nil {
+			return nil, fmt.Errorf("unable to parse log level %s: %v", cfg.Level, err)
 		}
-
-		logger = NewLevelLogger(logger, level)
+		zc.Level = parsedLevel
 	}
 
-	if len(cfg.Fields) != 0 {
-		var fields []Field
-		for k, v := range cfg.Fields {
-			fields = append(fields, NewField(k, v))
-		}
-		logger = logger.WithFields(fields...)
-	}
-
-	return logger, nil
+	return zc.Build()
 }

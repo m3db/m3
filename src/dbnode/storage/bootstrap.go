@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -65,7 +65,7 @@ type bootstrapManager struct {
 	database                    database
 	mediator                    databaseMediator
 	opts                        Options
-	log                         xlog.Logger
+	log                         *zap.Logger
 	nowFn                       clock.NowFn
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
@@ -193,10 +193,10 @@ func (m *bootstrapManager) bootstrap() error {
 			multiErr = multiErr.Add(err)
 		}
 		took := m.nowFn().Sub(startNamespaceBootstrap)
-		m.log.WithFields(
-			xlog.NewField("namespace", namespace.ID().String()),
-			xlog.NewField("duration", took.String()),
-		).Info("bootstrap finished")
+		m.log.Info("bootstrap finished",
+			zap.String("namespace", namespace.ID().String()),
+			zap.Duration("duration", took),
+		)
 	}
 
 	return multiErr.FinalError()

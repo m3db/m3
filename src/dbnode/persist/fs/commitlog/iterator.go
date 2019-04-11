@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -44,7 +44,7 @@ type iterator struct {
 	opts       Options
 	scope      tally.Scope
 	metrics    iteratorMetrics
-	log        xlog.Logger
+	log        *zap.Logger
 	files      []persist.CommitLogFile
 	reader     commitLogReader
 	read       iteratorRead
@@ -114,7 +114,7 @@ func (i *iterator) Next() bool {
 	if err != nil {
 		// Try the next reader, this enables restoring with best effort from commit logs
 		i.metrics.readsErrors.Inc(1)
-		i.log.Errorf("commit log reader returned error, iterator moving to next file: %v", err)
+		i.log.Error("commit log reader returned error, iterator moving to next file", zap.Error(err))
 		i.err = err
 		closeErr := i.closeAndResetReader()
 		if closeErr != nil {

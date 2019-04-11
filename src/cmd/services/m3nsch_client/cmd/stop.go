@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var (
@@ -53,14 +54,14 @@ func stopExec(_ *cobra.Command, _ []string) {
 	)
 
 	if err != nil {
-		logger.Fatalf("unable to create coordinator: %v", err)
+		logger.Fatal("unable to create coordinator", zap.Error(err))
 	}
 	defer coordinator.Teardown()
 
 	err = coordinator.Stop()
 	if err != nil {
-		logger.Fatalf("unable to stop workload: %v", err)
+		logger.Fatal("unable to stop workload", zap.Error(err))
 	}
 
-	logger.Infof("workload stopped!")
+	logger.Info("workload stopped!")
 }

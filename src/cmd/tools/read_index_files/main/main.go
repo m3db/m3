@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"regexp"
 	"sort"
@@ -36,9 +37,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/getopt"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -49,9 +50,14 @@ func main() {
 		optVolumeIndex     = getopt.Int64Long("volume-index", 'v', 0, "Volume index")
 		optLargeFieldLimit = getopt.Int64Long("large-field-limit", 'l', 0, "Large Field Limit (non-zero to display fields with num terms > limit)")
 		optOutputIdsPrefix = getopt.StringLong("output-ids-prefix", 'o', "", "If set, it emits all terms for the _m3ninx_id field.")
-		log                = xlog.NewLogger(os.Stderr)
 	)
 	getopt.Parse()
+
+	rawLogger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("unable to create logger: %+v", err)
+	}
+	log := rawLogger.Sugar()
 
 	if *optPathPrefix == "" ||
 		*optNamespace == "" ||

@@ -44,7 +44,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
@@ -55,6 +54,7 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 var (
@@ -124,7 +124,7 @@ type service struct {
 	sync.RWMutex
 
 	db      storage.Database
-	logger  log.Logger
+	logger  *zap.Logger
 	opts    tchannelthrift.Options
 	nowFn   clock.NowFn
 	pools   pools
@@ -584,7 +584,7 @@ func (s *service) encodeTags(
 	if err := enc.Encode(tags); err != nil {
 		// should never happen
 		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error(err.Error())
 		})
 		return nil, err
@@ -593,7 +593,7 @@ func (s *service) encodeTags(
 	if !ok {
 		// should never happen
 		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error(err.Error())
 		})
 		return nil, err

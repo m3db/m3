@@ -31,11 +31,11 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 const (
@@ -104,7 +104,7 @@ type consumerWriterImpl struct {
 	connOpts    ConnectionOptions
 	ackRetrier  retry.Retrier
 	connRetrier retry.Retrier
-	logger      log.Logger
+	logger      *zap.Logger
 
 	validConn      *atomic.Bool
 	conn           io.ReadWriteCloser
@@ -233,11 +233,11 @@ func (w *consumerWriterImpl) resetConnectionUntilClose() {
 			}
 			if err := w.resetWithConnectFn(w.connectWithRetry); err != nil {
 				w.m.resetError.Inc(1)
-				w.logger.Errorf("could not reconnect to %s, %v", w.addr, err)
+				w.logger.Error("could not reconnect", zap.String("address", w.addr), zap.Error(err))
 				continue
 			}
 			w.m.resetSuccess.Inc(1)
-			w.logger.Infof("reconnected to %s", w.addr)
+			w.logger.Info("reconnected", zap.String("address", w.addr))
 		case <-w.doneCh:
 			w.conn.Close()
 			return
@@ -298,7 +298,7 @@ func (w *consumerWriterImpl) readAcks() error {
 		if err := w.router.Ack(newMetadataFromProto(m)); err != nil {
 			w.m.ackError.Inc(1)
 			// This is fine, usually this means the ack has been acked.
-			w.logger.Errorf("could not ack metadata, %v", err)
+			w.logger.Error("could not ack metadata", zap.Error(err))
 		}
 	}
 	return nil

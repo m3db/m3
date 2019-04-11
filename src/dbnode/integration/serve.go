@@ -37,6 +37,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xretry "github.com/m3db/m3/src/x/retry"
+
+	"go.uber.org/zap"
 )
 
 // newTestShardSet creates a default shard set
@@ -108,33 +110,33 @@ func openAndServe(
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
 	}
 	defer nativeNodeClose()
-	logger.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
+	logger.Info("node tchannelthrift: listening", zap.String("address", tchannelNodeAddr))
 
 	httpjsonNodeClose, err := hjnode.NewServer(service, httpNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpNodeAddr, err)
 	}
 	defer httpjsonNodeClose()
-	logger.Infof("node httpjson: listening on %v", httpNodeAddr)
+	logger.Info("node httpjson: listening", zap.String("address", httpNodeAddr))
 
 	nativeClusterClose, err := ttcluster.NewServer(client, tchannelClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelClusterAddr, err)
 	}
 	defer nativeClusterClose()
-	logger.Infof("cluster tchannelthrift: listening on %v", tchannelClusterAddr)
+	logger.Info("cluster tchannelthrift: listening", zap.String("address", tchannelClusterAddr))
 
 	httpjsonClusterClose, err := hjcluster.NewServer(client, httpClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpClusterAddr, err)
 	}
 	defer httpjsonClusterClose()
-	logger.Infof("cluster httpjson: listening on %v", httpClusterAddr)
+	logger.Info("cluster httpjson: listening", zap.String("address", httpClusterAddr))
 
 	if httpDebugAddr != "" {
 		go func() {
 			if err := http.ListenAndServe(httpDebugAddr, nil); err != nil {
-				logger.Warnf("debug server could not listen on %s: %v", httpDebugAddr, err)
+				logger.Warn("debug server could not listen", zap.String("address", httpDebugAddr), zap.Error(err))
 			}
 		}()
 	}

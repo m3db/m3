@@ -33,14 +33,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
-	xlog "github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 type indexReader struct {
 	opts           Options
 	filePathPrefix string
 	hugePagesOpts  mmap.HugeTLBOptions
-	logger         xlog.Logger
+	logger         *zap.Logger
 
 	namespaceDir string
 	start        time.Time
@@ -238,8 +239,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 		}
 
 		if warning := mmapResult.Warning; warning != nil {
-			r.logger.Warnf("warning while mmapping files in reader: %s",
-				warning.Error())
+			r.logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 		}
 
 		file := newReadableIndexSegmentFileMmap(segFileType, fd, bytes)

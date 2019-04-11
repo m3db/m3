@@ -33,6 +33,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 /*
@@ -105,9 +106,9 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	start := time.Now()
 	writesPeriod0.write(t, md.ID(), session)
 	writesPeriod1.write(t, md.ID(), session)
-	log.Infof("test data written in %v", time.Since(start))
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
-	log.Infof("waiting till data is indexed")
+	log.Info("waiting till data is indexed")
 	indexed := xclock.WaitUntil(func() bool {
 		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
 		indexPeriod1 := writesPeriod1.numIndexed(t, md.ID(), session)
@@ -115,31 +116,31 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 			indexPeriod1 == len(writesPeriod1)
 	}, 5*time.Second)
 	require.True(t, indexed)
-	log.Infof("verifiied data is indexed in %v", time.Since(start))
+	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
 		idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
-	log.Infof("querying period0 results")
+	log.Info("querying period0 results")
 	period0Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.matchesSeriesIters(t, period0Results)
-	log.Infof("found period0 results")
+	log.Info("found period0 results")
 
-	log.Infof("querying period1 results")
+	log.Info("querying period1 results")
 	period1Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t1, EndExclusive: t2})
 	require.NoError(t, err)
 	writesPeriod1.matchesSeriesIters(t, period1Results)
-	log.Infof("found period1 results")
+	log.Info("found period1 results")
 
-	log.Infof("querying period 0+1 results")
+	log.Info("querying period 0+1 results")
 	period01Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t2})
 	require.NoError(t, err)
 	writes := append(writesPeriod0, writesPeriod1...)
 	writes.matchesSeriesIters(t, period01Results)
-	log.Infof("found period 0+1 results")
+	log.Info("found period 0+1 results")
 }

@@ -44,11 +44,11 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestIndexEnabledServer tests booting a server using file based configuration.
@@ -111,7 +111,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	require.NoError(t, err)
 
 	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
-		SetLogger(xlog.NullLogger))
+		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 
 	svcs, err := configSvcClient.Services(services.NewOverrideOptions())

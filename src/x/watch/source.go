@@ -25,7 +25,8 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/x/close"
-	"github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 // ErrSourceClosed indicates that the Source should be closed.
@@ -50,7 +51,7 @@ type Source interface {
 }
 
 // NewSource returns a new Source.
-func NewSource(input SourceInput, logger log.Logger) Source {
+func NewSource(input SourceInput, logger *zap.Logger) Source {
 	s := &source{
 		input:  input,
 		w:      NewWatchable(),
@@ -67,24 +68,24 @@ type source struct {
 	input  SourceInput
 	w      Watchable
 	closed bool
-	logger log.Logger
+	logger *zap.Logger
 }
 
 func (s *source) run() {
 	for !s.isClosed() {
 		data, err := s.input.Poll()
 		if err == ErrSourceClosed {
-			s.logger.Errorf("watch source upstream is closed")
+			s.logger.Error("watch source upstream is closed")
 			s.Close()
 			return
 		}
 		if err != nil {
-			s.logger.Errorf("watch source poll error: %v", err)
+			s.logger.Error("watch source poll error", zap.Error(err))
 			continue
 		}
 
 		if err = s.w.Update(data); err != nil {
-			s.logger.Errorf("watch source update error: %v", err)
+			s.logger.Error("watch source update error", zap.Error(err))
 		}
 	}
 }

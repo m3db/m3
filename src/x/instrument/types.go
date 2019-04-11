@@ -23,11 +23,9 @@
 package instrument
 
 import (
-	"github.com/opentracing/opentracing-go"
 	"time"
 
-	"github.com/m3db/m3/src/x/log"
-
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -42,17 +40,11 @@ type Reporter interface {
 
 // Options represents the options for instrumentation.
 type Options interface {
-	// SetLogger sets the logger.
-	SetLogger(value log.Logger) Options
-
-	// Logger returns the logger.
-	Logger() log.Logger
-
-	// SetZapLogger sets the zap logger
-	SetZapLogger(value *zap.Logger) Options
+	// SetLogger sets the zap logger
+	SetLogger(value *zap.Logger) Options
 
 	// ZapLogger returns the zap logger
-	ZapLogger() *zap.Logger
+	Logger() *zap.Logger
 
 	// SetMetricsScope sets the metrics scope.
 	SetMetricsScope(value tally.Scope) Options

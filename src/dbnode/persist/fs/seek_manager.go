@@ -29,9 +29,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -69,7 +70,7 @@ type seekerManager struct {
 
 	opts             Options
 	fetchConcurrency int
-	logger           log.Logger
+	logger           *zap.Logger
 
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
@@ -593,9 +594,7 @@ func (m *seekerManager) openCloseLoop() {
 		for _, seeker := range closing {
 			err := seeker.seeker.Close()
 			if err != nil {
-				m.logger.
-					WithFields(log.NewField("err", err.Error())).
-					Error("err closing seeker in SeekerManager openCloseLoop")
+				m.logger.Error("err closing seeker in SeekerManager openCloseLoop", zap.Error(err))
 			}
 		}
 
@@ -614,9 +613,7 @@ func (m *seekerManager) openCloseLoop() {
 				// SeekerManager to be closed if any seekers are still outstanding.
 				err := seeker.seeker.Close()
 				if err != nil {
-					m.logger.
-						WithFields(log.NewField("err", err.Error())).
-						Error("err closing seeker in SeekerManager at end of openCloseLoop")
+					m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
 				}
 			}
 		}

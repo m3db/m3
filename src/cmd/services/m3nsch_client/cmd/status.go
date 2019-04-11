@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var (
@@ -53,13 +54,13 @@ func statusExec(_ *cobra.Command, _ []string) {
 	)
 
 	if err != nil {
-		logger.Fatalf("unable to create coordinator: %v", err)
+		logger.Fatal("unable to create coordinator", zap.Error(err))
 	}
 	defer coord.Teardown()
 
 	statusMap, err := coord.Status()
 	if err != nil {
-		logger.Fatalf("unable to retrieve status: %v", err)
+		logger.Fatal("unable to retrieve status", zap.Error(err))
 	}
 
 	for endpoint, status := range statusMap {
@@ -67,7 +68,7 @@ func statusExec(_ *cobra.Command, _ []string) {
 		if token == "" {
 			token = "<undefined>"
 		}
-		logger.Infof("[%v] MaxQPS: %d, Status: %v, Token: %v, Workload: %+v",
+		logger.Sugar().Infof("[%v] MaxQPS: %d, Status: %v, Token: %v, Workload: %+v",
 			endpoint, status.MaxQPS, status.Status, token, status.Workload)
 	}
 }

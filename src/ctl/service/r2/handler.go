@@ -25,13 +25,14 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/ctl/auth"
-	"github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 type r2HandlerFunc func(http.ResponseWriter, *http.Request) error
 
 type r2Handler struct {
-	logger log.Logger
+	logger *zap.Logger
 	auth   auth.HTTPAuthService
 }
 
@@ -45,7 +46,7 @@ func (h r2Handler) wrap(authType auth.AuthorizationType, fn r2HandlerFunc) http.
 }
 
 func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
-	h.logger.Errorf(opError.Error())
+	h.logger.Error(opError.Error())
 
 	var err error
 	switch opError.(type) {
@@ -66,7 +67,7 @@ func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
 	// Getting here means that the error handling failed. Trying to convey what was supposed to happen.
 	if err != nil {
 		msg := fmt.Sprintf("Could not generate error response for: %s", opError.Error())
-		h.logger.Errorf(msg)
+		h.logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
 }

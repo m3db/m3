@@ -35,11 +35,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type readableSeries struct {
@@ -185,11 +185,11 @@ func verifySeriesMapForRange(
 						entry += tag.Name.String() + "=" + tag.Value.String()
 						actual += entry
 					}
-					ts.logger.WithFields(
-						xlog.NewField("id", id),
-						xlog.NewField("expectedTags", expected),
-						xlog.NewField("actualTags", actual),
-					).Error("series does not match expected tags")
+					ts.logger.Error("series does not match expected tags",
+						zap.String("id", id),
+						zap.String("expectedTags", expected),
+						zap.String("actualTags", actual),
+					)
 				}
 
 				if !assert.True(t, tagMatcher.Matches(actualTagsIter)) {

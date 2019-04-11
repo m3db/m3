@@ -47,21 +47,22 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -133,7 +134,7 @@ type session struct {
 	runtimeOptsListenerCloser        xclose.Closer
 	scope                            tally.Scope
 	nowFn                            clock.NowFn
-	log                              xlog.Logger
+	log                              *zap.Logger
 	newHostQueueFn                   newHostQueueFn
 	writeRetrier                     xretry.Retrier
 	fetchRetrier                     xretry.Retrier
@@ -557,7 +558,7 @@ func (s *session) Open() error {
 
 			queues, replicas, majority, err := s.hostQueues(topoMap, existingQueues)
 			if err != nil {
-				s.log.Errorf("could not update topology map: %v", err)
+				s.log.Error("could not update topology map", zap.Error(err))
 				s.metrics.topologyUpdatedError.Inc(1)
 				continue
 			}
@@ -664,7 +665,7 @@ func (s *session) hostQueues(
 					// Already tried to resolve all consistency requirements, just
 					// return successfully at this point
 					err := fmt.Errorf("timed out connecting, returning success")
-					s.log.Warnf("cluster connect with consistency any: %v", err)
+					s.log.Warn("cluster connect with consistency any", zap.Error(err))
 					connected = true
 					return queues, replicas, majority, nil
 				}
@@ -817,7 +818,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		}
 	}()
 
-	s.log.Infof("successfully updated topology to %d hosts", topoMap.HostsLen())
+	s.log.Info("successfully updated topology", zap.Int("numHosts", topoMap.HostsLen()))
 }
 
 func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQueue, error) {
@@ -1068,7 +1069,7 @@ func (s *session) writeAttemptWithRLock(
 
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.log.Errorf("[invariant violated] failed to enqueue write: %v", err)
+			s.log.Error("[invariant violated] failed to enqueue write", zap.Error(err))
 			return nil, 0, 0, err
 		}
 		enqueued++
@@ -1376,8 +1377,8 @@ func (s *session) newFetchStateWithRLock(
 			// NB: if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
 			wrappedErr := xerrors.NewNonRetryableError(fmt.Errorf("failed to enqueue in fetchState: %v", err))
-			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l xlog.Logger) {
-				l.Errorf("%v", wrappedErr)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(wrappedErr.Error())
 			})
 			return nil, wrappedErr
 		}
@@ -1649,7 +1650,7 @@ func (s *session) fetchIDsAttempt(
 	s.state.RUnlock()
 
 	if enqueueErr != nil {
-		s.log.Errorf("failed to enqueue fetch: %v", enqueueErr)
+		s.log.Error("failed to enqueue fetch", zap.Error(enqueueErr))
 		return nil, enqueueErr
 	}
 
@@ -1789,7 +1790,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 	s.state.RUnlock()
 
 	if err := enqueueErr.FinalError(); err != nil {
-		s.log.Errorf("failed to enqueue request: %v", err)
+		s.log.Error("failed to enqueue request", zap.Error(err))
 		return 0, err
 	}
 
@@ -2021,11 +2022,11 @@ func (s *session) FetchBlocksFromPeers(
 		for _, rb := range metadatas {
 			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
-				logger.WithFields(
-					xlog.NewField("peer", rb.Host.String()),
-					xlog.NewField("id", rb.ID.String()),
-					xlog.NewField("start", rb.Start.String()),
-				).Warnf("replica requested from unknown peer, skipping")
+				logger.Warn("replica requested from unknown peer, skipping",
+					zap.Stringer("peer", rb.Host),
+					zap.Stringer("id", rb.ID),
+					zap.Time("start", rb.Start),
+				)
 				continue
 			}
 			metadataCh <- receivedBlockMetadata{
@@ -2189,12 +2190,12 @@ func (s *session) streamBlocksMetadataFromPeer(
 	)
 	defer func() {
 		for block, numMetadata := range metadataCountByBlock {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("peer", peerStr),
-				xlog.NewField("numMetadata", numMetadata),
-				xlog.NewField("block", block),
-			).Debug("finished streaming blocks metadata from peer")
+			s.log.Debug("finished streaming blocks metadata from peer",
+				zap.Uint32("shard", shard),
+				zap.String("peer", peerStr),
+				zap.Int64("numMetadata", numMetadata),
+				zap.Time("block", block.ToTime()),
+			)
 		}
 	}()
 
@@ -2252,12 +2253,12 @@ func (s *session) streamBlocksMetadataFromPeer(
 			// Error occurred retrieving block metadata, use default values
 			if err := elem.Err; err != nil {
 				progress.metadataFetchBatchBlockErr.Inc(1)
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("peer", peerStr),
-					xlog.NewField("block", blockStart),
-					xlog.NewField("error", err.Error()),
-				).Error("error occurred retrieving block metadata")
+				s.log.Error("error occurred retrieving block metadata",
+					zap.Uint32("shard", shard),
+					zap.String("peer", peerStr),
+					zap.Time("block", blockStart),
+					zap.Error(err),
+				)
 				// Enqueue with a zeroed checksum which triggers a fanout fetch
 				metadataCh <- receivedBlockMetadata{
 					peer:        peer,
@@ -2518,7 +2519,7 @@ func (s *session) emitDuplicateMetadataLog(
 	// to the oldest data in that order, hence sometimes its possible to resend
 	// data for a block already sent over the wire if it just moved from being
 	// mutable in memory to immutable on disk.
-	if !s.log.Enabled(xlog.LevelDebug) {
+	if !s.log.Core().Enabled(zapcore.DebugLevel) {
 		return
 	}
 
@@ -2527,8 +2528,8 @@ func (s *session) emitDuplicateMetadataLog(
 		checksum = *v
 	}
 
-	fields := make([]xlog.Field, 0, len(received.results)+1)
-	fields = append(fields, xlog.NewField("incoming-metadata", fmt.Sprintf(
+	fields := make([]zapcore.Field, 0, len(received.results)+1)
+	fields = append(fields, zap.String("incoming-metadata", fmt.Sprintf(
 		"id=%s, peer=%s, start=%s, size=%v, checksum=%v",
 		metadata.id.String(),
 		metadata.peer.Host().String(),
@@ -2542,7 +2543,7 @@ func (s *session) emitDuplicateMetadataLog(
 			checksum = *v
 		}
 
-		fields = append(fields, xlog.NewField(
+		fields = append(fields, zap.String(
 			fmt.Sprintf("existing-metadata-%d", i),
 			fmt.Sprintf(
 				"id=%s, peer=%s, start=%s, size=%v, checksum=%v",
@@ -2553,8 +2554,7 @@ func (s *session) emitDuplicateMetadataLog(
 				checksum)))
 	}
 
-	s.log.WithFields(fields...).Debugf(
-		"received metadata, but peer metadata has already been submitted")
+	s.log.Debug("received metadata, but peer metadata has already been submitted", fields...)
 }
 
 type pickBestPeerFn func(
@@ -2682,13 +2682,13 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 			// there were no successful fetches. This can happen if consistency
 			// level is set to None.
 			m.fetchBlockFinalError.Inc(1)
-			s.log.WithFields(
-				xlog.NewField("id", currID.String()),
-				xlog.NewField("start", currBlock.start.String()),
-				xlog.NewField("attempted", currBlock.reattempt.attempt),
-				xlog.NewField("attemptErrs", xerrors.Errors(currBlock.reattempt.errs).Error()),
-				xlog.NewField("consistencyLevel", level.String()),
-			).Error(errMsg)
+			s.log.Error(errMsg,
+				zap.Stringer("id", currID),
+				zap.Time("start", currBlock.start),
+				zap.Int("attempted", currBlock.reattempt.attempt),
+				zap.String("attemptErrs", xerrors.Errors(currBlock.reattempt.errs).Error()),
+				zap.Stringer("consistencyLevel", level),
+			)
 
 			return nil, pooled
 		}
@@ -2844,7 +2844,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		s.reattemptStreamBlocksFromPeersFn(batch, enqueueCh, blocksErr,
 			reqErrReason, nextRetryReattemptType, m)
 		m.fetchBlockError.Inc(int64(reqBlocksLen))
-		s.log.Debugf(blocksErr.Error())
+		s.log.Debug(blocksErr.Error())
 		return
 	}
 
@@ -2856,9 +2856,9 @@ func (s *session) streamBlocksBatchFromPeer(
 			m.fetchBlockFinalError.Inc(int64(len(req.Elements[i].Starts)))
 			if !tooManyIDsLogged {
 				tooManyIDsLogged = true
-				s.log.WithFields(
-					xlog.NewField("peer", peer.Host().String()),
-				).Errorf("stream blocks more IDs than expected")
+				s.log.Error("stream blocks more IDs than expected",
+					zap.Stringer("peer", peer.Host()),
+				)
 			}
 			continue
 		}
@@ -2873,7 +2873,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
 				respErrReason, nextRetryReattemptType, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-			s.log.Debugf(blocksErr.Error())
+			s.log.Debug(blocksErr.Error())
 			continue
 		}
 
@@ -2892,12 +2892,12 @@ func (s *session) streamBlocksBatchFromPeer(
 			s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
 				respErrReason, nextRetryReattemptType, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-			s.log.WithFields(
-				xlog.NewField("id", id.String()),
-				xlog.NewField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-				xlog.NewField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-				xlog.NewField("peer", peer.Host().String()),
-			).Errorf(errMsg)
+			s.log.Error(errMsg,
+				zap.Stringer("id", id),
+				zap.Times("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+				zap.Times("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+				zap.Stringer("peer", peer.Host()),
+			)
 			continue
 		}
 
@@ -2910,12 +2910,12 @@ func (s *session) streamBlocksBatchFromPeer(
 				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
 					respErrReason, nextRetryReattemptType, m)
 				m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-				s.log.WithFields(
-					xlog.NewField("id", id.String()),
-					xlog.NewField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-					xlog.NewField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-					xlog.NewField("peer", peer.Host().String()),
-				).Errorf(errMsg)
+				s.log.Error(errMsg,
+					zap.Stringer("id", id),
+					zap.Times("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+					zap.Times("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+					zap.Stringer("peer", peer.Host()),
+				)
 				continue
 			}
 
@@ -2933,7 +2933,7 @@ func (s *session) streamBlocksBatchFromPeer(
 				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
 					respErrReason, nextRetryReattemptType, m)
 				m.fetchBlockError.Inc(1)
-				s.log.Debugf(blocksErr.Error())
+				s.log.Debug(blocksErr.Error())
 				continue
 			}
 

@@ -37,13 +37,15 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 const (
-	errBucketMapCacheNotInSync = "bucket map keys do not match sorted keys cache, blockStart: %d"
+	errBucketMapCacheNotInSync    = "bucket map keys do not match sorted keys cache"
+	errBucketMapCacheNotInSyncFmt = errBucketMapCacheNotInSync + ", blockStart: %d"
 )
 
 var (
@@ -264,7 +266,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 		merges, err := buckets.merge(WarmWrite)
 		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf("buffer merge encode error: %v", err)
+			log.Error("buffer merge encode error", zap.Error(err))
 		}
 		if merges > 0 {
 			mergedOutOfOrder++
@@ -407,12 +409,11 @@ func (b *dbBuffer) ReadEncoded(
 			// Invariant violated. This means the keys in the bucket map does
 			// not match the sorted keys cache, which should never happen.
 			instrument.EmitAndLogInvariantViolation(
-				b.opts.InstrumentOptions(), func(l xlog.Logger) {
-					l.Errorf(
-						errBucketMapCacheNotInSync, blockStart.UnixNano())
+				b.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.Error(errBucketMapCacheNotInSync, zap.Int64("blockStart", blockStart.UnixNano()))
 				})
 			return nil, instrument.InvariantErrorf(
-				errBucketMapCacheNotInSync, blockStart.UnixNano())
+				errBucketMapCacheNotInSyncFmt, blockStart.UnixNano())
 		}
 
 		if streams := bv.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
@@ -469,12 +470,10 @@ func (b *dbBuffer) FetchBlocksMetadata(
 			// Invariant violated. This means the keys in the bucket map does
 			// not match the sorted keys cache, which should never happen.
 			instrument.EmitAndLogInvariantViolation(
-				b.opts.InstrumentOptions(), func(l xlog.Logger) {
-					l.Errorf(
-						errBucketMapCacheNotInSync, blockStart.UnixNano())
+				b.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.Error(errBucketMapCacheNotInSync, zap.Int64("blockStart", blockStart.UnixNano()))
 				})
-			return nil, instrument.InvariantErrorf(
-				errBucketMapCacheNotInSync, blockStart.UnixNano())
+			return nil, instrument.InvariantErrorf(errBucketMapCacheNotInSyncFmt, blockStart.UnixNano())
 		}
 
 		size := int64(bv.streamsLen())

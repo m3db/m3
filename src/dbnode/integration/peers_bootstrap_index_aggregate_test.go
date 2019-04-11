@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,10 +42,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	log := xlog.SimpleLogger
-
+	log := xtest.NewLogger(t)
 	blockSize := 2 * time.Hour
-
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(blockSize).
