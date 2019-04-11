@@ -1021,19 +1021,6 @@
     Performance configurations
   </a>
   
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#query-conversion-lru" title="Query conversion LRU" class="md-nav__link">
-    Query conversion LRU
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
       
@@ -1104,19 +1091,6 @@
     Performance configurations
   </a>
   
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#query-conversion-lru" title="Query conversion LRU" class="md-nav__link">
-    Query conversion LRU
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
       
@@ -1142,16 +1116,6 @@
                 
                 <h2 id="performance-configurations">Performance configurations</h2>
 <p>Below are some common configurations related to performance for the query engine.</p>
-<h3 id="query-conversion-lru">Query conversion LRU</h3>
-<p>Before fetching data from M3DB, all queries are converted to a format that M3DB can understand. Considering that the majority of these queries are repeated
-(dashboards and alerts being fairly fixed), the converted results are cached -- up to a default max of <code>4096</code>. To fine tune the size of the cache, the following configuration settings can be added:</p>
-<pre><code class="yaml">cache:
-  queryConversion:
-    size: &lt;int&gt;
-</code></pre>
-
-<p><strong>Note:</strong> We recommend changing the size of the cache to be roughly the number of queries being executed (including both dashboards and alerts).
-Setting the size to <code>0</code> will turn this cache off.</p>
                 
                   
                 

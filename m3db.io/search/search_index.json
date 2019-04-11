@@ -1322,18 +1322,13 @@
         },
         {
             "location": "/performance/m3query/",
-            "text": "Performance configurations\n\n\nBelow are some common configurations related to performance for the query engine.\n\n\nQuery conversion LRU\n\n\nBefore fetching data from M3DB, all queries are converted to a format that M3DB can understand. Considering that the majority of these queries are repeated\n(dashboards and alerts being fairly fixed), the converted results are cached -- up to a default max of \n4096\n. To fine tune the size of the cache, the following configuration settings can be added:\n\n\ncache:\n  queryConversion:\n    size: <int>\n\n\n\n\nNote:\n We recommend changing the size of the cache to be roughly the number of queries being executed (including both dashboards and alerts).\nSetting the size to \n0\n will turn this cache off.",
+            "text": "Performance configurations\n\n\nBelow are some common configurations related to performance for the query engine.",
             "title": "m3query Performance"
         },
         {
             "location": "/performance/m3query/#performance-configurations",
             "text": "Below are some common configurations related to performance for the query engine.",
             "title": "Performance configurations"
-        },
-        {
-            "location": "/performance/m3query/#query-conversion-lru",
-            "text": "Before fetching data from M3DB, all queries are converted to a format that M3DB can understand. Considering that the majority of these queries are repeated\n(dashboards and alerts being fairly fixed), the converted results are cached -- up to a default max of  4096 . To fine tune the size of the cache, the following configuration settings can be added:  cache:\n  queryConversion:\n    size: <int>  Note:  We recommend changing the size of the cache to be roughly the number of queries being executed (including both dashboards and alerts).\nSetting the size to  0  will turn this cache off.",
-            "title": "Query conversion LRU"
         },
         {
             "location": "/troubleshooting/",
