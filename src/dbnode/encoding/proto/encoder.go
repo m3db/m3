@@ -75,9 +75,9 @@ type Encoder struct {
 
 	unmarshaled *dynamic.Message
 
-	hardErr                          error
-	hasEncodedFirstSetOfCustomValues bool
-	closed                           bool
+	hardErr          error
+	hasEncodedHeader bool
+	closed           bool
 
 	timestampEncoder m3tsz.TimestampEncoder
 }
@@ -130,6 +130,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		// https://github.com/m3db/m3/issues/1471
 		return errEncoderMessageHasUnknownFields
 	}
+
+	fmt.Println("encoding: ", enc.unmarshaled.String())
 
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
@@ -312,7 +314,6 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 		enc.customFields = customFields(enc.customFields, enc.schema)
 	}
 
-	enc.hasEncodedFirstSetOfCustomValues = false
 	enc.closed = false
 	enc.numEncoded = 0
 }
@@ -326,6 +327,7 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	// https://github.com/m3db/m3/issues/1471
 	enc.lastEncoded = dynamic.NewMessage(schema)
 	enc.unmarshaled = dynamic.NewMessage(schema)
+	enc.hasEncodedHeader = false
 }
 
 // Close closes the encoder.
@@ -408,7 +410,6 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 			m.ClearFieldByNumber(customField.fieldNum)
 		}
 	}
-	enc.hasEncodedFirstSetOfCustomValues = true
 
 	return nil
 }

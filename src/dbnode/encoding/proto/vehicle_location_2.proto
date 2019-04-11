@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message VehicleLocation {
+	reserved 3, 4;
+  double latitude = 1;
+  double longitude = 2;
+	string new_field = 5;
+}

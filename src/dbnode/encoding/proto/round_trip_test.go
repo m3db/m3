@@ -38,8 +38,9 @@ import (
 )
 
 var (
-	testVLSchema = newVLMessageDescriptor()
-	bytesPool    = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+	testVLSchema  = newVLMessageDescriptor()
+	testVL2Schema = newVL2MessageDescriptor()
+	bytesPool     = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
 	testEncodingOptions = encoding.NewOptions().
@@ -54,7 +55,6 @@ func init() {
 // TestRoundTrip is intentionally simple to facilitate fast and easy debugging of changes
 // as well as to serve as a basic sanity test. However, the bulk of the confidence in this
 // code's correctness comes from the `TestRoundtripProp` test which is much more exhaustive.
-// TODO: Add test for schema changes mid stream: https://github.com/m3db/m3/issues/1471
 func TestRoundTrip(t *testing.T) {
 	testCases := []struct {
 		timestamp  time.Time
@@ -151,6 +151,63 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, iter.Err())
 }
 
+func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
+	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	enc.SetSchema(testVLSchema)
+
+	vl1Write := newVL(26.0, 27.0, 10, []byte("some_delivery_id"))
+	marshaledVL, err := vl1Write.Marshal()
+	require.NoError(t, err)
+
+	vl1WriteTime := time.Now().Truncate(time.Second)
+	err = enc.Encode(ts.Datapoint{Timestamp: vl1WriteTime}, xtime.Second, marshaledVL)
+	require.NoError(t, err)
+
+	vl2Write := newVL2(28.0, 29.0, "some_new_field")
+	marshaledVL, err = vl2Write.Marshal()
+	require.NoError(t, err)
+
+	vl2WriteTime := vl1WriteTime.Add(time.Second)
+	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
+	require.Equal(t, errEncoderMessageHasUnknownFields, err)
+
+	enc.SetSchema(testVL2Schema)
+	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
+	require.NoError(t, err)
+
+	rawBytes, err := enc.Bytes()
+	require.NoError(t, err)
+
+	buff := bytes.NewBuffer(rawBytes)
+	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
+
+	require.True(t, iter.Next())
+	dp, unit, annotation := iter.Current()
+	m := dynamic.NewMessage(testVLSchema)
+	require.NoError(t, m.Unmarshal(annotation))
+	require.Equal(t, xtime.Second, unit)
+	require.Equal(t, vl1WriteTime, dp.Timestamp)
+	require.Equal(t, 4, len(m.GetKnownFields()))
+	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
+	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
+	require.Equal(t, vl1Write.GetFieldByName("epoch"), m.GetFieldByName("epoch"))
+	require.Equal(t, vl1Write.GetFieldByName("deliveryID"), m.GetFieldByName("deliveryID"))
+
+	require.True(t, iter.Next())
+	dp, unit, annotation = iter.Current()
+	m = dynamic.NewMessage(testVL2Schema)
+	require.NoError(t, m.Unmarshal(annotation))
+	require.Equal(t, xtime.Second, unit)
+	require.Equal(t, vl2WriteTime, dp.Timestamp)
+	require.Equal(t, 3, len(m.GetKnownFields()))
+	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
+	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
+	require.Equal(t, vl2Write.GetFieldByName("new_field"), m.GetFieldByName("new_field"))
+
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+}
+
 func newTestEncoder(t time.Time) *Encoder {
 	e := NewEncoder(t, testEncodingOptions)
 	e.Reset(t, 0)
@@ -168,8 +225,25 @@ func newVL(lat, long float64, epoch int64, deliveryID []byte) *dynamic.Message {
 	return newMessage
 }
 
+func newVL2(lat, long float64, newField string) *dynamic.Message {
+	newMessage := dynamic.NewMessage(testVL2Schema)
+	newMessage.SetFieldByName("latitude", lat)
+	newMessage.SetFieldByName("longitude", long)
+	newMessage.SetFieldByName("new_field", newField)
+
+	return newMessage
+}
+
 func newVLMessageDescriptor() *desc.MessageDescriptor {
-	fds, err := protoparse.Parser{}.ParseFiles("./vehicle_location.proto")
+	return newVLMessageDescriptorFromFile("./vehicle_location.proto")
+}
+
+func newVL2MessageDescriptor() *desc.MessageDescriptor {
+	return newVLMessageDescriptorFromFile("./vehicle_location_2.proto")
+}
+
+func newVLMessageDescriptorFromFile(protoSchemaPath string) *desc.MessageDescriptor {
+	fds, err := protoparse.Parser{}.ParseFiles(protoSchemaPath)
 	if err != nil {
 		panic(err)
 	}
