@@ -4,7 +4,7 @@
 
 ## Performance
 
-- **M3DB**: Bump TagLiteralLength Limit to 64K (#1552)
+- **M3DB**: Bump TagLiteralLength limit to 64K (#1552)
 
 # 0.8.2 (2019-04-11)
 
