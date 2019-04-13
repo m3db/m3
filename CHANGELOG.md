@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.8.3 (2019-04-12)
+
+## Performance
+
+- **M3DB**: Bump TagLiteralLength Limit to 64K (#1552)
+
 # 0.8.2 (2019-04-11)
 
 ## New Features
