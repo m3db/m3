@@ -335,16 +335,28 @@ func (s Stats) IncCreatedEncoders() {
 type WriteType int
 
 const (
-	// UndefinedWriteType is an undefined write type.
-	UndefinedWriteType WriteType = iota
-
 	// WarmWrite represents warm writes (within the buffer past/future window).
-	WarmWrite
+	WarmWrite WriteType = iota
 
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
 
+// BootstrapWriteType is the write type assigned for bootstraps.
+//
+// We can't know from a bootstrapped block whether it was originally written
+// as a ColdWrite or a WarmWrite, therefore we need to make an arbitrary
+// decision here.
+//
+// Choosing WarmWrite means that it will get persisted in the standard flush
+// cycle, which means that we can potentially use more memory.
+//
+// Choosing ColdWrite means that it will get merged on the next compaction
+// run. However, we don't want to perform compactions as much as possible
+// to avoid wasting CPU cycles.
+const BootstrapWriteType = WarmWrite
+
+// WriteOptions provides a set of options for a write.
 type WriteOptions struct {
 	SchemaDesc namespace.SchemaDescr
 }

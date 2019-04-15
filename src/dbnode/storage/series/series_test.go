@@ -125,7 +125,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
 	require.True(t, exists)
-	streams, err := buckets.toStreams(ctx)
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 	assertSegmentValuesEqual(t, data[:2], streams, opts)
@@ -169,7 +169,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
 	require.True(t, exists)
-	streams, err := buckets.toStreams(ctx)
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 	assertSegmentValuesEqual(t, data[:1], streams, opts)

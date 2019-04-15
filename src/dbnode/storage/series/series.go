@@ -124,9 +124,9 @@ func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, 
 
 	bufferResult := s.buffer.Tick(blockStates)
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
-	r.EvictedBuckets = bufferResult.evictedBuckets
+	r.EvictedBuckets = len(bufferResult.evictedBucketTimes)
 
-	update, err := s.updateBlocksWithLock(blockStates)
+	update, err := s.updateBlocksWithLock(blockStates, bufferResult.evictedBucketTimes)
 	if err != nil {
 		s.Unlock()
 		return r, err
@@ -149,7 +149,20 @@ type updateBlocksResult struct {
 	madeUnwiredBlocks int
 }
 
-func (s *dbSeries) updateBlocksWithLock(blockStates map[xtime.UnixNano]BlockState) (updateBlocksResult, error) {
+func timeExistsInSlice(t time.Time, times []time.Time) bool {
+	for _, time := range times {
+		if t.Equal(time) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *dbSeries) updateBlocksWithLock(
+	blockStates map[xtime.UnixNano]BlockState,
+	evictedBucketTimes []time.Time,
+) (updateBlocksResult, error) {
 	var (
 		result       updateBlocksResult
 		now          = s.now()
@@ -160,7 +173,7 @@ func (s *dbSeries) updateBlocksWithLock(blockStates map[xtime.UnixNano]BlockStat
 	)
 	for startNano, currBlock := range s.cachedBlocks.AllBlocks() {
 		start := startNano.ToTime()
-		if start.Before(expireCutoff) {
+		if start.Before(expireCutoff) || timeExistsInSlice(start, evictedBucketTimes) {
 			s.cachedBlocks.RemoveBlockAt(start)
 			// If we're using the LRU policy and the block was retrieved from disk,
 			// then don't close the block because that is the WiredList's
