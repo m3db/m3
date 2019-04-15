@@ -121,7 +121,7 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChange {
+	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChangeOrSchemaChange {
 		// The next bit will tell us whether we've reached the end of the stream
 		// or that the time unit changed.
 		noMoreDataControlBit, err := it.stream.ReadBit()

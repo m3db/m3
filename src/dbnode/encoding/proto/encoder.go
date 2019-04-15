@@ -131,13 +131,12 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		return errEncoderMessageHasUnknownFields
 	}
 
-	fmt.Println("encoding: ", enc.unmarshaled.String())
-
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
 
-	if enc.numEncoded == 0 {
+	if !enc.hasEncodedHeader {
 		enc.encodeHeader()
+		enc.hasEncodedHeader = true
 	}
 
 	if timeUnit != enc.timestampEncoder.TimeUnit {
@@ -148,13 +147,15 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		// that matches the "impossible" M3TSZ markers exactly.
 
 		// First bit means either there is no more data OR the time unit has changed.
-		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChange)
-		// Next bit means there is more data, but the time unit has changed.
+		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeOrSchemaChange)
+		// Next bit means there is more data, but the time unit or schema has changed has changed.
+		enc.stream.WriteBit(opCodeTimeUnitChangeOrSchemaChange)
+		// Next bit resolves the ambiguity and indicates that the time unit has changed.
 		enc.stream.WriteBit(opCodeTimeUnitChange)
 
 		enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
 	} else {
-		// Control bit that indicates the stream has more data.
+		// Control bit that indicates the stream has more data but no time unit or schema changes.
 		enc.stream.WriteBit(opCodeMoreData)
 	}
 
