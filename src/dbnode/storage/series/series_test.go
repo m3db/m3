@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -56,12 +55,17 @@ func newSeriesTestOptions() Options {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r,  m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
+
+	bufferBucketPool := NewBufferBucketPool(nil)
+	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)
 
 	opts := NewOptions().
 		SetEncoderPool(encoderPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetBufferBucketPool(bufferBucketPool).
+		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
 	opts = opts.
 		SetRetentionOptions(opts.
 			RetentionOptions().
@@ -87,7 +91,7 @@ func TestSeriesEmpty(t *testing.T) {
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v value) {
 	ctx := context.NewContext()
-	wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -116,28 +120,15 @@ func TestSeriesWriteFlush(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	assert.Equal(t, true, series.buffer.NeedsDrain())
-
-	// Tick the series which should cause a drain
-	_, err = series.Tick()
-	assert.NoError(t, err)
-
-	assert.Equal(t, false, series.buffer.NeedsDrain())
-
-	blocks := series.blocks.AllBlocks()
-	assert.Len(t, blocks, 1)
-
-	block, ok := series.blocks.BlockAt(start)
-	assert.Equal(t, true, ok)
-
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	stream, err := block.Stream(ctx)
+	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
+	require.True(t, exists)
+	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
-		stream,
-	}}, opts)
+	require.Len(t, streams, 1)
+	assertSegmentValuesEqual(t, data[:2], streams, opts)
 }
 
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
@@ -163,7 +154,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	for i, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
 			require.True(t, wasWritten)
@@ -173,28 +164,15 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		ctx.Close()
 	}
 
-	assert.Equal(t, true, series.buffer.NeedsDrain())
-
-	// Tick the series which should cause a drain
-	_, err = series.Tick()
-	assert.NoError(t, err)
-
-	assert.Equal(t, false, series.buffer.NeedsDrain())
-
-	blocks := series.blocks.AllBlocks()
-	require.Len(t, blocks, 1)
-
-	block, ok := series.blocks.BlockAt(start)
-	assert.Equal(t, true, ok)
-
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	stream, err := block.Stream(ctx)
+	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
+	require.True(t, exists)
+	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:1], [][]xio.BlockReader{[]xio.BlockReader{
-		stream,
-	}}, opts)
+	require.Len(t, streams, 1)
+	assertSegmentValuesEqual(t, data[:1], streams, opts)
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
@@ -212,8 +190,8 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		{curr.Add(mins(1)), 2, xtime.Second, nil},
 		{curr.Add(mins(3)), 3, xtime.Second, nil},
 		{curr.Add(mins(5)), 4, xtime.Second, nil},
-		{curr.Add(mins(7)), 4, xtime.Second, nil},
-		{curr.Add(mins(9)), 4, xtime.Second, nil},
+		{curr.Add(mins(7)), 5, xtime.Second, nil},
+		{curr.Add(mins(9)), 6, xtime.Second, nil},
 	}
 
 	for _, v := range data {
@@ -258,7 +236,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.Flush(nil, flushTime, nil)
+	outcome, err := series.Flush(nil, flushTime, nil, 1)
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -267,17 +245,19 @@ func TestSeriesFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	curr := time.Unix(7200, 0)
 	opts := newSeriesTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
-	flushTime := time.Unix(7200, 0)
-	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
-	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
 
-	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(flushTime, time.Hour, ts.NewSegment(head, tail, ts.FinalizeNone))
-	series.blocks.AddBlock(block)
+	ctx := context.NewContext()
+	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil, WriteOptions{})
+	ctx.BlockingClose()
 
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
@@ -285,7 +265,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.Flush(ctx, flushTime, persistFn)
+		outcome, err := series.Flush(ctx, curr, persistFn, 1)
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
@@ -301,7 +281,7 @@ func TestSeriesTickEmptySeries(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
-	_, err = series.Tick()
+	_, err = series.Tick(nil)
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -315,14 +295,13 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick().Return(bufferTickResult{})
-	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
-	r, err := series.Tick()
+	buffer.EXPECT().Tick(nil).Return(bufferTickResult{})
+	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
+	r, err := series.Tick(nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
 	assert.Equal(t, 0, r.UnwiredBlocks)
-	assert.Equal(t, 1, r.OpenBlocks)
 }
 
 func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
@@ -342,25 +321,34 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().Close()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	series.blocks.AddBlock(b)
-	require.Equal(t, blockStart, series.blocks.MinTime())
-	require.Equal(t, 2, series.blocks.Len())
+	b.EXPECT().HasMergeTarget().Return(false)
+	series.cachedBlocks.AddBlock(b)
+	require.Equal(t, blockStart, series.cachedBlocks.MinTime())
+	require.Equal(t, 2, series.cachedBlocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick().Return(bufferTickResult{})
-	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
-	r, err := series.Tick()
+	buffer.EXPECT().Tick(gomock.Any()).Return(bufferTickResult{})
+	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(blockStart)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	r, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
-	require.Equal(t, 1, r.OpenBlocks)
 	require.Equal(t, 1, r.MadeExpiredBlocks)
-	require.Equal(t, 1, series.blocks.Len())
-	require.Equal(t, curr, series.blocks.MinTime())
-	_, exists := series.blocks.AllBlocks()[xtime.ToUnixNano(curr)]
+	require.Equal(t, 1, series.cachedBlocks.Len())
+	require.Equal(t, curr, series.cachedBlocks.MinTime())
+	_, exists := series.cachedBlocks.AllBlocks()[xtime.ToUnixNano(curr)]
 	require.True(t, exists)
 }
 
@@ -389,11 +377,14 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
+	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -404,11 +395,9 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -417,10 +406,14 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick()
+	blockStates = make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -451,11 +444,14 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().WasRetrievedFromDisk().Return(false)
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
+	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -465,11 +461,9 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -478,22 +472,26 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+	series.cachedBlocks.AddBlock(b)
 
 	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr.Add(-2 * retentionPeriod))
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
-	series.blocks.AddBlock(b)
-	_, expiredBlockExists := series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	series.cachedBlocks.AddBlock(b)
+	_, expiredBlockExists := series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, true, expiredBlockExists)
 
-	tickResult, err = series.Tick()
+	blockStates = make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
-	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	_, expiredBlockExists = series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, false, expiredBlockExists)
 }
 
@@ -520,10 +518,14 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err := series.Tick()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: true,
+		Version:     1,
+	}
+	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -532,58 +534,17 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick()
+	blockStates = make(map[xtime.UnixNano]BlockState)
+	blockStates[xtime.ToUnixNano(curr)] = BlockState{
+		Retrievable: false,
+		Version:     0,
+	}
+	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
-}
-
-func TestSeriesBootstrapWithError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSeriesTestOptions()
-	now := time.Now()
-	blockSize := 2 * time.Hour
-
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-
-	bufferMin := now.Truncate(blockSize).Add(-blockSize)
-	bufferMax := now.Truncate(blockSize).Add(2 * blockSize)
-
-	buffer := NewMockdatabaseBuffer(ctrl)
-	buffer.EXPECT().DrainAndReset()
-	buffer.EXPECT().MinMax().Return(bufferMin, bufferMax, nil)
-	series.buffer = buffer
-
-	errBlockStart := bufferMin
-	blocks := block.NewDatabaseSeriesBlocks(0)
-
-	// Add block that buffer will fail to bootstrap
-	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(errBlockStart).AnyTimes()
-	blocks.AddBlock(bl)
-
-	// Add block that will succeed
-	bl = block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(bufferMin.Add(-blockSize)).AnyTimes()
-	bl.EXPECT().SetOnEvictedFromWiredList(nil)
-	blocks.AddBlock(bl)
-
-	// Expect to fail the bootstrap for block destined for buffer
-	buffer.EXPECT().Bootstrap(bl).Return(fmt.Errorf("bar"))
-
-	_, err := series.Bootstrap(blocks)
-	assert.Error(t, err)
-
-	str := fmt.Sprintf("bootstrap series error occurred for %s block at %s: %s",
-		series.ID().String(), errBlockStart.String(), "bar")
-	require.Equal(t, str, err.Error())
-	require.Equal(t, bootstrapped, series.bs)
-	require.Equal(t, 1, series.blocks.Len())
 }
 
 func TestSeriesFetchBlocks(t *testing.T) {
@@ -620,7 +581,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.buffer = buffer
 	res, err := series.FetchBlocks(ctx, starts)
 	require.NoError(t, err)
@@ -684,14 +645,14 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().
 		FetchBlocksMetadata(ctx, start, end, fetchOpts).
-		Return(expectedResults)
+		Return(expectedResults, nil)
 
 	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	mockBlocks.EXPECT().AllBlocks().Return(blocks)
-	series.blocks = mockBlocks
+	series.cachedBlocks = mockBlocks
 	series.buffer = buffer
 
 	res, err := series.FetchBlocksMetadata(ctx, start, end, fetchOpts)
@@ -759,7 +720,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil)
+			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
@@ -771,7 +732,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil)
+			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			start = start.Add(10 * time.Second)
@@ -831,13 +792,13 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil)
+	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil)
+	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil)
+	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -864,7 +825,7 @@ func TestSeriesCloseNonCacheLRUPolicy(t *testing.T) {
 	diskBlock.EXPECT().Close()
 	blocks.AddBlock(diskBlock)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.Close()
 }
 
@@ -881,16 +842,13 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 	// Add a block that was retrieved from disk
 	diskBlock := block.NewMockDatabaseBlock(ctrl)
 	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
-	diskBlock.EXPECT().WasRetrievedFromDisk().Return(true)
 	blocks.AddBlock(diskBlock)
 
 	// Add block that was not retrieved from disk
 	nonDiskBlock := block.NewMockDatabaseBlock(ctrl)
 	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
-	nonDiskBlock.EXPECT().WasRetrievedFromDisk().Return(false)
-	nonDiskBlock.EXPECT().Close()
 	blocks.AddBlock(nonDiskBlock)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.Close()
 }

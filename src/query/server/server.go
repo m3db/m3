@@ -55,11 +55,11 @@ import (
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -148,7 +148,7 @@ func Run(runOpts RunOptions) {
 	defer traceCloser.Close()
 
 	if _, ok := tracer.(opentracing.NoopTracer); ok {
-		logger.Info("tracing disabled; set `tracing.backend` to enable")
+		logger.Info("tracing disabled for m3query; set `tracing.backend` to enable")
 	}
 
 	instrumentOptions := instrument.NewOptions().
@@ -609,25 +609,12 @@ func newStorages(
 		cleanup = func() error { return nil }
 	)
 
-	// Setup query conversion cache.
-	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
-	if err := conversionCacheConfig.Validate(); err != nil {
-		return nil, nil, err
-	}
-
-	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
-	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	localStorage, err := m3.NewStorage(
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
-		storage.NewQueryConversionCache(conversionLRU),
 	)
 	if err != nil {
 		return nil, nil, err

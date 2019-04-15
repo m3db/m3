@@ -255,6 +255,34 @@ func (mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
 }
 
+// SetColdWritesEnabled mocks base method
+func (m *MockOptions) SetColdWritesEnabled(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetColdWritesEnabled", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetColdWritesEnabled indicates an expected call of SetColdWritesEnabled
+func (mr *MockOptionsMockRecorder) SetColdWritesEnabled(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).SetColdWritesEnabled), value)
+}
+
+// ColdWritesEnabled mocks base method
+func (m *MockOptions) ColdWritesEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdWritesEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ColdWritesEnabled indicates an expected call of ColdWritesEnabled
+func (mr *MockOptionsMockRecorder) ColdWritesEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).ColdWritesEnabled))
+}
+
 // SetRetentionOptions mocks base method
 func (m *MockOptions) SetRetentionOptions(value retention.Options) Options {
 	m.ctrl.T.Helper()
@@ -469,6 +497,20 @@ func (mr *MockSchemaDescrMockRecorder) DeployId() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeployId", reflect.TypeOf((*MockSchemaDescr)(nil).DeployId))
 }
 
+// PrevDeployId mocks base method
+func (m *MockSchemaDescr) PrevDeployId() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PrevDeployId")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// PrevDeployId indicates an expected call of PrevDeployId
+func (mr *MockSchemaDescrMockRecorder) PrevDeployId() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrevDeployId", reflect.TypeOf((*MockSchemaDescr)(nil).PrevDeployId))
+}
+
 // Get mocks base method
 func (m *MockSchemaDescr) Get() MessageDescriptor {
 	m.ctrl.T.Helper()
@@ -546,6 +588,20 @@ func (m *MockSchemaRegistry) Equal(arg0 SchemaRegistry) bool {
 func (mr *MockSchemaRegistryMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSchemaRegistry)(nil).Equal), arg0)
+}
+
+// Extends mocks base method
+func (m *MockSchemaRegistry) Extends(arg0 SchemaRegistry) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Extends", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Extends indicates an expected call of Extends
+func (mr *MockSchemaRegistryMockRecorder) Extends(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Extends", reflect.TypeOf((*MockSchemaRegistry)(nil).Extends), arg0)
 }
 
 // Get mocks base method

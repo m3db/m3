@@ -12,6 +12,9 @@ import:
   - package: github.com/m3db/stackadler32
     version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 
+  - package: github.com/MichaelTJones/pcg
+    version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
+
   - package: github.com/willf/bitset
     version: e553b05586428962bf7058d1044519d87ca72d74
 
@@ -191,10 +194,10 @@ import:
 
   # START_JAEGER_DEPS
   - package: github.com/uber/jaeger-lib
-    version: ^1.5.0
+    version: ^2.0.0
 
   - package: github.com/uber/jaeger-client-go
-    version: ~2.15.0
+    version: ~2.16.0
 
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,47 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serialize
+package tracepoint
 
-import "math"
+// The tracepoint package is used to store operation names for tracing throughout dbnode.
+// The naming convention is as follows:
 
-var (
-	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
-	defaultMaxNumberTags uint16 = math.MaxUint16
+// `packageName.objectName.method`
 
-	// defaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	defaultMaxTagLiteralLength uint16 = math.MaxUint16
+// If there isn't an object, use `packageName.method`.
+
+const (
+	// FetchTagged is the operation name for the tchannelthrift FetchTagged path.
+	FetchTagged = "tchannelthrift/node.service.FetchTagged"
+
+	// Query is the operation name for the tchannelthrift Query path.
+	Query = "tchannelthrift/node.service.Query"
+
+	// DBQueryIDs is the operation name for the db QueryIDs path.
+	DBQueryIDs = "storage.db.QueryIDs"
+
+	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
+	NSQueryIDs = "storage.dbNamespace.QueryIDs"
 )
-
-type limits struct {
-	maxNumberTags       uint16
-	maxTagLiteralLength uint16
-}
-
-// NewTagSerializationLimits returns a new TagSerializationLimits object.
-func NewTagSerializationLimits() TagSerializationLimits {
-	return &limits{
-		maxNumberTags:       defaultMaxNumberTags,
-		maxTagLiteralLength: defaultMaxTagLiteralLength,
-	}
-}
-
-func (l *limits) SetMaxNumberTags(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxNumberTags = v
-	return &lim
-}
-
-func (l *limits) MaxNumberTags() uint16 {
-	return l.maxNumberTags
-}
-
-func (l *limits) SetMaxTagLiteralLength(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxTagLiteralLength = v
-	return &lim
-}
-
-func (l *limits) MaxTagLiteralLength() uint16 {
-	return l.maxTagLiteralLength
-}

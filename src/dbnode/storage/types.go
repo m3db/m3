@@ -235,6 +235,9 @@ type Namespace interface {
 
 	// Shards returns the shard description
 	Shards() []Shard
+
+	// Schema returns the schema registry.
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -367,6 +370,9 @@ type databaseNamespace interface {
 	// BootstrapState captures and returns a snapshot of the namespaces'
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
+
+	// SetSchemaRegistry sets the schema registry for the namespace.
+	SetSchemaRegistry(v namespace.SchemaRegistry) error
 }
 
 // Shard is a time series database shard.
@@ -395,8 +401,7 @@ type databaseShard interface {
 	// Close will release the shard resources and close the shard.
 	Close() error
 
-	// Tick performs any updates to ensure series drain their buffers
-	// and blocks are flushed, etc.
+	// Tick performs all async updates
 	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(
@@ -406,6 +411,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the shard for an ID.
@@ -417,6 +423,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	ReadEncoded(
@@ -899,6 +906,18 @@ type Options interface {
 
 	// WriteBatchPool returns the WriteBatch pool.
 	WriteBatchPool() *ts.WriteBatchPool
+
+	// SetBufferBucketPool sets the BufferBucket pool.
+	SetBufferBucketPool(value *series.BufferBucketPool) Options
+
+	// BufferBucketPool returns the BufferBucket pool.
+	BufferBucketPool() *series.BufferBucketPool
+
+	// SetBufferBucketVersionsPool sets the BufferBucketVersions pool.
+	SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options
+
+	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
+	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

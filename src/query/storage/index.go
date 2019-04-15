@@ -23,7 +23,6 @@ package storage
 import (
 	"bytes"
 	"fmt"
-	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -34,28 +33,6 @@ import (
 var (
 	dotStar = []byte(".*")
 )
-
-// QueryConversionCache represents the query conversion LRU cache.
-type QueryConversionCache struct {
-	sync.RWMutex
-
-	lru *QueryConversionLRU
-}
-
-// NewQueryConversionCache creates a new QueryConversionCache with a provided LRU cache.
-func NewQueryConversionCache(lru *QueryConversionLRU) *QueryConversionCache {
-	return &QueryConversionCache{
-		lru: lru,
-	}
-}
-
-func (q *QueryConversionCache) set(k []byte, v idx.Query) bool {
-	return q.lru.Set(k, v)
-}
-
-func (q *QueryConversionCache) get(k []byte) (idx.Query, bool) {
-	return q.lru.Get(k)
-}
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric.
 func FromM3IdentToMetric(
@@ -143,33 +120,9 @@ func FetchOptionsToAggregateOptions(
 	}
 }
 
-var (
-	// byte representation for [1,2,3,4]
-	lookup = [4]byte{49, 50, 51, 52}
-)
-
-func queryKey(m models.Matchers) []byte {
-	l := len(m)
-	for _, t := range m {
-		l += len(t.Name) + len(t.Value)
-	}
-
-	key := make([]byte, l)
-	idx := 0
-	for _, t := range m {
-		idx += copy(key[idx:], t.Name)
-		key[idx] = lookup[t.Type]
-		idx += copy(key[idx+1:], t.Value)
-		idx++
-	}
-
-	return key
-}
-
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query.
 func FetchQueryToM3Query(
 	fetchQuery *FetchQuery,
-	cache *QueryConversionCache,
 ) (index.Query, error) {
 	matchers := fetchQuery.TagMatchers
 	// If no matchers provided, explicitly set this to an AllQuery
@@ -179,14 +132,6 @@ func FetchQueryToM3Query(
 		}, nil
 	}
 
-	k := queryKey(matchers)
-	cache.RLock()
-	val, ok := cache.get(k)
-	cache.RUnlock()
-	if ok {
-		return index.Query{Query: val}, nil
-	}
-
 	// Optimization for single matcher case.
 	if len(matchers) == 1 {
 		q, err := matcherToQuery(matchers[0])
@@ -194,9 +139,6 @@ func FetchQueryToM3Query(
 			return index.Query{}, err
 		}
 
-		cache.Lock()
-		cache.set(k, q)
-		cache.Unlock()
 		return index.Query{Query: q}, nil
 	}
 
@@ -210,9 +152,6 @@ func FetchQueryToM3Query(
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
-	cache.Lock()
-	cache.set(k, q)
-	cache.Unlock()
 
 	return index.Query{Query: q}, nil
 }

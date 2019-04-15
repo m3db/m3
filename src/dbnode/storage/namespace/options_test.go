@@ -53,7 +53,7 @@ func TestOptionsEqualsIndexOpts(t *testing.T) {
 
 func TestOptionsEqualsSchema(t *testing.T) {
 	o1 := NewOptions()
-	s1, err := LoadSchemaRegistry(GenTestSchemaOptions())
+	s1, err := LoadSchemaRegistry(GenTestSchemaOptions("schematest"))
 	require.NoError(t, err)
 	require.NotNil(t, s1)
 	o2 := o1.SetSchemaRegistry(s1)
@@ -103,12 +103,14 @@ func TestOptionsValidate(t *testing.T) {
 
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0))
 	rOpts.EXPECT().BlockSize().Return(time.Hour)
 	iOpts.EXPECT().BlockSize().Return(time.Hour)
 	require.NoError(t, o1.Validate())
 
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0))
 	rOpts.EXPECT().BlockSize().Return(time.Hour)
 	iOpts.EXPECT().BlockSize().Return(2 * time.Hour)
 	require.Error(t, o1.Validate())
@@ -131,6 +133,7 @@ func TestOptionsValidateBlockSizeMustBeMultiple(t *testing.T) {
 
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
+	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0)).AnyTimes()
 	rOpts.EXPECT().BlockSize().Return(2 * time.Hour).AnyTimes()
 	iOpts.EXPECT().BlockSize().Return(3 * time.Hour).AnyTimes()
 	require.Error(t, o1.Validate())
@@ -150,6 +153,7 @@ func TestOptionsValidateBlockSizePositive(t *testing.T) {
 
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
+	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0)).AnyTimes()
 	rOpts.EXPECT().BlockSize().Return(2 * time.Hour).AnyTimes()
 	iOpts.EXPECT().BlockSize().Return(0 * time.Hour).AnyTimes()
 	require.Error(t, o1.Validate())

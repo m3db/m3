@@ -73,6 +73,12 @@ type Options interface {
 	// RepairEnabled returns whether the data for this namespace needs to be repaired
 	RepairEnabled() bool
 
+	// SetColdWritesEnabled sets whether cold writes are enabled for this namespace.
+	SetColdWritesEnabled(value bool) Options
+
+	// ColdWritesEnabled returns whether cold writes are enabled for this namespace.
+	ColdWritesEnabled() bool
+
 	// SetRetentionOptions sets the retention options for this namespace
 	SetRetentionOptions(value retention.Options) Options
 
@@ -114,6 +120,8 @@ type IndexOptions interface {
 type SchemaDescr interface {
 	// DeployId returns the deploy id of the schema.
 	DeployId() string
+	// PrevDeployId returns the previous deploy id of the schema.
+	PrevDeployId() string
 	// Get returns the message descriptor for the schema.
 	Get() MessageDescriptor
 	// String returns the compact text of the message descriptor.
@@ -127,12 +135,14 @@ type SchemaRegistry interface {
 	// Equal returns true if the provided value is equal to this one.
 	Equal(SchemaRegistry) bool
 
+	// Extends returns true iif the provided value has a lineage to this one.
+	Extends(SchemaRegistry) bool
+
 	// Get gets the schema descriptor for the specified deploy id.
 	Get(id string) (SchemaDescr, bool)
 
 	// GetLatest gets the latest version of schema descriptor.
 	GetLatest() (SchemaDescr, bool)
-
 }
 
 // Metadata represents namespace metadata information

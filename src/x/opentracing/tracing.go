@@ -40,8 +40,9 @@ var (
 // TracingConfiguration configures an opentracing backend for m3query to use. Currently only jaeger is supported.
 // Tracing is disabled if no backend is specified.
 type TracingConfiguration struct {
-	Backend string                  `yaml:"backend"`
-	Jaeger  jaegercfg.Configuration `yaml:"jaeger"`
+	ServiceName string                  `yaml:"serviceName"`
+	Backend     string                  `yaml:"backend"`
+	Jaeger      jaegercfg.Configuration `yaml:"jaeger"`
 }
 
 // NewTracer returns a tracer configured with the configuration provided by this struct. The tracer's concrete
