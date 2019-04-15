@@ -312,7 +312,7 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 				bucket.flushers,
 				getStandardFlushTimesByResolutionFn,
 				mgr.metrics.standard,
-				mgr.logger.With(zap.String("flusher-type", "standard")),
+				mgr.logger.With(zap.String("flusherType", "standard")),
 			)
 		case forwardedMetricListType:
 			flushersByInterval[i].flushers = mgr.forwardedFlushersFromKVUpdateWithLock(bucketID.forwarded, bucket.flushers)
@@ -322,7 +322,7 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 				bucket.flushers,
 				getTimedFlushTimesByResolutionFn,
 				mgr.metrics.timed,
-				mgr.logger.With(zap.String("flusher-type", "timed")),
+				mgr.logger.With(zap.String("flusherType", "timed")),
 			)
 		default:
 			panic("should never get here")
@@ -386,7 +386,7 @@ func (mgr *followerFlushManager) forwardedFlushersFromKVUpdateWithLock(
 		if !exists {
 			mgr.metrics.forwarded.shardNotFound.Inc(1)
 			mgr.logger.Warn("shard not found in flush times",
-				zap.String("flusher-type", "forwarded"),
+				zap.String("flusherType", "forwarded"),
 				zap.Uint32("shard", shard),
 			)
 			continue
@@ -395,7 +395,7 @@ func (mgr *followerFlushManager) forwardedFlushersFromKVUpdateWithLock(
 		if !exists {
 			mgr.metrics.forwarded.resolutionNotFound.Inc(1)
 			mgr.logger.Warn("resolution not found in flush times",
-				zap.String("flusher-type", "forwarded"),
+				zap.String("flusherType", "forwarded"),
 				zap.Uint32("shard", shard),
 				zap.Stringer("resolution", resolution),
 			)
@@ -404,7 +404,7 @@ func (mgr *followerFlushManager) forwardedFlushersFromKVUpdateWithLock(
 		if flushTimesForResolution == nil {
 			mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
 			mgr.logger.Warn("nil flush times",
-				zap.String("flusher-type", "forwarded"),
+				zap.String("flusherType", "forwarded"),
 				zap.Uint32("shard", shard),
 				zap.Stringer("resolution", resolution),
 			)
@@ -414,7 +414,7 @@ func (mgr *followerFlushManager) forwardedFlushersFromKVUpdateWithLock(
 		if !exists {
 			mgr.metrics.forwarded.numForwardedTimesNotFound.Inc(1)
 			mgr.logger.Warn("numForwardedTimes not found in flush times",
-				zap.String("flusher-type", "forwarded"),
+				zap.String("flusherType", "forwarded"),
 				zap.Uint32("shard", shard),
 				zap.Stringer("resolution", resolution),
 				zap.Int("numForwardedTimes", numForwardedTimes),
