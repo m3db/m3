@@ -265,6 +265,27 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#key-features" title="Key Features" class="md-nav__link">
+    Key Features
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" title="Getting Started" class="md-nav__link">
+    Getting Started
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support" title="Support" class="md-nav__link">
+    Support
+  </a>
+  
+</li>
+      
       
       
       
@@ -1095,6 +1116,27 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#key-features" title="Key Features" class="md-nav__link">
+    Key Features
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" title="Getting Started" class="md-nav__link">
+    Getting Started
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support" title="Support" class="md-nav__link">
+    Support
+  </a>
+  
+</li>
+      
       
       
       
@@ -1116,7 +1158,36 @@
                 
                 <h1 id="m3">M3</h1>
 <h2 id="about">About</h2>
-<p>M3 is a metrics platform that is built on M3DB, a distributed timeseries database. The project monorepo can be found <a href="https://github.com/m3db/m3">here</a>.</p>
+<p>After using open-source metrics solutions and finding issues with them at scale – such as reliability, cost, and
+operational complexity – <a href="https://github.com/m3db/m3">M3</a> was created from the ground up to provide Uber with a
+native, distributed time series database, a highly-dynamic and performant aggregation service, a query engine, and
+other supporting infrastructure.</p>
+<h2 id="key-features">Key Features</h2>
+<p>M3 has several features, provided as discrete components, which make it an ideal platform for time series data at scale:</p>
+<ul>
+<li>A distributed time series database, <a href="m3db/">M3DB</a>, that provides scalable storage for time series data and a reverse index.</li>
+<li>A sidecar process, <a href="integrations/prometheus/">M3Coordinator</a>, that allows M3DB to act as the long-term storage for Prometheus.</li>
+<li>A distributed query engine, <a href="query_engine/">M3Query</a>, with native support for PromQL and Graphite (M3QL coming soon).
+<!-- Add M3Aggregator link --></li>
+<li>An aggregation tier, M3Aggregator, that runs as a dedicated metrics aggregator/downsampler allowing metrics to be stored at various retentions at different resolutions.</li>
+</ul>
+<h2 id="getting-started">Getting Started</h2>
+<p><strong>Note:</strong> Make sure to read our <a href="operational_guide/index.md">Operational Guides</a> before running in production!</p>
+<p>Getting started with M3 is as easy as following one of the How-To guides.</p>
+<ul>
+<li><a href="how_to/single_node/">Single M3DB node deployment</a></li>
+<li><a href="how_to/cluster_hard_way/">Clustered M3DB deployment</a></li>
+<li><a href="how_to/kubernetes/">M3DB on Kubernetes</a></li>
+<li><a href="how_to/query/">Isolated M3Query on deployment</a></li>
+</ul>
+<h2 id="support">Support</h2>
+<p>For support with any issues, questions about M3 or its operation, or to leave any comments, the team can be
+reached in a variety of ways:</p>
+<ul>
+<li><a href="https://gitter.im/m3db/Lobby">Gitter</a></li>
+<li><a href="https://groups.google.com/forum/#!forum/m3db">Email</a></li>
+<li><a href="https://github.com/m3db/m3/issues">Github issues</a></li>
+</ul>
                 
                   
                 
