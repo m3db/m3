@@ -76,7 +76,7 @@ type Encoder struct {
 	unmarshaled *dynamic.Message
 
 	hardErr          error
-	hasEncodedHeader bool
+	hasEncodedSchema bool
 	closed           bool
 
 	timestampEncoder m3tsz.TimestampEncoder
@@ -139,11 +139,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	}
 
 	var (
-		needToEncoderHeader  = !enc.hasEncodedHeader
+		needToEncodeSchema   = !enc.hasEncodedSchema
 		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
 	)
-	if needToEncoderHeader || needToEncodeTimeUnit {
-		// First bit means either there is no more data OR the time unit has changed.
+	if needToEncodeSchema || needToEncodeTimeUnit {
+		// First bit means either there is no more data OR the time unit and/or schema has changed.
 		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
 		// Next bit means there is more data, but the time unit and/or schema has changed has changed.
 		enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
@@ -156,7 +156,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		}
 
 		// Next bit is a boolean indicating whether the schema has changed.
-		if needToEncoderHeader {
+		if needToEncodeSchema {
 			enc.stream.WriteBit(opCodeSchemaChange)
 		} else {
 			enc.stream.WriteBit(opCodeSchemaUnchanged)
@@ -173,9 +173,9 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 			enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
 		}
 
-		if needToEncoderHeader {
+		if needToEncodeSchema {
 			enc.encodeCustomSchemaTypes()
-			enc.hasEncodedHeader = true
+			enc.hasEncodedSchema = true
 		}
 	} else {
 		// Control bit that indicates the stream has more data but no time unit or schema changes.
@@ -350,7 +350,7 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	// https://github.com/m3db/m3/issues/1471
 	enc.lastEncoded = dynamic.NewMessage(schema)
 	enc.unmarshaled = dynamic.NewMessage(schema)
-	enc.hasEncodedHeader = false
+	enc.hasEncodedSchema = false
 }
 
 // Close closes the encoder.
