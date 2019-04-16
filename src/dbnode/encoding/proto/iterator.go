@@ -210,12 +210,11 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	// TODO(rartoul): Add MarshalInto method to ProtoReflect library to save
-	// allocations: https://github.com/m3db/m3/issues/1471
 	// Keep the annotation version of the last iterated protobuf message up to
 	// date so we can return it in subsequent calls to Current(), otherwise we'd
 	// have to marshal it in the Current() call where we can't handle errors.
-	it.lastIteratedProtoBytes, err = it.lastIterated.Marshal()
+	it.lastIteratedProtoBytes, err = it.lastIterated.MarshalAppend(
+		it.lastIteratedProtoBytes[:0])
 	if err != nil {
 		it.err = fmt.Errorf(
 			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)

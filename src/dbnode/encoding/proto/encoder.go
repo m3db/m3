@@ -72,6 +72,7 @@ type Encoder struct {
 	varIntBuf              [8]byte
 	changedValues          []int32
 	fieldsChangedToDefault []int32
+	marshalBuf             []byte
 
 	unmarshaled *dynamic.Message
 
@@ -357,6 +358,9 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
 	enc.unmarshaled = nil
+
+	// Prevent this from growing too large and remaining in the pools.
+	enc.marshalBuf = nil
 
 	if enc.schema != nil {
 		enc.customFields = customFields(enc.customFields, enc.schema)
@@ -678,12 +682,13 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	// TODO(rartoul): Need to add a MarshalInto to the ProtoReflect library to save
-	// allocations: https://github.com/m3db/m3/issues/1471
-	marshaled, err := m.Marshal()
+	marshaled, err := m.MarshalAppend(enc.marshalBuf[:0])
 	if err != nil {
 		return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
 	}
+	// Make sure we update the marshalBuf with the returned slice in case a new one was
+	// allocated as part of the MarshalAppend call.
+	enc.marshalBuf = marshaled
 
 	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(opCodeChange)
