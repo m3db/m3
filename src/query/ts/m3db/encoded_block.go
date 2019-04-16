@@ -64,7 +64,7 @@ func NewEncodedBlock(
 		bounds:          bounds,
 	}
 
-	var offset time.Duration
+	offset := time.Duration(0)
 	if options != nil {
 		offset = options.Offset
 	}
@@ -153,9 +153,8 @@ func (b *encodedBlock) buildMeta() {
 }
 
 func (b *encodedBlock) buildOffsetMeta() {
-	orig := b.meta.Bounds
-	orig.Start = orig.Start.Add(b.offset)
-	b.offsetBounds = orig
+	b.offsetBounds = b.meta.Bounds
+	b.offsetBounds.Start.Add(b.offset)
 }
 
 func (b *encodedBlock) generateMetas(offset time.Duration) error {
