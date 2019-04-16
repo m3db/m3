@@ -24,9 +24,9 @@ import (
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/generated/convert"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -36,7 +36,7 @@ import (
 func NewGRPCService(
 	agent m3nsch.Agent,
 	metricsScope tally.Scope,
-	logger xlog.Logger,
+	logger *zap.Logger,
 ) (proto.MenschServer, error) {
 	return &menschServer{
 		agent:  agent,
@@ -47,7 +47,7 @@ func NewGRPCService(
 
 type menschServer struct {
 	scope  tally.Scope
-	logger xlog.Logger
+	logger *zap.Logger
 	agent  m3nsch.Agent
 }
 
@@ -68,7 +68,7 @@ func (ms *menschServer) Init(ctx context.Context, req *proto.InitRequest) (*prot
 		return nil, grpc.Errorf(codes.InvalidArgument, "nil request")
 	}
 
-	ms.logger.Debugf("received init request: %v", req.String())
+	ms.logger.Sugar().Debugf("received init request: %v", req.String())
 	workload, err := convert.ToM3nschWorkload(req.GetWorkload())
 	if err != nil {
 		return nil, grpc.Errorf(codes.InvalidArgument, "unable to parse workload: %v", err)
@@ -84,7 +84,7 @@ func (ms *menschServer) Init(ctx context.Context, req *proto.InitRequest) (*prot
 }
 
 func (ms *menschServer) Start(context.Context, *proto.StartRequest) (*proto.StartResponse, error) {
-	ms.logger.Debugf("received Start() request")
+	ms.logger.Sugar().Debugf("received Start() request")
 	if err := ms.agent.Start(); err != nil {
 		return nil, grpc.Errorf(codes.Unknown, err.Error())
 	}
@@ -92,7 +92,7 @@ func (ms *menschServer) Start(context.Context, *proto.StartRequest) (*proto.Star
 }
 
 func (ms *menschServer) Stop(context.Context, *proto.StopRequest) (*proto.StopResponse, error) {
-	ms.logger.Debugf("received Stop() request")
+	ms.logger.Sugar().Debugf("received Stop() request")
 	if err := ms.agent.Stop(); err != nil {
 		return nil, grpc.Errorf(codes.Unknown, err.Error())
 	}
@@ -100,7 +100,7 @@ func (ms *menschServer) Stop(context.Context, *proto.StopRequest) (*proto.StopRe
 }
 
 func (ms *menschServer) Modify(_ context.Context, req *proto.ModifyRequest) (*proto.ModifyResponse, error) {
-	ms.logger.Debugf("received Modify() request: %v", req.String())
+	ms.logger.Sugar().Debugf("received Modify() request: %v", req.String())
 	if req == nil {
 		return nil, grpc.Errorf(codes.InvalidArgument, "nil request")
 	}

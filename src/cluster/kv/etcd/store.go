@@ -30,12 +30,12 @@ import (
 	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
 	"github.com/m3db/m3/src/cluster/kv"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -103,17 +103,15 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 
 	if store.cacheFile != "" {
 		if err := store.initCache(); err != nil {
-			store.logger.Warnf("could not load cache from file %s: %v", store.cacheFile, err)
+			store.logger.Warn("could not load cache from file", zap.String("file", store.cacheFile), zap.Error(err))
 		} else {
-			store.logger.Infof("successfully loaded cache from file %s", store.cacheFile)
+			store.logger.Info("successfully loaded cache from file", zap.String("file", store.cacheFile))
 		}
 
 		go func() {
 			for range store.cacheUpdatedCh {
 				if err := store.writeCacheToFile(); err != nil {
-					store.logger.
-						WithFields(log.NewErrField(err)).
-						Error("failed to write cache file")
+					store.logger.Error("failed to write cache to file", zap.Error(err))
 				}
 			}
 		}()
@@ -129,7 +127,7 @@ type client struct {
 	watcher        clientv3.Watcher
 	watchables     map[string]kv.ValueWatchable
 	retrier        retry.Retrier
-	logger         log.Logger
+	logger         *zap.Logger
 	m              clientMetrics
 	cache          *valueCache
 	cacheFile      string
@@ -443,7 +441,7 @@ func (c *client) tickAndStop(key string) bool {
 	watchable, ok := c.watchables[key]
 	c.RUnlock()
 	if !ok {
-		c.logger.Warnf("unexpected: key %s is already cleaned up", key)
+		c.logger.Warn("unexpected: key is already cleaned up", zap.String("key", key))
 		return true
 	}
 
@@ -457,7 +455,7 @@ func (c *client) tickAndStop(key string) bool {
 	watchable, ok = c.watchables[key]
 	if !ok {
 		// not expect this to happen
-		c.logger.Warnf("unexpected: key %s is already cleaned up", key)
+		c.logger.Warn("unexpected: key is already cleaned up", zap.String("key", key))
 		return true
 	}
 
@@ -595,7 +593,7 @@ func (c *client) writeCacheToFile() error {
 	file, err := os.Create(c.cacheFile)
 	if err != nil {
 		c.m.diskWriteError.Inc(1)
-		c.logger.Warnf("error creating cache file %s: %v", c.cacheFile, err)
+		c.logger.Warn("error creating cache file", zap.String("file", c.cacheFile), zap.Error(err))
 		return fmt.Errorf("invalid cache file: %s", c.cacheFile)
 	}
 
@@ -606,13 +604,13 @@ func (c *client) writeCacheToFile() error {
 
 	if err != nil {
 		c.m.diskWriteError.Inc(1)
-		c.logger.Warnf("error encoding values: %v", err)
+		c.logger.Warn("error encoding values", zap.Error(err))
 		return err
 	}
 
 	if err = file.Close(); err != nil {
 		c.m.diskWriteError.Inc(1)
-		c.logger.Warnf("error closing cache file %s: %v", c.cacheFile, err)
+		c.logger.Warn("error closing cache file", zap.String("file", c.cacheFile), zap.Error(err))
 	}
 
 	return nil

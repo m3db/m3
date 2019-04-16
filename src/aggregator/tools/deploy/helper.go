@@ -29,9 +29,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/retry"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -56,7 +57,7 @@ type Helper interface {
 
 // TODO(xichen): disable deployment while another is ongoing.
 type helper struct {
-	logger                  log.Logger
+	logger                  *zap.Logger
 	planner                 planner
 	client                  aggregatorClient
 	mgr                     Manager
@@ -104,7 +105,7 @@ func (h helper) Deploy(revision string, placement placement.Placement, mode Mode
 		return fmt.Errorf("unable to generate deployment plan: %v", err)
 	}
 
-	h.logger.Infof("generated deployment plan: %+v", plan)
+	h.logger.Sugar().Info("generated deployment plan: %+v", plan)
 
 	// If in dry run mode, log the generated deployment plan and return.
 	if mode == DryRunMode {
@@ -125,13 +126,13 @@ func (h helper) execute(
 ) error {
 	numSteps := len(plan.Steps)
 	for i, step := range plan.Steps {
-		h.logger.Infof("deploying step %d of %d", i+1, numSteps)
+		h.logger.Sugar().Infof("deploying step %d of %d", i+1, numSteps)
 		if err := h.executeStep(step, revision, all); err != nil {
 			return err
 		}
-		h.logger.Infof("deploying step %d succeeded", i+1)
+		h.logger.Sugar().Infof("deploying step %d succeeded", i+1)
 		if h.settleBetweenSteps > 0 {
-			h.logger.Infof("waiting settle duration after step: %s", h.settleBetweenSteps.String())
+			h.logger.Sugar().Infof("waiting settle duration after step: %s", h.settleBetweenSteps.String())
 			time.Sleep(h.settleBetweenSteps)
 		}
 	}
@@ -143,33 +144,33 @@ func (h helper) executeStep(
 	revision string,
 	all instanceMetadatas,
 ) error {
-	h.logger.Infof("waiting until safe to deploy for step %v", step)
+	h.logger.Sugar().Infof("waiting until safe to deploy for step %v", step)
 	if err := h.waitUntilSafe(all); err != nil {
 		return err
 	}
 
-	h.logger.Infof("waiting until all targets are validated for step %v", step)
+	h.logger.Sugar().Infof("waiting until all targets are validated for step %v", step)
 	if err := h.validate(step.Targets); err != nil {
 		return err
 	}
 
-	h.logger.Infof("waiting until all targets have resigned for step %v", step)
+	h.logger.Sugar().Infof("waiting until all targets have resigned for step %v", step)
 	if err := h.resign(step.Targets); err != nil {
 		return err
 	}
 
-	h.logger.Infof("beginning to deploy instances for step %v", step)
+	h.logger.Sugar().Infof("beginning to deploy instances for step %v", step)
 	targetIDs := step.Targets.DeploymentInstanceIDs()
 	if err := h.deploy(targetIDs, revision); err != nil {
 		return err
 	}
 
-	h.logger.Infof("deployment started, waiting for progress: %v", step)
+	h.logger.Sugar().Infof("deployment started, waiting for progress: %v", step)
 	if err := h.waitUntilProgressing(targetIDs, revision); err != nil {
 		return err
 	}
 
-	h.logger.Infof("deployment progressed, waiting for completion: %v", step)
+	h.logger.Sugar().Infof("deployment progressed, waiting for completion: %v", step)
 	return h.waitUntilSafe(all)
 }
 

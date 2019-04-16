@@ -27,11 +27,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/x/log"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // Server is a server capable of listening to incoming traffic and closing itself
@@ -77,7 +77,7 @@ type server struct {
 
 	address                      string
 	listener                     net.Listener
-	log                          log.Logger
+	log                          *zap.Logger
 	retryOpts                    retry.Options
 	reportInterval               time.Duration
 	tcpConnectionKeepAlive       bool
@@ -162,8 +162,7 @@ func (s *server) serve() {
 		}
 	}
 	err := <-errCh
-	s.log.WithFields(log.NewErrField(err)).
-		Error("server unexpectedly closed")
+	s.log.Error("server unexpectedly closed", zap.Error(err))
 }
 
 func (s *server) Close() {

@@ -28,7 +28,8 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/m3em/node"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	xlog "github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -54,7 +55,7 @@ func (im idToNodeMap) values() []node.ServiceNode {
 type svcCluster struct {
 	sync.RWMutex
 
-	logger       xlog.Logger
+	logger       *zap.Logger
 	opts         Options
 	knownNodes   node.ServiceNodes
 	usedNodes    idToNodeMap
@@ -124,14 +125,14 @@ func (c *svcCluster) initWithLock() error {
 	psvc := c.placementSvc
 	_, err := psvc.Placement()
 	if err != nil { // attempt to retrieve current placement
-		c.logger.Infof("unable to retrieve existing placement, skipping delete attempt")
+		c.logger.Info("unable to retrieve existing placement, skipping delete attempt")
 	} else {
 		// delete existing placement
 		err = c.opts.PlacementServiceRetrier().Attempt(psvc.Delete)
 		if err != nil {
 			return fmt.Errorf("unable to delete existing placement during setup(): %+v", err)
 		}
-		c.logger.Infof("successfully deleted existing placement")
+		c.logger.Info("successfully deleted existing placement")
 	}
 
 	var (

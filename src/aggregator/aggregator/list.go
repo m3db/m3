@@ -34,9 +34,9 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -544,7 +544,7 @@ func (id standardMetricListID) toMetricListID() metricListID {
 type standardMetricList struct {
 	*baseMetricList
 
-	log      log.Logger
+	log      *zap.Logger
 	flushMgr FlushManager
 }
 
@@ -584,7 +584,7 @@ func (l *standardMetricList) Close() {
 		return
 	}
 	if err := l.flushMgr.Unregister(l); err != nil {
-		l.log.Errorf("error unregistering list: %v", err)
+		l.log.Error("error unregistering list", zap.Error(err))
 	}
 }
 
@@ -623,7 +623,7 @@ type forwardedMetricList struct {
 
 	numForwardedTimes int
 	flushOffset       time.Duration
-	log               log.Logger
+	log               *zap.Logger
 	flushMgr          FlushManager
 }
 
@@ -685,7 +685,7 @@ func (l *forwardedMetricList) Close() {
 		return
 	}
 	if err := l.flushMgr.Unregister(l); err != nil {
-		l.log.Errorf("error unregistering list: %v", err)
+		l.log.Error("error unregistering list", zap.Error(err))
 	}
 }
 
@@ -701,7 +701,7 @@ type timedMetricList struct {
 	*baseMetricList
 
 	flushOffset time.Duration
-	log         log.Logger
+	log         *zap.Logger
 	flushMgr    FlushManager
 }
 
@@ -756,7 +756,7 @@ func (l *timedMetricList) Close() {
 		return
 	}
 	if err := l.flushMgr.Unregister(l); err != nil {
-		l.log.Errorf("error unregistering list: %v", err)
+		l.log.Error("error unregistering list", zap.Error(err))
 	}
 }
 

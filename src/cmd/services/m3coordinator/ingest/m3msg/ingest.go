@@ -31,16 +31,16 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
-	"github.com/m3db/m3/src/x/serialize"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // Options configures the ingester.
@@ -132,7 +132,7 @@ type ingestOp struct {
 	it        id.SortedTagIterator
 	p         pool.ObjectPool
 	m         ingestMetrics
-	logger    log.Logger
+	logger    *zap.Logger
 	sampler   *sampler.Sampler
 	attemptFn retry.Fn
 	ingestFn  func()
@@ -159,7 +159,7 @@ func (op *ingestOp) ingest() {
 		op.callback.Callback(m3msg.OnRetriableError)
 		op.p.Put(op)
 		if op.sample() {
-			op.logger.Errorf("could not reset ingest op: %v", err)
+			op.logger.Error("could not reset ingest op", zap.Error(err))
 		}
 		return
 	}
@@ -172,7 +172,7 @@ func (op *ingestOp) ingest() {
 		op.m.ingestError.Inc(1)
 		op.p.Put(op)
 		if op.sample() {
-			op.logger.Errorf("could not write ingest op: %v", err)
+			op.logger.Error("could not write ingest op", zap.Error(err))
 		}
 		return
 	}

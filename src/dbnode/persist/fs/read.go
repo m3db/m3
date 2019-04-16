@@ -33,13 +33,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/mmap"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -207,8 +209,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 
 	if warning := result.Warning; warning != nil {
 		logger := r.opts.InstrumentOptions().Logger()
-		logger.Warnf("warning while mmapping files in reader: %s",
-			warning.Error())
+		logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)

@@ -65,5 +65,4 @@ decoder:
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
 	require.Equal(t, 200, opts.DecoderOptions().MaxMessageSize())
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
-	require.Equal(t, instrument.NewOptions(), opts.InstrumentOptions())
 }

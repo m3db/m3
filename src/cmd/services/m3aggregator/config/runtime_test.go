@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -80,7 +80,7 @@ writeNewMetricNoLimitWarmupDuration: 10m
 
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil)
-	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelInfo)
+	logger := xtest.NewLogger(t)
 	cfg.WatchRuntimeOptionChanges(mockClient, runtimeOptsManager, testPlacementManager, logger)
 	runtimeOpts := runtimeOptsManager.RuntimeOptions()
 	expectedOpts := runtime.NewOptions().

@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/log"
 
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type shardWriter interface {
@@ -128,7 +128,7 @@ type replicatedShardWriter struct {
 	mPool          messagePool
 	ackRouter      ackRouter
 	opts           Options
-	logger         log.Logger
+	logger         *zap.Logger
 	m              messageWriterMetrics
 
 	messageWriters  map[string]messageWriter
@@ -249,7 +249,8 @@ func (w *replicatedShardWriter) updateCutoverCutoffNanos(
 	s, ok := instance.Shards().Shard(w.shard)
 	if !ok {
 		// Unexpected.
-		w.logger.Errorf("could not find shard %d on instance %s", w.shard, instance.Endpoint())
+		w.logger.Error("could not find shard on instance",
+			zap.Uint32("shard", w.shard), zap.String("instance", instance.Endpoint()))
 		return
 	}
 	mw.SetCutoffNanos(s.CutoffNanos())

@@ -41,12 +41,12 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -109,7 +109,7 @@ type db struct {
 
 	scope   tally.Scope
 	metrics databaseMetrics
-	log     xlog.Logger
+	log     *zap.Logger
 
 	writeBatchPool *ts.WriteBatchPool
 }
@@ -230,27 +230,27 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	removes, adds, updates, schemaUpdates := d.namespaceDeltaWithLock(newNamespaces)
 	if err := d.logNamespaceUpdate(removes, adds, updates, schemaUpdates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
-		d.log.Errorf("%v", enrichedErr)
+		d.log.Error(enrichedErr.Error())
 		return enrichedErr
 	}
 
 	// add any namespaces marked for addition
 	if err := d.addNamespacesWithLock(adds); err != nil {
 		enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
-		d.log.Errorf("%v", enrichedErr)
+		d.log.Error(enrichedErr.Error())
 		return err
 	}
 
 	// Update schemas.
 	if err := d.updateNamespaceSchemasWithLock(schemaUpdates); err != nil {
 		enrichedErr := fmt.Errorf("unable to update namespace schema: %v", err)
-		d.log.Errorf("%v", enrichedErr)
+		d.log.Error(enrichedErr.Error())
 		return enrichedErr
 	}
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warnf("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
+		d.log.Warn("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
 	}
 
 	// enqueue bootstraps if new namespaces
@@ -330,12 +330,12 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 	}
 
 	// log scheduled operation
-	d.log.WithFields(
-		xlog.NewField("adds", addString),
-		xlog.NewField("updates", updateString),
-		xlog.NewField("schema updates", schemaUpdateString),
-		xlog.NewField("removals", removalString),
-	).Infof("updating database namespaces")
+	d.log.Info("updating database namespaces",
+		zap.String("adds", addString),
+		zap.String("updates", updateString),
+		zap.String("schema updates", schemaUpdateString),
+		zap.String("removals", removalString),
+	)
 
 	// NB(prateek): as noted in `UpdateOwnedNamespaces()` above, the current implementation
 	// does not apply updates, and removals until the m3dbnode process is restarted.
@@ -379,7 +379,8 @@ func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) 
 		if !found {
 			return fmt.Errorf("can not update namespace (%s) schema from %s to empty", n.ID().String(), curSchemaId)
 		}
-		d.log.Infof("updating database namespace (%s) schema from %s to %s", n.ID().String(), curSchemaId, latestSchema.DeployId())
+		d.log.Info("updating database namespace schema", zap.Stringer("namespace", n.ID()),
+			zap.String("current schema", curSchemaId), zap.String("latest schema", latestSchema.DeployId()))
 		err := curNamepsace.SetSchemaRegistry(n.Options().SchemaRegistry())
 		if err != nil {
 			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
@@ -471,7 +472,7 @@ func (d *db) queueBootstrapWithLock() {
 		// completes.
 		go func() {
 			if err := d.mediator.Bootstrap(); err != nil {
-				d.log.Errorf("error while bootstrapping: %v", err)
+				d.log.Error("error while bootstrapping", zap.Error(err))
 			}
 		}()
 	}
@@ -864,26 +865,24 @@ func (d *db) IsBootstrapped() bool {
 func (d *db) IsBootstrappedAndDurable() bool {
 	isBootstrapped := d.mediator.IsBootstrapped()
 	if !isBootstrapped {
-		d.log.Debugf("not bootstrapped and durable because: not bootstrapped")
+		d.log.Debug("not bootstrapped and durable because: not bootstrapped")
 		return false
 	}
 
 	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
 	if !ok {
-		d.log.WithFields(
-			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime.String()),
-		).Debugf(
-			"not bootstrapped and durable because: no last bootstrap completion time")
+		d.log.Debug("not bootstrapped and durable because: no last bootstrap completion time",
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime))
+
 		return false
 	}
 
 	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
 	if !ok {
-		d.log.WithFields(
-			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime.String()),
-			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime.String()),
-		).Debugf(
-			"not bootstrapped and durable because: no last snapshot start time")
+		d.log.Debug("not bootstrapped and durable because: no last snapshot start time",
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime),
+		)
 		return false
 	}
 
@@ -896,12 +895,12 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	)
 
 	if !isBootstrappedAndDurable {
-		d.log.WithFields(
-			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime.String()),
-			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime.String()),
-			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards.String()),
-		).Debugf(
-			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards")
+		d.log.Debug(
+			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards",
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime),
+			zap.Time("lastReceivedNewShards", d.lastReceivedNewShards),
+		)
 		return false
 	}
 

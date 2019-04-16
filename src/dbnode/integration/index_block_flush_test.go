@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 /*
@@ -115,56 +116,56 @@ func TestIndexBlockFlush(t *testing.T) {
 	log.Info("starting data write")
 	start := time.Now()
 	writesPeriod0.write(t, md.ID(), session)
-	log.Infof("test data written in %v", time.Since(start))
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
-	log.Infof("waiting till data is indexed")
+	log.Info("waiting till data is indexed")
 	indexed := xclock.WaitUntil(func() bool {
 		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
 		return indexPeriod0 == len(writesPeriod0)
 	}, 5*time.Second)
 	require.True(t, indexed)
-	log.Infof("verifiied data is indexed in %v", time.Since(start))
+	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
 		idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	// ensure all data is present
-	log.Infof("querying period0 results")
+	log.Info("querying period0 results")
 	period0Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.matchesSeriesIters(t, period0Results)
-	log.Infof("found period0 results")
+	log.Info("found period0 results")
 
 	// move time to 3p
 	testSetup.setNowFn(t2)
 
 	// waiting till filesets found on disk
-	log.Infof("waiting till filesets found on disk")
+	log.Info("waiting till filesets found on disk")
 	found := xclock.WaitUntil(func() bool {
 		filesets, err := fs.IndexFileSetsAt(testSetup.filePathPrefix, md.ID(), t0)
 		require.NoError(t, err)
 		return len(filesets) == 1
 	}, 10*time.Second)
 	require.True(t, found)
-	log.Infof("found filesets found on disk")
+	log.Info("found filesets found on disk")
 
 	// ensure we've evicted the mutable segments
-	log.Infof("waiting till mutable segments are evicted")
+	log.Info("waiting till mutable segments are evicted")
 	evicted := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
 		counter, ok := counters["dbindex.blocks-evicted-mutable-segments"]
 		return ok && counter > 0
 	}, 10*time.Second)
 	require.True(t, evicted)
-	log.Infof("mutable segments are evicted!")
+	log.Info("mutable segments are evicted!")
 
 	// ensure all data is still present
-	log.Infof("querying period0 results after flush")
+	log.Info("querying period0 results after flush")
 	period0Results, _, err = session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.matchesSeriesIters(t, period0Results)
-	log.Infof("found period0 results after flush")
+	log.Info("found period0 results after flush")
 }

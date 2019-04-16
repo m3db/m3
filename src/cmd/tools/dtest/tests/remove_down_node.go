@@ -48,8 +48,11 @@ func removeDownNodeDTest(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	logger := newLogger(cmd)
-	dt := harness.New(globalArgs, logger)
+	rawLogger := newLogger(cmd)
+	defer rawLogger.Sync()
+	logger := rawLogger.Sugar()
+
+	dt := harness.New(globalArgs, rawLogger)
 	defer dt.Close()
 
 	nodes := dt.Nodes()

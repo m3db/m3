@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,10 +42,9 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 
 	blockSize := 2 * time.Hour
-
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(blockSize).
@@ -154,9 +153,9 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	defer iter.Finalize()
 
 	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
+		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
@@ -168,8 +167,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	defer iter.Finalize()
 
 	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
+		expected:   []generate.Series{barSeries, bazSeries},
 	})
 }

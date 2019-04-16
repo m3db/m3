@@ -46,7 +46,7 @@ func TestPlacementOptions(t *testing.T) {
 	assert.False(t, o.Dryrun())
 	assert.False(t, o.IsMirrored())
 	assert.False(t, o.IsStaged())
-	assert.Equal(t, instrument.NewOptions(), o.InstrumentOptions())
+	assert.NotNil(t, o.InstrumentOptions())
 	assert.Equal(t, int64(0), o.PlacementCutoverNanosFn()())
 	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
 	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())

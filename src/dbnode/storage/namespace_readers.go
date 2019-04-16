@@ -27,11 +27,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // namespaceReaderManager maintains a pool of closed readers which can be
@@ -98,7 +98,7 @@ type namespaceReaderManager struct {
 	fsOpts    fs.Options
 	bytesPool pool.CheckedBytesPool
 
-	logger xlog.Logger
+	logger *zap.Logger
 
 	closedReaders []cachedReader
 	openReaders   map[cachedOpenReaderKey]cachedReader
@@ -313,7 +313,7 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
 		// Unlikely, however if so just close the reader we were trying to put
 		// and put into the closed readers
 		if err := reader.Close(); err != nil {
-			m.logger.Errorf("error closing reader on put from reader cache: %v", err)
+			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
 			return
 		}
 		m.pushClosedReaderWithLock(reader)
@@ -363,7 +363,7 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 		if elem.ticksSinceUsed >= threshold {
 			// Close before removing ref
 			if err := elem.reader.Close(); err != nil {
-				m.logger.Errorf("error closing reader from reader cache: %v", err)
+				m.logger.Error("error closing reader from reader cache", zap.Error(err))
 			}
 			delete(m.openReaders, key)
 			continue

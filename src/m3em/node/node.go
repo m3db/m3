@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/m3em/os/fs"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	uuid "github.com/satori/go.uuid"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -51,7 +51,7 @@ var (
 type svcNode struct {
 	sync.Mutex
 	placement.Instance
-	logger            xlog.Logger
+	logger            *zap.Logger
 	opts              Options
 	status            Status
 	currentBuild      build.ServiceBuild
@@ -159,12 +159,12 @@ func (i *svcNode) Setup(
 
 	// Wait till we receive our first heartbeat
 	if i.opts.HeartbeatOptions().Enabled() {
-		i.logger.Infof("waiting until initial heartbeat is received")
+		i.logger.Info("waiting until initial heartbeat is received")
 		received := xclock.WaitUntil(i.heartbeatReceived, i.opts.HeartbeatOptions().Timeout())
 		if !received {
 			return fmt.Errorf("did not receive heartbeat response from remote agent within timeout")
 		}
-		i.logger.Infof("initial heartbeat received")
+		i.logger.Info("initial heartbeat received")
 
 		// start hb monitoring
 		if err := i.heartbeater.start(); err != nil {

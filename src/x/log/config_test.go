@@ -26,7 +26,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,17 +47,16 @@ func TestLoggingConfiguration(t *testing.T) {
 	log, err := cfg.BuildLogger()
 	require.NoError(t, err)
 
-	log.Infof("should not appear")
-	log.Warnf("should not appear")
-	log.Errorf("this should be appear")
+	log.Info("should not appear")
+	log.Warn("should not appear")
+	log.Error("this should appear")
 
 	b, err := ioutil.ReadAll(tmpfile)
 	require.NoError(t, err)
 
-	str := string(b)
-	pieces := strings.Split(str, "[")
-	assert.True(t, len(pieces) >= 2)
-
-	ts := pieces[0]
-	assert.EqualValues(t, ts+"[E] this should be appear [{my-field my-val}]\n", str)
+	data := string(b)
+	require.Equal(t, 1, strings.Count(data, "\n"), data)
+	require.True(t, strings.Contains(data, `"msg":"this should appear"`))
+	require.True(t, strings.Contains(data, `"my-field":"my-val"`))
+	require.True(t, strings.Contains(data, `"level":"error"`))
 }

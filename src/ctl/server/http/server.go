@@ -27,10 +27,10 @@ import (
 	_ "github.com/m3db/m3/src/ctl/generated/ui/statik" // Generated UI statik package
 	mserver "github.com/m3db/m3/src/ctl/server"
 	"github.com/m3db/m3/src/ctl/service"
-	"github.com/m3db/m3/src/x/log"
 
 	"github.com/gorilla/mux"
 	"github.com/rakyll/statik/fs"
+	"go.uber.org/zap"
 )
 
 const (
@@ -46,7 +46,7 @@ var (
 type server struct {
 	server   *http.Server
 	services []service.Service
-	logger   log.Logger
+	logger   *zap.Logger
 	wg       sync.WaitGroup
 }
 
@@ -78,7 +78,7 @@ func (s *server) ListenAndServe() error {
 	go func() {
 		defer s.wg.Done()
 		if err := s.server.ListenAndServe(); err != nil {
-			s.logger.Errorf("could not start listening and serving traffic: %v", err)
+			s.logger.Error("could not start listening and serving traffic", zap.Error(err))
 		}
 	}()
 	return nil

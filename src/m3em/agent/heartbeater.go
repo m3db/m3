@@ -31,6 +31,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -176,14 +177,14 @@ func (h *heatbeater) sendHeartbeat(r *hb.HeartbeatRequest) {
 	}
 
 	// unable to send heartbeat
-	logger.Warnf("unable to send heartbeat: %v", err)
+	logger.Warn("unable to send heartbeat", zap.Error(err))
 	// check if this has been happening past the permitted period
 	var (
 		timeSinceLastSend = h.opts.nowFn().Sub(h.lastHeartbeatTs)
 		timeout           = h.opts.timeout
 	)
 	if timeSinceLastSend > timeout {
-		logger.Warnf("unable to send heartbeats for %s; timing out", timeSinceLastSend.String())
+		logger.Warn("unable to send heartbeats; timing out", zap.Duration("for", timeSinceLastSend))
 		go h.opts.timeoutFn(h.lastHeartbeatTs)
 	}
 }
