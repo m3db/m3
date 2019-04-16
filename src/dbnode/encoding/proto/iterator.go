@@ -104,13 +104,24 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
+	if !it.consumedFirstMessage {
+		if err := it.readStreamHeader(); err != nil {
+			it.err = fmt.Errorf(
+				"%s error reading stream header: %v",
+				itErrPrefix, err)
+			return false
+		}
+	}
+
 	moreDataControlBit, err := it.stream.ReadBit()
 	if err == io.EOF {
 		it.done = true
 		return false
 	}
 	if err != nil {
-		it.err = err
+		it.err = fmt.Errorf(
+			"%s error reading more data control bit: %v",
+			itErrPrefix, err)
 		return false
 	}
 
@@ -123,7 +134,9 @@ func (it *iterator) Next() bool {
 			return false
 		}
 		if err != nil {
-			it.err = err
+			it.err = fmt.Errorf(
+				"%s error reading no more data control bit: %v",
+				itErrPrefix, err)
 			return false
 		}
 
@@ -135,14 +148,18 @@ func (it *iterator) Next() bool {
 		// The next bit will tell us whether the time unit has changed.
 		timeUnitHasChangedControlBit, err := it.stream.ReadBit()
 		if err != nil {
-			it.err = err
+			it.err = fmt.Errorf(
+				"%s error reading time unit change has changed control bit: %v",
+				itErrPrefix, err)
 			return false
 		}
 
 		// The next bit will tell us whether the schema has changed.
 		schemaHasChangedControlBit, err := it.stream.ReadBit()
 		if err != nil {
-			it.err = err
+			it.err = fmt.Errorf(
+				"%s error reading schema has changed control bit: %v",
+				itErrPrefix, err)
 			return false
 		}
 
@@ -160,8 +177,8 @@ func (it *iterator) Next() bool {
 		}
 
 		if schemaHasChangedControlBit == opCodeSchemaChange {
-			if err := it.readHeader(); err != nil {
-				it.err = fmt.Errorf("%s error reading header: %v", itErrPrefix, err)
+			if err := it.readCustomFieldsSchema(); err != nil {
+				it.err = fmt.Errorf("%s error reading custom fields schema: %v", itErrPrefix, err)
 				return false
 			}
 
@@ -265,7 +282,7 @@ func (it *iterator) Close() {
 	}
 }
 
-func (it *iterator) readHeader() error {
+func (it *iterator) readStreamHeader() error {
 	// Can ignore the version number for now because we only have one.
 	_, err := it.readVarInt()
 	if err != nil {
@@ -278,7 +295,7 @@ func (it *iterator) readHeader() error {
 	}
 
 	it.byteFieldDictLRUSize = int(byteFieldDictLRUSize)
-	return it.readCustomFieldsSchema()
+	return nil
 }
 
 func (it *iterator) readCustomFieldsSchema() error {

@@ -134,6 +134,10 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
 
+	if enc.numEncoded == 0 {
+		enc.encodeStreamHeader()
+	}
+
 	var (
 		needToEncoderHeader  = !enc.hasEncodedHeader
 		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
@@ -170,7 +174,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		}
 
 		if needToEncoderHeader {
-			enc.encodeHeader()
+			enc.encodeCustomSchemaTypes()
 			enc.hasEncodedHeader = true
 		}
 	} else {
@@ -257,10 +261,9 @@ func (enc *Encoder) Len() int {
 	return enc.stream.Len()
 }
 
-func (enc *Encoder) encodeHeader() {
+func (enc *Encoder) encodeStreamHeader() {
 	enc.encodeVarInt(currentEncodingSchemeVersion)
 	enc.encodeVarInt(uint64(enc.opts.ByteFieldDictionaryLRUSize()))
-	enc.encodeCustomSchemaTypes()
 }
 
 func (enc *Encoder) encodeCustomSchemaTypes() {
