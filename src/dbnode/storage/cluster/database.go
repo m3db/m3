@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -68,7 +68,7 @@ type clusterDB struct {
 	storage.Database
 
 	opts    storage.Options
-	log     xlog.Logger
+	log     *zap.Logger
 	metrics databaseMetrics
 	hostID  string
 	topo    topology.Topology
@@ -369,7 +369,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	topo, ok := d.topo.(topology.DynamicTopology)
 	if !ok {
 		err := fmt.Errorf("topology constructed is not a dynamic topology")
-		d.log.Errorf("cluster db cannot mark shard available: %v", err)
+		d.log.Error("cluster db cannot mark shard available", zap.Error(err))
 		return
 	}
 
@@ -399,11 +399,11 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		count := d.bootstrapCount[id]
 		if count != len(namespaces) {
 			// Should never happen if bootstrapped and durable.
-			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(), func(l xlog.Logger) {
-				l.WithFields(
-					xlog.NewField("shard", id),
-					xlog.NewField("count", count),
-					xlog.NewField("numNamespaces", len(namespaces)),
+			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.With(
+					zap.Uint32("shard", id),
+					zap.Int("count", count),
+					zap.Int("numNamespaces", len(namespaces)),
 				).Error("database indicated that it was bootstrapped and durable, but number of bootstrapped shards did not match number of namespaces")
 			})
 			continue
@@ -422,12 +422,13 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	}
 
 	if err := topo.MarkShardsAvailable(d.hostID, markAvailable...); err != nil {
-		d.log.Errorf("cluster db failed marking shards: %v as available, err: %v",
-			markAvailable, err)
+		d.log.Error("cluster db failed marking shards available",
+			zap.Uint32s("shards", markAvailable), zap.Error(err))
 		return
 	}
 
-	d.log.Infof("cluster db successfully marked shards: %v as available", markAvailable)
+	d.log.Info("cluster db successfully marked shards as available",
+		zap.Uint32s("shards", markAvailable))
 }
 
 func (d *clusterDB) resetReuseable() {
@@ -455,6 +456,6 @@ func (d *clusterDB) hostOrEmptyShardSet(m topology.Map) sharding.ShardSet {
 	if hostShardSet, ok := m.LookupHostShardSet(d.hostID); ok {
 		return hostShardSet.ShardSet()
 	}
-	d.log.Warnf("topology has no shard set for host ID: %s", d.hostID)
+	d.log.Warn("topology has no shard set for host ID", zap.String("hostID", d.hostID))
 	return sharding.NewEmptyShardSet(m.ShardSet().HashFn())
 }

@@ -25,7 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	xlog "github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 type fileOpStatus int
@@ -62,7 +63,7 @@ type fileSystemManager struct {
 	databaseCleanupManager
 	sync.RWMutex
 
-	log      xlog.Logger
+	log      *zap.Logger
 	database database
 	opts     Options
 	status   fileOpStatus
@@ -130,10 +131,10 @@ func (m *fileSystemManager) Run(
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
 		if err := m.Cleanup(t); err != nil {
-			m.log.Errorf("error when cleaning up data for time %v: %v", t, err)
+			m.log.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
 		}
 		if err := m.Flush(t, dbBootstrapStates); err != nil {
-			m.log.Errorf("error when flushing data for time %v: %v", t, err)
+			m.log.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 		}
 		m.Lock()
 		m.status = fileOpNotStarted

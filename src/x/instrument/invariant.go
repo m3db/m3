@@ -25,7 +25,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/m3db/m3/src/x/log"
+	"go.uber.org/zap"
 )
 
 const (
@@ -68,11 +68,11 @@ func EmitInvariantViolation(opts Options) {
 // EmitAndLogInvariantViolation calls EmitInvariantViolation and then calls the provided function
 // with a supplied logger that is pre-configured with an invariant violated field. Optionally panics
 // if the ShouldPanicEnvironmentVariableName is set to "true".
-func EmitAndLogInvariantViolation(opts Options, f func(l log.Logger)) {
+func EmitAndLogInvariantViolation(opts Options, f func(l *zap.Logger)) {
 	EmitInvariantViolation(opts)
 
-	logger := opts.Logger().WithFields(
-		log.NewField(InvariantViolatedLogFieldName, InvariantViolatedLogFieldValue))
+	logger := opts.Logger().With(
+		zap.String(InvariantViolatedLogFieldName, InvariantViolatedLogFieldValue))
 	f(logger)
 
 	panicIfEnvSet()

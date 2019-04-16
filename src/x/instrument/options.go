@@ -21,13 +21,13 @@
 package instrument
 
 import (
-	"github.com/opentracing/opentracing-go"
+	"os"
 	"time"
 
-	"github.com/m3db/m3/src/x/log"
-
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -36,7 +36,6 @@ const (
 )
 
 type options struct {
-	logger         log.Logger
 	zap            *zap.Logger
 	scope          tally.Scope
 	tracer         opentracing.Tracer
@@ -46,33 +45,24 @@ type options struct {
 
 // NewOptions creates new instrument options.
 func NewOptions() Options {
-	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelInfo)
+	zapCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), os.Stdout, zap.InfoLevel)
+	zapLogger := zap.New(zapCore)
 	return &options{
-		logger:         logger,
-		zap:            zap.L(),
+		zap:            zapLogger,
 		scope:          tally.NoopScope,
 		samplingRate:   defaultSamplingRate,
 		reportInterval: defaultReportingInterval,
 	}
 }
 
-func (o *options) SetLogger(value log.Logger) Options {
-	opts := *o
-	opts.logger = value
-	return &opts
-}
-
-func (o *options) Logger() log.Logger {
-	return o.logger
-}
-
-func (o *options) SetZapLogger(value *zap.Logger) Options {
+func (o *options) SetLogger(value *zap.Logger) Options {
 	opts := *o
 	opts.zap = value
 	return &opts
 }
 
-func (o *options) ZapLogger() *zap.Logger {
+func (o *options) Logger() *zap.Logger {
 	return o.zap
 }
 

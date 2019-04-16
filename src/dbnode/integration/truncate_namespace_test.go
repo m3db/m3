@@ -99,25 +99,25 @@ func TestTruncateNamespace(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
-	log.Debugf("fetching data from namespace %s", testNamespaces[0])
+	log.Sugar().Debugf("fetching data from namespace %s", testNamespaces[0])
 	fetchReq.NameSpace = testNamespaces[0].String()
 	res, err = testSetup.fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 100, len(res))
 
-	log.Debugf("truncate namespace %s", testNamespaces[0])
+	log.Sugar().Debugf("truncate namespace %s", testNamespaces[0])
 	truncateReq := rpc.NewTruncateRequest()
 	truncateReq.NameSpace = testNamespaces[0].Bytes()
 	truncated, err := testSetup.truncate(truncateReq)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), truncated)
 
-	log.Debugf("fetching data from namespace %s again", testNamespaces[0])
+	log.Sugar().Debugf("fetching data from namespace %s again", testNamespaces[0])
 	res, err = testSetup.fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
-	log.Debugf("fetching data from a different namespace %s", testNamespaces[1])
+	log.Sugar().Debugf("fetching data from a different namespace %s", testNamespaces[1])
 	fetchReq.ID = "bar"
 	fetchReq.NameSpace = testNamespaces[1].String()
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)

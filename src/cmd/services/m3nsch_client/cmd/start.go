@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var (
@@ -53,14 +54,14 @@ func startExec(_ *cobra.Command, _ []string) {
 	)
 
 	if err != nil {
-		logger.Fatalf("unable to create coordinator: %v", err)
+		logger.Fatal("unable to create coordinator", zap.Error(err))
 	}
 	defer coord.Teardown()
 
 	err = coord.Start()
 	if err != nil {
-		logger.Fatalf("unable to start workload: %v", err)
+		logger.Fatal("unable to start workload", zap.Error(err))
 	}
 
-	logger.Infof("workload started!")
+	logger.Info("workload started!")
 }

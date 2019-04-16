@@ -26,9 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/log"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestSource(t *testing.T) {
@@ -44,7 +43,9 @@ func TestSource(t *testing.T) {
 
 func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
 	input := &testSourceInput{callCount: 0, errAfter: errAfter, closeAfter: closeAfter}
-	s := NewSource(input, log.SimpleLogger)
+	zl, err := zap.NewDevelopment()
+	assert.NoError(t, err)
+	s := NewSource(input, zl)
 
 	var wg sync.WaitGroup
 

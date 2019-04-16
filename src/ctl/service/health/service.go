@@ -64,7 +64,7 @@ func (s *service) URLPrefix() string {
 func (s *service) RegisterHandlers(router *mux.Router) error {
 	log := s.iOpts.Logger()
 	router.HandleFunc("", healthCheck)
-	log.Infof("registered health endpoints")
+	log.Info("registered health endpoints")
 	return nil
 }
 

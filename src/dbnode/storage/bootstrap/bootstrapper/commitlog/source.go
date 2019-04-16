@@ -43,11 +43,11 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"go.uber.org/zap"
 	"github.com/uber-go/tally"
 )
 
@@ -64,7 +64,7 @@ type newReaderFn func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.Data
 
 type commitLogSource struct {
 	opts Options
-	log  xlog.Logger
+	log  *zap.Logger
 
 	// Filesystem inspection capture before node was started.
 	inspection fs.Inspection
@@ -94,7 +94,7 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 			ResultOptions().
 			InstrumentOptions().
 			Logger().
-			WithFields(xlog.NewField("bootstrapper", "commitlog")),
+			With(zap.String("bootstrapper", "commitlog")),
 
 		inspection: inspection,
 
@@ -190,9 +190,10 @@ func (s *commitLogSource) ReadData(
 	)
 
 	defer func() {
-		s.log.Infof("seriesSkipped: %d", seriesSkipped)
-		s.log.Infof("datapointsSkipped: %d", datapointsSkipped)
-		s.log.Infof("datapointsRead: %d", datapointsRead)
+		s.log.Info("ReadData finished",
+			zap.Int("seriesSkipped", seriesSkipped),
+			zap.Int("datapointsSkipped", datapointsSkipped),
+			zap.Int("datapointsRead", datapointsRead))
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -265,8 +266,7 @@ func (s *commitLogSource) ReadData(
 		// return the error because we want to give the peers bootstrapper the
 		// opportunity to repair the data instead of failing the bootstrap
 		// altogether.
-		s.log.Errorf(
-			"error in commitlog iterator: %v", iterErr)
+		s.log.Error("error in commitlog iterator", zap.Error(iterErr))
 		s.metrics.data.corruptCommitlogFile.Inc(1)
 		encounteredCorruptData = true
 	}
@@ -282,7 +282,7 @@ func (s *commitLogSource) ReadData(
 
 	// Merge all the different encoders from the commit log that we created with
 	// the data that is available in the snapshot files.
-	s.log.Infof("starting merge...")
+	s.log.Info("starting merge...")
 	mergeStart := time.Now()
 	bootstrapResult, err := s.mergeAllShardsCommitLogEncodersAndSnapshots(
 		ns,
@@ -296,7 +296,7 @@ func (s *commitLogSource) ReadData(
 	if err != nil {
 		return nil, err
 	}
-	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
+	s.log.Info("done merging...", zap.Duration("took", time.Since(mergeStart)))
 
 	shouldReturnUnfulfilled, err := s.shouldReturnUnfulfilled(
 		encounteredCorruptData, ns, shardsTimeRanges, runOpts)
@@ -403,13 +403,13 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 				_, _, err := mostRecentSnapshotVolume.SnapshotTimeAndID()
 				if err != nil {
 					s.log.
-						WithFields(
-							xlog.NewField("namespace", mostRecentSnapshot.ID.Namespace),
-							xlog.NewField("blockStart", mostRecentSnapshot.ID.BlockStart),
-							xlog.NewField("shard", mostRecentSnapshot.ID.Shard),
-							xlog.NewField("index", mostRecentSnapshot.ID.VolumeIndex),
-							xlog.NewField("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
-							xlog.NewField("error", err.Error()),
+						With(
+							zap.Stringer("namespace", mostRecentSnapshot.ID.Namespace),
+							zap.Time("blockStart", mostRecentSnapshot.ID.BlockStart),
+							zap.Uint32("shard", mostRecentSnapshot.ID.Shard),
+							zap.Int("index", mostRecentSnapshot.ID.VolumeIndex),
+							zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
+							zap.Error(err),
 						).
 						Error("error resolving snapshot time for snapshot file")
 
@@ -474,9 +474,8 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				// because the fact that snapshotTime == blockStart means we already accounted
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
-				s.log.Debugf(
-					"no snapshots for shard: %d and blockStart: %s",
-					shard, blockStart.String())
+				s.log.Debug("no snapshots for shard and blockStart",
+					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart))
 				continue
 			}
 
@@ -536,15 +535,18 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	defer func() {
 		err := reader.Close()
 		if err != nil {
-			s.log.Errorf(
-				"error closing reader for shard: %d and blockstart: %s and volume: %d, err: %s",
-				shard, blockStart.String(), mostRecentCompleteSnapshot.ID.VolumeIndex, err.Error())
+			s.log.Error("error closing reader for shard",
+				zap.Uint32("shard", shard),
+				zap.Time("blockStart", blockStart),
+				zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex),
+				zap.Error(err))
 		}
 	}()
 
-	s.log.Debugf(
-		"reading snapshot for shard: %d and blockStart: %s and volume: %d",
-		shard, blockStart.String(), mostRecentCompleteSnapshot.ID.VolumeIndex)
+	s.log.Debug("reading snapshot for shard",
+		zap.Uint32("shard", shard),
+		zap.Time("blockStart", blockStart),
+		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 	for {
 		var (
 			id               ident.ID
@@ -650,9 +652,10 @@ func (s *commitLogSource) newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 					shard, block.ToTime().String())
 			}
 
-			s.log.Debugf(
-				"most recent snapshot for block: %s and shard: %d is %s",
-				block.ToTime().String(), shard, mostRecent.CachedSnapshotTime.String())
+			s.log.Debug("most recent snapshot for block",
+				zap.Time("blockStart", block.ToTime()),
+				zap.Uint32("shard", shard),
+				zap.Time("mostRecent", mostRecent.CachedSnapshotTime))
 		}
 	}
 
@@ -1047,9 +1050,9 @@ func (s *commitLogSource) mergeSeries(
 				// Should never happen because we would have called
 				// Blocks.RemoveBlockAt() above.
 				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
-				instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
-					l.Errorf(
-						"tried to merge block that should have been removed, blockStart: %d", startNano)
+				instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+					l.Error("tried to merge block that should have been removed",
+						zap.Time("blockStart", startNano.ToTime()))
 				})
 				continue
 			}
@@ -1076,10 +1079,10 @@ func (s *commitLogSource) logEncodingOutcome(workerErrs []int, iter commitlog.It
 		errSum += numErrs
 	}
 	if errSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errSum)
+		s.log.Error("error bootstrapping from commit log", zap.Int("block encode errors", errSum))
 	}
 	if err := iter.Err(); err != nil {
-		s.log.Errorf("error reading commit log: %v", err)
+		s.log.Error("error reading commit log", zap.Error(err))
 	}
 }
 
@@ -1089,7 +1092,7 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 		errSum += numErrs
 	}
 	if errSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d merge out of order errors", errSum)
+		s.log.Error("error bootstrapping from commit log", zap.Int("merge out of order errors", errSum))
 	}
 
 	emptyErrSum := 0
@@ -1097,7 +1100,7 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 		emptyErrSum += numEmptyErr
 	}
 	if emptyErrSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
+		s.log.Error("error bootstrapping from commit log", zap.Int("empty unmerged blocks errors", emptyErrSum))
 	}
 }
 
@@ -1224,8 +1227,7 @@ func (s *commitLogSource) ReadIndex(
 		// return the error because we want to give the peers bootstrapper the
 		// opportunity to repair the data instead of failing the bootstrap
 		// altogether.
-		s.log.Errorf(
-			"error in commitlog iterator: %v", iterErr)
+		s.log.Error("error in commitlog iterator", zap.Error(iterErr))
 		encounteredCorruptData = true
 		s.metrics.index.corruptCommitlogFile.Inc(1)
 	}
@@ -1337,9 +1339,7 @@ func (s commitLogSource) maybeAddToIndex(
 func (s *commitLogSource) logAndEmitCorruptFiles(
 	corruptFiles []commitlog.ErrorWithPath, isData bool) {
 	for _, f := range corruptFiles {
-		s.log.
-			Errorf(
-				"opting to skip commit log due to corruption: %s", f.Error())
+		s.log.Error("opting to skip commit log due to corruption", zap.String("error", f.Error()))
 		if isData {
 			s.metrics.data.corruptCommitlogFile.Inc(1)
 		} else {
@@ -1375,7 +1375,7 @@ func (s *commitLogSource) availability(
 		if !ok {
 			errMsg := fmt.Sprintf("initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
 			iOpts := s.opts.CommitLogOptions().InstrumentOptions()
-			instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
 				l.Error(errMsg)
 			})
 			return nil, errors.New(errMsg)

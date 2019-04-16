@@ -21,7 +21,6 @@
 package server
 
 import (
-	stdlibctx "context"
 	"errors"
 	"fmt"
 	"io"
@@ -69,14 +68,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/query/util/logging"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/lockfile"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -87,6 +84,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -152,22 +150,16 @@ func Run(runOpts RunOptions) {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
-
-	// Currently, the zapLogger is being used for tracing only.
-	// todo: use the zapLogger everywhere instead of xlog logger.
-	logging.InitWithCores(nil)
-	ctx := stdlibctx.Background()
-	zapLogger := logging.WithContext(ctx)
-	defer zapLogger.Sync()
+	defer logger.Sync()
 
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
-		logger.Fatalf("could not parse new file mode: %v", err)
+		logger.Fatal("could not parse new file mode", zap.Error(err))
 	}
 
 	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
 	if err != nil {
-		logger.Fatalf("could not parse new directory mode: %v", err)
+		logger.Fatal("could not parse new directory mode", zap.Error(err))
 	}
 
 	// Obtain a lock on `filePathPrefix`, or exit if another process already has it.
@@ -179,7 +171,7 @@ func Run(runOpts RunOptions) {
 	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
 	fslock, err := lockfile.CreateAndAcquire(lockPath, newDirectoryMode)
 	if err != nil {
-		logger.Fatalf("could not acquire lock on %s: %v", lockPath, err)
+		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	defer fslock.Release()
 
@@ -188,7 +180,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("Probuf data mode enabled")
 		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
 		if err != nil {
-			logger.Fatalf("error parsing protobuffer schema: %v", err)
+			logger.Fatal("error parsing protobuffer schema", zap.Error(err))
 		}
 	}
 
@@ -197,12 +189,12 @@ func Run(runOpts RunOptions) {
 
 	scope, _, err := cfg.Metrics.NewRootScope()
 	if err != nil {
-		logger.Fatalf("could not connect to metrics: %v", err)
+		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
 
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {
-		logger.Fatalf("could not resolve local host ID: %v", err)
+		logger.Fatal("could not resolve local host ID", zap.Error(err))
 	}
 
 	var (
@@ -212,20 +204,21 @@ func Run(runOpts RunOptions) {
 
 	if cfg.Tracing == nil {
 		tracer = opentracing.NoopTracer{}
-		logger.Infof("tracing disabled for %s; set `tracing.backend` to enable", defaultServiceName)
+		logger.Info("tracing disabled; set `tracing.backend` to enable")
 	} else {
 		// setup tracer
 		serviceName := cfg.Tracing.ServiceName
 		if serviceName == "" {
 			serviceName = defaultServiceName
 		}
-		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName, scope.SubScope("jaeger"), zapLogger)
+		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName, scope.SubScope("jaeger"), logger)
 		if err != nil {
 			tracer = opentracing.NoopTracer{}
-			logger.Warnf("could not initialize tracing for %s: %v; using no-op tracer instead", serviceName, err)
+			logger.Warn("could not initialize tracing; using no-op tracer instead",
+				zap.String("service", serviceName), zap.Error(err))
 		} else {
 			defer traceCloser.Close()
-			logger.Infof("tracing enabled for %s", serviceName)
+			logger.Info("tracing enabled", zap.String("service", serviceName))
 		}
 	}
 
@@ -241,12 +234,13 @@ func Run(runOpts RunOptions) {
 		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterEndpoints(seedNodes)
 			if err != nil {
-				logger.Fatalf("unable to create etcd clusters: %v", err)
+				logger.Fatal("unable to create etcd clusters", zap.Error(err))
 			}
 
 			zone := cfg.EnvironmentConfig.Service.Zone
 
-			logger.Infof("using seed nodes etcd cluster: zone=%s, endpoints=%v", zone, endpoints)
+			logger.Info("using seed nodes etcd cluster",
+				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
 			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
 				Endpoints: endpoints,
@@ -257,10 +251,9 @@ func Run(runOpts RunOptions) {
 		for _, entry := range seedNodes {
 			seedNodeHostIDs = append(seedNodeHostIDs, entry.HostID)
 		}
-		logger.WithFields(
-			xlog.NewField("hostID", hostID),
-			xlog.NewField("seedNodeHostIDs", fmt.Sprintf("%v", seedNodeHostIDs)),
-		).Info("resolving seed node configuration")
+		logger.Info("resolving seed node configuration",
+			zap.String("hostID", hostID), zap.Strings("seedNodeHostIDs", seedNodeHostIDs),
+		)
 
 		if !config.IsSeedNode(seedNodes, hostID) {
 			logger.Info("not a seed node, using cluster seed nodes")
@@ -269,12 +262,12 @@ func Run(runOpts RunOptions) {
 
 			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
 			if err != nil {
-				logger.Fatalf("unable to create etcd config: %v", err)
+				logger.Fatal("unable to create etcd config", zap.Error(err))
 			}
 
 			e, err := embed.StartEtcd(etcdCfg)
 			if err != nil {
-				logger.Fatalf("could not start embedded etcd: %v", err)
+				logger.Fatal("could not start embedded etcd", zap.Error(err))
 			}
 
 			if runOpts.EmbeddedKVCh != nil {
@@ -289,7 +282,6 @@ func Run(runOpts RunOptions) {
 	opts := storage.NewOptions()
 	iopts := opts.InstrumentOptions().
 		SetLogger(logger).
-		SetZapLogger(zapLogger).
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetTracer(tracer)
@@ -302,12 +294,12 @@ func Run(runOpts RunOptions) {
 		queryIDsWorkerPool.Init()
 		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
 	} else {
-		logger.Warnf("max index query IDs concurrency was not set, falling back to default value")
+		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
 
 	buildReporter := instrument.NewBuildReporter(iopts)
 	if err := buildReporter.Start(); err != nil {
-		logger.Fatalf("unable to start build reporter: %v", err)
+		logger.Fatal("unable to start build reporter", zap.Error(err))
 	}
 	defer buildReporter.Stop()
 
@@ -333,7 +325,7 @@ func Run(runOpts RunOptions) {
 	)
 	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
-		logger.Fatalf("could not construct query cache: %s", err.Error())
+		logger.Fatal("could not construct postings list cache", zap.Error(err))
 	}
 	defer stopReporting()
 
@@ -360,7 +352,7 @@ func Run(runOpts RunOptions) {
 
 	runtimeOptsMgr := m3dbruntime.NewOptionsManager()
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
-		logger.Fatalf("could not set initial runtime options: %v", err)
+		logger.Fatal("could not set initial runtime options", zap.Error(err))
 	}
 	defer runtimeOptsMgr.Close()
 
@@ -373,10 +365,10 @@ func Run(runOpts RunOptions) {
 		// excessive log spam.
 		shouldUseHugeTLB, err = hostSupportsHugeTLB()
 		if err != nil {
-			logger.Fatalf("could not determine if host supports HugeTLB: %v", err)
+			logger.Fatal("could not determine if host supports HugeTLB", zap.Error(err))
 		}
 		if !shouldUseHugeTLB {
-			logger.Warnf("host doesn't support HugeTLB, proceeding without it")
+			logger.Warn("host doesn't support HugeTLB, proceeding without it")
 		}
 	}
 
@@ -421,8 +413,8 @@ func Run(runOpts RunOptions) {
 	case config.CalculationTypePerCPU:
 		commitLogQueueSize = specified * runtime.NumCPU()
 	default:
-		logger.Fatalf("unknown commit log queue size type: %v",
-			cfg.CommitLog.Queue.CalculationType)
+		logger.Fatal("unknown commit log queue size type",
+			zap.Any("type", cfg.CommitLog.Queue.CalculationType))
 	}
 
 	var commitLogQueueChannelSize int
@@ -434,8 +426,8 @@ func Run(runOpts RunOptions) {
 		case config.CalculationTypePerCPU:
 			commitLogQueueChannelSize = specified * runtime.NumCPU()
 		default:
-			logger.Fatalf("unknown commit log queue channel size type: %v",
-				cfg.CommitLog.Queue.CalculationType)
+			logger.Fatal("unknown commit log queue channel size type",
+				zap.Any("type", cfg.CommitLog.Queue.CalculationType))
 		}
 	} else {
 		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
@@ -485,7 +477,7 @@ func Run(runOpts RunOptions) {
 	// Set the persistence manager
 	pm, err := fs.NewPersistManager(fsopts)
 	if err != nil {
-		logger.Fatalf("could not create persist manager: %v", err)
+		logger.Fatal("could not create persist manager", zap.Error(err))
 	}
 	opts = opts.SetPersistManager(pm)
 
@@ -500,7 +492,7 @@ func Run(runOpts RunOptions) {
 			HashingSeed:    cfg.Hashing.Seed,
 		})
 		if err != nil {
-			logger.Fatalf("could not initialize dynamic config: %v", err)
+			logger.Fatal("could not initialize dynamic config", zap.Error(err))
 		}
 	} else {
 		logger.Info("creating static config service client with m3cluster")
@@ -510,7 +502,7 @@ func Run(runOpts RunOptions) {
 			HostID:         hostID,
 		})
 		if err != nil {
-			logger.Fatalf("could not initialize static config: %v", err)
+			logger.Fatal("could not initialize static config", zap.Error(err))
 		}
 	}
 
@@ -522,7 +514,7 @@ func Run(runOpts RunOptions) {
 
 	topo, err := envCfg.TopologyInitializer.Init()
 	if err != nil {
-		logger.Fatalf("could not initialize m3db topology: %v", err)
+		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 
 	origin := topology.NewHost(hostID, "")
@@ -552,7 +544,7 @@ func Run(runOpts RunOptions) {
 		},
 	)
 	if err != nil {
-		logger.Fatalf("could not create m3db client: %v", err)
+		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
 
 	if runOpts.ClientCh != nil {
@@ -585,7 +577,7 @@ func Run(runOpts RunOptions) {
 	topoMapProvider := newTopoMapProvider(topo)
 	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
-		logger.Fatalf("could not create bootstrap process: %v", err)
+		logger.Fatal("could not create bootstrap process", zap.Error(err))
 	}
 
 	opts = opts.SetBootstrapProcessProvider(bs)
@@ -593,14 +585,14 @@ func Run(runOpts RunOptions) {
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
-				logger.Errorf("updated bootstrapper list is empty")
+				logger.Error("updated bootstrapper list is empty")
 				return
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
 			updated, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
 			if err != nil {
-				logger.Errorf("updated bootstrapper list failed: %v", err)
+				logger.Error("updated bootstrapper list failed", zap.Error(err))
 				return
 			}
 
@@ -610,15 +602,15 @@ func Run(runOpts RunOptions) {
 	// Initialize clustered database
 	clusterTopoWatch, err := topo.Watch()
 	if err != nil {
-		logger.Fatalf("could not create cluster topology watch: %v", err)
+		logger.Fatal("could not create cluster topology watch", zap.Error(err))
 	}
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
-		logger.Fatalf("could not construct database: %v", err)
+		logger.Fatal("could not construct database", zap.Error(err))
 	}
 
 	if err := db.Open(); err != nil {
-		logger.Fatalf("could not open database: %v", err)
+		logger.Fatal("could not open database", zap.Error(err))
 	}
 
 	contextPool := opts.ContextPool()
@@ -629,43 +621,44 @@ func Run(runOpts RunOptions) {
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open tchannelthrift interface on %s: %v",
-			cfg.ListenAddress, err)
+		logger.Fatal("could not open tchannelthrift interface",
+			zap.String("address", cfg.ListenAddress), zap.Error(err))
 	}
 	defer tchannelthriftNodeClose()
-	logger.Infof("node tchannelthrift: listening on %v", cfg.ListenAddress)
+	logger.Info("node tchannelthrift: listening", zap.String("address", cfg.ListenAddress))
 
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
 		cfg.ClusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open tchannelthrift interface on %s: %v",
-			cfg.ClusterListenAddress, err)
+		logger.Fatal("could not open tchannelthrift interface",
+			zap.String("address", cfg.ClusterListenAddress), zap.Error(err))
 	}
 	defer tchannelthriftClusterClose()
-	logger.Infof("cluster tchannelthrift: listening on %v", cfg.ClusterListenAddress)
+	logger.Info("cluster tchannelthrift: listening", zap.String("address", cfg.ClusterListenAddress))
 
 	httpjsonNodeClose, err := hjnode.NewServer(service,
 		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open httpjson interface on %s: %v",
-			cfg.HTTPNodeListenAddress, err)
+		logger.Fatal("could not open httpjson interface",
+			zap.String("address", cfg.HTTPNodeListenAddress), zap.Error(err))
 	}
 	defer httpjsonNodeClose()
-	logger.Infof("node httpjson: listening on %v", cfg.HTTPNodeListenAddress)
+	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
 
 	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient,
 		cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open httpjson interface on %s: %v",
-			cfg.HTTPClusterListenAddress, err)
+		logger.Fatal("could not open httpjson interface",
+			zap.String("address", cfg.HTTPClusterListenAddress), zap.Error(err))
 	}
 	defer httpjsonClusterClose()
-	logger.Infof("cluster httpjson: listening on %v", cfg.HTTPClusterListenAddress)
+	logger.Info("cluster httpjson: listening", zap.String("address", cfg.HTTPClusterListenAddress))
 
 	if cfg.DebugListenAddress != "" {
 		go func() {
 			if err := http.ListenAndServe(cfg.DebugListenAddress, nil); err != nil {
-				logger.Errorf("debug server could not listen on %s: %v", cfg.DebugListenAddress, err)
+				logger.Error("debug server could not listen",
+					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
 			}
 		}()
 	}
@@ -680,9 +673,9 @@ func Run(runOpts RunOptions) {
 
 		// Bootstrap asynchronously so we can handle interrupt
 		if err := db.Bootstrap(); err != nil {
-			logger.Fatalf("could not bootstrap database: %v", err)
+			logger.Fatal("could not bootstrap database", zap.Error(err))
 		}
-		logger.Infof("bootstrapped")
+		logger.Info("bootstrapped")
 
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
@@ -704,14 +697,14 @@ func Run(runOpts RunOptions) {
 		interruptErr = fmt.Errorf("%v", sig)
 	}
 
-	logger.Warnf("interrupt: %v", interruptErr)
+	logger.Warn("interrupt", zap.Error(interruptErr))
 
 	// Attempt graceful server close
 	closedCh := make(chan struct{})
 	go func() {
 		err := db.Terminate()
 		if err != nil {
-			logger.Errorf("close database error: %v", err)
+			logger.Error("close database error", zap.Error(err))
 		}
 		closedCh <- struct{}{}
 	}()
@@ -720,9 +713,9 @@ func Run(runOpts RunOptions) {
 	closeTimeout := serverGracefulCloseTimeout
 	select {
 	case <-closedCh:
-		logger.Infof("server closed")
+		logger.Info("server closed")
 	case <-time.After(closeTimeout):
-		logger.Errorf("server closed after %s timeout", closeTimeout.String())
+		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
 	}
 }
 
@@ -732,11 +725,12 @@ func interrupt() <-chan os.Signal {
 	return c
 }
 
-func bgValidateProcessLimits(logger xlog.Logger) {
+func bgValidateProcessLimits(logger *zap.Logger) {
 	// If unable to validate process limits on the current configuration,
 	// do not run background validator task.
 	if canValidate, message := canValidateProcessLimits(); !canValidate {
-		logger.Warnf(`cannot validate process limits: invalid configuration found [%v]`, message)
+		logger.Warn("cannot validate process limits: invalid configuration found",
+			zap.String("message", message))
 		return
 	}
 
@@ -754,9 +748,10 @@ func bgValidateProcessLimits(logger xlog.Logger) {
 			return
 		}
 
-		logger.WithFields(
-			xlog.NewField("url", xdocs.Path("operational_guide/kernel_configuration")),
-		).Warnf(`invalid configuration found [%v], refer to linked documentation for more information`, err)
+		logger.Warn("invalid configuration found, refer to linked documentation for more information",
+			zap.String("url", xdocs.Path("operational_guide/kernel_configuration")),
+			zap.Error(err),
+		)
 
 		<-t.C
 	}
@@ -764,7 +759,7 @@ func bgValidateProcessLimits(logger xlog.Logger) {
 
 func kvWatchNewSeriesLimitPerShard(
 	store kv.Store,
-	logger xlog.Logger,
+	logger *zap.Logger,
 	topo topology.Topology,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	defaultClusterNewSeriesLimit int,
@@ -782,19 +777,19 @@ func kvWatchNewSeriesLimitPerShard(
 
 	if err != nil {
 		if err != kv.ErrNotFound {
-			logger.Warnf("error resolving cluster new series insert limit: %v", err)
+			logger.Warn("error resolving cluster new series insert limit", zap.Error(err))
 		}
 		initClusterLimit = defaultClusterNewSeriesLimit
 	}
 
 	err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
 	if err != nil {
-		logger.Warnf("unable to set cluster new series insert limit: %v", err)
+		logger.Warn("unable to set cluster new series insert limit", zap.Error(err))
 	}
 
 	watch, err := store.Watch(kvconfig.ClusterNewSeriesInsertLimitKey)
 	if err != nil {
-		logger.Errorf("could not watch cluster new series insert limit: %v", err)
+		logger.Error("could not watch cluster new series insert limit", zap.Error(err))
 		return
 	}
 
@@ -804,7 +799,7 @@ func kvWatchNewSeriesLimitPerShard(
 			value := defaultClusterNewSeriesLimit
 			if newValue := watch.Get(); newValue != nil {
 				if err := newValue.Unmarshal(protoValue); err != nil {
-					logger.Warnf("unable to parse new cluster new series insert limit: %v", err)
+					logger.Warn("unable to parse new cluster new series insert limit", zap.Error(err))
 					continue
 				}
 				value = int(protoValue.Value)
@@ -812,7 +807,7 @@ func kvWatchNewSeriesLimitPerShard(
 
 			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
 			if err != nil {
-				logger.Warnf("unable to set cluster new series insert limit: %v", err)
+				logger.Warn("unable to set cluster new series insert limit", zap.Error(err))
 				continue
 			}
 		}
@@ -821,7 +816,7 @@ func kvWatchNewSeriesLimitPerShard(
 
 func kvWatchClientConsistencyLevels(
 	store kv.Store,
-	logger xlog.Logger,
+	logger *zap.Logger,
 	clientOpts client.AdminOptions,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 ) {
@@ -893,7 +888,7 @@ func kvWatchClientConsistencyLevels(
 
 func kvWatchStringValue(
 	store kv.Store,
-	logger xlog.Logger,
+	logger *zap.Logger,
 	key string,
 	onValue func(value string) error,
 	onDelete func() error,
@@ -904,21 +899,21 @@ func kvWatchStringValue(
 	// watch returns but not immediately for an existing value
 	value, err := store.Get(key)
 	if err != nil && err != kv.ErrNotFound {
-		logger.Errorf("could not resolve KV key %s: %v", key, err)
+		logger.Error("could not resolve KV", zap.String("key", key), zap.Error(err))
 	}
 	if err == nil {
 		if err := value.Unmarshal(protoValue); err != nil {
-			logger.Errorf("could not unmarshal KV key %s: %v", key, err)
+			logger.Error("could not unmarshal KV key", zap.String("key", key), zap.Error(err))
 		} else if err := onValue(protoValue.Value); err != nil {
-			logger.Errorf("could not process value of KV key %s: %v", key, err)
+			logger.Error("could not process value of KV", zap.String("key", key), zap.Error(err))
 		} else {
-			logger.Infof("set KV key %s: %v", key, protoValue.Value)
+			logger.Info("set KV key", zap.String("key", key), zap.Any("value", protoValue.Value))
 		}
 	}
 
 	watch, err := store.Watch(key)
 	if err != nil {
-		logger.Errorf("could not watch KV key %s: %v", key, err)
+		logger.Error("could not watch KV key", zap.String("key", key), zap.Error(err))
 		return
 	}
 
@@ -927,21 +922,21 @@ func kvWatchStringValue(
 			newValue := watch.Get()
 			if newValue == nil {
 				if err := onDelete(); err != nil {
-					logger.Warnf("could not set default for KV key %s: %v", key, err)
+					logger.Warn("could not set default for KV key", zap.String("key", key), zap.Error(err))
 				}
 				continue
 			}
 
 			err := newValue.Unmarshal(protoValue)
 			if err != nil {
-				logger.Warnf("could not unmarshal KV key %s: %v", key, err)
+				logger.Warn("could not unmarshal KV key", zap.String("key", key), zap.Error(err))
 				continue
 			}
 			if err := onValue(protoValue.Value); err != nil {
-				logger.Warnf("could not process change for KV key %s: %v", key, err)
+				logger.Warn("could not process change for KV key", zap.String("key", key), zap.Error(err))
 				continue
 			}
-			logger.Infof("set KV key %s: %v", key, protoValue.Value)
+			logger.Info("set KV key", zap.String("key", key), zap.Any("value", protoValue.Value))
 		}
 	}()
 }
@@ -982,15 +977,15 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 // before we kick off the bootstrap
 func kvWatchBootstrappers(
 	kv kv.Store,
-	logger xlog.Logger,
+	logger *zap.Logger,
 	waitTimeout time.Duration,
 	defaultBootstrappers []string,
 	onUpdate func(bootstrappers []string),
 ) {
 	vw, err := kv.Watch(kvconfig.BootstrapperKey)
 	if err != nil {
-		logger.Fatalf("could not watch value for key with KV: %s",
-			kvconfig.BootstrapperKey)
+		logger.Fatal("could not watch value for key with KV",
+			zap.String("key", kvconfig.BootstrapperKey))
 	}
 
 	initializedCh := make(chan struct{})
@@ -1003,10 +998,10 @@ func kvWatchBootstrappers(
 			v, err := util.StringArrayFromValue(vw.Get(),
 				kvconfig.BootstrapperKey, defaultBootstrappers, opts)
 			if err != nil {
-				logger.WithFields(
-					xlog.NewField("key", kvconfig.BootstrapperKey),
-					xlog.NewErrField(err),
-				).Error("error converting KV update to string array")
+				logger.Error("error converting KV update to string array",
+					zap.String("key", kvconfig.BootstrapperKey),
+					zap.Error(err),
+				)
 				continue
 			}
 
@@ -1027,7 +1022,7 @@ func kvWatchBootstrappers(
 
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
-	logger xlog.Logger,
+	logger *zap.Logger,
 	schema *desc.MessageDescriptor,
 	opts storage.Options,
 	policy config.PoolingPolicy,
@@ -1048,7 +1043,7 @@ func withEncodingAndPoolingOptions(
 			SetRefillLowWatermark(bucket.RefillLowWaterMarkOrDefault()).
 			SetRefillHighWatermark(bucket.RefillHighWaterMarkOrDefault())
 		buckets[i] = b
-		logger.Infof("bytes pool registering bucket capacity=%d, size=%d, "+
+		logger.Sugar().Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
 			bucket.Capacity, bucket.Size,
 			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
@@ -1064,10 +1059,10 @@ func withEncodingAndPoolingOptions(
 				return pool.NewBytesPool(s, bytesPoolOpts)
 			})
 	default:
-		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
+		logger.Fatal("unrecognized pooling type", zap.Any("type", policy.Type))
 	}
 
-	logger.Infof("bytes pool %s init", policy.Type)
+	logger.Sugar().Infof("bytes pool %s init", policy.Type)
 	bytesPool.Init()
 
 	segmentReaderPool := xio.NewSegmentReaderPool(

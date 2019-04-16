@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -178,15 +180,17 @@ func (c *dynamicBackendConfiguration) newProtobufHandler(
 	for _, filter := range c.Filters {
 		sid, f := filter.NewConsumerServiceFilter()
 		p.RegisterFilter(sid, f)
-		logger.Infof("registered filter for consumer service: %s", sid.String())
+		logger.Info("registered filter for consumer service", zap.Stringer("service", sid))
 	}
 	for _, filter := range c.StoragePolicyFilters {
 		sid, f := filter.NewConsumerServiceFilter()
 		p.RegisterFilter(sid, f)
-		logger.Infof("registered storage policy filter: %s for consumer service: %s", filter.StoragePolicies, sid.String())
+		logger.Info("registered storage policy filter for consumer service",
+			zap.Any("policies", filter.StoragePolicies),
+			zap.Stringer("service", sid))
 	}
 	wOpts := c.Writer.NewWriterOptions(instrumentOpts)
-	instrumentOpts.Logger().Infof("created flush handler %s with protobuf encoding", c.Name)
+	instrumentOpts.Logger().Info("created flush handler with protobuf encoding", zap.String("name", c.Name))
 	return NewProtobufHandler(p, c.HashType, wOpts), nil
 }
 

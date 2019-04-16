@@ -33,8 +33,9 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 type bootstrapState int
@@ -217,8 +218,8 @@ func (s *dbSeries) updateBlocksWithLock(blockStates map[xtime.UnixNano]BlockStat
 				// retrieved from disk.
 				shouldUnwire = !currBlock.WasRetrievedFromDisk()
 			default:
-				s.opts.InstrumentOptions().Logger().Fatalf(
-					"unhandled cache policy in series tick: %s", cachePolicy)
+				s.opts.InstrumentOptions().Logger().Fatal(
+					"unhandled cache policy in series tick", zap.Any("policy", cachePolicy))
 			}
 		}
 
@@ -498,11 +499,11 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		if !block.WasRetrievedFromDisk() {
 			// Should never happen - invalid application state could cause data loss
 			instrument.EmitAndLogInvariantViolation(
-				s.opts.InstrumentOptions(), func(l xlog.Logger) {
-					l.WithFields(
-						xlog.NewField("id", id.String()),
-						xlog.NewField("blockStart", blockStart),
-					).Errorf("tried to evict block that was not retrieved from disk")
+				s.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.With(
+						zap.String("id", id.String()),
+						zap.Time("blockStart", blockStart),
+					).Error("tried to evict block that was not retrieved from disk")
 				})
 			return
 		}

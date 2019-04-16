@@ -24,8 +24,9 @@ import (
 	"io"
 	"net"
 
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/server"
+
+	"go.uber.org/zap"
 )
 
 type consumerHandler struct {
@@ -89,7 +90,7 @@ func (h *messageHandler) Handle(conn net.Conn) {
 		h.mp.Process(msg)
 	}
 	if msgErr != nil && msgErr != io.EOF {
-		h.opts.InstrumentOptions().Logger().WithFields(log.NewErrField(msgErr)).Errorf("could not read message from consumer")
+		h.opts.InstrumentOptions().Logger().With(zap.Error(msgErr)).Error("could not read message from consumer")
 	}
 	c.Close()
 }

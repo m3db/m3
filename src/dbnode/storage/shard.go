@@ -51,11 +51,11 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -159,7 +159,7 @@ type dbShard struct {
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
-	logger                   xlog.Logger
+	logger                   *zap.Logger
 	metrics                  dbShardMetrics
 	newSeriesBootstrapped    bool
 	ticking                  bool
@@ -405,11 +405,11 @@ func (s *dbShard) OnRetrieveBlock(
 	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		// should never happen
-		s.logger.WithFields(
-			xlog.NewField("id", id.String()),
-			xlog.NewField("startTime", startTime.String()),
-			xlog.NewField("err", err.Error()),
-		).Errorf("[invariant violated] unable to create shardEntry from retrieved block data")
+		s.logger.Error("[invariant violated] unable to create shardEntry from retrieved block data",
+			zap.Stringer("id", id),
+			zap.Time("startTime", startTime),
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -744,10 +744,10 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
-			s.logger.WithFields(
-				xlog.NewField("series", series.ID().String()),
-				xlog.NewField("ReaderWriterCount", count),
-			).Errorf("observed series with invalid ReaderWriterCount in `purgeExpiredSeries`")
+			s.logger.Error("observed series with invalid ReaderWriterCount in `purgeExpiredSeries`",
+				zap.String("series", series.ID().String()),
+				zap.Int32("ReaderWriterCount", count),
+			)
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
@@ -1209,10 +1209,10 @@ func (s *dbShard) insertSeriesSync(
 	entry, err = s.newShardEntry(id, tagsArgOpts)
 	if err != nil {
 		// should never happen
-		s.logger.WithFields(
-			xlog.NewField("id", id.String()),
-			xlog.NewField("err", err.Error()),
-		).Errorf("[invariant violated] unable to create shardEntry in insertSeriesSync")
+		s.logger.Error("[invariant violated] unable to create shardEntry in insertSeriesSync",
+			zap.String("id", id.String()),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 
@@ -1674,7 +1674,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				// Best effort to close the reader on a read error
 				if err := reader.Close(); err != nil {
-					s.logger.Errorf("could not close reader on unexpected err: %v", err)
+					s.logger.Error("could not close reader on unexpected err", zap.Error(err))
 				}
 				return nil, nil, fmt.Errorf(
 					"could not read metadata for block %v: %v",
@@ -1814,13 +1814,13 @@ func (s *dbShard) Bootstrap(
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
 
 	for _, result := range readInfoFilesResults {
-		if result.Err.Error() != nil {
-			s.logger.WithFields(
-				xlog.NewField("shard", s.ID()),
-				xlog.NewField("namespace", s.namespace.ID()),
-				xlog.NewField("error", result.Err.Error()),
-				xlog.NewField("filepath", result.Err.Filepath()),
-			).Error("unable to read info files in shard bootstrap")
+		if err := result.Err.Error(); err != nil {
+			s.logger.Error("unable to read info files in shard bootstrap",
+				zap.Uint32("shard", s.ID()),
+				zap.Stringer("namespace", s.namespace.ID()),
+				zap.String("filepath", result.Err.Filepath()),
+				zap.Error(err),
+			)
 			continue
 		}
 		info := result.Info
@@ -2077,10 +2077,10 @@ func (s *dbShard) emitBootstrapResult(r dbShardBootstrapResult) {
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
-	s.logger.WithFields(
-		xlog.NewField("shard", s.ID()),
-		xlog.NewField("numBlockDoesNotExist", r.numBlockDoesNotExist),
-	).Debug("shard flush outcome")
+	s.logger.Debug("shard flush outcome",
+		zap.Uint32("shard", s.ID()),
+		zap.Int64("numBlockDoesNotExist", r.numBlockDoesNotExist),
+	)
 }
 
 // dbShardBootstrapResult is a helper struct for keeping track of the result of bootstrapping all the

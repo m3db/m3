@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -104,7 +104,7 @@ type consumerServiceWriterImpl struct {
 	ps           placement.Service
 	shardWriters []shardWriter
 	opts         Options
-	logger       log.Logger
+	logger       *zap.Logger
 
 	value           watch.Value
 	dataFilter      producer.FilterFunc
@@ -204,7 +204,7 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 		update, err := updatable.(placement.Watch).Get()
 		if err != nil {
 			w.m.placementError.Inc(1)
-			w.logger.Errorf("invalid placement update from kv, %v", err)
+			w.logger.Error("invalid placement update from kv", zap.Error(err))
 			return nil, err
 		}
 		w.m.placementUpdate.Inc(1)
@@ -223,7 +223,8 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 	}
 	if t == allowInitValueError {
 		if _, ok := err.(watch.InitValueError); ok {
-			w.logger.Warnf("invalid placement update: %v, continue to watch for placement updates", err)
+			w.logger.Warn("invalid placement update, continue to watch for placement updates",
+				zap.Error(err))
 			return nil
 		}
 	}
@@ -298,7 +299,7 @@ func (w *consumerServiceWriterImpl) Close() {
 	w.closed = true
 	w.Unlock()
 
-	w.logger.Infof("closing consumer service writer %s", w.cs.String())
+	w.logger.Info("closing consumer service writer", zap.String("writer", w.cs.String()))
 	close(w.doneCh)
 	// Blocks until all messages consuemd.
 	var shardWriterWG sync.WaitGroup
@@ -317,7 +318,7 @@ func (w *consumerServiceWriterImpl) Close() {
 		cw.Close()
 	}
 	w.wg.Wait()
-	w.logger.Infof("closed consumer service writer %s", w.cs.String())
+	w.logger.Info("closed consumer service writer", zap.String("writer", w.cs.String()))
 }
 
 func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {

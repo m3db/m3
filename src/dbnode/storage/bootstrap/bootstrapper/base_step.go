@@ -22,7 +22,8 @@ package bootstrapper
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	xlog "github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap/zapcore"
 )
 
 type bootstrapStep interface {
@@ -38,5 +39,5 @@ type bootstrapStepPreparedResult struct {
 
 type bootstrapStepStatus struct {
 	fulfilled result.ShardTimeRanges
-	logFields []xlog.Field
+	logFields []zapcore.Field
 }

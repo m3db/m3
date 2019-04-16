@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -59,7 +60,7 @@ func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 	if name, err := os.Hostname(); err == nil {
 		hostName = name
 	} else {
-		instrumentOpts.Logger().Warnf("unable to determine hostname when creating reporter: %v", err)
+		instrumentOpts.Logger().Warn("unable to determine hostname when creating reporter", zap.Error(err))
 	}
 	hostScope := scope.Tagged(map[string]string{"host": hostName})
 	return reporterMetrics{

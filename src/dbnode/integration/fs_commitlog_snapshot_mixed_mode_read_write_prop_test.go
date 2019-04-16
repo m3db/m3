@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
+	"go.uber.org/zap"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -132,9 +133,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				defer setup.close()
 
 				log := setup.storageOpts.InstrumentOptions().Logger()
-				log.Infof("blockSize: %s\n", ns1ROpts.BlockSize().String())
-				log.Infof("bufferPast: %s\n", ns1ROpts.BufferPast().String())
-				log.Infof("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
+				log.Sugar().Info("blockSize: %s\n", ns1ROpts.BlockSize().String())
+				log.Sugar().Info("bufferPast: %s\n", ns1ROpts.BufferPast().String())
+				log.Sugar().Info("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
 
 				setup.setNowFn(fakeStart)
 
@@ -167,7 +168,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					ctx := context.NewContext()
 					defer ctx.Close()
 
-					log.Infof("writing datapoints")
+					log.Info("writing datapoints")
 					var i int
 					for i = lastDatapointsIdx; i < len(datapoints); i++ {
 						var (
@@ -182,15 +183,15 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
 						if err != nil {
-							log.Warnf("error writing series datapoint: %v", err)
+							log.Warn("error writing series datapoint", zap.Error(err))
 							return false, err
 						}
 					}
 					lastDatapointsIdx = i
-					log.Infof("wrote datapoints")
+					log.Info("wrote datapoints")
 
 					expectedSeriesMap := datapoints[:lastDatapointsIdx].toSeriesMap(ns1BlockSize)
-					log.Infof("verifying data in database equals expected data")
+					log.Info("verifying data in database equals expected data")
 					if !verifySeriesMaps(t, setup, nsID, expectedSeriesMap) {
 						// verifySeriesMaps will make sure the actual failure is included
 						// in the go test output, but it uses assert() under the hood so
@@ -198,9 +199,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						// as well.
 						return false, nil
 					}
-					log.Infof("verified data in database equals expected data")
+					log.Info("verified data in database equals expected data")
 					if input.waitForFlushFiles {
-						log.Infof("Waiting for data files to be flushed")
+						log.Info("waiting for data files to be flushed")
 						var (
 							now                       = setup.getNowFn()
 							endOfLatestFlushableBlock = retention.FlushTimeEnd(ns1ROpts, now).
@@ -219,7 +220,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					}
 
 					if input.waitForSnapshotFiles {
-						log.Infof("Waiting for snapshot files to be written")
+						log.Info("waiting for snapshot files to be written")
 						now := setup.getNowFn()
 						var snapshotBlock time.Time
 						if now.Add(-bufferPast).Truncate(ns1BlockSize).Equal(now.Truncate(ns1BlockSize)) {

@@ -26,10 +26,10 @@ import (
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/log"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -77,7 +77,7 @@ type leaderFlushManager struct {
 	flushTimesManager      FlushTimesManager
 	flushTimesPersistEvery time.Duration
 	maxBufferSize          time.Duration
-	logger                 log.Logger
+	logger                 *zap.Logger
 	scope                  tally.Scope
 
 	doneCh              <-chan struct{}
@@ -404,7 +404,7 @@ func (t *leaderFlushTask) Run() {
 	mgr := t.mgr
 	shards, err := mgr.placementManager.Shards()
 	if err != nil {
-		mgr.logger.Errorf("unable to determine shards owned by this instance: %v", err)
+		mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
 		return
 	}
 

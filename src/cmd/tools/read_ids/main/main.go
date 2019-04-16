@@ -31,11 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 	xretry "github.com/m3db/m3/src/x/retry"
 
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -70,7 +70,11 @@ func main() {
 	}
 	pageLimit := *pageLimitArg
 
-	log := xlog.NewLogger(os.Stderr)
+	rawLogger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("unable to create logger: %+v", err)
+	}
+	log := rawLogger.Sugar()
 
 	channel, err := tchannel.NewChannel("Client", nil)
 	if err != nil {

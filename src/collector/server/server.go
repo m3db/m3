@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/collector/api/v1/httpd"
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/collector/reporter/m3aggregator"
-	"github.com/m3db/m3/src/x/serialize"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 
 	"go.uber.org/zap"
 )
@@ -74,7 +74,6 @@ func Run(runOpts RunOptions) {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
-
 	defer logger.Sync()
 
 	logger.Info("creating metrics scope")
@@ -86,7 +85,7 @@ func Run(runOpts RunOptions) {
 
 	instrumentOpts := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger)
+		SetLogger(logger)
 
 	logger.Info("creating etcd client")
 	clusterClient, err := cfg.Etcd.NewClient(instrumentOpts)
@@ -178,7 +177,7 @@ func newReporter(
 	instrumentOpts instrument.Options,
 ) (reporter.Reporter, error) {
 	scope := instrumentOpts.MetricsScope()
-	logger := instrumentOpts.ZapLogger()
+	logger := instrumentOpts.Logger()
 	clockOpts := cfg.Clock.NewOptions()
 
 	logger.Info("creating metrics matcher cache")

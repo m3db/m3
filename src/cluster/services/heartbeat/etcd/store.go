@@ -32,13 +32,13 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -115,7 +115,7 @@ type client struct {
 	watchables map[string]watch.Watchable
 	opts       Options
 	sid        services.ServiceID
-	logger     log.Logger
+	logger     *zap.Logger
 	retrier    retry.Retrier
 	m          clientMetrics
 
@@ -314,7 +314,7 @@ func (c *client) tickAndStop(key string) bool {
 	watchable, ok := c.watchables[key]
 	c.RUnlock()
 	if !ok {
-		c.logger.Warnf("unexpected: key %s is already cleaned up", key)
+		c.logger.Warn("unexpected: key is already cleaned up", zap.String("key", key))
 		return true
 	}
 
@@ -328,7 +328,7 @@ func (c *client) tickAndStop(key string) bool {
 	watchable, ok = c.watchables[key]
 	if !ok {
 		// not expect this to happen
-		c.logger.Warnf("unexpected: key %s is already cleaned up", key)
+		c.logger.Warn("unexpected: key is already cleaned up", zap.String("key", key))
 		return true
 	}
 

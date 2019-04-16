@@ -33,8 +33,9 @@ import (
 	"github.com/m3db/m3/src/m3nsch/datums"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -51,7 +52,7 @@ type m3nschAgent struct {
 	session       client.Session      // m3db session to operate upon
 	agentStatus   m3nsch.Status       // agent status
 	opts          m3nsch.AgentOptions // agent options
-	logger        xlog.Logger         // logger
+	logger        *zap.Logger         // logger
 	metrics       agentMetrics        // agent performance metrics
 	workerChans   workerChannels      // worker-idx -> channel for worker notification
 	workerWg      sync.WaitGroup      // used to track when workers are finished

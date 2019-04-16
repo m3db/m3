@@ -24,8 +24,9 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/watch"
+
+	"go.uber.org/zap"
 )
 
 // Value is a value that can be updated during runtime.
@@ -48,7 +49,7 @@ type value struct {
 	key         string
 	store       kv.Store
 	opts        Options
-	log         log.Logger
+	log         *zap.Logger
 	unmarshalFn UnmarshalFn
 	processFn   ProcessFn
 	updateFn    watch.ProcessFn
@@ -97,10 +98,14 @@ func (v *value) getUpdateFn(updatable watch.Updatable) (interface{}, error) {
 func (v *value) update(value interface{}) error {
 	update := value.(kv.Value)
 	if v.currValue != nil && !update.IsNewer(v.currValue) {
-		v.log.Warnf("ignore kv update with version %d which is not newer than the version of the current value: %d", update.Version(), v.currValue.Version())
+		v.log.Warn("ignore kv update with version which is not newer than the version of the current value",
+			zap.Int("new version", update.Version()),
+			zap.Int("current version", v.currValue.Version()))
 		return nil
 	}
-	v.log.Infof("received kv update with version %d for key %s", update.Version(), v.key)
+	v.log.Info("received kv update",
+		zap.Int("version", update.Version()),
+		zap.String("key", v.key))
 	latest, err := v.unmarshalFn(update)
 	if err != nil {
 		return fmt.Errorf("error unmarshalling value for version %d: %v", update.Version(), err)

@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/log"
+	"go.uber.org/zap"
 )
 
 var (
@@ -66,7 +66,7 @@ type value struct {
 	sync.RWMutex
 
 	opts              Options
-	log               log.Logger
+	log               *zap.Logger
 	newUpdatableFn    NewUpdatableFn
 	getUpdateFn       GetUpdateFn
 	processFn         ProcessFn
@@ -152,12 +152,12 @@ func (v *value) watchUpdates(updatable Updatable) {
 		}
 		update, err := v.getUpdateFn(updatable)
 		if err != nil {
-			v.log.Errorf("error getting update: %v", err)
+			v.log.Error("error getting update", zap.Error(err))
 			v.Unlock()
 			continue
 		}
 		if err = v.processWithLockFn(update); err != nil {
-			v.log.Errorf("error updating value: %v", err)
+			v.log.Error("error updating update", zap.Error(err))
 		}
 		v.Unlock()
 	}

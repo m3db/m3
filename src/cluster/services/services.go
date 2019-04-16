@@ -33,10 +33,10 @@ import (
 	ps "github.com/m3db/m3/src/cluster/placement/service"
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/x/log"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -83,7 +83,7 @@ type client struct {
 	hbStores       map[string]HeartbeatService
 	ldSvcs         map[leaderKey]LeaderService
 	adDoneChs      map[string]chan struct{}
-	logger         log.Logger
+	logger         *zap.Logger
 	m              tally.Scope
 }
 
@@ -196,7 +196,9 @@ func (c *client) Advertise(ad Advertisement) error {
 		tickFn := func() {
 			if isHealthy(ad) {
 				if err := hb.Heartbeat(pi, m.LivenessInterval()); err != nil {
-					c.logger.Errorf("could not heartbeat service %s, %v", sid.String(), err)
+					c.logger.Error("could not heartbeat service",
+						zap.String("service", sid.String()),
+						zap.Error(err))
 					errCounter.Inc(1)
 				}
 			}
@@ -278,12 +280,11 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 		return nil, err
 	}
 
-	c.logger.Infof(
-		"adding a watch for service: %s env: %s zone: %s includeUnhealthy: %v",
-		sid.Name(),
-		sid.Environment(),
-		sid.Zone(),
-		opts.IncludeUnhealthy(),
+	c.logger.Info("adding a watch",
+		zap.String("service", sid.Name()),
+		zap.String("env", sid.Environment()),
+		zap.String("zone", sid.Zone()),
+		zap.Bool("includeUnhealthy", opts.IncludeUnhealthy()),
 	)
 
 	kvm, err := c.getKVManager(sid.Zone())
@@ -487,7 +488,7 @@ func (c *client) watchPlacementAndHeartbeat(
 
 			service = newService
 		case <-heartbeatWatch.C():
-			c.logger.Infof("received heartbeat update")
+			c.logger.Info("received heartbeat update")
 		}
 		w.update(filterInstancesWithWatch(service, heartbeatWatch))
 	}
@@ -510,18 +511,21 @@ func (c *client) serviceFromUpdate(
 		// NB(cw) this can only happen when the init wait called a Get() itself
 		// so the init value did not come from the watch, when the watch gets created
 		// the first update from it may from the same version.
-		c.logger.Infof("received stale placement update on version %d, skip", value.Version())
+		c.logger.Info("received stale placement update, skip",
+			zap.Int("version", value.Version()))
 		return nil
 	}
 
 	newService, err := getServiceFromValue(value, sid)
 	if err != nil {
-		c.logger.Errorf("could not unmarshal update from kv store for placement on version %d, %v", value.Version(), err)
+		c.logger.Error("could not unmarshal update from kv store for placement",
+			zap.Int("version", value.Version()),
+			zap.Error(err))
 		errCounter.Inc(1)
 		return nil
 	}
 
-	c.logger.Infof("successfully parsed placement on version %d", value.Version())
+	c.logger.Info("successfully parsed placement", zap.Int("version", value.Version()))
 	return newService
 }
 

@@ -27,10 +27,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	xlog "github.com/m3db/m3/src/x/log"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -73,7 +73,7 @@ func (i *dynamicInitializer) Init() (Registry, error) {
 type dynamicRegistry struct {
 	sync.RWMutex
 	opts         DynamicOptions
-	logger       xlog.Logger
+	logger       *zap.Logger
 	metrics      dynamicRegistryMetrics
 	watchable    xwatch.Watchable
 	kvWatch      kv.ValueWatch
@@ -115,8 +115,7 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	initValue := watch.Get()
 	m, err := getMapFromUpdate(initValue)
 	if err != nil {
-		logger.Errorf("dynamic namespace registry received invalid initial value: %v",
-			err)
+		logger.Error("dynamic namespace registry received invalid initial value", zap.Error(err))
 		return nil, err
 	}
 
@@ -179,32 +178,32 @@ func (r *dynamicRegistry) run() {
 		val := r.kvWatch.Get()
 		if val == nil {
 			r.metrics.numInvalidUpdates.Inc(1)
-			r.logger.Warnf("dynamic namespace registry received nil, skipping")
+			r.logger.Warn("dynamic namespace registry received nil, skipping")
 			continue
 		}
 
 		if !val.IsNewer(r.currentValue) {
 			r.metrics.numInvalidUpdates.Inc(1)
-			r.logger.Warnf("dynamic namespace registry received older version: %v, skipping",
-				val.Version())
+			r.logger.Warn("dynamic namespace registry received older version, skipping",
+				zap.Int("version", val.Version()))
 			continue
 		}
 
 		m, err := getMapFromUpdate(val)
 		if err != nil {
 			r.metrics.numInvalidUpdates.Inc(1)
-			r.logger.Warnf("dynamic namespace registry received invalid update: %v, skipping",
-				err)
+			r.logger.Warn("dynamic namespace registry received invalid update, skipping",
+				zap.Error(err))
 			continue
 		}
 
 		if m.Equal(r.maps()) {
 			r.metrics.numInvalidUpdates.Inc(1)
-			r.logger.Warnf("dynamic namespace registry received identical update, skipping")
+			r.logger.Warn("dynamic namespace registry received identical update, skipping")
 			continue
 		}
 
-		r.logger.Infof("dynamic namespace registry updated to version: %d", val.Version())
+		r.logger.Info("dynamic namespace registry updated to version", zap.Int("version", val.Version()))
 		r.Lock()
 		r.currentValue = val
 		r.currentMap = m

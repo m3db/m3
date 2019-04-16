@@ -33,6 +33,8 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/unsafe"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -260,9 +262,8 @@ func (s *Scanner) Scan() bool {
 
 		var err error
 		if s.path, s.timestamp, s.value, err = Parse(s.scanner.Bytes()); err != nil {
-			s.iOpts.Logger().Errorf(
-				"error trying to scan malformed carbon line: %s, err: %s",
-				string(s.path), err.Error())
+			s.iOpts.Logger().Error("error trying to scan malformed carbon line",
+				zap.String("line", string(s.path)), zap.Error(err))
 			s.MalformedCount++
 			continue
 		}

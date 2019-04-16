@@ -37,14 +37,14 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
-	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -123,7 +123,7 @@ type block struct {
 	backgroundCompactor   *compaction.Compactor
 
 	metrics blockMetrics
-	logger  xlog.Logger
+	logger  *zap.Logger
 }
 
 type blockMetrics struct {
@@ -257,8 +257,8 @@ func (b *block) maybeBackgroundCompactWithLock() {
 
 	plan, err := compaction.NewPlan(segs, b.opts.BackgroundCompactionPlannerOptions())
 	if err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-			l.Errorf("index background compaction plan error: %v", err)
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+			l.Error("index background compaction plan error", zap.Error(err))
 		})
 		return
 	}
@@ -311,8 +311,8 @@ func (b *block) cleanupBackgroundCompactWithLock() {
 	}
 
 	if err := b.backgroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-			l.Errorf("error closing index block background compactor: %v", err)
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+			l.Error("error closing index block background compactor", zap.Error(err))
 		})
 	}
 	b.backgroundCompactor = nil
@@ -322,8 +322,8 @@ func (b *block) closeCompactedSegments(segments []*readableSeg) {
 	for _, seg := range segments {
 		err := seg.Segment().Close()
 		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("could not close compacted segment: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("could not close compacted segment", zap.Error(err))
 			})
 		}
 	}
@@ -336,30 +336,30 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	n := b.compactionsBackground
 	b.compactionsBackground++
 
-	logger := b.logger.WithFields(
-		xlog.NewField("block", b.blockStart.String()),
-		xlog.NewField("numBackgroundCompaction", n),
+	logger := b.logger.With(
+		zap.Time("block", b.blockStart),
+		zap.Int("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
 	if log {
 		for i, task := range plan.Tasks {
 			summary := task.Summary()
-			logger.WithFields(
-				xlog.NewField("task", i),
-				xlog.NewField("numMutable", summary.NumMutable),
-				xlog.NewField("numFST", summary.NumFST),
-				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
-				xlog.NewField("cumulativeSize", summary.CumulativeSize),
-			).Debug("planned background compaction task")
+			logger.Debug("planned background compaction task",
+				zap.Int("task", i),
+				zap.Int("numMutable", summary.NumMutable),
+				zap.Int("numFST", summary.NumFST),
+				zap.String("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
+				zap.Int64("cumulativeSize", summary.CumulativeSize),
+			)
 		}
 	}
 
 	for i, task := range plan.Tasks {
 		err := b.backgroundCompactWithTask(task, log,
-			logger.WithFields(xlog.NewField("task", i)))
+			logger.With(zap.Int("task", i)))
 		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("error compacting segments: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("error compacting segments", zap.Error(err))
 			})
 			return
 		}
@@ -369,7 +369,7 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 func (b *block) backgroundCompactWithTask(
 	task compaction.Task,
 	log bool,
-	logger xlog.Logger,
+	logger *zap.Logger,
 ) error {
 	if log {
 		logger.Debug("start compaction task")
@@ -386,8 +386,7 @@ func (b *block) backgroundCompactWithTask(
 	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
 
 	if log {
-		logger.WithFields(xlog.NewField("took", took.String())).
-			Debug("done compaction task")
+		logger.Debug("done compaction task", zap.Duration("took", took))
 	}
 
 	if err != nil {
@@ -429,8 +428,8 @@ func (b *block) addCompactedSegmentFromSegments(
 		err := existing.Segment().Close()
 		if err != nil {
 			// Already compacted, not much we can do about not closing it.
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("unable to close compacted block: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("unable to close compacted block", zap.Error(err))
 			})
 		}
 	}
@@ -562,21 +561,21 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	n := b.compactionsForeground
 	b.compactionsForeground++
 
-	logger := b.logger.WithFields(
-		xlog.NewField("block", b.blockStart.String()),
-		xlog.NewField("numForegroundCompaction", n),
+	logger := b.logger.With(
+		zap.Time("block", b.blockStart),
+		zap.Int("numForegroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
 	if log {
 		for i, task := range plan.Tasks {
 			summary := task.Summary()
-			logger.WithFields(
-				xlog.NewField("task", i),
-				xlog.NewField("numMutable", summary.NumMutable),
-				xlog.NewField("numFST", summary.NumFST),
-				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
-				xlog.NewField("cumulativeSize", summary.CumulativeSize),
-			).Debug("planned foreground compaction task")
+			logger.Debug("planned foreground compaction task",
+				zap.Int("task", i),
+				zap.Int("numMutable", summary.NumMutable),
+				zap.Int("numFST", summary.NumFST),
+				zap.Duration("cumulativeMutableAge", summary.CumulativeMutableAge),
+				zap.Int64("cumulativeSize", summary.CumulativeSize),
+			)
 		}
 	}
 
@@ -587,7 +586,7 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	// Run the first task, without resetting the builder.
 	if err := b.foregroundCompactWithTask(
 		builder, plan.Tasks[0],
-		log, logger.WithFields(xlog.NewField("task", 0)),
+		log, logger.With(zap.Int("task", 0)),
 	); err != nil {
 		return err
 	}
@@ -605,7 +604,7 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		builder.Reset(0)
 		if err := b.foregroundCompactWithTask(
 			builder, task,
-			log, logger.WithFields(xlog.NewField("task", i)),
+			log, logger.With(zap.Int("task", i)),
 		); err != nil {
 			return err
 		}
@@ -625,8 +624,8 @@ func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
 		return
 	}
 
-	b.logger.Debugf("moving %d segments from foreground to background",
-		len(segments))
+	b.logger.Debug("moving segments from foreground to background",
+		zap.Int("numSegments", len(segments)))
 
 	// If background compaction is still active, then we move any unused
 	// foreground segments into the background so that they might be
@@ -659,7 +658,7 @@ func (b *block) foregroundCompactWithTask(
 	builder segment.DocumentsBuilder,
 	task compaction.Task,
 	log bool,
-	logger xlog.Logger,
+	logger *zap.Logger,
 ) error {
 	if log {
 		logger.Debug("start compaction task")
@@ -679,8 +678,7 @@ func (b *block) foregroundCompactWithTask(
 	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
 
 	if log {
-		logger.WithFields(xlog.NewField("took", took.String())).
-			Debug("done compaction task")
+		logger.Debug("done compaction task", zap.Duration("took", took))
 	}
 
 	if err != nil {
@@ -715,8 +713,8 @@ func (b *block) cleanupForegroundCompactWithLock() {
 	}
 
 	if err := b.foregroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-			l.Errorf("error closing index block foreground compactor: %v", err)
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+			l.Error("error closing index block foreground compactor", zap.Error(err))
 		})
 	}
 
@@ -1154,8 +1152,8 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 		return errUnableToWriteBlockSealed
 	default: // should never happen
 		err := fmt.Errorf(errUnableToWriteBlockUnknownStateFmtString, state)
-		instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
-			l.Errorf(err.Error())
+		instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l *zap.Logger) {
+			l.Error(err.Error())
 		})
 		return err
 	}

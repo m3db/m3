@@ -33,6 +33,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 /*
@@ -102,27 +103,27 @@ func TestIndexBlockRotation(t *testing.T) {
 	log.Info("starting data write")
 	start := time.Now()
 	writesPeriod0.write(t, md.ID(), session)
-	log.Infof("test data written in %v", time.Since(start))
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
-	log.Infof("waiting till data is indexed")
+	log.Info("waiting till data is indexed")
 	indexed := xclock.WaitUntil(func() bool {
 		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
 		return indexPeriod0 == len(writesPeriod0)
 	}, 5*time.Second)
 	require.True(t, indexed)
-	log.Infof("verifiied data is indexed in %v", time.Since(start))
+	log.Info("verifiied data is indexed", zap.Duration("took", time.Since(start)))
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
 		idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	// ensure all data is present
-	log.Infof("querying period0 results")
+	log.Info("querying period0 results")
 	period0Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.matchesSeriesIters(t, period0Results)
-	log.Infof("found period0 results")
+	log.Info("found period0 results")
 
 	// move time to 4p
 	testSetup.setNowFn(t2)
@@ -131,7 +132,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	testSetup.sleepFor10xTickMinimumInterval()
 
 	// ensure all data is absent
-	log.Infof("querying period0 results after expiry")
+	log.Info("querying period0 results after expiry")
 	period0Results, _, err = session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)

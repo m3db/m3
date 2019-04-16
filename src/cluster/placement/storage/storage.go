@@ -23,9 +23,9 @@ package storage
 import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/x/log"
 
 	"github.com/golang/protobuf/proto"
+	"go.uber.org/zap"
 )
 
 const errorVersionValue = 0
@@ -35,7 +35,7 @@ type storage struct {
 	key    string
 	store  kv.Store
 	opts   placement.Options
-	logger log.Logger
+	logger *zap.Logger
 }
 
 // NewPlacementStorage creates a placement.Storage.

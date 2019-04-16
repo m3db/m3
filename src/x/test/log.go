@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,16 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package log
+package test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
-func TestNullLogger(t *testing.T) {
-	require.NotPanics(t, func() {
-		NullLogger.WithFields(NewField("key", "value")).Info("msg")
-	})
+// NewLogger returns a new test logger.
+func NewLogger(t *testing.T) *zap.Logger {
+	zc := zap.NewDevelopmentConfig()
+	zc.DisableCaller = true
+	zl, err := zc.Build()
+	require.NoError(t, err)
+	return zl
 }

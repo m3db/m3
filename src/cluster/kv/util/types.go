@@ -22,7 +22,8 @@ package util
 
 import (
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 // ValidateFn validates an update from KV.
@@ -49,15 +50,15 @@ type Options interface {
 	ValidateFn() ValidateFn
 
 	// SetLogger sets the logger.
-	SetLogger(val log.Logger) Options
+	SetLogger(val *zap.Logger) Options
 
 	// Logger returns the logger.
-	Logger() log.Logger
+	Logger() *zap.Logger
 }
 
 type options struct {
 	validateFn ValidateFn
-	logger     log.Logger
+	logger     *zap.Logger
 }
 
 // NewOptions returns a new set of options for kv utility functions.
@@ -75,12 +76,12 @@ func (o *options) ValidateFn() ValidateFn {
 	return o.validateFn
 }
 
-func (o *options) SetLogger(val log.Logger) Options {
+func (o *options) SetLogger(val *zap.Logger) Options {
 	opts := *o
 	opts.logger = val
 	return &opts
 }
 
-func (o *options) Logger() log.Logger {
+func (o *options) Logger() *zap.Logger {
 	return o.logger
 }

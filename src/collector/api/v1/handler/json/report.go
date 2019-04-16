@@ -113,7 +113,7 @@ func (h *reportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &reportResponse{Reported: len(req.Metrics)}
-	xhttp.WriteJSONResponse(w, resp, h.instrumentOpts.ZapLogger())
+	xhttp.WriteJSONResponse(w, resp, h.instrumentOpts.Logger())
 }
 
 func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *xhttp.ParseError) {

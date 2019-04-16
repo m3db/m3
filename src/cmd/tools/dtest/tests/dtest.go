@@ -25,9 +25,9 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/dtest/config"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var (
@@ -85,8 +85,10 @@ func panicIfErr(err error, msg string) {
 	panic(fmt.Errorf("%s: %s", msg, errStr))
 }
 
-func newLogger(cmd *cobra.Command) xlog.Logger {
-	logger := xlog.NewLogger(os.Stdout)
+func newLogger(cmd *cobra.Command) *zap.Logger {
+	rawLogger, err := zap.NewDevelopment()
+	panicIfErr(err, "unable to create logger")
+	logger := rawLogger.Sugar()
 	logger.Infof("============== %v ==============", cmd.Name())
 	desc := cmd.Long
 	if desc == "" {
@@ -94,5 +96,5 @@ func newLogger(cmd *cobra.Command) xlog.Logger {
 	}
 	logger.Infof("Test description: %v", desc)
 	logger.Infof("============================")
-	return logger
+	return rawLogger
 }

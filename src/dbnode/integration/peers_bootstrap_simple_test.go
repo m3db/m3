@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xlog "github.com/m3db/m3/src/x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +40,7 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	}
 
 	// Test setups
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(2 * time.Hour).

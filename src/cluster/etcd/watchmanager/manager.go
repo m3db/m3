@@ -25,11 +25,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/x/log"
-
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // NewWatchManager creates a new watch manager
@@ -54,7 +53,7 @@ func NewWatchManager(opts Options) (WatchManager, error) {
 
 type manager struct {
 	opts   Options
-	logger log.Logger
+	logger *zap.Logger
 	m      metrics
 
 	updateFn      UpdateFn
@@ -110,12 +109,12 @@ func (w *manager) Watch(key string) {
 			w.m.etcdWatchCreate.Inc(1)
 			watchChan, cancelFn, err = w.watchChanWithTimeout(key, revOverride)
 			if err != nil {
-				w.logger.Errorf("could not create etcd watch: %v", err)
+				w.logger.Error("could not create etcd watch", zap.Error(err))
 
 				// NB(cw) when we failed to create a etcd watch channel
 				// we do a get for now and will try to recreate the watch chan later
 				if err = w.updateFn(key, nil); err != nil {
-					w.logger.Errorf("failed to get value for key %s: %v", key, err)
+					w.logger.Error("failed to get value for key", zap.String("key", key), zap.Error(err))
 				}
 				// avoid recreating watch channel too frequently
 				time.Sleep(w.opts.WatchChanResetInterval())
@@ -130,7 +129,8 @@ func (w *manager) Watch(key string) {
 				// this is unlikely to happen but just to be defensive
 				cancelFn()
 				watchChan = nil
-				w.logger.Warnf("etcd watch channel closed on key %s, recreating a watch channel", key)
+				w.logger.Warn("etcd watch channel closed on key, recreating a watch channel",
+					zap.String("key", key))
 
 				// avoid recreating watch channel too frequently
 				time.Sleep(w.opts.WatchChanResetInterval())
@@ -141,7 +141,7 @@ func (w *manager) Watch(key string) {
 
 			// handle the update
 			if err = r.Err(); err != nil {
-				w.logger.Errorf("received error on watch channel: %v", err)
+				w.logger.Error("received error on watch channel", zap.Error(err))
 				w.m.etcdWatchError.Inc(1)
 				// do not stop here, even though the update contains an error
 				// we still take this chance to attempt a Get() for the latest value
@@ -149,7 +149,7 @@ func (w *manager) Watch(key string) {
 				// If the current revision has been compacted, set watchChan to
 				// nil so the watch is recreated with a valid start revision
 				if err == rpctypes.ErrCompacted {
-					w.logger.Warnf("recreating watch at revision %d", r.CompactRevision)
+					w.logger.Warn("recreating watch at revision", zap.Int64("revision", r.CompactRevision))
 					revOverride = r.CompactRevision
 					watchChan = nil
 				}
@@ -160,11 +160,12 @@ func (w *manager) Watch(key string) {
 				continue
 			}
 			if err = w.updateFn(key, r.Events); err != nil {
-				w.logger.Errorf("received notification for key %s, but failed to get value: %v", key, err)
+				w.logger.Error("received notification for key, but failed to get value",
+					zap.String("key", key), zap.Error(err))
 			}
 		case <-ticker:
 			if w.tickAndStopFn(key) {
-				w.logger.Infof("watch on key %s ended", key)
+				w.logger.Info("watch on key ended", zap.String("key", key))
 				return
 			}
 		}
