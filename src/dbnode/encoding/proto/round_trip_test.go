@@ -224,6 +224,9 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.Equal(t, 3, len(m.GetKnownFields()))
 	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
+	// This field does not exist in VL1 so it should have a default value when deocoding
+	// with a VL2 schema.
+	require.Equal(t, "", m.GetFieldByName("new_field"))
 
 	// These fields don't exist in the vl2 schema so they should not be in the returned message.
 	_, err = m.TryGetFieldByName("epoch")
