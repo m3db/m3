@@ -161,7 +161,7 @@ func (it *iterator) Next() bool {
 
 		if schemaHasChangedControlBit == opCodeSchemaChange {
 			if err := it.readHeader(); err != nil {
-				it.err = err
+				it.err = fmt.Errorf("%s error reading header: %v", itErrPrefix, err)
 				return false
 			}
 
@@ -289,8 +289,8 @@ func (it *iterator) readCustomFieldsSchema() error {
 
 	if numCustomFields > maxCustomFieldNum {
 		return fmt.Errorf(
-			"%s num custom fields in header is %d but maximum allowed is %d",
-			itErrPrefix, numCustomFields, maxCustomFieldNum)
+			"num custom fields in header is %d but maximum allowed is %d",
+			numCustomFields, maxCustomFieldNum)
 	}
 
 	if it.customFields != nil {
@@ -441,7 +441,7 @@ func (it *iterator) readFloatValue(i int) error {
 		return err
 	}
 
-	return it.updateLastIteratedWithCustomValues(i)
+	return it.updateLastIteratedWithCustomValues(i, nil)
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
@@ -516,28 +516,8 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		buf = append(buf, b)
 	}
 
-	// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
-	// schemas to only have bytes since its all the same over the wire.
-	// https://github.com/m3db/m3/issues/1471
-	schemaField := it.schema.FindFieldByNumber(int32(customField.fieldNum))
-	if schemaField != nil {
-		// schemaField can be nil in the case where we're decoding a stream that was encoded with a schema
-		// newer than the one we currently have.
-		schemaFieldType := schemaField.GetType()
-		if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-			err = it.lastIterated.TrySetFieldByNumber(customField.fieldNum, string(buf))
-		} else {
-			err = it.lastIterated.TrySetFieldByNumber(customField.fieldNum, buf)
-		}
-		if err != nil {
-			return fmt.Errorf(
-				"%s error trying to set field number: %d, err: %v",
-				itErrPrefix, customField.fieldNum, err)
-		}
-	}
-
 	it.addToBytesDict(i, buf)
-	return nil
+	return it.updateLastIteratedWithCustomValues(i, buf)
 }
 
 func (it *iterator) readIntValue(i int) error {
@@ -545,14 +525,14 @@ func (it *iterator) readIntValue(i int) error {
 		return err
 	}
 
-	return it.updateLastIteratedWithCustomValues(i)
+	return it.updateLastIteratedWithCustomValues(i, nil)
 }
 
 // updateLastIteratedWithCustomValues updates lastIterated with the current
 // value of the custom field in it.customFields at index i. This ensures that
 // when we return it.lastIterated in the call to Current() that all the
 // most recent values are present.
-func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
+func (it *iterator) updateLastIteratedWithCustomValues(i int, bytesFieldBuf []byte) error {
 	if it.lastIterated == nil {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
@@ -563,9 +543,9 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 	)
 
 	if field := it.schema.FindFieldByNumber(int32(fieldNum)); field == nil {
-		// This can happen when the field being encoded does not exist in
-		// the current schema (or is reserved), but the message was encoded
-		// with a schema in which the field number did exist.
+		// This can happen when the field being decoded does not exist (or is reserved)
+		// in the current schema, but the message was encoded with a schema in which the
+		// field number did exist.
 		return nil
 	}
 
@@ -605,10 +585,22 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 				"%s expected custom int encoded field but field type was: %v",
 				itErrPrefix, fieldType)
 		}
+	case fieldType == bytesField:
+		// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
+		// schemas to only have bytes since its all the same over the wire.
+		// https://github.com/m3db/m3/issues/1471
+		schemaField := it.schema.FindFieldByNumber(int32(fieldNum))
+		schemaFieldType := schemaField.GetType()
+		if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, string(bytesFieldBuf))
+		}
+		return it.lastIterated.TrySetFieldByNumber(fieldNum, bytesFieldBuf)
 	default:
 		return fmt.Errorf(
 			"%s unhandled fieldType: %v", itErrPrefix, fieldType)
 	}
+
+	return nil
 }
 
 // readBitset does the inverse of encodeBitset on the encoder struct.
