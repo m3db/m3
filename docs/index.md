@@ -2,24 +2,26 @@
 
 ## About
 
-[M3](https://github.com/m3db/m3) is an open source metrics platform that was developed at Uber out of necessity.
-After using what was available as open source and finding we were unable to use them at our scale due to issues
-with their reliability, cost and operationally intensive nature, we built our own metrics platform piece by piece.
-We used our experience to help us build a native distributed time series database, a highly dynamic and performant
-aggregation service, query engine and other supporting infrastructure.
+After using open-source metrics solutions and finding issues with them at scale – such as reliability, cost, and
+operational complexity – [M3](https://github.com/m3db/m3) was created from the ground up to provide Uber with a
+native, distributed time series database, a highly-dynamic and performant aggregation service, a query engine, and
+other supporting infrastructure.
 
 ## Key Features
 
-Below are some of the key features of M3 that make it a great platform for time series data.
+M3 has several features, provided as discrete components, which make it an ideal platform for time series data at scale:
 
-* Distributed time series database (M3DB) that provides scalable storage and a reverse index of time series.
-* Side-car process (M3Coordinator) that allows M3DB to act as the long-term storage for Prometheus.
-* Distributed query engine (M3Query) with native support for PromQL and Graphite.
-* Aggregation tier (M3Aggregator) that runs as a dedicated metrics aggregator.
+* A distributed time series database, [M3DB](m3db/index.md), that provides scalable storage for time series data and a reverse index.
+* A sidecar process, [M3Coordinator](integrations/prometheus.md), that allows M3DB to act as the long-term storage for Prometheus.
+* A distributed query engine, [M3Query](query_engine/index.md), with native support for PromQL and Graphite (M3QL coming soon).
+<!-- Add M3Aggregator link -->
+* An aggregation tier, M3Aggregator, that runs as a dedicated metrics aggregator/downsampler allowing metrics to be stored at various retentions at different resolutions.
 
 ## Getting Started
 
-Getting started with M3 is as easy as following one of our `How-To` guides.
+**Note:** Make sure to read our [Operational Guides](operational_guide/index.md) before running in production!
+
+Getting started with M3 is as easy as following one of the How-To guides.
 
 * [Single M3DB node deployment](how_to/single_node.md)
 * [Clustered M3DB deployment](how_to/cluster_hard_way.md)
@@ -28,8 +30,8 @@ Getting started with M3 is as easy as following one of our `How-To` guides.
 
 ## Support
 
-Should you run into any issues, have questions about M3, or want to leave any comments, you can reach us
-on a number of different channels.
+For support with any issues, questions about M3 or its operation, or to leave any comments, the team can be
+reached in a variety of ways:
 
 * [Gitter](https://gitter.im/m3db/Lobby)
 * [Email](https://groups.google.com/forum/#!forum/m3db)
