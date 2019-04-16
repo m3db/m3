@@ -40,11 +40,15 @@ func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
 		Development:       false,
 		DisableCaller:     true,
 		DisableStacktrace: true,
-		Encoding:          "console",
-		EncoderConfig:     zap.NewDevelopmentEncoderConfig(),
-		OutputPaths:       []string{"stdout"},
-		ErrorOutputPaths:  []string{"stdout"},
-		InitialFields:     cfg.Fields,
+		Sampling: &zap.SamplingConfig{
+			Initial:    100,
+			Thereafter: 100,
+		},
+		Encoding:         "json",
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stdout"},
+		InitialFields:    cfg.Fields,
 	}
 
 	if cfg.File != "" {
