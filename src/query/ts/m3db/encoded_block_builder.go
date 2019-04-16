@@ -50,14 +50,12 @@ type encodedBlockBuilder struct {
 }
 
 func newEncodedBlockBuilder(
+	offset time.Duration,
 	opts Options,
 ) *encodedBlockBuilder {
-	var (
-		lookback        = opts.LookbackDuration()
-		offset          = opts.Offset()
-		tagOptions      = opts.TagOptions()
-		consolidationFn = opts.ConsolidationFunc()
-	)
+	lookback := opts.LookbackDuration()
+	tagOptions := opts.TagOptions()
+	consolidationFn := opts.ConsolidationFunc()
 
 	return &encodedBlockBuilder{
 		lookback:        lookback,

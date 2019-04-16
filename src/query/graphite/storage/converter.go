@@ -25,6 +25,11 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
+const (
+	carbonSeparatorByte = byte('.')
+	carbonGlobRune      = '*'
+)
+
 var (
 	wildcard = []byte(".*")
 )

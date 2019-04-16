@@ -38,7 +38,6 @@ var (
 	defaultCapacity         = 1024
 	defaultCount            = 10
 	defaultLookbackDuration = time.Duration(0)
-	defaultOffset           = time.Duration(0)
 	defaultConsolidationFn  = consolidators.TakeLast
 	defaultIterAlloc        = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
@@ -48,7 +47,6 @@ var (
 type encodedBlockOptions struct {
 	splitSeries      bool
 	lookbackDuration time.Duration
-	offset           time.Duration
 	consolidationFn  consolidators.ConsolidationFunc
 	tagOptions       models.TagOptions
 	iterAlloc        encoding.ReaderIteratorAllocate
@@ -69,7 +67,6 @@ func NewOptions() Options {
 
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
-		offset:           defaultOffset,
 		consolidationFn:  defaultConsolidationFn,
 		tagOptions:       models.NewTagOptions(),
 		iterAlloc:        defaultIterAlloc,
@@ -86,16 +83,6 @@ func (o *encodedBlockOptions) SetSplitSeriesByBlock(split bool) Options {
 
 func (o *encodedBlockOptions) SplittingSeriesByBlock() bool {
 	return o.splitSeries
-}
-
-func (o *encodedBlockOptions) SetOffset(offset time.Duration) Options {
-	opts := *o
-	opts.offset = offset
-	return &opts
-}
-
-func (o *encodedBlockOptions) Offset() time.Duration {
-	return o.offset
 }
 
 func (o *encodedBlockOptions) SetLookbackDuration(lookback time.Duration) Options {

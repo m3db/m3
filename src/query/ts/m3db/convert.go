@@ -26,6 +26,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/query/storage"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
@@ -73,9 +75,10 @@ func (b seriesBlocks) Less(i, j int) bool {
 func seriesIteratorsToEncodedBlockIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	options *storage.FetchOptions,
 	opts Options,
 ) ([]block.Block, error) {
-	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, opts)
+	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, options, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +92,7 @@ func seriesIteratorsToEncodedBlockIterators(
 func ConvertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	options *storage.FetchOptions,
 	opts Options,
 ) ([]block.Block, error) {
 	if err := opts.Validate(); err != nil {
@@ -96,20 +100,26 @@ func ConvertM3DBSeriesIterators(
 	}
 
 	if opts.SplittingSeriesByBlock() {
-		return convertM3DBSegmentedBlockIterators(iterators, bounds, opts)
+		return convertM3DBSegmentedBlockIterators(iterators, bounds, options, opts)
 	}
 
-	return seriesIteratorsToEncodedBlockIterators(iterators, bounds, opts)
+	return seriesIteratorsToEncodedBlockIterators(iterators, bounds, options, opts)
 }
 
 // convertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
 func convertM3DBSegmentedBlockIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	options *storage.FetchOptions,
 	opts Options,
 ) ([]block.Block, error) {
+	offset := time.Duration(0)
+	if options != nil {
+		offset = options.Offset
+	}
+
 	defer iterators.Close()
-	blockBuilder := newEncodedBlockBuilder(opts)
+	blockBuilder := newEncodedBlockBuilder(offset, opts)
 	var (
 		iterAlloc    = opts.IterAlloc()
 		pools        = opts.IteratorPools()
