@@ -64,8 +64,9 @@ func TestEmptyBufferConfiguration(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(nil, &cfg))
 	require.Equal(t, BufferConfiguration{}, cfg)
 	rOpts := retry.NewOptions()
+	iopts := instrument.NewOptions()
 	require.Equal(t,
-		buffer.NewOptions().SetCleanupRetryOptions(rOpts),
-		cfg.NewOptions(instrument.NewOptions()).SetCleanupRetryOptions(rOpts),
+		buffer.NewOptions().SetCleanupRetryOptions(rOpts).SetInstrumentOptions(iopts),
+		cfg.NewOptions(iopts).SetCleanupRetryOptions(rOpts),
 	)
 }
