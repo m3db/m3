@@ -349,7 +349,10 @@ const (
 // cycle will loop through all ColdWrites and persist them, whereas WarmWrites
 // will require additional complexity in managing state in order for the flush
 // cycle to know to flush these blocks.
-const BootstrapWriteType = ColdWrite
+//
+// TODO(juchan): Switch this to ColdWrite after ColdWrite persistence is
+// complete due to the above explanation.
+const BootstrapWriteType = WarmWrite
 
 // WriteOptions provides a set of options for a write.
 type WriteOptions struct {
