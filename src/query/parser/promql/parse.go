@@ -22,7 +22,9 @@ package promql
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/m3db/m3/src/query/functions/offset"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -80,6 +82,26 @@ func (p *parseState) transformLen() int {
 	return len(p.transforms)
 }
 
+func (p *parseState) addOffsetTransform(off time.Duration) error {
+	if off <= 0 {
+		return nil
+	}
+
+	op, err := offset.NewOffsetOp(off)
+	if err != nil {
+		return err
+	}
+
+	opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+	p.edges = append(p.edges, parser.Edge{
+		ParentID: p.lastTransformID(),
+		ChildID:  opTransform.ID,
+	})
+	p.transforms = append(p.transforms, opTransform)
+
+	return nil
+}
+
 func (p *parseState) walk(node pql.Node) error {
 	if node == nil {
 		return nil
@@ -113,7 +135,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		return nil
+		return p.addOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
@@ -122,7 +144,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		return nil
+		return p.addOffsetTransform(n.Offset)
 
 	case *pql.Call:
 		expressions := n.Args
