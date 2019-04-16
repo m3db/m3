@@ -54,8 +54,8 @@ var (
 )
 
 const (
-	bucketsCacheSize = 2
-
+	bucketsCacheSize  = 2
+	timesArraySize    = 8
 	writableBucketVer = 0
 )
 
@@ -116,7 +116,47 @@ type bufferStats struct {
 
 type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
-	evictedBucketTimes     []time.Time
+	evictedBucketTimes     times
+}
+
+// times is a struct that holds an unknown number of times. This is used to
+// to avoid heap allocations as much as possible by trying to not allocate a
+// slice of times. To do this, `timesArraySize` needs to be strategically sized
+// such that for the vast majority of the time, the internal array can hold all
+// the times required so that `slice` is nil.
+type times struct {
+	arrIdx int
+	arr    [timesArraySize]time.Time
+	slice  []time.Time
+}
+
+func (t times) add(newTime time.Time) times {
+	if t.arrIdx < timesArraySize {
+		t.arr[t.arrIdx] = newTime
+		t.arrIdx++
+	} else {
+		t.slice = append(t.slice, newTime)
+	}
+
+	return t
+}
+
+func (t times) len() int {
+	return t.arrIdx + len(t.slice)
+}
+
+func (t times) contains(target time.Time) bool {
+	for i := 0; i < t.arrIdx; i++ {
+		if t.arr[i].Equal(target) {
+			return true
+		}
+	}
+	for _, tt := range t.slice {
+		if tt.Equal(target) {
+			return true
+		}
+	}
+	return false
 }
 
 type dbBuffer struct {
@@ -227,9 +267,9 @@ func (b *dbBuffer) Stats() bufferStats {
 
 func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickResult {
 	mergedOutOfOrder := 0
-	var evictedBucketTimes []time.Time
+	var evictedBucketTimes times
 	for tNano, buckets := range b.bucketsMap {
-		// The blockStates map is never be written to after creation, so this
+		// The blockStates map is never written to after creation, so this
 		// read access is safe. Since this version map is a snapshot of the
 		// versions, the real block flush versions may be higher. This is okay
 		// here because it's safe to:
@@ -253,9 +293,14 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 			// Data gets read in order of precedence: buffer -> cache -> disk.
 			// After a bucket gets removed from the buffer, data from the cache
 			// will be served. However, since data just got persisted to disk,
-			// the cached block is now stale, therefore we need to evict that
-			// block from cache so that the new data can be retrieved from disk.
-			evictedBucketTimes = append(evictedBucketTimes, t)
+			// the cached block is now stale. To correct this, we can either:
+			// 1) evict the stale block from cache so that new data will
+			//    be retrieved from disk, or
+			// 2) merge the new data into the cached block.
+			// It's unclear whether recently flushed data would frequently be
+			// read soon afterward, so we're choosing (1) here, since it has a
+			// simpler implementation (just removing from a map).
+			evictedBucketTimes = evictedBucketTimes.add(t)
 			continue
 		}
 
@@ -616,7 +661,7 @@ func (b *dbBuffer) inOrderBlockStartsRemove(removeTime time.Time) {
 // BufferBucketVersions is a container for different versions of buffer buckets.
 // Bucket versions are how the buffer separates writes that have been written
 // to disk as a fileset and writes that have not. The bucket with a version of
-// `writableBucketVer` is the bucket that all writes go into (as thus us the
+// `writableBucketVer` is the bucket that all writes go into (as thus is the
 // bucket version that have not yet been persisted). After a bucket gets
 // persisted, its version gets set to a version that the shard passes down to it
 // (since the shard knows what has been fully persisted to disk).
