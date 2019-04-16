@@ -79,7 +79,22 @@ type Encoder struct {
 	hasEncodedSchema bool
 	closed           bool
 
+	stats            encoderStats
 	timestampEncoder m3tsz.TimestampEncoder
+}
+
+// EncoderStats contains statistics about the encoders compression performance.
+type EncoderStats struct {
+	UncompressedBytes int
+	CompressedBytes   int
+}
+
+type encoderStats struct {
+	uncompressedBytes int
+}
+
+func (s *encoderStats) IncUncompressedBytes(x int) {
+	s.uncompressedBytes += x
 }
 
 // NewEncoder creates a new protobuf encoder.
@@ -197,6 +212,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	enc.numEncoded++
 	enc.lastEncodedDP = dp
+	enc.stats.IncUncompressedBytes(len(protoBytes))
 	return nil
 }
 
@@ -259,6 +275,15 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 // Len returns the length of the data stream.
 func (enc *Encoder) Len() int {
 	return enc.stream.Len()
+}
+
+// Stats returns EncoderStats which contain statistics about the encoders compression
+// ratio.
+func (enc *Encoder) Stats() EncoderStats {
+	return EncoderStats{
+		UncompressedBytes: enc.stats.uncompressedBytes,
+		CompressedBytes:   enc.Len(),
+	}
 }
 
 func (enc *Encoder) encodeStreamHeader() {

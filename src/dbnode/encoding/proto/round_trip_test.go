@@ -72,19 +72,19 @@ func TestRoundTrip(t *testing.T) {
 			latitude:   0.1,
 			longitude:  1.1,
 			epoch:      0,
-			deliveryID: []byte("123"),
+			deliveryID: []byte("123123123123"),
 		},
 		{
 			latitude:   0.2,
 			longitude:  2.2,
 			epoch:      1,
-			deliveryID: []byte("789"),
+			deliveryID: []byte("789789789789"),
 		},
 		{
 			latitude:   0.3,
 			longitude:  2.3,
 			epoch:      2,
-			deliveryID: []byte("123"),
+			deliveryID: []byte("123123123123"),
 		},
 		{
 			latitude:  0.4,
@@ -95,7 +95,7 @@ func TestRoundTrip(t *testing.T) {
 			latitude:   0.5,
 			longitude:  2.5,
 			epoch:      4,
-			deliveryID: []byte("456"),
+			deliveryID: []byte("456456456456"),
 		},
 		{
 			latitude:   0.6,
@@ -105,7 +105,7 @@ func TestRoundTrip(t *testing.T) {
 		{
 			latitude:   0.5,
 			longitude:  2.5,
-			deliveryID: []byte("ASDFAJSDFHAJKSFHK"),
+			deliveryID: []byte("789789789789"),
 		},
 	}
 
@@ -122,6 +122,8 @@ func TestRoundTrip(t *testing.T) {
 		err = enc.Encode(ts.Datapoint{Timestamp: currTime}, xtime.Second, marshaledVL)
 		require.NoError(t, err)
 	}
+	// Add some sanity to make sure that the string compression is working.
+	require.Equal(t, 165, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
