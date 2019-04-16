@@ -21,11 +21,13 @@
 package instrument
 
 import (
+	"os"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -43,8 +45,11 @@ type options struct {
 
 // NewOptions creates new instrument options.
 func NewOptions() Options {
+	zapCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), os.Stdout, zap.InfoLevel)
+	zapLogger := zap.New(zapCore)
 	return &options{
-		zap:            zap.L(),
+		zap:            zapLogger,
 		scope:          tally.NoopScope,
 		samplingRate:   defaultSamplingRate,
 		reportInterval: defaultReportingInterval,
