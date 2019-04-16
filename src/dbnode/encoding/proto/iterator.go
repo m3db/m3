@@ -101,56 +101,94 @@ func (it *iterator) Next() bool {
 	}
 
 	if !it.hasNext() {
+		fmt.Println(1)
 		return false
 	}
 
-	if !it.consumedFirstMessage {
-		if err := it.readHeader(); err != nil {
-			it.err = err
-			return false
-		}
-	}
-
+	fmt.Println("a")
 	moreDataControlBit, err := it.stream.ReadBit()
 	if err == io.EOF {
+		fmt.Println(2)
 		it.done = true
 		return false
 	}
 	if err != nil {
+		fmt.Println(3)
 		it.err = err
 		return false
 	}
 
-	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChangeOrSchemaChange {
+	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange {
+		fmt.Println("b")
 		// The next bit will tell us whether we've reached the end of the stream
-		// or that the time unit changed.
+		// or that the time unit and/or schema has changed.
 		noMoreDataControlBit, err := it.stream.ReadBit()
 		if err == io.EOF {
+			fmt.Println(4)
 			it.done = true
 			return false
 		}
 		if err != nil {
+			fmt.Println(5)
 			it.err = err
 			return false
 		}
 
 		if noMoreDataControlBit == opCodeNoMoreData {
+			fmt.Println(6)
 			it.done = true
 			return false
 		}
 
-		if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
-			it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
+		fmt.Println("time unit change and/or shema change!")
+		// The next bit will tell us whether the time unit has changed.
+		timeUnitHasChangedControlBit, err := it.stream.ReadBit()
+		if err != nil {
+			fmt.Println(7)
+			it.err = err
 			return false
 		}
 
-		if !it.consumedFirstMessage {
-			// Don't interpret the initial time unit as a "change" since the encoder special
-			// cases the first one.
-			it.tsIterator.TimeUnitChanged = false
+		fmt.Println("timeUnitHasChangedControlBit: ", timeUnitHasChangedControlBit)
+		// The next bit will tell us whether the schema has changed.
+		schemaHasChangedControlBit, err := it.stream.ReadBit()
+		if err != nil {
+			fmt.Println(8)
+			it.err = err
+			return false
+		}
+
+		if timeUnitHasChangedControlBit == opCodeTimeUnitChange {
+			fmt.Println("time unit change!")
+			fmt.Println(9)
+			if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
+				fmt.Println(10)
+				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
+				return false
+			}
+
+			if !it.consumedFirstMessage {
+				fmt.Println(11)
+				// Don't interpret the initial time unit as a "change" since the encoder special
+				// cases the first one.
+				it.tsIterator.TimeUnitChanged = false
+			}
+		}
+
+		if schemaHasChangedControlBit == opCodeSchemaChange {
+			if err := it.readHeader(); err != nil {
+				it.err = err
+				return false
+			}
+
+			// A schema change invalidates all of the existing state. This means that
+			// lastIterated needs to be reset otherwise previous values for fields that
+			// no longer exist would still be returned.
+			it.lastIterated = dynamic.NewMessage(it.schema)
 		}
 	}
 
+	fmt.Println("c")
 	_, done, err := it.tsIterator.ReadTimestamp(it.stream)
 	if err != nil {
 		it.err = fmt.Errorf("%s error reading timestamp: %v", itErrPrefix, err)
@@ -498,16 +536,23 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
 	// schemas to only have bytes since its all the same over the wire.
 	// https://github.com/m3db/m3/issues/1471
-	schemaFieldType := it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType()
-	if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, string(buf))
-	} else {
-		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, buf)
-	}
-	if err != nil {
-		return fmt.Errorf(
-			"%s error trying to set field number: %d, err: %v",
-			itErrPrefix, customField.fieldNum, err)
+	fmt.Println("hmm", it.schema.FindFieldByNumber(int32(customField.fieldNum)))
+	fmt.Println("hmm", customField.fieldNum)
+	schemaField := it.schema.FindFieldByNumber(int32(customField.fieldNum))
+	if schemaField != nil {
+		// schemaField can be nil in the case where we're decoding a stream that was encoded with a schema
+		// newer than the one we currently have.
+		schemaFieldType := schemaField.GetType()
+		if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
+			err = it.lastIterated.TrySetFieldByNumber(customField.fieldNum, string(buf))
+		} else {
+			err = it.lastIterated.TrySetFieldByNumber(customField.fieldNum, buf)
+		}
+		if err != nil {
+			return fmt.Errorf(
+				"%s error trying to set field number: %d, err: %v",
+				itErrPrefix, customField.fieldNum, err)
+		}
 	}
 
 	it.addToBytesDict(i, buf)
@@ -535,6 +580,13 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		fieldNum  = it.customFields[i].fieldNum
 		fieldType = it.customFields[i].fieldType
 	)
+
+	if field := it.schema.FindFieldByNumber(int32(fieldNum)); field == nil {
+		// This can happen when the field being encoded does not exist in
+		// the current schema (or is reserved), but the message was encoded
+		// with a schema in which the field number did exist.
+		return nil
+	}
 
 	switch {
 	case isCustomFloatEncodedField(fieldType):

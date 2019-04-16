@@ -134,12 +134,12 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
 
-	if !enc.hasEncodedHeader {
-		enc.encodeHeader()
-		enc.hasEncodedHeader = true
-	}
-
-	if timeUnit != enc.timestampEncoder.TimeUnit {
+	var (
+		needToEncoderHeader  = !enc.hasEncodedHeader
+		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
+	)
+	if needToEncoderHeader || needToEncodeTimeUnit {
+		// TODO: Update this comment.
 		// We handle encoding time unit changes ourselves because by default the WriteTime()
 		// API will use a marker encoding scheme which relies on looking ahead into the stream
 		// for bit combinations that could not possibly exist in the M3TSZ encoding scheme. We don't
@@ -147,13 +147,32 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		// that matches the "impossible" M3TSZ markers exactly.
 
 		// First bit means either there is no more data OR the time unit has changed.
-		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeOrSchemaChange)
-		// Next bit means there is more data, but the time unit or schema has changed has changed.
-		enc.stream.WriteBit(opCodeTimeUnitChangeOrSchemaChange)
-		// Next bit resolves the ambiguity and indicates that the time unit has changed.
-		enc.stream.WriteBit(opCodeTimeUnitChange)
+		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
+		// Next bit means there is more data, but the time unit and/or schema has changed has changed.
+		enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
 
-		enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+		// Next bit is a boolean indicating whether the time unit has changed.
+		if needToEncodeTimeUnit {
+			enc.stream.WriteBit(opCodeTimeUnitChange)
+		} else {
+			enc.stream.WriteBit(opCodeTimeUnitUnchanged)
+		}
+
+		// Next bit is a boolean indicating whether the schema has changed.
+		if needToEncoderHeader {
+			enc.stream.WriteBit(opCodeSchemaChange)
+		} else {
+			enc.stream.WriteBit(opCodeSchemaUnchanged)
+		}
+
+		if needToEncodeTimeUnit {
+			enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+		}
+
+		if needToEncoderHeader {
+			enc.encodeHeader()
+			enc.hasEncodedHeader = true
+		}
 	} else {
 		// Control bit that indicates the stream has more data but no time unit or schema changes.
 		enc.stream.WriteBit(opCodeMoreData)

@@ -147,8 +147,8 @@ func TestRoundTrip(t *testing.T) {
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
 		i++
 	}
-	require.Equal(t, len(testCases), i)
 	require.NoError(t, iter.Err())
+	require.Equal(t, len(testCases), i)
 }
 
 func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
@@ -178,6 +178,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
 
+	// Try reading the stream just using the vl1 schema.
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
 
@@ -195,6 +196,43 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	require.True(t, iter.Next())
 	dp, unit, annotation = iter.Current()
+	m = dynamic.NewMessage(testVLSchema)
+	require.NoError(t, m.Unmarshal(annotation))
+	require.Equal(t, xtime.Second, unit)
+	require.Equal(t, vl2WriteTime, dp.Timestamp)
+	require.Equal(t, 4, len(m.GetKnownFields()))
+	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
+	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
+	// vl2 doesn't contain these fields so they should have default values when they're
+	// decoded with a vl1 schema.
+	require.Equal(t, int64(0), m.GetFieldByName("epoch"))
+	require.Equal(t, []byte(nil), m.GetFieldByName("deliveryID"))
+
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+
+	// Try reading the stream just using the vl2 schema.
+	buff = bytes.NewBuffer(rawBytes)
+	iter = NewIterator(buff, testVL2Schema, testEncodingOptions)
+
+	require.True(t, iter.Next())
+	dp, unit, annotation = iter.Current()
+	m = dynamic.NewMessage(testVL2Schema)
+	require.NoError(t, m.Unmarshal(annotation))
+	require.Equal(t, xtime.Second, unit)
+	require.Equal(t, vl1WriteTime, dp.Timestamp)
+	require.Equal(t, 3, len(m.GetKnownFields()))
+	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
+	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
+
+	// These fields don't exist in the vl2 schema so they should not be in the returned message.
+	_, err = m.TryGetFieldByName("epoch")
+	require.Error(t, err)
+	_, err = m.TryGetFieldByName("deliveryID")
+	require.Error(t, err)
+
+	require.True(t, iter.Next())
+	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
@@ -203,6 +241,12 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
 	require.Equal(t, vl2Write.GetFieldByName("new_field"), m.GetFieldByName("new_field"))
+
+	// These fields don't exist in the vl2 schema so they should not be in the returned message.
+	_, err = m.TryGetFieldByName("epoch")
+	require.Error(t, err)
+	_, err = m.TryGetFieldByName("deliveryID")
+	require.Error(t, err)
 
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
