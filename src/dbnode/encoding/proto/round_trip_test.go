@@ -35,6 +35,8 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -109,8 +111,13 @@ func TestRoundTrip(t *testing.T) {
 		},
 	}
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	desc := namespace.NewMockSchemaDescr(ctrl)
+	desc.EXPECT().Get().Return(namespace.MessageDescriptor{testVLSchema}).AnyTimes()
+
 	enc := newTestEncoder(time.Now().Truncate(time.Second))
-	enc.SetSchema(testVLSchema)
+	enc.SetSchema(desc)
 
 	for i, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.epoch, tc.deliveryID)
@@ -127,7 +134,8 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
+	iter := NewIterator(buff, testEncodingOptions)
+	iter.SetSchema(desc)
 
 	i := 0
 	for iter.Next() {

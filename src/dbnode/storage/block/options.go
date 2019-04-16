@@ -50,12 +50,13 @@ type options struct {
 	closeContextWorkers     xsync.WorkerPool
 	databaseBlockPool       DatabaseBlockPool
 	contextPool             context.Pool
-	encoderPool             encoding.EncoderPool
 	segmentReaderPool       xio.SegmentReaderPool
 	bytesPool               pool.CheckedBytesPool
+	wiredList               *WiredList
+
+	encoderPool             encoding.EncoderPool
 	readerIteratorPool      encoding.ReaderIteratorPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
-	wiredList               *WiredList
 }
 
 // NewOptions creates new database block options

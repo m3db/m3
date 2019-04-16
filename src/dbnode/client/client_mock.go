@@ -46,7 +46,6 @@ import (
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/jhump/protoreflect/desc"
 	tchannel_go "github.com/uber/tchannel-go"
 )
 
@@ -129,6 +128,18 @@ func (m *MockClient) DefaultSessionActive() bool {
 func (mr *MockClientMockRecorder) DefaultSessionActive() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultSessionActive", reflect.TypeOf((*MockClient)(nil).DefaultSessionActive))
+}
+
+// SetSchemaRegistry mocks base method
+func (m *MockClient) SetSchemaRegistry(registry SchemaRegistry) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchemaRegistry", registry)
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockClientMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockClient)(nil).SetSchemaRegistry), registry)
 }
 
 // MockSession is a mock of Session interface
@@ -554,6 +565,18 @@ func (m *MockAdminClient) DefaultSessionActive() bool {
 func (mr *MockAdminClientMockRecorder) DefaultSessionActive() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultSessionActive", reflect.TypeOf((*MockAdminClient)(nil).DefaultSessionActive))
+}
+
+// SetSchemaRegistry mocks base method
+func (m *MockAdminClient) SetSchemaRegistry(registry SchemaRegistry) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchemaRegistry", registry)
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockAdminClientMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockAdminClient)(nil).SetSchemaRegistry), registry)
 }
 
 // NewAdminSession mocks base method
@@ -1062,17 +1085,17 @@ func (mr *MockOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
 }
 
 // SetEncodingProto mocks base method
-func (m *MockOptions) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+func (m *MockOptions) SetEncodingProto(encodingOpts encoding.Options) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetEncodingProto", schema, encodingOpts)
+	ret := m.ctrl.Call(m, "SetEncodingProto", encodingOpts)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
 // SetEncodingProto indicates an expected call of SetEncodingProto
-func (mr *MockOptionsMockRecorder) SetEncodingProto(schema, encodingOpts interface{}) *gomock.Call {
+func (mr *MockOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockOptions)(nil).SetEncodingProto), schema, encodingOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockOptions)(nil).SetEncodingProto), encodingOpts)
 }
 
 // SetRuntimeOptionsManager mocks base method
@@ -2223,6 +2246,86 @@ func (mr *MockOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorAllocate))
 }
 
+// SetSchemaRegistry mocks base method
+func (m *MockOptions) SetSchemaRegistry(value SchemaRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockOptionsMockRecorder) SetSchemaRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SetSchemaRegistry), value)
+}
+
+// SchemaRegistry mocks base method
+func (m *MockOptions) SchemaRegistry() SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
+}
+
+// ProtoEnabled mocks base method
+func (m *MockOptions) ProtoEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProtoEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ProtoEnabled indicates an expected call of ProtoEnabled
+func (mr *MockOptionsMockRecorder) ProtoEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProtoEnabled", reflect.TypeOf((*MockOptions)(nil).ProtoEnabled))
+}
+
+// MockSchemaRegistry is a mock of SchemaRegistry interface
+type MockSchemaRegistry struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaRegistryMockRecorder
+}
+
+// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
+type MockSchemaRegistryMockRecorder struct {
+	mock *MockSchemaRegistry
+}
+
+// NewMockSchemaRegistry creates a new mock instance
+func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
+	mock := &MockSchemaRegistry{ctrl: ctrl}
+	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
+	return m.recorder
+}
+
+// GetSchema mocks base method
+func (m *MockSchemaRegistry) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchema", id)
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchema indicates an expected call of GetSchema
+func (mr *MockSchemaRegistryMockRecorder) GetSchema(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id)
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -2275,17 +2378,17 @@ func (mr *MockAdminOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
 }
 
 // SetEncodingProto mocks base method
-func (m *MockAdminOptions) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+func (m *MockAdminOptions) SetEncodingProto(encodingOpts encoding.Options) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetEncodingProto", schema, encodingOpts)
+	ret := m.ctrl.Call(m, "SetEncodingProto", encodingOpts)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
 // SetEncodingProto indicates an expected call of SetEncodingProto
-func (mr *MockAdminOptionsMockRecorder) SetEncodingProto(schema, encodingOpts interface{}) *gomock.Call {
+func (mr *MockAdminOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingProto), schema, encodingOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingProto), encodingOpts)
 }
 
 // SetRuntimeOptionsManager mocks base method
@@ -3434,6 +3537,48 @@ func (m *MockAdminOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAlloc
 func (mr *MockAdminOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockAdminOptions)(nil).ReaderIteratorAllocate))
+}
+
+// SetSchemaRegistry mocks base method
+func (m *MockAdminOptions) SetSchemaRegistry(value SchemaRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockAdminOptionsMockRecorder) SetSchemaRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockAdminOptions)(nil).SetSchemaRegistry), value)
+}
+
+// SchemaRegistry mocks base method
+func (m *MockAdminOptions) SchemaRegistry() SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockAdminOptionsMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockAdminOptions)(nil).SchemaRegistry))
+}
+
+// ProtoEnabled mocks base method
+func (m *MockAdminOptions) ProtoEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProtoEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ProtoEnabled indicates an expected call of ProtoEnabled
+func (mr *MockAdminOptionsMockRecorder) ProtoEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProtoEnabled", reflect.TypeOf((*MockAdminOptions)(nil).ProtoEnabled))
 }
 
 // SetOrigin mocks base method

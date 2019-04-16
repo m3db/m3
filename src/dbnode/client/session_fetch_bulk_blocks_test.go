@@ -2288,6 +2288,8 @@ type testEncoder struct {
 	closed bool
 }
 
+func (e *testEncoder) SetSchema(descr namespace.SchemaDescr) {}
+
 func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
 	return fmt.Errorf("not implemented")
 }

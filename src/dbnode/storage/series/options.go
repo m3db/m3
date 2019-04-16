@@ -38,14 +38,15 @@ type options struct {
 	blockOpts                     block.Options
 	cachePolicy                   CachePolicy
 	contextPool                   context.Pool
-	encoderPool                   encoding.EncoderPool
-	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
 	identifierPool                ident.Pool
 	stats                         Stats
 	coldWritesEnabled             bool
 	bufferBucketPool              *BufferBucketPool
 	bufferBucketVersionsPool      *BufferBucketVersionsPool
+
+	encoderPool                   encoding.EncoderPool
+	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
 }
 
 // NewOptions creates new database series options
@@ -57,7 +58,7 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 	iopts := instrument.NewOptions()
-	return &options{
+	o := &options{
 		clockOpts:                     clock.NewOptions(),
 		instrumentOpts:                iopts,
 		retentionOpts:                 retention.NewOptions(),
@@ -70,6 +71,7 @@ func NewOptions() Options {
 		identifierPool:                ident.NewPool(bytesPool, ident.PoolOptions{}),
 		stats:                         NewStats(iopts.MetricsScope()),
 	}
+	return o
 }
 
 func (o *options) Validate() error {

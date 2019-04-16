@@ -24,6 +24,7 @@ import "github.com/m3db/m3/src/x/pool"
 
 type readerIteratorPool struct {
 	pool pool.ObjectPool
+	init SchemaInjector
 }
 
 // NewReaderIteratorPool creates a new pool for ReaderIterators.
@@ -37,16 +38,26 @@ func (p *readerIteratorPool) Init(alloc ReaderIteratorAllocate) {
 	})
 }
 
+func (p *readerIteratorPool) ReInit(reInit SchemaInjector) ReaderIteratorPool {
+	return &readerIteratorPool{pool: p.pool, init: reInit}
+}
+
 func (p *readerIteratorPool) Get() ReaderIterator {
-	return p.pool.Get().(ReaderIterator)
+	if p.init == nil {
+		return p.pool.Get().(ReaderIterator)
+	}
+	i := p.pool.Get().(SchemaInjectable)
+	return p.init(i).(ReaderIterator)
 }
 
 func (p *readerIteratorPool) Put(iter ReaderIterator) {
+	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }
 
 type multiReaderIteratorPool struct {
 	pool pool.ObjectPool
+	init SchemaInjector
 }
 
 // NewMultiReaderIteratorPool creates a new pool for MultiReaderIterators.
@@ -60,10 +71,20 @@ func (p *multiReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {
 	})
 }
 
+func (p *multiReaderIteratorPool) ReInit(reInit SchemaInjector) MultiReaderIteratorPool {
+	return &multiReaderIteratorPool{pool: p.pool, init: reInit}
+}
+
+
 func (p *multiReaderIteratorPool) Get() MultiReaderIterator {
-	return p.pool.Get().(MultiReaderIterator)
+	if p.init == nil {
+		return p.pool.Get().(MultiReaderIterator)
+	}
+	mi :=  p.pool.Get().(SchemaInjectable)
+	return p.init(mi).(MultiReaderIterator)
 }
 
 func (p *multiReaderIteratorPool) Put(iter MultiReaderIterator) {
+	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }

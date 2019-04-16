@@ -123,6 +123,7 @@ type options struct {
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcessProvider       bootstrap.ProcessProvider
+	schemaRegistryAcceptor         SchemaRegistryAcceptor
 	persistManager                 persist.Manager
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
@@ -635,4 +636,14 @@ func (o *options) SetBufferBucketVersionsPool(value *series.BufferBucketVersions
 
 func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
+}
+
+func (o *options) SetSchemaRegistryAcceptor(value SchemaRegistryAcceptor) Options {
+	opts := *o
+	opts.schemaRegistryAcceptor = value
+	return &opts
+}
+
+func (o *options) SchemaRegistryAcceptor() SchemaRegistryAcceptor {
+	return o.schemaRegistryAcceptor
 }

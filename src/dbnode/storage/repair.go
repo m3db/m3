@@ -257,6 +257,7 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 	if ropts == nil {
 		return nil, errNoRepairOptions
 	}
+
 	if err := ropts.Validate(); err != nil {
 		return nil, err
 	}

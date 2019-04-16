@@ -49,6 +49,10 @@ func newClient(opts Options) (*client, error) {
 	return &client{opts: opts, newSessionFn: newSession}, nil
 }
 
+func (c *client) SetSchemaRegistry(registry SchemaRegistry) {
+	c.opts = c.opts.SetSchemaRegistry(registry)
+}
+
 func (c *client) newSession() (AdminSession, error) {
 	session, err := c.newSessionFn(c.opts)
 	if err != nil {

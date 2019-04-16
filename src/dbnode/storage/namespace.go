@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -348,10 +349,34 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
+	n.reInitPools()
 	n.initShards(nopts.BootstrapEnabled())
 	go n.reportStatusLoop()
 
 	return n, nil
+}
+
+func (n *dbNamespace) reInitPools() {
+	schemaInjector := func(e encoding.SchemaInjectable) encoding.SchemaInjectable {
+		if schema, ok := n.SchemaRegistry().GetLatest(); ok {
+			// Inject schema to encoder.
+			e.SetSchema(schema)
+		}
+		return e
+	}
+
+	encoderPool := n.seriesOpts.EncoderPool().ReInit(schemaInjector)
+	mIterPool := n.seriesOpts.MultiReaderIteratorPool().ReInit(schemaInjector)
+	iterPool := n.seriesOpts.DatabaseBlockOptions().ReaderIteratorPool().ReInit(schemaInjector)
+
+	blockOpts := n.seriesOpts.DatabaseBlockOptions().
+		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(iterPool).
+		SetMultiReaderIteratorPool(mIterPool)
+	n.seriesOpts = n.seriesOpts.
+		SetEncoderPool(encoderPool).
+		SetMultiReaderIteratorPool(mIterPool).
+		SetDatabaseBlockOptions(blockOpts)
 }
 
 func (n *dbNamespace) reportStatusLoop() {
@@ -409,6 +434,11 @@ func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
 }
 
 func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
+	if _, ok := v.GetLatest(); !ok {
+		n.log.Warn("will not update namespace to an empty schema registry, skip")
+		return nil
+	}
+
 	if !v.Extends(n.SchemaRegistry()) {
 		return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
 	}

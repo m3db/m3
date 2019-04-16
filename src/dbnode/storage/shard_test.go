@@ -39,7 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -111,7 +111,7 @@ func TestShardBootstrapState(t *testing.T) {
 	testNs, closer := newTestNamespace(t)
 	defer closer()
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
-	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
+	shard := newDatabaseShard(testNs.metadata,0, nil, nil,
 		&testIncreasingIndex{}, nil, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 

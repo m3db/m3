@@ -3104,6 +3104,34 @@ func (mr *MockOptionsMockRecorder) BootstrapProcessProvider() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).BootstrapProcessProvider))
 }
 
+// SetSchemaRegistryAcceptor mocks base method
+func (m *MockOptions) SetSchemaRegistryAcceptor(value SchemaRegistryAcceptor) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistryAcceptor", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSchemaRegistryAcceptor indicates an expected call of SetSchemaRegistryAcceptor
+func (mr *MockOptionsMockRecorder) SetSchemaRegistryAcceptor(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistryAcceptor", reflect.TypeOf((*MockOptions)(nil).SetSchemaRegistryAcceptor), value)
+}
+
+// SchemaRegistryAcceptor mocks base method
+func (m *MockOptions) SchemaRegistryAcceptor() SchemaRegistryAcceptor {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistryAcceptor")
+	ret0, _ := ret[0].(SchemaRegistryAcceptor)
+	return ret0
+}
+
+// SchemaRegistryAcceptor indicates an expected call of SchemaRegistryAcceptor
+func (mr *MockOptionsMockRecorder) SchemaRegistryAcceptor() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistryAcceptor", reflect.TypeOf((*MockOptions)(nil).SchemaRegistryAcceptor))
+}
+
 // SetPersistManager mocks base method
 func (m *MockOptions) SetPersistManager(value persist.Manager) Options {
 	m.ctrl.T.Helper()
@@ -3606,4 +3634,77 @@ func (m *MockOptions) BufferBucketVersionsPool() *series.BufferBucketVersionsPoo
 func (mr *MockOptionsMockRecorder) BufferBucketVersionsPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketVersionsPool))
+}
+
+// MockSchemaRegistryAcceptor is a mock of SchemaRegistryAcceptor interface
+type MockSchemaRegistryAcceptor struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaRegistryAcceptorMockRecorder
+}
+
+// MockSchemaRegistryAcceptorMockRecorder is the mock recorder for MockSchemaRegistryAcceptor
+type MockSchemaRegistryAcceptorMockRecorder struct {
+	mock *MockSchemaRegistryAcceptor
+}
+
+// NewMockSchemaRegistryAcceptor creates a new mock instance
+func NewMockSchemaRegistryAcceptor(ctrl *gomock.Controller) *MockSchemaRegistryAcceptor {
+	mock := &MockSchemaRegistryAcceptor{ctrl: ctrl}
+	mock.recorder = &MockSchemaRegistryAcceptorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaRegistryAcceptor) EXPECT() *MockSchemaRegistryAcceptorMockRecorder {
+	return m.recorder
+}
+
+// SetSchemaRegistry mocks base method
+func (m *MockSchemaRegistryAcceptor) SetSchemaRegistry(registry SchemaRegistry) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchemaRegistry", registry)
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockSchemaRegistryAcceptorMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockSchemaRegistryAcceptor)(nil).SetSchemaRegistry), registry)
+}
+
+// MockSchemaRegistry is a mock of SchemaRegistry interface
+type MockSchemaRegistry struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaRegistryMockRecorder
+}
+
+// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
+type MockSchemaRegistryMockRecorder struct {
+	mock *MockSchemaRegistry
+}
+
+// NewMockSchemaRegistry creates a new mock instance
+func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
+	mock := &MockSchemaRegistry{ctrl: ctrl}
+	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
+	return m.recorder
+}
+
+// GetSchema mocks base method
+func (m *MockSchemaRegistry) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchema", id)
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchema indicates an expected call of GetSchema
+func (mr *MockSchemaRegistryMockRecorder) GetSchema(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id)
 }

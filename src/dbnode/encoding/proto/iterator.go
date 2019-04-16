@@ -35,6 +35,7 @@ import (
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -75,20 +76,14 @@ type iterator struct {
 // NewIterator creates a new iterator.
 func NewIterator(
 	reader io.Reader,
-	schema *desc.MessageDescriptor,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
 
 	var currCustomFields []customFieldState
-	if schema != nil {
-		currCustomFields = customFields(nil, schema)
-	}
 	return &iterator{
 		opts:         opts,
-		schema:       schema,
 		stream:       stream,
-		lastIterated: dynamic.NewMessage(schema),
 		customFields: currCustomFields,
 
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),
@@ -217,8 +212,8 @@ func (it *iterator) Reset(reader io.Reader) {
 }
 
 // SetSchema sets the encoders schema.
-func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
-	it.schema = schema
+func (it *iterator) SetSchema(descr namespace.SchemaDescr) {
+	it.schema = descr.Get().MessageDescriptor
 	it.customFields = customFields(it.customFields, it.schema)
 }
 

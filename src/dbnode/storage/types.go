@@ -800,6 +800,12 @@ type Options interface {
 	// BootstrapProcessProvider returns the bootstrap process provider for the database.
 	BootstrapProcessProvider() bootstrap.ProcessProvider
 
+	// SetSchemaRegistryAcceptor sets the admin client used by bootstrap process if there is any.
+	SetSchemaRegistryAcceptor(value SchemaRegistryAcceptor) Options
+
+	// SchemaRegistryAcceptor returns the admin client used by bootstrap process.
+	SchemaRegistryAcceptor() SchemaRegistryAcceptor
+
 	// SetPersistManager sets the persistence manager.
 	SetPersistManager(value persist.Manager) Options
 
@@ -918,6 +924,17 @@ type Options interface {
 
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
+}
+
+// SchemaRegistryAcceptor is an interface that accepts a schema registry.
+// This is implemented by client.Client (that needs access to all namespace schemas).
+// m3dbClient is used to repair and bootstrap database.
+type SchemaRegistryAcceptor interface {
+	SetSchemaRegistry(registry SchemaRegistry)
+}
+
+type SchemaRegistry interface {
+	GetSchema(id ident.ID) (namespace.SchemaDescr, error)
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

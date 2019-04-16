@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 
-	"github.com/jhump/protoreflect/desc"
 	"github.com/uber/tchannel-go"
 )
 
@@ -192,6 +191,7 @@ var (
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
+	errNoSchemaRegistrySet = errors.New("proto is enabled but no schema registry set, encoding not set")
 )
 
 type options struct {
@@ -225,6 +225,8 @@ type options struct {
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
+	schemaRegistry                          SchemaRegistry
+	protoEnabled                            bool
 	writeOperationPoolSize                  int
 	writeTaggedOperationPoolSize            int
 	fetchBatchOpPoolSize                    int
@@ -361,12 +363,17 @@ func (o *options) SetEncodingM3TSZ() Options {
 	return &opts
 }
 
-func (o *options) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return proto.NewIterator(r, schema, encodingOpts)
+		return proto.NewIterator(r, encodingOpts)
 	}
+	opts.protoEnabled = true
 	return &opts
+}
+
+func (o *options) ProtoEnabled() bool {
+	return o.protoEnabled
 }
 
 func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
@@ -797,6 +804,16 @@ func (o *options) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocat
 
 func (o *options) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
 	return o.readerIteratorAllocate
+}
+
+func (o *options) SetSchemaRegistry(value SchemaRegistry) Options {
+	opts := *o
+	opts.schemaRegistry = value
+	return &opts
+}
+
+func (o *options) SchemaRegistry() SchemaRegistry {
+	return o.schemaRegistry
 }
 
 func (o *options) SetOrigin(value topology.Host) AdminOptions {

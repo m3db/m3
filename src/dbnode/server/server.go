@@ -536,7 +536,6 @@ func Run(runOpts RunOptions) {
 		func(opts client.AdminOptions) client.AdminOptions {
 			if cfg.Proto != nil {
 				return opts.SetEncodingProto(
-					schema,
 					encoding.NewOptions(),
 				).(client.AdminOptions)
 			}
@@ -546,6 +545,12 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
+
+	// M3db admin client is passed to database bootstrapper and repairer before db is constructed.
+	// schema registry is not ready until db has fetched metadata from etcd which is during db construction.
+	// so we need pass m3 admin client to db as well so that it can pass schema registry to m3db client at the right time.
+	// the right time is after metadata is fetched but before repair/bootstrap is constructed.
+	opts.SetSchemaRegistryAcceptor(m3dbClient.(storage.SchemaRegistryAcceptor))
 
 	if runOpts.ClientCh != nil {
 		runOpts.ClientCh <- m3dbClient
@@ -1178,9 +1183,8 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		if schema != nil {
+		if cfg.Proto != nil {
 			enc := proto.NewEncoder(time.Time{}, encodingOpts)
-			enc.SetSchema(schema)
 			return enc
 		}
 
@@ -1189,7 +1193,7 @@ func withEncodingAndPoolingOptions(
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		if schema != nil {
-			return proto.NewIterator(r, schema, encodingOpts)
+			return proto.NewIterator(r, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})

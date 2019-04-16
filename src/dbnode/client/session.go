@@ -1409,6 +1409,8 @@ func (s *session) fetchIDsAttempt(
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 		startFetchAttempt      = s.nowFn()
+		schema                 namespace.SchemaDescr
+		schemaErr              error
 	)
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
@@ -1418,6 +1420,13 @@ func (s *session) fetchIDsAttempt(
 	// not the slice itself). Need this to be able to iterate the original iterator
 	// multiple times in case of retries.
 	ids := inputIDs.Duplicate()
+
+	if s.opts.ProtoEnabled() {
+		schema, schemaErr = s.opts.SchemaRegistry().GetSchema(inputNamespace)
+		if schemaErr != nil {
+			return nil, xerrors.Wrapf(schemaErr, "no schema is found for namespace %v", inputNamespace)
+		}
+	}
 
 	rangeStart, tsErr := convert.ToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
 	if tsErr != nil {
@@ -1515,6 +1524,9 @@ func (s *session) fetchIDsAttempt(
 				successIters := results[:success]
 				resultsLock.RUnlock()
 				iter := s.pools.seriesIterator.Get()
+				// Inject namespace schema for the duration of this request.
+				iter.SetSchema(schema)
+
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
 				// to control the lifecycle of the original ident.ID, as it might still be in use
@@ -1557,6 +1569,9 @@ func (s *session) fetchIDsAttempt(
 				slicesIter := s.pools.readerSliceOfSlicesIterator.Get()
 				slicesIter.Reset(result.([]*rpc.Segments))
 				multiIter := s.pools.multiReaderIterator.Get()
+				// Inject namespace schema for the duration of this request.
+				multiIter.SetSchema(schema)
+
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
 				resultsLock.Lock()

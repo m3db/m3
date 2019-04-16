@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -40,6 +41,41 @@ import (
 
 	"github.com/golang/mock/gomock"
 )
+
+// MockSchemaInjectable is a mock of SchemaInjectable interface
+type MockSchemaInjectable struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaInjectableMockRecorder
+}
+
+// MockSchemaInjectableMockRecorder is the mock recorder for MockSchemaInjectable
+type MockSchemaInjectableMockRecorder struct {
+	mock *MockSchemaInjectable
+}
+
+// NewMockSchemaInjectable creates a new mock instance
+func NewMockSchemaInjectable(ctrl *gomock.Controller) *MockSchemaInjectable {
+	mock := &MockSchemaInjectable{ctrl: ctrl}
+	mock.recorder = &MockSchemaInjectableMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaInjectable) EXPECT() *MockSchemaInjectableMockRecorder {
+	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockSchemaInjectable) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockSchemaInjectableMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockSchemaInjectable)(nil).SetSchema), descr)
+}
 
 // MockEncoder is a mock of Encoder interface
 type MockEncoder struct {
@@ -62,6 +98,18 @@ func NewMockEncoder(ctrl *gomock.Controller) *MockEncoder {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockEncoder) EXPECT() *MockEncoderMockRecorder {
 	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockEncoder) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockEncoderMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockEncoder)(nil).SetSchema), descr)
 }
 
 // Encode mocks base method
@@ -457,6 +505,18 @@ func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 	return m.recorder
 }
 
+// SetSchema mocks base method
+func (m *MockIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockIterator)(nil).SetSchema), descr)
+}
+
 // Next mocks base method
 func (m *MockIterator) Next() bool {
 	m.ctrl.T.Helper()
@@ -534,6 +594,18 @@ func NewMockReaderIterator(ctrl *gomock.Controller) *MockReaderIterator {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockReaderIterator) EXPECT() *MockReaderIteratorMockRecorder {
 	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockReaderIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockReaderIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockReaderIterator)(nil).SetSchema), descr)
 }
 
 // Next mocks base method
@@ -625,6 +697,18 @@ func NewMockMultiReaderIterator(ctrl *gomock.Controller) *MockMultiReaderIterato
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockMultiReaderIterator) EXPECT() *MockMultiReaderIteratorMockRecorder {
 	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockMultiReaderIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockMultiReaderIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockMultiReaderIterator)(nil).SetSchema), descr)
 }
 
 // Next mocks base method
@@ -742,6 +826,18 @@ func NewMockSeriesIterator(ctrl *gomock.Controller) *MockSeriesIterator {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockSeriesIterator) EXPECT() *MockSeriesIteratorMockRecorder {
 	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockSeriesIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockSeriesIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockSeriesIterator)(nil).SetSchema), descr)
 }
 
 // Next mocks base method
@@ -1423,6 +1519,20 @@ func (mr *MockEncoderPoolMockRecorder) Init(alloc interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockEncoderPool)(nil).Init), alloc)
 }
 
+// ReInit mocks base method
+func (m *MockEncoderPool) ReInit(reInit SchemaInjector) EncoderPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReInit", reInit)
+	ret0, _ := ret[0].(EncoderPool)
+	return ret0
+}
+
+// ReInit indicates an expected call of ReInit
+func (mr *MockEncoderPoolMockRecorder) ReInit(reInit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReInit", reflect.TypeOf((*MockEncoderPool)(nil).ReInit), reInit)
+}
+
 // Get mocks base method
 func (m *MockEncoderPool) Get() Encoder {
 	m.ctrl.T.Helper()
@@ -1484,6 +1594,20 @@ func (mr *MockReaderIteratorPoolMockRecorder) Init(alloc interface{}) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockReaderIteratorPool)(nil).Init), alloc)
 }
 
+// ReInit mocks base method
+func (m *MockReaderIteratorPool) ReInit(reInit SchemaInjector) ReaderIteratorPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReInit", reInit)
+	ret0, _ := ret[0].(ReaderIteratorPool)
+	return ret0
+}
+
+// ReInit indicates an expected call of ReInit
+func (mr *MockReaderIteratorPoolMockRecorder) ReInit(reInit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReInit", reflect.TypeOf((*MockReaderIteratorPool)(nil).ReInit), reInit)
+}
+
 // Get mocks base method
 func (m *MockReaderIteratorPool) Get() ReaderIterator {
 	m.ctrl.T.Helper()
@@ -1543,6 +1667,20 @@ func (m *MockMultiReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {
 func (mr *MockMultiReaderIteratorPoolMockRecorder) Init(alloc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockMultiReaderIteratorPool)(nil).Init), alloc)
+}
+
+// ReInit mocks base method
+func (m *MockMultiReaderIteratorPool) ReInit(reInit SchemaInjector) MultiReaderIteratorPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReInit", reInit)
+	ret0, _ := ret[0].(MultiReaderIteratorPool)
+	return ret0
+}
+
+// ReInit indicates an expected call of ReInit
+func (mr *MockMultiReaderIteratorPoolMockRecorder) ReInit(reInit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReInit", reflect.TypeOf((*MockMultiReaderIteratorPool)(nil).ReInit), reInit)
 }
 
 // Get mocks base method

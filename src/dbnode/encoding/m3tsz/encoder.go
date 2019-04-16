@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -80,6 +81,9 @@ func NewEncoder(
 		intOptimized:   intOptimized,
 	}
 }
+
+// No-op for schemaless encoder
+func (enc *encoder) SetSchema(descr namespace.SchemaDescr) {}
 
 // Encode encodes the timestamp and the value of a datapoint.
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {

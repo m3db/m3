@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // readerIterator provides an interface for clients to incrementally
@@ -58,6 +59,9 @@ func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Option
 		intOptimized: intOptimized,
 	}
 }
+
+// No-op for schemaless readerIterator
+func (enc *readerIterator) SetSchema(descr namespace.SchemaDescr) {}
 
 // Next moves to the next item
 func (it *readerIterator) Next() bool {

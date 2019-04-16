@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type testValue struct {
@@ -49,6 +50,8 @@ type testIterator struct {
 func newTestIterator(values []testValue) ReaderIterator {
 	return &testIterator{values: values, idx: -1}
 }
+
+func (it *testIterator) SetSchema(descr namespace.SchemaDescr) {}
 
 func (it *testIterator) Next() bool {
 	if it.onNext != nil {
@@ -106,6 +109,8 @@ type testMultiIterator struct {
 func newTestMultiIterator(values []testValue) MultiReaderIterator {
 	return &testMultiIterator{values: values, idx: -1}
 }
+
+func (it *testMultiIterator) SetSchema(descr namespace.SchemaDescr) {}
 
 func (it *testMultiIterator) Next() bool {
 	if it.onNext != nil {

@@ -32,15 +32,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/jhump/protoreflect/desc"
 	tchannel "github.com/uber/tchannel-go"
 )
 
@@ -57,6 +56,9 @@ type Client interface {
 
 	// DefaultSessionActive returns whether the default session is active.
 	DefaultSessionActive() bool
+
+	// SetSchemaRegistry sets the schema registry for all namespaces owned by the database.
+	SetSchemaRegistry(registry SchemaRegistry)
 }
 
 // Session can write and read to a cluster.
@@ -234,8 +236,8 @@ type Options interface {
 	// SetEncodingM3TSZ sets M3TSZ encoding.
 	SetEncodingM3TSZ() Options
 
-	// SetEncodingProto sets proto encoding based on the provided schema.
-	SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options
+	// SetEncodingProto sets proto encoding.
+	SetEncodingProto(encodingOpts encoding.Options) Options
 
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
@@ -500,6 +502,20 @@ type Options interface {
 
 	// ReaderIteratorAllocate returns the readerIteratorAllocate.
 	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
+
+	// SetSchemaRegistry sets the SchemaRegistry
+	SetSchemaRegistry(value SchemaRegistry) Options
+
+	// SchemaRegistry returns the SchemaRegistry.
+	SchemaRegistry() SchemaRegistry
+
+	// ProtoEnabled returns whether or not proto encoding is turned on.
+	// Schema is required when it is on.
+	ProtoEnabled() bool
+}
+
+type SchemaRegistry interface {
+	GetSchema(id ident.ID) (namespace.SchemaDescr, error)
 }
 
 // AdminOptions is a set of administration client options.

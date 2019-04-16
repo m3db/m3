@@ -26,6 +26,7 @@ import (
 
 type encoderPool struct {
 	pool pool.ObjectPool
+	init SchemaInjector
 }
 
 // NewEncoderPool creates a new pool
@@ -39,10 +40,22 @@ func (p *encoderPool) Init(alloc EncoderAllocate) {
 	})
 }
 
+// ReInit reinitialize the pool with a different object initializer.
+// the new pool shares the save underlying object pool.
+func (p *encoderPool) ReInit(reInit SchemaInjector) EncoderPool {
+	return &encoderPool{pool: p.pool, init: reInit}
+}
+
 func (p *encoderPool) Get() Encoder {
-	return p.pool.Get().(Encoder)
+	if p.init == nil {
+		return p.pool.Get().(Encoder)
+	}
+	e := p.pool.Get().(SchemaInjectable)
+	return p.init(e).(Encoder)
 }
 
 func (p *encoderPool) Put(encoder Encoder) {
+	// Clear schema (in case schema is not set at Get, we will fail fast).
+	encoder.SetSchema(nil)
 	p.pool.Put(encoder)
 }

@@ -213,6 +213,10 @@ func NewDatabase(
 		return nil, err
 	}
 
+	if opts.SchemaRegistryAcceptor() != nil {
+		opts.SchemaRegistryAcceptor().SetSchemaRegistry(d)
+	}
+
 	mediator, err := newMediator(
 		d, commitLog, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
@@ -221,6 +225,16 @@ func NewDatabase(
 	d.mediator = mediator
 
 	return d, nil
+}
+
+// GetSchema implements SchemaRegistry interface.
+func (db *db) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
+	dbNs, err := db.namespaceFor(id)
+	if err != nil {
+		return nil, err
+	}
+	schema, _ := dbNs.SchemaRegistry().GetLatest()
+	return schema, nil
 }
 
 func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {

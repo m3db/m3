@@ -32,10 +32,20 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
+
+var NoopSchemaInjector = func(s SchemaInjectable) SchemaInjectable {return s}
+
+type SchemaInjectable interface {
+	// SetSchema sets the schema.
+	SetSchema(descr namespace.SchemaDescr)
+}
 
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
+	SchemaInjectable
+
 	// Encode encodes a datapoint and optionally an annotation.
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
@@ -126,6 +136,8 @@ type Options interface {
 
 // Iterator is the generic interface for iterating over encoded data.
 type Iterator interface {
+	SchemaInjectable
+
 	// Next moves to the next item
 	Next() bool
 
@@ -251,8 +263,21 @@ type NewDecoderFn func() Decoder
 // EncoderAllocate allocates an encoder for a pool.
 type EncoderAllocate func() Encoder
 
+// EncoderInit initialize an object after it is retrieved from the pool.
+type EncoderInit func(Encoder) Encoder
+
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
 type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
+
+// ReaderIteratorInit initialize an object after it is retrieved from the pool.
+type ReaderIteratorInit func(ReaderIterator) ReaderIterator
+
+// MultiReaderIteratorInit initialize an object after it is retrieved from the pool.
+type MultiReaderIteratorInit func(MultiReaderIterator) MultiReaderIterator
+
+// SchemaInjector inject schema to a SchemaInjectable after it is retrieved from the pool.
+type SchemaInjector func(injector SchemaInjectable) SchemaInjectable
+
 
 // IStream encapsulates a readable stream.
 type IStream interface {
@@ -284,6 +309,10 @@ type EncoderPool interface {
 	// Init initializes the pool.
 	Init(alloc EncoderAllocate)
 
+	// ReInit reinitialize the pool with a different schema injector.
+	// the new pool shares the save underlying object pool.
+    ReInit(reInit SchemaInjector) EncoderPool
+
 	// Get provides an encoder from the pool
 	Get() Encoder
 
@@ -296,6 +325,10 @@ type ReaderIteratorPool interface {
 	// Init initializes the pool.
 	Init(alloc ReaderIteratorAllocate)
 
+	// ReInit reinitialize the pool with a different schema injector.
+	// the new pool shares the save underlying object pool.
+	ReInit(reInit SchemaInjector) ReaderIteratorPool
+
 	// Get provides a ReaderIterator from the pool
 	Get() ReaderIterator
 
@@ -307,6 +340,10 @@ type ReaderIteratorPool interface {
 type MultiReaderIteratorPool interface {
 	// Init initializes the pool.
 	Init(alloc ReaderIteratorAllocate)
+
+	// ReInit reinitialize the pool with a different schema injector.
+	// the new pool shares the save underlying object pool.
+	ReInit(reInit SchemaInjector) MultiReaderIteratorPool
 
 	// Get provides a MultiReaderIterator from the pool
 	Get() MultiReaderIterator
@@ -371,3 +408,4 @@ type IteratorPools interface {
 	// TagDecoder exposes the session's tag decoder pool
 	TagDecoder() serialize.TagDecoderPool
 }
+

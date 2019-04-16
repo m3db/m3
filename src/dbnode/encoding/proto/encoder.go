@@ -36,6 +36,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // Make sure encoder implements encoding.Encoder.
@@ -296,8 +297,8 @@ func (enc *Encoder) Reset(
 // SetSchema sets the encoders schema.
 // TODO(rartoul): Add support for changing the schema (and updating the ordering
 // of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
-func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
-	enc.resetSchema(schema)
+func (enc *Encoder) SetSchema(descr namespace.SchemaDescr) {
+	enc.resetSchema(descr.Get().MessageDescriptor)
 }
 
 func (enc *Encoder) reset(start time.Time, capacity int) {
