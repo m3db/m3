@@ -33,29 +33,6 @@ type simpleOpNode interface {
 	ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error)
 }
 
-func processBlock(
-	node simpleOpNode,
-	controller *Controller,
-	queryCtx *models.QueryContext,
-	ID parser.NodeID,
-	b block.Block,
-	closeOnCompletion bool,
-) error {
-	sp, ctx := opentracingutil.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
-	nextBlock, err := node.ProcessBlock(queryCtx.WithContext(ctx), ID, b)
-	sp.Finish()
-	if err != nil {
-		return err
-	}
-
-	err = controller.Process(queryCtx, nextBlock)
-	if closeOnCompletion {
-		defer nextBlock.Close()
-	}
-
-	return err
-}
-
 // ProcessSimpleBlock is a utility for OpNode instances which on receiving a block, process and propagate it immediately
 // (as opposed to nodes which e.g. depend on multiple blocks).
 // It adds instrumentation to the processing, and handles propagating the block downstream.
@@ -71,19 +48,14 @@ func ProcessSimpleBlock(
 	ID parser.NodeID,
 	b block.Block,
 ) error {
-	return processBlock(node, controller, queryCtx, ID, b, true)
-}
+	sp, ctx := opentracingutil.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
+	nextBlock, err := node.ProcessBlock(queryCtx.WithContext(ctx), ID, b)
+	sp.Finish()
+	if err != nil {
+		return err
+	}
 
-// ProcessWrapperBlock works similarly to ProcessSimpleBlock, but does not close
-// the block on completion; it is intended to process blocks thin wrapper blocks
-// whose Close() methods would invalidate their own data before any processing
-// can happen.
-func ProcessWrapperBlock(
-	node simpleOpNode,
-	controller *Controller,
-	queryCtx *models.QueryContext,
-	ID parser.NodeID,
-	b block.Block,
-) error {
-	return processBlock(node, controller, queryCtx, ID, b, false)
+	err = controller.Process(queryCtx, nextBlock)
+	defer nextBlock.Close()
+	return err
 }

@@ -80,19 +80,9 @@ func (n *baseNode) Params() parser.Params {
 
 func (n *baseNode) Process(
 	queryCtx *models.QueryContext,
-	ID parser.NodeID,
-	b block.Block,
-) error {
-	// NB(arnikola): this very deliberately does not close the newly created block
-	// as it is a thin wrapper on top of the child block; closing here will
-	// invalidate the underlying data in this block.
-	return transform.ProcessWrapperBlock(n, n.controller, queryCtx, ID, b)
-}
-
-func (n *baseNode) ProcessBlock(
-	_ *models.QueryContext,
 	_ parser.NodeID,
 	b block.Block,
-) (block.Block, error) {
-	return block.NewOffsetBlock(b, n.op.offset), nil
+) error {
+	nextBlock := block.NewOffsetBlock(b, n.op.offset)
+	return n.controller.Process(queryCtx, nextBlock)
 }
