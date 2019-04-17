@@ -177,6 +177,9 @@ func customFields(s []customFieldState, protoFields []int32, schema *desc.Messag
 	numProtoFields := len(fields) - numCustomFields
 
 	if cap(s) >= numCustomFields {
+		for i := range s {
+			s[i] = customFieldState{}
+		}
 		s = s[:0]
 	} else {
 		s = make([]customFieldState, 0, numCustomFields)
