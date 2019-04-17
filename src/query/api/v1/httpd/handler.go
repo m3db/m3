@@ -220,7 +220,7 @@ func (h *Handler) RegisterRoutes() error {
 	// List tag endpoints
 	for _, method := range native.ListTagsHTTPMethods {
 		h.router.HandleFunc(native.ListTagsURL,
-			wrapped(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+			wrapped(native.NewListTagsHandler(h.storage)).ServeHTTP,
 		).Methods(method)
 	}
 
