@@ -227,7 +227,7 @@ func NewDatabase(
 	return d, nil
 }
 
-// GetSchema implements SchemaHistory interface.
+// GetSchema implements SchemaRegistry interface.
 func (db *db) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
 	dbNs, err := db.namespaceFor(id)
 	if err != nil {

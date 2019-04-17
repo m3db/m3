@@ -546,10 +546,11 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
 
-	// M3db admin client is passed to database bootstrapper and repairer before db is constructed.
-	// schema registry is not ready until db has fetched metadata from etcd which is during db construction.
-	// so we need pass m3 admin client to db as well so that it can pass schema registry to m3db client at the right time.
-	// the right time is after metadata is fetched but before repair/bootstrap is constructed.
+	//M3db admin client is passed to database bootstrapper and repairer before db is constructed.
+	//Schema registry is not ready until db has fetched metadata from etcd which is during db construction.
+	//Therefore we need to pass to m3 admin client to db via options,
+	//so that db can set schema registry to m3db client after metadata is fetched,
+	//but before repair/bootstrap is started.
 	opts.SetSchemaRegistryAcceptor(m3dbClient.(storage.SchemaRegistryAcceptor))
 
 	if runOpts.ClientCh != nil {
