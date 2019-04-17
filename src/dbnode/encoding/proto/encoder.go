@@ -460,7 +460,12 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 		if customEncoded {
 			// Remove the field from the message so we don't include it
 			// in the proto marshal.
-			m.ClearFieldByNumber(customField.fieldNum)
+			field := enc.schema.FindFieldByNumber(int32(customField.fieldNum))
+			if err := m.TryClearField(field); err != nil {
+				return fmt.Errorf(
+					"%s error trying to clear field number: %d",
+					encErrPrefix, customField.fieldNum)
+			}
 		}
 	}
 
