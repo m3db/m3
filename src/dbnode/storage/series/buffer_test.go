@@ -889,3 +889,31 @@ func assertTimeSlicesEqual(t *testing.T, t1, t2 []time.Time) {
 		assert.Equal(t, t1[i], t2[i])
 	}
 }
+
+func TestEvictedTimes(t *testing.T) {
+	var times evictedTimes
+	assert.Equal(t, 0, cap(times.slice))
+	assert.Equal(t, 0, times.len())
+	assert.False(t, times.contains(xtime.UnixNano(0)))
+
+	// These adds should only go in the array.
+	for i := 0; i < evictedTimesArraySize; i++ {
+		tNano := xtime.UnixNano(i)
+		times.add(tNano)
+
+		assert.Equal(t, 0, cap(times.slice))
+		assert.Equal(t, i+1, times.arrIdx)
+		assert.Equal(t, i+1, times.len())
+		assert.True(t, times.contains(tNano))
+	}
+
+	// These adds don't fit in the array any more, will go to the slice.
+	for i := evictedTimesArraySize; i < evictedTimesArraySize+5; i++ {
+		tNano := xtime.UnixNano(i)
+		times.add(tNano)
+
+		assert.Equal(t, evictedTimesArraySize, times.arrIdx)
+		assert.Equal(t, i+1, times.len())
+		assert.True(t, times.contains(tNano))
+	}
+}

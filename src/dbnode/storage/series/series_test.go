@@ -584,11 +584,11 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 		Return(bufferTickResult{
 			// This means that (curr - 1 block) and (curr - 2 blocks) should
 			// be removed after the tick.
-			evictedBucketTimes: times{
+			evictedBucketTimes: evictedTimes{
 				arrIdx: 2,
-				arr: [timesArraySize]time.Time{
-					curr.Add(-ropts.BlockSize()),
-					curr.Add(-2 * ropts.BlockSize()),
+				arr: [evictedTimesArraySize]xtime.UnixNano{
+					xtime.ToUnixNano(curr.Add(-ropts.BlockSize())),
+					xtime.ToUnixNano(curr.Add(-2 * ropts.BlockSize())),
 				},
 			},
 		})

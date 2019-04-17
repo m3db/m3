@@ -150,7 +150,7 @@ type updateBlocksResult struct {
 
 func (s *dbSeries) updateBlocksWithLock(
 	blockStates map[xtime.UnixNano]BlockState,
-	evictedBucketTimes times,
+	evictedBucketTimes evictedTimes,
 ) (updateBlocksResult, error) {
 	var (
 		result       updateBlocksResult
@@ -162,7 +162,7 @@ func (s *dbSeries) updateBlocksWithLock(
 	)
 	for startNano, currBlock := range s.cachedBlocks.AllBlocks() {
 		start := startNano.ToTime()
-		if start.Before(expireCutoff) || evictedBucketTimes.contains(start) {
+		if start.Before(expireCutoff) || evictedBucketTimes.contains(xtime.ToUnixNano(start)) {
 			s.cachedBlocks.RemoveBlockAt(start)
 			// If we're using the LRU policy and the block was retrieved from disk,
 			// then don't close the block because that is the WiredList's

@@ -54,9 +54,12 @@ var (
 )
 
 const (
-	bucketsCacheSize  = 2
-	timesArraySize    = 8
-	writableBucketVer = 0
+	bucketsCacheSize = 2
+	// TODO(juchan): This represents the maximum number of blocks we think we'll
+	// be flushing at one time. This should be revisited to after ColdWrites are
+	// enabled to see if this is a sane number.
+	evictedTimesArraySize = 8
+	writableBucketVer     = 0
 )
 
 type databaseBuffer interface {
@@ -116,36 +119,38 @@ type bufferStats struct {
 
 type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
-	evictedBucketTimes     times
+	evictedBucketTimes     evictedTimes
 }
 
-// times is a struct that holds an unknown number of times. This is used to
+// evictedTimes is a struct that holds an unknown number of times. This is used
 // to avoid heap allocations as much as possible by trying to not allocate a
-// slice of times. To do this, `timesArraySize` needs to be strategically sized
-// such that for the vast majority of the time, the internal array can hold all
-// the times required so that `slice` is nil.
-type times struct {
+// slice of times. To do this, `evictedTimesArraySize` needs to be strategically
+// sized such that for the vast majority of the time, the internal array can
+// hold all the times required so that `slice` is nil.
+//
+// evictedTimes should only be interacted with via its helper functions - its
+// fields should never be accessed or modified directly, which could cause an
+// invalid state.
+type evictedTimes struct {
 	arrIdx int
-	arr    [timesArraySize]time.Time
-	slice  []time.Time
+	arr    [evictedTimesArraySize]xtime.UnixNano
+	slice  []xtime.UnixNano
 }
 
-func (t times) add(newTime time.Time) times {
-	if t.arrIdx < timesArraySize {
+func (t *evictedTimes) add(newTime xtime.UnixNano) {
+	if t.arrIdx < cap(t.arr) {
 		t.arr[t.arrIdx] = newTime
 		t.arrIdx++
 	} else {
 		t.slice = append(t.slice, newTime)
 	}
-
-	return t
 }
 
-func (t times) len() int {
+func (t *evictedTimes) len() int {
 	return t.arrIdx + len(t.slice)
 }
 
-func (t times) contains(target time.Time) bool {
+func (t *evictedTimes) contains(target xtime.UnixNano) bool {
 	for i := 0; i < t.arrIdx; i++ {
 		if t.arr[i].Equal(target) {
 			return true
@@ -267,7 +272,7 @@ func (b *dbBuffer) Stats() bufferStats {
 
 func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickResult {
 	mergedOutOfOrder := 0
-	var evictedBucketTimes times
+	var evictedBucketTimes evictedTimes
 	for tNano, buckets := range b.bucketsMap {
 		// The blockStates map is never written to after creation, so this
 		// read access is safe. Since this version map is a snapshot of the
@@ -300,7 +305,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 			// It's unclear whether recently flushed data would frequently be
 			// read soon afterward, so we're choosing (1) here, since it has a
 			// simpler implementation (just removing from a map).
-			evictedBucketTimes = evictedBucketTimes.add(t)
+			evictedBucketTimes.add(tNano)
 			continue
 		}
 
