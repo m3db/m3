@@ -35,13 +35,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/search"
-	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func newTestNSMetadata(t require.TestingT) namespace.Metadata {
@@ -1414,9 +1414,10 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
 	testOpts = testOpts.SetInstrumentOptions(
-		testOpts.InstrumentOptions().
-			SetLogger(xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelDebug)))
+		testOpts.InstrumentOptions().SetLogger(logger))
 
 	blk, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
 	require.NoError(t, err)

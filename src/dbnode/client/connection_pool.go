@@ -37,6 +37,7 @@ import (
 	"github.com/spaolacci/murmur3"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 const (
@@ -182,13 +183,13 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				// Create connection
 				channel, client, err := p.newConn(channelName, address, p.opts)
 				if err != nil {
-					log.Debugf("could not connect to %s: %v", address, err)
+					log.Debug("could not connect", zap.String("host", address), zap.Error(err))
 					return
 				}
 
 				// Health check the connection
 				if err := p.healthCheckNewConn(client, p.opts); err != nil {
-					log.Debugf("could not connect to %s: failed health check: %v", address, err)
+					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
 					return
 				}
@@ -255,7 +256,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				healthy := failed < attempts
 				if !healthy {
 					// Log health check error
-					log.Debugf("health check failed to %s: %v", p.host.Address(), checkErr)
+					log.Debug("health check failed", zap.String("host", p.host.Address()), zap.Error(checkErr))
 
 					// Swap with tail and decrement pool size
 					p.Lock()

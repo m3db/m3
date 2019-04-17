@@ -97,7 +97,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	// Stop the server
 	defer func() {
 		require.NoError(t, testSetup.stopServer())
-		log.Infof("server is now down")
+		log.Info("server is now down")
 	}()
 
 	// Write test data
@@ -113,7 +113,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(start)] = testData
 	}
-	log.Infof("test data is now generated")
+	log.Info("test data is now generated")
 
 	// fail to write to non-existent namespaces
 	for _, testData := range seriesMaps {
@@ -128,12 +128,12 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 		return numInvalidNamespaceUpdates(reporter) > numInvalid
 	}
 	require.True(t, waitUntil(deletePropagated, 20*time.Second))
-	log.Infof("deleted namespace key propagated from KV to testSetup")
+	log.Info("deleted namespace key propagated from KV to testSetup")
 
 	// update value in kv
 	_, err = kvStore.Set(dynamicOpts.NamespaceRegistryKey(), protoKey(ns0, ns1))
 	require.NoError(t, err)
-	log.Infof("new namespace added to kv")
+	log.Info("new namespace added to kv")
 
 	// wait until the new namespace is registered
 	nsExists := func() bool {
@@ -141,14 +141,14 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 		return ok
 	}
 	require.True(t, waitUntil(nsExists, 5*time.Second))
-	log.Infof("new namespace propagated from KV to testSetup")
+	log.Info("new namespace propagated from KV to testSetup")
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
 		testSetup.setNowFn(start.ToTime())
 		require.NoError(t, testSetup.writeBatch(ns0.ID(), testData))
 	}
-	log.Infof("test data is now written")
+	log.Info("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
@@ -157,11 +157,11 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)
-	log.Infof("reading data from testSetup")
+	log.Info("reading data from testSetup")
 
 	// Verify retrieved data matches what we've written
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
-	log.Infof("data is verified")
+	log.Info("data is verified")
 }
 
 func numInvalidNamespaceUpdates(reporter xmetrics.TestStatsReporter) int64 {

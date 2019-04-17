@@ -52,11 +52,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	tchannel "github.com/uber/tchannel-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -83,7 +84,7 @@ type testSetup struct {
 	t    *testing.T
 	opts testOptions
 
-	logger xlog.Logger
+	logger *zap.Logger
 
 	db             cluster.Database
 	storageOpts    storage.Options
@@ -125,21 +126,29 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
-	var logger xlog.Logger
+	zapConfig := zap.NewDevelopmentConfig()
+	zapConfig.DisableCaller = true
+	zapConfig.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
-		parsedLevel, err := xlog.ParseLevel(level)
-		if err != nil {
+		var parsedLevel zap.AtomicLevel
+		if err := parsedLevel.UnmarshalText([]byte(level)); err != nil {
 			return nil, fmt.Errorf("unable to parse log level: %v", err)
 		}
-		logger = xlog.NewLevelLogger(xlog.SimpleLogger, parsedLevel)
-	} else {
-		logger = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelInfo)
+		zapConfig.Level = parsedLevel
+	}
+	logger, err := zapConfig.Build()
+	if err != nil {
+		return nil, err
 	}
 
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(nsInit)
 	if strings.ToLower(os.Getenv("TEST_DEBUG_LOG")) == "true" {
-		logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelDebug)
+		zapConfig.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+		logger, err = zapConfig.Build()
+		if err != nil {
+			return nil, err
+		}
 		storageOpts = storageOpts.SetInstrumentOptions(
 			storageOpts.InstrumentOptions().SetLogger(logger))
 	}
@@ -154,10 +163,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts = storageOpts.SetSeriesCachePolicy(value)
 	}
 
-	fields := []xlog.Field{
-		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
+	fields := []zapcore.Field{
+		zap.Stringer("cache-policy", storageOpts.SeriesCachePolicy()),
 	}
-	logger = logger.WithFields(fields...)
+	logger = logger.With(fields...)
 	iOpts := storageOpts.InstrumentOptions()
 	storageOpts = storageOpts.SetInstrumentOptions(iOpts.SetLogger(logger))
 
@@ -233,9 +242,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// a value to align `now` for all of them.
 	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
 	if guess {
-		logger.Warnf(
-			"unable to find a single blockSize from known retention periods, guessing: %v",
-			truncateSize.String())
+		logger.Warn("unable to find a single blockSize from known retention periods",
+			zap.String("guessing", truncateSize.String()))
 	}
 
 	// Set up getter and setter for now
@@ -476,7 +484,7 @@ func (ts *testSetup) startServer() error {
 }
 
 func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
-	ts.logger.Infof("starting server")
+	ts.logger.Info("starting server")
 
 	var (
 		resultCh = make(chan error, 1)
@@ -529,9 +537,9 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 
 	err = <-resultCh
 	if err == nil {
-		ts.logger.Infof("started server")
+		ts.logger.Info("started server")
 	} else {
-		ts.logger.Errorf("start server error: %v", err)
+		ts.logger.Error("start server error", zap.Error(err))
 	}
 	return err
 }
@@ -743,13 +751,12 @@ func newNodes(
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
-		log  = xlog.SimpleLogger
+		log  = zap.L()
 		opts = newTestOptions(t).
 			SetNamespaces(nspaces).
 			SetTickMinimumInterval(3 * time.Second).
 			SetWriteNewSeriesAsync(asyncInserts).
 			SetNumShards(numShards)
-
 		// NB(bl): We set replication to 3 to mimic production. This can be made
 		// into a variable if needed.
 		svc = fake.NewM3ClusterService().

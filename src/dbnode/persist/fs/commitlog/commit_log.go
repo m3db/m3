@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
-	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -92,7 +92,7 @@ type commitLog struct {
 
 	opts  Options
 	nowFn clock.NowFn
-	log   xlog.Logger
+	log   *zap.Logger
 
 	newCommitLogWriterFn newCommitLogWriterFn
 	writeFn              writeCommitLogFn
@@ -266,7 +266,7 @@ func (l *commitLog) Open() error {
 	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
 	// Right now it is a large amount of coordination to implement something similar.
 	l.commitLogFailFn = func(err error) {
-		l.log.Fatalf("fatal commit log error: %v", err)
+		l.log.Fatal("fatal commit log error", zap.Error(err))
 	}
 
 	// Asynchronously write
@@ -435,7 +435,7 @@ func (l *commitLog) write() {
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
-				l.log.Errorf("failed to open commit log: %v", err)
+				l.log.Error("failed to open commit log", zap.Error(err))
 
 				if l.commitLogFailFn != nil {
 					l.commitLogFailFn(err)
@@ -518,7 +518,7 @@ func (l *commitLog) onFlush(err error) {
 	if err != nil {
 		l.metrics.errors.Inc(1)
 		l.metrics.flushErrors.Inc(1)
-		l.log.Errorf("failed to flush commit log: %v", err)
+		l.log.Error("failed to flush commit log", zap.Error(err))
 
 		if l.commitLogFailFn != nil {
 			l.commitLogFailFn(err)
@@ -550,7 +550,7 @@ func (l *commitLog) openWriter() (persist.CommitLogFile, error) {
 	if l.writerState.writer != nil {
 		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
-			l.log.Errorf("failed to close commit log: %v", err)
+			l.log.Error("failed to close commit log", zap.Error(err))
 
 			// If we failed to close then create a new commit log writer
 			l.writerState.writer = nil
@@ -718,7 +718,7 @@ func (l *commitLog) Close() error {
 
 func (l *commitLog) handleWriteErr(err error) {
 	l.metrics.errors.Inc(1)
-	l.log.Errorf("failed to write to commit log: %v", err)
+	l.log.Error("failed to write to commit log", zap.Error(err))
 
 	if l.commitLogFailFn != nil {
 		l.commitLogFailFn(err)

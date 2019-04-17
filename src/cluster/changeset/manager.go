@@ -26,9 +26,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/changesetpb"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/x/log"
 
 	"github.com/golang/protobuf/proto"
+	"go.uber.org/zap"
 )
 
 var (
@@ -66,8 +66,8 @@ type ManagerOptions interface {
 	ConfigKey() string
 
 	// Logger is the logger to use
-	SetLogger(logger log.Logger) ManagerOptions
-	Logger() log.Logger
+	SetLogger(logger *zap.Logger) ManagerOptions
+	Logger() *zap.Logger
 
 	// ConfigType is a proto.Message defining the structure of the configuration
 	// object.  Clones of this proto will be used to unmarshal configuration
@@ -130,7 +130,7 @@ func NewManager(opts ManagerOptions) (Manager, error) {
 
 	logger := opts.Logger()
 	if logger == nil {
-		logger = log.NullLogger
+		logger = zap.NewNop()
 	}
 
 	return manager{
@@ -147,7 +147,7 @@ type manager struct {
 	kv          kv.Store
 	configType  proto.Message
 	changesType proto.Message
-	log         log.Logger
+	log         *zap.Logger
 }
 
 func (m manager) Change(change ChangeFn) error {
@@ -358,14 +358,14 @@ func fmtChangeSetKey(configKey string, configVers int) string {
 
 type managerOptions struct {
 	kv          kv.Store
-	logger      log.Logger
+	logger      *zap.Logger
 	configKey   string
 	configType  proto.Message
 	changesType proto.Message
 }
 
 func (opts managerOptions) KV() kv.Store               { return opts.kv }
-func (opts managerOptions) Logger() log.Logger         { return opts.logger }
+func (opts managerOptions) Logger() *zap.Logger        { return opts.logger }
 func (opts managerOptions) ConfigKey() string          { return opts.configKey }
 func (opts managerOptions) ConfigType() proto.Message  { return opts.configType }
 func (opts managerOptions) ChangesType() proto.Message { return opts.changesType }
@@ -374,7 +374,7 @@ func (opts managerOptions) SetKV(kv kv.Store) ManagerOptions {
 	opts.kv = kv
 	return opts
 }
-func (opts managerOptions) SetLogger(logger log.Logger) ManagerOptions {
+func (opts managerOptions) SetLogger(logger *zap.Logger) ManagerOptions {
 	opts.logger = logger
 	return opts
 }

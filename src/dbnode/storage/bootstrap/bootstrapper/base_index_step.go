@@ -24,7 +24,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xlog "github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type bootstrapIndexStep interface {
@@ -75,7 +77,7 @@ func (s *bootstrapIndex) runCurrStep(
 	var (
 		requested = targetRanges.Copy()
 		fulfilled result.ShardTimeRanges
-		logFields []xlog.Field
+		logFields []zapcore.Field
 		err       error
 	)
 	s.currResult, err = s.curr.ReadIndex(s.namespace, targetRanges, s.opts)
@@ -89,8 +91,7 @@ func (s *bootstrapIndex) runCurrStep(
 			blocks++
 			segments += len(block.Segments())
 		}
-		logFields = append(logFields, xlog.NewField("numBlocks", blocks),
-			xlog.NewField("numSegments", segments))
+		logFields = append(logFields, zap.Int("numBlocks", blocks), zap.Int("numSegments", segments))
 	}
 	return bootstrapStepStatus{
 		fulfilled: fulfilled,

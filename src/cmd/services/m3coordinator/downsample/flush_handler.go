@@ -33,11 +33,12 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -161,7 +162,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		err := iter.Err()
 		iter.Close()
 		if err != nil {
-			logger.Errorf("downsampler flush error preparing write: %v", err)
+			logger.Error("downsampler flush error preparing write", zap.Error(err))
 			w.handler.metrics.flushErrors.Inc(1)
 			return
 		}
@@ -180,7 +181,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			},
 		})
 		if err != nil {
-			logger.Errorf("downsampler flush error failed write: %v", err)
+			logger.Error("downsampler flush error failed write", zap.Error(err))
 			w.handler.metrics.flushErrors.Inc(1)
 			return
 		}

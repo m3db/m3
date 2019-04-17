@@ -23,15 +23,16 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/pborman/getopt"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -40,9 +41,14 @@ func main() {
 		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
 		optShard      = getopt.Uint32Long("shard", 's', 0, "Shard ID [expected format uint32]")
 		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		log           = xlog.NewLogger(os.Stderr)
 	)
 	getopt.Parse()
+
+	rawLogger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("unable to create logger: %+v", err)
+	}
+	log := rawLogger.Sugar()
 
 	if *optPathPrefix == "" ||
 		*optNamespace == "" ||

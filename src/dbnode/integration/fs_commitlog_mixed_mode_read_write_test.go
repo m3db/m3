@@ -99,20 +99,20 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 		ctx   = context.NewContext()
 	)
 	defer ctx.Close()
-	log.Infof("writing datapoints")
+	log.Info("writing datapoints")
 	datapoints := generateDatapoints(fakeStart, total, ids)
 	for _, dp := range datapoints {
 		ts := dp.time
 		setup.setNowFn(ts)
 		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil))
 	}
-	log.Infof("wrote datapoints")
+	log.Info("wrote datapoints")
 
 	// verify in-memory data matches what we expect
 	expectedSeriesMap := datapoints.toSeriesMap(ns1BlockSize)
-	log.Infof("verifying data in database equals expected data")
+	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
-	log.Infof("verified data in database equals expected data")
+	log.Info("verified data in database equals expected data")
 
 	// current time is 18:50, so we expect data for block starts [15, 18) to be written out
 	// to fileset files, and flushed.
@@ -120,48 +120,48 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	delete(expectedFlushedData, xtime.ToUnixNano(blkStart18))
 	waitTimeout := 5 * time.Minute
 	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	log.Infof("waiting till expected fileset files have been written")
+	log.Info("waiting till expected fileset files have been written")
 	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
-	log.Infof("expected fileset files have been written")
+	log.Info("expected fileset files have been written")
 
 	// stopping db
-	log.Infof("stopping database")
+	log.Info("stopping database")
 	require.NoError(t, setup.stopServer())
-	log.Infof("database stopped")
+	log.Info("database stopped")
 
 	// the time now is 18:55
 	setup.setNowFn(setup.getNowFn().Add(5 * time.Minute))
 
 	// recreate the db from the data files and commit log
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
-	log.Infof("re-opening database & bootstrapping")
+	log.Info("re-opening database & bootstrapping")
 	startServerWithNewInspection(t, opts, setup)
-	log.Infof("verifying data in database equals expected data")
+	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
-	log.Infof("verified data in database equals expected data")
+	log.Info("verified data in database equals expected data")
 
 	// the time now is 19:15
 	setup.setNowFn(setup.getNowFn().Add(20 * time.Minute))
 	// data from hour 15 is now outdated, ensure the file has been cleaned up
-	log.Infof("waiting till expired fileset files have been cleanedup")
+	log.Info("waiting till expired fileset files have been cleanedup")
 	require.NoError(t, waitUntilFileSetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
-	log.Infof("fileset files have been cleaned up")
+	log.Info("fileset files have been cleaned up")
 
 	// stopping db
-	log.Infof("stopping database")
+	log.Info("stopping database")
 	require.NoError(t, setup.stopServer())
-	log.Infof("database stopped")
+	log.Info("database stopped")
 
 	// recreate the db from the data files and commit log
-	log.Infof("re-opening database & bootstrapping")
+	log.Info("re-opening database & bootstrapping")
 	startServerWithNewInspection(t, opts, setup)
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
 	delete(expectedSeriesMap, xtime.ToUnixNano(blkStart15))
-	log.Infof("verifying data in database equals expected data")
+	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
-	log.Infof("verified data in database equals expected data")
+	log.Info("verified data in database equals expected data")
 }
 
 // We use this helper method to start the server so that a new filesystem

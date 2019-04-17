@@ -40,12 +40,12 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 type runType int
@@ -63,7 +63,7 @@ type newDataFileSetReaderFn func(
 type fileSystemSource struct {
 	opts              Options
 	fsopts            fs.Options
-	log               xlog.Logger
+	log               *zap.Logger
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts newReaderPoolOptions
@@ -189,14 +189,14 @@ func (s *fileSystemSource) shardAvailability(
 	var tr xtime.Ranges
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
-		if result.Err.Error() != nil {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("namespace", namespace.String()),
-				xlog.NewField("error", result.Err.Error()),
-				xlog.NewField("targetRangesForShard", targetRangesForShard),
-				xlog.NewField("filepath", result.Err.Filepath()),
-			).Error("unable to read info files in shardAvailability")
+		if err := result.Err.Error(); err != nil {
+			s.log.Error("unable to read info files in shardAvailability",
+				zap.Uint32("shard", shard),
+				zap.Stringer("namespace", namespace),
+				zap.Error(err),
+				zap.Any("targetRangesForShard", targetRangesForShard),
+				zap.String("filepath", result.Err.Filepath()),
+			)
 			continue
 		}
 		info := result.Info
@@ -309,14 +309,14 @@ func (s *fileSystemSource) newShardReaders(
 	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
-		if result.Err.Error() != nil {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("namespace", ns.ID().String()),
-				xlog.NewField("error", result.Err.Error()),
-				xlog.NewField("timeRange", tr.String()),
-				xlog.NewField("path", result.Err.Filepath()),
-			).Error("fs bootstrapper unable to read info file")
+		if err := result.Err.Error(); err != nil {
+			s.log.Error("fs bootstrapper unable to read info file",
+				zap.Uint32("shard", shard),
+				zap.Stringer("namespace", ns.ID()),
+				zap.Error(err),
+				zap.String("timeRange", tr.String()),
+				zap.String("path", result.Err.Filepath()),
+			)
 			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
 			// and will be re-attempted by the next bootstrapper.
 			continue
@@ -335,7 +335,7 @@ func (s *fileSystemSource) newShardReaders(
 
 		r, err := readerPool.get()
 		if err != nil {
-			s.log.Errorf("unable to get reader from pool")
+			s.log.Error("unable to get reader from pool")
 			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
 			// and will be re-attempted by the next bootstrapper.
 			continue
@@ -349,11 +349,11 @@ func (s *fileSystemSource) newShardReaders(
 			},
 		}
 		if err := r.Open(openOpts); err != nil {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("blockStart", blockStart.String()),
-				xlog.NewField("error", err.Error()),
-			).Error("unable to open fileset files")
+			s.log.Error("unable to open fileset files",
+				zap.Uint32("shard", shard),
+				zap.Time("blockStart", blockStart),
+				zap.Error(err),
+			)
 			readerPool.put(r)
 			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
 			// and will be re-attempted by the next bootstrapper.
@@ -436,10 +436,10 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.log.WithFields(
-			xlog.NewField("requestedRanges", requestedRanges.SummaryString()),
-			xlog.NewField("timesWithErrors", timesWithErrorsString),
-		).Info("deleting entries from results for times with errors")
+		s.log.Info("deleting entries from results for times with errors",
+			zap.String("requestedRanges", requestedRanges.SummaryString()),
+			zap.Strings("timesWithErrors", timesWithErrorsString),
+		)
 
 		runResult.Lock()
 		for shard := range requestedRanges {
@@ -579,7 +579,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				})
 			} else {
-				s.log.Errorf("%v", err)
+				s.log.Error(err.Error())
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -593,12 +593,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		err := s.persistBootstrapIndexSegment(ns, requestedRanges, runResult)
 		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
-			instrument.EmitAndLogInvariantViolation(iopts, func(l xlog.Logger) {
-				l.WithFields(
-					xlog.NewField("namespace", ns.ID().String()),
-					xlog.NewField("requestedRanges", requestedRanges.String()),
-					xlog.NewField("error", err.Error()),
-				).Error("persist fs index bootstrap failed")
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("persist fs index bootstrap failed",
+					zap.Stringer("namespace", ns.ID()),
+					zap.Stringer("requestedRanges", requestedRanges),
+					zap.Error(err),
+				)
 			})
 		}
 	}
@@ -829,7 +829,7 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 			if err := mSeg.Close(); err != nil {
 				// safe to only log warning as we have persisted equivalent for the mutable block
 				// at this point.
-				s.log.Warnf("encountered error while closing persisted mutable segment: %v", err)
+				s.log.Warn("encountered error while closing persisted mutable segment", zap.Error(err))
 			}
 		}
 
@@ -981,7 +981,7 @@ func (s *fileSystemSource) read(
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
 			shardsTimeRanges)
 		if err != nil {
-			s.log.Warnf("filesystem bootstrapped failed to read persisted index blocks")
+			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
 			// We may have less we need to read
 			shardsTimeRanges = shardsTimeRanges.Copy()
@@ -1022,9 +1022,8 @@ func (s *fileSystemSource) resolveBlockRetrieverAndCacheDataShardIndices(
 ) {
 	var blockRetriever block.DatabaseBlockRetriever
 
-	s.log.WithFields(
-		xlog.NewField("namespace", md.ID().String()),
-	).Infof("filesystem bootstrapper resolving block retriever")
+	s.log.Info("filesystem bootstrapper resolving block retriever",
+		zap.Stringer("namespace", md.ID()))
 
 	var err error
 	blockRetriever, err = blockRetrieverMgr.Retriever(md)
@@ -1032,10 +1031,10 @@ func (s *fileSystemSource) resolveBlockRetrieverAndCacheDataShardIndices(
 		return nil, err
 	}
 
-	s.log.WithFields(
-		xlog.NewField("namespace", md.ID().String()),
-		xlog.NewField("shards", len(shards)),
-	).Infof("filesystem bootstrapper caching block retriever shard indices")
+	s.log.Info("filesystem bootstrapper caching block retriever shard indices",
+		zap.Stringer("namespace", md.ID()),
+		zap.Int("shards", len(shards)),
+	)
 
 	err = blockRetriever.CacheShardIndices(shards)
 	if err != nil {
@@ -1081,13 +1080,13 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		s.fsopts.InfoReaderBufferSize())
 
 	for _, infoFile := range infoFiles {
-		if infoFile.Err.Error() != nil {
-			s.log.WithFields(
-				xlog.NewField("namespace", ns.ID().String()),
-				xlog.NewField("error", infoFile.Err.Error()),
-				xlog.NewField("shardsTimeRanges", shardsTimeRanges.String()),
-				xlog.NewField("filepath", infoFile.Err.Filepath()),
-			).Error("unable to read index info file")
+		if err := infoFile.Err.Error(); err != nil {
+			s.log.Error("unable to read index info file",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Error(err),
+				zap.Stringer("shardsTimeRanges", shardsTimeRanges),
+				zap.String("filepath", infoFile.Err.Filepath()),
+			)
 			continue
 		}
 
@@ -1129,12 +1128,12 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			FilesystemOptions: s.fsopts,
 		})
 		if err != nil {
-			s.log.WithFields(
-				xlog.NewField("namespace", ns.ID().String()),
-				xlog.NewField("error", err.Error()),
-				xlog.NewField("blockStart", indexBlockStart.String()),
-				xlog.NewField("volumeIndex", infoFile.ID.VolumeIndex),
-			).Error("unable to read segments from index fileset")
+			s.log.Error("unable to read segments from index fileset",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Error(err),
+				zap.Time("blockStart", indexBlockStart),
+				zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
+			)
 			continue
 		}
 

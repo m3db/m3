@@ -44,11 +44,12 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestMultiServerForwardingPipelineKeepNaNAggregatedValues(t *testing.T) {
@@ -163,8 +164,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	servers := make([]*testServerSetup, 0, len(multiServerSetup))
 	for _, mss := range multiServerSetup {
 		instrumentOpts := instrument.NewOptions()
-		logger := instrumentOpts.Logger().WithFields(
-			log.NewField("serverAddr", mss.rawTCPAddr),
+		logger := instrumentOpts.Logger().With(
+			zap.String("serverAddr", mss.rawTCPAddr),
 		)
 		instrumentOpts = instrumentOpts.SetLogger(logger)
 		serverOpts := newTestServerOptions().
@@ -184,11 +185,11 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Start the servers.
-	log := log.NewLevelLogger(log.SimpleLogger, log.LevelInfo)
+	log := xtest.NewLogger(t)
 	log.Info("test forwarding pipeline")
 	for i, server := range servers {
 		require.NoError(t, server.startServer())
-		log.Infof("server %d is now up", i)
+		log.Sugar().Infof("server %d is now up", i)
 	}
 
 	// Create clients for writing to the servers.
@@ -224,9 +225,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 
 	for i := range leaderCh {
 		leaders[i] = struct{}{}
-		log.Infof("server %d has become the leader", i)
+		log.Sugar().Infof("server %d has become the leader", i)
 	}
-	log.Infof("%d servers have become leaders", len(leaders))
+	log.Sugar().Infof("%d servers have become leaders", len(leaders))
 
 	var (
 		idPrefix        = "foo"
@@ -336,7 +337,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
-		log.Infof("server %d is now down", i)
+		log.Sugar().Infof("server %d is now down", i)
 	}
 
 	// Stop the clients.

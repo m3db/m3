@@ -58,9 +58,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -272,12 +272,12 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// check, and a block should never be pooled in-between those steps because
 			// the wired list is supposed to have sole ownership over that lifecycle and
 			// is single-threaded.
-			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
-				l.WithFields(
-					xlog.NewField("blockStart", entry.startTime),
-					xlog.NewField("closed", entry.closed),
-					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-				).Errorf("wired list tried to process a block that was not retrieved from disk")
+			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l *zap.Logger) {
+				l.With(
+					zap.Time("blockStart", entry.startTime),
+					zap.Bool("closed", entry.closed),
+					zap.Bool("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+				).Error("wired list tried to process a block that was not retrieved from disk")
 			})
 
 		}
@@ -287,12 +287,12 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 		if onEvict := bl.OnEvictedFromWiredList(); onEvict != nil {
 			if entry.seriesID == nil {
 				// Entry should always have a series ID attached
-				instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
-					l.WithFields(
-						xlog.NewField("blockStart", entry.startTime),
-						xlog.NewField("closed", entry.closed),
-						xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-					).Errorf("wired list entry does not have seriesID set")
+				instrument.EmitAndLogInvariantViolation(l.iOpts, func(l *zap.Logger) {
+					l.With(
+						zap.Time("blockStart", entry.startTime),
+						zap.Bool("closed", entry.closed),
+						zap.Bool("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+					).Error("wired list entry does not have seriesID set")
 				})
 
 			} else {
@@ -307,12 +307,12 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 		l.remove(bl)
 		if wasFromDisk := bl.CloseIfFromDisk(); !wasFromDisk {
 			// Should never happen
-			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
-				l.WithFields(
-					xlog.NewField("blockStart", entry.startTime),
-					xlog.NewField("closed", entry.closed),
-					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-				).Errorf("wired list tried to close a block that was not from disk")
+			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l *zap.Logger) {
+				l.With(
+					zap.Time("blockStart", entry.startTime),
+					zap.Bool("closed", entry.closed),
+					zap.Bool("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+				).Error("wired list tried to close a block that was not from disk")
 			})
 		}
 

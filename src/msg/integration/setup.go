@@ -39,12 +39,12 @@ import (
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -84,7 +84,7 @@ func newTestSetup(
 	numProducers int,
 	configs []consumerServiceConfig,
 ) *setup {
-	log.SimpleLogger.Debugf("setting up a test with %d producers", numProducers)
+	zap.L().Sugar().Debugf("setting up a test with %d producers", numProducers)
 
 	configService := client.NewMockClient(ctrl)
 	configService.EXPECT().Store(gomock.Any()).Return(mem.NewStore(), nil).AnyTimes()
@@ -98,7 +98,7 @@ func newTestSetup(
 		totalConsumed         = atomic.NewInt64(0)
 	)
 	for i, config := range configs {
-		log.SimpleLogger.Debugf("setting up a consumer service in %s mode with %d replicas", config.ct.String(), config.replicas)
+		zap.L().Sugar().Debugf("setting up a consumer service in %s mode with %d replicas", config.ct.String(), config.replicas)
 		cs := newTestConsumerService(t, i, config, sd, numProducers, totalConsumed)
 		topicConsumerServices = append(topicConsumerServices, cs.consumerService)
 		testConsumerServices = append(testConsumerServices, cs)
@@ -203,7 +203,7 @@ func (s *setup) Run(
 		num := op.progressPct * numWritesPerProducer / 100
 		ops[num] = op.fn
 	}
-	log.SimpleLogger.Debug("producing messages")
+	zap.L().Sugar().Debug("producing messages")
 	for i := 0; i < numWritesPerProducer; i++ {
 		if fn, ok := ops[i]; ok {
 			fn()
@@ -213,7 +213,7 @@ func (s *setup) Run(
 			require.NoError(t, p.Produce(m))
 		}
 	}
-	log.SimpleLogger.Debug("produced all the messages")
+	zap.L().Sugar().Debug("produced all the messages")
 	s.CloseProducers(closeTimeout)
 	s.CloseConsumers()
 
@@ -230,7 +230,7 @@ func (s *setup) Run(
 	}
 	expectedConsumed := expectedConsumeReplica * numWritesPerProducer * len(s.producers)
 	require.True(t, int(s.totalConsumed.Load()) >= expectedConsumed, fmt.Sprintf("expect %d, consumed %d", expectedConsumed, s.totalConsumed.Load()))
-	log.SimpleLogger.Debug("done")
+	zap.L().Sugar().Debug("done")
 }
 
 func (s *setup) VerifyConsumers(t *testing.T) {
@@ -245,9 +245,9 @@ func (s *setup) CloseProducers(dur time.Duration) {
 
 	go func() {
 		for _, p := range s.producers {
-			log.SimpleLogger.Debug("closing producer")
+			zap.L().Sugar().Debug("closing producer")
 			p.Close(producer.WaitForConsumption)
-			log.SimpleLogger.Debug("closed producer")
+			zap.L().Sugar().Debug("closed producer")
 		}
 		close(doneCh)
 	}()
@@ -256,7 +256,7 @@ func (s *setup) CloseProducers(dur time.Duration) {
 	case <-time.After(dur):
 		panic(fmt.Sprintf("taking more than %v to close producers %v", dur, time.Now()))
 	case <-doneCh:
-		log.SimpleLogger.Debugf("producer closed in %v", dur)
+		zap.L().Sugar().Debugf("producer closed in %v", dur)
 		return
 	}
 }
@@ -283,10 +283,10 @@ func (s *setup) KillConnection(t *testing.T, idx int) {
 	c := testConsumers[len(testConsumers)-1]
 	c.closeOneConsumer()
 
-	log.SimpleLogger.Debugf("killed a consumer on instance: %s", c.instance.ID())
+	zap.L().Sugar().Debugf("killed a consumer on instance: %s", c.instance.ID())
 	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("placement: %s", p.String())
+	zap.L().Sugar().Debugf("placement: %s", p.String())
 }
 
 func (s *setup) KillInstance(t *testing.T, idx int) {
@@ -298,10 +298,10 @@ func (s *setup) KillInstance(t *testing.T, idx int) {
 	c := testConsumers[len(testConsumers)-1]
 	c.Close()
 
-	log.SimpleLogger.Debugf("killed instance: %s", c.instance.ID())
+	zap.L().Sugar().Debugf("killed instance: %s", c.instance.ID())
 	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("placement: %s", p.String())
+	zap.L().Sugar().Debugf("placement: %s", p.String())
 }
 
 func (s *setup) AddInstance(t *testing.T, idx int) {
@@ -313,11 +313,11 @@ func (s *setup) AddInstance(t *testing.T, idx int) {
 
 	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("old placement: %s", p.String())
+	zap.L().Sugar().Debugf("old placement: %s", p.String())
 
 	p, _, err = cs.placementService.AddInstances([]placement.Instance{newConsumer.instance})
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("new placement: %s", p.String())
+	zap.L().Sugar().Debugf("new placement: %s", p.String())
 	cs.testConsumers = append(cs.testConsumers, newConsumer)
 }
 
@@ -333,11 +333,11 @@ func (s *setup) RemoveInstance(t *testing.T, idx int) {
 
 	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("old placement: %s", p.String())
+	zap.L().Sugar().Debugf("old placement: %s", p.String())
 
 	p, err = cs.placementService.RemoveInstances([]string{oldConsumer.instance.ID()})
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("new placement: %s", p.String())
+	zap.L().Sugar().Debugf("new placement: %s", p.String())
 	cs.testConsumers = testConsumers[:l-1]
 }
 
@@ -356,14 +356,14 @@ func (s *setup) ReplaceInstance(t *testing.T, idx int) {
 
 	p, err := cs.placementService.Placement()
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("old placement: %s", p.String())
+	zap.L().Sugar().Debugf("old placement: %s", p.String())
 
 	p, _, err = cs.placementService.ReplaceInstances(
 		[]string{oldConsumer.instance.ID()},
 		[]placement.Instance{newConsumer.instance},
 	)
 	require.NoError(t, err)
-	log.SimpleLogger.Debugf("new placement: %s", p.String())
+	zap.L().Sugar().Debugf("new placement: %s", p.String())
 	cs.testConsumers[l-1] = newConsumer
 }
 

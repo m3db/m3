@@ -49,8 +49,11 @@ func addDownNodeAndBringUpDTest(cmd *cobra.Command, args []string) {
 		printUsage(cmd)
 		return
 	}
-	logger := newLogger(cmd)
-	dt := harness.New(globalArgs, logger)
+	rawLogger := newLogger(cmd)
+	defer rawLogger.Sync()
+	logger := rawLogger.Sugar()
+
+	dt := harness.New(globalArgs, rawLogger)
 	defer dt.Close()
 
 	nodes := dt.Nodes()

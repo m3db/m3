@@ -38,6 +38,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
@@ -111,8 +112,8 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 
 				insertWg.Wait()
 				require.Zero(t, numTotalErrors)
-				log.Infof("test data written in %v", time.Since(start))
-				log.Infof("waiting to see if data is indexed")
+				log.Info("test data written", zap.Duration("took", time.Since(start)))
+				log.Info("waiting to see if data is indexed")
 
 				var (
 					indexTimeout = 10 * time.Second
@@ -132,7 +133,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					}()
 				}
 				fetchWg.Wait()
-				log.Infof("data is indexed in %v", time.Since(start))
+				log.Info("data is indexed", zap.Duration("took", time.Since(start)))
 			})
 	}
 }

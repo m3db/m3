@@ -28,7 +28,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -100,7 +101,7 @@ type helper struct {
 	rf                  int
 	uniqueShards        []uint32
 	instances           map[string]placement.Instance
-	log                 log.Logger
+	log                 *zap.Logger
 	opts                placement.Options
 	totalWeight         uint32
 	maxShardSetID       uint32

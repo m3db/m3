@@ -153,7 +153,7 @@ func Run(runOpts RunOptions) {
 
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger).
+		SetLogger(logger).
 		SetTracer(tracer)
 
 	opentracing.SetGlobalTracer(tracer)
@@ -351,7 +351,7 @@ func newM3DBStorage(
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
-		logger              = instrumentOptions.ZapLogger()
+		logger              = instrumentOptions.Logger()
 		clusterClient       clusterclient.Client
 		clusterClientWaitCh <-chan struct{}
 	)
@@ -538,7 +538,7 @@ func initClusters(
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
 
 	var (
-		logger      = instrumentOpts.ZapLogger()
+		logger      = instrumentOpts.Logger()
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper
 		err         error
@@ -605,7 +605,7 @@ func newStorages(
 	instrumentOpts instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	var (
-		logger  = instrumentOpts.ZapLogger()
+		logger  = instrumentOpts.Logger()
 		cleanup = func() error { return nil }
 	)
 

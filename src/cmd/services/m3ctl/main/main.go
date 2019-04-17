@@ -60,12 +60,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger, err := cfg.Logging.BuildLogger()
+	rawLogger, err := cfg.Logging.BuildLogger()
 	if err != nil {
 		fmt.Printf("error creating logger: %v\n", err)
 		os.Exit(1)
 	}
+	defer rawLogger.Sync()
 
+	logger := rawLogger.Sugar()
 	envPort := os.Getenv(portEnvVar)
 	if envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
@@ -87,7 +89,7 @@ func main() {
 	defer closer.Close()
 
 	instrumentOpts := instrument.NewOptions().
-		SetLogger(logger).
+		SetLogger(rawLogger).
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())

@@ -22,17 +22,17 @@ package handler
 
 import (
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 type loggingHandler struct {
-	logger log.Logger
+	logger *zap.Logger
 }
 
 // NewLoggingHandler creates a new logging handler.
-func NewLoggingHandler(logger log.Logger) Handler {
+func NewLoggingHandler(logger *zap.Logger) Handler {
 	return &loggingHandler{logger: logger}
 }
 

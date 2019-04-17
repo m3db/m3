@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/m3nsch/coordinator"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"go.uber.org/zap"
 	"github.com/spf13/cobra"
 )
 
@@ -68,14 +69,14 @@ func modifyExec(cmd *cobra.Command, _ []string) {
 	)
 
 	if err != nil {
-		logger.Fatalf("unable to create coord: %v", err)
+		logger.Fatal("unable to create coord", zap.Error(err))
 	}
 	defer coord.Teardown()
 
 	err = coord.SetWorkload(workload)
 	if err != nil {
-		logger.Fatalf("unable to modify workload: %v", err)
+		logger.Fatal("unable to modify workload", zap.Error(err))
 	}
 
-	logger.Infof("workload modified successfully!")
+	logger.Info("workload modified successfully!")
 }

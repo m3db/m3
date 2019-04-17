@@ -37,9 +37,9 @@ import (
 	"github.com/m3db/m3/src/m3em/os/exec"
 	"github.com/m3db/m3/src/m3em/os/fs"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	xlog "github.com/m3db/m3/src/x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -72,7 +72,7 @@ type opAgent struct {
 	heartbeatTimeoutCh chan struct{}
 
 	opts    Options
-	logger  xlog.Logger
+	logger  *zap.Logger
 	metrics *opAgentMetrics
 	doneCh  chan struct{}
 	closeCh chan struct{}
@@ -174,7 +174,7 @@ func (o *opAgent) state() opAgentState {
 }
 
 func (o *opAgent) Start(ctx context.Context, request *m3em.StartRequest) (*m3em.StartResponse, error) {
-	o.logger.Infof("received Start()")
+	o.logger.Info("received Start()")
 	o.Lock()
 	defer o.Unlock()
 
@@ -203,7 +203,7 @@ func (o *opAgent) onProcessTerminate(err error) {
 	} else {
 		err = fmt.Errorf("test process terminated with error: %v", err)
 	}
-	o.logger.Warnf("%v", err)
+	o.logger.Warn(err.Error())
 	if stopping := atomic.LoadInt32(&o.stopping); stopping == 0 && o.heartbeater != nil {
 		o.heartbeater.notifyProcessTermination(err.Error())
 	}
@@ -234,7 +234,7 @@ func (o *opAgent) startWithLock() error {
 	if err != nil {
 		return err
 	}
-	o.logger.Infof("executing command: %+v", cmd)
+	o.logger.Info("executing command", zap.Any("command", cmd))
 	if err := pm.Start(); err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (o *opAgent) startWithLock() error {
 }
 
 func (o *opAgent) Stop(ctx context.Context, request *m3em.StopRequest) (*m3em.StopResponse, error) {
-	o.logger.Infof("received Stop()")
+	o.logger.Info("received Stop()")
 	o.Lock()
 	defer o.Unlock()
 
@@ -279,7 +279,7 @@ func (o *opAgent) resetWithLock(reason string) error {
 	var multiErr xerrors.MultiError
 
 	if o.heartbeater != nil {
-		o.logger.Infof("stopping heartbeating")
+		o.logger.Info("stopping heartbeating")
 		if reason != "" {
 			o.heartbeater.notifyOverwrite(reason)
 		}
@@ -293,16 +293,16 @@ func (o *opAgent) resetWithLock(reason string) error {
 	}
 
 	if o.Running() {
-		o.logger.Infof("process running, stopping")
+		o.logger.Info("process running, stopping")
 		if err := o.stopWithLock(); err != nil {
-			o.logger.Warnf("unable to stop: %v", err)
+			o.logger.Warn("unable to stop", zap.Error(err))
 			multiErr = multiErr.Add(err)
 		}
 	}
 
-	o.logger.Infof("releasing host resources")
+	o.logger.Info("releasing host resources")
 	if err := o.opts.ReleaseHostResourcesFn()(); err != nil {
-		o.logger.Infof("unable to release host resources: %v", err)
+		o.logger.Info("unable to release host resources", zap.Error(err))
 		multiErr = multiErr.Add(err)
 	}
 
@@ -315,7 +315,7 @@ func (o *opAgent) resetWithLock(reason string) error {
 }
 
 func (o *opAgent) Teardown(ctx context.Context, request *m3em.TeardownRequest) (*m3em.TeardownResponse, error) {
-	o.logger.Infof("received Teardown()")
+	o.logger.Info("received Teardown()")
 	o.Lock()
 	defer o.Unlock()
 
@@ -337,7 +337,7 @@ func (o *opAgent) isSetupWithLock() bool {
 }
 
 func (o *opAgent) Setup(ctx context.Context, request *m3em.SetupRequest) (*m3em.SetupResponse, error) {
-	o.logger.Infof("received Setup()")
+	o.logger.Info("received Setup()")
 
 	// nil check
 	if request == nil || request.SessionToken == "" {
@@ -361,13 +361,13 @@ func (o *opAgent) Setup(ctx context.Context, request *m3em.SetupRequest) (*m3em.
 
 	// remove any files stored in the working directory
 	wd := o.opts.WorkingDirectory()
-	o.logger.Infof("removing contents from working directory: %s", wd)
+	o.logger.Info("removing contents from working directory", zap.String("dir", wd))
 	if err := fs.RemoveContents(wd); err != nil {
 		return nil, grpc.Errorf(codes.Internal, "unable to clear working directory: %v", err)
 	}
 
 	// initialize any resources needed on the host
-	o.logger.Infof("initializing host resources")
+	o.logger.Info("initializing host resources")
 	if err := o.opts.InitHostResourcesFn()(); err != nil {
 		o.resetWithLock(reasonSetupInitializeHostResources) // release any resources
 		return nil, grpc.Errorf(codes.Internal, "unable to initialize host resources: %v", err)
@@ -397,27 +397,27 @@ func (o *opAgent) Setup(ctx context.Context, request *m3em.SetupRequest) (*m3em.
 }
 
 func (o *opAgent) heartbeatingTimeout(lastHb time.Time) {
-	o.logger.Warnf("heartbeat sending timed out, resetting agent")
+	o.logger.Warn("heartbeat sending timed out, resetting agent")
 	o.Lock()
 	err := o.resetWithLock("") // "" indicates we don't want to send a heartbeat
 	o.Unlock()
 	if err == nil {
-		o.logger.Infof("successfully reset agent")
+		o.logger.Info("successfully reset agent")
 	} else {
-		o.logger.Warnf("error while resetting agent: %v", err)
+		o.logger.Warn("error while resetting agent", zap.Error(err))
 	}
 }
 
 func (o *opAgent) heartbeatInternalError(err error) {
-	o.logger.Warnf("received unknown error whilst heartbeat, err=%v", err)
-	o.logger.Warnf("resetting agent")
+	o.logger.Warn("received unknown error whilst heartbeat", zap.Error(err))
+	o.logger.Warn("resetting agent")
 	o.Lock()
 	err = o.resetWithLock(err.Error())
 	o.Unlock()
 	if err == nil {
-		o.logger.Infof("successfully reset agent")
+		o.logger.Info("successfully reset agent")
 	} else {
-		o.logger.Warnf("error while resetting agent: %v", err)
+		o.logger.Warn("error while resetting agent", zap.Error(err))
 	}
 }
 
@@ -477,7 +477,9 @@ func (o *opAgent) markFileDone(
 	}
 
 	for _, fd := range mw.fds {
-		o.logger.Infof("file transferred: [ type = %s, path = %s ]", fileType.String(), fd.Name())
+		o.logger.Info("file transferred",
+			zap.Stringer("type", fileType),
+			zap.String("path", fd.Name()))
 	}
 
 	o.Lock()
@@ -496,7 +498,7 @@ func (o *opAgent) markFileDone(
 
 // PullFile receives a file from the caller to be stored locally on the agent
 func (o *opAgent) PushFile(stream m3em.Operator_PushFileServer) error {
-	o.logger.Infof("received PushFile()")
+	o.logger.Info("received PushFile()")
 	var (
 		checksum     = checksum.NewAccumulator()
 		numChunks    = 0
@@ -518,8 +520,10 @@ func (o *opAgent) PushFile(stream m3em.Operator_PushFileServer) error {
 
 		if numChunks == 0 {
 			// first request with any data in it, log it for visibilty
-			o.logger.Infof("file transfer initiated: [ targets = %+v, fileType = %s, overwrite = %s ]",
-				request.GetTargetPaths(), request.GetType().String(), request.GetOverwrite())
+			o.logger.Info("file transfer initiated",
+				zap.Strings("targets", request.GetTargetPaths()),
+				zap.Stringer("fileType", request.GetType()),
+				zap.Bool("overwrite", request.GetOverwrite()))
 
 			fileType = request.GetType()
 			fileHandle, err = o.initFile(fileType, request.GetTargetPaths(), request.GetOverwrite())
@@ -591,7 +595,7 @@ func (o *opAgent) PullFile(request *m3em.PullFileRequest, stream m3em.Operator_P
 	if err := validatePullFileRequest(request); err != nil {
 		return err
 	}
-	o.logger.Infof("received PullFile(): %+v", *request)
+	o.logger.Info("received PullFile()", zap.Any("request", *request))
 
 	o.RLock()
 	defer o.RUnlock()

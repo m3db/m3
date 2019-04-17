@@ -27,7 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3em/node"
-	xlog "github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -57,12 +58,12 @@ func (pl *panicListener) OnOverwrite(inst node.ServiceNode, desc string) {
 // NewPullLogsAndPanicListener returns a listener that attempts to retrieve logs from the remote
 // agent upon OnProcessTerminate invokation, and panics. It does not attempt to retrieve logs for
 // neither OnHeartbeatTimeout, nor OnOverwrite.
-func NewPullLogsAndPanicListener(l xlog.Logger, baseDir string) node.Listener {
+func NewPullLogsAndPanicListener(l *zap.Logger, baseDir string) node.Listener {
 	return &pullLogAndPanicListener{logger: l, dir: baseDir}
 }
 
 type pullLogAndPanicListener struct {
-	logger xlog.Logger
+	logger *zap.Logger
 	dir    string
 }
 
@@ -73,7 +74,7 @@ func (p *pullLogAndPanicListener) newLogPath(inst node.ServiceNode, fileExtensio
 func (p *pullLogAndPanicListener) outputRetrievedFile(instID string, logType string, filePath string, truncated bool) {
 	contents, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		p.logger.Errorf("unable to read logs from %s. skipping", filePath)
+		p.logger.Error("unable to read logs. skipping", zap.String("path", filePath))
 		return
 	}
 	stringContents := string(contents)
@@ -83,18 +84,18 @@ func (p *pullLogAndPanicListener) outputRetrievedFile(instID string, logType str
 		truncationMsg = "[WARNING] logs are truncated due to size.\n"
 	}
 
-	p.logger.Infof("Retrieved %s logs from instance id = %v\n. %s%s", logType, instID, truncationMsg, stringContents)
+	p.logger.Sugar().Infof("Retrieved %s logs from instance id = %v\n. %s%s", logType, instID, truncationMsg, stringContents)
 }
 
 func (p *pullLogAndPanicListener) OnProcessTerminate(inst node.ServiceNode, desc string) {
 	logMsg := fmt.Sprintf("Received process termination notification for instanace id = %v, msg = %v.", inst.ID(), desc)
-	p.logger.Errorf("%s. Attempting to retrieve logs.", logMsg)
+	p.logger.Sugar().Errorf("%s. Attempting to retrieve logs.", logMsg)
 
 	retrieveAndOutput := func(extension string, outputType node.RemoteOutputType) {
 		outputPath := p.newLogPath(inst, extension)
 		truncated, err := inst.GetRemoteOutput(outputType, outputPath)
 		if err != nil {
-			p.logger.Errorf("Unable to retrieve %s logs, err = %v", extension, err)
+			p.logger.Sugar().Errorf("Unable to retrieve %s logs, err = %v", extension, err)
 		} else {
 			p.outputRetrievedFile(inst.ID(), extension, outputPath, truncated)
 		}

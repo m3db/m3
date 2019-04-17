@@ -42,12 +42,12 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 
+	"go.uber.org/zap"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,10 +104,10 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testDownsampler.instrumentOpts.Logger().
-		WithFields(xlog.NewField("test", t.Name()))
+		With(zap.String("test", t.Name()))
 
 	// Wait for mapping rule to appear
-	logger.Infof("waiting for mapping rules to propagate")
+	logger.Info("waiting for mapping rules to propagate")
 	matcher := testDownsampler.matcher
 	testMatchID := newTestID(t, map[string]string{
 		"__name__": "foo",
@@ -234,7 +234,7 @@ func testDownsamplerAggregation(
 	testOpts := testDownsampler.testOpts
 
 	logger := testDownsampler.instrumentOpts.Logger().
-		WithFields(xlog.NewField("test", t.Name()))
+		With(zap.String("test", t.Name()))
 
 	testCounterMetrics := testCounterMetrics()
 	testGaugeMetrics := testGaugeMetrics()
@@ -244,7 +244,7 @@ func testDownsamplerAggregation(
 		testCounterMetrics, testGaugeMetrics)
 
 	// Wait for writes
-	logger.Infof("wait for test metrics to appear")
+	logger.Info("wait for test metrics to appear")
 	for {
 		writes := testDownsampler.storage.Writes()
 		if len(writes) == len(testCounterMetrics)+len(testGaugeMetrics) {
@@ -254,7 +254,7 @@ func testDownsamplerAggregation(
 	}
 
 	// Verify writes
-	logger.Infof("verify test metrics")
+	logger.Info("verify test metrics")
 	writes := testDownsampler.storage.Writes()
 	for _, metric := range testCounterMetrics {
 		name := metric.tags["__name__"]
@@ -387,9 +387,9 @@ func testDownsamplerAggregationIngest(
 	testOpts := testDownsampler.testOpts
 
 	logger := testDownsampler.instrumentOpts.Logger().
-		WithFields(xlog.NewField("test", t.Name()))
+		With(zap.String("test", t.Name()))
 
-	logger.Infof("write test metrics")
+	logger.Info("write test metrics")
 	appender, err := downsampler.NewMetricsAppender()
 	require.NoError(t, err)
 	defer appender.Finalize()

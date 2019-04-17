@@ -27,7 +27,8 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/algo"
 	"github.com/m3db/m3/src/cluster/placement/selector"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/x/log"
+
+	"go.uber.org/zap"
 )
 
 type placementService struct {
@@ -36,7 +37,7 @@ type placementService struct {
 	opts     placement.Options
 	algo     placement.Algorithm
 	selector placement.InstanceSelector
-	logger   log.Logger
+	logger   *zap.Logger
 }
 
 // NewPlacementService returns an instance of placement service.

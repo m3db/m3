@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -65,7 +65,7 @@ type writer struct {
 	topic  string
 	ts     topic.Service
 	opts   Options
-	logger log.Logger
+	logger *zap.Logger
 
 	value                  watch.Value
 	initType               initType
@@ -186,12 +186,14 @@ func (w *writer) process(update interface{}) error {
 		})
 		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
 		if err != nil {
-			w.logger.Errorf("could not create consumer service writer for %s: %v", cs.String(), err)
+			w.logger.Error("could not create consumer service writer",
+				zap.String("writer", cs.String()), zap.Error(err))
 			multiErr = multiErr.Add(err)
 			continue
 		}
 		if err = csw.Init(w.initType); err != nil {
-			w.logger.Errorf("could not init consumer service writer for %s: %v", cs.String(), err)
+			w.logger.Error("could not init consumer service writer",
+				zap.String("writer", cs.String()), zap.Error(err))
 			multiErr = multiErr.Add(err)
 			// Could not initialize the consumer service, simply close it.
 			csw.Close()
@@ -199,7 +201,7 @@ func (w *writer) process(update interface{}) error {
 		}
 		csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 		newConsumerServiceWriters[key] = csw
-		w.logger.Infof("initialized consumer service writer for %s", cs.String())
+		w.logger.Info("initialized consumer service writer", zap.String("writer", cs.String()))
 	}
 	for key, csw := range w.consumerServiceWriters {
 		if _, ok := newConsumerServiceWriters[key]; !ok {
