@@ -344,14 +344,10 @@ const (
 
 // BootstrapWriteType is the write type assigned for bootstraps.
 //
-// We can't know from a bootstrapped block whether data was originally written
-// as a ColdWrite or a WarmWrite. We choose ColdWrite here since the compaction
-// cycle will loop through all ColdWrites and persist them, whereas WarmWrites
-// will require additional complexity in managing state in order for the flush
-// cycle to know to flush these blocks.
-//
-// TODO(juchan): Switch this to ColdWrite after ColdWrite persistence is
-// complete due to the above explanation.
+// TODO(juchan): We can't know from a bootstrapped block whether data was
+// originally written as a ColdWrite or a WarmWrite. After implementing
+// persistence logic including ColdWrites, we need to revisit this to figure out
+// what write type makes sense for bootstraps.
 const BootstrapWriteType = WarmWrite
 
 // WriteOptions provides a set of options for a write.
