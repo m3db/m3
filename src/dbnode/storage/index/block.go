@@ -110,10 +110,10 @@ type block struct {
 	blockStart    time.Time
 	blockEnd      time.Time
 	blockSize     time.Duration
+	blockOpts     BlockOptions
 	opts          Options
 	iopts         instrument.Options
 	nsMD          namespace.Metadata
-	docsPool      doc.DocumentArrayPool
 
 	compactingForeground  bool
 	compactingBackground  bool
@@ -174,30 +174,6 @@ func NewBlock(
 	opts BlockOptions,
 	indexOpts Options,
 ) (Block, error) {
-	docsPool := indexOpts.DocumentArrayPool()
-
-	foregroundCompactor := compaction.NewCompactor(docsPool,
-		documentArrayPoolCapacity,
-		indexOpts.SegmentBuilderOptions(),
-		indexOpts.FSTSegmentOptions(),
-		compaction.CompactorOptions{
-			FSTWriterOptions: &fst.WriterOptions{
-				// DisableRegistry is set to true to trade a larger FST size
-				// for a faster FST compaction since we want to reduce the end
-				// to end latency for time to first index a metric.
-				DisableRegistry: true,
-			},
-			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
-		})
-
-	backgroundCompactor := compaction.NewCompactor(docsPool,
-		documentArrayPoolCapacity,
-		indexOpts.SegmentBuilderOptions(),
-		indexOpts.FSTSegmentOptions(),
-		compaction.CompactorOptions{
-			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
-		})
-
 	segmentBuilder, err := builder.NewBuilderFromDocuments(indexOpts.SegmentBuilderOptions())
 	if err != nil {
 		return nil, err
@@ -206,19 +182,17 @@ func NewBlock(
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := indexOpts.InstrumentOptions()
 	b := &block{
-		state:               blockStateOpen,
-		segmentBuilder:      segmentBuilder,
-		blockStart:          blockStart,
-		blockEnd:            blockStart.Add(blockSize),
-		blockSize:           blockSize,
-		opts:                indexOpts,
-		iopts:               iopts,
-		nsMD:                md,
-		docsPool:            docsPool,
-		foregroundCompactor: foregroundCompactor,
-		backgroundCompactor: backgroundCompactor,
-		metrics:             newBlockMetrics(iopts.MetricsScope()),
-		logger:              iopts.Logger(),
+		state:          blockStateOpen,
+		segmentBuilder: segmentBuilder,
+		blockStart:     blockStart,
+		blockEnd:       blockStart.Add(blockSize),
+		blockSize:      blockSize,
+		blockOpts:      opts,
+		opts:           indexOpts,
+		iopts:          iopts,
+		nsMD:           md,
+		metrics:        newBlockMetrics(iopts.MetricsScope()),
+		logger:         iopts.Logger(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -231,6 +205,36 @@ func (b *block) StartTime() time.Time {
 
 func (b *block) EndTime() time.Time {
 	return b.blockEnd
+}
+
+func (b *block) ensureCompactorsWithLock() {
+	docsPool := b.opts.DocumentArrayPool()
+
+	if b.foregroundCompactor == nil {
+		b.foregroundCompactor = compaction.NewCompactor(docsPool,
+			documentArrayPoolCapacity,
+			b.opts.SegmentBuilderOptions(),
+			b.opts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				FSTWriterOptions: &fst.WriterOptions{
+					// DisableRegistry is set to true to trade a larger FST size
+					// for a faster FST compaction since we want to reduce the end
+					// to end latency for time to first index a metric.
+					DisableRegistry: true,
+				},
+				MmapDocsData: b.blockOpts.ForegroundCompactorMmapDocsData,
+			})
+	}
+
+	if b.backgroundCompactor == nil {
+		b.backgroundCompactor = compaction.NewCompactor(docsPool,
+			documentArrayPoolCapacity,
+			b.opts.SegmentBuilderOptions(),
+			b.opts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				MmapDocsData: b.blockOpts.BackgroundCompactorMmapDocsData,
+			})
+	}
 }
 
 func (b *block) maybeBackgroundCompactWithLock() {
@@ -443,6 +447,9 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		b.Unlock()
 		return b.writeBatchResult(inserts, errUnableToWriteBlockConcurrent)
 	}
+
+	// Ensure compactors are lazily allocated
+	b.ensureCompactorsWithLock()
 
 	b.compactingForeground = true
 	builder := b.segmentBuilder
@@ -795,7 +802,8 @@ func (b *block) Query(
 	}
 
 	size := results.Size()
-	batch := b.docsPool.Get()
+	docsPool := b.opts.DocumentArrayPool()
+	batch := docsPool.Get()
 	batchSize := cap(batch)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
@@ -804,7 +812,7 @@ func (b *block) Query(
 	execCloser := safeCloser{closable: exec}
 
 	defer func() {
-		b.docsPool.Put(batch)
+		docsPool.Put(batch)
 		iterCloser.Close()
 		execCloser.Close()
 	}()
