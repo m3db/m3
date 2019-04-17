@@ -217,6 +217,13 @@ func (h *Handler) RegisterRoutes() error {
 		wrapped(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
 	).Methods(remote.TagValuesHTTPMethod)
 
+	// List tag endpoints
+	for _, method := range native.ListTagsHTTPMethods {
+		h.router.HandleFunc(native.ListTagsURL,
+			wrapped(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+		).Methods(method)
+	}
+
 	// Series match endpoints
 	h.router.HandleFunc(remote.PromSeriesMatchURL,
 		wrapped(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,

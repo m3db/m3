@@ -1,0 +1,90 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package native
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
+
+	"go.uber.org/zap"
+)
+
+const (
+	// ListTagsURL is the url for listing tags.
+	ListTagsURL = handler.RoutePrefixV1 + "/labels"
+)
+
+var (
+	// ListTagsHTTPMethods are the HTTP methods used with this resource.
+	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
+)
+
+// ListTagsHandler represents a handler for list tags endpoint.
+type ListTagsHandler struct {
+	storage storage.Storage
+}
+
+// NewListTagsHandler returns a new instance of handler.
+func NewListTagsHandler(
+	storage storage.Storage,
+) http.Handler {
+	return &ListTagsHandler{
+		storage: storage,
+	}
+}
+
+func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
+	logger := logging.WithContext(ctx)
+	w.Header().Set("Content-Type", "application/json")
+
+	query := &storage.CompleteTagsQuery{
+		CompleteNameOnly: true,
+		TagMatchers:      models.Matchers{{Type: models.MatchAll}},
+
+		// NB: necessarily spans entire possible query range.
+		Start: time.Time{},
+		End:   time.Now(),
+	}
+
+	opts := storage.NewFetchOptions()
+	result, err := h.storage.CompleteTags(ctx, query, opts)
+	if err != nil {
+		logger.Error("unable to complete tags", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Support multiple result types
+	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
+		logger.Error("unable to render results", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
+	}
+}
