@@ -37,15 +37,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
-	time0 "github.com/m3db/m3x/time"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/jhump/protoreflect/desc"
 	tchannel_go "github.com/uber/tchannel-go"
 )
 
@@ -1058,6 +1059,20 @@ func (m *MockOptions) SetEncodingM3TSZ() Options {
 func (mr *MockOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetEncodingProto mocks base method
+func (m *MockOptions) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingProto", schema, encodingOpts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingProto indicates an expected call of SetEncodingProto
+func (mr *MockOptionsMockRecorder) SetEncodingProto(schema, encodingOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockOptions)(nil).SetEncodingProto), schema, encodingOpts)
 }
 
 // SetRuntimeOptionsManager mocks base method
@@ -2257,6 +2272,20 @@ func (m *MockAdminOptions) SetEncodingM3TSZ() Options {
 func (mr *MockAdminOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetEncodingProto mocks base method
+func (m *MockAdminOptions) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingProto", schema, encodingOpts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingProto indicates an expected call of SetEncodingProto
+func (mr *MockAdminOptionsMockRecorder) SetEncodingProto(schema, encodingOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingProto), schema, encodingOpts)
 }
 
 // SetRuntimeOptionsManager mocks base method

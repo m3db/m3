@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
 )

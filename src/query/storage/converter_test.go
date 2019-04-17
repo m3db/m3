@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	xcost "github.com/m3db/m3/src/x/cost"
-	"github.com/m3db/m3x/ident"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

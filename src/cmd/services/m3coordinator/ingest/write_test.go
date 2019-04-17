@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	testm3 "github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/ident"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

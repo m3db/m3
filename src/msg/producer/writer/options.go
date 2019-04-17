@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 const (

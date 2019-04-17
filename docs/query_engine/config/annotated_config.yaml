@@ -65,11 +65,6 @@ tagOptions:
   # See here for more information: http://m3db.github.io/m3/how_to/query/#id-generation
   idScheme: <id_scheme>
 
-cache:
-  # See here for more information: http://m3db.github.io/m3/performance/m3query/
-  queryConversion:
-    size: <int>
-
 # lookbackDuration defines, at each step, how long we lookback until we see a non-NaN value.
 # If not set, we default to 5m, which matches Prometheus.
 lookbackDuration: <duration>

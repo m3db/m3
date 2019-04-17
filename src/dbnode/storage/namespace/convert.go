@@ -26,8 +26,8 @@ import (
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -49,6 +49,7 @@ func ToRetention(
 
 	ropts := retention.NewOptions().
 		SetRetentionPeriod(fromNanos(ro.RetentionPeriodNanos)).
+		SetFutureRetentionPeriod(fromNanos(ro.FutureRetentionPeriodNanos)).
 		SetBlockSize(fromNanos(ro.BlockSizeNanos)).
 		SetBufferFuture(fromNanos(ro.BufferFutureNanos)).
 		SetBufferPast(fromNanos(ro.BufferPastNanos)).
@@ -97,6 +98,11 @@ func ToMetadata(
 		return nil, err
 	}
 
+	sr, err := LoadSchemaRegistry(opts.GetSchemaOptions())
+	if err != nil {
+		return nil, err
+	}
+
 	mopts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
@@ -104,8 +110,10 @@ func ToMetadata(
 		SetRepairEnabled(opts.RepairEnabled).
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetSnapshotEnabled(opts.SnapshotEnabled).
+		SetSchemaRegistry(sr).
 		SetRetentionOptions(ropts).
-		SetIndexOptions(iopts)
+		SetIndexOptions(iopts).
+		SetColdWritesEnabled(opts.ColdWritesEnabled)
 
 	return NewMetadata(ident.StringID(id), mopts)
 }
@@ -148,9 +156,11 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		SnapshotEnabled:   opts.SnapshotEnabled(),
 		RepairEnabled:     opts.RepairEnabled(),
 		WritesToCommitLog: opts.WritesToCommitLog(),
+		SchemaOptions:     toSchemaOptions(opts.SchemaRegistry()),
 		RetentionOptions: &nsproto.RetentionOptions{
 			BlockSizeNanos:                           ropts.BlockSize().Nanoseconds(),
 			RetentionPeriodNanos:                     ropts.RetentionPeriod().Nanoseconds(),
+			FutureRetentionPeriodNanos:               ropts.FutureRetentionPeriod().Nanoseconds(),
 			BufferFutureNanos:                        ropts.BufferFuture().Nanoseconds(),
 			BufferPastNanos:                          ropts.BufferPast().Nanoseconds(),
 			BlockDataExpiry:                          ropts.BlockDataExpiry(),
@@ -160,5 +170,6 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 			Enabled:        iopts.Enabled(),
 			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
 		},
+		ColdWritesEnabled: opts.ColdWritesEnabled(),
 	}
 }

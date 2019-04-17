@@ -33,13 +33,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/jhump/protoreflect/desc"
 	tchannel "github.com/uber/tchannel-go"
 )
 
@@ -230,10 +231,13 @@ type Options interface {
 	// Validate validates the options.
 	Validate() error
 
-	// SetEncodingM3TSZ sets m3tsz encoding.
+	// SetEncodingM3TSZ sets M3TSZ encoding.
 	SetEncodingM3TSZ() Options
 
-	// SetRuntimeOptionsManager sets the runtime options manager, it is optional.
+	// SetEncodingProto sets proto encoding based on the provided schema.
+	SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options
+
+	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
 	// RuntimeOptionsManager returns the runtime options manager, it is optional.

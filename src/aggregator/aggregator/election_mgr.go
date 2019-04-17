@@ -31,13 +31,13 @@ import (
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
-	"github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // ElectionManager manages leadership elections.
@@ -252,7 +252,7 @@ type electionManager struct {
 	sync.WaitGroup
 
 	nowFn                      clock.NowFn
-	logger                     log.Logger
+	logger                     *zap.Logger
 	reportInterval             time.Duration
 	campaignOpts               services.CampaignOptions
 	electionOpts               services.ElectionOptions
@@ -541,7 +541,7 @@ func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 				mgr.logError("invalid leader value", err)
 				return err
 			}
-			mgr.logger.Infof("found valid new leader: [%s] for the campaign", leader)
+			mgr.logger.Info("found valid new leader for the campaign", zap.String("leader", leader))
 			return nil
 		}); verifyErr != nil {
 			// If state has changed, we skip this stale change.
@@ -563,7 +563,7 @@ func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 			continue
 		}
 		mgr.setGoalStateWithLock(FollowerState)
-		mgr.logger.Infof("goal state changed to follower")
+		mgr.logger.Info("goal state changed to follower")
 		mgr.goalStateLock.Unlock()
 	}
 }
@@ -631,11 +631,11 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// If the current instance is not found in the placement, campaigning is disabled.
 	shards, err := mgr.placementManager.Shards()
 	if err == ErrInstanceNotFoundInPlacement {
-		mgr.logger.Warnf("campaign is not enabled, %v", ErrInstanceNotFoundInPlacement)
+		mgr.logger.Warn("campaign is not enabled", zap.Error(ErrInstanceNotFoundInPlacement))
 		return false, nil
 	}
 	if err != nil {
-		mgr.logger.Warnf("campaign is not enabled, %v", err)
+		mgr.logger.Warn("campaign is not enabled", zap.Error(err))
 		return false, err
 	}
 
@@ -671,7 +671,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// incomplele data before shards are cut over.
 	if noCutoverShards {
 		mgr.metrics.campaignCheckNoCutoverShards.Inc(1)
-		mgr.logger.Warnf("campaign is not enabled, no cutover shards")
+		mgr.logger.Warn("campaign is not enabled, no cutover shards")
 		return false, nil
 	}
 
@@ -703,7 +703,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 				}
 			}
 			if allFlushed {
-				mgr.logger.Warnf("campaign is not enabled, all shards cutoff")
+				mgr.logger.Warn("campaign is not enabled, all shards cutoff")
 				return false, nil
 			}
 		}
@@ -714,7 +714,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 			multiErr = multiErr.Add(err)
 			mgr.metrics.campaignCheckReplacementInstanceErrors.Inc(1)
 		} else if hasReplacementInstance {
-			mgr.logger.Warnf("campaign is not enabled, there is a replacement instance")
+			mgr.logger.Warn("campaign is not enabled, there is a replacement instance")
 			mgr.metrics.campaignCheckHasReplacementInstance.Inc(1)
 			return false, nil
 		}
@@ -877,10 +877,10 @@ func (mgr *electionManager) reportMetrics() {
 }
 
 func (mgr *electionManager) logError(desc string, err error) {
-	mgr.logger.WithFields(
-		log.NewField("electionKey", mgr.electionKey),
-		log.NewField("electionTTL", time.Duration(mgr.electionOpts.TTLSecs())*time.Second),
-		log.NewField("leaderValue", mgr.campaignOpts.LeaderValue()),
-		log.NewErrField(err),
-	).Error(desc)
+	mgr.logger.Error(desc,
+		zap.String("electionKey", mgr.electionKey),
+		zap.Duration("electionTTL", time.Duration(mgr.electionOpts.TTLSecs())*time.Second),
+		zap.String("leaderValue", mgr.campaignOpts.LeaderValue()),
+		zap.Error(err),
+	)
 }

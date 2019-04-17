@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // bootstrapProcessProvider is the bootstrapping process provider.
@@ -39,7 +41,7 @@ type bootstrapProcessProvider struct {
 	sync.RWMutex
 	processOpts          ProcessOptions
 	resultOpts           result.Options
-	log                  xlog.Logger
+	log                  *zap.Logger
 	bootstrapperProvider BootstrapperProvider
 }
 
@@ -142,7 +144,7 @@ type bootstrapProcess struct {
 	processOpts          ProcessOptions
 	resultOpts           result.Options
 	nowFn                clock.NowFn
-	log                  xlog.Logger
+	log                  *zap.Logger
 	bootstrapper         Bootstrapper
 	initialTopologyState *topology.StateSnapshot
 }
@@ -237,15 +239,15 @@ func (b bootstrapProcess) logFields(
 	namespace namespace.Metadata,
 	shards []uint32,
 	window xtime.Range,
-) []xlog.Field {
-	return []xlog.Field{
-		xlog.NewField("run", string(runType)),
-		xlog.NewField("bootstrapper", b.bootstrapper.String()),
-		xlog.NewField("namespace", namespace.ID().String()),
-		xlog.NewField("numShards", len(shards)),
-		xlog.NewField("from", window.Start.String()),
-		xlog.NewField("to", window.End.String()),
-		xlog.NewField("range", window.End.Sub(window.Start).String()),
+) []zapcore.Field {
+	return []zapcore.Field{
+		zap.String("run", string(runType)),
+		zap.String("bootstrapper", b.bootstrapper.String()),
+		zap.String("namespace", namespace.ID().String()),
+		zap.Int("numShards", len(shards)),
+		zap.Time("from", window.Start),
+		zap.Time("to", window.End),
+		zap.Duration("range", window.End.Sub(window.Start)),
 	}
 }
 
@@ -262,24 +264,24 @@ func (b bootstrapProcess) newShardTimeRanges(
 }
 
 func (b bootstrapProcess) logBootstrapRun(
-	logFields []xlog.Field,
+	logFields []zapcore.Field,
 ) {
-	b.log.WithFields(logFields...).Infof("bootstrapping shards for range starting")
+	b.log.Info("bootstrapping shards for range starting", logFields...)
 }
 
 func (b bootstrapProcess) logBootstrapResult(
-	logFields []xlog.Field,
+	logFields []zapcore.Field,
 	err error,
 	begin time.Time,
 ) {
-	logFields = append(logFields, xlog.NewField("took", b.nowFn().Sub(begin).String()))
+	logFields = append(logFields, zap.Duration("took", b.nowFn().Sub(begin)))
 	if err != nil {
-		logFields = append(logFields, xlog.NewField("error", err.Error()))
-		b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed with error")
+		logFields = append(logFields, zap.Error(err))
+		b.log.Info("bootstrapping shards for range completed with error", logFields...)
 		return
 	}
 
-	b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed successfully")
+	b.log.Info("bootstrapping shards for range completed successfully", logFields...)
 }
 
 func (b bootstrapProcess) targetRangesForData(
@@ -287,10 +289,11 @@ func (b bootstrapProcess) targetRangesForData(
 	ropts retention.Options,
 ) []TargetRange {
 	return b.targetRanges(at, targetRangesOptions{
-		retentionPeriod: ropts.RetentionPeriod(),
-		blockSize:       ropts.BlockSize(),
-		bufferPast:      ropts.BufferPast(),
-		bufferFuture:    ropts.BufferFuture(),
+		retentionPeriod:       ropts.RetentionPeriod(),
+		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
+		blockSize:             ropts.BlockSize(),
+		bufferPast:            ropts.BufferPast(),
+		bufferFuture:          ropts.BufferFuture(),
 	})
 }
 
@@ -300,18 +303,20 @@ func (b bootstrapProcess) targetRangesForIndex(
 	idxopts namespace.IndexOptions,
 ) []TargetRange {
 	return b.targetRanges(at, targetRangesOptions{
-		retentionPeriod: ropts.RetentionPeriod(),
-		blockSize:       idxopts.BlockSize(),
-		bufferPast:      ropts.BufferPast(),
-		bufferFuture:    ropts.BufferFuture(),
+		retentionPeriod:       ropts.RetentionPeriod(),
+		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
+		blockSize:             idxopts.BlockSize(),
+		bufferPast:            ropts.BufferPast(),
+		bufferFuture:          ropts.BufferFuture(),
 	})
 }
 
 type targetRangesOptions struct {
-	retentionPeriod time.Duration
-	blockSize       time.Duration
-	bufferPast      time.Duration
-	bufferFuture    time.Duration
+	retentionPeriod       time.Duration
+	futureRetentionPeriod time.Duration
+	blockSize             time.Duration
+	bufferPast            time.Duration
+	bufferFuture          time.Duration
 }
 
 func (b bootstrapProcess) targetRanges(

@@ -96,10 +96,58 @@ var (
 	}
 )
 
+type testSegmentCase struct {
+	name               string
+	expected, observed sgmt.Segment
+}
+
+func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
+	memSeg, fstSeg := newTestSegments(t, docs)
+
+	fstWriter10Reader10 := newFSTSegmentWithVersion(t, memSeg, testOptions,
+		Version{Major: 1, Minor: 0}, /* writer version */
+		Version{Major: 1, Minor: 0} /* reader version */)
+
+	fstWriter11Reader10 := newFSTSegmentWithVersion(t, memSeg, testOptions,
+		Version{Major: 1, Minor: 1}, /* writer version */
+		Version{Major: 1, Minor: 0} /* reader version */)
+
+	fstWriter11Reader11 := newFSTSegmentWithVersion(t, memSeg, testOptions,
+		Version{Major: 1, Minor: 1}, /* writer version */
+		Version{Major: 1, Minor: 1} /* reader version */)
+
+	return []testSegmentCase{
+		testSegmentCase{ // mem sgmt v latest fst
+			name:     "mem v fst",
+			expected: memSeg,
+			observed: fstSeg,
+		},
+		testSegmentCase{ // mem sgmt v fst1.0
+			name:     "mem v fstWriter10Reader10",
+			expected: memSeg,
+			observed: fstWriter10Reader10,
+		},
+		testSegmentCase{ // mem sgmt v fst (WriterV1.1; ReaderV1.0) -- i.e. ensure forward compatibility
+			name:     "mem v fstWriter11Reader10",
+			expected: memSeg,
+			observed: fstWriter11Reader10,
+		},
+		testSegmentCase{ // mem sgmt v fst (WriterV1.1; ReaderV1.1)
+			name:     "mem v fstWriter11Reader11",
+			expected: memSeg,
+			observed: fstWriter11Reader11,
+		},
+	}
+}
+
 func TestConstruction(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			newTestSegments(t, test.docs)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					// don't need to do anything here
+				})
+			}
 		})
 	}
 }
@@ -107,8 +155,12 @@ func TestConstruction(t *testing.T) {
 func TestSizeEquals(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
-			require.Equal(t, memSeg.Size(), fstSeg.Size())
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					require.Equal(t, expSeg.Size(), obsSeg.Size())
+				})
+			}
 		})
 	}
 }
@@ -116,41 +168,42 @@ func TestSizeEquals(t *testing.T) {
 func TestFieldDoesNotExist(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					elaborateFieldName := []byte("some-elaborate-field-that-does-not-exist-in-test-docs")
+					terms, err := tc.expected.TermsIterable().Terms(elaborateFieldName)
+					require.NoError(t, err)
+					require.False(t, terms.Next())
+					require.NoError(t, terms.Err())
+					require.NoError(t, terms.Close())
 
-			elaborateFieldName := []byte("some-elaborate-field-that-does-not-exist-in-test-docs")
-			terms, err := memSeg.Terms(elaborateFieldName)
-			require.NoError(t, err)
-			require.False(t, terms.Next())
-			require.NoError(t, terms.Err())
-			require.NoError(t, terms.Close())
+					terms, err = tc.observed.TermsIterable().Terms(elaborateFieldName)
+					require.NoError(t, err)
+					require.False(t, terms.Next())
+					require.NoError(t, terms.Err())
+					require.NoError(t, terms.Close())
 
-			terms, err = fstSeg.TermsIterable().Terms(elaborateFieldName)
-			require.NoError(t, err)
-			require.False(t, terms.Next())
-			require.NoError(t, terms.Err())
-			require.NoError(t, terms.Close())
+					expectedReader, err := tc.expected.Reader()
+					require.NoError(t, err)
+					pl, err := expectedReader.MatchTerm(elaborateFieldName, []byte("."))
+					require.NoError(t, err)
+					require.True(t, pl.IsEmpty())
+					pl, err = expectedReader.MatchTerm(elaborateFieldName, []byte(".*"))
+					require.NoError(t, err)
+					require.True(t, pl.IsEmpty())
+					require.NoError(t, expectedReader.Close())
 
-			memReader, err := memSeg.Reader()
-			require.NoError(t, err)
-			pl, err := memReader.MatchTerm(elaborateFieldName, []byte("."))
-			require.NoError(t, err)
-			require.True(t, pl.IsEmpty())
-			pl, err = memReader.MatchTerm(elaborateFieldName, []byte(".*"))
-			require.NoError(t, err)
-			require.True(t, pl.IsEmpty())
-			require.NoError(t, memReader.Close())
-
-			fstReader, err := fstSeg.Reader()
-			require.NoError(t, err)
-			pl, err = fstReader.MatchTerm(elaborateFieldName, []byte("."))
-			require.NoError(t, err)
-			require.True(t, pl.IsEmpty())
-			pl, err = fstReader.MatchTerm(elaborateFieldName, []byte(".*"))
-			require.NoError(t, err)
-			require.True(t, pl.IsEmpty())
-			require.NoError(t, fstReader.Close())
-
+					observedReader, err := tc.observed.Reader()
+					require.NoError(t, err)
+					pl, err = observedReader.MatchTerm(elaborateFieldName, []byte("."))
+					require.NoError(t, err)
+					require.True(t, pl.IsEmpty())
+					pl, err = observedReader.MatchTerm(elaborateFieldName, []byte(".*"))
+					require.NoError(t, err)
+					require.True(t, pl.IsEmpty())
+					require.NoError(t, observedReader.Close())
+				})
+			}
 		})
 	}
 }
@@ -158,37 +211,20 @@ func TestFieldDoesNotExist(t *testing.T) {
 func TestFieldsEquals(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expFieldsIter, err := expSeg.FieldsIterable().Fields()
+					require.NoError(t, err)
+					expFields := toSlice(t, expFieldsIter)
 
-			memFieldsIter, err := memSeg.FieldsIterable().Fields()
-			require.NoError(t, err)
-			memFields := toSlice(t, memFieldsIter)
+					obsFieldsIter, err := obsSeg.FieldsIterable().Fields()
+					require.NoError(t, err)
+					obsFields := toSlice(t, obsFieldsIter)
 
-			fstFieldsIter, err := fstSeg.FieldsIterable().Fields()
-			require.NoError(t, err)
-			fstFields := toSlice(t, fstFieldsIter)
-
-			assertSliceOfByteSlicesEqual(t, memFields, fstFields)
-		})
-	}
-}
-
-func TestFieldsEqualsParallel(t *testing.T) {
-	for _, test := range testDocuments {
-		t.Run(test.name, func(t *testing.T) {
-			_, fstSeg := newTestSegments(t, test.docs)
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() {
-				fstSeg.FieldsIterable().Fields()
-				wg.Done()
-			}()
-			go func() {
-				fstSeg.FieldsIterable().Fields()
-				wg.Done()
-			}()
-			wg.Wait()
+					assertSliceOfByteSlicesEqual(t, expFields, obsFields)
+				})
+			}
 		})
 	}
 }
@@ -196,35 +232,65 @@ func TestFieldsEqualsParallel(t *testing.T) {
 func TestTermEquals(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
-
-			memFieldsIter, err := memSeg.FieldsIterable().Fields()
-			require.NoError(t, err)
-			memFields := toSlice(t, memFieldsIter)
-
-			fstFieldsIter, err := fstSeg.FieldsIterable().Fields()
-			require.NoError(t, err)
-			fstFields := toSlice(t, fstFieldsIter)
-
-			assertTermEquals := func(fields [][]byte) {
-				for _, f := range fields {
-					memTermsIter, err := memSeg.TermsIterable().Terms(f)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expFieldsIter, err := expSeg.FieldsIterable().Fields()
 					require.NoError(t, err)
-					memTerms := toTermPostings(t, memTermsIter)
+					expFields := toSlice(t, expFieldsIter)
 
-					fstTermsIter, err := fstSeg.TermsIterable().Terms(f)
+					obsFieldsIter, err := obsSeg.FieldsIterable().Fields()
 					require.NoError(t, err)
-					fstTerms := toTermPostings(t, fstTermsIter)
-					require.Equal(t, memTerms, fstTerms)
-				}
+					obsFields := toSlice(t, obsFieldsIter)
+
+					assertTermEquals := func(fields [][]byte) {
+						for _, f := range fields {
+							expTermsIter, err := expSeg.TermsIterable().Terms(f)
+							require.NoError(t, err)
+							expTerms := toTermPostings(t, expTermsIter)
+
+							obsTermsIter, err := obsSeg.TermsIterable().Terms(f)
+							require.NoError(t, err)
+							obsTerms := toTermPostings(t, obsTermsIter)
+							require.Equal(t, expTerms, obsTerms)
+						}
+					}
+					assertTermEquals(expFields)
+					assertTermEquals(obsFields)
+				})
 			}
-			assertTermEquals(memFields)
-			assertTermEquals(fstFields)
-
 		})
 	}
 }
 
+func TestPostingsListEqualForMatchField(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expReader, err := expSeg.Reader()
+					require.NoError(t, err)
+					obsReader, err := obsSeg.Reader()
+					require.NoError(t, err)
+
+					expFieldsIter, err := expSeg.FieldsIterable().Fields()
+					require.NoError(t, err)
+					expFields := toSlice(t, expFieldsIter)
+
+					for _, f := range expFields {
+						expPl, err := expReader.MatchField(f)
+						require.NoError(t, err)
+						obsPl, err := obsReader.MatchField(f)
+						require.NoError(t, err)
+						require.True(t, expPl.Equal(obsPl),
+							fmt.Sprintf("field[%s] - [%v] != [%v]", string(f), pprintIter(expPl), pprintIter(obsPl)))
+					}
+				})
+			}
+		})
+	}
+}
 func TestPostingsListEqualForMatchTerm(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
@@ -259,14 +325,18 @@ func TestPostingsListEqualForMatchTerm(t *testing.T) {
 func TestPostingsListContainsID(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
-			memIDsIter, err := memSeg.Terms(doc.IDReservedFieldName)
-			require.NoError(t, err)
-			memIDs := toTermPostings(t, memIDsIter)
-			for i := range memIDs {
-				ok, err := fstSeg.ContainsID([]byte(i))
-				require.NoError(t, err)
-				require.True(t, ok)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expIDsIter, err := expSeg.TermsIterable().Terms(doc.IDReservedFieldName)
+					require.NoError(t, err)
+					expIDs := toTermPostings(t, expIDsIter)
+					for i := range expIDs {
+						ok, err := obsSeg.ContainsID([]byte(i))
+						require.NoError(t, err)
+						require.True(t, ok)
+					}
+				})
 			}
 		})
 	}
@@ -275,25 +345,29 @@ func TestPostingsListContainsID(t *testing.T) {
 func TestPostingsListRegexAll(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
-			fieldsIter, err := memSeg.Fields()
-			require.NoError(t, err)
-			fields := toSlice(t, fieldsIter)
-			for _, f := range fields {
-				reader, err := memSeg.Reader()
-				require.NoError(t, err)
-				c, err := index.CompileRegex([]byte(".*"))
-				require.NoError(t, err)
-				memPl, err := reader.MatchRegexp(f, c)
-				require.NoError(t, err)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					fieldsIter, err := expSeg.FieldsIterable().Fields()
+					require.NoError(t, err)
+					fields := toSlice(t, fieldsIter)
+					for _, f := range fields {
+						reader, err := expSeg.Reader()
+						require.NoError(t, err)
+						c, err := index.CompileRegex([]byte(".*"))
+						require.NoError(t, err)
+						expPl, err := reader.MatchRegexp(f, c)
+						require.NoError(t, err)
 
-				fstReader, err := fstSeg.Reader()
-				require.NoError(t, err)
-				c, err = index.CompileRegex([]byte(".*"))
-				require.NoError(t, err)
-				fstPl, err := fstReader.MatchRegexp(f, c)
-				require.NoError(t, err)
-				require.True(t, memPl.Equal(fstPl))
+						obsReader, err := obsSeg.Reader()
+						require.NoError(t, err)
+						c, err = index.CompileRegex([]byte(".*"))
+						require.NoError(t, err)
+						obsPl, err := obsReader.MatchRegexp(f, c)
+						require.NoError(t, err)
+						require.True(t, expPl.Equal(obsPl))
+					}
+				})
 			}
 		})
 	}
@@ -302,34 +376,38 @@ func TestPostingsListRegexAll(t *testing.T) {
 func TestSegmentDocs(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
-			memReader, err := memSeg.Reader()
-			require.NoError(t, err)
-			fstReader, err := fstSeg.Reader()
-			require.NoError(t, err)
-
-			memFieldsIter, err := memSeg.Fields()
-			require.NoError(t, err)
-			memFields := toSlice(t, memFieldsIter)
-
-			for _, f := range memFields {
-				memTermsIter, err := memSeg.Terms(f)
-				require.NoError(t, err)
-				memTerms := toTermPostings(t, memTermsIter)
-
-				for term := range memTerms {
-					memPl, err := memReader.MatchTerm(f, []byte(term))
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expReader, err := expSeg.Reader()
 					require.NoError(t, err)
-					fstPl, err := fstReader.MatchTerm(f, []byte(term))
+					obsReader, err := obsSeg.Reader()
 					require.NoError(t, err)
 
-					memDocs, err := memReader.Docs(memPl)
+					expFieldsIter, err := expSeg.FieldsIterable().Fields()
 					require.NoError(t, err)
-					fstDocs, err := fstReader.Docs(fstPl)
-					require.NoError(t, err)
+					expFields := toSlice(t, expFieldsIter)
 
-					assertDocsEqual(t, memDocs, fstDocs)
-				}
+					for _, f := range expFields {
+						expTermsIter, err := expSeg.TermsIterable().Terms(f)
+						require.NoError(t, err)
+						expTerms := toTermPostings(t, expTermsIter)
+
+						for term := range expTerms {
+							expPl, err := expReader.MatchTerm(f, []byte(term))
+							require.NoError(t, err)
+							obsPl, err := obsReader.MatchTerm(f, []byte(term))
+							require.NoError(t, err)
+
+							expDocs, err := expReader.Docs(expPl)
+							require.NoError(t, err)
+							obsDocs, err := obsReader.Docs(obsPl)
+							require.NoError(t, err)
+
+							assertDocsEqual(t, expDocs, obsDocs)
+						}
+					}
+				})
 			}
 		})
 	}
@@ -338,18 +416,39 @@ func TestSegmentDocs(t *testing.T) {
 func TestSegmentAllDocs(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
-			memSeg, fstSeg := newTestSegments(t, test.docs)
-			memReader, err := memSeg.Reader()
-			require.NoError(t, err)
-			fstReader, err := fstSeg.Reader()
-			require.NoError(t, err)
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expReader, err := expSeg.Reader()
+					require.NoError(t, err)
+					obsReader, err := obsSeg.Reader()
+					require.NoError(t, err)
+					expDocs, err := expReader.AllDocs()
+					require.NoError(t, err)
+					obsDocs, err := obsReader.AllDocs()
+					require.NoError(t, err)
+					assertDocsEqual(t, expDocs, obsDocs)
+				})
+			}
+		})
+	}
+}
 
-			memDocs, err := memReader.AllDocs()
-			require.NoError(t, err)
-			fstDocs, err := fstReader.AllDocs()
-			require.NoError(t, err)
-
-			assertDocsEqual(t, memDocs, fstDocs)
+func TestFieldsEqualsParallel(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			_, fstSeg := newTestSegments(t, test.docs)
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				fstSeg.FieldsIterable().Fields()
+				wg.Done()
+			}()
+			go func() {
+				fstSeg.FieldsIterable().Fields()
+				wg.Done()
+			}()
+			wg.Wait()
 		})
 	}
 }

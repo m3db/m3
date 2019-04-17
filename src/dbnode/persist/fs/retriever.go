@@ -42,11 +42,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -79,7 +80,7 @@ type blockRetriever struct {
 
 	opts   BlockRetrieverOptions
 	fsOpts Options
-	logger log.Logger
+	logger *zap.Logger
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -328,7 +329,7 @@ func (r *blockRetriever) fetchBatch(
 				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
-			if tags := req.indexEntry.EncodedTags; tags != nil {
+			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {
 				decoder := tagDecoderPool.Get()
 				// DecRef because we're transferring ownership from the index entry to
 				// the tagDecoder which will IncRef().
@@ -363,11 +364,11 @@ func (r *blockRetriever) fetchBatch(
 
 	err = seekerMgr.Return(shard, blockStart, seeker)
 	if err != nil {
-		r.logger.WithFields(
-			log.NewField("shard", shard),
-			log.NewField("blockStart", blockStart.Unix()),
-			log.NewField("err", err.Error()),
-		).Error("err returning seeker for shard")
+		r.logger.Error("err returning seeker for shard",
+			zap.Uint32("shard", shard),
+			zap.Int64("blockStart", blockStart.Unix()),
+			zap.Error(err),
+		)
 	}
 }
 

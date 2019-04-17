@@ -32,12 +32,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
@@ -425,15 +425,18 @@ func (s *seeker) SeekIndexEntry(
 			// If it's a match, we need to copy the tags into a checked bytes
 			// so they can be passed along. We use the "real" bytes pool here
 			// because we're passing ownership of the bytes to the entry / caller.
-			checkedBytes := s.opts.bytesPool.Get(len(entry.EncodedTags))
-			checkedBytes.IncRef()
-			checkedBytes.AppendAll(entry.EncodedTags)
+			var checkedEncodedTags checked.Bytes
+			if len(entry.EncodedTags) > 0 {
+				checkedEncodedTags = s.opts.bytesPool.Get(len(entry.EncodedTags))
+				checkedEncodedTags.IncRef()
+				checkedEncodedTags.AppendAll(entry.EncodedTags)
+			}
 
 			indexEntry := IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
 				Offset:      entry.Offset,
-				EncodedTags: checkedBytes,
+				EncodedTags: checkedEncodedTags,
 			}
 
 			// Safe to return resources to the pool because ID will not be

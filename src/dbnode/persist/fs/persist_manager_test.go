@@ -34,9 +34,9 @@ import (
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	m3test "github.com/m3db/m3/src/x/test"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

@@ -28,8 +28,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )

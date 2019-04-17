@@ -22,7 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Options controls server behavior

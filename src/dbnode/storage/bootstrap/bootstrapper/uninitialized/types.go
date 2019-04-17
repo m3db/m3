@@ -22,7 +22,7 @@ package uninitialized
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Options is the options interface for the uninitialized source.

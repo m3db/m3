@@ -24,7 +24,7 @@ import (
 	"time"
 
 	httpserver "github.com/m3db/m3/src/ctl/server/http"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type serverConfig struct {

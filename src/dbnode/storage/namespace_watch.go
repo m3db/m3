@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -46,7 +46,7 @@ type dbNamespaceWatch struct {
 	closedCh chan struct{}
 
 	db             database
-	log            xlog.Logger
+	log            *zap.Logger
 	metrics        dbNamespaceWatchMetrics
 	reportInterval time.Duration
 }

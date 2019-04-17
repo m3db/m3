@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -56,7 +56,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	go func() {
 		for i := 0; i < numStepsPerWorker; i++ {
 			wasWritten, err := series.Write(
-				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil)
+				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil, WriteOptions{})
 			if err != nil {
 				panic(err)
 			}

@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

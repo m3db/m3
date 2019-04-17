@@ -1,13 +1,16 @@
 syntax = "proto3";
 package namespace;
 
+import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/schema.proto";
+
 message RetentionOptions {
-    int64 retentionPeriodNanos = 1;
-    int64 blockSizeNanos       = 2;
-    int64 bufferFutureNanos    = 3;
-    int64 bufferPastNanos      = 4;
-    bool  blockDataExpiry      = 5;
+    int64 retentionPeriodNanos                     = 1;
+    int64 blockSizeNanos                           = 2;
+    int64 bufferFutureNanos                        = 3;
+    int64 bufferPastNanos                          = 4;
+    bool  blockDataExpiry                          = 5;
     int64 blockDataExpiryAfterNotAccessPeriodNanos = 6;
+    int64 futureRetentionPeriodNanos               = 7;
 }
 
 message IndexOptions {
@@ -24,6 +27,8 @@ message NamespaceOptions {
     RetentionOptions retentionOptions = 6;
     bool snapshotEnabled              = 7;
     IndexOptions indexOptions         = 8;
+    SchemaOptions schemaOptions       = 9;
+    bool coldWritesEnabled            = 10;
 }
 
 message Registry {

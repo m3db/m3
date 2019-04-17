@@ -55,14 +55,14 @@ import (
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/clock"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/clock"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xserver "github.com/m3db/m3x/server"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xserver "github.com/m3db/m3/src/x/server"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -148,12 +148,12 @@ func Run(runOpts RunOptions) {
 	defer traceCloser.Close()
 
 	if _, ok := tracer.(opentracing.NoopTracer); ok {
-		logger.Info("tracing disabled; set `tracing.backend` to enable")
+		logger.Info("tracing disabled for m3query; set `tracing.backend` to enable")
 	}
 
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger).
+		SetLogger(logger).
 		SetTracer(tracer)
 
 	opentracing.SetGlobalTracer(tracer)
@@ -225,23 +225,16 @@ func Run(runOpts RunOptions) {
 
 		logger.Info("setup grpc backend")
 	} else {
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBClient, logger)
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
+			runOpts.DBClient, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
-			runOpts,
-			cfg,
-			tagOptions,
-			logger,
-			m3dbClusters,
-			m3dbPoolWrapper,
-			instrumentOptions,
-			readWorkerPool,
-			writeWorkerPool,
-		)
+			runOpts, cfg, tagOptions, m3dbClusters, m3dbPoolWrapper,
+			readWorkerPool, writeWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
@@ -351,14 +344,14 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
-	logger *zap.Logger,
 	clusters m3.Clusters,
 	poolWrapper *pools.PoolWrapper,
-	instrumentOptions instrument.Options,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
+		logger              = instrumentOptions.Logger()
 		clusterClient       clusterclient.Client
 		clusterClientWaitCh <-chan struct{}
 	)
@@ -395,15 +388,8 @@ func newM3DBStorage(
 		}
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(
-		logger,
-		clusters,
-		cfg,
-		tagOptions,
-		poolWrapper,
-		readWorkerPool,
-		writeWorkerPool,
-	)
+	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg, tagOptions,
+		poolWrapper, readWorkerPool, writeWorkerPool, instrumentOptions)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -546,18 +532,22 @@ func newDownsamplerAutoMappingRules(
 func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
-	logger *zap.Logger,
+	instrumentOpts instrument.Options,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
+	instrumentOpts = instrumentOpts.
+		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
+
 	var (
+		logger      = instrumentOpts.Logger()
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper
 		err         error
 	)
-
 	if len(cfg.Clusters) > 0 {
-		clusters, err = cfg.Clusters.NewClusters(m3.ClustersStaticConfigurationOptions{
-			AsyncSessions: true,
-		})
+		clusters, err = cfg.Clusters.NewClusters(instrumentOpts,
+			m3.ClustersStaticConfigurationOptions{
+				AsyncSessions: true,
+			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -582,9 +572,10 @@ func initClusters(
 			},
 		}
 
-		clusters, err = clustersCfg.NewClusters(m3.ClustersStaticConfigurationOptions{
-			ProvidedSession: session,
-		})
+		clusters, err = clustersCfg.NewClusters(instrumentOpts,
+			m3.ClustersStaticConfigurationOptions{
+				ProvidedSession: session,
+			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -605,27 +596,18 @@ func initClusters(
 }
 
 func newStorages(
-	logger *zap.Logger,
 	clusters m3.Clusters,
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
+	instrumentOpts instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
-	cleanup := func() error { return nil }
-
-	// Setup query conversion cache.
-	conversionCacheConfig := cfg.Cache.QueryConversionCacheConfiguration()
-	if err := conversionCacheConfig.Validate(); err != nil {
-		return nil, nil, err
-	}
-
-	conversionCacheSize := conversionCacheConfig.SizeOrDefault()
-	conversionLRU, err := storage.NewQueryConversionLRU(conversionCacheSize)
-	if err != nil {
-		return nil, nil, err
-	}
+	var (
+		logger  = instrumentOpts.Logger()
+		cleanup = func() error { return nil }
+	)
 
 	localStorage, err := m3.NewStorage(
 		clusters,
@@ -633,7 +615,6 @@ func newStorages(
 		writeWorkerPool,
 		tagOptions,
 		*cfg.LookbackDuration,
-		storage.NewQueryConversionCache(conversionLRU),
 	)
 	if err != nil {
 		return nil, nil, err

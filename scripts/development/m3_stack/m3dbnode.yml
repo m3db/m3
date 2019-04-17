@@ -2,6 +2,15 @@ db:
   logging:
     level: info
 
+  tracing:
+    backend: jaeger
+    jaeger:
+      reporter:
+        localAgentHostPort: jaeger:6831
+      sampler:
+        type: const
+        param: 1
+
   metrics:
     prometheus:
       handlerPath: /metrics
@@ -70,3 +79,6 @@ db:
           initialCluster:
               - hostID: m3db_seed
                 endpoint: http://m3db_seed:2380
+
+  # proto:
+  #   schemaFilePath: /etc/m3dbnode/schema.proto

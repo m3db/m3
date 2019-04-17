@@ -26,8 +26,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -37,7 +39,7 @@ const (
 // baseBootstrapper provides a skeleton for the interface methods.
 type baseBootstrapper struct {
 	opts result.Options
-	log  xlog.Logger
+	log  *zap.Logger
 	name string
 	src  bootstrap.Source
 	next bootstrap.Bootstrapper
@@ -142,28 +144,28 @@ func (b baseBootstrapper) runBootstrapStep(
 	}
 
 	min, max := currRanges.MinMax()
-	logFields := []xlog.Field{
-		xlog.NewField("source", b.name),
-		xlog.NewField("namespace", namespace.ID().String()),
-		xlog.NewField("from", min.String()),
-		xlog.NewField("to", max.String()),
-		xlog.NewField("range", max.Sub(min).String()),
-		xlog.NewField("shards", len(currRanges)),
+	logFields := []zapcore.Field{
+		zap.String("source", b.name),
+		zap.String("namespace", namespace.ID().String()),
+		zap.Time("from", min),
+		zap.Time("to", max),
+		zap.Duration("range", max.Sub(min)),
+		zap.Int("shards", len(currRanges)),
 	}
-	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
+	b.log.Info("bootstrapping from source starting", logFields...)
 
 	nowFn := b.opts.ClockOptions().NowFn()
 	begin := nowFn()
 
 	currStatus, currErr = step.runCurrStep(currRanges)
 
-	logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
+	logFields = append(logFields, zap.Duration("took", nowFn().Sub(begin)))
 	if currErr != nil {
-		logFields = append(logFields, xlog.NewField("error", currErr.Error()))
-		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
+		logFields = append(logFields, zap.Error(currErr))
+		b.log.Info("bootstrapping from source completed with error", logFields...)
 	} else {
 		logFields = append(logFields, currStatus.logFields...)
-		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
+		b.log.Info("bootstrapping from source completed successfully", logFields...)
 	}
 
 	wg.Wait()

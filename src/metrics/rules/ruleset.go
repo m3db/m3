@@ -34,7 +34,7 @@ import (
 	metricID "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/pborman/uuid"
 )

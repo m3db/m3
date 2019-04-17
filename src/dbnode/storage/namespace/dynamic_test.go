@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -114,6 +114,10 @@ func TestInitializerNoTimeout(t *testing.T) {
 	require.Equal(t, ropts.BlockSizeNanos, toNanosInt64(observedRopts.BlockSize()))
 	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
 	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
+
+	latest, found := md.Options().SchemaRegistry().GetLatest()
+	require.True(t, found)
+	require.EqualValues(t, "third", latest.DeployId())
 
 	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())
@@ -332,6 +336,7 @@ func singleTestValue() *testValue {
 						BufferFutureNanos:                        toNanosInt64(time.Minute * 10),
 						BufferPastNanos:                          toNanosInt64(time.Minute * 15),
 					},
+					SchemaOptions: GenTestSchemaOptions("schematest"),
 				},
 			},
 		},

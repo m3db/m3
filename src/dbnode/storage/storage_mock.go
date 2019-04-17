@@ -44,12 +44,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	sync0 "github.com/m3db/m3x/sync"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	sync0 "github.com/m3db/m3/src/x/sync"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -957,6 +957,20 @@ func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
+// SchemaRegistry mocks base method
+func (m *MockNamespace) SchemaRegistry() namespace.SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockNamespaceMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockNamespace)(nil).SchemaRegistry))
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1034,6 +1048,20 @@ func (m *MockdatabaseNamespace) Shards() []Shard {
 func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
+}
+
+// SchemaRegistry mocks base method
+func (m *MockdatabaseNamespace) SchemaRegistry() namespace.SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockdatabaseNamespaceMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockdatabaseNamespace)(nil).SchemaRegistry))
 }
 
 // Close mocks base method
@@ -1341,6 +1369,20 @@ func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
 }
 
+// SetSchemaRegistry mocks base method
+func (m *MockdatabaseNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", v)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockdatabaseNamespaceMockRecorder) SetSchemaRegistry(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetSchemaRegistry), v)
+}
+
 // MockShard is a mock of Shard interface
 type MockShard struct {
 	ctrl     *gomock.Controller
@@ -1541,9 +1583,9 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.
 }
 
 // Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, bool, error) {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (ts.Series, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -1551,15 +1593,15 @@ func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp ti
 }
 
 // Write indicates an expected call of Write
-func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseShard)(nil).Write), ctx, id, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseShard)(nil).Write), ctx, id, timestamp, value, unit, annotation, wOpts)
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, bool, error) {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (ts.Series, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -1567,9 +1609,9 @@ func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags i
 }
 
 // WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tags, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tags, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tags, timestamp, value, unit, annotation, wOpts)
 }
 
 // ReadEncoded mocks base method
@@ -3508,4 +3550,60 @@ func (m *MockOptions) WriteBatchPool() *ts.WriteBatchPool {
 func (mr *MockOptionsMockRecorder) WriteBatchPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchPool", reflect.TypeOf((*MockOptions)(nil).WriteBatchPool))
+}
+
+// SetBufferBucketPool mocks base method
+func (m *MockOptions) SetBufferBucketPool(value *series.BufferBucketPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBufferBucketPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBufferBucketPool indicates an expected call of SetBufferBucketPool
+func (mr *MockOptionsMockRecorder) SetBufferBucketPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketPool), value)
+}
+
+// BufferBucketPool mocks base method
+func (m *MockOptions) BufferBucketPool() *series.BufferBucketPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BufferBucketPool")
+	ret0, _ := ret[0].(*series.BufferBucketPool)
+	return ret0
+}
+
+// BufferBucketPool indicates an expected call of BufferBucketPool
+func (mr *MockOptionsMockRecorder) BufferBucketPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketPool))
+}
+
+// SetBufferBucketVersionsPool mocks base method
+func (m *MockOptions) SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBufferBucketVersionsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBufferBucketVersionsPool indicates an expected call of SetBufferBucketVersionsPool
+func (mr *MockOptionsMockRecorder) SetBufferBucketVersionsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketVersionsPool), value)
+}
+
+// BufferBucketVersionsPool mocks base method
+func (m *MockOptions) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BufferBucketVersionsPool")
+	ret0, _ := ret[0].(*series.BufferBucketVersionsPool)
+	return ret0
+}
+
+// BufferBucketVersionsPool indicates an expected call of BufferBucketVersionsPool
+func (mr *MockOptionsMockRecorder) BufferBucketVersionsPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketVersionsPool))
 }

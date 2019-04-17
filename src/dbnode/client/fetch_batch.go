@@ -22,8 +22,8 @@ package client
 
 import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type fetchBatchOp struct {

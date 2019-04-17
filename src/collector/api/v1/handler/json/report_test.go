@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

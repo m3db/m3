@@ -23,7 +23,7 @@ package dtests
 import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
-	xclock "github.com/m3db/m3x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/spf13/cobra"
 )
@@ -52,8 +52,11 @@ func replaceUpNodeRemoveUnseededDTest(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	logger := newLogger(cmd)
-	dt := harness.New(globalArgs, logger)
+	rawLogger := newLogger(cmd)
+	defer rawLogger.Sync()
+	logger := rawLogger.Sugar()
+
+	dt := harness.New(globalArgs, rawLogger)
 	defer dt.Close()
 
 	nodes := dt.Nodes()

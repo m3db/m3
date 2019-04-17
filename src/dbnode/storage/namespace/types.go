@@ -25,8 +25,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Options controls namespace behavior
@@ -73,6 +73,12 @@ type Options interface {
 	// RepairEnabled returns whether the data for this namespace needs to be repaired
 	RepairEnabled() bool
 
+	// SetColdWritesEnabled sets whether cold writes are enabled for this namespace.
+	SetColdWritesEnabled(value bool) Options
+
+	// ColdWritesEnabled returns whether cold writes are enabled for this namespace.
+	ColdWritesEnabled() bool
+
 	// SetRetentionOptions sets the retention options for this namespace
 	SetRetentionOptions(value retention.Options) Options
 
@@ -84,6 +90,12 @@ type Options interface {
 
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
+
+	// SetSchemaRegistry sets the schema registry for this namespace.
+	SetSchemaRegistry(value SchemaRegistry) Options
+
+	// SchemaRegistry returns the schema registry for this namespace.
+	SchemaRegistry() SchemaRegistry
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -102,6 +114,35 @@ type IndexOptions interface {
 
 	// BlockSize returns the block size.
 	BlockSize() time.Duration
+}
+
+// SchemaDescr describes the schema for a complex type value.
+type SchemaDescr interface {
+	// DeployId returns the deploy id of the schema.
+	DeployId() string
+	// PrevDeployId returns the previous deploy id of the schema.
+	PrevDeployId() string
+	// Get returns the message descriptor for the schema.
+	Get() MessageDescriptor
+	// String returns the compact text of the message descriptor.
+	String() string
+	// Equal returns true if the provided value is equal to this one.
+	Equal(SchemaDescr) bool
+}
+
+// SchemaRegistry represents namespace schema registry.
+type SchemaRegistry interface {
+	// Equal returns true if the provided value is equal to this one.
+	Equal(SchemaRegistry) bool
+
+	// Extends returns true iif the provided value has a lineage to this one.
+	Extends(SchemaRegistry) bool
+
+	// Get gets the schema descriptor for the specified deploy id.
+	Get(id string) (SchemaDescr, bool)
+
+	// GetLatest gets the latest version of schema descriptor.
+	GetLatest() (SchemaDescr, bool)
 }
 
 // Metadata represents namespace metadata information

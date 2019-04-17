@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"

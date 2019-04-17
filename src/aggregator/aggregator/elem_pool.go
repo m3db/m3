@@ -21,7 +21,7 @@
 package aggregator
 
 import (
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // CounterElemAlloc allocates a new counter element.

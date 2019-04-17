@@ -44,17 +44,17 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
-	xclose "github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -78,17 +78,19 @@ type nsIndex struct {
 
 	// all the vars below this line are not modified past the ctor
 	// and don't require a lock when being accessed.
-	nowFn           clock.NowFn
-	blockSize       time.Duration
-	retentionPeriod time.Duration
-	bufferPast      time.Duration
-	bufferFuture    time.Duration
+	nowFn                 clock.NowFn
+	blockSize             time.Duration
+	retentionPeriod       time.Duration
+	futureRetentionPeriod time.Duration
+	bufferPast            time.Duration
+	bufferFuture          time.Duration
+	coldWritesEnabled     bool
 
 	indexFilesetsBeforeFn indexFilesetsBeforeFn
 	deleteFilesFn         deleteFilesFn
 
 	newBlockFn          newBlockFn
-	logger              xlog.Logger
+	logger              *zap.Logger
 	opts                Options
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
@@ -241,11 +243,13 @@ func newNamespaceIndexWithOptions(
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
 
-		nowFn:           nowFn,
-		blockSize:       nsMD.Options().IndexOptions().BlockSize(),
-		retentionPeriod: nsMD.Options().RetentionOptions().RetentionPeriod(),
-		bufferPast:      nsMD.Options().RetentionOptions().BufferPast(),
-		bufferFuture:    nsMD.Options().RetentionOptions().BufferFuture(),
+		nowFn:                 nowFn,
+		blockSize:             nsMD.Options().IndexOptions().BlockSize(),
+		retentionPeriod:       nsMD.Options().RetentionOptions().RetentionPeriod(),
+		futureRetentionPeriod: nsMD.Options().RetentionOptions().FutureRetentionPeriod(),
+		bufferPast:            nsMD.Options().RetentionOptions().BufferPast(),
+		bufferFuture:          nsMD.Options().RetentionOptions().BufferFuture(),
+		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
@@ -303,7 +307,7 @@ func (i *nsIndex) reportStatsUntilClosed() {
 		case <-ticker.C:
 			err := i.reportStats()
 			if err != nil {
-				i.logger.Warnf("could not report index stats: %v", err)
+				i.logger.Warn("could not report index stats", zap.Error(err))
 			}
 		case <-i.state.closeCh:
 			return
@@ -488,7 +492,6 @@ func (i *nsIndex) writeBatches(
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
-
 			if !futureLimit.After(entry.Timestamp) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
@@ -516,11 +519,11 @@ func (i *nsIndex) writeBatchForBlockStart(
 	block, err := i.ensureBlockPresent(blockStart)
 	if err != nil {
 		batch.MarkUnmarkedEntriesError(err)
-		i.logger.WithFields(
-			xlog.NewField("blockStart", blockStart),
-			xlog.NewField("numWrites", batch.Len()),
-			xlog.NewField("err", err.Error()),
-		).Error("unable to write to index, dropping inserts")
+		i.logger.Error("unable to write to index, dropping inserts",
+			zap.Time("blockStart", blockStart),
+			zap.Int("numWrites", batch.Len()),
+			zap.Error(err),
+		)
 		i.metrics.AsyncInsertErrors.Inc(int64(batch.Len()))
 		return
 	}
@@ -556,7 +559,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 		}
 	}
 	if err != nil {
-		i.logger.Errorf("error writing to index block: %v", err)
+		i.logger.Error("error writing to index block", zap.Error(err))
 	}
 }
 
@@ -689,10 +692,10 @@ func (i *nsIndex) Flush(
 		if err := block.EvictMutableSegments(); err != nil {
 			// deliberately choosing to not mark this as an error as we have successfully
 			// flushed any mutable data.
-			i.logger.WithFields(
-				xlog.NewField("err", err.Error()),
-				xlog.NewField("blockStart", block.StartTime()),
-			).Warnf("encountered error while evicting mutable segments for index block")
+			i.logger.Warn("encountered error while evicting mutable segments for index block",
+				zap.Error(err),
+				zap.Time("blockStart", block.StartTime()),
+			)
 		}
 	}
 	i.metrics.BlocksEvictedMutableSegments.Inc(int64(evicted))
@@ -1096,8 +1099,9 @@ func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	// Override query response limit if needed.
 	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
 		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
-		i.logger.Debugf("overriding query response limit, requested: %d, max-allowed: %d",
-			opts.Limit, i.state.runtimeOpts.maxQueryLimit) // FOLLOWUP(prateek): log query too once it's serializable.
+		i.logger.Debug("overriding query response limit",
+			zap.Int("requested", opts.Limit),
+			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
 		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
 	}
 	return opts
@@ -1306,16 +1310,16 @@ func (i *nsIndex) Close() error {
 
 func (i *nsIndex) missingBlockInvariantError(t xtime.UnixNano) error {
 	err := fmt.Errorf("index query did not find block %d despite seeing it in slice", t)
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(err.Error())
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+		l.Error(err.Error())
 	})
 	return err
 }
 
 func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 	ierr := fmt.Errorf("index unable to allocate block: %v", err)
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(ierr.Error())
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+		l.Error(ierr.Error())
 	})
 	return ierr
 }

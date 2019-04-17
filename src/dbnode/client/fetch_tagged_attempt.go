@@ -23,9 +23,9 @@ package client
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
 )
 
 var (

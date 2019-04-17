@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,13 +80,15 @@ func TestOptions(t *testing.T) {
 	opts := NewOptions()
 	assert.Equal(t, "", opts.Zone())
 	assert.Equal(t, "", opts.Env())
-	assert.Equal(t, services.NewOptions(), opts.ServicesOptions())
+	assert.Equal(t,
+		services.NewOptions().SetInstrumentsOptions(opts.ServicesOptions().InstrumentsOptions()),
+		opts.ServicesOptions())
 	assert.Equal(t, "", opts.CacheDir())
 	assert.Equal(t, "", opts.Service())
 	assert.Equal(t, []Cluster{}, opts.Clusters())
 	_, ok := opts.ClusterForZone("z")
 	assert.False(t, ok)
-	assert.Equal(t, instrument.NewOptions(), opts.InstrumentOptions())
+	assert.NotNil(t, opts.InstrumentOptions())
 
 	c1 := NewCluster().SetZone("z1")
 	c2 := NewCluster().SetZone("z2")

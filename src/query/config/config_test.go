@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	xconfig "github.com/m3db/m3x/config"
+	xconfig "github.com/m3db/m3/src/x/config"
 
 	"github.com/stretchr/testify/require"
 )

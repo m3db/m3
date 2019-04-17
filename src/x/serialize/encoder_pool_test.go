@@ -23,7 +23,7 @@ package serialize
 import (
 	"testing"
 
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )

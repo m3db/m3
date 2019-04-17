@@ -28,11 +28,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/x/tchannel"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 var (
@@ -79,6 +80,27 @@ type Configuration struct {
 
 	// HashingConfiguration is the configuration for hashing of IDs to shards.
 	HashingConfiguration *HashingConfiguration `yaml:"hashing"`
+
+	// Proto contains the configuration specific to running in the ProtoDataMode.
+	Proto *ProtoConfiguration `yaml:"proto"`
+}
+
+// ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
+type ProtoConfiguration struct {
+	SchemaFilePath string `yaml:"schemaFilePath"`
+}
+
+// Validate validates the ProtoConfiguration.
+func (c *ProtoConfiguration) Validate() error {
+	if c == nil {
+		return nil
+	}
+
+	if c.SchemaFilePath == "" {
+		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	return nil
 }
 
 // Validate validates the configuration.
@@ -107,6 +129,10 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf(
 			"m3db client backgroundHealthCheckFailThrottleFactor was: %f but must be >= 0 and <=10",
 			*c.BackgroundHealthCheckFailThrottleFactor)
+	}
+
+	if err := c.Proto.Validate(); err != nil {
+		return fmt.Errorf("error validating M3DB client proto configuration: %v", err)
 	}
 
 	return nil
@@ -258,6 +284,17 @@ func (c Configuration) NewAdminClient(
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})
+
+	if c.Proto != nil {
+		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to parse protobuf schema: %s, err: %v",
+				c.Proto.SchemaFilePath, err)
+		}
+
+		v = v.SetEncodingProto(schema, encodingOpts)
+	}
 
 	// Apply programtic custom options last
 	opts := v.(AdminOptions)

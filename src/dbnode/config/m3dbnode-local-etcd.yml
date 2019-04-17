@@ -98,3 +98,9 @@ db:
           initialCluster:
               - hostID: m3db_local
                 endpoint: http://127.0.0.1:2380
+
+  # un-comment the lines below to enable Jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
+  # for quick local setup (which this config will send data to).
+
+  # tracing:
+  #  backend: jaeger

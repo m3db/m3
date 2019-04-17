@@ -35,23 +35,26 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/resource"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 var (
@@ -80,9 +83,6 @@ var (
 
 	// errNodeIsNotBootstrapped
 	errNodeIsNotBootstrapped = errors.New("node is not bootstrapped")
-
-	// errNotImplemented raised when attempting to execute an un-implemented method
-	errNotImplemented = errors.New("method is not implemented")
 )
 
 type serviceMetrics struct {
@@ -124,7 +124,7 @@ type service struct {
 	sync.RWMutex
 
 	db      storage.Database
-	logger  log.Logger
+	logger  *zap.Logger
 	opts    tchannelthrift.Options
 	nowFn   clock.NowFn
 	pools   pools
@@ -258,12 +258,28 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
+	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.Query)
+	sp.LogFields(
+		opentracinglog.String("query", req.Query.String()),
+		opentracinglog.String("namespace", req.NameSpace),
+		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+		xopentracing.Time("end", time.Unix(0, req.RangeStart)),
+	)
+
+	result, err := s.query(ctx, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) query(ctx context.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
 	if s.isOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
-
-	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
@@ -399,13 +415,31 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.FetchTagged)
+	sp.LogFields(
+		opentracinglog.String("query", string(req.Query)),
+		opentracinglog.String("namespace", string(req.NameSpace)),
+		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+		xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+	)
+
+	result, err := s.fetchTagged(ctx, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
 	if s.isOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
 
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
@@ -550,7 +584,7 @@ func (s *service) encodeTags(
 	if err := enc.Encode(tags); err != nil {
 		// should never happen
 		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error(err.Error())
 		})
 		return nil, err
@@ -559,7 +593,7 @@ func (s *service) encodeTags(
 	if !ok {
 		// should never happen
 		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error(err.Error())
 		})
 		return nil, err
@@ -645,7 +679,8 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
 	ropts := nsMetadata.Options().RetentionOptions()
-	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
+	blockStarts := make([]time.Time, 0,
+		(ropts.RetentionPeriod()+ropts.FutureRetentionPeriod())/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
@@ -860,8 +895,13 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	}
 
 	if err = s.db.Write(
-		ctx, s.pools.id.GetStringID(ctx, req.NameSpace), s.pools.id.GetStringID(ctx, req.ID),
-		xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
+		ctx,
+		s.pools.id.GetStringID(ctx, req.NameSpace),
+		s.pools.id.GetStringID(ctx, req.ID),
+		xtime.FromNormalizedTime(dp.Timestamp, d),
+		dp.Value,
+		unit,
+		dp.Annotation,
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -983,7 +1023,8 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
