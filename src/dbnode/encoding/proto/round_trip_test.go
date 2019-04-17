@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -35,8 +36,6 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -111,13 +110,8 @@ func TestRoundTrip(t *testing.T) {
 		},
 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	desc := namespace.NewMockSchemaDescr(ctrl)
-	desc.EXPECT().Get().Return(namespace.MessageDescriptor{testVLSchema}).AnyTimes()
-
 	enc := newTestEncoder(time.Now().Truncate(time.Second))
-	enc.SetSchema(desc)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	for i, tc := range testCases {
 		vl := newVL(tc.latitude, tc.longitude, tc.epoch, tc.deliveryID)
@@ -135,7 +129,7 @@ func TestRoundTrip(t *testing.T) {
 
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, testEncodingOptions)
-	iter.SetSchema(desc)
+	iter.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	i := 0
 	for iter.Next() {

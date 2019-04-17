@@ -41,6 +41,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -102,7 +103,7 @@ func TestRoundTripProp(t *testing.T) {
 	parameters.Rng.Seed(seed)
 
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
-	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
+	iter := NewIterator(nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		if debugLogs {
 			fmt.Println("---------------------------------------------------")
@@ -134,7 +135,7 @@ func TestRoundTripProp(t *testing.T) {
 		}
 
 		enc.Reset(currTime, 0)
-		enc.SetSchema(input.schema)
+		enc.SetSchema(namespace.GetTestSchemaDescr(input.schema))
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -160,7 +161,7 @@ func TestRoundTripProp(t *testing.T) {
 			return true, nil
 		}
 
-		iter.SetSchema(input.schema)
+		iter.SetSchema(namespace.GetTestSchemaDescr(input.schema))
 		iter.Reset(stream)
 
 		i := 0

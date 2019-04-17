@@ -294,3 +294,7 @@ func GenTestSchemaOptions(importPathPrefix string) *nsproto.SchemaOptions {
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
 }
+
+func GetTestSchemaDescr(md *desc.MessageDescriptor) SchemaDescr {
+	return &schemaDescr{md: MessageDescriptor{md}}
+}
