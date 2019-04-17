@@ -115,7 +115,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
 	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
 
-	latest, found := md.Options().SchemaRegistry().GetLatest()
+	latest, found := md.Options().SchemaHistory().GetLatest()
 	require.True(t, found)
 	require.EqualValues(t, "third", latest.DeployId())
 

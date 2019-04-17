@@ -263,17 +263,8 @@ type NewDecoderFn func() Decoder
 // EncoderAllocate allocates an encoder for a pool.
 type EncoderAllocate func() Encoder
 
-// EncoderInit initialize an object after it is retrieved from the pool.
-type EncoderInit func(Encoder) Encoder
-
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
 type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
-
-// ReaderIteratorInit initialize an object after it is retrieved from the pool.
-type ReaderIteratorInit func(ReaderIterator) ReaderIterator
-
-// MultiReaderIteratorInit initialize an object after it is retrieved from the pool.
-type MultiReaderIteratorInit func(MultiReaderIterator) MultiReaderIterator
 
 // SchemaInjector inject schema to a SchemaInjectable after it is retrieved from the pool.
 type SchemaInjector func(injector SchemaInjectable) SchemaInjectable

@@ -41,6 +41,7 @@ import (
 	xretry "github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber/tchannel-go"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -225,7 +226,7 @@ type options struct {
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
-	schemaRegistry                          SchemaRegistry
+	schemaRegistry                          namespace.SchemaRegistry
 	protoEnabled                            bool
 	writeOperationPoolSize                  int
 	writeTaggedOperationPoolSize            int
@@ -806,13 +807,13 @@ func (o *options) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
 	return o.readerIteratorAllocate
 }
 
-func (o *options) SetSchemaRegistry(value SchemaRegistry) Options {
+func (o *options) SetSchemaRegistry(value namespace.SchemaRegistry) Options {
 	opts := *o
 	opts.schemaRegistry = value
 	return &opts
 }
 
-func (o *options) SchemaRegistry() SchemaRegistry {
+func (o *options) SchemaRegistry() namespace.SchemaRegistry {
 	return o.schemaRegistry
 }
 

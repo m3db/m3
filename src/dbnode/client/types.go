@@ -58,7 +58,7 @@ type Client interface {
 	DefaultSessionActive() bool
 
 	// SetSchemaRegistry sets the schema registry for all namespaces owned by the database.
-	SetSchemaRegistry(registry SchemaRegistry)
+	SetSchemaRegistry(registry namespace.SchemaRegistry)
 }
 
 // Session can write and read to a cluster.
@@ -503,19 +503,15 @@ type Options interface {
 	// ReaderIteratorAllocate returns the readerIteratorAllocate.
 	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
 
-	// SetSchemaRegistry sets the SchemaRegistry
-	SetSchemaRegistry(value SchemaRegistry) Options
+	// SetSchemaRegistry sets the SchemaHistory
+	SetSchemaRegistry(value namespace.SchemaRegistry) Options
 
-	// SchemaRegistry returns the SchemaRegistry.
-	SchemaRegistry() SchemaRegistry
+	// SchemaHistory returns the SchemaHistory.
+	SchemaRegistry() namespace.SchemaRegistry
 
 	// ProtoEnabled returns whether or not proto encoding is turned on.
 	// Schema is required when it is on.
 	ProtoEnabled() bool
-}
-
-type SchemaRegistry interface {
-	GetSchema(id ident.ID) (namespace.SchemaDescr, error)
 }
 
 // AdminOptions is a set of administration client options.

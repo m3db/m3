@@ -236,8 +236,8 @@ type Namespace interface {
 	// Shards returns the shard description
 	Shards() []Shard
 
-	// Schema returns the schema registry.
-	SchemaRegistry() namespace.SchemaRegistry
+	// Schema returns the schema history.
+	SchemaHistory() namespace.SchemaHistory
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -371,8 +371,8 @@ type databaseNamespace interface {
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
 
-	// SetSchemaRegistry sets the schema registry for the namespace.
-	SetSchemaRegistry(v namespace.SchemaRegistry) error
+	// SetSchemaHistory sets the schema history for the namespace.
+	SetSchemaHistory(v namespace.SchemaHistory) error
 }
 
 // Shard is a time series database shard.
@@ -926,15 +926,9 @@ type Options interface {
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 }
 
-// SchemaRegistryAcceptor is an interface that accepts a schema registry.
-// This is implemented by client.Client (that needs access to all namespace schemas).
-// m3dbClient is used to repair and bootstrap database.
+// SchemaRegistryAcceptor is implemented by client to accept schemas from database.
 type SchemaRegistryAcceptor interface {
-	SetSchemaRegistry(registry SchemaRegistry)
-}
-
-type SchemaRegistry interface {
-	GetSchema(id ident.ID) (namespace.SchemaDescr, error)
+	SetSchemaRegistry(registry namespace.SchemaRegistry)
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

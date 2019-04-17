@@ -20,7 +20,10 @@
 
 package client
 
-import "sync"
+import (
+	"sync"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+)
 
 type client struct {
 	sync.Mutex
@@ -49,7 +52,7 @@ func newClient(opts Options) (*client, error) {
 	return &client{opts: opts, newSessionFn: newSession}, nil
 }
 
-func (c *client) SetSchemaRegistry(registry SchemaRegistry) {
+func (c *client) SetSchemaRegistry(registry namespace.SchemaRegistry) {
 	c.opts = c.opts.SetSchemaRegistry(registry)
 }
 

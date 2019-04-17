@@ -65,7 +65,7 @@ type options struct {
 	coldWritesEnabled bool
 	retentionOpts     retention.Options
 	indexOpts         IndexOptions
-	schemaReg         SchemaRegistry
+	schemaHis         SchemaHistory
 }
 
 // NewOptions creates a new namespace options
@@ -80,7 +80,7 @@ func NewOptions() Options {
 		coldWritesEnabled: defaultColdWritesEnabled,
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
-		schemaReg:         emptySchemaRegistry(),
+		schemaHis:         emptySchemaHistory(),
 	}
 }
 
@@ -119,7 +119,7 @@ func (o *options) Equal(value Options) bool {
 		o.coldWritesEnabled == value.ColdWritesEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
-		o.schemaReg.Equal(value.SchemaRegistry())
+		o.schemaHis.Equal(value.SchemaHistory())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -212,12 +212,12 @@ func (o *options) IndexOptions() IndexOptions {
 	return o.indexOpts
 }
 
-func (o *options) SetSchemaRegistry(value SchemaRegistry) Options {
+func (o *options) SetSchemaHistory(value SchemaHistory) Options {
 	opts := *o
-	opts.schemaReg = value
+	opts.schemaHis = value
 	return &opts
 }
 
-func (o *options) SchemaRegistry() SchemaRegistry {
-	return o.schemaReg
+func (o *options) SchemaHistory() SchemaHistory {
+	return o.schemaHis
 }

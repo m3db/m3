@@ -91,11 +91,11 @@ type Options interface {
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
 
-	// SetSchemaRegistry sets the schema registry for this namespace.
-	SetSchemaRegistry(value SchemaRegistry) Options
+	// SetSchemaHistory sets the schema history for this namespace.
+	SetSchemaHistory(value SchemaHistory) Options
 
-	// SchemaRegistry returns the schema registry for this namespace.
-	SchemaRegistry() SchemaRegistry
+	// SchemaHistory returns the schema history for this namespace.
+	SchemaHistory() SchemaHistory
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -130,19 +130,24 @@ type SchemaDescr interface {
 	Equal(SchemaDescr) bool
 }
 
-// SchemaRegistry represents namespace schema registry.
-type SchemaRegistry interface {
+// SchemaHistory represents schema update history for a namespace.
+type SchemaHistory interface {
 	// Equal returns true if the provided value is equal to this one.
-	Equal(SchemaRegistry) bool
+	Equal(SchemaHistory) bool
 
 	// Extends returns true iif the provided value has a lineage to this one.
-	Extends(SchemaRegistry) bool
+	Extends(SchemaHistory) bool
 
 	// Get gets the schema descriptor for the specified deploy id.
 	Get(id string) (SchemaDescr, bool)
 
 	// GetLatest gets the latest version of schema descriptor.
 	GetLatest() (SchemaDescr, bool)
+}
+
+// SchemaRegistry is implemented by database to provide schema for a given namespace.
+type SchemaRegistry interface {
+	GetSchema(id ident.ID) (SchemaDescr, error)
 }
 
 // Metadata represents namespace metadata information

@@ -121,7 +121,7 @@ type dbNamespace struct {
 	shards []databaseShard
 
 	// Contains the schema registry for the database namespace.
-	schemaRegistry namespace.SchemaRegistry
+	schemaHistory namespace.SchemaHistory
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
@@ -336,7 +336,7 @@ func newDatabaseNamespace(
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
-		schemaRegistry:         metadata.Options().SchemaRegistry(),
+		schemaHistory:          metadata.Options().SchemaHistory(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		snapshotFilesFn:        fs.SnapshotFiles,
@@ -358,7 +358,7 @@ func newDatabaseNamespace(
 
 func (n *dbNamespace) reInitPools() {
 	schemaInjector := func(e encoding.SchemaInjectable) encoding.SchemaInjectable {
-		if schema, ok := n.SchemaRegistry().GetLatest(); ok {
+		if schema, ok := n.SchemaHistory().GetLatest(); ok {
 			// Inject schema to encoder.
 			e.SetSchema(schema)
 		}
@@ -426,25 +426,25 @@ func (n *dbNamespace) Shards() []Shard {
 	return databaseShards
 }
 
-func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
+func (n *dbNamespace) SchemaHistory() namespace.SchemaHistory {
 	n.RLock()
-	sr := n.schemaRegistry
+	sr := n.schemaHistory
 	n.RUnlock()
 	return sr
 }
 
-func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
+func (n *dbNamespace) SetSchemaHistory(v namespace.SchemaHistory) error {
 	if _, ok := v.GetLatest(); !ok {
 		n.log.Warn("will not update namespace to an empty schema registry, skip")
 		return nil
 	}
 
-	if !v.Extends(n.SchemaRegistry()) {
+	if !v.Extends(n.SchemaHistory()) {
 		return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
 	}
 
 	n.Lock()
-	n.schemaRegistry = v
+	n.schemaHistory = v
 	n.Unlock()
 	return nil
 }

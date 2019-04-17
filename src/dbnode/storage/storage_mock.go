@@ -957,18 +957,18 @@ func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
-// SchemaRegistry mocks base method
-func (m *MockNamespace) SchemaRegistry() namespace.SchemaRegistry {
+// SchemaHistory mocks base method
+func (m *MockNamespace) SchemaHistory() namespace.SchemaHistory {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	ret := m.ctrl.Call(m, "SchemaHistory")
+	ret0, _ := ret[0].(namespace.SchemaHistory)
 	return ret0
 }
 
-// SchemaRegistry indicates an expected call of SchemaRegistry
-func (mr *MockNamespaceMockRecorder) SchemaRegistry() *gomock.Call {
+// SchemaHistory indicates an expected call of SchemaHistory
+func (mr *MockNamespaceMockRecorder) SchemaHistory() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockNamespace)(nil).SchemaRegistry))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHistory", reflect.TypeOf((*MockNamespace)(nil).SchemaHistory))
 }
 
 // MockdatabaseNamespace is a mock of databaseNamespace interface
@@ -1050,18 +1050,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
 }
 
-// SchemaRegistry mocks base method
-func (m *MockdatabaseNamespace) SchemaRegistry() namespace.SchemaRegistry {
+// SchemaHistory mocks base method
+func (m *MockdatabaseNamespace) SchemaHistory() namespace.SchemaHistory {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	ret := m.ctrl.Call(m, "SchemaHistory")
+	ret0, _ := ret[0].(namespace.SchemaHistory)
 	return ret0
 }
 
-// SchemaRegistry indicates an expected call of SchemaRegistry
-func (mr *MockdatabaseNamespaceMockRecorder) SchemaRegistry() *gomock.Call {
+// SchemaHistory indicates an expected call of SchemaHistory
+func (mr *MockdatabaseNamespaceMockRecorder) SchemaHistory() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockdatabaseNamespace)(nil).SchemaRegistry))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHistory", reflect.TypeOf((*MockdatabaseNamespace)(nil).SchemaHistory))
 }
 
 // Close mocks base method
@@ -1369,18 +1369,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
 }
 
-// SetSchemaRegistry mocks base method
-func (m *MockdatabaseNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
+// SetSchemaHistory mocks base method
+func (m *MockdatabaseNamespace) SetSchemaHistory(v namespace.SchemaHistory) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSchemaRegistry", v)
+	ret := m.ctrl.Call(m, "SetSchemaHistory", v)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
-func (mr *MockdatabaseNamespaceMockRecorder) SetSchemaRegistry(v interface{}) *gomock.Call {
+// SetSchemaHistory indicates an expected call of SetSchemaHistory
+func (mr *MockdatabaseNamespaceMockRecorder) SetSchemaHistory(v interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetSchemaRegistry), v)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaHistory", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetSchemaHistory), v)
 }
 
 // MockShard is a mock of Shard interface
@@ -3660,7 +3660,7 @@ func (m *MockSchemaRegistryAcceptor) EXPECT() *MockSchemaRegistryAcceptorMockRec
 }
 
 // SetSchemaRegistry mocks base method
-func (m *MockSchemaRegistryAcceptor) SetSchemaRegistry(registry SchemaRegistry) {
+func (m *MockSchemaRegistryAcceptor) SetSchemaRegistry(registry namespace.SchemaRegistry) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetSchemaRegistry", registry)
 }
@@ -3669,42 +3669,4 @@ func (m *MockSchemaRegistryAcceptor) SetSchemaRegistry(registry SchemaRegistry) 
 func (mr *MockSchemaRegistryAcceptorMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockSchemaRegistryAcceptor)(nil).SetSchemaRegistry), registry)
-}
-
-// MockSchemaRegistry is a mock of SchemaRegistry interface
-type MockSchemaRegistry struct {
-	ctrl     *gomock.Controller
-	recorder *MockSchemaRegistryMockRecorder
-}
-
-// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
-type MockSchemaRegistryMockRecorder struct {
-	mock *MockSchemaRegistry
-}
-
-// NewMockSchemaRegistry creates a new mock instance
-func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
-	mock := &MockSchemaRegistry{ctrl: ctrl}
-	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
-	return m.recorder
-}
-
-// GetSchema mocks base method
-func (m *MockSchemaRegistry) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSchema", id)
-	ret0, _ := ret[0].(namespace.SchemaDescr)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetSchema indicates an expected call of GetSchema
-func (mr *MockSchemaRegistryMockRecorder) GetSchema(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id)
 }

@@ -131,7 +131,7 @@ func (mr *MockClientMockRecorder) DefaultSessionActive() *gomock.Call {
 }
 
 // SetSchemaRegistry mocks base method
-func (m *MockClient) SetSchemaRegistry(registry SchemaRegistry) {
+func (m *MockClient) SetSchemaRegistry(registry namespace.SchemaRegistry) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetSchemaRegistry", registry)
 }
@@ -568,7 +568,7 @@ func (mr *MockAdminClientMockRecorder) DefaultSessionActive() *gomock.Call {
 }
 
 // SetSchemaRegistry mocks base method
-func (m *MockAdminClient) SetSchemaRegistry(registry SchemaRegistry) {
+func (m *MockAdminClient) SetSchemaRegistry(registry namespace.SchemaRegistry) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetSchemaRegistry", registry)
 }
@@ -2247,7 +2247,7 @@ func (mr *MockOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
 }
 
 // SetSchemaRegistry mocks base method
-func (m *MockOptions) SetSchemaRegistry(value SchemaRegistry) Options {
+func (m *MockOptions) SetSchemaRegistry(value namespace.SchemaRegistry) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSchemaRegistry", value)
 	ret0, _ := ret[0].(Options)
@@ -2261,10 +2261,10 @@ func (mr *MockOptionsMockRecorder) SetSchemaRegistry(value interface{}) *gomock.
 }
 
 // SchemaRegistry mocks base method
-func (m *MockOptions) SchemaRegistry() SchemaRegistry {
+func (m *MockOptions) SchemaRegistry() namespace.SchemaRegistry {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(SchemaRegistry)
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
 	return ret0
 }
 
@@ -2286,44 +2286,6 @@ func (m *MockOptions) ProtoEnabled() bool {
 func (mr *MockOptionsMockRecorder) ProtoEnabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProtoEnabled", reflect.TypeOf((*MockOptions)(nil).ProtoEnabled))
-}
-
-// MockSchemaRegistry is a mock of SchemaRegistry interface
-type MockSchemaRegistry struct {
-	ctrl     *gomock.Controller
-	recorder *MockSchemaRegistryMockRecorder
-}
-
-// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
-type MockSchemaRegistryMockRecorder struct {
-	mock *MockSchemaRegistry
-}
-
-// NewMockSchemaRegistry creates a new mock instance
-func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
-	mock := &MockSchemaRegistry{ctrl: ctrl}
-	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
-	return m.recorder
-}
-
-// GetSchema mocks base method
-func (m *MockSchemaRegistry) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSchema", id)
-	ret0, _ := ret[0].(namespace.SchemaDescr)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetSchema indicates an expected call of GetSchema
-func (mr *MockSchemaRegistryMockRecorder) GetSchema(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id)
 }
 
 // MockAdminOptions is a mock of AdminOptions interface
@@ -3540,7 +3502,7 @@ func (mr *MockAdminOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
 }
 
 // SetSchemaRegistry mocks base method
-func (m *MockAdminOptions) SetSchemaRegistry(value SchemaRegistry) Options {
+func (m *MockAdminOptions) SetSchemaRegistry(value namespace.SchemaRegistry) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSchemaRegistry", value)
 	ret0, _ := ret[0].(Options)
@@ -3554,10 +3516,10 @@ func (mr *MockAdminOptionsMockRecorder) SetSchemaRegistry(value interface{}) *go
 }
 
 // SchemaRegistry mocks base method
-func (m *MockAdminOptions) SchemaRegistry() SchemaRegistry {
+func (m *MockAdminOptions) SchemaRegistry() namespace.SchemaRegistry {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(SchemaRegistry)
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
 	return ret0
 }
 

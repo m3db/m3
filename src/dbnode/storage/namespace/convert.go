@@ -98,7 +98,7 @@ func ToMetadata(
 		return nil, err
 	}
 
-	sr, err := LoadSchemaRegistry(opts.GetSchemaOptions())
+	sr, err := LoadSchemaHistory(opts.GetSchemaOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func ToMetadata(
 		SetRepairEnabled(opts.RepairEnabled).
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetSnapshotEnabled(opts.SnapshotEnabled).
-		SetSchemaRegistry(sr).
+		SetSchemaHistory(sr).
 		SetRetentionOptions(ropts).
 		SetIndexOptions(iopts).
 		SetColdWritesEnabled(opts.ColdWritesEnabled)
@@ -156,7 +156,7 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		SnapshotEnabled:   opts.SnapshotEnabled(),
 		RepairEnabled:     opts.RepairEnabled(),
 		WritesToCommitLog: opts.WritesToCommitLog(),
-		SchemaOptions:     toSchemaOptions(opts.SchemaRegistry()),
+		SchemaOptions:     toSchemaOptions(opts.SchemaHistory()),
 		RetentionOptions: &nsproto.RetentionOptions{
 			BlockSizeNanos:                           ropts.BlockSize().Nanoseconds(),
 			RetentionPeriodNanos:                     ropts.RetentionPeriod().Nanoseconds(),

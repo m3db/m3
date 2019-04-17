@@ -227,13 +227,13 @@ func NewDatabase(
 	return d, nil
 }
 
-// GetSchema implements SchemaRegistry interface.
+// GetSchema implements SchemaHistory interface.
 func (db *db) GetSchema(id ident.ID) (namespace.SchemaDescr, error) {
 	dbNs, err := db.namespaceFor(id)
 	if err != nil {
 		return nil, err
 	}
-	schema, _ := dbNs.SchemaRegistry().GetLatest()
+	schema, _ := dbNs.SchemaHistory().GetLatest()
 	return schema, nil
 }
 
@@ -303,7 +303,7 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 			continue
 		}
 
-		if !newMd.Options().SchemaRegistry().Equal(ns.Options().SchemaRegistry()) {
+		if !newMd.Options().SchemaHistory().Equal(ns.Options().SchemaHistory()) {
 			schemaUpdates = append(schemaUpdates, newMd)
 		}
 
@@ -384,18 +384,18 @@ func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) 
 			return fmt.Errorf("non-existent namespace marked for schema update: %v", n.ID().String())
 		}
 		curSchemaId := "none"
-		curSchema, found := curNamepsace.SchemaRegistry().GetLatest()
+		curSchema, found := curNamepsace.SchemaHistory().GetLatest()
 		if found {
 			curSchemaId = curSchema.DeployId()
 		}
 		// Log schema update.
-		latestSchema, found := n.Options().SchemaRegistry().GetLatest()
+		latestSchema, found := n.Options().SchemaHistory().GetLatest()
 		if !found {
 			return fmt.Errorf("can not update namespace (%s) schema from %s to empty", n.ID().String(), curSchemaId)
 		}
 		d.log.Info("updating database namespace schema", zap.Stringer("namespace", n.ID()),
 			zap.String("current schema", curSchemaId), zap.String("latest schema", latestSchema.DeployId()))
-		err := curNamepsace.SetSchemaRegistry(n.Options().SchemaRegistry())
+		err := curNamepsace.SetSchemaHistory(n.Options().SchemaHistory())
 		if err != nil {
 			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
 		}

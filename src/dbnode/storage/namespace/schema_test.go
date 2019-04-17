@@ -29,9 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadSchemaRegistry(t *testing.T) {
+func TestLoadSchemaHistory(t *testing.T) {
 	testSchemaOptions := GenTestSchemaOptions("schematest")
-	testSchemaReg, err := LoadSchemaRegistry(testSchemaOptions)
+	testSchemaReg, err := LoadSchemaHistory(testSchemaOptions)
 	require.NoError(t, err)
 
 	testSchema, found := testSchemaReg.Get("first")
@@ -81,7 +81,7 @@ func TestDistinctIndirectDependency(t *testing.T) {
 		},
 		DefaultMessageName: "deduppkg.TestMessage",
 	}
-	_, err = LoadSchemaRegistry(schemaOpt)
+	_, err = LoadSchemaHistory(schemaOpt)
 	require.NoError(t, err)
 }
 
@@ -99,7 +99,7 @@ func TestInvalidSchemaOptions(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	_, err := LoadSchemaRegistry(schemaOpt1)
+	_, err := LoadSchemaHistory(schemaOpt1)
 	require.Error(t, err)
 
 	// wrong message name
@@ -111,7 +111,7 @@ func TestInvalidSchemaOptions(t *testing.T) {
 		},
 		DefaultMessageName: "WrongMessage",
 	}
-	_, err = LoadSchemaRegistry(schemaOpt2)
+	_, err = LoadSchemaHistory(schemaOpt2)
 	require.Error(t, err)
 	require.Equal(t, errInvalidSchemaOptions, xerrors.InnerError(err))
 
@@ -129,7 +129,7 @@ func TestInvalidSchemaOptions(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	_, err = LoadSchemaRegistry(schemaOpt3)
+	_, err = LoadSchemaHistory(schemaOpt3)
 	require.Error(t, err)
 }
 
@@ -139,7 +139,7 @@ func TestParseNotProto3(t *testing.T) {
 	require.Equal(t, errSyntaxNotProto3, xerrors.InnerError(err))
 }
 
-func TestSchemaRegistrySortedDescending(t *testing.T) {
+func TestSchemaHistorySortedDescending(t *testing.T) {
 	out, _ := parseProto("mainpkg/main.proto", "schematest")
 
 	dlist, _ := marshalFileDescriptors(out)
@@ -153,7 +153,7 @@ func TestSchemaRegistrySortedDescending(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	_, err := LoadSchemaRegistry(schemaOpt)
+	_, err := LoadSchemaHistory(schemaOpt)
 	require.Error(t, err)
 	require.Equal(t, errInvalidSchemaOptions, xerrors.InnerError(err))
 }
@@ -171,12 +171,12 @@ func TestSchemaOptionsLineageBroken(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	_, err := LoadSchemaRegistry(schemaOpt)
+	_, err := LoadSchemaHistory(schemaOpt)
 	require.Error(t, err)
 	require.Equal(t, errInvalidSchemaOptions, xerrors.InnerError(err))
 }
 
-func TestSchemaRegistryCheckLineage(t *testing.T) {
+func TestSchemaHistoryCheckLineage(t *testing.T) {
 	out, _ := parseProto("mainpkg/main.proto", "schematest")
 
 	dlist, _ := marshalFileDescriptors(out)
@@ -189,7 +189,7 @@ func TestSchemaRegistryCheckLineage(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	sr1, err := LoadSchemaRegistry(schemaOpt1)
+	sr1, err := LoadSchemaHistory(schemaOpt1)
 	require.NoError(t, err)
 
 	schemaOpt2 := &nsproto.SchemaOptions{
@@ -201,11 +201,11 @@ func TestSchemaRegistryCheckLineage(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	sr2, err := LoadSchemaRegistry(schemaOpt2)
+	sr2, err := LoadSchemaHistory(schemaOpt2)
 	require.NoError(t, err)
 
-	require.True(t, sr1.Extends(emptySchemaRegistry()))
-	require.True(t, sr2.Extends(emptySchemaRegistry()))
+	require.True(t, sr1.Extends(emptySchemaHistory()))
+	require.True(t, sr2.Extends(emptySchemaHistory()))
 	require.False(t, sr1.Extends(sr2))
 	require.True(t, sr2.Extends(sr1))
 
@@ -218,7 +218,7 @@ func TestSchemaRegistryCheckLineage(t *testing.T) {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
-	sr3, err := LoadSchemaRegistry(schemaOpt3)
+	sr3, err := LoadSchemaHistory(schemaOpt3)
 	require.NoError(t, err)
 
 	require.True(t, sr3.Extends(sr1))
