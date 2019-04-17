@@ -1485,13 +1485,13 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 		{Segment: b.foregroundSegments[0].Segment()},
 	})
 	require.Equal(t, 2, len(b.backgroundSegments))
-	require.True(t, b.compactingBackground)
+	require.True(t, b.compact.compactingBackground)
 	b.Unlock()
 
 	// Wait for compaction to finish
 	for {
 		b.RLock()
-		compacting := b.compactingBackground
+		compacting := b.compact.compactingBackground
 		b.RUnlock()
 		if !compacting {
 			break
