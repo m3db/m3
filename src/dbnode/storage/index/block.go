@@ -209,7 +209,7 @@ func (b *block) ensureBuilderAndCompactorsWithLock() error {
 	if b.segmentBuilder == nil {
 		b.segmentBuilder, err = builder.NewBuilderFromDocuments(b.opts.SegmentBuilderOptions())
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
