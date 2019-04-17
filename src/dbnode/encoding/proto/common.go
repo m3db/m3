@@ -171,18 +171,27 @@ func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldSta
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customFields(s []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
+func customFields(s []customFieldState, protoFields []int32, schema *desc.MessageDescriptor) ([]customFieldState, []int32) {
+	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
+	numProtoFields := len(fields) - numCustomFields
+
 	if cap(s) >= numCustomFields {
 		s = s[:0]
 	} else {
 		s = make([]customFieldState, 0, numCustomFields)
 	}
 
-	fields := schema.GetFields()
+	if cap(protoFields) >= numProtoFields {
+		protoFields = protoFields[:0]
+	} else {
+		protoFields = make([]int32, 0, numProtoFields)
+	}
+
 	for _, field := range fields {
 		customFieldType, ok := isCustomField(field.GetType(), field.IsRepeated())
 		if !ok {
+			protoFields = append(protoFields, field.GetNumber())
 			continue
 		}
 
@@ -198,7 +207,7 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 		return s[a].fieldNum < s[b].fieldNum
 	})
 
-	return s
+	return s, protoFields
 }
 
 func isCustomFloatEncodedField(t customFieldType) bool {

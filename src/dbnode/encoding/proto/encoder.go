@@ -66,6 +66,7 @@ type Encoder struct {
 	lastEncodedDP ts.Datapoint
 	lastEncoded   *dynamic.Message
 	customFields  []customFieldState
+	protoFields   []int32
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -363,7 +364,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.marshalBuf = nil
 
 	if enc.schema != nil {
-		enc.customFields = customFields(enc.customFields, enc.schema)
+		enc.customFields, enc.protoFields = customFields(enc.customFields, enc.protoFields, enc.schema)
 	}
 
 	enc.closed = false
@@ -372,7 +373,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.customFields = customFields(enc.customFields, enc.schema)
+	enc.customFields, enc.protoFields = customFields(enc.customFields, enc.protoFields, enc.schema)
 
 	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
 	// schemas to see if they have changed:
@@ -617,6 +618,16 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 }
 
 func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
+	if len(enc.protoFields) == 0 {
+		// Fast path, skip all the encoding logic entirely because there are
+		// no fields that require proto encoding.
+		// TODO(rartoul): Note that the encoding scheme could be further optimized
+		// such that if there are no fields that require proto encoding then we don't
+		// need to waste this bit per write.
+		enc.stream.WriteBit(opCodeNoChange)
+		return nil
+	}
+
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
@@ -625,25 +636,9 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	fieldsChangedToDefault := enc.fieldsChangedToDefault
 
 	if enc.lastEncoded != nil {
-		schemaFields := enc.schema.GetFields()
-		for _, field := range m.GetKnownFields() {
-			// Clear out any fields that were provided but are not in the schema
-			// to prevent wasting space on them.
-			// TODO(rartoul):This is an uncommon scenario and this operation might
-			// be expensive to perform each time so consider removing this if it
-			// impacts performance too much.
-			fieldNum := field.GetNumber()
-			if !fieldsContains(fieldNum, schemaFields) {
-				if err := m.TryClearFieldByNumber(int(fieldNum)); err != nil {
-					return fmt.Errorf(
-						"error: %v clearing field that does not exist in schema: %d", err, fieldNum)
-				}
-			}
-		}
-
-		for _, field := range schemaFields {
+		for _, fieldNum := range enc.protoFields {
 			var (
-				fieldNum    = field.GetNumber()
+				field       = enc.schema.FindFieldByNumber(fieldNum)
 				fieldNumInt = int(fieldNum)
 				prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
 				curVal      = m.GetFieldByNumber(fieldNumInt)
