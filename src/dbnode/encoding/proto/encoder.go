@@ -439,7 +439,6 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 				encErrPrefix, customField.fieldNum)
 		}
 
-		customEncoded := true
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
 			if err := enc.encodeTSZValue(i, iVal); err != nil {
@@ -454,18 +453,10 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 				return err
 			}
 		default:
-			customEncoded = false
-		}
-
-		if customEncoded {
-			// Remove the field from the message so we don't include it
-			// in the proto marshal.
-			field := enc.schema.FindFieldByNumber(int32(customField.fieldNum))
-			if err := m.TryClearField(field); err != nil {
-				return fmt.Errorf(
-					"%s error trying to clear field number: %d",
-					encErrPrefix, customField.fieldNum)
-			}
+			// This should never happen.
+			return fmt.Errorf(
+				"%s error no logic for custom encoding field number: %d",
+				encErrPrefix, customField.fieldNum)
 		}
 	}
 
@@ -640,42 +631,44 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 	fieldsChangedToDefault := enc.fieldsChangedToDefault
 
-	if enc.lastEncoded != nil {
-		for _, fieldNum := range enc.protoFields {
-			var (
-				field       = enc.schema.FindFieldByNumber(fieldNum)
-				fieldNumInt = int(fieldNum)
-				prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
-				curVal      = m.GetFieldByNumber(fieldNumInt)
-			)
+	if enc.lastEncoded == nil {
+		enc.lastEncoded = dynamic.NewMessage(enc.schema)
+	}
 
-			if fieldsEqual(curVal, prevVal) {
-				// Clear fields that haven't changed.
-				if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
-					return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
-				}
-			} else {
-				isDefaultValue, err := isDefaultValue(field, curVal)
-				if err != nil {
-					return fmt.Errorf(
-						"error: %v, checking if %v is default value for field %s",
-						err, curVal, field.String())
-				}
-				if isDefaultValue {
-					fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-				}
+	for _, fieldNum := range enc.protoFields {
+		var (
+			field       = enc.schema.FindFieldByNumber(fieldNum)
+			fieldNumInt = int(fieldNum)
+			prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
+			curVal      = m.GetFieldByNumber(fieldNumInt)
+		)
 
-				changedFields = append(changedFields, fieldNum)
-				if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
-					return fmt.Errorf(
-						"error: %v setting field %d with value %v on lastEncoded",
-						err, fieldNumInt, curVal)
-				}
+		if fieldsEqual(curVal, prevVal) {
+			// Clear fields that haven't changed.
+			if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
+				return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
+			}
+		} else {
+			isDefaultValue, err := isDefaultValue(field, curVal)
+			if err != nil {
+				return fmt.Errorf(
+					"error: %v, checking if %v is default value for field %s",
+					err, curVal, field.String())
+			}
+			if isDefaultValue {
+				fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+			}
+
+			changedFields = append(changedFields, fieldNum)
+			if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
+				return fmt.Errorf(
+					"error: %v setting field %d with value %v on lastEncoded",
+					err, fieldNumInt, curVal)
 			}
 		}
 	}
 
-	if len(changedFields) == 0 && enc.lastEncoded != nil {
+	if len(changedFields) == 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
@@ -704,14 +697,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 	enc.encodeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
-
-	if enc.lastEncoded == nil {
-		// Set lastEncoded to m so that subsequent encodings only need to encode fields
-		// that have changed.
-		enc.lastEncoded = m
-	} else {
-		// lastEncoded has already been mutated to reflect the current state.
-	}
 
 	return nil
 }
