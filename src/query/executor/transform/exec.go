@@ -56,6 +56,6 @@ func ProcessSimpleBlock(
 	}
 
 	err = controller.Process(queryCtx, nextBlock)
-	defer nextBlock.Close()
+	nextBlock.Close()
 	return err
 }
