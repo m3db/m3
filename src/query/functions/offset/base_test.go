@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -70,9 +69,8 @@ func TestOffsetOp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	b := block.NewMockBlock(ctrl)
-	bl, err := n.ProcessBlock(nil, parser.NodeID(1), b)
-	require.NoError(t, err)
 
+	bl := n.processBlock(b)
 	it := block.NewMockStepIter(ctrl)
 	b.EXPECT().StepIter().Return(it, nil)
 

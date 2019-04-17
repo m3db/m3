@@ -78,11 +78,15 @@ func (n *baseNode) Params() parser.Params {
 	return n.op
 }
 
+func (n *baseNode) processBlock(b block.Block) block.Block {
+	return block.NewOffsetBlock(b, n.op.offset)
+}
+
 func (n *baseNode) Process(
 	queryCtx *models.QueryContext,
 	_ parser.NodeID,
 	b block.Block,
 ) error {
-	nextBlock := block.NewOffsetBlock(b, n.op.offset)
+	nextBlock := n.processBlock(b)
 	return n.controller.Process(queryCtx, nextBlock)
 }
