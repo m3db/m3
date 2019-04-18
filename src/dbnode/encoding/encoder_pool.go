@@ -22,6 +22,7 @@ package encoding
 
 import (
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type encoderPool struct {
@@ -39,7 +40,7 @@ func (p *encoderPool) Init(alloc EncoderAllocate) {
 	})
 }
 
-func (p *encoderPool) Get() Encoder {
+func (p *encoderPool) Get(id ident.ID) Encoder {
 	return p.pool.Get().(Encoder)
 }
 

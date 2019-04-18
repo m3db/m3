@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -44,6 +45,7 @@ type multiReaderIterator struct {
 	err              error
 	firstNext        bool
 	closed           bool
+	schemaDesc       namespace.SchemaDescr
 }
 
 // NewMultiReaderIterator creates a new multi-reader iterator.
@@ -54,6 +56,10 @@ func NewMultiReaderIterator(
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
 	it.Reset(nil, time.Time{}, 0)
 	return it
+}
+
+func (it *multiReaderIterator) SetSchema(descr namespace.SchemaDescr) {
+	it.schemaDesc = descr
 }
 
 func (it *multiReaderIterator) Next() bool {
@@ -112,6 +118,7 @@ func (it *multiReaderIterator) moveToNext() {
 			reader = it.slicesIter.CurrentReaderAt(i)
 			iter   = it.iteratorAlloc(reader)
 		)
+		iter.SetSchema(it.schemaDesc)
 		if iter.Next() {
 			// Only insert it if it has values
 			it.iters.push(iter)

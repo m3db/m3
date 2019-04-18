@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // Encoder is the generic interface for different types of encoders.
@@ -139,6 +140,8 @@ type Iterator interface {
 
 	// Close closes the iterator and if pooled will return to the pool.
 	Close()
+
+	SetSchema(descr namespace.SchemaDescr)
 }
 
 // ReaderIterator is the interface for a single-reader iterator.
@@ -285,7 +288,7 @@ type EncoderPool interface {
 	Init(alloc EncoderAllocate)
 
 	// Get provides an encoder from the pool
-	Get() Encoder
+	Get(id ident.ID) Encoder
 
 	// Put returns an encoder to the pool
 	Put(e Encoder)
@@ -297,7 +300,7 @@ type ReaderIteratorPool interface {
 	Init(alloc ReaderIteratorAllocate)
 
 	// Get provides a ReaderIterator from the pool
-	Get() ReaderIterator
+	Get(id ident.ID) ReaderIterator
 
 	// Put returns a ReaderIterator to the pool
 	Put(iter ReaderIterator)
@@ -309,7 +312,7 @@ type MultiReaderIteratorPool interface {
 	Init(alloc ReaderIteratorAllocate)
 
 	// Get provides a MultiReaderIterator from the pool
-	Get() MultiReaderIterator
+	Get(id ident.ID) MultiReaderIterator
 
 	// Put returns a MultiReaderIterator to the pool
 	Put(iter MultiReaderIterator)

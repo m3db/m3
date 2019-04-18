@@ -44,6 +44,7 @@ var (
 type dbBlock struct {
 	sync.RWMutex
 
+	nsID           ident.ID
 	opts           Options
 	startUnixNanos int64
 	segment        ts.Segment
@@ -94,6 +95,10 @@ func NewDatabaseBlock(
 		b.resetSegmentWithLock(segment)
 	}
 	return b
+}
+
+func (b *dbBlock) SetNamespace(id ident.ID) {
+	b.nsID = id
 }
 
 func (b *dbBlock) StartTime() time.Time {
@@ -303,7 +308,7 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 	mergedBlockReader := newDatabaseMergedBlockReader(start, b.blockSize,
 		mergeableStream{stream: stream, finalize: false},       // Should have been marked for finalization by the caller
 		mergeableStream{stream: targetStream, finalize: false}, // Already marked for finalization by the Stream() call above
-		b.opts)
+		b.opts, b.nsID)
 	mergedSegment, err := mergedBlockReader.Segment()
 	if err != nil {
 		return err

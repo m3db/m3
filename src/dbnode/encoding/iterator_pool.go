@@ -20,7 +20,10 @@
 
 package encoding
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/ident"
+)
 
 type readerIteratorPool struct {
 	pool pool.ObjectPool
@@ -37,8 +40,10 @@ func (p *readerIteratorPool) Init(alloc ReaderIteratorAllocate) {
 	})
 }
 
-func (p *readerIteratorPool) Get() ReaderIterator {
-	return p.pool.Get().(ReaderIterator)
+func (p *readerIteratorPool) Get(id ident.ID) ReaderIterator {
+	ri := p.pool.Get().(ReaderIterator)
+	ri.SetNamespace(id)
+	return ri
 }
 
 func (p *readerIteratorPool) Put(iter ReaderIterator) {
@@ -60,8 +65,10 @@ func (p *multiReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {
 	})
 }
 
-func (p *multiReaderIteratorPool) Get() MultiReaderIterator {
-	return p.pool.Get().(MultiReaderIterator)
+func (p *multiReaderIteratorPool) Get(id ident.ID) MultiReaderIterator {
+	mi := p.pool.Get().(MultiReaderIterator)
+	mi.SetNamespace(id)
+	return mi
 }
 
 func (p *multiReaderIteratorPool) Put(iter MultiReaderIterator) {

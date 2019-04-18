@@ -35,6 +35,8 @@ import (
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -48,9 +50,11 @@ var (
 )
 
 type iterator struct {
+	nsID                   ident.ID
 	opts                   encoding.Options
 	err                    error
 	schema                 *desc.MessageDescriptor
+	schemaDesc             namespace.SchemaDescr
 	stream                 encoding.IStream
 	lastIterated           *dynamic.Message
 	lastIteratedProtoBytes []byte
@@ -217,8 +221,9 @@ func (it *iterator) Reset(reader io.Reader) {
 }
 
 // SetSchema sets the encoders schema.
-func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
-	it.schema = schema
+func (it *iterator) SetSchema(schemaDesc namespace.SchemaDescr) {
+	it.schemaDesc = schemaDesc
+	it.schema = schemaDesc.Get().MessageDescriptor
 	it.customFields = customFields(it.customFields, it.schema)
 }
 
