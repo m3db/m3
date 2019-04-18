@@ -253,7 +253,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	source, err := provider.Provide()
+	source, err := provider.Provide(resultOpts)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

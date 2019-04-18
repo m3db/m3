@@ -102,7 +102,7 @@ func (p testBootstrapperProvider) String() string {
 	return p.Bootstrapper.String()
 }
 
-func (p testBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+func (p testBootstrapperProvider) Provide(opts result.Options) (bootstrap.Bootstrapper, error) {
 	return p.Bootstrapper, nil
 }
 

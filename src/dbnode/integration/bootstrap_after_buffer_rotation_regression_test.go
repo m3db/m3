@@ -117,7 +117,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 
 	// Setup the test bootstrapper to only return success when a signal is sent.
 	signalCh := make(chan struct{})
-	bootstrapper, err := commitlogBootstrapperProvider.Provide()
+	bootstrapper, err := commitlogBootstrapperProvider.Provide(bootstrapOpts)
 	require.NoError(t, err)
 
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
