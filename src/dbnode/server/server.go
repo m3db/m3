@@ -1046,7 +1046,7 @@ func withEncodingAndPoolingOptions(
 		logger.Sugar().Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
 			bucket.Capacity, bucket.Size,
-			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
+			bucket.RefillLowWaterMarkOrDefault(), bucket.RefillHighWaterMarkOrDefault())
 	}
 
 	var bytesPool pool.CheckedBytesPool
