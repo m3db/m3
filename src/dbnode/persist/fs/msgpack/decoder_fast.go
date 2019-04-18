@@ -32,12 +32,13 @@ import (
 const (
 	decodeLogEntryFuncName    = "decodeLogEntry"
 	decodeLogMetadataFuncName = "decodeLogMetadata"
-	decodeArrayLenFuncName    = "decodeArrayLen"
 	decodeIntFuncName         = "decodeInt"
 	decodeUIntFuncName        = "decodeUInt"
 	decodeFloat64FuncName     = "decodeFloat64"
 	decodeBytesLenFuncName    = "decodeBytesLen"
 	decodeBytesFuncName       = "decodeBytes"
+	// nolint: unused
+	decodeArrayLenFuncName = "decodeArrayLen"
 )
 
 // DecodeLogEntryFast decodes a commit log entry with no buffering and using optimized helper
@@ -59,7 +60,10 @@ const (
 // Also note that there are extensive prop tests for this function in the encoder_decoder_prop_test.go
 // file which verify its correctness, as well as its resilience to arbitrary data corruption and truncation.
 func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
-	schema := schema.LogEntry{}
+	var (
+		empty  schema.LogEntry
+		schema schema.LogEntry
+	)
 
 	if len(b) < len(logEntryHeader) {
 		return schema, notEnoughBytesError(
@@ -70,47 +74,50 @@ func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
 	var err error
 	schema.Index, b, err = decodeUint(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 
 	schema.Create, b, err = decodeInt(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 
 	schema.Metadata, b, err = decodeBytes(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 
 	schema.Timestamp, b, err = decodeInt(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 
 	schema.Value, b, err = decodeFloat64(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 
 	unit, b, err := decodeUint(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 	schema.Unit = uint32(unit)
 
 	schema.Annotation, b, err = decodeBytes(b)
 	if err != nil {
-		return schema, err
+		return empty, err
 	}
 
-	return schema, nil
+	return schema, err
 }
 
 // DecodeLogMetadataFast is the same as DecodeLogEntryFast except for the metadata
 // entries instead of the data entries.
 func DecodeLogMetadataFast(b []byte) (schema.LogMetadata, error) {
-	metadata := schema.LogMetadata{}
+	var (
+		empty    schema.LogMetadata
+		metadata schema.LogMetadata
+	)
 
 	if len(b) < len(logMetadataHeader) {
 		return metadata, notEnoughBytesError(
@@ -120,29 +127,32 @@ func DecodeLogMetadataFast(b []byte) (schema.LogMetadata, error) {
 
 	id, b, err := decodeBytes(b)
 	if err != nil {
-		return metadata, err
+		return empty, err
 	}
 	metadata.ID = id
 
 	metadata.Namespace, b, err = decodeBytes(b)
 	if err != nil {
-		return metadata, err
+		return empty, err
 	}
 
 	shard, b, err := decodeUint(b)
 	if err != nil {
-		return metadata, err
+		return empty, err
 	}
 	metadata.Shard = uint32(shard)
 
 	metadata.EncodedTags, b, err = decodeBytes(b)
 	if err != nil {
-		return metadata, err
+		return empty, err
 	}
 
 	return metadata, nil
 }
 
+// decodeArrayLen not currently used, but may be needed in future if commit
+// log entries ever includes array values.
+// nolint: unused
 func decodeArrayLen(b []byte) (int, []byte, error) {
 	if len(b) < 1 {
 		return 0, nil, notEnoughBytesError(decodeArrayLenFuncName, 1, len(b))
@@ -305,14 +315,14 @@ func decodeUint(b []byte) (uint64, []byte, error) {
 			return 0, nil, notEnoughBytesError(decodeUIntFuncName, 8, len(b))
 		}
 
-		return uint64((uint64(b[0]) << 56) |
+		return (uint64(b[0]) << 56) |
 			(uint64(b[1]) << 48) |
 			(uint64(b[2]) << 40) |
 			(uint64(b[3]) << 32) |
 			(uint64(b[4]) << 24) |
 			(uint64(b[5]) << 16) |
 			(uint64(b[6]) << 8) |
-			uint64(b[7])), b[8:], nil
+			uint64(b[7]), b[8:], nil
 	default:
 		return 0, nil, fmt.Errorf("error decoding uint: invalid code: %d", c)
 	}
@@ -347,7 +357,7 @@ func decodeFloat64(b []byte) (float64, []byte, error) {
 			(uint64(b[5]) << 16) |
 			(uint64(b[6]) << 8) |
 			uint64(b[7])
-		return float64(math.Float64frombits(i)), b[8:], nil
+		return math.Float64frombits(i), b[8:], nil
 	}
 
 	return 0, b, fmt.Errorf("error decoding float64: invalid code: %d", c)
