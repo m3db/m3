@@ -34,6 +34,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 )
 
 // bootstrapProcessProvider is the bootstrapping process provider.
@@ -82,10 +83,10 @@ func (b *bootstrapProcessProvider) BootstrapperProvider() BootstrapperProvider {
 	return b.bootstrapperProvider
 }
 
-func (b *bootstrapProcessProvider) Provide() (Process, error) {
+func (b *bootstrapProcessProvider) Provide(bopts block.Options) (Process, error) {
 	b.RLock()
 	defer b.RUnlock()
-	bootstrapper, err := b.bootstrapperProvider.Provide()
+	bootstrapper, err := b.bootstrapperProvider.Provide(b.resultOpts.SetDatabaseBlockOptions(bopts))
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 
 	return bootstrapProcess{
 		processOpts:          b.processOpts,
-		resultOpts:           b.resultOpts,
+		resultOpts:           b.resultOpts.SetDatabaseBlockOptions(bopts),
 		nowFn:                b.resultOpts.ClockOptions().NowFn(),
 		log:                  b.log,
 		bootstrapper:         bootstrapper,

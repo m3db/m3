@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 const (
@@ -52,8 +53,8 @@ func NewPeersBootstrapperProvider(
 	}, nil
 }
 
-func (p peersBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
-	src, err := newPeersSource(p.opts)
+func (p peersBootstrapperProvider) Provide(ropts result.Options) (bootstrap.Bootstrapper, error) {
+	src, err := newPeersSource(p.opts.SetResultOptions(ropts))
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func (p peersBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
 		next bootstrap.Bootstrapper
 	)
 	if p.next != nil {
-		next, err = p.next.Provide()
+		next, err = p.next.Provide(ropts)
 		if err != nil {
 			return nil, err
 		}

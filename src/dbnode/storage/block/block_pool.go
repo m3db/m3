@@ -26,6 +26,7 @@ import (
 
 type databaseBlockPool struct {
 	pool pool.ObjectPool
+	init DatabaseBlockInit
 }
 
 // NewDatabaseBlockPool creates a new pool for database blocks.
@@ -39,8 +40,16 @@ func (p *databaseBlockPool) Init(alloc DatabaseBlockAllocate) {
 	})
 }
 
+func (p *databaseBlockPool) ReInit(init DatabaseBlockInit) DatabaseBlockPool {
+	return &databaseBlockPool{pool: p.pool, init: init}
+}
+
 func (p *databaseBlockPool) Get() DatabaseBlock {
-	return p.pool.Get().(DatabaseBlock)
+	dBlock := p.pool.Get().(DatabaseBlock)
+	if p.init == nil {
+		return dBlock
+	}
+	return p.init(dBlock)
 }
 
 func (p *databaseBlockPool) Put(block DatabaseBlock) {

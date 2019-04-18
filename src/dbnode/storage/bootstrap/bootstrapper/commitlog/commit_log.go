@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 const (
@@ -54,15 +55,15 @@ func NewCommitLogBootstrapperProvider(
 	}, nil
 }
 
-func (p commitLogBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+func (p commitLogBootstrapperProvider) Provide(ropts result.Options) (bootstrap.Bootstrapper, error) {
 	var (
-		src  = newCommitLogSource(p.opts, p.inspection)
+		src  = newCommitLogSource(p.opts.SetResultOptions(ropts), p.inspection)
 		b    = &commitLogBootstrapper{}
 		next bootstrap.Bootstrapper
 		err  error
 	)
 	if p.next != nil {
-		next, err = p.next.Provide()
+		next, err = p.next.Provide(ropts)
 		if err != nil {
 			return nil, err
 		}

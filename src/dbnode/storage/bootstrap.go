@@ -170,13 +170,6 @@ func (m *bootstrapManager) Report() {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	// NB(r): construct new instance of the bootstrap process to avoid
-	// state being kept around by bootstrappers.
-	process, err := m.processProvider.Provide()
-	if err != nil {
-		return err
-	}
-
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
@@ -189,6 +182,12 @@ func (m *bootstrapManager) bootstrap() error {
 	startBootstrap := m.nowFn()
 	for _, namespace := range namespaces {
 		startNamespaceBootstrap := m.nowFn()
+
+		process, err := m.processProvider.Provide(namespace.BlockOptions())
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+
 		if err := namespace.Bootstrap(startBootstrap, process); err != nil {
 			multiErr = multiErr.Add(err)
 		}

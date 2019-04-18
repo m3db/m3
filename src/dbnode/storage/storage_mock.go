@@ -971,6 +971,20 @@ func (mr *MockNamespaceMockRecorder) SchemaHistory() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHistory", reflect.TypeOf((*MockNamespace)(nil).SchemaHistory))
 }
 
+// BlockOptions mocks base method
+func (m *MockNamespace) BlockOptions() block.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockOptions")
+	ret0, _ := ret[0].(block.Options)
+	return ret0
+}
+
+// BlockOptions indicates an expected call of BlockOptions
+func (mr *MockNamespaceMockRecorder) BlockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockOptions", reflect.TypeOf((*MockNamespace)(nil).BlockOptions))
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1062,6 +1076,20 @@ func (m *MockdatabaseNamespace) SchemaHistory() namespace.SchemaHistory {
 func (mr *MockdatabaseNamespaceMockRecorder) SchemaHistory() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHistory", reflect.TypeOf((*MockdatabaseNamespace)(nil).SchemaHistory))
+}
+
+// BlockOptions mocks base method
+func (m *MockdatabaseNamespace) BlockOptions() block.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockOptions")
+	ret0, _ := ret[0].(block.Options)
+	return ret0
+}
+
+// BlockOptions indicates an expected call of BlockOptions
+func (mr *MockdatabaseNamespaceMockRecorder) BlockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockOptions", reflect.TypeOf((*MockdatabaseNamespace)(nil).BlockOptions))
 }
 
 // Close mocks base method

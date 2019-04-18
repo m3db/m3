@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 const (
@@ -51,15 +52,15 @@ func NewFileSystemBootstrapperProvider(
 	}, nil
 }
 
-func (p fileSystemBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+func (p fileSystemBootstrapperProvider) Provide(ropts result.Options) (bootstrap.Bootstrapper, error) {
 	var (
-		src  = newFileSystemSource(p.opts)
+		src  = newFileSystemSource(p.opts.SetResultOptions(ropts))
 		b    = &fileSystemBootstrapper{}
 		next bootstrap.Bootstrapper
 		err  error
 	)
 	if p.next != nil {
-		next, err = p.next.Provide()
+		next, err = p.next.Provide(ropts)
 		if err != nil {
 			return nil, err
 		}

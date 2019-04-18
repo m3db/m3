@@ -57,7 +57,7 @@ func NewBaseBootstrapper(
 		err error
 	)
 	if next == nil {
-		bs, err = NewNoOpNoneBootstrapperProvider().Provide()
+		bs, err = NewNoOpNoneBootstrapperProvider().Provide(opts)
 		if err != nil {
 			return nil, err
 		}

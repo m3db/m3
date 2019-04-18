@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 )
 
 type noOpBootstrapProcessProvider struct{}
@@ -41,7 +42,7 @@ func (b noOpBootstrapProcessProvider) BootstrapperProvider() BootstrapperProvide
 	return nil
 }
 
-func (b noOpBootstrapProcessProvider) Provide() (Process, error) {
+func (b noOpBootstrapProcessProvider) Provide(bopts block.Options) (Process, error) {
 	return noOpBootstrapProcess{}, nil
 }
 

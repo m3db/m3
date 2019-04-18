@@ -373,10 +373,22 @@ func (n *dbNamespace) reInitPools() {
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iterPool).
 		SetMultiReaderIteratorPool(mIterPool)
+	dBlockInit := func(b block.DatabaseBlock) block.DatabaseBlock {
+		b.SetOptions(blockOpts)
+		return b
+	}
+	blockPool := n.seriesOpts.DatabaseBlockOptions().DatabaseBlockPool().ReInit(dBlockInit)
+
+	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
+
 	n.seriesOpts = n.seriesOpts.
 		SetEncoderPool(encoderPool).
 		SetMultiReaderIteratorPool(mIterPool).
 		SetDatabaseBlockOptions(blockOpts)
+}
+
+func (n *dbNamespace) BlockOptions() block.Options {
+	return n.seriesOpts.DatabaseBlockOptions()
 }
 
 func (n *dbNamespace) reportStatusLoop() {

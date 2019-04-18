@@ -23,6 +23,7 @@ package uninitialized
 import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 const (
@@ -47,16 +48,16 @@ func NewuninitializedTopologyBootstrapperProvider(
 	}
 }
 
-func (p uninitializedTopologyBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+func (p uninitializedTopologyBootstrapperProvider) Provide(ropts result.Options) (bootstrap.Bootstrapper, error) {
 	var (
-		src  = newTopologyUninitializedSource(p.opts)
+		src  = newTopologyUninitializedSource(p.opts.SetResultOptions(ropts))
 		b    = &uninitializedTopologyBootstrapper{}
 		next bootstrap.Bootstrapper
 		err  error
 	)
 
 	if p.next != nil {
-		next, err = p.next.Provide()
+		next, err = p.next.Provide(ropts)
 		if err != nil {
 			return nil, err
 		}

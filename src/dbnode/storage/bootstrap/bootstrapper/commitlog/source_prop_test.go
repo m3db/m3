@@ -319,7 +319,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			source, err := provider.Provide()
+			// TODO result/blockOpts can be overritten with schema aware encoding pools.
+			rOpts := result.NewOptions()
+			source, err := provider.Provide(rOpts)
 			if err != nil {
 				return false, err
 			}

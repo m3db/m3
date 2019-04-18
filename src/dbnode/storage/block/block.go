@@ -96,6 +96,10 @@ func NewDatabaseBlock(
 	return b
 }
 
+func (b *dbBlock) SetOptions(bopts Options) {
+	b.opts = bopts
+}
+
 func (b *dbBlock) StartTime() time.Time {
 	b.RLock()
 	start := b.startWithRLock()

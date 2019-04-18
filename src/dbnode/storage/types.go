@@ -238,6 +238,8 @@ type Namespace interface {
 
 	// Schema returns the schema history.
 	SchemaHistory() namespace.SchemaHistory
+
+	BlockOptions() block.Options
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID

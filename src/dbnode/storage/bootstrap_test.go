@@ -44,6 +44,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	}))
 
 	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().BlockOptions().Return(opts.DatabaseBlockOptions())
 	ns.EXPECT().Bootstrap(now, gomock.Any()).Return(fmt.Errorf("an error"))
 	ns.EXPECT().ID().Return(ident.StringID("test"))
 	namespaces := []databaseNamespace{ns}
@@ -81,6 +82,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
 
 	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().BlockOptions().Return(opts.DatabaseBlockOptions()).Times(2)
 
 	var wg sync.WaitGroup
 	wg.Add(1)

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 )
 
 // ProcessProvider constructs a bootstrap process that can execute a
@@ -42,7 +43,7 @@ type ProcessProvider interface {
 	BootstrapperProvider() BootstrapperProvider
 
 	// Provide constructs a bootstrap process.
-	Provide() (Process, error)
+	Provide(bopts block.Options) (Process, error)
 }
 
 // Process represents the bootstrap process. Note that a bootstrap process can and will
@@ -135,7 +136,7 @@ type BootstrapperProvider interface {
 	String() string
 
 	// Provide constructs a bootstrapper.
-	Provide() (Bootstrapper, error)
+	Provide(ropts result.Options) (Bootstrapper, error)
 }
 
 // Strategy describes a bootstrap strategy.

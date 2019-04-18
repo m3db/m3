@@ -197,6 +197,8 @@ type DatabaseBlock interface {
 	// OnEvictedFromWiredList returns the owner of the block
 	OnEvictedFromWiredList() OnEvictedFromWiredList
 
+	SetOptions(Options)
+
 	// Private methods because only the Wired List itself should use them.
 	databaseBlock
 }
@@ -338,10 +340,17 @@ type DatabaseSeriesBlocks interface {
 // DatabaseBlockAllocate allocates a database block for a pool.
 type DatabaseBlockAllocate func() DatabaseBlock
 
+// DatabaseBlockInit initializes a database block for a pool.
+type DatabaseBlockInit func(DatabaseBlock) DatabaseBlock
+
 // DatabaseBlockPool provides a pool for database blocks.
 type DatabaseBlockPool interface {
 	// Init initializes the pool.
 	Init(alloc DatabaseBlockAllocate)
+
+	// ReInit reinitialize block pool with a different DatabaseBlockInit
+	// and returns a new block pool (that shares the same object pool).
+	ReInit(init DatabaseBlockInit) DatabaseBlockPool
 
 	// Get provides a database block from the pool.
 	Get() DatabaseBlock
