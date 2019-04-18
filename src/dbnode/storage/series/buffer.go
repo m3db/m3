@@ -283,30 +283,28 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 		// Retrievable and higher versioned buckets will be left to be
 		// collected in the next tick.
 		blockState := blockStates[tNano]
-		if !blockState.Retrievable {
-			continue
-		}
+		if blockState.Retrievable {
+			buckets.removeBucketsUpToVersion(blockState.Version)
 
-		buckets.removeBucketsUpToVersion(blockState.Version)
-
-		if buckets.streamsLen() == 0 {
-			t := tNano.ToTime()
-			// All underlying buckets have been flushed successfully, so we can
-			// just remove the buckets from the bucketsMap.
-			b.removeBucketVersionsAt(t)
-			// Pass which bucket got evicted from the buffer to the series.
-			// Data gets read in order of precedence: buffer -> cache -> disk.
-			// After a bucket gets removed from the buffer, data from the cache
-			// will be served. However, since data just got persisted to disk,
-			// the cached block is now stale. To correct this, we can either:
-			// 1) evict the stale block from cache so that new data will
-			//    be retrieved from disk, or
-			// 2) merge the new data into the cached block.
-			// It's unclear whether recently flushed data would frequently be
-			// read soon afterward, so we're choosing (1) here, since it has a
-			// simpler implementation (just removing from a map).
-			evictedBucketTimes.add(tNano)
-			continue
+			if buckets.streamsLen() == 0 {
+				t := tNano.ToTime()
+				// All underlying buckets have been flushed successfully, so we can
+				// just remove the buckets from the bucketsMap.
+				b.removeBucketVersionsAt(t)
+				// Pass which bucket got evicted from the buffer to the series.
+				// Data gets read in order of precedence: buffer -> cache -> disk.
+				// After a bucket gets removed from the buffer, data from the cache
+				// will be served. However, since data just got persisted to disk,
+				// the cached block is now stale. To correct this, we can either:
+				// 1) evict the stale block from cache so that new data will
+				//    be retrieved from disk, or
+				// 2) merge the new data into the cached block.
+				// It's unclear whether recently flushed data would frequently be
+				// read soon afterward, so we're choosing (1) here, since it has a
+				// simpler implementation (just removing from a map).
+				evictedBucketTimes.add(tNano)
+				continue
+			}
 		}
 
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
