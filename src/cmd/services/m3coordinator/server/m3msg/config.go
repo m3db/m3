@@ -22,9 +22,9 @@ package m3msg
 
 import (
 	"github.com/m3db/m3/src/msg/consumer"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/server"
 )
 
 // Configuration configs the m3msg server.

@@ -38,10 +38,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xclose "github.com/m3db/m3x/close"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
+	xclose "github.com/m3db/m3/src/x/close"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 )
@@ -405,7 +405,7 @@ func snapshotTimeAndID(
 		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
 	}
 
-	decoder.Reset(msgpack.NewDecoderStream(infoBytes))
+	decoder.Reset(msgpack.NewByteDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
 	if err != nil {
 		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
@@ -636,7 +636,7 @@ func ReadInfoFiles(
 		},
 		readerBufferSize,
 		func(filepath string, id FileSetFileIdentifier, data []byte) {
-			decoder.Reset(msgpack.NewDecoderStream(data))
+			decoder.Reset(msgpack.NewByteDecoderStream(data))
 			info, err := decoder.DecodeIndexInfo()
 			infoFileResults = append(infoFileResults, ReadInfoFileResult{
 				Info: info,

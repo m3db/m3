@@ -28,9 +28,9 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (

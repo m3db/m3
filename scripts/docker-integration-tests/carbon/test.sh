@@ -4,7 +4,9 @@ set -xe
 
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/carbon/docker-compose.yml
+SCRIPT_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/carbon
+COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
+EXPECTED_PATH=$SCRIPT_PATH/expected
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
@@ -27,6 +29,19 @@ function read_carbon {
   RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=$target&from=$start&until=$end")
   test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | tail -n 1)" = "$expected_val"
   return $?
+}
+
+function find_carbon {
+  query=$1
+  expected_file=$2
+  RESPONSE=$(curl -sSg "http://localhost:7201/api/v1/graphite/metrics/find?query=$query")
+  ACTUAL=$(echo $RESPONSE | jq '. | sort')
+  EXPECTED=$(cat $EXPECTED_PATH/$expected_file | jq '. | sort')
+  if [ "$ACTUAL" == "$EXPECTED" ]
+  then
+    return 0
+  fi
+  return 1
 }
 
 echo "Writing out a carbon metric that should use a min aggregation"
@@ -58,3 +73,19 @@ echo "foo.min.catch-all.baz 10 $t" | nc 0.0.0.0 7204
 echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
+
+t=$(date +%s)
+echo "a 0 $t"             | nc 0.0.0.0 7204
+echo "a.bar 0 $t"         | nc 0.0.0.0 7204
+echo "a.biz 0 $t"         | nc 0.0.0.0 7204
+echo "a.biz.cake 0 $t"    | nc 0.0.0.0 7204
+echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
+echo "a.bag 0 $t"         | nc 0.0.0.0 7204
+ATTEMPTS=5 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.c* a.b.c.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.caw.* a.b.c.d.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon x none.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.d none.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon *.*.*.*.* none.json

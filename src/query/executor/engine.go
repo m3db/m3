@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
@@ -35,6 +36,8 @@ import (
 // Engine executes a Query.
 type Engine struct {
 	metrics          *engineMetrics
+	costScope        tally.Scope
+	globalEnforcer   qcost.ChainedEnforcer
 	store            storage.Storage
 	lookbackDuration time.Duration
 }
@@ -50,11 +53,16 @@ type Query struct {
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration) *Engine {
+func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration, factory qcost.ChainedEnforcer) *Engine {
+	if factory == nil {
+		factory = qcost.NoopChainedEnforcer()
+	}
 	return &Engine{
 		metrics:          newEngineMetrics(scope),
+		costScope:        scope,
 		store:            store,
 		lookbackDuration: lookbackDuration,
+		globalEnforcer:   factory,
 	}
 }
 
@@ -134,6 +142,8 @@ func (e *Engine) ExecuteExpr(
 ) {
 	defer close(results)
 
+	perQueryEnforcer := e.globalEnforcer.Child(qcost.QueryLevel)
+	defer perQueryEnforcer.Close()
 	req := newRequest(e, params)
 
 	nodes, edges, err := req.compile(ctx, parser)
@@ -161,7 +171,7 @@ func (e *Engine) ExecuteExpr(
 	result := state.resultNode
 	results <- Query{Result: result}
 
-	if err := state.Execute(models.NewQueryContext(ctx, tally.NoopScope)); err != nil {
+	if err := state.Execute(models.NewQueryContext(ctx, e.costScope, perQueryEnforcer)); err != nil {
 		result.abort(err)
 	} else {
 		result.done()

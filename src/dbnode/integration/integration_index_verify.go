@@ -26,16 +26,16 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type verifyQueryMetadataResultsOptions struct {
-	namespace   ident.ID
-	exhausitive bool
-	expected    []generate.Series
+	namespace  ident.ID
+	exhaustive bool
+	expected   []generate.Series
 }
 
 type verifyQueryMetadataResult struct {
@@ -46,10 +46,10 @@ type verifyQueryMetadataResult struct {
 func verifyQueryMetadataResults(
 	t *testing.T,
 	iter client.TaggedIDsIterator,
-	exhausitive bool,
+	exhaustive bool,
 	opts verifyQueryMetadataResultsOptions,
 ) {
-	assert.Equal(t, opts.exhausitive, exhausitive)
+	assert.Equal(t, opts.exhaustive, exhaustive)
 
 	expected := make(map[string]*verifyQueryMetadataResult, len(opts.expected))
 	for _, series := range opts.expected {
@@ -90,5 +90,71 @@ func verifyQueryMetadataResults(
 	}
 
 	assert.Equal(t, len(expected), compared,
+		fmt.Sprintf("matched: %v, not matched: %v", matched, notMatched))
+}
+
+type tagValue string
+type tagName string
+type aggregateTagValues map[tagValue]struct{}
+type aggregateTags map[tagName]aggregateTagValues
+type tagValueSeen bool
+
+type verifyQueryAggregateMetadataResultsOptions struct {
+	exhaustive bool
+	expected   aggregateTags
+}
+
+func verifyQueryAggregateMetadataResults(
+	t *testing.T,
+	iter client.AggregatedTagsIterator,
+	exhaustive bool,
+	opts verifyQueryAggregateMetadataResultsOptions,
+) {
+	assert.Equal(t, opts.exhaustive, exhaustive)
+
+	expected := make(map[tagName]map[tagValue]tagValueSeen, len(opts.expected))
+	for name, values := range opts.expected {
+		expected[name] = map[tagValue]tagValueSeen{}
+		for value := range values {
+			expected[name][value] = tagValueSeen(false)
+		}
+	}
+
+	for iter.Next() {
+		name, values := iter.Current()
+
+		result, ok := expected[tagName(name.String())]
+		require.True(t, ok,
+			fmt.Sprintf("not expecting tag: %s", name.String()))
+
+		for values.Next() {
+			value := values.Current()
+
+			entry, ok := result[tagValue(value.String())]
+			require.True(t, ok,
+				fmt.Sprintf("not expecting tag value: name=%s, value=%s",
+					name.String(), value.String()))
+			require.False(t, bool(entry))
+
+			result[tagValue(value.String())] = tagValueSeen(true)
+		}
+
+		require.NoError(t, values.Err())
+	}
+	require.NoError(t, iter.Err())
+
+	var matched, notMatched []string
+	for name, values := range expected {
+		for value, valueMatched := range values {
+			elem := fmt.Sprintf("(tagName=%s, tagValue=%s)", name, value)
+			if valueMatched {
+				matched = append(matched, elem)
+				continue
+			}
+			notMatched = append(notMatched, elem)
+		}
+	}
+
+	assert.Equal(t, 0, len(notMatched),
 		fmt.Sprintf("matched: %v, not matched: %v", matched, notMatched))
 }

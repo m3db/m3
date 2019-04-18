@@ -26,9 +26,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/uber-go/tally"
 )
 
 // Type describes the type of storage
@@ -86,6 +89,11 @@ type FetchOptions struct {
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
 	FanoutOptions *FanoutOptions
+	// Enforcer is used to enforce resource limits on the number of datapoints
+	// used by a given query. Limits are imposed at time of decompression.
+	Enforcer cost.ChainedEnforcer
+	// Scope is used to report metrics about the fetch.
+	Scope tally.Scope
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -124,6 +132,8 @@ func NewFetchOptions() *FetchOptions {
 			FanoutAggregated:          FanoutDefault,
 			FanoutAggregatedOptimized: FanoutDefault,
 		},
+		Enforcer: cost.NoopChainedEnforcer(),
+		Scope:    tally.NoopScope,
 	}
 }
 
@@ -143,8 +153,8 @@ type Querier interface {
 		options *FetchOptions,
 	) (block.Result, error)
 
-	// FetchTags returns search results for tags
-	FetchTags(
+	// SearchSeries returns series IDs matching the current query
+	SearchSeries(
 		ctx context.Context,
 		query *FetchQuery,
 		options *FetchOptions,
@@ -177,6 +187,8 @@ type CompleteTagsQuery struct {
 	CompleteNameOnly bool
 	FilterNameTags   [][]byte
 	TagMatchers      models.Matchers
+	Start            time.Time
+	End              time.Time
 }
 
 // SeriesMatchQuery represents a query that returns a set of series

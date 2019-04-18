@@ -22,12 +22,13 @@ package encoding
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
-	defaultDefaultTimeUnit = xtime.Second
+	defaultDefaultTimeUnit      = xtime.Second
+	defaultByteFieldDictLRUSize = 4
 )
 
 var (
@@ -43,6 +44,7 @@ type options struct {
 	readerIteratorPool   ReaderIteratorPool
 	bytesPool            pool.CheckedBytesPool
 	segmentReaderPool    xio.SegmentReaderPool
+	byteFieldDictLRUSize int
 }
 
 func newOptions() Options {
@@ -50,6 +52,7 @@ func newOptions() Options {
 		defaultTimeUnit:      defaultDefaultTimeUnit,
 		timeEncodingSchemes:  defaultTimeEncodingSchemes,
 		markerEncodingScheme: defaultMarkerEncodingScheme,
+		byteFieldDictLRUSize: defaultByteFieldDictLRUSize,
 	}
 }
 
@@ -126,4 +129,14 @@ func (o *options) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 
 func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
+}
+
+func (o *options) SetByteFieldDictionaryLRUSize(value int) Options {
+	opts := *o
+	opts.byteFieldDictLRUSize = value
+	return &opts
+}
+
+func (o *options) ByteFieldDictionaryLRUSize() int {
+	return o.byteFieldDictLRUSize
 }

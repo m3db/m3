@@ -21,7 +21,7 @@
 package xpool
 
 import (
-	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3/src/x/checked"
 )
 
 // CheckedBytesWrapperPool allows users to wrap []byte which have been

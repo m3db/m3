@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/mmap"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -45,6 +45,7 @@ var (
 type Compactor struct {
 	sync.RWMutex
 
+	opts         CompactorOptions
 	writer       fst.Writer
 	docsPool     doc.DocumentArrayPool
 	docsMaxBatch int
@@ -59,6 +60,12 @@ type CompactorOptions struct {
 	// FSTWriterOptions if not nil are the options used to
 	// construct the FST writer.
 	FSTWriterOptions *fst.WriterOptions
+
+	// MmapDocsData when enabled will encode and mmmap the
+	// documents data, rather than keeping the original
+	// documents with references to substrings in the metric
+	// IDs (done for memory savings).
+	MmapDocsData bool
 }
 
 // NewCompactor returns a new compactor which reuses buffers
@@ -69,19 +76,24 @@ func NewCompactor(
 	builderOpts builder.Options,
 	fstOpts fst.Options,
 	opts CompactorOptions,
-) *Compactor {
+) (*Compactor, error) {
 	var fstWriterOpts fst.WriterOptions
 	if v := opts.FSTWriterOptions; v != nil {
 		fstWriterOpts = *v
 	}
+	writer, err := fst.NewWriter(fstWriterOpts)
+	if err != nil {
+		return nil, err
+	}
 	return &Compactor{
-		writer:       fst.NewWriter(fstWriterOpts),
+		opts:         opts,
+		writer:       writer,
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
 		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
 		buff:         bytes.NewBuffer(nil),
-	}
+	}, nil
 }
 
 // Compact will take a set of segments and compact them into an immutable
@@ -225,9 +237,6 @@ func (c *Compactor) compactFromBuilderWithLock(
 		return nil, errCompactorBuilderEmpty
 	}
 
-	allDocsCopy := make([]doc.Document, len(allDocs))
-	copy(allDocsCopy, allDocs)
-
 	err := c.writer.Reset(builder)
 	if err != nil {
 		return nil, err
@@ -236,11 +245,12 @@ func (c *Compactor) compactFromBuilderWithLock(
 	success := false
 	closers := new(closers)
 	fstData := fst.SegmentData{
-		MajorVersion: c.writer.MajorVersion(),
-		MinorVersion: c.writer.MinorVersion(),
-		Metadata:     append([]byte(nil), c.writer.Metadata()...),
-		DocsReader:   docs.NewSliceReader(0, allDocsCopy),
-		Closer:       closers,
+		Version: fst.Version{
+			Major: c.writer.MajorVersion(),
+			Minor: c.writer.MinorVersion(),
+		},
+		Metadata: append([]byte(nil), c.writer.Metadata()...),
+		Closer:   closers,
 	}
 
 	// Cleanup incase we run into issues
@@ -249,6 +259,36 @@ func (c *Compactor) compactFromBuilderWithLock(
 			closers.Close()
 		}
 	}()
+
+	if !c.opts.MmapDocsData {
+		// If retaining references to the original docs, simply take ownership
+		// of the documents and then reference them directly from the FST segment
+		// rather than encoding them and mmap'ing the encoded documents.
+		allDocsCopy := make([]doc.Document, len(allDocs))
+		copy(allDocsCopy, allDocs)
+		fstData.DocsReader = docs.NewSliceReader(0, allDocsCopy)
+	} else {
+		// Otherwise encode and reference the encoded bytes as mmap'd bytes.
+		c.buff.Reset()
+		if err := c.writer.WriteDocumentsData(c.buff); err != nil {
+			return nil, err
+		}
+
+		fstData.DocsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+		if err != nil {
+			return nil, err
+		}
+
+		c.buff.Reset()
+		if err := c.writer.WriteDocumentsIndex(c.buff); err != nil {
+			return nil, err
+		}
+
+		fstData.DocsIdxData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	c.buff.Reset()
 	if err := c.writer.WritePostingsOffsets(c.buff); err != nil {

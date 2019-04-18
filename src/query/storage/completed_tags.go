@@ -24,9 +24,11 @@ import (
 	"bytes"
 	"errors"
 	"sort"
+	"sync"
 )
 
 type completeTagsResultBuilder struct {
+	sync.RWMutex
 	nameOnly    bool
 	tagBuilders map[string]completedTagBuilder
 }
@@ -41,6 +43,9 @@ func NewCompleteTagsResultBuilder(
 }
 
 func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
+	b.Lock()
+	defer b.Unlock()
+
 	nameOnly := b.nameOnly
 	if nameOnly != tagResult.CompleteNameOnly {
 		return errors.New("incoming tag result has mismatched type")
@@ -81,6 +86,9 @@ func (s completedTagsByName) Less(i, j int) bool {
 }
 
 func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
+	b.RLock()
+	defer b.RUnlock()
+
 	result := make([]CompletedTag, 0, len(b.tagBuilders))
 	if b.nameOnly {
 		for name := range b.tagBuilders {

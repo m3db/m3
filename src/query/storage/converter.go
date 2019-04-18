@@ -28,11 +28,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xcost "github.com/m3db/m3/src/x/cost"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -266,6 +268,7 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*ts.Series, error) {
 	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
@@ -279,6 +282,15 @@ func iteratorToTsSeries(
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
 	}
 
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	r := enforcer.Add(xcost.Cost(len(datapoints)))
+	if r.Error != nil {
+		return nil, r.Error
+	}
+
 	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
 }
 
@@ -286,11 +298,12 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
 	for _, iter := range iters {
-		series, err := iteratorToTsSeries(iter, tagOptions)
+		series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -306,6 +319,7 @@ func decompressConcurrently(
 	iterLength int,
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -332,7 +346,7 @@ func decompressConcurrently(
 				return
 			}
 
-			series, err := iteratorToTsSeries(iter, tagOptions)
+			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 			if err != nil {
 				// Return the first error that is encountered.
 				select {
@@ -362,6 +376,7 @@ func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
+	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	if cleanupSeriesIters {
@@ -371,8 +386,9 @@ func SeriesIteratorsToFetchResult(
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
 	if readWorkerPool == nil {
-		return decompressSequentially(iterLength, iters, tagOptions)
+		return decompressSequentially(iterLength, iters, enforcer, tagOptions)
 	}
 
-	return decompressConcurrently(iterLength, iters, readWorkerPool, tagOptions)
+	return decompressConcurrently(iterLength, iters, readWorkerPool,
+		enforcer, tagOptions)
 }

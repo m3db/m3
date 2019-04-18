@@ -44,6 +44,9 @@ const (
 
 	// Namespace requires repair disabled by default.
 	defaultRepairEnabled = false
+
+	// Namespace with cold writes disabled by default.
+	defaultColdWritesEnabled = false
 )
 
 var (
@@ -59,8 +62,10 @@ type options struct {
 	writesToCommitLog bool
 	cleanupEnabled    bool
 	repairEnabled     bool
+	coldWritesEnabled bool
 	retentionOpts     retention.Options
 	indexOpts         IndexOptions
+	schemaReg         SchemaRegistry
 }
 
 // NewOptions creates a new namespace options
@@ -72,8 +77,10 @@ func NewOptions() Options {
 		writesToCommitLog: defaultWritesToCommitLog,
 		cleanupEnabled:    defaultCleanupEnabled,
 		repairEnabled:     defaultRepairEnabled,
+		coldWritesEnabled: defaultColdWritesEnabled,
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
+		schemaReg:         emptySchemaRegistry(),
 	}
 }
 
@@ -85,14 +92,15 @@ func (o *options) Validate() error {
 		return nil
 	}
 	var (
-		retention      = o.retentionOpts.RetentionPeriod()
-		dataBlockSize  = o.retentionOpts.BlockSize()
-		indexBlockSize = o.indexOpts.BlockSize()
+		retention       = o.retentionOpts.RetentionPeriod()
+		futureRetention = o.retentionOpts.FutureRetentionPeriod()
+		dataBlockSize   = o.retentionOpts.BlockSize()
+		indexBlockSize  = o.indexOpts.BlockSize()
 	)
 	if indexBlockSize <= 0 {
 		return errIndexBlockSizePositive
 	}
-	if retention < indexBlockSize {
+	if retention < indexBlockSize || (futureRetention != 0 && futureRetention < indexBlockSize) {
 		return errIndexBlockSizeTooLarge
 	}
 	if indexBlockSize%dataBlockSize != 0 {
@@ -108,8 +116,10 @@ func (o *options) Equal(value Options) bool {
 		o.snapshotEnabled == value.SnapshotEnabled() &&
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
+		o.coldWritesEnabled == value.ColdWritesEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
-		o.indexOpts.Equal(value.IndexOptions())
+		o.indexOpts.Equal(value.IndexOptions()) &&
+		o.schemaReg.Equal(value.SchemaRegistry())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -172,6 +182,16 @@ func (o *options) RepairEnabled() bool {
 	return o.repairEnabled
 }
 
+func (o *options) SetColdWritesEnabled(value bool) Options {
+	opts := *o
+	opts.coldWritesEnabled = value
+	return &opts
+}
+
+func (o *options) ColdWritesEnabled() bool {
+	return o.coldWritesEnabled
+}
+
 func (o *options) SetRetentionOptions(value retention.Options) Options {
 	opts := *o
 	opts.retentionOpts = value
@@ -190,4 +210,14 @@ func (o *options) SetIndexOptions(value IndexOptions) Options {
 
 func (o *options) IndexOptions() IndexOptions {
 	return o.indexOpts
+}
+
+func (o *options) SetSchemaRegistry(value SchemaRegistry) Options {
+	opts := *o
+	opts.schemaReg = value
+	return &opts
+}
+
+func (o *options) SchemaRegistry() SchemaRegistry {
+	return o.schemaReg
 }

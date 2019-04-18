@@ -31,11 +31,11 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/rules"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -106,7 +106,7 @@ type namespaces struct {
 	store                kv.Store
 	opts                 Options
 	nowFn                clock.NowFn
-	log                  log.Logger
+	log                  *zap.Logger
 	ruleSetKeyFn         RuleSetKeyFn
 	matchRangePast       time.Duration
 	onNamespaceAddedFn   OnNamespaceAddedFn
@@ -160,9 +160,9 @@ func (n *namespaces) Open() error {
 	// to be more resilient to error conditions preventing process
 	// from starting up.
 	n.metrics.initWatchErrors.Inc(1)
-	n.opts.InstrumentOptions().Logger().WithFields(
-		log.NewField("key", n.key),
-		log.NewErrField(err),
+	n.opts.InstrumentOptions().Logger().With(
+		zap.String("key", n.key),
+		zap.Error(err),
 	).Error("error initializing namespaces values, retrying in the background")
 	return nil
 }
@@ -272,9 +272,7 @@ func (n *namespaces) process(value interface{}) error {
 		shouldWatch := true
 		// This should never happen but just to be on the defensive side.
 		if len(snapshots) == 0 {
-			n.log.WithFields(
-				log.NewField("version", version),
-			).Warn("namespace updates have no snapshots")
+			n.log.Warn("namespace updates have no snapshots", zap.Int("version", version))
 		} else {
 			latestSnapshot := snapshots[len(snapshots)-1]
 			// If the latest update shows the namespace is tombstoned, and we
@@ -291,10 +289,9 @@ func (n *namespaces) process(value interface{}) error {
 			n.metrics.watched.Inc(1)
 			if err := ruleSet.Watch(); err != nil {
 				n.metrics.watchErrors.Inc(1)
-				n.log.WithFields(
-					log.NewField("ruleSetKey", ruleSet.Key()),
-					log.NewErrField(err),
-				).Error("failed to watch ruleset updates")
+				n.log.Error("failed to watch ruleset updates",
+					zap.String("ruleSetKey", ruleSet.Key()),
+					zap.Error(err))
 			}
 		}
 

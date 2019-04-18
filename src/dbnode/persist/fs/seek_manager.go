@@ -27,11 +27,17 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
+)
+
+const (
+	seekManagerCloseInterval        = time.Second
+	reusableSeekerResourcesPoolSize = 10
 )
 
 var (
@@ -43,8 +49,6 @@ var (
 	errCantCloseSeekerManagerWhileSeekersAreBorrowed = errors.New("cant close seeker manager while seekers are borrowed")
 	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
 )
-
-const seekManagerCloseInterval = time.Second
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
 
@@ -66,7 +70,7 @@ type seekerManager struct {
 
 	opts             Options
 	fetchConcurrency int
-	logger           log.Logger
+	logger           *zap.Logger
 
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
@@ -80,6 +84,8 @@ type seekerManager struct {
 	newOpenSeekerFn        newOpenSeekerFn
 	sleepFn                func(d time.Duration)
 	openCloseLoopDoneCh    chan struct{}
+	// Pool of seeker resources that can be used to open new seekers.
+	reusableSeekerResourcesPool pool.ObjectPool
 }
 
 type seekerUnreadBuf struct {
@@ -120,13 +126,23 @@ func NewSeekerManager(
 	opts Options,
 	fetchConcurrency int,
 ) DataFileSetSeekerManager {
+	reusableSeekerResourcesPool := pool.NewObjectPool(
+		pool.NewObjectPoolOptions().
+			SetSize(reusableSeekerResourcesPoolSize).
+			SetRefillHighWatermark(0).
+			SetRefillLowWatermark(0))
+	reusableSeekerResourcesPool.Init(func() interface{} {
+		return NewReusableSeekerResources(opts)
+	})
+
 	m := &seekerManager{
-		bytesPool:           bytesPool,
-		filePathPrefix:      opts.FilePathPrefix(),
-		opts:                opts,
-		fetchConcurrency:    fetchConcurrency,
-		logger:              opts.InstrumentOptions().Logger(),
-		openCloseLoopDoneCh: make(chan struct{}),
+		bytesPool:                   bytesPool,
+		filePathPrefix:              opts.FilePathPrefix(),
+		opts:                        opts,
+		fetchConcurrency:            fetchConcurrency,
+		logger:                      opts.InstrumentOptions().Logger(),
+		openCloseLoopDoneCh:         make(chan struct{}),
+		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
 	}
 	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
 	m.newOpenSeekerFn = m.newOpenSeeker
@@ -378,10 +394,8 @@ func (m *seekerManager) newOpenSeeker(
 		m.filePathPrefix,
 		m.opts.DataReaderBufferSize(),
 		m.opts.InfoReaderBufferSize(),
-		m.opts.SeekReaderBufferSize(),
 		m.bytesPool,
 		true,
-		nil,
 		m.opts,
 	)
 	seeker := seekerIface.(*seeker)
@@ -389,7 +403,10 @@ func (m *seekerManager) newOpenSeeker(
 	// Set the unread buffer to reuse it amongst all seekers.
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
-	if err := seeker.Open(m.namespace, shard, blockStart); err != nil {
+	resources := m.getSeekerResources()
+	err = seeker.Open(m.namespace, shard, blockStart, resources)
+	m.putSeekerResources(resources)
+	if err != nil {
 		return nil, err
 	}
 
@@ -577,9 +594,7 @@ func (m *seekerManager) openCloseLoop() {
 		for _, seeker := range closing {
 			err := seeker.seeker.Close()
 			if err != nil {
-				m.logger.
-					WithFields(log.NewField("err", err.Error())).
-					Error("err closing seeker in SeekerManager openCloseLoop")
+				m.logger.Error("err closing seeker in SeekerManager openCloseLoop", zap.Error(err))
 			}
 		}
 
@@ -598,9 +613,7 @@ func (m *seekerManager) openCloseLoop() {
 				// SeekerManager to be closed if any seekers are still outstanding.
 				err := seeker.seeker.Close()
 				if err != nil {
-					m.logger.
-						WithFields(log.NewField("err", err.Error())).
-						Error("err closing seeker in SeekerManager at end of openCloseLoop")
+					m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
 				}
 			}
 		}
@@ -611,4 +624,12 @@ func (m *seekerManager) openCloseLoop() {
 	m.Unlock()
 
 	m.openCloseLoopDoneCh <- struct{}{}
+}
+
+func (m *seekerManager) getSeekerResources() ReusableSeekerResources {
+	return m.reusableSeekerResourcesPool.Get().(ReusableSeekerResources)
+}
+
+func (m *seekerManager) putSeekerResources(r ReusableSeekerResources) {
+	m.reusableSeekerResourcesPool.Put(r)
 }

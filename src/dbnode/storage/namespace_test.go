@@ -21,6 +21,7 @@
 package storage
 
 import (
+	stdlibctx "context"
 	"errors"
 	"fmt"
 	"sync"
@@ -37,16 +38,20 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
-	xtime "github.com/m3db/m3x/time"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	xidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -154,8 +159,8 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"),
-		time.Now(), 0.0, xtime.Second, nil)
+	now := time.Now()
+	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
@@ -178,9 +183,9 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
 		Return(ts.Series{}, true, nil).Times(1)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
 		Return(ts.Series{}, false, nil).Times(1)
 
 	ns.shards[testShardIDs[0].ID()] = shard
@@ -1068,9 +1073,9 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil).Return(ts.Series{}, true, nil)
+		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, true, nil)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil).Return(ts.Series{}, false, nil)
+		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, false, nil)
 
 	ns.shards[testShardIDs[0].ID()] = shard
 
@@ -1100,11 +1105,47 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewContext()
-	query := index.Query{}
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
 	opts := index.QueryOptions{}
 
-	idx.EXPECT().Query(ctx, query, opts)
+	idx.EXPECT().Query(gomock.Any(), query, opts)
 	_, err := ns.QueryIDs(ctx, query, opts)
+	require.NoError(t, err)
+
+	idx.EXPECT().Close().Return(nil)
+	require.NoError(t, ns.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.NSQueryIDs, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
+}
+
+func TestNamespaceAggregateQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	idx.EXPECT().BootstrapsDone().Return(uint(1))
+
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+	aggOpts := index.AggregationOptions{}
+
+	idx.EXPECT().AggregateQuery(ctx, query, aggOpts)
+	_, err := ns.AggregateQuery(ctx, query, aggOpts)
 	require.NoError(t, err)
 
 	idx.EXPECT().Close().Return(nil)
@@ -1130,7 +1171,9 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewContext()
-	query := index.Query{}
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
 	opts := index.QueryOptions{}
 
 	_, err := ns.QueryIDs(ctx, query, opts)

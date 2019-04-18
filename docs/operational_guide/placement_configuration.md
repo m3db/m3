@@ -44,15 +44,15 @@ This value should be an integer and controls how the cluster will weigh the numb
 
 #### Endpoint
 
-This value should be in the form of <M3DB_HOST_NAME>:<M3DB_NODE_LISTEN_PORT> and identifies how network requests should be routed to this particular node in the placement.
+This value should be in the form of `<M3DB_HOST_NAME>:<M3DB_NODE_LISTEN_PORT>` and identifies how network requests should be routed to this particular node in the placement.
 
 #### Hostname
 
-This value should be in the form of <M3DB_HOST_NAME> and identifies the address / host name of the M3DB node.
+This value should be in the form of `<M3DB_HOST_NAME>` and identifies the address / host name of the M3DB node.
 
 #### Port
 
-This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the port over which this M3DB node expects to receive traffic (defaults to 9000).
+This value should be in the form of `<M3DB_NODE_LISTEN_PORT>` and identifies the port over which this M3DB node expects to receive traffic (defaults to 9000).
 
 ### Placement Operations
 

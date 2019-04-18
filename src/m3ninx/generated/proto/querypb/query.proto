@@ -23,13 +23,17 @@ package query;
 
 option go_package = "querypb";
 
+message FieldQuery {
+  bytes field = 1;
+}
+
 message TermQuery {
   bytes field = 1;
-  bytes term = 2;
+  bytes term  = 2;
 }
 
 message RegexpQuery {
-  bytes field = 1;
+  bytes field  = 1;
   bytes regexp = 2;
 }
 
@@ -45,12 +49,17 @@ message DisjunctionQuery {
   repeated Query queries = 1;
 }
 
+message AllQuery {
+}
+
 message Query {
   oneof query {
-    TermQuery term = 1;
-    RegexpQuery regexp = 2;
-    NegationQuery negation = 3;
+    TermQuery term               = 1;
+    RegexpQuery regexp           = 2;
+    NegationQuery negation       = 3;
     ConjunctionQuery conjunction = 4;
     DisjunctionQuery disjunction = 5;
+    AllQuery all                 = 6;
+    FieldQuery field             = 7;
   }
 }

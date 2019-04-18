@@ -53,7 +53,7 @@ func (t *Controller) BlockBuilder(
 	queryCtx *models.QueryContext,
 	blockMeta block.Metadata,
 	seriesMeta []block.SeriesMeta) (block.Builder, error) {
-	return block.NewColumnBlockBuilder(blockMeta, seriesMeta), nil
+	return block.NewColumnBlockBuilder(queryCtx, blockMeta, seriesMeta), nil
 }
 
 // HasMultipleOperations returns true if there are multiple operations.

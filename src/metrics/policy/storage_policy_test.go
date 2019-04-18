@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -518,6 +518,38 @@ func TestStoragePoliciesByResolutionAscRetentionDesc(t *testing.T) {
 		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
 		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+	}
+	require.Equal(t, expected, inputs)
+}
+
+func TestStoragePoliciesByRetentionAscResolutionAsc(t *testing.T) {
+	inputs := StoragePolicies{
+		NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Minute, 12*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(11*time.Second, xtime.Second, 2*time.Hour),
+	}
+	sort.Sort(ByRetentionAscResolutionAsc(inputs))
+
+	expected := StoragePolicies{
+		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(11*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Minute, 12*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
 		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),

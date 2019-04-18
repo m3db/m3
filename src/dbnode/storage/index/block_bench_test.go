@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/profile"
@@ -46,7 +46,8 @@ func BenchmarkBlockWrite(b *testing.B) {
 	now := time.Now()
 	blockStart := now.Truncate(blockSize)
 
-	bl, err := NewBlock(blockStart, testMD, testOpts)
+	bl, err := NewBlock(blockStart, testMD,
+		BlockOptions{}, testOpts)
 	require.NoError(b, err)
 	defer func() {
 		require.NoError(b, bl.Close())

@@ -22,7 +22,7 @@ package xio
 
 import (
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type nullSegmentReader struct{}

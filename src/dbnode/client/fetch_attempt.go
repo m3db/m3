@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
 )
 
 var fetchAttemptArgsZeroed fetchAttemptArgs

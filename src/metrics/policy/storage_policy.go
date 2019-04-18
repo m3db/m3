@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -255,18 +255,31 @@ func (sp ByResolutionAscRetentionDesc) Swap(i, j int) { sp[i], sp[j] = sp[j], sp
 
 func (sp ByResolutionAscRetentionDesc) Less(i, j int) bool {
 	rw1, rw2 := sp[i].Resolution().Window, sp[j].Resolution().Window
-	if rw1 < rw2 {
-		return true
-	}
-	if rw1 > rw2 {
-		return false
+	if rw1 != rw2 {
+		return rw1 < rw2
 	}
 	rt1, rt2 := sp[i].Retention(), sp[j].Retention()
-	if rt1 > rt2 {
-		return true
+	if rt1 != rt2 {
+		return rt1 > rt2
 	}
-	if rt1 < rt2 {
-		return false
+	return sp[i].Resolution().Precision < sp[j].Resolution().Precision
+}
+
+// ByRetentionAscResolutionAsc implements the sort.Sort interface that enables sorting
+// storage policies by retention in ascending order and then by resolution in ascending
+// order.
+type ByRetentionAscResolutionAsc StoragePolicies
+
+func (sp ByRetentionAscResolutionAsc) Len() int      { return len(sp) }
+func (sp ByRetentionAscResolutionAsc) Swap(i, j int) { sp[i], sp[j] = sp[j], sp[i] }
+func (sp ByRetentionAscResolutionAsc) Less(i, j int) bool {
+	rt1, rt2 := sp[i].Retention(), sp[j].Retention()
+	if rt1 != rt2 {
+		return rt1 < rt2
+	}
+	rw1, rw2 := sp[i].Resolution().Window, sp[j].Resolution().Window
+	if rw1 != rw2 {
+		return rw1 < rw2
 	}
 	return sp[i].Resolution().Precision < sp[j].Resolution().Precision
 }

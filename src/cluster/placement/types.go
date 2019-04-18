@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -335,6 +335,14 @@ type Options interface {
 
 	// SetAllowPartialReplace sets AllowPartialReplace.
 	SetAllowPartialReplace(allowPartialReplace bool) Options
+
+	// AllowAllZones will enable the placement to contain hosts that
+	// are not contained within the same zone of the actual placement. This is
+	// needed for services that require cross zone communication.
+	AllowAllZones() bool
+
+	// SetAllowAllZones sets AllowAllZones.
+	SetAllowAllZones(allowAllZones bool) Options
 
 	// AddAllCandidates determines whether the placement will attempt to add all
 	// candidates when adding instances or just a single one.

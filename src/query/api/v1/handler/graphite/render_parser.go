@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/graphite/pickle"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -38,6 +39,7 @@ const (
 	realTimeQueryThreshold   = time.Minute
 	queryRangeShiftThreshold = 55 * time.Minute
 	queryRangeShift          = 15 * time.Second
+	pickleFormat             = "pickle"
 )
 
 var (
@@ -49,7 +51,14 @@ var (
 func WriteRenderResponse(
 	w http.ResponseWriter,
 	series ts.SeriesList,
+	format string,
 ) error {
+	if format == pickleFormat {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		return renderResultsPickle(w, series.Values)
+	}
+
+	// NB: return json unless requesting specifically `pickleFormat`
 	w.Header().Set("Content-Type", "application/json")
 	return renderResultsJSON(w, series.Values)
 }
@@ -213,4 +222,37 @@ func renderResultsJSON(w io.Writer, series []*ts.Series) error {
 	}
 	jw.EndArray()
 	return jw.Close()
+}
+
+func renderResultsPickle(w io.Writer, series []*ts.Series) error {
+	pw := pickle.NewWriter(w)
+	pw.BeginList()
+
+	for _, s := range series {
+		pw.BeginDict()
+		pw.WriteDictKey("name")
+		pw.WriteString(s.Name())
+
+		pw.WriteDictKey("start")
+		pw.WriteInt(int(s.StartTime().UTC().Unix()))
+
+		pw.WriteDictKey("end")
+		pw.WriteInt(int(s.EndTime().UTC().Unix()))
+
+		pw.WriteDictKey("step")
+		pw.WriteInt(s.MillisPerStep() / 1000)
+
+		pw.WriteDictKey("values")
+		pw.BeginList()
+		for i := 0; i < s.Len(); i++ {
+			pw.WriteFloat64(s.ValueAt(i))
+		}
+		pw.EndList()
+
+		pw.EndDict()
+	}
+
+	pw.EndList()
+
+	return pw.Close()
 }

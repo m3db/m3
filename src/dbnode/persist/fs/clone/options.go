@@ -24,7 +24,7 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (

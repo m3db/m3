@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewDefaultMutableSegmentAllocator returns a default mutable segment

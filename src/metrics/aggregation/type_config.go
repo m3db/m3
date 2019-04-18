@@ -23,8 +23,8 @@ package aggregation
 import (
 	"fmt"
 
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // TypesConfiguration contains configuration for aggregation types.

@@ -32,10 +32,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -306,6 +306,17 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Exhaustive)
 	assert.Equal(t, 0, result.Results.Size())
+
+	// Aggregate query on the non-overlapping range
+	aggResult, err := idx.AggregateQuery(ctx, query, index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: now.Add(-3 * test.indexBlockSize),
+			EndExclusive:   now.Add(-2 * test.indexBlockSize),
+		},
+	})
+	require.NoError(t, err)
+	assert.True(t, aggResult.Exhaustive)
+	assert.Equal(t, 0, aggResult.Results.Size())
 }
 
 type testIndex struct {

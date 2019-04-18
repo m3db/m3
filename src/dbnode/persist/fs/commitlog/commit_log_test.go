@@ -36,9 +36,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	mclock "github.com/facebookgo/clock"
 	"github.com/fortytw2/leaktest"
@@ -587,7 +587,7 @@ func TestCommitLogWriteErrorOnClosed(t *testing.T) {
 }
 
 func TestCommitLogWriteErrorOnFull(t *testing.T) {
-	// Set backlog of size one and don't automatically flush
+	// Set backlog of size one and don't automatically flush.
 	backlogQueueSize := 1
 	flushInterval := time.Duration(0)
 	opts, _ := newTestOptions(t, overrides{
@@ -610,22 +610,59 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 
 	for {
 		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
-			// Ensure queue full error
+			// Ensure queue full error.
 			require.Equal(t, ErrCommitLogQueueFull, err)
+			require.Equal(t, int64(backlogQueueSize), commitLog.QueueLength())
 			break
 		}
 		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})
 
-		// Increment timestamp and value for next write
+		// Increment timestamp and value for next write.
 		dp.Timestamp = dp.Timestamp.Add(time.Second)
 		dp.Value += 1.0
 	}
 
-	// Close and consequently flush
+	// Close and consequently flush.
 	require.NoError(t, commitLog.Close())
 
-	// Assert write flushed by reading the commit log
+	// Assert write flushed by reading the commit log.
 	assertCommitLogWritesByIterating(t, commitLog, writes)
+}
+
+func TestCommitLogQueueLength(t *testing.T) {
+	// Set backlog of size one and don't automatically flush.
+	backlogQueueSize := 10
+	flushInterval := time.Duration(0)
+	opts, _ := newTestOptions(t, overrides{
+		backlogQueueSize: &backlogQueueSize,
+		flushInterval:    &flushInterval,
+		strategy:         StrategyWriteBehind,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+	defer commitLog.Close()
+
+	var (
+		series = testSeries(0, "foo.bar", testTags1, 127)
+		dp     = ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
+		unit   = xtime.Millisecond
+		ctx    = context.NewContext()
+	)
+	defer ctx.Close()
+
+	for i := 0; ; i++ {
+		// Write in a loop and check the queue length until the queue is full.
+		require.Equal(t, int64(i), commitLog.QueueLength())
+		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
+			require.Equal(t, ErrCommitLogQueueFull, err)
+			break
+		}
+
+		// Increment timestamp and value for next write.
+		dp.Timestamp = dp.Timestamp.Add(time.Second)
+		dp.Value += 1.0
+	}
 }
 
 func TestCommitLogFailOnWriteError(t *testing.T) {

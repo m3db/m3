@@ -32,9 +32,10 @@ import (
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
-	"github.com/m3db/m3x/config/hostid"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/config/hostid"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/opentracing"
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/etcd/pkg/transport"
@@ -137,6 +138,12 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+
+	// Proto contains the configuration specific to running in the ProtoDataMode.
+	Proto *ProtoConfiguration `yaml:"proto"`
+
+	// Tracing configures opentracing. If not provided, tracing is disabled.
+	Tracing *opentracing.TracingConfiguration `yaml:"tracing"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -151,6 +158,10 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 	}
 
 	if err := c.Client.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Proto.Validate(); err != nil {
 		return err
 	}
 
@@ -266,6 +277,24 @@ type RepairPolicy struct {
 type HashingConfiguration struct {
 	// Murmur32 seed value.
 	Seed uint32 `yaml:"seed"`
+}
+
+// ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
+type ProtoConfiguration struct {
+	SchemaFilePath string `yaml:"schemaFilePath"`
+}
+
+// Validate validates the ProtoConfiguration.
+func (c *ProtoConfiguration) Validate() error {
+	if c == nil {
+		return nil
+	}
+
+	if c.SchemaFilePath == "" {
+		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	return nil
 }
 
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.

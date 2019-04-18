@@ -29,12 +29,12 @@ import (
 	"github.com/m3db/m3/src/ctl/auth"
 	mservice "github.com/m3db/m3/src/ctl/service"
 	"github.com/m3db/m3/src/ctl/service/r2/store"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -135,7 +135,7 @@ type service struct {
 	rootPrefix  string
 	store       store.Store
 	authService auth.HTTPAuthService
-	logger      log.Logger
+	logger      *zap.Logger
 	nowFn       clock.NowFn
 	metrics     serviceMetrics
 }
@@ -226,12 +226,12 @@ func (s *service) handleRoute(rf routeFunc, r *http.Request, m instrument.Method
 }
 
 func (s *service) logRequest(r *http.Request, err error) {
-	logger := s.logger.WithFields(
-		log.NewField("http-method", r.Method),
-		log.NewField("route-path", r.RequestURI),
+	logger := s.logger.With(
+		zap.String("httpMethod", r.Method),
+		zap.String("routePath", r.RequestURI),
 	)
 	if err != nil {
-		logger.WithFields(log.NewErrField(err)).Error("request error")
+		logger.With(zap.Error(err)).Error("request error")
 		return
 	}
 	logger.Info("request success")

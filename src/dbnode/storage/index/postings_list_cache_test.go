@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -50,20 +50,28 @@ var (
 func init() {
 	// Generate test data.
 	for i := 0; i < numTestPlEntries; i++ {
-		segmentUUID := uuid.Parse(
-			fmt.Sprintf("00000000-0000-0000-0000-000000000%03d", i))
-		pattern := fmt.Sprintf("%d", i)
-		pl := roaring.NewPostingsList()
+		var (
+			segmentUUID = uuid.Parse(
+				fmt.Sprintf("00000000-0000-0000-0000-000000000%03d", i))
+
+			field   = fmt.Sprintf("field_%d", i)
+			pattern = fmt.Sprintf("pattern_%d", i)
+			pl      = roaring.NewPostingsList()
+		)
 		pl.Insert(postings.ID(i))
 
 		patternType := PatternTypeRegexp
-		if i%2 == 0 {
+		switch i % 3 {
+		case 0:
 			patternType = PatternTypeTerm
+		case 1:
+			patternType = PatternTypeField
+			pattern = "" // field queries don't have patterns
 		}
+
 		testPlEntries = append(testPlEntries, testEntry{
 			segmentUUID:  segmentUUID,
-			pattern:      pattern,
-			patternType:  patternType,
+			key:          newKey(field, pattern, patternType),
 			postingsList: pl,
 		})
 	}
@@ -71,8 +79,7 @@ func init() {
 
 type testEntry struct {
 	segmentUUID  uuid.UUID
-	pattern      string
-	patternType  PatternType
+	key          key
 	postingsList postings.List
 }
 
@@ -90,55 +97,36 @@ func TestSimpleLRUBehavior(t *testing.T) {
 		e4 = testPlEntries[4]
 		e5 = testPlEntries[5]
 	)
-	putEntry(plCache, 0)
-	putEntry(plCache, 1)
-	putEntry(plCache, 2)
+	putEntry(t, plCache, 0)
+	putEntry(t, plCache, 1)
+	putEntry(t, plCache, 2)
+	requireExpectedOrder(t, plCache, []testEntry{e0, e1, e2})
 
-	expectedOrder := []string{e0.pattern, e1.pattern, e2.pattern}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i], key.pattern)
-	}
+	putEntry(t, plCache, 3)
+	requireExpectedOrder(t, plCache, []testEntry{e1, e2, e3})
 
-	putEntry(plCache, 3)
-	expectedOrder = []string{e1.pattern, e2.pattern, e3.pattern}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i], key.pattern)
-	}
-
-	putEntry(plCache, 4)
-	putEntry(plCache, 4)
-	putEntry(plCache, 5)
-	putEntry(plCache, 5)
-	putEntry(plCache, 0)
-	putEntry(plCache, 0)
-
-	expectedOrder = []string{e4.pattern, e5.pattern, e0.pattern}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i], key.pattern)
-	}
+	putEntry(t, plCache, 4)
+	putEntry(t, plCache, 4)
+	putEntry(t, plCache, 5)
+	putEntry(t, plCache, 5)
+	putEntry(t, plCache, 0)
+	putEntry(t, plCache, 0)
+	requireExpectedOrder(t, plCache, []testEntry{e4, e5, e0})
 
 	// Miss, no expected change.
-	getEntry(plCache, 100)
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i], key.pattern)
-	}
+	getEntry(t, plCache, 100)
+	requireExpectedOrder(t, plCache, []testEntry{e4, e5, e0})
 
 	// Hit.
-	getEntry(plCache, 4)
-	expectedOrder = []string{e5.pattern, e0.pattern, e4.pattern}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i], key.pattern)
-	}
+	getEntry(t, plCache, 4)
+	requireExpectedOrder(t, plCache, []testEntry{e5, e0, e4})
 
 	// Multiple hits.
-	getEntry(plCache, 4)
-	getEntry(plCache, 0)
-	getEntry(plCache, 5)
-	getEntry(plCache, 5)
-	expectedOrder = []string{e4.pattern, e0.pattern, e5.pattern}
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i], key.pattern)
-	}
+	getEntry(t, plCache, 4)
+	getEntry(t, plCache, 0)
+	getEntry(t, plCache, 5)
+	getEntry(t, plCache, 5)
+	requireExpectedOrder(t, plCache, []testEntry{e4, e0, e5})
 }
 
 func TestPurgeSegment(t *testing.T) {
@@ -149,16 +137,18 @@ func TestPurgeSegment(t *testing.T) {
 
 	// Write many entries with the same segment UUID.
 	for i := 0; i < 100; i++ {
-		if testPlEntries[i].patternType == PatternTypeRegexp {
+		if testPlEntries[i].key.patternType == PatternTypeRegexp {
 			plCache.PutRegexp(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].pattern,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 				testPlEntries[i].postingsList,
 			)
 		} else {
 			plCache.PutTerm(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].pattern,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 				testPlEntries[i].postingsList,
 			)
 		}
@@ -166,7 +156,7 @@ func TestPurgeSegment(t *testing.T) {
 
 	// Write the remaining entries.
 	for i := 100; i < len(testPlEntries); i++ {
-		putEntry(plCache, i)
+		putEntry(t, plCache, i)
 	}
 
 	// Purge all entries related to the segment.
@@ -175,16 +165,18 @@ func TestPurgeSegment(t *testing.T) {
 	// All entries related to the purged segment should be gone.
 	require.Equal(t, size-100, plCache.lru.Len())
 	for i := 0; i < 100; i++ {
-		if testPlEntries[i].patternType == PatternTypeRegexp {
+		if testPlEntries[i].key.patternType == PatternTypeRegexp {
 			_, ok := plCache.GetRegexp(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].pattern,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 			)
 			require.False(t, ok)
 		} else {
 			_, ok := plCache.GetTerm(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].pattern,
+				testPlEntries[i].key.field,
+				testPlEntries[i].key.pattern,
 			)
 			require.False(t, ok)
 		}
@@ -192,7 +184,7 @@ func TestPurgeSegment(t *testing.T) {
 
 	// Remaining entries should still be present.
 	for i := 100; i < len(testPlEntries); i++ {
-		getEntry(plCache, i)
+		getEntry(t, plCache, i)
 	}
 }
 
@@ -202,11 +194,11 @@ func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
 	defer stopReporting()
 
 	for i := range testPlEntries {
-		putEntry(plCache, i)
+		putEntry(t, plCache, i)
 	}
 
 	for i, entry := range testPlEntries {
-		cached, ok := getEntry(plCache, i)
+		cached, ok := getEntry(t, plCache, i)
 		require.True(t, ok)
 		require.True(t, cached.Equal(entry.postingsList))
 	}
@@ -231,7 +223,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 		wg.Add(1)
 		go func(i int) {
 			for j := 0; j < 100; j++ {
-				putEntry(plCache, i)
+				putEntry(t, plCache, i)
 			}
 			wg.Done()
 		}(i)
@@ -242,7 +234,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 		wg.Add(1)
 		go func(i int) {
 			for j := 0; j < 100; j++ {
-				getEntry(plCache, j)
+				getEntry(t, plCache, j)
 			}
 			wg.Done()
 		}(i)
@@ -271,7 +263,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	}
 
 	for i, entry := range testPlEntries {
-		cached, ok := getEntry(plCache, i)
+		cached, ok := getEntry(t, plCache, i)
 		if !ok {
 			// Debug.
 			printSortedKeys(t, plCache)
@@ -281,65 +273,100 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	}
 }
 
-func putEntry(cache *PostingsListCache, i int) {
+func putEntry(t *testing.T, cache *PostingsListCache, i int) {
 	// Do each put twice to test the logic that avoids storing
 	// multiple entries for the same value.
-	if testPlEntries[i].patternType == PatternTypeRegexp {
+	switch testPlEntries[i].key.patternType {
+	case PatternTypeRegexp:
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].pattern,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].pattern,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
-	} else {
+	case PatternTypeTerm:
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].pattern,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].pattern,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 			testPlEntries[i].postingsList,
 		)
+	case PatternTypeField:
+		cache.PutField(
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].key.field,
+			testPlEntries[i].postingsList,
+		)
+		cache.PutField(
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].key.field,
+			testPlEntries[i].postingsList,
+		)
+	default:
+		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.patternType)
 	}
 }
 
-func getEntry(cache *PostingsListCache, i int) (postings.List, bool) {
-	if testPlEntries[i].patternType == PatternTypeRegexp {
+func getEntry(t *testing.T, cache *PostingsListCache, i int) (postings.List, bool) {
+	switch testPlEntries[i].key.patternType {
+	case PatternTypeRegexp:
 		return cache.GetRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].pattern,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
 		)
+	case PatternTypeTerm:
+		return cache.GetTerm(
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].key.field,
+			testPlEntries[i].key.pattern,
+		)
+	case PatternTypeField:
+		return cache.GetField(
+			testPlEntries[i].segmentUUID,
+			testPlEntries[i].key.field,
+		)
+	default:
+		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.patternType)
 	}
+	return nil, false
+}
 
-	return cache.GetTerm(
-		testPlEntries[i].segmentUUID,
-		testPlEntries[i].pattern,
-	)
+func requireExpectedOrder(t *testing.T, plCache *PostingsListCache, expectedOrder []testEntry) {
+	for i, key := range plCache.lru.keys() {
+		require.Equal(t, expectedOrder[i].key, key)
+	}
 }
 
 func printSortedKeys(t *testing.T, cache *PostingsListCache) {
 	keys := cache.lru.keys()
 	sort.Slice(keys, func(i, j int) bool {
-		iIdx, err := strconv.ParseInt(keys[i].pattern, 10, 64)
+		iIdx, err := strconv.ParseInt(keys[i].field, 10, 64)
 		if err != nil {
-			t.Fatalf("unable to parse: %s into int", keys[i].pattern)
+			t.Fatalf("unable to parse: %s into int", keys[i].field)
 		}
 
-		jIdx, err := strconv.ParseInt(keys[j].pattern, 10, 64)
+		jIdx, err := strconv.ParseInt(keys[j].field, 10, 64)
 		if err != nil {
-			t.Fatalf("unable to parse: %s into int", keys[i].pattern)
+			t.Fatalf("unable to parse: %s into int", keys[i].field)
 		}
 
 		return iIdx < jIdx
 	})
 
 	for _, key := range keys {
-		fmt.Println("key: ", key.pattern)
+		fmt.Println("key: ", key)
 	}
 }

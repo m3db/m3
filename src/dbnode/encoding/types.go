@@ -28,10 +28,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Encoder is the generic interface for different types of encoders.
@@ -112,6 +112,16 @@ type Options interface {
 
 	// SegmentReaderPool returns the segment reader pool.
 	SegmentReaderPool() xio.SegmentReaderPool
+
+	// SetByteFieldDictionaryLRUSize sets theByteFieldDictionaryLRUSize which controls
+	// how many recently seen byte field values will be maintained in the compression
+	// dictionaries LRU when compressing / decompressing byte fields in ProtoBuf messages.
+	// Increasing this value can potentially lead to better compression at the cost of
+	// using more memory for storing metadata when compressing / decompressing.
+	SetByteFieldDictionaryLRUSize(value int) Options
+
+	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
+	ByteFieldDictionaryLRUSize() int
 }
 
 // Iterator is the generic interface for iterating over encoded data.
@@ -246,10 +256,12 @@ type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
 
 // IStream encapsulates a readable stream.
 type IStream interface {
+	Read([]byte) (int, error)
 	ReadBit() (Bit, error)
 	ReadByte() (byte, error)
 	ReadBits(numBits int) (uint64, error)
 	PeekBits(numBits int) (uint64, error)
+	RemainingBitsInCurrentByte() int
 	Reset(r io.Reader)
 }
 
@@ -261,9 +273,10 @@ type OStream interface {
 	WriteBits(v uint64, numBits int)
 	WriteByte(v byte)
 	WriteBytes(bytes []byte)
+	Write(bytes []byte) (int, error)
 	Reset(buffer checked.Bytes)
 	Discard() checked.Bytes
-	Rawbytes() (checked.Bytes, int)
+	Rawbytes() ([]byte, int)
 }
 
 // EncoderPool provides a pool for encoders

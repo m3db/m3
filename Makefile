@@ -34,12 +34,12 @@ cache_policy         ?= recently_read
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
-GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3_package)
-GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
+GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
-GO_RELEASER_WORKING_DIR   := /m3
+GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
@@ -69,6 +69,7 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
+	kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -79,7 +80,8 @@ TOOLS :=               \
 	dtest                \
 	verify_commitlogs    \
 	verify_index_files   \
-	carbon_load
+	carbon_load          \
+	docs_test            \
 
 .PHONY: setup
 setup:
@@ -150,8 +152,8 @@ install-tools: install-retool
 	@# We cannot solely use the retool binary as mock-gen requires its full source
 	@# code to be present in the GOPATH at runtime.
 	@echo "Installing mockgen"
-	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | md5`)
-	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | md5`)
+	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
+	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
 	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
 		echo "Installing mockgen from Retool directory"                                            && \
 		rm -rf $(gopath_prefix)/$(mockgen_package)                                                 && \
@@ -177,7 +179,8 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release
+	$(GO_BUILD_LDFLAGS_CMD) ECHO > $(BUILD)/release-vars.env
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
@@ -189,6 +192,10 @@ docs-container:
 	docker run --rm hello-world >/dev/null
 	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
 
+# NB(schallert): if updating this target, be sure to update the commands used in
+# the .buildkite/docs_push.sh. We can't share the make targets because our
+# Makefile assumes its running under bash and the container is alpine (ash
+# shell).
 .PHONY: docs-build
 docs-build: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
@@ -201,6 +208,17 @@ docs-serve: docs-container
 docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
 
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
+
+.PHONY: docs-test
+docs-test:
+	@echo "--- Documentation validate test"
+	make docs-validate
+	@echo "--- Documentation build test"
+	make docs-build
+
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
@@ -208,20 +226,21 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
 	@./scripts/docker-integration-tests/carbon/test.sh
+	@./scripts/docker-integration-tests/aggregator/test.sh
 
 .PHONY: site-build
 site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
 
-SUBDIR_TARGETS :=     \
-	mock-gen            \
-	thrift-gen          \
-	proto-gen           \
-	asset-gen           \
-	genny-gen           \
-	license-gen         \
-	all-gen             \
+SUBDIR_TARGETS := \
+	mock-gen        \
+	thrift-gen      \
+	proto-gen       \
+	asset-gen       \
+	genny-gen       \
+	license-gen     \
+	all-gen         \
 	metalint
 
 .PHONY: test-ci-unit
@@ -238,6 +257,18 @@ test-ci-integration:
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
+
+# We override the rules for `*-gen-kube` to just generate the kube manifest
+# bundle.
+ifeq ($(SUBDIR), kube)
+
+# Builds the single kube bundle from individual manifest files.
+all-gen-kube: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(retool_bin_path):$(PATH) xargs -0 kubeval -v=1.12.0
+
+else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -333,6 +364,8 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@echo "--- metalinting $(SUBDIR)"
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+
+endif
 
 endef
 

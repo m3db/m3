@@ -17,7 +17,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-//
 
 package config
 
@@ -27,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	xconfig "github.com/m3db/m3x/config"
+	xconfig "github.com/m3db/m3/src/x/config"
 
 	"github.com/stretchr/testify/require"
 )

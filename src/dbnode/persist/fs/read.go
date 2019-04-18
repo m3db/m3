@@ -33,13 +33,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/mmap"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -207,8 +209,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 
 	if warning := result.Warning; warning != nil {
 		logger := r.opts.InstrumentOptions().Logger()
-		logger.Warnf("warning while mmapping files in reader: %s",
-			warning.Error())
+		logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)
@@ -276,7 +277,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.decoder.Reset(msgpack.NewDecoderStream(buf[:n]))
+	r.decoder.Reset(msgpack.NewByteDecoderStream(buf[:n]))
 	info, err := r.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -293,7 +294,7 @@ func (r *reader) readInfo(size int) error {
 func (r *reader) readIndexAndSortByOffsetAsc() error {
 	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
-		entry, err := r.decoder.DecodeIndexEntry()
+		entry, err := r.decoder.DecodeIndexEntry(nil)
 		if err != nil {
 			return err
 		}

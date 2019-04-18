@@ -35,11 +35,11 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // FileSetFileIdentifier contains all the information required to identify a FileSetFile
@@ -167,28 +167,30 @@ type DataFileSetSeeker interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ident.ID, shard uint32, start time.Time) error
+	Open(
+		namespace ident.ID,
+		shard uint32,
+		start time.Time,
+		resources ReusableSeekerResources,
+	) error
 
 	// SeekByID returns the data for specified ID provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or ID cannot be found.
-	SeekByID(id ident.ID) (data checked.Bytes, err error)
+	SeekByID(id ident.ID, resources ReusableSeekerResources) (data checked.Bytes, err error)
 
 	// SeekByIndexEntry is similar to Seek, but uses an IndexEntry instead of
 	// looking it up on its own. Useful in cases where you've already obtained an
 	// entry and don't want to waste resources looking it up again.
-	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
+	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
 	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
 	// to prevent duplicate index lookups.
-	SeekIndexEntry(id ident.ID) (IndexEntry, error)
+	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
-
-	// Entries returns the count of entries in the volume
-	Entries() int
 
 	// ConcurrentIDBloomFilter returns a concurrency-safe bloom filter that can
 	// be used to quickly disqualify ID's that definitely do not exist. I.E if the
@@ -210,13 +212,13 @@ type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
 	// SeekByID is the same as in DataFileSetSeeker
-	SeekByID(id ident.ID) (data checked.Bytes, err error)
+	SeekByID(id ident.ID, resources ReusableSeekerResources) (data checked.Bytes, err error)
 
 	// SeekByIndexEntry is the same as in DataFileSetSeeker
-	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
+	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
 	// SeekIndexEntry is the same as in DataFileSetSeeker
-	SeekIndexEntry(id ident.ID) (IndexEntry, error)
+	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter

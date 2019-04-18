@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"

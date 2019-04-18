@@ -28,12 +28,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Metadata captures block metadata
@@ -238,6 +238,7 @@ type OnReadBlock interface {
 // OnRetrieveBlock interface.
 type OnRetrieveBlockFn func(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 )
@@ -245,10 +246,11 @@ type OnRetrieveBlockFn func(
 // OnRetrieveBlock implements the OnRetrieveBlock interface.
 func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
-	fn(id, startTime, segment)
+	fn(id, tags, startTime, segment)
 }
 
 // RetrievableBlockMetadata describes a retrievable block.

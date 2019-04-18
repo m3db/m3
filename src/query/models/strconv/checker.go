@@ -64,3 +64,45 @@ func NeedToEscape(bb []byte) bool {
 
 	return false
 }
+
+// Determines valid alphanumeric characters.
+var alphaNumeric = [256]bool{
+	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0x00-0x0F
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0x10-0x1F
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0x20-0x2F
+	tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, ff, ff, ff, ff, ff, ff, // 0x30-0x3F
+	ff, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, // 0x40-0x4F
+	tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, ff, ff, ff, ff, ff, // 0x50-0x5F
+	ff, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, // 0x60-0x6F
+	tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, tt, ff, ff, ff, ff, ff, // 0x70-0x7F
+	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0x80-0x8F
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0x90-0x9F
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0xA0-0xAF
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0xB0-0xBF
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0xC0-0xCF
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0xD0-0xDF
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0xE0-0xEF
+	ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, ff, // 0xF0-0xFF
+}
+
+// IsAlphaNumeric returns true if the given string is alpha numeric.
+//
+// NB: here this means that it contains only characters in [0-9A-Za-z])
+func IsAlphaNumeric(str string) bool {
+	for _, c := range str {
+		if !alphaNumeric[c] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// IsRuneAlphaNumeric returns true if the given rune is alpha numeric.
+//
+// NB: here this means that it contains only characters in [0-9A-Za-z])
+func IsRuneAlphaNumeric(r rune) bool {
+	return alphaNumeric[r]
+}

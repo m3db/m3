@@ -1,0 +1,16 @@
+[
+  {
+    "id": "a.b*.cake",
+    "text": "cake",
+    "leaf": 1,
+    "expandable": 0,
+    "allowChildren": 0
+  },
+  {
+    "id": "a.b*.caw",
+    "text": "caw",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  }
+]

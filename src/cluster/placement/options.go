@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -33,6 +33,9 @@ const (
 	defaultIsSharded   = true
 	// By default partial replace should be allowed for better distribution.
 	defaultAllowPartialReplace = true
+	// By default the zone of the hosts within a placement should match the zone
+	// that the placement was created with.
+	defaultAllowAllZones = false
 )
 
 type deploymentOptions struct {
@@ -68,6 +71,7 @@ type options struct {
 	validateFn          ValidateFn
 	nowFn               clock.NowFn
 	allowPartialReplace bool
+	allowAllZones       bool
 	addAllCandidates    bool
 	dryrun              bool
 	isSharded           bool
@@ -89,6 +93,7 @@ func NewOptions() Options {
 		isShardCutoffFn:     defaultShardValidationFn,
 		validateFn:          Validate,
 		nowFn:               time.Now,
+		allowAllZones:       defaultAllowAllZones,
 	}
 }
 
@@ -98,6 +103,15 @@ func (o options) AllowPartialReplace() bool {
 
 func (o options) SetAllowPartialReplace(allowPartialReplace bool) Options {
 	o.allowPartialReplace = allowPartialReplace
+	return o
+}
+
+func (o options) AllowAllZones() bool {
+	return o.allowAllZones
+}
+
+func (o options) SetAllowAllZones(allowAllZones bool) Options {
+	o.allowAllZones = allowAllZones
 	return o
 }
 

@@ -25,7 +25,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

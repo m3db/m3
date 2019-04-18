@@ -21,6 +21,7 @@
 package prometheus
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -41,7 +42,7 @@ import (
 )
 
 const (
-	// NameReplace is the parameter that gets replaced
+	// NameReplace is the parameter that gets replaced.
 	NameReplace         = "name"
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
@@ -52,14 +53,15 @@ const (
 
 var (
 	matchValues = []byte(".*")
+	roleName    = []byte("role")
 )
 
-// TimeoutOpts stores options related to various timeout configurations
+// TimeoutOpts stores options related to various timeout configurations.
 type TimeoutOpts struct {
 	FetchTimeout time.Duration
 }
 
-// ParsePromCompressedRequest parses a snappy compressed request from Prometheus
+// ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
 func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
@@ -85,7 +87,7 @@ func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
 	return reqBuf, nil
 }
 
-// ParseRequestTimeout parses the input request timeout with a default
+// ParseRequestTimeout parses the input request timeout with a default.
 func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
 	if timeout == "" {
@@ -104,11 +106,24 @@ func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (tim
 	return duration, nil
 }
 
-// ParseTagCompletionParamsToQuery parses all params from the GET request
+// ParseTagCompletionParamsToQuery parses all params from the GET request.
 func ParseTagCompletionParamsToQuery(
 	r *http.Request,
 ) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
-	tagQuery := storage.CompleteTagsQuery{}
+	start, err := parseTimeWithDefault(r, "start", time.Time{})
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	end, err := parseTimeWithDefault(r, "end", time.Now())
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	tagQuery := storage.CompleteTagsQuery{
+		Start: start,
+		End:   end,
+	}
 
 	query, err := parseTagCompletionQuery(r)
 	if err != nil {
@@ -170,18 +185,18 @@ func parseTimeWithDefault(
 	return defaultTime, nil
 }
 
-// ParseSeriesMatchQuery parses all params from the GET request
+// ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
 	tagOptions models.TagOptions,
-) (*storage.SeriesMatchQuery, *xhttp.ParseError) {
+) ([]*storage.FetchQuery, *xhttp.ParseError) {
 	r.ParseForm()
 	matcherValues := r.Form["match[]"]
 	if len(matcherValues) == 0 {
 		return nil, xhttp.NewParseError(errors.ErrInvalidMatchers, http.StatusBadRequest)
 	}
 
-	start, err := parseTimeWithDefault(r, "start", time.Now().Add(time.Hour*24*-40))
+	start, err := parseTimeWithDefault(r, "start", time.Time{})
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -191,7 +206,7 @@ func ParseSeriesMatchQuery(
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	tagMatchers := make([]models.Matchers, len(matcherValues))
+	queries := make([]*storage.FetchQuery, len(matcherValues))
 	for i, s := range matcherValues {
 		promMatchers, err := promql.ParseMetricSelector(s)
 		if err != nil {
@@ -203,17 +218,18 @@ func ParseSeriesMatchQuery(
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
-		tagMatchers[i] = matchers
+		queries[i] = &storage.FetchQuery{
+			Raw:         fmt.Sprintf("match[]=%s", s),
+			TagMatchers: matchers,
+			Start:       start,
+			End:         end,
+		}
 	}
 
-	return &storage.SeriesMatchQuery{
-		TagMatchers: tagMatchers,
-		Start:       start,
-		End:         end,
-	}, nil
+	return queries, nil
 }
 
-// ParseTagValuesToQuery parses a tag values request to a complete tags query
+// ParseTagValuesToQuery parses a tag values request to a complete tags query.
 func ParseTagValuesToQuery(
 	r *http.Request,
 ) (*storage.CompleteTagsQuery, error) {
@@ -288,7 +304,7 @@ func renderDefaultTagCompletionResultsJSON(
 	return jw.Close()
 }
 
-// RenderTagCompletionResultsJSON renders tag completion results to json format
+// RenderTagCompletionResultsJSON renders tag completion results to json format.
 func RenderTagCompletionResultsJSON(
 	w io.Writer,
 	result *storage.CompleteTagsResult,
@@ -301,7 +317,7 @@ func RenderTagCompletionResultsJSON(
 	return renderDefaultTagCompletionResultsJSON(w, results)
 }
 
-// RenderTagValuesResultsJSON renders tag values results to json format
+// RenderTagValuesResultsJSON renders tag values results to json format.
 func RenderTagValuesResultsJSON(
 	w io.Writer,
 	result *storage.CompleteTagsResult,
@@ -346,56 +362,11 @@ func RenderTagValuesResultsJSON(
 	return jw.Close()
 }
 
-type tag struct {
-	name  string
-	value string
-}
-
-func writeTagsHelper(
-	jw *json.Writer,
-	completedTags []storage.CompletedTag,
-	tags []tag,
-) {
-	if len(completedTags) == 0 {
-		jw.BeginObject()
-		for _, tag := range tags {
-			jw.BeginObjectField(tag.name)
-			jw.WriteString(tag.value)
-		}
-
-		jw.EndObject()
-		return
-	}
-
-	firstResult := completedTags[0]
-	name := string(firstResult.Name)
-
-	copiedTags := make([]tag, len(tags)+1)
-	copy(copiedTags, tags)
-	for _, value := range firstResult.Values {
-		copiedTags[len(tags)] = tag{name: name, value: string(value)}
-		writeTagsHelper(jw, completedTags[1:], copiedTags)
-	}
-}
-
-func writeTags(
-	jw *json.Writer,
-	results []*storage.CompleteTagsResult,
-) {
-	for _, result := range results {
-		jw.BeginArray()
-		tags := result.CompletedTags
-		if len(tags) > 0 {
-			writeTagsHelper(jw, result.CompletedTags, nil)
-		}
-		jw.EndArray()
-	}
-}
-
-// RenderSeriesMatchResultsJSON renders series match results to json format
+// RenderSeriesMatchResultsJSON renders series match results to json format.
 func RenderSeriesMatchResultsJSON(
 	w io.Writer,
-	results []*storage.CompleteTagsResult,
+	results []models.Metrics,
+	dropRole bool,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -404,13 +375,33 @@ func RenderSeriesMatchResultsJSON(
 	jw.WriteString("success")
 
 	jw.BeginObjectField("data")
-	writeTags(jw, results)
+	jw.BeginArray()
+
+	for _, result := range results {
+		for _, tags := range result {
+			jw.BeginObject()
+			for _, tag := range tags.Tags.Tags {
+				if bytes.Equal(tag.Name, roleName) && dropRole {
+					// NB: When data is written from Prometheus remote write, additional
+					// `"role":"remote"` tag is added, which should not be included in the
+					// results.
+					continue
+				}
+				jw.BeginObjectField(string(tag.Name))
+				jw.WriteString(string(tag.Value))
+			}
+
+			jw.EndObject()
+		}
+	}
+
+	jw.EndArray()
 	jw.EndObject()
 
 	return jw.Close()
 }
 
-// PromResp represents Prometheus's query response
+// PromResp represents Prometheus's query response.
 type PromResp struct {
 	Status string `json:"status"`
 	Data   struct {
@@ -424,7 +415,7 @@ type PromResp struct {
 	} `json:"data"`
 }
 
-// PromDebug represents the input and output that are used in the debug endpoint
+// PromDebug represents the input and output that are used in the debug endpoint.
 type PromDebug struct {
 	Input   PromResp `json:"input"`
 	Results PromResp `json:"results"`

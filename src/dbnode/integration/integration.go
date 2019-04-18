@@ -41,10 +41,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xretry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	xretry "github.com/m3db/m3/src/x/retry"
 
+	"go.uber.org/zap"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -204,7 +204,7 @@ func newDefaultBootstrappableTestSetups(
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
 		logger := instrumentOpts.Logger()
-		logger = logger.WithFields(xlog.NewField("instance", instance))
+		logger = logger.With(zap.Int("instance", instance))
 		instrumentOpts = instrumentOpts.SetLogger(logger)
 		if testStatsReporter != nil {
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)

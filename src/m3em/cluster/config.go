@@ -23,8 +23,8 @@ package cluster
 import (
 	"time"
 
-	"github.com/m3db/m3x/instrument"
-	xretry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	xretry "github.com/m3db/m3/src/x/retry"
 )
 
 // Configuration is a YAML wrapper around Options

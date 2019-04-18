@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const initSize = 10

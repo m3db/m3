@@ -23,9 +23,13 @@ package ts
 import (
 	"time"
 
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
+
+// FinalizeAnnotationFn is a function that will be called for each annotation once
+// the WriteBatch itself is finalized.
+type FinalizeAnnotationFn func(b []byte)
 
 // Write is a write for the commitlog.
 type Write struct {
@@ -127,4 +131,6 @@ type BatchWriter interface {
 		unit xtime.Unit,
 		annotation []byte,
 	)
+
+	SetFinalizeAnnotationFn(f FinalizeAnnotationFn)
 }

@@ -22,8 +22,8 @@ package config
 
 import (
 	"github.com/m3db/m3/src/dbnode/client"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Configuration represents the knobs available to configure a m3nsch_server

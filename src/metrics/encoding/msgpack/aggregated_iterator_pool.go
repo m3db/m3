@@ -20,7 +20,7 @@
 
 package msgpack
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 type aggregatedIteratorPool struct {
 	pool pool.ObjectPool

@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // Options describes the options for encoded block converters.

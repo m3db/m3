@@ -28,8 +28,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -79,6 +79,18 @@ func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, tags ident.Ta
 func (mr *MockWriteBatchMockRecorder) AddTagged(originalIndex, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockWriteBatch)(nil).AddTagged), originalIndex, id, tags, timestamp, value, unit, annotation)
+}
+
+// SetFinalizeAnnotationFn mocks base method
+func (m *MockWriteBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeAnnotationFn", f)
+}
+
+// SetFinalizeAnnotationFn indicates an expected call of SetFinalizeAnnotationFn
+func (mr *MockWriteBatchMockRecorder) SetFinalizeAnnotationFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeAnnotationFn", reflect.TypeOf((*MockWriteBatch)(nil).SetFinalizeAnnotationFn), f)
 }
 
 // Iter mocks base method
@@ -202,4 +214,16 @@ func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, tags ident.T
 func (mr *MockBatchWriterMockRecorder) AddTagged(originalIndex, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockBatchWriter)(nil).AddTagged), originalIndex, id, tags, timestamp, value, unit, annotation)
+}
+
+// SetFinalizeAnnotationFn mocks base method
+func (m *MockBatchWriter) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeAnnotationFn", f)
+}
+
+// SetFinalizeAnnotationFn indicates an expected call of SetFinalizeAnnotationFn
+func (mr *MockBatchWriterMockRecorder) SetFinalizeAnnotationFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeAnnotationFn", reflect.TypeOf((*MockBatchWriter)(nil).SetFinalizeAnnotationFn), f)
 }

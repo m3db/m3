@@ -22,6 +22,7 @@ package node
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -37,15 +38,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
@@ -191,8 +195,8 @@ func TestServiceQuery(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
 		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
@@ -210,7 +214,7 @@ func TestServiceQuery(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	limit := int64(10)
 	r, err := service.Query(tctx, &rpc.QueryRequest{
@@ -329,7 +333,7 @@ func TestServiceQueryUnknownErr(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{}, unknownErr)
+		}).Return(index.QueryResult{}, unknownErr)
 
 	limit := int64(10)
 	_, err = service.Query(tctx, &rpc.QueryRequest{
@@ -1018,6 +1022,10 @@ func TestServiceFetchTagged(t *testing.T) {
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
 
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(context.Background(), sp))
+
 	start := time.Now().Add(-2 * time.Hour)
 	end := start.Add(2 * time.Hour)
 
@@ -1052,7 +1060,7 @@ func TestServiceFetchTagged(t *testing.T) {
 
 		streams[id] = enc.Stream()
 		mockDB.EXPECT().
-			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{{
 				xio.BlockReader{
 					SegmentReader: enc.Stream(),
@@ -1064,8 +1072,8 @@ func TestServiceFetchTagged(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
@@ -1076,14 +1084,14 @@ func TestServiceFetchTagged(t *testing.T) {
 	))
 
 	mockDB.EXPECT().QueryIDs(
-		ctx,
+		gomock.Any(),
 		ident.NewIDMatcher(nsID),
 		index.NewQueryMatcher(qry),
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1133,6 +1141,12 @@ func TestServiceFetchTagged(t *testing.T) {
 		assert.Equal(t, expectHead, seg.Merged.Head)
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.FetchTagged, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
@@ -1161,8 +1175,8 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
@@ -1214,8 +1228,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
-	resMap := index.NewResults(testIndexOptions)
-	resMap.Reset(ident.StringID(nsID))
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
 	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
 	mockDB.EXPECT().QueryIDs(
@@ -1226,7 +1240,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{Results: resMap, Exhaustive: true}, nil)
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1299,7 +1313,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{}, fmt.Errorf("random err"))
+		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace:  []byte(nsID),
 		Query:      data,
@@ -1309,6 +1323,90 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 		Limit:      &limit,
 	})
 	require.Error(t, err)
+}
+
+func TestServiceAggregate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	nsID := "metrics"
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	resMap := index.NewAggregateResults(ident.StringID(nsID),
+		index.AggregateResultsOptions{}, testIndexOptions)
+	resMap.Map().Set(ident.StringID("foo"), index.MustNewAggregateValues(testIndexOptions))
+	resMap.Map().Set(ident.StringID("bar"), index.MustNewAggregateValues(testIndexOptions,
+		ident.StringID("baz"), ident.StringID("barf")))
+	mockDB.EXPECT().AggregateQuery(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.AggregationOptions{
+			QueryOptions: index.QueryOptions{
+				StartInclusive: start,
+				EndExclusive:   end,
+				Limit:          10,
+			},
+			TermFilter: index.AggregateTermFilter{
+				[]byte("foo"), []byte("bar"),
+			},
+			Type: index.AggregateTagNamesAndValues,
+		}).Return(
+		index.AggregateQueryResult{Results: resMap, Exhaustive: true}, nil)
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	var limit int64 = 10
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	r, err := service.AggregateRaw(tctx, &rpc.AggregateQueryRawRequest{
+		NameSpace:          []byte(nsID),
+		Query:              data,
+		RangeStart:         startNanos,
+		RangeEnd:           endNanos,
+		Limit:              &limit,
+		AggregateQueryType: rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE,
+		TagNameFilter: [][]byte{
+			[]byte("foo"), []byte("bar"),
+		},
+	})
+	require.NoError(t, err)
+
+	// sort to order results to make test deterministic.
+	sort.Slice(r.Results, func(i, j int) bool {
+		return bytes.Compare(r.Results[i].TagName, r.Results[j].TagName) < 0
+	})
+	require.Equal(t, 2, len(r.Results))
+	require.Equal(t, "bar", string(r.Results[0].TagName))
+	require.Equal(t, 2, len(r.Results[0].TagValues))
+	sort.Slice(r.Results[0].TagValues, func(i, j int) bool {
+		return bytes.Compare(
+			r.Results[0].TagValues[i].TagValue, r.Results[0].TagValues[j].TagValue) < 0
+	})
+	require.Equal(t, "barf", string(r.Results[0].TagValues[0].TagValue))
+	require.Equal(t, "baz", string(r.Results[0].TagValues[1].TagValue))
+
+	require.Equal(t, "foo", string(r.Results[1].TagName))
+	require.Equal(t, 0, len(r.Results[1].TagValues))
 }
 
 func TestServiceWrite(t *testing.T) {
@@ -1332,9 +1430,11 @@ func TestServiceWrite(t *testing.T) {
 	value := 42.42
 
 	mockDB.EXPECT().
-		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
+		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
+			xtime.Second, nil).
 		Return(nil)
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.Write(tctx, &rpc.WriteRequest{
 		NameSpace: nsID,
 		ID:        id,
@@ -1345,6 +1445,32 @@ func TestServiceWrite(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+}
+
+func TestServiceWriteOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mockDB.EXPECT().IsOverloaded().Return(true)
+	err := service.Write(tctx, &rpc.WriteRequest{
+		NameSpace: "metrics",
+		ID:        "foo",
+		Datapoint: &rpc.Datapoint{
+			Timestamp:         time.Now().Unix(),
+			TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+			Value:             42.42,
+		},
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceWriteTagged(t *testing.T) {
@@ -1393,8 +1519,35 @@ func TestServiceWriteTagged(t *testing.T) {
 			Value: tagValues[i],
 		})
 	}
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteTagged(tctx, request)
 	require.NoError(t, err)
+}
+
+func TestServiceWriteTaggedOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mockDB.EXPECT().IsOverloaded().Return(true)
+	err := service.WriteTagged(tctx, &rpc.WriteTaggedRequest{
+		NameSpace: "metrics",
+		ID:        "foo",
+		Datapoint: &rpc.Datapoint{
+			Timestamp:         time.Now().Unix(),
+			TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+			Value:             42.42,
+		},
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceWriteBatchRaw(t *testing.T) {
@@ -1443,11 +1596,32 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
 	})
 	require.NoError(t, err)
+}
+
+func TestServiceWriteBatchRawOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mockDB.EXPECT().IsOverloaded().Return(true)
+	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
+		NameSpace: []byte("metrics"),
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceWriteTaggedBatchRaw(t *testing.T) {
@@ -1508,11 +1682,32 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
 	})
 	require.NoError(t, err)
+}
+
+func TestServiceWriteTaggedBatchRawOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mockDB.EXPECT().IsOverloaded().Return(true)
+	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
+		NameSpace: []byte("metrics"),
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceWriteTaggedBatchRawUnknownError(t *testing.T) {
@@ -1568,6 +1763,7 @@ func TestServiceWriteTaggedBatchRawUnknownError(t *testing.T) {
 		elements = append(elements, elem)
 	}
 
+	mockDB.EXPECT().IsOverloaded().Return(false)
 	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,

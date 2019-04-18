@@ -33,10 +33,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -53,8 +53,8 @@ func TestGenerator(t *testing.T) {
 		SetBlockSize(time.Hour).
 		SetWriteEmptyShards(false)
 
-	logger := xlog.NewLogger(os.Stderr)
-	iopts := instrument.NewOptions().SetLogger(logger)
+	rawLogger := xtest.NewLogger(t)
+	iopts := instrument.NewOptions().SetLogger(rawLogger)
 
 	opts := NewOptions().
 		SetInstrumentOptions(iopts).

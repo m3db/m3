@@ -32,29 +32,63 @@ import (
 	"github.com/leanovate/gopter/gen"
 )
 
-func genTermQuery(docs []doc.Document) gopter.Gen {
+// GenAllQuery generates an all query.
+func GenAllQuery(docs []doc.Document) gopter.Gen {
+	return gen.Const(query.NewAllQuery())
+}
+
+// GenFieldQuery generates a field query.
+func GenFieldQuery(docs []doc.Document) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-		docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
-		if !ok {
-			panic("unable to generate term query") // should never happen
-		}
-		docID := docIDRes.(int)
-
-		doc := docs[docID]
-		fieldRes, ok := gen.IntRange(0, len(doc.Fields)-1)(genParams).Retrieve()
-		if !ok {
-			panic("unable to generate term query fields") // should never happen
-		}
-
-		fieldID := fieldRes.(int)
-		field := doc.Fields[fieldID]
-
-		q := query.NewTermQuery(field.Name, field.Value)
+		fieldName, _ := fieldNameAndValue(genParams, docs)
+		q := query.NewFieldQuery(fieldName)
 		return gopter.NewGenResult(q, gopter.NoShrinker)
 	}
 }
 
-func genRegexpQuery(docs []doc.Document) gopter.Gen {
+// GenTermQuery generates a term query.
+func GenTermQuery(docs []doc.Document) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		fieldName, fieldValue := fieldNameAndValue(genParams, docs)
+		q := query.NewTermQuery(fieldName, fieldValue)
+		return gopter.NewGenResult(q, gopter.NoShrinker)
+	}
+}
+
+func fieldNameAndValue(genParams *gopter.GenParameters, docs []doc.Document) ([]byte, []byte) {
+	docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
+	if !ok {
+		panic("unable to generate term query") // should never happen
+	}
+	docID := docIDRes.(int)
+
+	doc := docs[docID]
+	fieldRes, ok := gen.IntRange(0, len(doc.Fields)-1)(genParams).Retrieve()
+	if !ok {
+		panic("unable to generate term query fields") // should never happen
+	}
+
+	fieldID := fieldRes.(int)
+	field := doc.Fields[fieldID]
+	return field.Name, field.Value
+}
+
+// GenIdenticalTermAndRegexpQuery generates a term query and regexp query with
+// the exact same underlying field and pattern.
+func GenIdenticalTermAndRegexpQuery(docs []doc.Document) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		fieldName, fieldValue := fieldNameAndValue(genParams, docs)
+		termQ := query.NewTermQuery(fieldName, fieldValue)
+		regexpQ, err := query.NewRegexpQuery(fieldName, fieldValue)
+		if err != nil {
+			panic(err)
+		}
+		return gopter.NewGenResult([]search.Query{termQ, regexpQ}, gopter.NoShrinker)
+	}
+}
+
+// GenRegexpQuery generates a regexp query.
+func GenRegexpQuery(docs []doc.Document) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
 		if !ok {
@@ -102,45 +136,56 @@ func genRegexpQuery(docs []doc.Document) gopter.Gen {
 	}
 }
 
-func genNegationQuery(docs []doc.Document) gopter.Gen {
+// GenNegationQuery generates a negation query.
+func GenNegationQuery(docs []doc.Document) gopter.Gen {
 	return gen.OneGenOf(
-		genTermQuery(docs),
-		genRegexpQuery(docs),
+		GenFieldQuery(docs),
+		GenTermQuery(docs),
+		GenRegexpQuery(docs),
 	).
 		Map(func(q search.Query) search.Query {
 			return query.NewNegationQuery(q)
 		})
 }
 
-func genConjuctionQuery(docs []doc.Document) gopter.Gen {
+// GenConjunctionQuery generates a conjunction query.
+func GenConjunctionQuery(docs []doc.Document) gopter.Gen {
 	return gen.SliceOf(
 		gen.OneGenOf(
-			genTermQuery(docs),
-			genRegexpQuery(docs),
-			genNegationQuery(docs)),
+			GenFieldQuery(docs),
+			GenTermQuery(docs),
+			GenRegexpQuery(docs),
+			GenNegationQuery(docs)),
 		reflect.TypeOf((*search.Query)(nil)).Elem()).
 		Map(func(qs []search.Query) search.Query {
 			return query.NewConjunctionQuery(qs)
 		})
 }
 
-func genDisjunctionQuery(docs []doc.Document) gopter.Gen {
+// GenDisjunctionQuery generates a disjunction query.
+func GenDisjunctionQuery(docs []doc.Document) gopter.Gen {
 	return gen.SliceOf(
 		gen.OneGenOf(
-			genTermQuery(docs),
-			genRegexpQuery(docs),
-			genNegationQuery(docs)),
+			GenFieldQuery(docs),
+			GenTermQuery(docs),
+			GenRegexpQuery(docs),
+			GenNegationQuery(docs)),
 		reflect.TypeOf((*search.Query)(nil)).Elem()).
 		Map(func(qs []search.Query) search.Query {
 			return query.NewDisjunctionQuery(qs)
 		})
 }
 
-func genQuery(docs []doc.Document) gopter.Gen {
+// GenQuery generates a query.
+func GenQuery(docs []doc.Document) gopter.Gen {
 	return gen.OneGenOf(
-		genTermQuery(docs),
-		genRegexpQuery(docs),
-		genNegationQuery(docs),
-		genConjuctionQuery(docs),
-		genDisjunctionQuery(docs))
+		GenAllQuery(docs),
+		GenFieldQuery(docs),
+		GenTermQuery(docs),
+		GenRegexpQuery(docs),
+		GenNegationQuery(docs),
+		GenConjunctionQuery(docs),
+		GenDisjunctionQuery(docs))
 }
+
+// Ge

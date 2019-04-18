@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/instrument"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,7 +53,6 @@ func TestOptions(t *testing.T) {
 	require.Equal(t, defaultCloseCheckInterval, opts.CloseCheckInterval())
 	require.Equal(t, time.Second, opts.SetCloseCheckInterval(time.Second).CloseCheckInterval())
 
-	require.Equal(t, instrument.NewOptions(), opts.InstrumentOptions())
 	require.Nil(t, opts.SetInstrumentOptions(nil).InstrumentOptions())
 }
 

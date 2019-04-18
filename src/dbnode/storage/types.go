@@ -39,14 +39,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // PageToken is an opaque paging token.
@@ -115,6 +114,13 @@ type Database interface {
 	// BatchWriter returns a batch writer for the provided namespace that can
 	// be used to issue a batch of writes to either WriteBatch
 	// or WriteTaggedBatch.
+	//
+	// Note that when using the BatchWriter the caller owns the lifecycle of the series
+	// IDs and tag iterators (I.E) if they're being pooled its the callers responsibility
+	// to return them to the appropriate pool, but the annotations are owned by the
+	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
+	// due to their lifecycle being more complicated. Callers can still control the pooling
+	// of the annotations by using the SetFinalizeAnnotationFn on the WriteBatch itself.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
@@ -139,7 +145,15 @@ type Database interface {
 		namespace ident.ID,
 		query index.Query,
 		opts index.QueryOptions,
-	) (index.QueryResults, error)
+	) (index.QueryResult, error)
+
+	// AggregateQuery resolves the given query into aggregated tags.
+	AggregateQuery(
+		ctx context.Context,
+		namespace ident.ID,
+		query index.Query,
+		opts index.AggregationOptions,
+	) (index.AggregateQueryResult, error)
 
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
@@ -221,6 +235,9 @@ type Namespace interface {
 
 	// Shards returns the shard description
 	Shards() []Shard
+
+	// Schema returns the schema registry.
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -276,7 +293,14 @@ type databaseNamespace interface {
 		ctx context.Context,
 		query index.Query,
 		opts index.QueryOptions,
-	) (index.QueryResults, error)
+	) (index.QueryResult, error)
+
+	// AggregateQuery resolves the given query into aggregated tags.
+	AggregateQuery(
+		ctx context.Context,
+		query index.Query,
+		opts index.AggregationOptions,
+	) (index.AggregateQueryResult, error)
 
 	// ReadEncoded reads data for given id within [start, end).
 	ReadEncoded(
@@ -346,6 +370,9 @@ type databaseNamespace interface {
 	// BootstrapState captures and returns a snapshot of the namespaces'
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
+
+	// SetSchemaRegistry sets the schema registry for the namespace.
+	SetSchemaRegistry(v namespace.SchemaRegistry) error
 }
 
 // Shard is a time series database shard.
@@ -374,8 +401,7 @@ type databaseShard interface {
 	// Close will release the shard resources and close the shard.
 	Close() error
 
-	// Tick performs any updates to ensure series drain their buffers
-	// and blocks are flushed, etc.
+	// Tick performs all async updates
 	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(
@@ -385,6 +411,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the shard for an ID.
@@ -396,6 +423,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	ReadEncoded(
@@ -470,7 +498,14 @@ type namespaceIndex interface {
 		ctx context.Context,
 		query index.Query,
 		opts index.QueryOptions,
-	) (index.QueryResults, error)
+	) (index.QueryResult, error)
+
+	// AggregateQuery resolves the given query into aggregated tags.
+	AggregateQuery(
+		ctx context.Context,
+		query index.Query,
+		opts index.AggregationOptions,
+	) (index.AggregateQueryResult, error)
 
 	// Bootstrap bootstraps the index the provided segments.
 	Bootstrap(
@@ -729,12 +764,6 @@ type Options interface {
 	// RuntimeOptionsManager returns the runtime options manager.
 	RuntimeOptionsManager() runtime.OptionsManager
 
-	// SetErrorCounterOptions sets the error counter options.
-	SetErrorCounterOptions(value xcounter.Options) Options
-
-	// ErrorCounterOptions returns the error counter options.
-	ErrorCounterOptions() xcounter.Options
-
 	// SetErrorWindowForLoad sets the error window for load.
 	SetErrorWindowForLoad(value time.Duration) Options
 
@@ -877,6 +906,18 @@ type Options interface {
 
 	// WriteBatchPool returns the WriteBatch pool.
 	WriteBatchPool() *ts.WriteBatchPool
+
+	// SetBufferBucketPool sets the BufferBucket pool.
+	SetBufferBucketPool(value *series.BufferBucketPool) Options
+
+	// BufferBucketPool returns the BufferBucket pool.
+	BufferBucketPool() *series.BufferBucketPool
+
+	// SetBufferBucketVersionsPool sets the BufferBucketVersions pool.
+	SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options
+
+	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
+	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

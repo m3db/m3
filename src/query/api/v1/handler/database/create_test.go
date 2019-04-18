@@ -92,6 +92,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -155,13 +156,16 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -245,6 +249,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -304,13 +309,16 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -349,6 +357,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -408,13 +417,16 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -454,6 +466,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -516,13 +529,16 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "%d"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -571,6 +587,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -669,6 +686,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -753,13 +771,16 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -810,6 +831,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -878,13 +901,16 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}

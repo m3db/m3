@@ -29,9 +29,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -110,7 +110,7 @@ type writeFn func([]byte) error
 type queue struct {
 	sync.RWMutex
 
-	log      log.Logger
+	log      *zap.Logger
 	metrics  queueMetrics
 	dropType DropType
 	instance placement.Instance
@@ -209,10 +209,10 @@ func (q *queue) drain() {
 
 	for buf := range q.bufCh {
 		if err := q.writeFn(buf.Bytes()); err != nil {
-			q.log.WithFields(
-				log.NewField("instance", q.instance.Endpoint()),
-				log.NewErrField(err),
-			).Error("write data error")
+			q.log.Error("write data error",
+				zap.String("instance", q.instance.Endpoint()),
+				zap.Error(err),
+			)
 			q.metrics.connWriteErrors.Inc(1)
 		} else {
 			q.metrics.connWriteSuccesses.Inc(1)

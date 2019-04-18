@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
-	xwatch "github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
 // NB(r): once a lot more feature complete move this to the m3cluster repository
@@ -206,6 +206,12 @@ func (s *m3ClusterServices) Metadata(
 
 func (s *m3ClusterServices) SetMetadata(
 	sid services.ServiceID, m services.Metadata,
+) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (s *m3ClusterServices) DeleteMetadata(
+	sid services.ServiceID,
 ) error {
 	return fmt.Errorf("not implemented")
 }

@@ -30,11 +30,12 @@ import (
 )
 
 // PostingsListLRU implements a non-thread safe fixed size LRU cache of postings lists
-// that were resolved by running a given query against a particular segment. Normally
-// an key in the LRU would look like:
+// that were resolved by running a given query against a particular segment for a given
+// field and pattern type (term vs regexp). Normally a key in the LRU would look like:
 //
 // type key struct {
 //    segmentUUID uuid.UUID
+//    field       string
 //    pattern     string
 //    patternType PatternType
 // }
@@ -51,7 +52,7 @@ import (
 // Instead of adding additional tracking on-top of an existing generic LRU, we've created a
 // specialized LRU that instead of having a single top-level map pointing into the linked-list,
 // has a two-level map where the top level map is keyed by segment UUID and the second level map
-// is keyed by pattern and pattern type.
+// is keyed by the field/pattern/patternType.
 //
 // As a result, when a segment is ready to be closed, they can call into the cache with their
 // UUID and we can efficiently remove all the entries corresponding to that segment from the
@@ -60,24 +61,18 @@ import (
 type postingsListLRU struct {
 	size      int
 	evictList *list.List
-	items     map[uuid.Array]map[patternAndPatternType]*list.Element
+	items     map[uuid.Array]map[key]*list.Element
 }
 
 // entry is used to hold a value in the evictList.
 type entry struct {
 	uuid         uuid.UUID
-	pattern      string
-	patternType  PatternType
+	key          key
 	postingsList postings.List
 }
 
 type key struct {
-	uuid        uuid.UUID
-	pattern     string
-	patternType PatternType
-}
-
-type patternAndPatternType struct {
+	field       string
 	pattern     string
 	patternType PatternType
 }
@@ -91,22 +86,23 @@ func newPostingsListLRU(size int) (*postingsListLRU, error) {
 	return &postingsListLRU{
 		size:      size,
 		evictList: list.New(),
-		items:     make(map[uuid.Array]map[patternAndPatternType]*list.Element),
+		items:     make(map[uuid.Array]map[key]*list.Element),
 	}, nil
 }
 
 // Add adds a value to the cache. Returns true if an eviction occurred.
 func (c *postingsListLRU) Add(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	patternType PatternType,
 	pl postings.List,
 ) (evicted bool) {
+	newKey := newKey(field, pattern, patternType)
 	// Check for existing item.
 	uuidArray := segmentUUID.Array()
 	if uuidEntries, ok := c.items[uuidArray]; ok {
-		key := newPatternAndPatternType(pattern, patternType)
-		if ent, ok := uuidEntries[key]; ok {
+		if ent, ok := uuidEntries[newKey]; ok {
 			// If it already exists, just move it to the front. This avoids storing
 			// the same item in the LRU twice which is important because the maps
 			// can only point to one entry at a time and we use them for purges. Also,
@@ -121,18 +117,16 @@ func (c *postingsListLRU) Add(
 	var (
 		ent = &entry{
 			uuid:         segmentUUID,
-			pattern:      pattern,
-			patternType:  patternType,
+			key:          newKey,
 			postingsList: pl,
 		}
 		entry = c.evictList.PushFront(ent)
-		key   = newPatternAndPatternType(pattern, patternType)
 	)
-	if patterns, ok := c.items[uuidArray]; ok {
-		patterns[key] = entry
+	if queries, ok := c.items[uuidArray]; ok {
+		queries[newKey] = entry
 	} else {
-		c.items[uuidArray] = map[patternAndPatternType]*list.Element{
-			key: entry,
+		c.items[uuidArray] = map[key]*list.Element{
+			newKey: entry,
 		}
 	}
 
@@ -147,13 +141,14 @@ func (c *postingsListLRU) Add(
 // Get looks up a key's value from the cache.
 func (c *postingsListLRU) Get(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
+	newKey := newKey(field, pattern, patternType)
 	uuidArray := segmentUUID.Array()
 	if uuidEntries, ok := c.items[uuidArray]; ok {
-		key := newPatternAndPatternType(pattern, patternType)
-		if ent, ok := uuidEntries[key]; ok {
+		if ent, ok := uuidEntries[newKey]; ok {
 			c.evictList.MoveToFront(ent)
 			return ent.Value.(*entry).postingsList, true
 		}
@@ -166,13 +161,14 @@ func (c *postingsListLRU) Get(
 // key was contained.
 func (c *postingsListLRU) Remove(
 	segmentUUID uuid.UUID,
+	field string,
 	pattern string,
 	patternType PatternType,
 ) bool {
+	newKey := newKey(field, pattern, patternType)
 	uuidArray := segmentUUID.Array()
 	if uuidEntries, ok := c.items[uuidArray]; ok {
-		key := newPatternAndPatternType(pattern, patternType)
-		if ent, ok := uuidEntries[key]; ok {
+		if ent, ok := uuidEntries[newKey]; ok {
 			c.removeElement(ent)
 			return true
 		}
@@ -208,14 +204,13 @@ func (c *postingsListLRU) removeElement(e *list.Element) {
 	entry := e.Value.(*entry)
 
 	if patterns, ok := c.items[entry.uuid.Array()]; ok {
-		key := newPatternAndPatternType(entry.pattern, entry.patternType)
-		delete(patterns, key)
+		delete(patterns, entry.key)
 		if len(patterns) == 0 {
 			delete(c.items, entry.uuid.Array())
 		}
 	}
 }
 
-func newPatternAndPatternType(pattern string, patternType PatternType) patternAndPatternType {
-	return patternAndPatternType{pattern: pattern, patternType: patternType}
+func newKey(field, pattern string, patternType PatternType) key {
+	return key{field: field, pattern: pattern, patternType: patternType}
 }

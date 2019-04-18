@@ -26,9 +26,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 /*

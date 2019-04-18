@@ -28,11 +28,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -48,8 +49,8 @@ type DatabaseSeries interface {
 	// Tags return the tags of the series.
 	Tags() ident.Tags
 
-	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc.
-	Tick() (TickResult, error)
+	// Tick executes async updates
+	Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, error)
 
 	// Write writes a new value.
 	Write(
@@ -58,6 +59,7 @@ type DatabaseSeries interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wOpts WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -91,12 +93,21 @@ type DatabaseSeries interface {
 	// Bootstrap merges the raw series bootstrapped along with any buffered data.
 	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
 
-	// Flush flushes the data blocks of this series for a given start time.
-	Flush(ctx context.Context, blockStart time.Time, persistFn persist.DataFn) (FlushOutcome, error)
+	// Flush flushes the data blocks of this series for a given start time
+	Flush(
+		ctx context.Context,
+		blockStart time.Time,
+		persistFn persist.DataFn,
+		version int,
+	) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
-	// not been rotated into a block yet.
-	Snapshot(ctx context.Context, blockStart time.Time, persistFn persist.DataFn) error
+	// not been rotated into a block yet
+	Snapshot(
+		ctx context.Context,
+		blockStart time.Time,
+		persistFn persist.DataFn,
+	) error
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -130,15 +141,31 @@ type QueryableBlockRetriever interface {
 	// IsBlockRetrievable returns whether a block is retrievable
 	// for a given block start time.
 	IsBlockRetrievable(blockStart time.Time) bool
+
+	// RetrievableBlockVersion returns the last time a block was marked success
+	RetrievableBlockVersion(blockStart time.Time) int
+
+	// BlockStatesSnapshot returns a snapshot of the whether blocks are
+	// retrievable and their flush versions for each block start. This is used
+	// to reduce lock contention of acquiring flush state.
+	//
+	// Flushes may occur and change the actual block state while iterating
+	// through this snapshot, so any logic using this function should take this
+	// into account.
+	BlockStatesSnapshot() map[xtime.UnixNano]BlockState
+}
+
+// BlockState contains the state of a block
+type BlockState struct {
+	Retrievable bool
+	Version     int
 }
 
 // TickStatus is the status of a series for a given tick.
 type TickStatus struct {
 	// ActiveBlocks is the number of total active blocks.
 	ActiveBlocks int
-	// OpenBlocks is the number of blocks actively mutable can be written to.
-	OpenBlocks int
-	// WiredBlocks is the number of blocks wired in memory (all data kept).
+	// WiredBlocks is the number of blocks wired in memory (all data kept)
 	WiredBlocks int
 	// UnwiredBlocks is the number of blocks unwired (data kept on disk).
 	UnwiredBlocks int
@@ -155,6 +182,8 @@ type TickResult struct {
 	MadeUnwiredBlocks int
 	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams.
 	MergedOutOfOrderBlocks int
+	// EvictedBuckets is count of buckets just evicted from the buffer map.
+	EvictedBuckets int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool.
@@ -264,6 +293,24 @@ type Options interface {
 
 	// Stats returns the configured Stats.
 	Stats() Stats
+
+	// SetColdWritesEnabled sets whether cold writes are enabled.
+	SetColdWritesEnabled(value bool) Options
+
+	// ColdWritesEnabled returns whether cold writes are enabled.
+	ColdWritesEnabled() bool
+
+	// SetBufferBucketVersionsPool sets the BufferBucketVersionsPool.
+	SetBufferBucketVersionsPool(value *BufferBucketVersionsPool) Options
+
+	// BufferBucketVersionsPool returns the BufferBucketVersionsPool.
+	BufferBucketVersionsPool() *BufferBucketVersionsPool
+
+	// SetBufferBucketPool sets the BufferBucketPool.
+	SetBufferBucketPool(value *BufferBucketPool) Options
+
+	// BufferBucketPool returns the BufferBucketPool.
+	BufferBucketPool() *BufferBucketPool
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
@@ -282,4 +329,22 @@ func NewStats(scope tally.Scope) Stats {
 // IncCreatedEncoders incs the EncoderCreated stat.
 func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
+}
+
+// WriteType is an enum for warm/cold write types.
+type WriteType int
+
+const (
+	// UndefinedWriteType is an undefined write type.
+	UndefinedWriteType WriteType = iota
+
+	// WarmWrite represents warm writes (within the buffer past/future window).
+	WarmWrite
+
+	// ColdWrite represents cold writes (outside the buffer past/future window).
+	ColdWrite
+)
+
+type WriteOptions struct {
+	SchemaDesc namespace.SchemaDescr
 }

@@ -26,11 +26,7 @@ func (c *postingsListLRU) keys() []key {
 	keys := make([]key, 0, len(c.items))
 	for ent := c.evictList.Back(); ent != nil; ent = ent.Prev() {
 		entry := ent.Value.(*entry)
-		keys = append(keys, key{
-			uuid:        entry.uuid,
-			pattern:     entry.pattern,
-			patternType: entry.patternType,
-		})
+		keys = append(keys, entry.key)
 	}
 	return keys
 }

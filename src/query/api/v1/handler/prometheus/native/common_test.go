@@ -23,6 +23,7 @@ package native
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/url"
 	"testing"
@@ -158,9 +159,12 @@ func TestRenderResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
-			ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
 				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
 				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
@@ -169,9 +173,14 @@ func TestRenderResultsJSON(t *testing.T) {
 				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
 				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
 	}
 
-	renderResultsJSON(buffer, series, params)
+	renderResultsJSON(buffer, series, params, true)
 
 	expected := mustPrettyJSON(t, `
 	{
@@ -191,6 +200,95 @@ func TestRenderResultsJSON(t *testing.T) {
 						],
 						[
 							1535948890,
+							"NaN"
+						]
+					],
+					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"baz": "bar",
+						"qaz": "qux"
+					},
+					"values": [
+						[
+							1535948880,
+							"2"
+						],
+						[
+							1535948890,
+							"2"
+						]
+					],
+					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"biz": "baz",
+						"qux": "qaz"
+					},
+					"values": [
+						[
+							1535948880,
+							"NaN"
+						],
+						[
+							1535948890,
+							"NaN"
+						]
+					],
+					"step_size_ms": 10000
+				}
+			]
+		}
+	}
+	`)
+
+	actual := mustPrettyJSON(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+	buffer := bytes.NewBuffer(nil)
+	params := models.RequestParams{}
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+
+	series := []*ts.Series{
+		ts.NewSeries([]byte("foo"),
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+	}
+
+	renderResultsJSON(buffer, series, params, false)
+
+	expected := mustPrettyJSON(t, `
+	{
+		"status": "success",
+		"data": {
+			"resultType": "matrix",
+			"result": [
+				{
+					"metric": {
+						"bar": "baz",
+						"qux": "qaz"
+					},
+					"values": [
+						[
+							1535948880,
 							"1"
 						]
 					],
@@ -212,11 +310,20 @@ func TestRenderResultsJSON(t *testing.T) {
 						]
 					],
 					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"biz": "baz",
+						"qux": "qaz"
+					},
+					"values": [],
+					"step_size_ms": 10000
 				}
 			]
 		}
 	}
 	`)
+
 	actual := mustPrettyJSON(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }

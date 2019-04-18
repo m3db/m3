@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 const (

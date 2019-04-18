@@ -34,10 +34,11 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/sync"
-	xtest "github.com/m3db/m3x/test"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/sync"
+	bytetest "github.com/m3db/m3/src/x/test"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -122,9 +123,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	queryCache, err := storage.NewQueryConversionLRU(100)
-	require.NoError(t, err)
-	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute, storage.NewQueryConversionCache(queryCache))
+	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute)
 	require.NoError(t, err)
 	return storage
 }
@@ -443,7 +442,7 @@ func TestLocalSearchError(t *testing.T) {
 	})
 
 	searchReq := newFetchReq()
-	_, err := store.FetchTags(context.TODO(), searchReq, buildFetchOpts())
+	_, err := store.SearchSeries(context.TODO(), searchReq, buildFetchOpts())
 	assert.Error(t, err)
 }
 
@@ -535,7 +534,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 			Return(nil, nil).AnyTimes()
 	})
 	searchReq := newFetchReq()
-	result, err := store.FetchTags(context.TODO(), searchReq, buildFetchOpts())
+	result, err := store.SearchSeries(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 
 	require.Equal(t, len(fetches), len(result.Metrics))
@@ -600,36 +599,26 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	store, sessions := setup(t, ctrl)
 
 	type testFetchTaggedID struct {
-		id        string
-		namespace string
-		tagName   string
-		tagValue  string
+		tagName  string
+		tagValue string
 	}
 
 	fetches := []testFetchTaggedID{
 		{
-			id:        "foo",
-			namespace: "metrics_unaggregated",
-			tagName:   "qux",
-			tagValue:  "qaz",
+			tagName:  "qux",
+			tagValue: "qaz",
 		},
 		{
-			id:        "bar",
-			namespace: "metrics_aggregated_1m:30d",
-			tagName:   "qel",
-			tagValue:  "quz",
+			tagName:  "aba",
+			tagValue: "quz",
 		},
 		{
-			id:        "baz",
-			namespace: "metrics_aggregated_5m:90d",
-			tagName:   "qam",
-			tagValue:  "qak",
+			tagName:  "qam",
+			tagValue: "qak",
 		},
 		{
-			id:        "qux",
-			namespace: "metrics_aggregated_10m:365d",
-			tagName:   "qux",
-			tagValue:  "qaz2",
+			tagName:  "qux",
+			tagValue: "qaz2",
 		},
 	}
 
@@ -646,40 +635,33 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 			f = fetches[3]
 		default:
 			// Not expecting from other (partial) namespaces
-			iter := client.NewMockTaggedIDsIterator(ctrl)
+			iter := client.NewMockAggregatedTagsIterator(ctrl)
 			gomock.InOrder(
+				iter.EXPECT().Remaining().Return(0),
 				iter.EXPECT().Next().Return(false),
 				iter.EXPECT().Err().Return(nil),
 				iter.EXPECT().Finalize(),
 			)
-			session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+			session.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(iter, true, nil)
-			session.EXPECT().IteratorPools().
-				Return(nil, nil).AnyTimes()
 			return
 		}
-		iter := client.NewMockTaggedIDsIterator(ctrl)
+
+		iter := client.NewMockAggregatedTagsIterator(ctrl)
 		gomock.InOrder(
+			iter.EXPECT().Remaining().Return(1),
 			iter.EXPECT().Next().Return(true),
 			iter.EXPECT().Current().Return(
-				ident.StringID(f.namespace),
-				ident.StringID(f.id),
-				ident.NewTagsIterator(ident.NewTags(
-					ident.Tag{
-						Name:  ident.StringID(f.tagName),
-						Value: ident.StringID(f.tagValue),
-					})),
+				ident.StringID(f.tagName),
+				ident.NewIDsIterator(ident.StringID(f.tagValue)),
 			),
 			iter.EXPECT().Next().Return(false),
 			iter.EXPECT().Err().Return(nil),
 			iter.EXPECT().Finalize(),
 		)
 
-		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		session.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(iter, true, nil)
-
-		session.EXPECT().IteratorPools().
-			Return(nil, nil).AnyTimes()
 	})
 
 	req := newCompleteTagsReq()
@@ -687,9 +669,17 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	require.False(t, result.CompleteNameOnly)
-
-	require.Equal(t, 1, len(result.CompletedTags))
+	require.Equal(t, 3, len(result.CompletedTags))
+	// NB: expected will be sorted alphabetically
 	expected := []storage.CompletedTag{
+		{
+			Name:   []byte("aba"),
+			Values: [][]byte{[]byte("quz")},
+		},
+		{
+			Name:   []byte("qam"),
+			Values: [][]byte{[]byte("qak")},
+		},
 		{
 			Name:   []byte("qux"),
 			Values: [][]byte{[]byte("qaz"), []byte("qaz2")},
@@ -697,4 +687,60 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, result.CompletedTags)
+}
+
+func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	unagg := client.NewMockSession(ctrl)
+	clusters, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_unaggregated"),
+		Session:     unagg,
+		Retention:   test1MonthRetention,
+	})
+
+	require.NoError(t, err)
+	store := newTestStorage(t, clusters)
+
+	name, value := ident.StringID("name"), ident.StringID("value")
+	iter := client.NewMockAggregatedTagsIterator(ctrl)
+	gomock.InOrder(
+		iter.EXPECT().Remaining().Return(1),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return(
+			name,
+			ident.NewIDsIterator(value),
+		),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Finalize().Do(func() {
+			name.Finalize()
+			value.Finalize()
+		}),
+	)
+
+	unagg.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(iter, true, nil)
+
+	req := newCompleteTagsReq()
+	result, err := store.CompleteTags(context.TODO(), req, buildFetchOpts())
+	require.NoError(t, err)
+
+	require.False(t, result.CompleteNameOnly)
+	require.Equal(t, 1, len(result.CompletedTags))
+	// NB: expected will be sorted alphabetically
+	expected := []storage.CompletedTag{
+		{
+			Name:   []byte("name"),
+			Values: [][]byte{[]byte("value")},
+		},
+	}
+
+	require.Equal(t, expected, result.CompletedTags)
+
+	// ensure that the tag names and values are not backed by the same data.
+	n, v := result.CompletedTags[0].Name, result.CompletedTags[0].Values[0]
+	assert.False(t, bytetest.ByteSlicesBackedBySameData(name.Bytes(), n))
+	assert.False(t, bytetest.ByteSlicesBackedBySameData(value.Bytes(), v))
 }

@@ -97,10 +97,10 @@ Replication factor: 3
 │                          │                             │                           │                         │                         │
 │                          │ ┌─────────────────────────┐ │ ┌───────────────────────┐ │┌───────────────────────┐│┌──────────────────────┐ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
-│                          │ │                         │ │ │                       │ ││  Shard 1: Available   │││                      │ │
-│                          │ │   Shard 1: Initializing │ │ │  Shard 1: Available   │ ││  Shard 2: Available   │││   Shard 1: Leaving   │ │
-│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Initializing│ ││  Shard 3: Initializing│││   Shard 2: Leaving   │ │
-│                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││                       │││   Shard 3: Leaving   │ │
+│                          │ │                         │ │ │                       │ ││                       │││                      │ │
+│                          │ │   Shard 1: Initializing │ │ │  Shard 1: Available   │ ││  Shard 1: Available   │││   Shard 1: Leaving   │ │
+│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Initializing│ ││  Shard 2: Available   │││   Shard 2: Leaving   │ │
+│                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││  Shard 3: Initializing│││   Shard 3: Leaving   │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │└───────────────────────┘│└──────────────────────┘ │
@@ -111,7 +111,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │    Shard 1: Avaiable    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  ││                         │
-│  3) Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
+│  3) Complete Node Remove │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 3: Available  ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
@@ -145,7 +145,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │   Shard 1: Available    │ │ │  Shard 1: Available   │ ││   Shard 1: Leaving    │││Shard 1: Initializing │ │
-│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ ││   Shard 2: Leaving    │││Shard 2: Initializing │ │
+│  2) Begin Node Replace   │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ ││   Shard 2: Leaving    │││Shard 2: Initializing │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││   Shard 3: Leaving    │││Shard 3: Initializing │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
@@ -156,8 +156,8 @@ Replication factor: 3
 │                          │ ┌─────────────────────────┐ │ ┌───────────────────────┐ │                         │┌──────────────────────┐ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
-│                          │ │    Shard 1: Avaiable    │ │ │  Shard 1: Available   │ │                         ││  Shard 1: Available  │ │
-│  3) Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │                         ││  Shard 2: Available  │ │
+│                          │ │   Shard 1: Avaiable     │ │ │  Shard 1: Available   │ │                         ││  Shard 1: Available  │ │
+│  3) Complete Node Replace│ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │                         ││  Shard 2: Available  │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │                         ││  Shard 3: Available  │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │

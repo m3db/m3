@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

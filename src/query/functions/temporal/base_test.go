@@ -21,6 +21,7 @@
 package temporal
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/ts"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +62,7 @@ func compareCacheState(t *testing.T, node *baseNode, bounds models.Bounds, state
 		actualState[i] = exists
 	}
 
-	assert.Equal(t, actualState, state, debugMsg)
+	assert.Equal(t, state, actualState, debugMsg)
 }
 
 func TestBaseWithB0(t *testing.T) {
@@ -349,6 +351,159 @@ func setup(numBlocks int, duration time.Duration, nextBound int) *testContext {
 		Sink:   sink,
 		Node:   node.(*baseNode),
 	}
+}
+
+// TestBaseWithDownstreamError checks that we handle errors from blocks correctly
+func TestBaseWithDownstreamError(t *testing.T) {
+	numBlocks := 2
+	tc := setup(numBlocks, 5*time.Minute, 1)
+
+	testErr := errors.New("test err")
+	errBlock := blockWithDownstreamErr{Block: tc.Blocks[1], Err: testErr}
+
+	require.NoError(t, tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), errBlock))
+
+	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
+	require.EqualError(t, err, testErr.Error())
+}
+
+// Types for TestBaseWithDownstreamError
+
+// blockWithDownstreamErr overrides only Unconsolidated() for purposes of returning a
+// an UnconsolidatedBlock which errors on SeriesIter() (unconsolidatedBlockWithSeriesIterErr)
+type blockWithDownstreamErr struct {
+	block.Block
+	Err error
+}
+
+func (mbu blockWithDownstreamErr) Unconsolidated() (block.UnconsolidatedBlock, error) {
+	unconsolidated, err := mbu.Block.Unconsolidated()
+	if err != nil {
+		return nil, err
+	}
+	return unconsolidatedBlockWithSeriesIterErr{
+		Err:                 mbu.Err,
+		UnconsolidatedBlock: unconsolidated,
+	}, nil
+}
+
+type unconsolidatedBlockWithSeriesIterErr struct {
+	block.UnconsolidatedBlock
+	Err error
+}
+
+func (mbuc unconsolidatedBlockWithSeriesIterErr) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
+	return nil, mbuc.Err
+}
+
+// End types for TestBaseWithDownstreamError
+
+func TestBaseClosesBlocks(t *testing.T) {
+	tc := setup(1, 5*time.Minute, 1)
+
+	ctrl := gomock.NewController(t)
+	builderCtx := setupCloseableBlock(ctrl, tc.Node)
+
+	require.NoError(t, tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0]))
+
+	for _, mockBuilder := range builderCtx.MockBlockBuilders {
+		assert.Equal(t, 1, mockBuilder.BuiltBlock.ClosedCalls)
+	}
+}
+
+func TestProcessCompletedBlocks_ClosesBlocksOnError(t *testing.T) {
+	numBlocks := 2
+	tc := setup(numBlocks, 5*time.Minute, 1)
+	ctrl := gomock.NewController(t)
+	setupCloseableBlock(ctrl, tc.Node)
+
+	testErr := errors.New("test err")
+	tc.Blocks[1] = blockWithDownstreamErr{Block: tc.Blocks[1], Err: testErr}
+
+	processRequests := make([]processRequest, numBlocks)
+	for i, blk := range tc.Blocks {
+		unconsolidated, err := blk.Unconsolidated()
+		require.NoError(t, err)
+
+		processRequests[i] = processRequest{
+			queryCtx: models.NoopQueryContext(),
+			blk:      unconsolidated,
+			bounds:   tc.Bounds,
+			deps:     nil,
+		}
+	}
+
+	blocks, err := tc.Node.processCompletedBlocks(models.NoopQueryContext(), processRequests, numBlocks)
+	require.EqualError(t, err, testErr.Error())
+
+	for _, bl := range blocks {
+		require.NotNil(t, bl)
+		assert.Equal(t, 1, bl.(*closeSpyBlock).ClosedCalls)
+	}
+}
+
+type closeableBlockBuilderContext struct {
+	MockController    *Mockcontroller
+	MockBlockBuilders []*closeSpyBlockBuilder
+}
+
+// setupCloseableBlock mocks out node.controller to return a block builder which
+// builds closeSpyBlock instances, so that you can inspect whether
+// or not a block was closed (using closeSpyBlock.ClosedCalls). See TestBaseClosesBlocks
+// for an example.
+func setupCloseableBlock(ctrl *gomock.Controller, node *baseNode) closeableBlockBuilderContext {
+	mockController := NewMockcontroller(ctrl)
+	mockBuilders := make([]*closeSpyBlockBuilder, 0)
+
+	mockController.EXPECT().Process(gomock.Any(), gomock.Any()).Return(nil)
+
+	// return a regular ColumnBlockBuilder, wrapped with closeSpyBlockBuilder
+	mockController.EXPECT().BlockBuilder(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(
+			queryCtx *models.QueryContext,
+			blockMeta block.Metadata,
+			seriesMeta []block.SeriesMeta) (block.Builder, error) {
+			mb := &closeSpyBlockBuilder{
+				Builder: block.NewColumnBlockBuilder(models.NoopQueryContext(), blockMeta, seriesMeta),
+			}
+			mockBuilders = append(mockBuilders, mb)
+			return mb, nil
+		})
+
+	node.controller = mockController
+
+	return closeableBlockBuilderContext{
+		MockController:    mockController,
+		MockBlockBuilders: mockBuilders,
+	}
+}
+
+// closeSpyBlockBuilder wraps a block.Builder to build a closeSpyBlock
+// instead of a regular block. It is otherwise equivalent to the wrapped Builder.
+type closeSpyBlockBuilder struct {
+	block.Builder
+
+	BuiltBlock *closeSpyBlock
+}
+
+func (bb *closeSpyBlockBuilder) Build() block.Block {
+	bb.BuiltBlock = &closeSpyBlock{
+		Block: bb.Builder.Build(),
+	}
+	return bb.BuiltBlock
+}
+
+// closeSpyBlock wraps a block.Block to allow assertions on the Close()
+// method.
+type closeSpyBlock struct {
+	block.Block
+
+	ClosedCalls int
+}
+
+func (b *closeSpyBlock) Close() error {
+	b.ClosedCalls++
+	return nil
 }
 
 func TestSingleProcessRequest(t *testing.T) {

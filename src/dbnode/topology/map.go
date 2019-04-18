@@ -22,8 +22,8 @@ package topology
 
 import (
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3x/ident"
-	xwatch "github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/ident"
+	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
 type staticMap struct {

@@ -2,18 +2,31 @@
 
 <p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
-Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and more.
+[Distributed TSDB](http://m3db.github.io/m3/m3db/) and [Query Engine](http://m3db.github.io/m3/how_to/query/), [Prometheus Sidecar](http://m3db.github.io/m3/integrations/prometheus/), [Metrics Aggregator](http://m3db.github.io/m3/introduction/components/components/#m3-aggregator), and more. "More" now includes [Graphite storage and query engine](http://m3db.github.io/m3/integrations/graphite/)!
 
 More information:
+
 - [Documentation](https://m3db.github.io/m3/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 - [Gitter (chat channel)](https://gitter.im/m3db/Lobby)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
+## Community meetings
+
+M3 contributors and maintainers have monthly (every four weeks) meetings at 11:00 AM (USA Pacific) on Tuesday.
+
+An initial agenda is posted to the [community meeting shared Google doc](https://docs.google.com/document/d/1eGAd2A8FVtiip5wHxHnmSkz7e_qHc9k_4hGI0vUGdHM/edit?usp=sharing) a day before each meeting, and everyone is welcome to suggest additional topics or other agendas.
+
+Please download and import the following iCalendar (.ics) files to calendar system.
+
+Monthly: [us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862](https://us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862)
+
+Join Zoom Meeting: [us04web.zoom.us/j/519434268](https://us04web.zoom.us/j/519434268)
+
 ## Test it out
 
-(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/)).
+The easiest way to testing out M3 is to follow one of the guides from the documentation. For a fully comprehensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/).
 
 ### Starting a node
 
@@ -39,7 +52,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 
 ### Test RPC
 
-To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.
+To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use. These use the DB node cluster service endpoints.
 
 Note: performance sensitive users are expected to use the more performant endpoints via either the Go `src/dbnode/client/Session` API, or the GRPC endpoints exposed via `src/coordinator`.
 

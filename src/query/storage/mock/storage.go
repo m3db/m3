@@ -34,8 +34,9 @@ type Storage interface {
 	storage.Storage
 
 	SetTypeResult(storage.Type)
+	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
-	SetFetchTagsResult(*storage.SearchResults, error)
+	SetSearchSeriesResult(*storage.SearchResults, error)
 	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
 	SetWriteResult(error)
 	SetFetchBlocksResult(block.Result, error)
@@ -48,7 +49,8 @@ type mockStorage struct {
 	typeResult struct {
 		result storage.Type
 	}
-	fetchResult struct {
+	lastFetchOptions *storage.FetchOptions
+	fetchResult      struct {
 		result *storage.FetchResult
 		err    error
 	}
@@ -91,7 +93,7 @@ func (s *mockStorage) SetFetchResult(result *storage.FetchResult, err error) {
 	s.fetchResult.err = err
 }
 
-func (s *mockStorage) SetFetchTagsResult(result *storage.SearchResults, err error) {
+func (s *mockStorage) SetSearchSeriesResult(result *storage.SearchResults, err error) {
 	s.Lock()
 	defer s.Unlock()
 	s.fetchTagsResult.result = result
@@ -130,13 +132,20 @@ func (s *mockStorage) Writes() []*storage.WriteQuery {
 	return s.writes
 }
 
+func (s *mockStorage) LastFetchOptions() *storage.FetchOptions {
+	s.RLock()
+	defer s.RUnlock()
+	return s.lastFetchOptions
+}
+
 func (s *mockStorage) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	_ *storage.FetchOptions,
+	opts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
+	s.lastFetchOptions = opts
 	return s.fetchResult.result, s.fetchResult.err
 }
 
@@ -150,7 +159,7 @@ func (s *mockStorage) FetchBlocks(
 	return s.fetchBlocksResult.result, s.fetchBlocksResult.err
 }
 
-func (s *mockStorage) FetchTags(
+func (s *mockStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	_ *storage.FetchOptions,
