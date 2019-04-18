@@ -222,6 +222,12 @@ type database interface {
 	UpdateOwnedNamespaces(namespaces namespace.Map) error
 }
 
+type schemaRegistry interface {
+	GetLatestSchema(id ident.ID) namespace.SchemaDescr
+	GetSchemaHistory(id ident.ID) namespace.SchemaRegistry
+	SetSchemaHistory(id ident.ID, registry namespace.SchemaRegistry)
+}
+
 // Namespace is a time series database namespace
 type Namespace interface {
 	// Options returns the namespace options

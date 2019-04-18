@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type dbMergedBlockReader struct {
@@ -41,6 +42,7 @@ type dbMergedBlockReader struct {
 	merged     xio.BlockReader
 	encoder    encoding.Encoder
 	err        error
+	nsID       ident.ID
 }
 
 type mergeableStream struct {
@@ -64,11 +66,13 @@ func newDatabaseMergedBlockReader(
 	blockSize time.Duration,
 	streamA, streamB mergeableStream,
 	opts Options,
+	nsID ident.ID,
 ) xio.BlockReader {
 	r := &dbMergedBlockReader{
 		opts:       opts,
 		blockStart: blockStart,
 		blockSize:  blockSize,
+		nsID:       nsID,
 	}
 	r.streams[0] = streamA
 	r.streams[1] = streamB
@@ -96,11 +100,11 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 		return r.merged, r.err
 	}
 
-	multiIter := r.opts.MultiReaderIteratorPool().Get()
+	multiIter := r.opts.MultiReaderIteratorPool().Get(r.nsID)
 	multiIter.Reset(r.readers[:], r.blockStart, r.blockSize)
 	defer multiIter.Close()
 
-	r.encoder = r.opts.EncoderPool().Get()
+	r.encoder = r.opts.EncoderPool().Get(r.nsID)
 	r.encoder.Reset(r.blockStart, r.opts.DatabaseBlockAllocSize())
 
 	for multiIter.Next() {
@@ -155,6 +159,7 @@ func (r *dbMergedBlockReader) Clone(
 		s0,
 		s1,
 		r.opts,
+		r.nsID,
 	), nil
 }
 
