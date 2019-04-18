@@ -729,7 +729,7 @@ func (b *BufferBucketVersions) merge(writeType WriteType) (int, error) {
 		if bucket.version == writableBucketVer && writeType == bucket.writeType {
 			merges, err := bucket.merge()
 			if err != nil {
-				return res, nil
+				return 0, err
 			}
 			res += merges
 		}
