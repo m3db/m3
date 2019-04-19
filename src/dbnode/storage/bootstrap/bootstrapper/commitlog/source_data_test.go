@@ -324,8 +324,9 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 					VolumeIndex: 0,
 				},
 				// Make sure path passes the "is snapshot" check in SnapshotTimeAndID method.
-				AbsoluteFilepaths:  []string{"snapshots/checkpoint"},
-				CachedSnapshotTime: start.Add(time.Minute),
+				AbsoluteFilepaths:               []string{"snapshots/checkpoint"},
+				CachedHasCompleteCheckpointFile: fs.EvalTrue,
+				CachedSnapshotTime:              start.Add(time.Minute),
 			},
 		}, nil
 	}

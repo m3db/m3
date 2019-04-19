@@ -73,14 +73,27 @@ var (
 
 type fileOpener func(filePath string) (*os.File, error)
 
+// LazyEvalBool is a boolean is lazily evaluated.
+type LazyEvalBool uint8
+
+const (
+	// EvalNone indicated the boolean has not been evaluated.
+	EvalNone LazyEvalBool = iota
+	// EvalTrue indicates the boolean has been evaluated to true.
+	EvalTrue
+	// EvalFalse indicates the boolean has been evaluated to false.
+	EvalFalse
+)
+
 // FileSetFile represents a set of FileSet files for a given block start
 type FileSetFile struct {
 	ID                FileSetFileIdentifier
 	AbsoluteFilepaths []string
 
-	CachedSnapshotTime time.Time
-	CachedSnapshotID   uuid.UUID
-	filePathPrefix     string
+	CachedSnapshotTime              time.Time
+	CachedSnapshotID                uuid.UUID
+	CachedHasCompleteCheckpointFile LazyEvalBool
+	filePathPrefix                  string
 }
 
 // SnapshotTimeAndID returns the snapshot time and id for the given FileSetFile.
@@ -89,9 +102,11 @@ func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
 	if f.IsZero() {
 		return time.Time{}, nil, errSnapshotTimeAndIDZero
 	}
-	if len(f.AbsoluteFilepaths) > 0 && !strings.Contains(f.AbsoluteFilepaths[0], snapshotDirName) {
+	if len(f.AbsoluteFilepaths) > 0 &&
+		!strings.Contains(f.AbsoluteFilepaths[0], snapshotDirName) {
 		return time.Time{}, nil, fmt.Errorf(
-			"tried to determine snapshot time and id of non-snapshot: %s", f.AbsoluteFilepaths[0])
+			"tried to determine snapshot time and id of non-snapshot: %s",
+			f.AbsoluteFilepaths[0])
 	}
 
 	if !f.CachedSnapshotTime.IsZero() || f.CachedSnapshotID != nil {
@@ -117,7 +132,18 @@ func (f FileSetFile) IsZero() bool {
 
 // HasCompleteCheckpointFile returns a bool indicating whether the given set of
 // fileset files has a checkpoint file.
-func (f FileSetFile) HasCompleteCheckpointFile() bool {
+func (f *FileSetFile) HasCompleteCheckpointFile() bool {
+	switch f.CachedHasCompleteCheckpointFile {
+	case EvalNone:
+		f.CachedHasCompleteCheckpointFile = f.evalHasCompleteCheckpointFile()
+		return f.HasCompleteCheckpointFile()
+	case EvalTrue:
+		return true
+	}
+	return false
+}
+
+func (f *FileSetFile) evalHasCompleteCheckpointFile() LazyEvalBool {
 	for _, fileName := range f.AbsoluteFilepaths {
 		if strings.Contains(fileName, checkpointFileSuffix) {
 			exists, err := CompleteCheckpointFileExists(fileName)
@@ -125,12 +151,12 @@ func (f FileSetFile) HasCompleteCheckpointFile() bool {
 				continue
 			}
 			if exists {
-				return true
+				return EvalTrue
 			}
 		}
 	}
 
-	return false
+	return EvalFalse
 }
 
 // FileSetFilesSlice is a slice of FileSetFile
