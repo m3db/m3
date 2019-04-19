@@ -804,7 +804,7 @@ func (b *BufferBucketVersions) writableBucketCreate(writeType WriteType) *Buffer
 }
 
 // mergeToStreams merges each buffer bucket version's streams into one, then
-// returning a single stream for each buffer bucket version.
+// returns a single stream for each buffer bucket version.
 func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsOptions) ([]xio.SegmentReader, error) {
 	buckets := b.buckets
 	res := make([]xio.SegmentReader, 0, len(buckets))
@@ -1092,7 +1092,7 @@ func mergeStreamsToEncoder(
 	bopts := opts.DatabaseBlockOptions()
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
-	iter := bopts.MultiReaderIteratorPool().Get()
+	iter := opts.MultiReaderIteratorPool().Get()
 	defer iter.Close()
 
 	var lastWriteAt time.Time
