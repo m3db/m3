@@ -23,6 +23,7 @@ package commitlog
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -124,8 +125,10 @@ func (f *flushState) getLastFlushAt() time.Time {
 }
 
 type writerState struct {
-	writer     commitLogWriter
-	activeFile *persist.CommitLogFile
+	primaryWriter     commitLogWriter
+	secondaryWriter   commitLogWriter
+	secondaryWriterWG sync.WaitGroup
+	activeFiles       persist.CommitLogFiles
 }
 
 type closedState struct {
@@ -165,7 +168,7 @@ type callbackResult struct {
 }
 
 type activeLogsCallbackResult struct {
-	file *persist.CommitLogFile
+	files persist.CommitLogFiles
 }
 
 type rotateLogsResult struct {
@@ -257,7 +260,7 @@ func (l *commitLog) Open() error {
 
 	// Sync the info header to ensure we can write to disk and make sure that we can at least
 	// read the info about the commitlog file later.
-	if err := l.writerState.writer.Flush(true); err != nil {
+	if err := l.writerState.primaryWriter.Flush(true); err != nil {
 		return err
 	}
 
@@ -306,9 +309,7 @@ func (l *commitLog) ActiveLogs() (persist.CommitLogFiles, error) {
 				return
 			}
 
-			if result.file != nil {
-				files = append(files, *result.file)
-			}
+			files = result.files
 		},
 	}
 
@@ -409,7 +410,7 @@ func (l *commitLog) write() {
 
 	for write := range l.writes {
 		if write.eventType == flushEventType {
-			l.writerState.writer.Flush(false)
+			l.writerState.primaryWriter.Flush(false)
 			continue
 		}
 
@@ -418,7 +419,7 @@ func (l *commitLog) write() {
 				eventType: write.eventType,
 				err:       nil,
 				activeLogs: activeLogsCallbackResult{
-					file: l.writerState.activeFile,
+					files: l.writerState.activeFiles,
 				},
 			})
 			continue
@@ -431,7 +432,7 @@ func (l *commitLog) write() {
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
 		if isRotateLogsEvent {
-			file, err := l.openWriter()
+			files, err := l.openWriter()
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -442,19 +443,20 @@ func (l *commitLog) write() {
 				}
 			}
 
-			if isRotateLogsEvent {
-				write.callbackFn(callbackResult{
-					eventType: write.eventType,
-					err:       err,
-					rotateLogs: rotateLogsResult{
-						file: file,
-					},
-				})
+			var file persist.CommitLogFile
+			if err == nil {
+				file = files[0]
 			}
 
-			if err != nil || isRotateLogsEvent {
-				continue
-			}
+			write.callbackFn(callbackResult{
+				eventType: write.eventType,
+				err:       err,
+				rotateLogs: rotateLogsResult{
+					file: file,
+				},
+			})
+
+			continue
 		}
 
 		var (
@@ -488,7 +490,7 @@ func (l *commitLog) write() {
 			}
 
 			write := writeBatch.Write
-			err := l.writerState.writer.Write(write.Series,
+			err := l.writerState.primaryWriter.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
 				l.handleWriteErr(err)
@@ -506,8 +508,14 @@ func (l *commitLog) write() {
 		l.metrics.success.Inc(numWritesSuccess)
 	}
 
-	writer := l.writerState.writer
-	l.writerState.writer = nil
+	// Don't care about errors closing the secondary writer because it doesn't
+	// have any data.
+	l.writerState.secondaryWriterWG.Wait()
+	l.writerState.secondaryWriter.Close()
+	l.writerState.secondaryWriter = nil
+
+	writer := l.writerState.primaryWriter
+	l.writerState.primaryWriter = nil
 
 	l.closeErr <- writer.Close()
 }
@@ -546,29 +554,54 @@ func (l *commitLog) onFlush(err error) {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriter() (persist.CommitLogFile, error) {
-	if l.writerState.writer != nil {
-		if err := l.writerState.writer.Close(); err != nil {
-			l.metrics.closeErrors.Inc(1)
-			l.log.Error("failed to close commit log", zap.Error(err))
+func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
+	l.writerState.secondaryWriterWG.Wait()
 
-			// If we failed to close then create a new commit log writer
-			l.writerState.writer = nil
+	if l.writerState.primaryWriter == nil || l.writerState.secondaryWriter == nil {
+		l.writerState.primaryWriter = l.newCommitLogWriterFn(l.onFlush, l.opts)
+		l.writerState.secondaryWriter = l.newCommitLogWriterFn(l.onFlush, l.opts)
+
+		primaryFile, err := l.writerState.primaryWriter.Open()
+		if err != nil {
+			return nil, err
 		}
+
+		secondaryFile, err := l.writerState.secondaryWriter.Open()
+		if err != nil {
+			l.commitLogFailFn(err)
+		}
+
+		l.writerState.activeFiles = persist.CommitLogFiles{primaryFile, secondaryFile}
+		return l.writerState.activeFiles, nil
 	}
 
-	if l.writerState.writer == nil {
-		l.writerState.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
-	}
+	// TODO: Add sanity check about the length of activeFiles values not being nil
+	// and the primary and secondary writes not being nil.
 
-	file, err := l.writerState.writer.Open()
-	if err != nil {
-		return persist.CommitLogFile{}, err
-	}
+	// Swap them so that the secondary becomes primary and vice versa.
+	l.writerState.primaryWriter, l.writerState.secondaryWriter = l.writerState.secondaryWriter, l.writerState.primaryWriter
 
-	l.writerState.activeFile = &file
+	l.writerState.secondaryWriterWG.Add(1)
+	go func() {
+		defer l.writerState.secondaryWriterWG.Done()
+		if err := l.writerState.secondaryWriter.Close(); err != nil {
+			l.commitLogFailFn(err)
+		}
 
-	return file, nil
+		_, err := l.writerState.secondaryWriter.Open()
+		if err != nil {
+			l.commitLogFailFn(err)
+		}
+	}()
+
+	primaryFile := l.writerState.activeFiles[1]
+	secondaryFile := primaryFile
+	secondaryFile.FilePath = strings.Replace(secondaryFile.FilePath, string(secondaryFile.Index), string(secondaryFile.Index+1), -1)
+	secondaryFile.Index++
+	files := persist.CommitLogFiles{primaryFile, secondaryFile}
+	l.writerState.activeFiles = files
+
+	return files, nil
 }
 
 func (l *commitLog) Write(
