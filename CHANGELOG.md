@@ -1,5 +1,11 @@
 # Changelog
 
+# UNRELEASED
+
+## Bug Fixes
+
+- **M3DB**: Fix index flush recovery when previous flush attempts have failed (#1574)
+
 # 0.8.3 (2019-04-12)
 
 ## Performance
