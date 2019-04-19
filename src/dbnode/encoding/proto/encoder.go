@@ -66,20 +66,37 @@ type Encoder struct {
 	lastEncodedDP ts.Datapoint
 	lastEncoded   *dynamic.Message
 	customFields  []customFieldState
+	protoFields   []int32
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
 	varIntBuf              [8]byte
 	changedValues          []int32
 	fieldsChangedToDefault []int32
+	marshalBuf             []byte
 
 	unmarshaled *dynamic.Message
 
-	hardErr                          error
-	hasEncodedFirstSetOfCustomValues bool
-	closed                           bool
+	hardErr          error
+	hasEncodedSchema bool
+	closed           bool
 
+	stats            encoderStats
 	timestampEncoder m3tsz.TimestampEncoder
+}
+
+// EncoderStats contains statistics about the encoders compression performance.
+type EncoderStats struct {
+	UncompressedBytes int
+	CompressedBytes   int
+}
+
+type encoderStats struct {
+	uncompressedBytes int
+}
+
+func (s *encoderStats) IncUncompressedBytes(x int) {
+	s.uncompressedBytes += x
 }
 
 // NewEncoder creates a new protobuf encoder.
@@ -109,6 +126,10 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		return errEncoderSchemaIsRequired
 	}
 
+	// Proto encoder value is meaningless, but make sure its always zero just to be safe so that
+	// it doesn't cause LastEncoded() to produce invalid results.
+	dp.Value = float64(0)
+
 	if enc.unmarshaled == nil {
 		// Lazy init.
 		enc.unmarshaled = dynamic.NewMessage(enc.schema)
@@ -135,24 +156,50 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// the encoder unusable since we may have encoded partial data.
 
 	if enc.numEncoded == 0 {
-		enc.encodeHeader()
+		enc.encodeStreamHeader()
 	}
 
-	if timeUnit != enc.timestampEncoder.TimeUnit {
-		// We handle encoding time unit changes ourselves because by default the WriteTime()
-		// API will use a marker encoding scheme which relies on looking ahead into the stream
-		// for bit combinations that could not possibly exist in the M3TSZ encoding scheme. We don't
-		// want to rely on this behavior because its possible that we could encode a legit set of bits
-		// that matches the "impossible" M3TSZ markers exactly.
+	var (
+		needToEncodeSchema   = !enc.hasEncodedSchema
+		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
+	)
+	if needToEncodeSchema || needToEncodeTimeUnit {
+		// First bit means either there is no more data OR the time unit and/or schema has changed.
+		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
+		// Next bit means there is more data, but the time unit and/or schema has changed has changed.
+		enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
 
-		// First bit means either there is no more data OR the time unit has changed.
-		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChange)
-		// Next bit means there is more data, but the time unit has changed.
-		enc.stream.WriteBit(opCodeTimeUnitChange)
+		// Next bit is a boolean indicating whether the time unit has changed.
+		if needToEncodeTimeUnit {
+			enc.stream.WriteBit(opCodeTimeUnitChange)
+		} else {
+			enc.stream.WriteBit(opCodeTimeUnitUnchanged)
+		}
 
-		enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+		// Next bit is a boolean indicating whether the schema has changed.
+		if needToEncodeSchema {
+			enc.stream.WriteBit(opCodeSchemaChange)
+		} else {
+			enc.stream.WriteBit(opCodeSchemaUnchanged)
+		}
+
+		if needToEncodeTimeUnit {
+			// The encoder manages encoding time unit changes manually (instead of deferring to
+			// the timestamp encoder) because by default the WriteTime() API will use a marker
+			// encoding scheme that relies on looking ahead into the stream for bit combinations that
+			// could not possibly exist in the M3TSZ encoding scheme.
+			// The protobuf encoder can't rely on this behavior because its possible for the protobuf
+			// encoder to encode a legitimate bit combination that matches the "impossible" M3TSZ
+			// markers exactly.
+			enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+		}
+
+		if needToEncodeSchema {
+			enc.encodeCustomSchemaTypes()
+			enc.hasEncodedSchema = true
+		}
 	} else {
-		// Control bit that indicates the stream has more data.
+		// Control bit that indicates the stream has more data but no time unit or schema changes.
 		enc.stream.WriteBit(opCodeMoreData)
 	}
 
@@ -171,6 +218,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	enc.numEncoded++
 	enc.lastEncodedDP = dp
+	enc.stats.IncUncompressedBytes(len(protoBytes))
 	return nil
 }
 
@@ -227,6 +275,9 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
 
+	// Value is meaningless for proto encoder and should already be zero,
+	// but set it again to be safe.
+	enc.lastEncodedDP.Value = 0
 	return enc.lastEncodedDP, nil
 }
 
@@ -235,10 +286,18 @@ func (enc *Encoder) Len() int {
 	return enc.stream.Len()
 }
 
-func (enc *Encoder) encodeHeader() {
+// Stats returns EncoderStats which contain statistics about the encoders compression
+// ratio.
+func (enc *Encoder) Stats() EncoderStats {
+	return EncoderStats{
+		UncompressedBytes: enc.stats.uncompressedBytes,
+		CompressedBytes:   enc.Len(),
+	}
+}
+
+func (enc *Encoder) encodeStreamHeader() {
 	enc.encodeVarInt(currentEncodingSchemeVersion)
 	enc.encodeVarInt(uint64(enc.opts.ByteFieldDictionaryLRUSize()))
-	enc.encodeCustomSchemaTypes()
 }
 
 func (enc *Encoder) encodeCustomSchemaTypes() {
@@ -308,24 +367,27 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.lastEncodedDP = ts.Datapoint{}
 	enc.unmarshaled = nil
 
+	// Prevent this from growing too large and remaining in the pools.
+	enc.marshalBuf = nil
+
 	if enc.schema != nil {
-		enc.customFields = customFields(enc.customFields, enc.schema)
+		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 	}
 
-	enc.hasEncodedFirstSetOfCustomValues = false
 	enc.closed = false
 	enc.numEncoded = 0
 }
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.customFields = customFields(enc.customFields, enc.schema)
+	enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
 	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
 	// schemas to see if they have changed:
 	// https://github.com/m3db/m3/issues/1471
 	enc.lastEncoded = dynamic.NewMessage(schema)
 	enc.unmarshaled = dynamic.NewMessage(schema)
+	enc.hasEncodedSchema = false
 }
 
 // Close closes the encoder.
@@ -384,7 +446,6 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 				encErrPrefix, customField.fieldNum)
 		}
 
-		customEncoded := true
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
 			if err := enc.encodeTSZValue(i, iVal); err != nil {
@@ -399,16 +460,12 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 				return err
 			}
 		default:
-			customEncoded = false
-		}
-
-		if customEncoded {
-			// Remove the field from the message so we don't include it
-			// in the proto marshal.
-			m.ClearFieldByNumber(customField.fieldNum)
+			// This should never happen.
+			return fmt.Errorf(
+				"%s error no logic for custom encoding field number: %d",
+				encErrPrefix, customField.fieldNum)
 		}
 	}
-	enc.hasEncodedFirstSetOfCustomValues = true
 
 	return nil
 }
@@ -564,6 +621,16 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 }
 
 func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
+	if len(enc.protoFields) == 0 {
+		// Fast path, skip all the encoding logic entirely because there are
+		// no fields that require proto encoding.
+		// TODO(rartoul): Note that the encoding scheme could be further optimized
+		// such that if there are no fields that require proto encoding then we don't
+		// need to waste this bit per write.
+		enc.stream.WriteBit(opCodeNoChange)
+		return nil
+	}
+
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
@@ -571,70 +638,57 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 	fieldsChangedToDefault := enc.fieldsChangedToDefault
 
-	if enc.lastEncoded != nil {
-		schemaFields := enc.schema.GetFields()
-		for _, field := range m.GetKnownFields() {
-			// Clear out any fields that were provided but are not in the schema
-			// to prevent wasting space on them.
-			// TODO(rartoul):This is an uncommon scenario and this operation might
-			// be expensive to perform each time so consider removing this if it
-			// impacts performance too much.
-			fieldNum := field.GetNumber()
-			if !fieldsContains(fieldNum, schemaFields) {
-				if err := m.TryClearFieldByNumber(int(fieldNum)); err != nil {
-					return fmt.Errorf(
-						"error: %v clearing field that does not exist in schema: %d", err, fieldNum)
-				}
+	if enc.lastEncoded == nil {
+		enc.lastEncoded = dynamic.NewMessage(enc.schema)
+	}
+
+	for _, fieldNum := range enc.protoFields {
+		var (
+			field       = enc.schema.FindFieldByNumber(fieldNum)
+			fieldNumInt = int(fieldNum)
+			prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
+			curVal      = m.GetFieldByNumber(fieldNumInt)
+		)
+
+		if fieldsEqual(curVal, prevVal) {
+			// Clear fields that haven't changed.
+			if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
+				return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
 			}
-		}
+		} else {
+			isDefaultValue, err := isDefaultValue(field, curVal)
+			if err != nil {
+				return fmt.Errorf(
+					"error: %v, checking if %v is default value for field %s",
+					err, curVal, field.String())
+			}
+			if isDefaultValue {
+				fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+			}
 
-		for _, field := range schemaFields {
-			var (
-				fieldNum    = field.GetNumber()
-				fieldNumInt = int(fieldNum)
-				prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
-				curVal      = m.GetFieldByNumber(fieldNumInt)
-			)
-
-			if fieldsEqual(curVal, prevVal) {
-				// Clear fields that haven't changed.
-				if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
-					return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
-				}
-			} else {
-				isDefaultValue, err := isDefaultValue(field, curVal)
-				if err != nil {
-					return fmt.Errorf(
-						"error: %v, checking if %v is default value for field %s",
-						err, curVal, field.String())
-				}
-				if isDefaultValue {
-					fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-				}
-
-				changedFields = append(changedFields, fieldNum)
-				if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
-					return fmt.Errorf(
-						"error: %v setting field %d with value %v on lastEncoded",
-						err, fieldNumInt, curVal)
-				}
+			changedFields = append(changedFields, fieldNum)
+			if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
+				return fmt.Errorf(
+					"error: %v setting field %d with value %v on lastEncoded",
+					err, fieldNumInt, curVal)
 			}
 		}
 	}
 
-	if len(changedFields) == 0 && enc.lastEncoded != nil {
+	if len(changedFields) == 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
 		return nil
 	}
 
-	// TODO(rartoul): Need to add a MarshalInto to the ProtoReflect library to save
-	// allocations: https://github.com/m3db/m3/issues/1471
-	marshaled, err := m.Marshal()
+	marshaled, err := m.MarshalAppend(enc.marshalBuf[:0])
 	if err != nil {
 		return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
 	}
+	// Make sure we update the marshalBuf with the returned slice in case a new one was
+	// allocated as part of the MarshalAppend call.
+	enc.marshalBuf = marshaled
 
 	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(opCodeChange)
@@ -650,14 +704,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 	enc.encodeVarInt(uint64(len(marshaled)))
 	enc.stream.WriteBytes(marshaled)
-
-	if enc.lastEncoded == nil {
-		// Set lastEncoded to m so that subsequent encodings only need to encode fields
-		// that have changed.
-		enc.lastEncoded = m
-	} else {
-		// lastEncoded has already been mutated to reflect the current state.
-	}
 
 	return nil
 }

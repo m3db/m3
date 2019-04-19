@@ -82,7 +82,7 @@ func NewIterator(
 
 	var currCustomFields []customFieldState
 	if schema != nil {
-		currCustomFields = customFields(nil, schema)
+		currCustomFields, _ = customAndProtoFields(nil, nil, schema)
 	}
 	return &iterator{
 		opts:         opts,
@@ -105,8 +105,10 @@ func (it *iterator) Next() bool {
 	}
 
 	if !it.consumedFirstMessage {
-		if err := it.readHeader(); err != nil {
-			it.err = err
+		if err := it.readStreamHeader(); err != nil {
+			it.err = fmt.Errorf(
+				"%s error reading stream header: %v",
+				itErrPrefix, err)
 			return false
 		}
 	}
@@ -117,20 +119,24 @@ func (it *iterator) Next() bool {
 		return false
 	}
 	if err != nil {
-		it.err = err
+		it.err = fmt.Errorf(
+			"%s error reading more data control bit: %v",
+			itErrPrefix, err)
 		return false
 	}
 
-	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChange {
+	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange {
 		// The next bit will tell us whether we've reached the end of the stream
-		// or that the time unit changed.
+		// or that the time unit and/or schema has changed.
 		noMoreDataControlBit, err := it.stream.ReadBit()
 		if err == io.EOF {
 			it.done = true
 			return false
 		}
 		if err != nil {
-			it.err = err
+			it.err = fmt.Errorf(
+				"%s error reading no more data control bit: %v",
+				itErrPrefix, err)
 			return false
 		}
 
@@ -139,15 +145,47 @@ func (it *iterator) Next() bool {
 			return false
 		}
 
-		if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
-			it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
+		// The next bit will tell us whether the time unit has changed.
+		timeUnitHasChangedControlBit, err := it.stream.ReadBit()
+		if err != nil {
+			it.err = fmt.Errorf(
+				"%s error reading time unit change has changed control bit: %v",
+				itErrPrefix, err)
 			return false
 		}
 
-		if !it.consumedFirstMessage {
-			// Don't interpret the initial time unit as a "change" since the encoder special
-			// cases the first one.
-			it.tsIterator.TimeUnitChanged = false
+		// The next bit will tell us whether the schema has changed.
+		schemaHasChangedControlBit, err := it.stream.ReadBit()
+		if err != nil {
+			it.err = fmt.Errorf(
+				"%s error reading schema has changed control bit: %v",
+				itErrPrefix, err)
+			return false
+		}
+
+		if timeUnitHasChangedControlBit == opCodeTimeUnitChange {
+			if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
+				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
+				return false
+			}
+
+			if !it.consumedFirstMessage {
+				// Don't interpret the initial time unit as a "change" since the encoder special
+				// cases the first one.
+				it.tsIterator.TimeUnitChanged = false
+			}
+		}
+
+		if schemaHasChangedControlBit == opCodeSchemaChange {
+			if err := it.readCustomFieldsSchema(); err != nil {
+				it.err = fmt.Errorf("%s error reading custom fields schema: %v", itErrPrefix, err)
+				return false
+			}
+
+			// A schema change invalidates all of the existing state. This means that
+			// lastIterated needs to be reset otherwise previous values for fields that
+			// no longer exist would still be returned.
+			it.lastIterated = dynamic.NewMessage(it.schema)
 		}
 	}
 
@@ -172,12 +210,11 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	// TODO(rartoul): Add MarshalInto method to ProtoReflect library to save
-	// allocations: https://github.com/m3db/m3/issues/1471
 	// Keep the annotation version of the last iterated protobuf message up to
 	// date so we can return it in subsequent calls to Current(), otherwise we'd
 	// have to marshal it in the Current() call where we can't handle errors.
-	it.lastIteratedProtoBytes, err = it.lastIterated.Marshal()
+	it.lastIteratedProtoBytes, err = it.lastIterated.MarshalAppend(
+		it.lastIteratedProtoBytes[:0])
 	if err != nil {
 		it.err = fmt.Errorf(
 			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
@@ -210,7 +247,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.lastIteratedProtoBytes = nil
-	it.customFields = customFields(it.customFields, it.schema)
+	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
@@ -219,7 +256,7 @@ func (it *iterator) Reset(reader io.Reader) {
 // SetSchema sets the encoders schema.
 func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
 	it.schema = schema
-	it.customFields = customFields(it.customFields, it.schema)
+	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -244,7 +281,7 @@ func (it *iterator) Close() {
 	}
 }
 
-func (it *iterator) readHeader() error {
+func (it *iterator) readStreamHeader() error {
 	// Can ignore the version number for now because we only have one.
 	_, err := it.readVarInt()
 	if err != nil {
@@ -257,7 +294,7 @@ func (it *iterator) readHeader() error {
 	}
 
 	it.byteFieldDictLRUSize = int(byteFieldDictLRUSize)
-	return it.readCustomFieldsSchema()
+	return nil
 }
 
 func (it *iterator) readCustomFieldsSchema() error {
@@ -268,8 +305,8 @@ func (it *iterator) readCustomFieldsSchema() error {
 
 	if numCustomFields > maxCustomFieldNum {
 		return fmt.Errorf(
-			"%s num custom fields in header is %d but maximum allowed is %d",
-			itErrPrefix, numCustomFields, maxCustomFieldNum)
+			"num custom fields in header is %d but maximum allowed is %d",
+			numCustomFields, maxCustomFieldNum)
 	}
 
 	if it.customFields != nil {
@@ -420,7 +457,7 @@ func (it *iterator) readFloatValue(i int) error {
 		return err
 	}
 
-	return it.updateLastIteratedWithCustomValues(i)
+	return it.updateLastIteratedWithCustomValues(i, nil)
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
@@ -495,23 +532,8 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		buf = append(buf, b)
 	}
 
-	// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
-	// schemas to only have bytes since its all the same over the wire.
-	// https://github.com/m3db/m3/issues/1471
-	schemaFieldType := it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType()
-	if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, string(buf))
-	} else {
-		it.lastIterated.TrySetFieldByNumber(customField.fieldNum, buf)
-	}
-	if err != nil {
-		return fmt.Errorf(
-			"%s error trying to set field number: %d, err: %v",
-			itErrPrefix, customField.fieldNum, err)
-	}
-
 	it.addToBytesDict(i, buf)
-	return nil
+	return it.updateLastIteratedWithCustomValues(i, buf)
 }
 
 func (it *iterator) readIntValue(i int) error {
@@ -519,14 +541,14 @@ func (it *iterator) readIntValue(i int) error {
 		return err
 	}
 
-	return it.updateLastIteratedWithCustomValues(i)
+	return it.updateLastIteratedWithCustomValues(i, nil)
 }
 
 // updateLastIteratedWithCustomValues updates lastIterated with the current
 // value of the custom field in it.customFields at index i. This ensures that
 // when we return it.lastIterated in the call to Current() that all the
 // most recent values are present.
-func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
+func (it *iterator) updateLastIteratedWithCustomValues(i int, bytesFieldBuf []byte) error {
 	if it.lastIterated == nil {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
@@ -535,6 +557,13 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 		fieldNum  = it.customFields[i].fieldNum
 		fieldType = it.customFields[i].fieldType
 	)
+
+	if field := it.schema.FindFieldByNumber(int32(fieldNum)); field == nil {
+		// This can happen when the field being decoded does not exist (or is reserved)
+		// in the current schema, but the message was encoded with a schema in which the
+		// field number did exist.
+		return nil
+	}
 
 	switch {
 	case isCustomFloatEncodedField(fieldType):
@@ -572,10 +601,22 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int) error {
 				"%s expected custom int encoded field but field type was: %v",
 				itErrPrefix, fieldType)
 		}
+	case fieldType == bytesField:
+		// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
+		// schemas to only have bytes since its all the same over the wire.
+		// https://github.com/m3db/m3/issues/1471
+		schemaField := it.schema.FindFieldByNumber(int32(fieldNum))
+		schemaFieldType := schemaField.GetType()
+		if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, string(bytesFieldBuf))
+		}
+		return it.lastIterated.TrySetFieldByNumber(fieldNum, bytesFieldBuf)
 	default:
 		return fmt.Errorf(
 			"%s unhandled fieldType: %v", itErrPrefix, fieldType)
 	}
+
+	return nil
 }
 
 // readBitset does the inverse of encodeBitset on the encoder struct.
