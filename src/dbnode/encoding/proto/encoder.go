@@ -126,6 +126,10 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		return errEncoderSchemaIsRequired
 	}
 
+	// Proto encoder value is meaningless, but make sure its always zero just to be safe so that
+	// it doesn't cause LastEncoded() to produce invalid results.
+	dp.Value = float64(0)
+
 	if enc.unmarshaled == nil {
 		// Lazy init.
 		enc.unmarshaled = dynamic.NewMessage(enc.schema)
@@ -271,6 +275,9 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
 
+	// Value is meaningless for proto encoder and should already be zero,
+	// but set it again to be safe.
+	enc.lastEncodedDP.Value = 0
 	return enc.lastEncodedDP, nil
 }
 

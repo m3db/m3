@@ -119,8 +119,15 @@ func TestRoundTrip(t *testing.T) {
 
 		currTime := time.Now().Truncate(time.Second).Add(time.Duration(i) * time.Second)
 		testCases[i].timestamp = currTime
-		err = enc.Encode(ts.Datapoint{Timestamp: currTime}, xtime.Second, marshaledVL)
+		// Encoder should ignore value so we set it to make sure it gets ignored.
+		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, xtime.Second, marshaledVL)
 		require.NoError(t, err)
+
+		lastEncoded, err := enc.LastEncoded()
+		require.NoError(t, err)
+		require.True(t, currTime.Equal(lastEncoded.Timestamp))
+		require.True(t, currTime.Equal(lastEncoded.Timestamp))
+		require.Equal(t, float64(0), lastEncoded.Value)
 	}
 	// Add some sanity to make sure that the string compression is working.
 	require.Equal(t, 165, enc.Stats().CompressedBytes)
@@ -142,6 +149,9 @@ func TestRoundTrip(t *testing.T) {
 
 		require.Equal(t, unit, xtime.Second)
 		require.True(t, tc.timestamp.Equal(dp.Timestamp))
+		// Value is meaningless for proto so should always be zero
+		// regardless of whats written.
+		require.Equal(t, float64(0), dp.Value)
 		require.Equal(t, xtime.Second, unit)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
