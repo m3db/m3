@@ -73,11 +73,11 @@ var (
 
 type fileOpener func(filePath string) (*os.File, error)
 
-// LazyEvalBool is a boolean is lazily evaluated.
+// LazyEvalBool is a boolean that is lazily evaluated.
 type LazyEvalBool uint8
 
 const (
-	// EvalNone indicated the boolean has not been evaluated.
+	// EvalNone indicates the boolean has not been evaluated.
 	EvalNone LazyEvalBool = iota
 	// EvalTrue indicates the boolean has been evaluated to true.
 	EvalTrue
