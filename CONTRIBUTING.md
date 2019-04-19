@@ -24,5 +24,5 @@ pull request is most likely to be accepted if it:
 
 ## Developing
 
-See the (developer notes)[https://github.com/m3db/m3/blob/master/DEVELOPER.md]
+See the [developer notes](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 for details on how to develop M3DB.
