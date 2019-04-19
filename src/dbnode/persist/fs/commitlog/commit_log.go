@@ -23,13 +23,13 @@ package commitlog
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -568,7 +568,7 @@ func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
 
 		secondaryFile, err := l.writerState.secondaryWriter.Open()
 		if err != nil {
-			l.commitLogFailFn(err)
+			return nil, err
 		}
 
 		l.writerState.activeFiles = persist.CommitLogFiles{primaryFile, secondaryFile}
@@ -583,21 +583,35 @@ func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
 
 	l.writerState.secondaryWriterWG.Add(1)
 	go func() {
-		defer l.writerState.secondaryWriterWG.Done()
-		if err := l.writerState.secondaryWriter.Close(); err != nil {
+		var err error
+		defer func() {
+			l.writerState.secondaryWriterWG.Done()
+
+			if err != nil {
+				l.metrics.errors.Inc(1)
+				l.metrics.openErrors.Inc(1)
+			}
+		}()
+
+		if err = l.writerState.secondaryWriter.Close(); err != nil {
 			l.commitLogFailFn(err)
 		}
 
-		_, err := l.writerState.secondaryWriter.Open()
+		_, err = l.writerState.secondaryWriter.Open()
 		if err != nil {
 			l.commitLogFailFn(err)
 		}
 	}()
 
-	primaryFile := l.writerState.activeFiles[1]
-	secondaryFile := primaryFile
-	secondaryFile.FilePath = strings.Replace(secondaryFile.FilePath, string(secondaryFile.Index), string(secondaryFile.Index+1), -1)
-	secondaryFile.Index++
+	var (
+		primaryFile   = l.writerState.activeFiles[1]
+		fsPrefix      = l.opts.FilesystemOptions().FilePathPrefix()
+		nextIndex     = primaryFile.Index + 1
+		secondaryFile = persist.CommitLogFile{
+			FilePath: fs.CommitLogFilePath(fsPrefix, int(nextIndex)),
+			Index:    nextIndex,
+		}
+	)
 	files := persist.CommitLogFiles{primaryFile, secondaryFile}
 	l.writerState.activeFiles = files
 

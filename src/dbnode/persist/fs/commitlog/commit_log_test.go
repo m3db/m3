@@ -209,7 +209,7 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.True(t, len(files) == 1)
+	require.True(t, len(files) == 2)
 
 	return commitLog
 }
@@ -387,7 +387,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Replace bitset in writer with one that configurably returns true or false
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
-	writer := commitLog.writerState.writer.(*writer)
+	primaryWriter := commitLog.writerState.primaryWriter.(*writer)
+	secondaryWriter := commitLog.writerState.secondaryWriter.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
 
@@ -407,7 +408,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 			bitSet.Set(uint(i))
 		}
 	}
-	writer.seen = bitSet
+	primaryWriter.seen = bitSet
+	secondaryWriter.seen = bitSet
 
 	// Generate fake writes for each of the series
 	writes := []testWrite{}
@@ -472,7 +474,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(files))
+	require.Equal(t, 2, len(files))
 
 	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
@@ -522,7 +524,7 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 4, len(files))
+	require.Equal(t, 5, len(files))
 
 	// This predicate should eliminate the first commitlog file.
 	commitLogPredicate := func(f FileFilterInfo) bool {
@@ -539,10 +541,10 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(corruptFiles))
+	require.True(t, len(corruptFiles) <= 1)
 
 	iterStruct := iter.(*iterator)
-	require.Equal(t, 3, len(iterStruct.files))
+	require.True(t, len(iterStruct.files) >= 4)
 }
 
 func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
@@ -789,7 +791,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 
 	var opens int64
 	writer.openFn = func() (persist.CommitLogFile, error) {
-		if atomic.AddInt64(&opens, 1) >= 2 {
+		if atomic.AddInt64(&opens, 1) >= 3 {
 			return persist.CommitLogFile{}, fmt.Errorf("an error")
 		}
 		return persist.CommitLogFile{}, nil
@@ -821,6 +823,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	commitLog.RotateLogs()
 
 	wg.Wait()
+	// Secondary writer open is async so wait for it to complete before asserting
+	// that it failed.
+	commitLog.writerState.secondaryWriterWG.Wait()
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
@@ -903,7 +908,7 @@ func TestCommitLogActiveLogs(t *testing.T) {
 
 	logs, err := commitLog.ActiveLogs()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(logs))
+	require.Equal(t, 2, len(logs))
 
 	// Close the commit log and consequently flush
 	require.NoError(t, commitLog.Close())
