@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomFields(t *testing.T) {
+func TestCustomAndProtoFields(t *testing.T) {
 	testCases := []struct {
 		schema               *desc.MessageDescriptor
 		expectedCustomFields []customFieldState
@@ -49,7 +49,7 @@ func TestCustomFields(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tszFields, protoFields := customFields(nil, nil, tc.schema)
+		tszFields, protoFields := customAndProtoFields(nil, nil, tc.schema)
 		require.Equal(t, tc.expectedCustomFields, tszFields)
 		require.Equal(t, tc.expectedProtoFields, protoFields)
 	}

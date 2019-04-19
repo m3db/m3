@@ -82,7 +82,7 @@ func NewIterator(
 
 	var currCustomFields []customFieldState
 	if schema != nil {
-		currCustomFields, _ = customFields(nil, nil, schema)
+		currCustomFields, _ = customAndProtoFields(nil, nil, schema)
 	}
 	return &iterator{
 		opts:         opts,
@@ -247,7 +247,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.consumedFirstMessage = false
 	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.lastIteratedProtoBytes = nil
-	it.customFields, _ = customFields(it.customFields, nil, it.schema)
+	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
@@ -256,7 +256,7 @@ func (it *iterator) Reset(reader io.Reader) {
 // SetSchema sets the encoders schema.
 func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
 	it.schema = schema
-	it.customFields, _ = customFields(it.customFields, nil, it.schema)
+	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 }
 
 func (it *iterator) Close() {

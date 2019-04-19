@@ -371,7 +371,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.marshalBuf = nil
 
 	if enc.schema != nil {
-		enc.customFields, enc.protoFields = customFields(enc.customFields, enc.protoFields, enc.schema)
+		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 	}
 
 	enc.closed = false
@@ -380,7 +380,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.customFields, enc.protoFields = customFields(enc.customFields, enc.protoFields, enc.schema)
+	enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
 	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
 	// schemas to see if they have changed:
