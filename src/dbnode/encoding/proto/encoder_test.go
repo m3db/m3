@@ -45,6 +45,7 @@ func TestCustomAndProtoFields(t *testing.T) {
 				{fieldNum: 3, fieldType: signedInt64Field}, // numTrips
 				{fieldNum: 4, fieldType: bytesField},       // deliveryID
 			},
+			expectedProtoFields: []int32{5},
 		},
 	}
 
