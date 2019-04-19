@@ -166,7 +166,11 @@ type encoderBytesFieldDictState struct {
 }
 
 func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldState {
-	return customFieldState{fieldNum: fieldNum, fieldType: fieldType}
+	s := customFieldState{fieldNum: fieldNum, fieldType: fieldType}
+	if isUnsignedInt(fieldType) {
+		s.intEncAndIter.unsigned = true
+	}
+	return s
 }
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
@@ -199,9 +203,6 @@ func customFields(s []customFieldState, protoFields []int32, schema *desc.Messag
 		}
 
 		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
-		if isUnsignedInt(customFieldType) {
-			fieldState.intEncAndIter.unsigned = true
-		}
 		s = append(s, fieldState)
 	}
 

@@ -62,6 +62,7 @@ func TestRoundTrip(t *testing.T) {
 		longitude  float64
 		epoch      int64
 		deliveryID []byte
+		attributes map[string]string
 	}{
 		{
 			latitude:  0.1,
@@ -73,12 +74,14 @@ func TestRoundTrip(t *testing.T) {
 			longitude:  1.1,
 			epoch:      0,
 			deliveryID: []byte("123123123123"),
+			attributes: map[string]string{"key1": "val1"},
 		},
 		{
 			latitude:   0.2,
 			longitude:  2.2,
 			epoch:      1,
 			deliveryID: []byte("789789789789"),
+			attributes: map[string]string{"key1": "val1"},
 		},
 		{
 			latitude:   0.3,
@@ -87,15 +90,20 @@ func TestRoundTrip(t *testing.T) {
 			deliveryID: []byte("123123123123"),
 		},
 		{
-			latitude:  0.4,
-			longitude: 2.4,
-			epoch:     3,
+			latitude:   0.4,
+			longitude:  2.4,
+			epoch:      3,
+			attributes: map[string]string{"key1": "val1"},
 		},
 		{
 			latitude:   0.5,
 			longitude:  2.5,
 			epoch:      4,
 			deliveryID: []byte("456456456456"),
+			attributes: map[string]string{
+				"key1": "val1",
+				"key2": "val2",
+			},
 		},
 		{
 			latitude:   0.6,
@@ -113,7 +121,8 @@ func TestRoundTrip(t *testing.T) {
 	enc.SetSchema(testVLSchema)
 
 	for i, tc := range testCases {
-		vl := newVL(tc.latitude, tc.longitude, tc.epoch, tc.deliveryID)
+		vl := newVL(
+			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
 		marshaledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
@@ -130,7 +139,7 @@ func TestRoundTrip(t *testing.T) {
 		require.Equal(t, float64(0), lastEncoded.Value)
 	}
 	// Add some sanity to make sure that the string compression is working.
-	require.Equal(t, 165, enc.Stats().CompressedBytes)
+	require.Equal(t, 368, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
@@ -157,6 +166,7 @@ func TestRoundTrip(t *testing.T) {
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
 		require.Equal(t, tc.epoch, m.GetFieldByName("epoch"))
 		require.Equal(t, tc.deliveryID, m.GetFieldByName("deliveryID"))
+		assertAttributesEqual(t, tc.attributes, m.GetFieldByName("attributes").(map[interface{}]interface{}))
 		i++
 	}
 	require.NoError(t, iter.Err())
@@ -167,7 +177,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	enc := newTestEncoder(time.Now().Truncate(time.Second))
 	enc.SetSchema(testVLSchema)
 
-	vl1Write := newVL(26.0, 27.0, 10, []byte("some_delivery_id"))
+	attrs := map[string]string{"key1": "val1"}
+	vl1Write := newVL(26.0, 27.0, 10, []byte("some_delivery_id"), attrs)
 	marshaledVL, err := vl1Write.Marshal()
 	require.NoError(t, err)
 
@@ -175,7 +186,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	err = enc.Encode(ts.Datapoint{Timestamp: vl1WriteTime}, xtime.Second, marshaledVL)
 	require.NoError(t, err)
 
-	vl2Write := newVL2(28.0, 29.0, "some_new_field")
+	vl2Write := newVL2(28.0, 29.0, attrs, "some_new_custom_field", map[int]int{1: 2})
 	marshaledVL, err = vl2Write.Marshal()
 	require.NoError(t, err)
 
@@ -200,11 +211,12 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
 	require.Equal(t, vl1WriteTime, dp.Timestamp)
-	require.Equal(t, 4, len(m.GetKnownFields()))
+	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
 	require.Equal(t, vl1Write.GetFieldByName("epoch"), m.GetFieldByName("epoch"))
 	require.Equal(t, vl1Write.GetFieldByName("deliveryID"), m.GetFieldByName("deliveryID"))
+	require.Equal(t, vl1Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
 
 	require.True(t, iter.Next())
 	dp, unit, annotation = iter.Current()
@@ -212,13 +224,15 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
 	require.Equal(t, vl2WriteTime, dp.Timestamp)
-	require.Equal(t, 4, len(m.GetKnownFields()))
+	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
+	require.Equal(t, vl1Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
 	// vl2 doesn't contain these fields so they should have default values when they're
 	// decoded with a vl1 schema.
 	require.Equal(t, int64(0), m.GetFieldByName("epoch"))
 	require.Equal(t, []byte(nil), m.GetFieldByName("deliveryID"))
+	require.Equal(t, vl2Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
 
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
@@ -233,12 +247,13 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
 	require.Equal(t, vl1WriteTime, dp.Timestamp)
-	require.Equal(t, 3, len(m.GetKnownFields()))
+	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
-	// This field does not exist in VL1 so it should have a default value when deocoding
+	require.Equal(t, vl1Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
+	// This field does not exist in VL1 so it should have a default value when decoding
 	// with a VL2 schema.
-	require.Equal(t, "", m.GetFieldByName("new_field"))
+	require.Equal(t, "", m.GetFieldByName("new_custom_field"))
 
 	// These fields don't exist in the vl2 schema so they should not be in the returned message.
 	_, err = m.TryGetFieldByName("epoch")
@@ -252,10 +267,11 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
 	require.Equal(t, vl2WriteTime, dp.Timestamp)
-	require.Equal(t, 3, len(m.GetKnownFields()))
+	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
-	require.Equal(t, vl2Write.GetFieldByName("new_field"), m.GetFieldByName("new_field"))
+	require.Equal(t, vl2Write.GetFieldByName("new_custom_field"), m.GetFieldByName("new_custom_field"))
+	require.Equal(t, vl2Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
 
 	// These fields don't exist in the vl2 schema so they should not be in the returned message.
 	_, err = m.TryGetFieldByName("epoch")
@@ -274,21 +290,35 @@ func newTestEncoder(t time.Time) *Encoder {
 	return e
 }
 
-func newVL(lat, long float64, epoch int64, deliveryID []byte) *dynamic.Message {
+func newVL(
+	lat, long float64,
+	epoch int64,
+	deliveryID []byte,
+	attributes map[string]string,
+) *dynamic.Message {
 	newMessage := dynamic.NewMessage(testVLSchema)
 	newMessage.SetFieldByName("latitude", lat)
 	newMessage.SetFieldByName("longitude", long)
 	newMessage.SetFieldByName("deliveryID", deliveryID)
 	newMessage.SetFieldByName("epoch", epoch)
+	newMessage.SetFieldByName("attributes", attributes)
 
 	return newMessage
 }
 
-func newVL2(lat, long float64, newField string) *dynamic.Message {
+func newVL2(
+	lat, long float64,
+	attributes map[string]string,
+	newCustomField string,
+	newProtoField map[int]int,
+) *dynamic.Message {
 	newMessage := dynamic.NewMessage(testVL2Schema)
+
 	newMessage.SetFieldByName("latitude", lat)
 	newMessage.SetFieldByName("longitude", long)
-	newMessage.SetFieldByName("new_field", newField)
+	newMessage.SetFieldByName("attributes", attributes)
+	newMessage.SetFieldByName("new_custom_field", newCustomField)
+	newMessage.SetFieldByName("new_proto_field", newProtoField)
 
 	return newMessage
 }
@@ -298,7 +328,7 @@ func newVLMessageDescriptor() *desc.MessageDescriptor {
 }
 
 func newVL2MessageDescriptor() *desc.MessageDescriptor {
-	return newVLMessageDescriptorFromFile("./vehicle_location_2.proto")
+	return newVLMessageDescriptorFromFile("./vehicle_location_schema_change.proto")
 }
 
 func newVLMessageDescriptorFromFile(protoSchemaPath string) *desc.MessageDescriptor {
@@ -313,4 +343,11 @@ func newVLMessageDescriptorFromFile(protoSchemaPath string) *desc.MessageDescrip
 	}
 
 	return vlMessage
+}
+
+func assertAttributesEqual(t *testing.T, expected map[string]string, actual map[interface{}]interface{}) {
+	require.Equal(t, len(expected), len(actual))
+	for k, v := range expected {
+		require.Equal(t, v, actual[k].(string))
+	}
 }
