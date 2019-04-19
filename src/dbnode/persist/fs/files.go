@@ -115,12 +115,18 @@ func (f FileSetFile) IsZero() bool {
 	return len(f.AbsoluteFilepaths) == 0
 }
 
-// HasCheckpointFile returns a bool indicating whether the given set of
+// HasCompleteCheckpointFile returns a bool indicating whether the given set of
 // fileset files has a checkpoint file.
-func (f FileSetFile) HasCheckpointFile() bool {
+func (f FileSetFile) HasCompleteCheckpointFile() bool {
 	for _, fileName := range f.AbsoluteFilepaths {
 		if strings.Contains(fileName, checkpointFileSuffix) {
-			return true
+			exists, err := CompleteCheckpointFileExists(fileName)
+			if err != nil {
+				continue
+			}
+			if exists {
+				return true
+			}
 		}
 	}
 
@@ -161,7 +167,7 @@ func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFi
 					break
 				}
 
-				if curr.HasCheckpointFile() && curr.ID.VolumeIndex >= bestSoFar.ID.VolumeIndex {
+				if curr.HasCompleteCheckpointFile() && curr.ID.VolumeIndex >= bestSoFar.ID.VolumeIndex {
 					bestSoFar = curr
 					bestSoFarExists = true
 				}
@@ -812,7 +818,7 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 				)
 			}
 
-			if !fileset.HasCheckpointFile() {
+			if !fileset.HasCompleteCheckpointFile() {
 				continue
 			}
 
@@ -841,7 +847,7 @@ func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart time.
 	matches.sortByTimeAscending()
 	for _, fileset := range matches {
 		if fileset.ID.BlockStart.Equal(blockStart) {
-			if !fileset.HasCheckpointFile() {
+			if !fileset.HasCompleteCheckpointFile() {
 				continue
 			}
 			filesets = append(filesets, fileset)
@@ -1198,7 +1204,7 @@ func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 		return false, nil
 	}
 
-	return latest.HasCheckpointFile(), nil
+	return latest.HasCompleteCheckpointFile(), nil
 }
 
 // NextSnapshotMetadataFileIndex returns the next snapshot metadata file index.
