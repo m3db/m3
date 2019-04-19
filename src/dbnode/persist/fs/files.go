@@ -1364,7 +1364,7 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 // CommitLogFilePath returns the path for a commitlog file.
 func CommitLogFilePath(prefix string, index int) string {
 	var (
-		entry    = fmt.Sprintf("%d%s%d", separator, index)
+		entry    = fmt.Sprintf("%d%s%d", 0, separator, index)
 		fileName = fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
 		filePath = path.Join(CommitLogsDirPath(prefix), fileName)
 	)
