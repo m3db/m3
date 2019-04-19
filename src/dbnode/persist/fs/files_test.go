@@ -797,22 +797,25 @@ func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check validates a valid checkpoint file
-	require.Equal(t, true, FileSetFile{
+	f := FileSetFile{
 		AbsoluteFilepaths: []string{checkpointFilePath},
-	}.HasCompleteCheckpointFile())
+	}
+	require.Equal(t, true, f.HasCompleteCheckpointFile())
 
 	// Check fails when checkpoint exists but not valid
 	err = ioutil.WriteFile(checkpointFilePath, []byte{42}, defaultNewFileMode)
 	require.NoError(t, err)
-	require.Equal(t, false, FileSetFile{
+	f = FileSetFile{
 		AbsoluteFilepaths: []string{checkpointFilePath},
-	}.HasCompleteCheckpointFile())
+	}
+	require.Equal(t, false, f.HasCompleteCheckpointFile())
 
 	// Check ignores index file path
 	indexFilePath := path.Join(dir, "123-index-0.db")
-	require.Equal(t, false, FileSetFile{
+	f = FileSetFile{
 		AbsoluteFilepaths: []string{indexFilePath},
-	}.HasCompleteCheckpointFile())
+	}
+	require.Equal(t, false, f.HasCompleteCheckpointFile())
 }
 
 func TestSnapshotDirPath(t *testing.T) {
