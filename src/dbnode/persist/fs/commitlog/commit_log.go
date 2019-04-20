@@ -537,7 +537,8 @@ func (l *commitLog) write() {
 		l.metrics.success.Inc(numWritesSuccess)
 	}
 
-	// TODO: Comment
+	// Ensure that there is no active background goroutine in the middle of reseting
+	// the secondary writer / modifying its state.
 	l.waitForSecondaryWriterAsyncOpenComplete()
 	// Don't care about errors closing the secondary writer because it doesn't
 	// have any data.
