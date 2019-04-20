@@ -47,8 +47,8 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"go.uber.org/zap"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -402,9 +402,13 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 				// CachedSnapshotTime field so that we can rely upon it from here on out.
 				_, _, err := mostRecentSnapshotVolume.SnapshotTimeAndID()
 				if err != nil {
+					namespace := mostRecentSnapshot.ID.Namespace
+					if namespace == nil {
+						namespace = ident.StringID("<nil>")
+					}
 					s.log.
 						With(
-							zap.Stringer("namespace", mostRecentSnapshot.ID.Namespace),
+							zap.Stringer("namespace", namespace),
 							zap.Time("blockStart", mostRecentSnapshot.ID.BlockStart),
 							zap.Uint32("shard", mostRecentSnapshot.ID.Shard),
 							zap.Int("index", mostRecentSnapshot.ID.VolumeIndex),

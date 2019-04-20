@@ -868,6 +868,7 @@ func (i *nsIndex) Query(
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
 		SizeLimit: opts.Limit,
 	})
+	ctx.RegisterFinalizer(results)
 	exhaustive, err := i.query(ctx, query, results, opts)
 	if err != nil {
 		return index.QueryResult{}, err
@@ -890,6 +891,7 @@ func (i *nsIndex) AggregateQuery(
 		TermFilter: opts.TermFilter,
 		Type:       opts.Type,
 	})
+	ctx.RegisterFinalizer(results)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions)
 	if err != nil {
 		return index.AggregateQueryResult{}, err

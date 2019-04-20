@@ -590,6 +590,97 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	retention := 2 * time.Hour
+	blockSize := time.Hour
+	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	t0 := now.Truncate(blockSize)
+	t0Nanos := xtime.ToUnixNano(t0)
+	t1 := t0.Add(1 * blockSize)
+	t1Nanos := xtime.ToUnixNano(t1)
+	t2 := t1.Add(1 * blockSize)
+	var nowLock sync.Mutex
+	nowFn := func() time.Time {
+		nowLock.Lock()
+		defer nowLock.Unlock()
+		return now
+	}
+	opts := testDatabaseOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil)
+	b0.EXPECT().StartTime().Return(t0).AnyTimes()
+	b0.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
+	b1 := index.NewMockBlock(ctrl)
+	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b1.EXPECT().Close().Return(nil)
+	b1.EXPECT().StartTime().Return(t1).AnyTimes()
+	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
+		if ts.Equal(t0) {
+			return b0, nil
+		}
+		if ts.Equal(t1) {
+			return b1, nil
+		}
+		panic("should never get here")
+	}
+
+	iopts := opts.IndexOptions()
+	mockPool := index.NewMockQueryResultsPool(ctrl)
+	iopts = iopts.SetQueryResultsPool(mockPool)
+	stubResult := index.NewQueryResults(ident.StringID("ns"), index.QueryResultsOptions{}, iopts)
+
+	md := testNamespaceMetadata(blockSize, retention)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	require.NoError(t, err)
+
+	idx, ok := idxIface.(*nsIndex)
+	require.True(t, ok)
+	idx.resultsPool = mockPool
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	seg1 := segment.NewMockSegment(ctrl)
+	seg2 := segment.NewMockSegment(ctrl)
+	seg3 := segment.NewMockSegment(ctrl)
+	bootstrapResults := result.IndexResults{
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+	}
+
+	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
+
+	ctx := context.NewContext()
+	q := index.Query{}
+	qOpts := index.QueryOptions{
+		StartInclusive: t0,
+		EndExclusive:   now.Add(time.Minute),
+	}
+	gomock.InOrder(
+		mockPool.EXPECT().Get().Return(stubResult),
+		b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil),
+		mockPool.EXPECT().Put(stubResult),
+	)
+	_, err = idx.Query(ctx, q, qOpts)
+	require.NoError(t, err)
+	ctx.BlockingClose()
+}
+
 func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
@@ -688,4 +779,98 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
 	require.NoError(t, err)
+}
+
+func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	retention := 2 * time.Hour
+	blockSize := time.Hour
+	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	t0 := now.Truncate(blockSize)
+	t0Nanos := xtime.ToUnixNano(t0)
+	t1 := t0.Add(1 * blockSize)
+	t1Nanos := xtime.ToUnixNano(t1)
+	t2 := t1.Add(1 * blockSize)
+	var nowLock sync.Mutex
+	nowFn := func() time.Time {
+		nowLock.Lock()
+		defer nowLock.Unlock()
+		return now
+	}
+	opts := testDatabaseOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil)
+	b0.EXPECT().StartTime().Return(t0).AnyTimes()
+	b0.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
+	b1 := index.NewMockBlock(ctrl)
+	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b1.EXPECT().Close().Return(nil)
+	b1.EXPECT().StartTime().Return(t1).AnyTimes()
+	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
+		if ts.Equal(t0) {
+			return b0, nil
+		}
+		if ts.Equal(t1) {
+			return b1, nil
+		}
+		panic("should never get here")
+	}
+
+	iopts := opts.IndexOptions()
+	mockPool := index.NewMockAggregateResultsPool(ctrl)
+	iopts = iopts.SetAggregateResultsPool(mockPool)
+	stubResult := index.NewAggregateResults(ident.StringID("ns"), index.AggregateResultsOptions{}, iopts)
+
+	md := testNamespaceMetadata(blockSize, retention)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	require.NoError(t, err)
+
+	idx, ok := idxIface.(*nsIndex)
+	require.True(t, ok)
+	idx.aggregateResultsPool = mockPool
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	seg1 := segment.NewMockSegment(ctrl)
+	seg2 := segment.NewMockSegment(ctrl)
+	seg3 := segment.NewMockSegment(ctrl)
+	bootstrapResults := result.IndexResults{
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+	}
+
+	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
+
+	// only queries as much as is needed (wrt to time)
+	ctx := context.NewContext()
+	q := index.Query{}
+	qOpts := index.QueryOptions{
+		StartInclusive: t0,
+		EndExclusive:   now.Add(time.Minute),
+	}
+	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
+
+	gomock.InOrder(
+		mockPool.EXPECT().Get().Return(stubResult),
+		b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil),
+		mockPool.EXPECT().Put(stubResult),
+	)
+	_, err = idx.AggregateQuery(ctx, q, aggOpts)
+	require.NoError(t, err)
+	ctx.BlockingClose()
 }
