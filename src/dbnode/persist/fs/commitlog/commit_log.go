@@ -155,7 +155,8 @@ type writerState struct {
 type secondaryWriter struct {
 	// Secondary writer is reset asynchronously so the waitgroup
 	// is used to signal that the previous background reset has
-	// completed and it is safe to interact with the state.
+	// completed and it is safe to interact with the state and/or
+	// start a new async reset.
 	sync.WaitGroup
 	writer commitLogWriter
 }
@@ -540,11 +541,11 @@ func (l *commitLog) write() {
 	// Ensure that there is no active background goroutine in the middle of reseting
 	// the secondary writer / modifying its state.
 	l.waitForSecondaryWriterAsyncOpenComplete()
-	// Don't care about errors closing the secondary writer because it doesn't
-	// have any data.
+	// Can be nil in the case where the background gorutine spawned in openWriters
+	// encountered an error trying to re-open it.
 	if l.writerState.secondaryWriter.writer != nil {
-		// Can be nil in the case where the background gorutine spawned in openWriters
-		// encountered an error trying to re-open it.
+		// Don't care about errors closing the secondary writer because it doesn't
+		// have any data.
 		l.writerState.secondaryWriter.writer.Close()
 		l.writerState.secondaryWriter.writer = nil
 	}
@@ -590,20 +591,14 @@ func (l *commitLog) onFlush(err error) {
 
 // writerState lock must be held for the duration of this function call.
 func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
-	// Acquire a lock on the secondary writer. If either of the writers doesn't exist
-	// then both of them will be opened synchronously (the only time this will happen
-	// under normal circumstances is the first time the commitlog is opened) and the
-	// lock will be released by the defer below.
-	//
-	// If both of the writers already exist (in the situation where the commitlog is
-	// already open and this is just a rotation event) then the lock will be kept open
-	// until the async goroutine that is spawned by this method finishes opening a new
-	// secondary file. Holding the lock open is fine because the writer won't require it
-	// again until the next rotation event. This means that as long as opening the secondary
-	// file completes before the next rotation event, acquiring the lock will not block and
-	// calls to openWriter() will never have to wait for any syscalls or I/O to occur.
+	// Ensure that the previous asynchronous reset of the secondary writer (if any)
+	// has completed before attempting to start a new one and/or modify the writerState
+	// in any way.
 	l.waitForSecondaryWriterAsyncOpenComplete()
+
 	if l.writerState.primaryWriter == nil || l.writerState.secondaryWriter.writer == nil {
+		// If either of the commitlog writers is nil then open both of them synchronously. Under
+		// normal circumstances this will only occur when the commitlog is first opened.
 		l.writerState.primaryWriter = l.newCommitLogWriterFn(l.onFlush, l.opts)
 		l.writerState.secondaryWriter.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 
@@ -621,14 +616,17 @@ func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
 		return l.writerState.activeFiles, nil
 	}
 
-	// Swap them so that the secondary becomes primary and vice versa. The formerly primary
-	// will then be closed and re-opened asynchronously.
+	// Swap the primary and secondary writers so that the secondary becomes primary and vice versa.
+	// This consumes the standby secondary writer, but a new one will be prepared asynchronously by
+	// resetting the formerly primary writer.
 	prevPrimary := l.writerState.primaryWriter
 	l.writerState.primaryWriter = l.writerState.secondaryWriter.writer
 	l.writerState.secondaryWriter.writer = prevPrimary
 	l.startSecondaryWriterAsyncOpen()
 
 	var (
+		// Determine the persist.CommitLogFile for the not-yet-created secondary file so that the
+		// ActiveLogs() API returns the correct values even before the asynchronous reset completes.
 		primaryFile   = l.writerState.activeFiles[1]
 		fsPrefix      = l.opts.FilesystemOptions().FilePathPrefix()
 		nextIndex     = primaryFile.Index + 1
