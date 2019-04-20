@@ -41,7 +41,13 @@ type simpleOpNode interface {
 // func (n MyNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 //     return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 // }
-func ProcessSimpleBlock(node simpleOpNode, controller *Controller, queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func ProcessSimpleBlock(
+	node simpleOpNode,
+	controller *Controller,
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	sp, ctx := opentracingutil.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
 	nextBlock, err := node.ProcessBlock(queryCtx.WithContext(ctx), ID, b)
 	sp.Finish()
@@ -49,6 +55,7 @@ func ProcessSimpleBlock(node simpleOpNode, controller *Controller, queryCtx *mod
 		return err
 	}
 
-	defer nextBlock.Close()
-	return controller.Process(queryCtx, nextBlock)
+	err = controller.Process(queryCtx, nextBlock)
+	nextBlock.Close()
+	return err
 }
