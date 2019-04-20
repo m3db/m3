@@ -258,9 +258,13 @@ func writeCommitLogs(
 			err := commitLog.Write(ctx, series, datapoint, write.u, write.a)
 
 			if write.expectedErr != nil {
-				require.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))
+				if !strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)) {
+					panic(fmt.Sprintf("unexpected error: %v", err))
+				}
 			} else {
-				require.NoError(t, err)
+				if err != nil {
+					panic(err)
+				}
 			}
 		}()
 	}
@@ -388,7 +392,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
 	primaryWriter := commitLog.writerState.primaryWriter.(*writer)
-	secondaryWriter := commitLog.writerState.secondaryWriter.(*writer)
+	secondaryWriter := commitLog.writerState.secondaryWriter.writer.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
 
@@ -825,7 +829,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg.Wait()
 	// Secondary writer open is async so wait for it to complete before asserting
 	// that it failed.
-	commitLog.writerState.secondaryWriterWG.Wait()
+	commitLog.waitForSecondaryWriterAsyncOpenComplete()
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
