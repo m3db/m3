@@ -125,10 +125,16 @@ func (f *flushState) getLastFlushAt() time.Time {
 }
 
 type writerState struct {
-	primaryWriter     commitLogWriter
-	secondaryWriter   commitLogWriter
-	secondaryWriterWG sync.WaitGroup
-	activeFiles       persist.CommitLogFiles
+	primaryWriter commitLogWriter
+	// Secondary writer is opened asynchronously so
+	// access is protected by a mutex.
+	secondaryWriter secondaryWriter
+	activeFiles     persist.CommitLogFiles
+}
+
+type secondaryWriter struct {
+	sync.Mutex
+	writer commitLogWriter
 }
 
 type closedState struct {
@@ -508,11 +514,12 @@ func (l *commitLog) write() {
 		l.metrics.success.Inc(numWritesSuccess)
 	}
 
+	l.writerState.secondaryWriter.Lock()
 	// Don't care about errors closing the secondary writer because it doesn't
 	// have any data.
-	l.writerState.secondaryWriterWG.Wait()
-	l.writerState.secondaryWriter.Close()
-	l.writerState.secondaryWriter = nil
+	l.writerState.secondaryWriter.writer.Close()
+	l.writerState.secondaryWriterwriter = nil
+	l.writerState.secondaryWriter.Unlock()
 
 	writer := l.writerState.primaryWriter
 	l.writerState.primaryWriter = nil
@@ -555,18 +562,31 @@ func (l *commitLog) onFlush(err error) {
 
 // writerState lock must be held for the duration of this function call.
 func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
-	l.writerState.secondaryWriterWG.Wait()
+	// Acquire a lock on the secondary writer. If either of the writers doesn't exist
+	// then both of them will be opened synchronously (the only time this will happen
+	// under normal circumstances is the first time the commitlog is opened) and the
+	// lock will be released by the defer below.
+	//
+	// If both of the writers already exist (in the situation where the commitlog is
+	// already open and this is just a rotation event) then the lock will be kept open
+	// until the async goroutine that is spawned by this method finishes opening a new
+	// secondary file. Holding the lock open is fine because the writer won't require it
+	// again until the next rotation event. This means that as long as opening the secondary
+	// file completes before the next rotation event, acquiring the lock will not block and
+	// calls to openWriter() will never have to wait for any syscalls or I/O to occur.
+	l.writerState.secondaryWriter.Lock()
+	if l.writerState.primaryWriter == nil || l.writerState.secondaryWriter.writer == nil {
+		defer l.writerState.secondaryWriter.Unlock()
 
-	if l.writerState.primaryWriter == nil || l.writerState.secondaryWriter == nil {
 		l.writerState.primaryWriter = l.newCommitLogWriterFn(l.onFlush, l.opts)
-		l.writerState.secondaryWriter = l.newCommitLogWriterFn(l.onFlush, l.opts)
+		l.writerState.secondaryWriter.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 
 		primaryFile, err := l.writerState.primaryWriter.Open()
 		if err != nil {
 			return nil, err
 		}
 
-		secondaryFile, err := l.writerState.secondaryWriter.Open()
+		secondaryFile, err := l.writerState.secondaryWriter.writer.Open()
 		if err != nil {
 			return nil, err
 		}
@@ -579,13 +599,13 @@ func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
 	// and the primary and secondary writes not being nil.
 
 	// Swap them so that the secondary becomes primary and vice versa.
-	l.writerState.primaryWriter, l.writerState.secondaryWriter = l.writerState.secondaryWriter, l.writerState.primaryWriter
+	prevPrimary := l.writerState.primaryWriter
+	l.writerState.primaryWriter = l.writerState.secondaryWriter.writer
 
-	l.writerState.secondaryWriterWG.Add(1)
 	go func() {
 		var err error
 		defer func() {
-			l.writerState.secondaryWriterWG.Done()
+			l.writerState.secondaryWriter.Unlock()
 
 			if err != nil {
 				l.metrics.errors.Inc(1)
@@ -593,12 +613,15 @@ func (l *commitLog) openWriter() (persist.CommitLogFiles, error) {
 			}
 		}()
 
-		if err = l.writerState.secondaryWriter.Close(); err != nil {
+		if err = prevPrimary.Close(); err != nil {
 			l.commitLogFailFn(err)
 		}
 
-		_, err = l.writerState.secondaryWriter.Open()
+		_, err = l.writerState.secondaryWriter.writer.Open()
 		if err != nil {
+			// Set to nil we are forced to try and open new commit log files
+			// on the next call to openWriter().
+			l.writerState.secondaryWriter.writer = nil
 			l.commitLogFailFn(err)
 		}
 	}()
