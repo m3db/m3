@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // DataBootstrapResult is the result of a bootstrap of series data.
@@ -112,6 +113,7 @@ type ShardResult interface {
 
 // DatabaseSeriesBlocks represents a series of blocks and a associated series ID.
 type DatabaseSeriesBlocks struct {
+	nCtx   namespace.Context
 	ID     ident.ID
 	Tags   ident.Tags
 	Blocks block.DatabaseSeriesBlocks

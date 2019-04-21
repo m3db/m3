@@ -619,13 +619,13 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	sr, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions("namespace/schematest"))
+	sr, err := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions("namespace/schematest"))
 
 	// construct new namespace Map
 	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
 	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts.SetSchemaRegistry(sr))
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts.SetSchemaHistory(sr))
 	require.NoError(t, err)
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
 	require.NoError(t, err)
@@ -647,8 +647,50 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	ns2, ok := d.Namespace(defaultTestNs2ID)
 	require.True(t, ok)
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
+}
 
-	actualSchema, found := ns2.SchemaRegistry().GetLatest()
+func TestDatabaseUpdateScheamRegistry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	sr, err := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions("namespace/schematest"))
+
+	// construct new namespace Map
+	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts.SetSchemaHistory(sr))
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// ensure schema registry is updated
+	_, ok := d.SchemaRegistry().GetLatestSchema(defaultTestNs1ID)
+	require.False(t, ok)
+	actualSchema, found := d.SchemaRegistry().GetLatestSchema(defaultTestNs2ID)
 	require.True(t, found)
 	expectedSchema, _ := sr.GetLatest()
 	require.True(t, expectedSchema.Equal(actualSchema))

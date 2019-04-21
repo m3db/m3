@@ -60,6 +60,7 @@ func NewMultiReaderIterator(
 
 func (it *multiReaderIterator) SetSchema(descr namespace.SchemaDescr) {
 	it.schemaDesc = descr
+	it.iters.setSchema(descr)
 }
 
 func (it *multiReaderIterator) Next() bool {

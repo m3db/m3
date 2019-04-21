@@ -170,6 +170,20 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	assert.Equal(t, expectedErr, err)
 }
 
+func getContextFrom(nsMetadata namespace.Metadata) namespace.Context {
+	nCtx := namespace.Context{Id: nsMetadata.ID()}
+	schemaHis := nsMetadata.Options().SchemaHistory()
+	if schemaHis == nil {
+		return nCtx
+	}
+	schema, ok := schemaHis.GetLatest()
+	if !ok {
+		return nCtx
+	}
+	nCtx.Schema = schema
+	return nCtx
+}
+
 func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -177,11 +191,12 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	opts := testDefaultOpts
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
+	nCtx := getContextFrom(nsMetadata)
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
-	goodResult := result.NewShardResult(0, opts.ResultOptions())
+	goodResult := result.NewShardResult(nCtx, 0, opts.ResultOptions())
 	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts)
 	goodResult.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 	badErr := fmt.Errorf("an error")
@@ -239,6 +254,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		defer ctrl.Finish()
 
 		testNsMd := testNamespaceMetadata(t)
+		nCtx := getContextFrom(testNsMd)
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
 		opts := testDefaultOpts.SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
@@ -247,8 +263,8 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end := start.Add(2 * ropts.BlockSize())
 
-		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
-		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
+		shard0ResultBlock1 := result.NewShardResult(nCtx, 0, opts.ResultOptions())
+		shard0ResultBlock2 := result.NewShardResult(nCtx, 0, opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
@@ -258,8 +274,8 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "rab")), barBlock)
 
-		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
-		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
+		shard1ResultBlock1 := result.NewShardResult(nCtx, 0, opts.ResultOptions())
+		shard1ResultBlock2 := result.NewShardResult(nCtx, 0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
@@ -431,6 +447,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		)
 	testNsMd := testNamespaceMetadata(t)
 	ropts := testNsMd.Options().RetentionOptions()
+	nCtx := getContextFrom(testNsMd)
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	midway := start.Add(ropts.BlockSize())
@@ -444,7 +461,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 
 	results := make(map[resultsKey]result.ShardResult)
 	addResult := func(shard uint32, id string, b block.DatabaseBlock) {
-		r := result.NewShardResult(0, opts.ResultOptions())
+		r := result.NewShardResult(nCtx, 0, opts.ResultOptions())
 		r.AddBlock(ident.StringID(id), ident.NewTags(ident.StringTag(id, id)), b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())
@@ -454,6 +471,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	// foo results
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().SetNamespaceContext(nCtx)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, fmt.Errorf("stream err"))
 	addResult(0, "foo", fooBlocks[0])
@@ -473,6 +491,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 
 	var barBlocks [2]block.DatabaseBlock
 	barBlocks[0] = block.NewMockDatabaseBlock(ctrl)
+	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().SetNamespaceContext(nCtx)
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
 	addResult(1, "bar", barBlocks[0])

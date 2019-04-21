@@ -75,7 +75,7 @@ func newBufferTestOptions() Options {
 // Writes to buffer, verifying no error and that further writes should happen.
 func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
 	ctx := context.NewContext()
-	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
+	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -94,7 +94,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	defer ctx.Close()
 
 	wasWritten, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
-		xtime.Second, nil, WriteOptions{})
+		xtime.Second, nil)
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
@@ -112,7 +112,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
-		nil, WriteOptions{})
+		nil)
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
@@ -265,7 +265,9 @@ func newTestBufferBucketWithData(t *testing.T) (*BufferBucket, Options, []value)
 	var expected []value
 	for i, d := range data {
 		encoded := 0
+		nCtx := getContextFor(opts)
 		encoder := opts.EncoderPool().Get()
+		encoder.SetSchema(nCtx.Schema)
 		encoder.Reset(curr, 0)
 		for _, v := range data[i] {
 			dp := ts.Datapoint{
@@ -312,12 +314,15 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 
 	b := &BufferBucket{}
 	b.resetTo(curr, WarmWrite, opts)
+	nCtx := getContextFor(opts)
 	emptyEncoder := opts.EncoderPool().Get()
+	emptyEncoder.SetSchema(nCtx.Schema)
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 	require.Nil(t, b.encoders[0].encoder.Stream())
 
 	encoder := opts.EncoderPool().Get()
+	encoder.SetSchema(nCtx.Schema)
 	encoder.Reset(curr, 0)
 
 	value := ts.Datapoint{Timestamp: curr, Value: 1.0}

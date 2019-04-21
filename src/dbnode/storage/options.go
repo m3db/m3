@@ -104,7 +104,8 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetBufferBucketPool(opts.BufferBucketPool()).
-		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool())
+		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool()).
+		SetSchemaRegistry(opts.SchemaRegistry())
 }
 
 type options struct {
@@ -142,6 +143,7 @@ type options struct {
 	writeBatchPool                 *ts.WriteBatchPool
 	bufferBucketPool               *series.BufferBucketPool
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
+	schemaReg                      namespace.SchemaRegistry
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -199,6 +201,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		writeBatchPool:                 writeBatchPool,
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
+		schemaReg:                      namespace.NewSchemaRegistry(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -635,4 +638,14 @@ func (o *options) SetBufferBucketVersionsPool(value *series.BufferBucketVersions
 
 func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
+}
+
+func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
+	opts := *o
+	opts.schemaReg = registry
+	return &opts
+}
+
+func (o *options) SchemaRegistry() namespace.SchemaRegistry {
+	return o.schemaReg
 }

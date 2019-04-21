@@ -119,9 +119,6 @@ type dbNamespace struct {
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
-	// Contains the schema registry for the database namespace.
-	schemaRegistry namespace.SchemaRegistry
-
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
 	reverseIndex    namespaceIndex
@@ -309,6 +306,7 @@ func newDatabaseNamespace(
 	seriesOpts := NewSeriesOptionsFromOptions(opts, nopts.RetentionOptions()).
 		SetStats(series.NewStats(scope)).
 		SetColdWritesEnabled(nopts.ColdWritesEnabled())
+	seriesOpts.SetNamespaceId(metadata.ID())
 	if err := seriesOpts.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"unable to create namespace %v, invalid series options: %v",
@@ -335,7 +333,6 @@ func newDatabaseNamespace(
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
-		schemaRegistry:         metadata.Options().SchemaRegistry(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		snapshotFilesFn:        fs.SnapshotFiles,
@@ -399,24 +396,6 @@ func (n *dbNamespace) Shards() []Shard {
 	}
 	n.RUnlock()
 	return databaseShards
-}
-
-func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
-	n.RLock()
-	sr := n.schemaRegistry
-	n.RUnlock()
-	return sr
-}
-
-func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
-	if !v.Extends(n.SchemaRegistry()) {
-		return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
-	}
-
-	n.Lock()
-	n.schemaRegistry = v
-	n.Unlock()
-	return nil
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
@@ -592,7 +571,7 @@ func (n *dbNamespace) Write(
 		return ts.Series{}, false, err
 	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
-		value, unit, annotation, series.WriteOptions{})
+		value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -617,7 +596,7 @@ func (n *dbNamespace) WriteTagged(
 		return ts.Series{}, false, err
 	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
-		value, unit, annotation, series.WriteOptions{})
+		value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }

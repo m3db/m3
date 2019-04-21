@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type testValue struct {
@@ -86,6 +87,8 @@ func (it *testIterator) Reset(r io.Reader) {
 	it.onReset(r)
 }
 
+func (it *testIterator) SetSchema(descr namespace.SchemaDescr) {}
+
 func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
 	l, _, _ := readers.CurrentReaders()
 	for i := 0; i < l; i++ {
@@ -106,6 +109,8 @@ type testMultiIterator struct {
 func newTestMultiIterator(values []testValue) MultiReaderIterator {
 	return &testMultiIterator{values: values, idx: -1}
 }
+
+func (it *testMultiIterator) SetSchema(descr namespace.SchemaDescr) {}
 
 func (it *testMultiIterator) Next() bool {
 	if it.onNext != nil {

@@ -143,6 +143,7 @@ func (w *dbNamespaceWatch) startWatch() {
 			newMap := w.watch.Get()
 			w.log.Info("received update from kv namespace watch")
 			w.db.UpdateOwnedNamespaces(newMap)
+			w.db.UpdateSchemaRegistry(newMap)
 		}
 	}
 }

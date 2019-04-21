@@ -209,6 +209,8 @@ type Database interface {
 	// BootstrapState captures and returns a snapshot of the databases'
 	// bootstrap state.
 	BootstrapState() DatabaseBootstrapState
+
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // database is the internal database interface
@@ -220,12 +222,8 @@ type database interface {
 
 	// UpdateOwnedNamespaces updates the namespaces this database owns.
 	UpdateOwnedNamespaces(namespaces namespace.Map) error
-}
 
-type schemaRegistry interface {
-	GetLatestSchema(id ident.ID) namespace.SchemaDescr
-	GetSchemaHistory(id ident.ID) namespace.SchemaRegistry
-	SetSchemaHistory(id ident.ID, registry namespace.SchemaRegistry)
+	UpdateSchemaRegistry(namespaces namespace.Map)
 }
 
 // Namespace is a time series database namespace
@@ -241,9 +239,6 @@ type Namespace interface {
 
 	// Shards returns the shard description
 	Shards() []Shard
-
-	// Schema returns the schema registry.
-	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -376,9 +371,6 @@ type databaseNamespace interface {
 	// BootstrapState captures and returns a snapshot of the namespaces'
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
-
-	// SetSchemaRegistry sets the schema registry for the namespace.
-	SetSchemaRegistry(v namespace.SchemaRegistry) error
 }
 
 // Shard is a time series database shard.
@@ -417,7 +409,6 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	// WriteTagged values to the shard for an ID.
@@ -429,7 +420,6 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
 	ReadEncoded(
@@ -924,6 +914,10 @@ type Options interface {
 
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
+
+	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
+
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type dataBootstrapResult struct {
@@ -86,13 +87,15 @@ func MergedDataBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
 }
 
 type shardResult struct {
+	nCtx   namespace.Context
 	opts   Options
 	blocks *Map
 }
 
 // NewShardResult creates a new shard result.
-func NewShardResult(capacity int, opts Options) ShardResult {
+func NewShardResult(nCtx namespace.Context, capacity int, opts Options) ShardResult {
 	return &shardResult{
+		nCtx: nCtx,
 		opts: opts,
 		blocks: NewMap(MapOptions{
 			InitialSize: capacity,
@@ -108,9 +111,10 @@ func (sr *shardResult) IsEmpty() bool {
 
 // AddBlock adds a data block.
 func (sr *shardResult) AddBlock(id ident.ID, tags ident.Tags, b block.DatabaseBlock) {
+	b.SetNamespaceContext(sr.nCtx)
 	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
-		curSeries = sr.newBlocks(id, tags)
+		curSeries = sr.newBlocks(sr.nCtx, id, tags)
 		sr.blocks.Set(id, curSeries)
 	}
 	curSeries.Blocks.AddBlock(b)
@@ -120,15 +124,16 @@ func (sr *shardResult) AddBlock(id ident.ID, tags ident.Tags, b block.DatabaseBl
 func (sr *shardResult) AddSeries(id ident.ID, tags ident.Tags, rawSeries block.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
-		curSeries = sr.newBlocks(id, tags)
+		curSeries = sr.newBlocks(sr.nCtx, id, tags)
 		sr.blocks.Set(id, curSeries)
 	}
 	curSeries.Blocks.AddSeries(rawSeries)
 }
 
-func (sr *shardResult) newBlocks(id ident.ID, tags ident.Tags) DatabaseSeriesBlocks {
+func (sr *shardResult) newBlocks(nCtx namespace.Context, id ident.ID, tags ident.Tags) DatabaseSeriesBlocks {
 	size := sr.opts.NewBlocksLen()
 	return DatabaseSeriesBlocks{
+		nCtx:   nCtx,
 		ID:     id,
 		Tags:   tags,
 		Blocks: block.NewDatabaseSeriesBlocks(size),

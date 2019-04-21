@@ -455,6 +455,7 @@ func createExpectedShardResult(
 ) (result.ShardResults, error) {
 	bopts := opts.ResultOptions()
 	blopts := bopts.DatabaseBlockOptions()
+	nCtx := namespace.Context{}
 
 	expected := result.ShardResults{}
 
@@ -465,7 +466,7 @@ func createExpectedShardResult(
 	for _, v := range values {
 		shardResult, ok := expected[v.s.Shard]
 		if !ok {
-			shardResult = result.NewShardResult(0, bopts)
+			shardResult = result.NewShardResult(nCtx, 0, bopts)
 			expected[v.s.Shard] = shardResult
 		}
 		_, exists := shardResult.AllSeries().Get(v.s.ID)
@@ -491,6 +492,7 @@ func createExpectedShardResult(
 		if !ok {
 			encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
 			encoder.Reset(v.t, 0)
+			encoder.SetSchema(nCtx.Schema)
 			b = &seriesShardResultBlock{
 				encoder: encoder,
 			}
@@ -566,6 +568,7 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 
 func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
 	blopts := opts.ResultOptions().DatabaseBlockOptions()
+	nCtx := namespace.Context{}
 	for start, expectedBlock := range expectedAllBlocks {
 		actualBlock, ok := actualAllBlocks[start]
 		if !ok {
@@ -574,6 +577,9 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 
 		ctx := blopts.ContextPool().Get()
 		defer ctx.Close()
+
+		expectedBlock.SetNamespaceContext(nCtx)
+		actualBlock.SetNamespaceContext(nCtx)
 
 		expectedStream, expectedStreamErr := expectedBlock.Stream(ctx)
 		if expectedStreamErr != nil {
@@ -589,10 +595,12 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 
 		expectedIter := readerIteratorPool.Get()
 		expectedIter.Reset(expectedStream)
+		expectedIter.SetSchema(nCtx.Schema)
 		defer expectedIter.Close()
 
 		actualIter := readerIteratorPool.Get()
 		actualIter.Reset(actualStream)
+		actualIter.SetSchema(nCtx.Schema)
 		defer actualIter.Close()
 
 		for {

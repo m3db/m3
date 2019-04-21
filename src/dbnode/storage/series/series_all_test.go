@@ -70,7 +70,9 @@ type decodedValue struct {
 
 func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
+	nCtx := getContextFor(opts)
 	iter := opts.MultiReaderIteratorPool().Get()
+	iter.SetSchema(nCtx.Schema)
 	iter.ResetSliceOfSlices(slicesIter)
 	defer iter.Close()
 
@@ -100,7 +102,9 @@ func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader
 }
 
 func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]decodedValue, error) {
+	nCtx := getContextFor(opts)
 	iter := opts.MultiReaderIteratorPool().Get()
+	iter.SetSchema(nCtx.Schema)
 	iter.Reset(results, time.Time{}, time.Duration(0))
 	defer iter.Close()
 

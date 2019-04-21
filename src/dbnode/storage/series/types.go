@@ -59,7 +59,6 @@ type DatabaseSeries interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wOpts WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -311,6 +310,14 @@ type Options interface {
 
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
+
+	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
+
+	SchemaRegistry() namespace.SchemaRegistry
+
+	SetNamespaceId(ident.ID) Options
+
+	NamespaceId() ident.ID
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.

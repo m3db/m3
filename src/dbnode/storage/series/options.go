@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type options struct {
@@ -46,6 +47,8 @@ type options struct {
 	coldWritesEnabled             bool
 	bufferBucketPool              *BufferBucketPool
 	bufferBucketVersionsPool      *BufferBucketVersionsPool
+	schemaReg                     namespace.SchemaRegistry
+	namespaceId                   ident.ID
 }
 
 // NewOptions creates new database series options
@@ -69,6 +72,8 @@ func NewOptions() Options {
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
 		identifierPool:                ident.NewPool(bytesPool, ident.PoolOptions{}),
 		stats:                         NewStats(iopts.MetricsScope()),
+		schemaReg:                     namespace.NewSchemaRegistry(),
+		namespaceId:                   ident.StringID("default"),
 	}
 }
 
@@ -217,4 +222,24 @@ func (o *options) SetBufferBucketPool(value *BufferBucketPool) Options {
 
 func (o *options) BufferBucketPool() *BufferBucketPool {
 	return o.bufferBucketPool
+}
+
+func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
+	opts := *o
+	opts.schemaReg = registry
+	return &opts
+}
+
+func (o *options) SchemaRegistry() namespace.SchemaRegistry {
+	return o.schemaReg
+}
+
+func (o *options) SetNamespaceId(id ident.ID) Options {
+	opts := *o
+	opts.namespaceId = id
+	return &opts
+}
+
+func (o *options) NamespaceId() ident.ID {
+	return o.namespaceId
 }

@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type nullEncoder struct {
@@ -56,6 +56,7 @@ func (e *nullEncoder) Reset(t time.Time, capacity int)                   {}
 func (e *nullEncoder) Close()                                            {}
 func (e *nullEncoder) Discard() ts.Segment                               { return ts.Segment{} }
 func (e *nullEncoder) DiscardReset(t time.Time, capacity int) ts.Segment { return ts.Segment{} }
+func (e *nullEncoder) SetSchema(descr namespace.SchemaDescr)             {}
 
 type nullReaderIterator struct{}
 
@@ -71,4 +72,4 @@ func (r *nullReaderIterator) Next() bool             { return false }
 func (r *nullReaderIterator) Err() error             { return fmt.Errorf("not implemented") }
 func (r *nullReaderIterator) Close()                 {}
 func (r *nullReaderIterator) Reset(reader io.Reader) {}
-func (r *nullReaderIterator) SetNamespace(id ident.ID) {}
+func (r *nullReaderIterator) SetSchema(descr namespace.SchemaDescr) {}

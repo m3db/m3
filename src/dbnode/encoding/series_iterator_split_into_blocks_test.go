@@ -68,7 +68,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		i++
 	}
 
-	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
+	iterAlloc := func(id ident.ID, r io.Reader) encoding.ReaderIterator {
 		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
 		return iter.Decode(r)
 	}

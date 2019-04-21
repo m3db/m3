@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -185,6 +186,18 @@ func (m *MockEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
 func (mr *MockEncoderMockRecorder) DiscardReset(t, capacity interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardReset", reflect.TypeOf((*MockEncoder)(nil).DiscardReset), t, capacity)
+}
+
+// SetSchema mocks base method
+func (m *MockEncoder) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockEncoderMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockEncoder)(nil).SetSchema), descr)
 }
 
 // MockOptions is a mock of Options interface
@@ -513,6 +526,18 @@ func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
 }
 
+// SetSchema mocks base method
+func (m *MockIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockIterator)(nil).SetSchema), descr)
+}
+
 // MockReaderIterator is a mock of ReaderIterator interface
 type MockReaderIterator struct {
 	ctrl     *gomock.Controller
@@ -590,6 +615,18 @@ func (m *MockReaderIterator) Close() {
 func (mr *MockReaderIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReaderIterator)(nil).Close))
+}
+
+// SetSchema mocks base method
+func (m *MockReaderIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockReaderIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockReaderIterator)(nil).SetSchema), descr)
 }
 
 // Reset mocks base method
@@ -681,6 +718,18 @@ func (m *MockMultiReaderIterator) Close() {
 func (mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMultiReaderIterator)(nil).Close))
+}
+
+// SetSchema mocks base method
+func (m *MockMultiReaderIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockMultiReaderIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockMultiReaderIterator)(nil).SetSchema), descr)
 }
 
 // Reset mocks base method
@@ -798,6 +847,18 @@ func (m *MockSeriesIterator) Close() {
 func (mr *MockSeriesIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSeriesIterator)(nil).Close))
+}
+
+// SetSchema mocks base method
+func (m *MockSeriesIterator) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockSeriesIteratorMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockSeriesIterator)(nil).SetSchema), descr)
 }
 
 // ID mocks base method
@@ -971,6 +1032,18 @@ func (mr *MockSeriesIteratorsMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSeriesIterators)(nil).Close))
 }
 
+// SetSchema mocks base method
+func (m *MockSeriesIterators) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockSeriesIteratorsMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockSeriesIterators)(nil).SetSchema), descr)
+}
+
 // MockMutableSeriesIterators is a mock of MutableSeriesIterators interface
 type MockMutableSeriesIterators struct {
 	ctrl     *gomock.Controller
@@ -1032,6 +1105,18 @@ func (m *MockMutableSeriesIterators) Close() {
 func (mr *MockMutableSeriesIteratorsMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Close))
+}
+
+// SetSchema mocks base method
+func (m *MockMutableSeriesIterators) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockMutableSeriesIteratorsMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockMutableSeriesIterators)(nil).SetSchema), descr)
 }
 
 // Reset mocks base method

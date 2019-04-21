@@ -56,6 +56,7 @@ func TestSessionAggregateUnsupportedQuery(t *testing.T) {
 
 	opts := newSessionTestOptions().
 		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 

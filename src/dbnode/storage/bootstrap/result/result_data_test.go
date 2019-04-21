@@ -32,6 +32,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var testBlockSize = 2 * time.Hour
@@ -43,6 +44,7 @@ func testResultOptions() Options {
 func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
+	nCtx := namespace.Context{}
 
 	start := time.Now().Truncate(testBlockSize)
 
@@ -53,8 +55,8 @@ func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	}
 
 	srs := []ShardResult{
-		NewShardResult(0, opts),
-		NewShardResult(0, opts),
+		NewShardResult(nCtx, 0, opts),
+		NewShardResult(nCtx, 0, opts),
 	}
 
 	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
@@ -68,7 +70,7 @@ func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	r.Add(0, srs[0], xtime.Ranges{})
 	r.Add(0, srs[1], xtime.Ranges{})
 
-	srMerged := NewShardResult(0, opts)
+	srMerged := NewShardResult(nCtx, 0, opts)
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[1])
 	srMerged.AddBlock(ident.StringID("bar"), barTags, blocks[2])
@@ -137,6 +139,7 @@ func TestResultSetUnfulfilled(t *testing.T) {
 func TestResultNumSeries(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
+	nCtx := namespace.Context{}
 
 	start := time.Now().Truncate(testBlockSize)
 
@@ -147,8 +150,8 @@ func TestResultNumSeries(t *testing.T) {
 	}
 
 	srs := []ShardResult{
-		NewShardResult(0, opts),
-		NewShardResult(0, opts),
+		NewShardResult(nCtx, 0, opts),
+		NewShardResult(nCtx, 0, opts),
 	}
 
 	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
@@ -168,6 +171,7 @@ func TestResultNumSeries(t *testing.T) {
 func TestResultAddResult(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
+	nCtx := namespace.Context{}
 
 	start := time.Now().Truncate(testBlockSize)
 
@@ -178,8 +182,8 @@ func TestResultAddResult(t *testing.T) {
 	}
 
 	srs := []ShardResult{
-		NewShardResult(0, opts),
-		NewShardResult(0, opts),
+		NewShardResult(nCtx, 0, opts),
+		NewShardResult(nCtx, 0, opts),
 	}
 	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
 	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
@@ -205,7 +209,7 @@ func TestResultAddResult(t *testing.T) {
 
 	r := MergedDataBootstrapResult(rs[0], rs[1])
 
-	srMerged := NewShardResult(0, opts)
+	srMerged := NewShardResult(nCtx, 0, opts)
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[1])
 	srMerged.AddBlock(ident.StringID("bar"), barTags, blocks[2])
@@ -230,7 +234,8 @@ func TestResultAddResult(t *testing.T) {
 
 func TestShardResultIsEmpty(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	nCtx := namespace.Context{}
+	sr := NewShardResult(nCtx, 0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(time.Now(), time.Hour, ts.Segment{})
@@ -241,7 +246,8 @@ func TestShardResultIsEmpty(t *testing.T) {
 
 func TestShardResultAddBlock(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	nCtx := namespace.Context{}
+	sr := NewShardResult(nCtx, 0, opts)
 	start := time.Now()
 	inputs := []struct {
 		id        string
@@ -269,7 +275,8 @@ func TestShardResultAddBlock(t *testing.T) {
 
 func TestShardResultAddSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	nCtx := namespace.Context{}
+	sr := NewShardResult(nCtx, 0, opts)
 	start := time.Now()
 	inputs := []struct {
 		id     string
@@ -299,10 +306,11 @@ func TestShardResultAddSeries(t *testing.T) {
 
 func TestShardResultAddResult(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	nCtx := namespace.Context{}
+	sr := NewShardResult(nCtx, 0, opts)
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
-	other := NewShardResult(0, opts)
+	other := NewShardResult(nCtx, 0, opts)
 	other.AddSeries(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "foe")), block.NewDatabaseSeriesBlocks(0))
 	other.AddSeries(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "baz")), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
@@ -311,10 +319,11 @@ func TestShardResultAddResult(t *testing.T) {
 
 func TestShardResultNumSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	nCtx := namespace.Context{}
+	sr := NewShardResult(nCtx, 0, opts)
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
-	other := NewShardResult(0, opts)
+	other := NewShardResult(nCtx, 0, opts)
 	other.AddSeries(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "foe")), block.NewDatabaseSeriesBlocks(0))
 	other.AddSeries(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "baz")), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
@@ -323,7 +332,8 @@ func TestShardResultNumSeries(t *testing.T) {
 
 func TestShardResultRemoveSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	nCtx := namespace.Context{}
+	sr := NewShardResult(nCtx, 0, opts)
 	inputs := []struct {
 		id     string
 		tags   ident.Tags

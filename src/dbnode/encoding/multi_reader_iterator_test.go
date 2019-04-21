@@ -31,6 +31,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type testMultiReader struct {
@@ -314,8 +315,8 @@ func assertTestMultiReaderIterator(
 	}
 
 	var testIterators []*testIterator
-	var iteratorAlloc func(reader io.Reader) ReaderIterator
-	iteratorAlloc = func(reader io.Reader) ReaderIterator {
+	var iteratorAlloc func(id ident.ID, reader io.Reader) ReaderIterator
+	iteratorAlloc = func(id ident.ID, reader io.Reader) ReaderIterator {
 		for i := range entriesByReader {
 			if reader != entriesByReader[i].reader {
 				continue
@@ -331,7 +332,7 @@ func assertTestMultiReaderIterator(
 				}
 			}
 			it.onReset = func(r io.Reader) {
-				newIt := iteratorAlloc(r).(*testIterator)
+				newIt := iteratorAlloc(id, r).(*testIterator)
 				*it = *newIt
 				// We close this here as we never actually use this iterator
 				// and we test at the end of the test to ensure all iterators were closed

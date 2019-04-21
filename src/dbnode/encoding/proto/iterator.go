@@ -79,20 +79,14 @@ type iterator struct {
 // NewIterator creates a new iterator.
 func NewIterator(
 	reader io.Reader,
-	schema *desc.MessageDescriptor,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
 
 	var currCustomFields []customFieldState
-	if schema != nil {
-		currCustomFields, _ = customAndProtoFields(nil, nil, schema)
-	}
 	return &iterator{
 		opts:         opts,
-		schema:       schema,
 		stream:       stream,
-		lastIterated: dynamic.NewMessage(schema),
 		customFields: currCustomFields,
 
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),

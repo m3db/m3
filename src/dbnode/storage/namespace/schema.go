@@ -83,18 +83,18 @@ func (s *schemaDescr) String() string {
 	return s.md.MessageDescriptor.String()
 }
 
-type schemaRegistry struct {
+type schemaHistory struct {
 	options  *nsproto.SchemaOptions
 	latestId string
 	// a map of schema version to schema descriptor.
 	versions map[string]*schemaDescr
 }
 
-func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
-	var osr *schemaRegistry
+func (sr *schemaHistory) Equal(o SchemaHistory) bool {
+	var osr *schemaHistory
 	var ok bool
 
-	if osr, ok = o.(*schemaRegistry); !ok {
+	if osr, ok = o.(*schemaHistory); !ok {
 		return false
 	}
 	// compare latest version
@@ -119,7 +119,7 @@ func (sr *schemaRegistry) Equal(o SchemaRegistry) bool {
 	return true
 }
 
-func (sr *schemaRegistry) Extends(v SchemaRegistry) bool {
+func (sr *schemaHistory) Extends(v SchemaHistory) bool {
 	cur, hasMore := v.GetLatest()
 
 	for hasMore {
@@ -132,7 +132,7 @@ func (sr *schemaRegistry) Extends(v SchemaRegistry) bool {
 	return true
 }
 
-func (sr *schemaRegistry) Get(id string) (SchemaDescr, bool) {
+func (sr *schemaHistory) Get(id string) (SchemaDescr, bool) {
 	sd, ok := sr.versions[id]
 	if !ok {
 		return nil, false
@@ -140,29 +140,29 @@ func (sr *schemaRegistry) Get(id string) (SchemaDescr, bool) {
 	return sd, true
 }
 
-func (sr *schemaRegistry) GetLatest() (SchemaDescr, bool) {
+func (sr *schemaHistory) GetLatest() (SchemaDescr, bool) {
 	return sr.Get(sr.latestId)
 }
 
-// toSchemaOptions returns the corresponding SchemaOptions proto for the provided SchemaRegistry
-func toSchemaOptions(sr SchemaRegistry) *nsproto.SchemaOptions {
+// toSchemaOptions returns the corresponding SchemaOptions proto for the provided SchemaHistory
+func toSchemaOptions(sr SchemaHistory) *nsproto.SchemaOptions {
 	if sr == nil {
 		return nil
 	}
-	_, ok := sr.(*schemaRegistry)
+	_, ok := sr.(*schemaHistory)
 	if !ok {
 		return nil
 	}
-	return sr.(*schemaRegistry).options
+	return sr.(*schemaHistory).options
 }
 
-func emptySchemaRegistry() SchemaRegistry {
-	return &schemaRegistry{options: nil, versions: make(map[string]*schemaDescr)}
+func emptySchemaHistory() SchemaHistory {
+	return &schemaHistory{options: nil, versions: make(map[string]*schemaDescr)}
 }
 
-// LoadSchemaRegistry loads schema registry from SchemaOptions proto.
-func LoadSchemaRegistry(options *nsproto.SchemaOptions) (SchemaRegistry, error) {
-	sr := &schemaRegistry{options: options, versions: make(map[string]*schemaDescr)}
+// LoadSchemaHistory loads schema registry from SchemaOptions proto.
+func LoadSchemaHistory(options *nsproto.SchemaOptions) (SchemaHistory, error) {
+	sr := &schemaHistory{options: options, versions: make(map[string]*schemaDescr)}
 	if options == nil ||
 		options.GetHistory() == nil ||
 		len(options.GetHistory().GetVersions()) == 0 {
@@ -293,4 +293,8 @@ func GenTestSchemaOptions(importPathPrefix string) *nsproto.SchemaOptions {
 		},
 		DefaultMessageName: "mainpkg.TestMessage",
 	}
+}
+
+func GetTestSchemaDescr(md *desc.MessageDescriptor) SchemaDescr {
+	return &schemaDescr{md: MessageDescriptor{md}}
 }

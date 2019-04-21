@@ -41,6 +41,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -66,7 +67,6 @@ type databaseBuffer interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-		wOpts WriteOptions,
 	) (bool, error)
 
 	Snapshot(
@@ -117,6 +117,17 @@ type bufferStats struct {
 type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
 	evictedBuckets         int
+}
+
+func getContextFor(opts Options) namespace.Context {
+	if opts.SchemaRegistry() == nil || opts.NamespaceId() == nil {
+		return namespace.Context{}
+	}
+	schema, _ := opts.SchemaRegistry().GetLatestSchema(opts.NamespaceId())
+	return namespace.Context{
+		Id: opts.NamespaceId(),
+		Schema: schema,
+	}
 }
 
 type dbBuffer struct {
@@ -185,7 +196,6 @@ func (b *dbBuffer) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	wOpts WriteOptions,
 ) (bool, error) {
 	now := b.nowFn()
 	wType := b.ResolveWriteType(timestamp, now)
@@ -314,9 +324,12 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	bopts := b.opts.DatabaseBlockOptions()
+	nCtx := getContextFor(b.opts)
 	encoder := bopts.EncoderPool().Get()
+	encoder.SetSchema(nCtx.Schema)
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
 	iter := b.opts.MultiReaderIteratorPool().Get()
+	iter.SetSchema(nCtx.Schema)
 	defer func() {
 		encoder.Close()
 		iter.Close()
@@ -794,8 +807,10 @@ func (b *BufferBucket) resetTo(
 	b.reset()
 	b.opts = opts
 	b.start = start
+	nCtx := getContextFor(opts)
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
+	encoder.SetSchema(nCtx.Schema)
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder: encoder,
@@ -860,7 +875,9 @@ func (b *BufferBucket) write(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
 
+	nCtx := getContextFor(b.opts)
 	encoder := b.opts.EncoderPool().Get()
+	encoder.SetSchema(nCtx.Schema)
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 
 	b.encoders = append(b.encoders, inOrderEncoder{
@@ -1031,9 +1048,12 @@ func mergeStreamsToEncoder(
 	opts Options,
 ) (encoding.Encoder, time.Time, error) {
 	bopts := opts.DatabaseBlockOptions()
+	nCtx := getContextFor(opts)
 	encoder := opts.EncoderPool().Get()
+	encoder.SetSchema(nCtx.Schema)
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
 	iter := bopts.MultiReaderIteratorPool().Get()
+	iter.SetSchema(nCtx.Schema)
 	defer iter.Close()
 
 	var lastWriteAt time.Time

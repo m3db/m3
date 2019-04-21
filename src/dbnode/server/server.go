@@ -517,6 +517,8 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 
+	schemaRegistry := namespace.NewSchemaRegistry()
+
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := cfg.Client.NewAdminClient(
 		client.ConfigurationParameters{
@@ -536,11 +538,13 @@ func Run(runOpts RunOptions) {
 		func(opts client.AdminOptions) client.AdminOptions {
 			if cfg.Proto != nil {
 				return opts.SetEncodingProto(
-					schema,
 					encoding.NewOptions(),
 				).(client.AdminOptions)
 			}
 			return opts
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetSchemaRegistry(schemaRegistry)
 		},
 	)
 	if err != nil {
@@ -604,6 +608,7 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not create cluster topology watch", zap.Error(err))
 	}
+	opts = opts.SetSchemaRegistry(schemaRegistry)
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatal("could not construct database", zap.Error(err))

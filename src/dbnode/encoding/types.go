@@ -65,6 +65,8 @@ type Encoder interface {
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
 	DiscardReset(t time.Time, capacity int) ts.Segment
+
+	SetSchema(descr namespace.SchemaDescr)
 }
 
 // NewEncoderFn creates a new encoder
@@ -226,6 +228,8 @@ type SeriesIterators interface {
 
 	// Close closes all iterators contained
 	Close()
+
+	SetSchema(descr namespace.SchemaDescr)
 }
 
 // MutableSeriesIterators is a mutable SeriesIterators
@@ -288,7 +292,7 @@ type EncoderPool interface {
 	Init(alloc EncoderAllocate)
 
 	// Get provides an encoder from the pool
-	Get(id ident.ID) Encoder
+	Get() Encoder
 
 	// Put returns an encoder to the pool
 	Put(e Encoder)
@@ -300,7 +304,7 @@ type ReaderIteratorPool interface {
 	Init(alloc ReaderIteratorAllocate)
 
 	// Get provides a ReaderIterator from the pool
-	Get(id ident.ID) ReaderIterator
+	Get() ReaderIterator
 
 	// Put returns a ReaderIterator to the pool
 	Put(iter ReaderIterator)
@@ -312,7 +316,7 @@ type MultiReaderIteratorPool interface {
 	Init(alloc ReaderIteratorAllocate)
 
 	// Get provides a MultiReaderIterator from the pool
-	Get(id ident.ID) MultiReaderIterator
+	Get() MultiReaderIterator
 
 	// Put returns a MultiReaderIterator to the pool
 	Put(iter MultiReaderIterator)

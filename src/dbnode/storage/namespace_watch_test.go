@@ -103,6 +103,7 @@ func TestNamespaceWatchUpdatePropagation(t *testing.T) {
 	require.NoError(t, dbWatch.Start())
 
 	mockDB.EXPECT().UpdateOwnedNamespaces(mockMap).Return(nil)
+	mockDB.EXPECT().UpdateSchemaRegistry(mockMap)
 	ch <- struct{}{}
 	time.Sleep(100 * time.Millisecond) // give test a chance to schedule pending go-routines
 	require.NoError(t, dbWatch.Stop())

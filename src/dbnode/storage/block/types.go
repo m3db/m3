@@ -136,7 +136,7 @@ type NewDatabaseBlockFn func() DatabaseBlock
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
 
-	SetNamespace(ident.ID)
+	SetNamespaceContext(namespace.Context)
 
 	// StartTime returns the start time of the block.
 	StartTime() time.Time

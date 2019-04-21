@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -158,7 +157,7 @@ func TestShardTickWriteRace(t *testing.T) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil)
 			assert.NoError(t, err)
 			assert.True(t, wasWritten)
 			ctx.BlockingClose()

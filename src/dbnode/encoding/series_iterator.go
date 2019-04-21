@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type seriesIterator struct {
@@ -51,6 +52,12 @@ func NewSeriesIterator(
 	it := &seriesIterator{pool: pool}
 	it.Reset(opts)
 	return it
+}
+
+func (it *seriesIterator) SetSchema(descr namespace.SchemaDescr) {
+	for _, iter := range it.multiReaderIters {
+		iter.SetSchema(descr)
+	}
 }
 
 func (it *seriesIterator) ID() ident.ID {

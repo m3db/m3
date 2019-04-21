@@ -40,7 +40,6 @@ import (
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/jhump/protoreflect/desc"
 	tchannel "github.com/uber/tchannel-go"
 )
 
@@ -235,7 +234,7 @@ type Options interface {
 	SetEncodingM3TSZ() Options
 
 	// SetEncodingProto sets proto encoding based on the provided schema.
-	SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options
+	SetEncodingProto(encodingOpts encoding.Options) Options
 
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
@@ -500,6 +499,10 @@ type Options interface {
 
 	// ReaderIteratorAllocate returns the readerIteratorAllocate.
 	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
+
+	SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions
+
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // AdminOptions is a set of administration client options.

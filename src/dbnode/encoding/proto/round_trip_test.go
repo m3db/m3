@@ -35,6 +35,7 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -118,7 +119,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	enc := newTestEncoder(time.Now().Truncate(time.Second))
-	enc.SetSchema(testVLSchema)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	for i, tc := range testCases {
 		vl := newVL(

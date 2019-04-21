@@ -477,6 +477,14 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 	}
 }
 
+func getContextFrom(ns namespace.Metadata) namespace.Context {
+	schema, ok := ns.Options().SchemaHistory().GetLatest()
+	if !ok {
+		return namespace.Context{}
+	}
+	return namespace.Context{Id: ns.ID(), Schema: schema}
+}
+
 func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ns namespace.Metadata,
 	run runType,
@@ -494,6 +502,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		timesWithErrors   []time.Time
 		shardResult       result.ShardResult
 		shardRetriever    block.DatabaseShardBlockRetriever
+		nCtx              = getContextFrom(ns)
 	)
 
 	requestedRanges := timeWindowReaders.ranges
@@ -520,7 +529,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			switch run {
 			case bootstrapDataRunType:
 				capacity := r.Entries()
-				shardResult = runResult.getOrAddDataShardResult(shard, capacity, ropts)
+				shardResult = runResult.getOrAddDataShardResult(nCtx, shard, capacity, ropts)
 			case bootstrapIndexRunType:
 				indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
 			default:
@@ -1243,6 +1252,7 @@ func newRunResult() *runResult {
 }
 
 func (r *runResult) getOrAddDataShardResult(
+	nCtx namespace.Context,
 	shard uint32,
 	capacity int,
 	ropts result.Options,
@@ -1259,7 +1269,7 @@ func (r *runResult) getOrAddDataShardResult(
 
 	// NB(r): Wait until we have a reader to initialize the shard result
 	// to be able to somewhat estimate the size of it.
-	shardResult = result.NewShardResult(capacity, ropts)
+	shardResult = result.NewShardResult(nCtx, capacity, ropts)
 	dataResults[shard] = shardResult
 
 	return shardResult

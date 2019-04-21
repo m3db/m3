@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // TestSeriesWiredListConcurrentInteractions was added as a regression test
@@ -87,6 +88,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		shard  = testDatabaseShard(t, opts)
 		id     = ident.StringID("foo")
 		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
+		nCtx   = namespace.Context{}
 	)
 
 	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
@@ -108,6 +110,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				return
 			default:
 				bl := blPool.Get()
+				bl.SetNamespaceContext(nCtx)
 				bl.Close()
 			}
 		}

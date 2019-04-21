@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
@@ -286,14 +285,7 @@ func (c Configuration) NewAdminClient(
 	})
 
 	if c.Proto != nil {
-		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"unable to parse protobuf schema: %s, err: %v",
-				c.Proto.SchemaFilePath, err)
-		}
-
-		v = v.SetEncodingProto(schema, encodingOpts)
+		v = v.SetEncodingProto(encodingOpts)
 	}
 
 	// Apply programtic custom options last

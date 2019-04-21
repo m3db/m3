@@ -183,9 +183,9 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
 		Return(ts.Series{}, true, nil).Times(1)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant).
 		Return(ts.Series{}, false, nil).Times(1)
 
 	ns.shards[testShardIDs[0].ID()] = shard
@@ -1073,9 +1073,9 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, true, nil)
+		now, 1.0, xtime.Second, nil).Return(ts.Series{}, true, nil)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, false, nil)
+		now, 1.0, xtime.Second, nil).Return(ts.Series{}, false, nil)
 
 	ns.shards[testShardIDs[0].ID()] = shard
 

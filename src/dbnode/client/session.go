@@ -894,12 +894,13 @@ func (s *session) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	nCtx := getContextFor(namespace, s.opts)
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = namespace, id
 	w.args.tags = ident.EmptyTagIterator
-	w.args.t, w.args.value, w.args.unit, w.args.annotation =
-		t, value, unit, annotation
+	w.args.t, w.args.value, w.args.unit, w.args.annotation, w.args.schema =
+		t, value, unit, annotation, nCtx.Schema
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -913,11 +914,12 @@ func (s *session) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	nCtx := getContextFor(namespace, s.opts)
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
 	w.args.namespace, w.args.id, w.args.tags = namespace, id, tags
-	w.args.t, w.args.value, w.args.unit, w.args.annotation =
-		t, value, unit, annotation
+	w.args.t, w.args.value, w.args.unit, w.args.annotation, w.args.schema =
+		t, value, unit, annotation, nCtx.Schema
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -931,6 +933,7 @@ func (s *session) writeAttempt(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	schema namespace.SchemaDescr,
 ) error {
 	startWriteAttempt := s.nowFn()
 
@@ -1093,6 +1096,10 @@ func (s *session) Fetch(
 	mutableResults := results.(encoding.MutableSeriesIterators)
 	iters := mutableResults.Iters()
 	iter := iters[0]
+	if iter != nil {
+		nCtx := getContextFor(namespace, s.opts)
+		iter.SetSchema(nCtx.Schema)
+	}
 	// Reset to zero so that when we close this results set the iter doesn't get closed
 	mutableResults.Reset(0)
 	mutableResults.Close()
@@ -1110,6 +1117,10 @@ func (s *session) FetchIDs(
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
 	s.pools.fetchAttempt.Put(f)
+	if result != nil {
+		nCtx := getContextFor(namespace, s.opts)
+		result.SetSchema(nCtx.Schema)
+	}
 	return result, err
 }
 
@@ -1184,6 +1195,10 @@ func (s *session) FetchTagged(
 	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
 	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
 	s.pools.fetchTaggedAttempt.Put(f)
+	if iters != nil {
+		nCtx := getContextFor(ns, s.opts)
+		iters.SetSchema(nCtx.Schema)
+	}
 	return iters, exhaustive, err
 }
 
@@ -1917,7 +1932,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts result.Options,
 ) (result.ShardResult, error) {
 	var (
-		result = newBulkBlocksResult(s.opts, opts,
+		nCtx = getContextFor(nsMetadata.ID(), s.opts)
+		result = newBulkBlocksResult(nCtx, s.opts, opts,
 			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
 		progress = s.newPeerMetadataStreamingProgressMetrics(shard,
@@ -1988,7 +2004,8 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		result   = newStreamBlocksResult(s.opts, opts, outputCh,
+		nCtx = getContextFor(nsMetadata.ID(), s.opts)
+		result   = newStreamBlocksResult(nCtx, s.opts, opts, outputCh,
 			s.pools.tagDecoder.Get(), s.pools.id)
 		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
@@ -3100,6 +3117,7 @@ type blocksResult interface {
 }
 
 type baseBlocksResult struct {
+	nCtx                    namespace.Context
 	blockOpts               block.Options
 	blockAllocSize          int
 	contextPool             context.Pool
@@ -3108,11 +3126,13 @@ type baseBlocksResult struct {
 }
 
 func newBaseBlocksResult(
+	nCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 ) baseBlocksResult {
 	blockOpts := resultOpts.DatabaseBlockOptions()
 	return baseBlocksResult{
+		nCtx:                    nCtx,
 		blockOpts:               blockOpts,
 		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
 		contextPool:             opts.ContextPool(),
@@ -3143,10 +3163,12 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
+	iter.SetSchema(b.nCtx.Schema)
 	iter.Reset(readers, start, blockSize)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
+	encoder.SetSchema(b.nCtx.Schema)
 	encoder.Reset(start, b.blockAllocSize)
 
 	for iter.Next() {
@@ -3170,6 +3192,8 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		segments = block.Segments
 		result   = b.blockOpts.DatabaseBlockPool().Get()
 	)
+
+	result.SetNamespaceContext(b.nCtx)
 
 	if segments == nil {
 		result.Close() // return block to pool
@@ -3232,6 +3256,7 @@ type streamBlocksResult struct {
 }
 
 func newStreamBlocksResult(
+	nCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 	outputCh chan<- peerBlocksDatapoint,
@@ -3239,10 +3264,21 @@ func newStreamBlocksResult(
 	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(nCtx, opts, resultOpts),
 		outputCh:         outputCh,
 		tagDecoder:       tagDecoder,
 		idPool:           idPool,
+	}
+}
+
+func getContextFor(id ident.ID, opts Options) namespace.Context {
+	schemaReg := opts.SchemaRegistry()
+	if id == nil || schemaReg == nil {
+		return namespace.Context{}
+	}
+	schema, _ := schemaReg.GetLatestSchema(id)
+	return namespace.Context{
+		Schema: schema,
 	}
 }
 
@@ -3331,14 +3367,15 @@ type bulkBlocksResult struct {
 }
 
 func newBulkBlocksResult(
+	nCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
-		result:           result.NewShardResult(4096, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(nCtx, opts, resultOpts),
+		result:           result.NewShardResult(nCtx,4096, resultOpts),
 		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,
 	}
@@ -3423,6 +3460,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
 		result.Reset(start, blockSize, encoder.Discard())
+		result.SetNamespaceContext(r.nCtx)
 
 		tmpCtx.Close()
 	}

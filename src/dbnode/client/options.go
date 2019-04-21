@@ -32,16 +32,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
-
-	"github.com/jhump/protoreflect/desc"
-	"github.com/uber/tchannel-go"
+	"github.com/m3db/m3/src/x/serialize"
+	tchannel "github.com/uber/tchannel-go"
 )
 
 const (
@@ -244,6 +243,7 @@ type options struct {
 	fetchSeriesBlocksMetadataBatchTimeout   time.Duration
 	fetchSeriesBlocksBatchTimeout           time.Duration
 	fetchSeriesBlocksBatchConcurrency       int
+	schemaRegistry                          namespace.SchemaRegistry
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -322,6 +322,7 @@ func newOptions() *options {
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
+		schemaRegistry:                          namespace.NewSchemaRegistry(),
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -361,10 +362,10 @@ func (o *options) SetEncodingM3TSZ() Options {
 	return &opts
 }
 
-func (o *options) SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options {
+func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return proto.NewIterator(r, schema, encodingOpts)
+		return proto.NewIterator(r, encodingOpts)
 	}
 	return &opts
 }
@@ -797,6 +798,16 @@ func (o *options) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocat
 
 func (o *options) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
 	return o.readerIteratorAllocate
+}
+
+func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions {
+	opts := *o
+	opts.schemaRegistry = registry
+	return &opts
+}
+
+func (o *options) SchemaRegistry() namespace.SchemaRegistry {
+	return o.schemaRegistry
 }
 
 func (o *options) SetOrigin(value topology.Host) AdminOptions {
