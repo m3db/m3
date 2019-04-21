@@ -177,7 +177,7 @@ func TestRoundTrip(t *testing.T) {
 
 func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	enc := newTestEncoder(time.Now().Truncate(time.Second))
-	enc.SetSchema(testVLSchema)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	attrs := map[string]string{"key1": "val1"}
 	vl1Write := newVL(26.0, 27.0, 10, []byte("some_delivery_id"), attrs)
@@ -196,7 +196,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
 	require.Equal(t, errEncoderMessageHasUnknownFields, err)
 
-	enc.SetSchema(testVL2Schema)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
 	require.NoError(t, err)
 
@@ -205,7 +205,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	// Try reading the stream just using the vl1 schema.
 	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
+	iter := NewIterator(buff, testEncodingOptions)
+	iter.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	require.True(t, iter.Next())
 	dp, unit, annotation := iter.Current()
@@ -241,7 +242,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	// Try reading the stream just using the vl2 schema.
 	buff = bytes.NewBuffer(rawBytes)
-	iter = NewIterator(buff, testVL2Schema, testEncodingOptions)
+	iter = NewIterator(buff, testEncodingOptions)
+	iter.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
 
 	require.True(t, iter.Next())
 	dp, unit, annotation = iter.Current()

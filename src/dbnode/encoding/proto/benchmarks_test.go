@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func BenchmarkEncode(b *testing.B) {
@@ -64,7 +65,7 @@ func BenchmarkEncode(b *testing.B) {
 	}
 	start := time.Now()
 	encoder := NewEncoder(start, encoding.NewOptions())
-	encoder.SetSchema(testVLSchema)
+	encoder.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	for i := 0; i < b.N; i++ {
 		start = start.Add(time.Second)
