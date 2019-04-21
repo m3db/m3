@@ -56,7 +56,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	go func() {
 		for i := 0; i < numStepsPerWorker; i++ {
 			wasWritten, err := series.Write(
-				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil, WriteOptions{})
+				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil)
 			if err != nil {
 				panic(err)
 			}

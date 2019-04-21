@@ -64,7 +64,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
+	"github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -81,8 +81,7 @@ import (
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
-	"github.com/jhump/protoreflect/desc"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -174,15 +173,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	defer fslock.Release()
-
-	var schema *desc.MessageDescriptor
-	if cfg.Proto != nil {
-		logger.Info("Probuf data mode enabled")
-		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
-		if err != nil {
-			logger.Fatal("error parsing protobuffer schema", zap.Error(err))
-		}
-	}
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -438,7 +428,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, schema, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -1028,7 +1018,6 @@ func kvWatchBootstrappers(
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
 	logger *zap.Logger,
-	schema *desc.MessageDescriptor,
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
@@ -1183,9 +1172,8 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		if schema != nil {
+		if cfg.Proto != nil {
 			enc := proto.NewEncoder(time.Time{}, encodingOpts)
-			enc.SetSchema(schema)
 			return enc
 		}
 
@@ -1193,8 +1181,8 @@ func withEncodingAndPoolingOptions(
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		if schema != nil {
-			return proto.NewIterator(r, schema, encodingOpts)
+		if cfg.Proto != nil {
+			return proto.NewIterator(r, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
