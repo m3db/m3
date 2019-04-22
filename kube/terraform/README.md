@@ -34,5 +34,5 @@ affinity:
         weight: 10
 
 ```
-Node Affinity is being tracked by [issue #233}(https://github.com/terraform-providers/terraform-provider-kubernetes/issues/233) and is currently being worked on.
+Node Affinity is being tracked by [issue #233](https://github.com/terraform-providers/terraform-provider-kubernetes/issues/233) and is currently being worked on.
 
