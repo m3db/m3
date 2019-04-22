@@ -809,7 +809,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg.Wait()
 	// Secondary writer open is async so wait for it to complete before asserting
 	// that it failed.
-	commitLog.waitForSecondaryWriterAsyncOpenComplete()
+	commitLog.waitForSecondaryWriterAsyncResetComplete()
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
@@ -939,7 +939,7 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	// Secondary writer open is async so wait for it to complete so that its safe to assert
 	// on the number of files that should be on disk otherwise test will flake depending
 	// on whether or not the async open completed in time.
-	commitLog.waitForSecondaryWriterAsyncOpenComplete()
+	commitLog.waitForSecondaryWriterAsyncResetComplete()
 
 	// Ensure files present for each call to RotateLogs().
 	fsopts := opts.FilesystemOptions()
