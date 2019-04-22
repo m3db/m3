@@ -35,7 +35,7 @@ The primary synchronization that happens in the commitlog is via the queue (buff
 └──────────────────────────┘
 ```
 
-Since there is only one goroutine pulling items off of the queue, any state that it alone manages can remain synchronized since no other goroutines will interact with it.
+Since there is only one goroutine pulling items off of the queue, any state that it alone manages can remain unsynchronized since no other goroutines will interact with it.
 
 In addition to the queue, the commitlog has two other forms of synchronization:
 
