@@ -540,7 +540,7 @@ func (l *commitLog) write() {
 
 	// Ensure that there is no active background goroutine in the middle of reseting
 	// the secondary writer / modifying its state.
-	l.waitForSecondaryWriterAsyncOpenComplete()
+	l.waitForSecondaryWriterAsyncResetComplete()
 	// Can be nil in the case where the background goroutine spawned in openWriters
 	// encountered an error trying to re-open it.
 	if l.writerState.secondaryWriter.writer != nil {
@@ -604,7 +604,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 	// Ensure that the previous asynchronous reset of the secondary writer (if any)
 	// has completed before attempting to start a new one and/or modify the writerState
 	// in any way.
-	l.waitForSecondaryWriterAsyncOpenComplete()
+	l.waitForSecondaryWriterAsyncResetComplete()
 
 	if l.writerState.primaryWriter.writer == nil || l.writerState.secondaryWriter.writer == nil {
 		// If either of the commitlog writers is nil then open both of them synchronously. Under
@@ -634,7 +634,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 	prevPrimary := l.writerState.primaryWriter
 	l.writerState.primaryWriter = l.writerState.secondaryWriter
 	l.writerState.secondaryWriter = prevPrimary
-	l.startSecondaryWriterAsyncOpen()
+	l.startSecondaryWriterAsyncReset()
 
 	var (
 		// Determine the persist.CommitLogFile for the not-yet-created secondary file so that the
@@ -653,7 +653,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 	return files, nil
 }
 
-func (l *commitLog) startSecondaryWriterAsyncOpen() {
+func (l *commitLog) startSecondaryWriterAsyncReset() {
 	l.writerState.secondaryWriter.Add(1)
 
 	go func() {
@@ -684,7 +684,7 @@ func (l *commitLog) startSecondaryWriterAsyncOpen() {
 	}()
 }
 
-func (l *commitLog) waitForSecondaryWriterAsyncOpenComplete() {
+func (l *commitLog) waitForSecondaryWriterAsyncResetComplete() {
 	l.writerState.secondaryWriter.Wait()
 }
 
