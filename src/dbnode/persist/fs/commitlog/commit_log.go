@@ -293,10 +293,6 @@ func (l *commitLog) Open() error {
 		return err
 	}
 
-	// NB(r): In the future we can introduce a commit log failure policy
-	// similar to Cassandra's "stop", for example see:
-	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
-	// Right now it is a large amount of coordination to implement something similar.
 	l.commitLogFailFn = func(err error) {
 		l.log.Fatal("fatal commit log error", zap.Error(err))
 	}
@@ -475,6 +471,10 @@ func (l *commitLog) write() {
 
 			var file persist.CommitLogFile
 			if err == nil {
+				// The contract for the RotateLogs() API is that it will return the
+				// commitlog file that became the primary one as a direct result of
+				// the method call. The new active file corresponds to index zero and
+				// the new secondary file corresponds to index 1.
 				file = files[0]
 			}
 
