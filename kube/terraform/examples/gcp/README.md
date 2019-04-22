@@ -8,7 +8,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata: 
 name: client
 subjects: 
-- kind: User 
+  - kind: User 
 name: client
 roleRef: 
 kind: ClusterRole 
@@ -16,3 +16,5 @@ name: "cluster-admin"
 apiGroup: rbac.authorization.k8s.io
 
 ```
+
+The recommended GCP instance type is n1-standard-8 or higher.

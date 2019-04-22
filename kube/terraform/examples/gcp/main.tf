@@ -17,7 +17,7 @@ resource "google_container_cluster" "primary" {
 
   node_config {
     preemptible  = false
-    machine_type = "n1-standard-16"
+    machine_type = "${var.gcp_instance_type}"
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
