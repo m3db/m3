@@ -391,7 +391,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Replace bitset in writer with one that configurably returns true or false
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
-	primaryWriter := commitLog.writerState.primaryWriter.(*writer)
+	primaryWriter := commitLog.writerState.primaryWriter.writer.(*writer)
 	secondaryWriter := commitLog.writerState.secondaryWriter.writer.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
@@ -516,9 +516,7 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 		// Rotate frequently to ensure we're generating multiple files.
 		_, err := commitLog.RotateLogs()
 		require.NoError(t, err)
-		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
-		// Flush until finished, this is required as timed flusher not active when clock is mocked.
-		flushUntilDone(commitLog, wg)
+		writeCommitLogs(t, scope, commitLog, []testWrite{write})
 	}
 
 	// Close the commit log and consequently flush.
@@ -752,8 +750,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return persist.CommitLogFile{}, nil
 	}
 
+	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primaryWriter)
 	writer.flushFn = func(bool) error {
-		commitLog.onFlush(nil)
+		onFlushFn(nil)
 		return nil
 	}
 
@@ -801,8 +800,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		return persist.CommitLogFile{}, nil
 	}
 
+	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primaryWriter)
 	writer.flushFn = func(bool) error {
-		commitLog.onFlush(nil)
+		onFlushFn(nil)
 		return nil
 	}
 
@@ -852,12 +852,13 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
+	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primaryWriter)
 	var flushes int64
 	writer.flushFn = func(bool) error {
 		if atomic.AddInt64(&flushes, 1) >= 2 {
-			commitLog.onFlush(fmt.Errorf("an error"))
+			onFlushFn(fmt.Errorf("an error"))
 		} else {
-			commitLog.onFlush(nil)
+			onFlushFn(nil)
 		}
 		return nil
 	}
@@ -962,7 +963,7 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, len(files), len(writes)+1) // +1 to account for the initial file
+	require.Equal(t, len(writes)+1, len(files)) // +1 to account for the initial file.
 
 	// Close and consequently flush.
 	require.NoError(t, commitLog.Close())
