@@ -102,10 +102,10 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	opts.BlockType = n.blockType
 	opts.Scope = queryCtx.Scope
 	opts.Enforcer = queryCtx.Enforcer
-
+	offset := n.op.Offset
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
-		Start:       startTime,
-		End:         endTime,
+		Start:       startTime.Add(-1 * offset),
+		End:         endTime.Add(-1 * offset),
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
 	}, opts)

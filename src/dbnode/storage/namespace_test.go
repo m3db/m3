@@ -1268,8 +1268,9 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: testTime.Truncate(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
-							CachedSnapshotTime: testTime.Add(-1 * time.Second),
+							AbsoluteFilepaths:               []string{"snapshots-checkpoint"},
+							CachedHasCompleteCheckpointFile: fs.EvalTrue,
+							CachedSnapshotTime:              testTime.Add(-1 * time.Second),
 						},
 					},
 				},
@@ -1288,8 +1289,9 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
-							CachedSnapshotTime: testTime.Add(1 * time.Second),
+							AbsoluteFilepaths:               []string{"snapshots-checkpoint"},
+							CachedHasCompleteCheckpointFile: fs.EvalTrue,
+							CachedSnapshotTime:              testTime.Add(1 * time.Second),
 						},
 					},
 				},
@@ -1310,8 +1312,9 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
-							CachedSnapshotTime: testTime.Add(1 * time.Second),
+							AbsoluteFilepaths:               []string{"snapshots-checkpoint"},
+							CachedHasCompleteCheckpointFile: fs.EvalTrue,
+							CachedSnapshotTime:              testTime.Add(1 * time.Second),
 						},
 					},
 				},
@@ -1331,16 +1334,18 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
-							CachedSnapshotTime: testTime.Add(1 * time.Second),
+							AbsoluteFilepaths:               []string{"snapshots-checkpoint"},
+							CachedHasCompleteCheckpointFile: fs.EvalTrue,
+							CachedSnapshotTime:              testTime.Add(1 * time.Second),
 						},
 						fs.FileSetFile{
 							ID: fs.FileSetFileIdentifier{
 								BlockStart: blockStart.Add(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
-							CachedSnapshotTime: testTime.Add(1 * time.Second),
+							AbsoluteFilepaths:               []string{"snapshots-checkpoint"},
+							CachedHasCompleteCheckpointFile: fs.EvalTrue,
+							CachedSnapshotTime:              testTime.Add(1 * time.Second),
 						},
 					},
 				},

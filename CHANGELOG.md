@@ -1,5 +1,16 @@
 # Changelog
 
+# 0.8.4 (2019-04-20)
+
+## Performance
+
+- **M3DB**: Fix index query and aggregate query pooling using finalizers (#1567)
+
+## Bug Fixes
+
+- **M3Query**: Fix PromQL `offset` modifier implementation (#1561)
+- **M3DB**: Fix index flush recovery when previous index flush attempts have failed (#1574)
+
 # 0.8.3 (2019-04-12)
 
 ## Performance

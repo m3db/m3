@@ -737,7 +737,11 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 		curr = index
 
 		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, checkpointFileSuffix)
-		err = ioutil.WriteFile(p, []byte("bar"), defaultNewFileMode)
+
+		digestBuf := digest.NewBuffer()
+		digestBuf.WriteDigest(digest.Checksum([]byte("bar")))
+
+		err = ioutil.WriteFile(p, digestBuf, defaultNewFileMode)
 		require.NoError(t, err)
 	}
 }
@@ -780,14 +784,38 @@ func TestMultipleForBlockStart(t *testing.T) {
 	require.Equal(t, numSnapshotsPerBlock-1, latestSnapshot.ID.VolumeIndex)
 }
 
-func TestSnapshotFileHasCheckPointFile(t *testing.T) {
-	require.Equal(t, true, FileSetFile{
-		AbsoluteFilepaths: []string{"123-checkpoint-0.db"},
-	}.HasCheckpointFile())
+func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
 
-	require.Equal(t, false, FileSetFile{
-		AbsoluteFilepaths: []string{"123-index-0.db"},
-	}.HasCheckpointFile())
+	checkpointFilePath := path.Join(dir, "123-checkpoint-0.db")
+
+	// Test a valid complete checkpoint file
+	digestBuffer := digest.NewBuffer()
+	digestBuffer.WriteDigest(digest.Checksum([]byte{1, 2, 3}))
+	err := ioutil.WriteFile(checkpointFilePath, digestBuffer, defaultNewFileMode)
+	require.NoError(t, err)
+
+	// Check validates a valid checkpoint file
+	f := FileSetFile{
+		AbsoluteFilepaths: []string{checkpointFilePath},
+	}
+	require.Equal(t, true, f.HasCompleteCheckpointFile())
+
+	// Check fails when checkpoint exists but not valid
+	err = ioutil.WriteFile(checkpointFilePath, []byte{42}, defaultNewFileMode)
+	require.NoError(t, err)
+	f = FileSetFile{
+		AbsoluteFilepaths: []string{checkpointFilePath},
+	}
+	require.Equal(t, false, f.HasCompleteCheckpointFile())
+
+	// Check ignores index file path
+	indexFilePath := path.Join(dir, "123-index-0.db")
+	f = FileSetFile{
+		AbsoluteFilepaths: []string{indexFilePath},
+	}
+	require.Equal(t, false, f.HasCompleteCheckpointFile())
 }
 
 func TestSnapshotDirPath(t *testing.T) {
@@ -1107,7 +1135,16 @@ func createDataFiles(t *testing.T,
 		} else {
 			infoFilePath = filesetPathFromTime(shardDir, ts, fileSuffix)
 		}
-		createFile(t, infoFilePath, nil)
+		var contents []byte
+		if fileSuffix == checkpointFileSuffix {
+			// If writing a checkpoint file then write out a checksum of contents
+			// so that when code that validates the checkpoint file runs it returns
+			// successfully
+			digestBuf := digest.NewBuffer()
+			digestBuf.WriteDigest(digest.Checksum(contents))
+			contents = []byte(digestBuf)
+		}
+		createFile(t, infoFilePath, contents)
 	}
 	return dir
 }
@@ -1121,13 +1158,26 @@ type indexFileSetFileIdentifiers []indexFileSetFileIdentifier
 
 func (indexFilesets indexFileSetFileIdentifiers) create(t *testing.T, prefixDir string) {
 	for _, fileset := range indexFilesets {
-		fileSetFileIdentifiers{fileset.FileSetFileIdentifier}.create(t, prefixDir, persist.FileSetFlushType, fileset.Suffix)
+		idents := fileSetFileIdentifiers{fileset.FileSetFileIdentifier}
+		idents.create(t, prefixDir, persist.FileSetFlushType, fileset.Suffix)
 	}
 }
 
 type fileSetFileIdentifiers []FileSetFileIdentifier
 
 func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fileSetType persist.FileSetType, fileSuffixes ...string) {
+	writeFile := func(t *testing.T, path string, contents []byte) {
+		if strings.Contains(path, checkpointFileSuffix) {
+			// If writing a checkpoint file then write out a checksum of contents
+			// so that when code that validates the checkpoint file runs it returns
+			// successfully
+			digestBuf := digest.NewBuffer()
+			digestBuf.WriteDigest(digest.Checksum(contents))
+			contents = []byte(digestBuf)
+		}
+		createFile(t, path, contents)
+	}
+
 	for _, suffix := range fileSuffixes {
 		for _, fileset := range filesets {
 			switch fileset.FileSetContentType {
@@ -1141,10 +1191,10 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 				switch fileSetType {
 				case persist.FileSetFlushType:
 					path = filesetPathFromTime(shardDir, blockStart, suffix)
-					createFile(t, path, nil)
+					writeFile(t, path, nil)
 				case persist.FileSetSnapshotType:
 					path = filesetPathFromTimeAndIndex(shardDir, blockStart, 0, fileSuffix)
-					createFile(t, path, nil)
+					writeFile(t, path, nil)
 				default:
 					panic("unknown FileSetType")
 				}
@@ -1158,7 +1208,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 				switch fileSetType {
 				case persist.FileSetFlushType:
 					path = filesetPathFromTimeAndIndex(indexDir, blockStart, volumeIndex, suffix)
-					createFile(t, path, nil)
+					writeFile(t, path, nil)
 				case persist.FileSetSnapshotType:
 					fallthrough
 				default:
