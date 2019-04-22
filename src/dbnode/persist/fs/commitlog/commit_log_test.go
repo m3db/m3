@@ -277,26 +277,6 @@ func writeCommitLogs(
 	return &wg
 }
 
-func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
-	done := uint64(0)
-	blockWg := sync.WaitGroup{}
-	blockWg.Add(1)
-	go func() {
-		for atomic.LoadUint64(&done) == 0 {
-			l.writes <- commitLogWrite{eventType: flushEventType}
-			time.Sleep(time.Millisecond)
-		}
-		blockWg.Done()
-	}()
-
-	go func() {
-		wg.Wait()
-		atomic.StoreUint64(&done, 1)
-	}()
-
-	blockWg.Wait()
-}
-
 type seriesTestWritesAndReadPosition struct {
 	writes       []testWrite
 	readPosition int
@@ -948,22 +928,24 @@ func TestCommitLogRotateLogs(t *testing.T) {
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry.
-		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
+		writeCommitLogs(t, scope, commitLog, []testWrite{write})
 
 		file, err := commitLog.RotateLogs()
 		require.NoError(t, err)
 		require.Equal(t, file.Index, int64(i+1))
 		require.Contains(t, file.FilePath, "commitlog-0")
-
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
-		flushUntilDone(commitLog, wg)
 	}
+
+	// Secondary writer open is async so wait for it to complete so that its safe to assert
+	// on the number of files that should be on disk otherwise test will flake depending
+	// on whether or not the async open completed in time.
+	commitLog.waitForSecondaryWriterAsyncOpenComplete()
 
 	// Ensure files present for each call to RotateLogs().
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, len(writes)+1, len(files)) // +1 to account for the initial file.
+	require.Equal(t, len(writes)+2, len(files)) // +2 to account for the initial files.
 
 	// Close and consequently flush.
 	require.NoError(t, commitLog.Close())
