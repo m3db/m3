@@ -62,7 +62,11 @@ The current implementation will panic if any I/O errors are ever encountered whi
 
 # Testing
 
-The commitlog package is tested via standard unit tests (`commit_log_test.go` and `files_test.go`), property tests (`read_write_prop_test.go`), and concurrency tests (`commit_log_conc_test.go`).
+The commitlog package is tested via:
+
+1. Standard unit tests (`commit_log_test.go` and `files_test.go`)
+2. Property tests (`read_write_prop_test.go`)
+3. Concurrency tests (`commit_log_conc_test.go`)
 
 # File Format
 
