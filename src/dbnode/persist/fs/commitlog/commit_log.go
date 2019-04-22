@@ -124,22 +124,8 @@ func (f *flushState) getLastFlushAt() time.Time {
 }
 
 type writerState struct {
-	// The commitlog maintains two open writers at all times so that they
-	// can be "hot-swapped". This allows the single-threaded writer to continue
-	// uninterrupted by syscalls and I/O during rotation events which in turn
-	// prevents the queue from backing up. Otherwise, rotation events could block
-	// the writer for so long (while it waited for a new file to be created) that it
-	// caused the queue to back up significantly.
-	//
-	// When a rotation event occurs, instead of waiting for a new file to be opened,
-	// the writer will swap the primary and secondary writers such that the secondary
-	// writer (which has an empty file) becomes the primary and vice versa. This allows
-	// the writer to continue writing uninterrupted.
-	//
-	// In the meantime, a goroutine is started in the background that is responsible for
-	// resetting the now secondary (formerly primary) writer by closing it (which will
-	// flush any pending / buffered writes to disk) and re-opening it (which will create
-	// a new empty commitlog file in anticipation of the next rotation event).
+	// See "Rotating Files" section of README.md for an explanation of how the
+	// primaryWriter and secondaryWriter fields are used during commitlog rotation.
 	primaryWriter   asyncResettableWriter
 	secondaryWriter asyncResettableWriter
 	activeFiles     persist.CommitLogFiles
