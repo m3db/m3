@@ -541,7 +541,7 @@ func (l *commitLog) write() {
 	// Ensure that there is no active background goroutine in the middle of reseting
 	// the secondary writer / modifying its state.
 	l.waitForSecondaryWriterAsyncOpenComplete()
-	// Can be nil in the case where the background gorutine spawned in openWriters
+	// Can be nil in the case where the background goroutine spawned in openWriters
 	// encountered an error trying to re-open it.
 	if l.writerState.secondaryWriter.writer != nil {
 		// Don't care about errors closing the secondary writer because it doesn't
@@ -556,6 +556,8 @@ func (l *commitLog) write() {
 	l.closeErr <- writer.Close()
 }
 
+// newOnFlushFn is used to create new flushFns because each one needs to know which
+// slide of pendingFlushFns it should modify.
 func (l *commitLog) newOnFlushFn(writer *asyncResettableWriter) flushFn {
 	return func(err error) {
 		l.flushState.setLastFlushAt(l.nowFn())
@@ -570,10 +572,16 @@ func (l *commitLog) newOnFlushFn(writer *asyncResettableWriter) flushFn {
 			}
 		}
 
-		// onFlush only ever called by "write()" and "openWriter" or
-		// before "write()" begins on "Open()" and there are no other
-		// accessors of "pendingFlushFns" so it is safe to read and mutate
-		// without a lock here
+		// onFlush will never be called concurrently. The flushFn for the primaryWriter
+		// will only ever be called synchronously by the single-threaded writer goroutine
+		// and the flushFn for the secondaryWriter will only be called by the asynchronous
+		// goroutine (created by the single-threaded writer) when it calls Close() on the
+		// secondary (previously primary due to a hot-swap) writer during the reset.
+		//
+		// Note that both the primary and secondar's flushFn may be called during calls to
+		// Open() on the commitlog, but this takes place before the single-threaded writer
+		// is spawned which precludes it from occurring concurrently with either of the
+		// scenarios described above.
 		if len(writer.pendingFlushFns) == 0 {
 			l.metrics.flushDone.Inc(1)
 			return
@@ -601,8 +609,10 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 	if l.writerState.primaryWriter.writer == nil || l.writerState.secondaryWriter.writer == nil {
 		// If either of the commitlog writers is nil then open both of them synchronously. Under
 		// normal circumstances this will only occur when the commitlog is first opened.
-		l.writerState.primaryWriter.writer = l.newCommitLogWriterFn(l.newOnFlushFn(&l.writerState.primaryWriter), l.opts)
-		l.writerState.secondaryWriter.writer = l.newCommitLogWriterFn(l.newOnFlushFn(&l.writerState.secondaryWriter), l.opts)
+		primaryWriterFlushFn := l.newOnFlushFn(&l.writerState.primaryWriter)
+		secondaryWriterFlushFn := l.newOnFlushFn(&l.writerState.secondaryWriter)
+		l.writerState.primaryWriter.writer = l.newCommitLogWriterFn(primaryWriterFlushFn, l.opts)
+		l.writerState.secondaryWriter.writer = l.newCommitLogWriterFn(secondaryWriterFlushFn, l.opts)
 
 		primaryFile, err := l.writerState.primaryWriter.writer.Open()
 		if err != nil {
@@ -649,24 +659,27 @@ func (l *commitLog) startSecondaryWriterAsyncOpen() {
 	go func() {
 		var err error
 		defer func() {
-			l.writerState.secondaryWriter.Done()
-
 			if err != nil {
+				// Set to nil so that the next call to openWriters() will attempt
+				// to try and create a new writer.
+				l.writerState.secondaryWriter.writer = nil
+
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
 			}
+
+			l.writerState.secondaryWriter.Done()
 		}()
 
 		if err = l.writerState.secondaryWriter.writer.Close(); err != nil {
 			l.commitLogFailFn(err)
+			return
 		}
 
 		_, err = l.writerState.secondaryWriter.writer.Open()
 		if err != nil {
-			// Set to nil we are forced to try and open new commit log files
-			// on the next call to openWriter().
-			l.writerState.secondaryWriter.writer = nil
 			l.commitLogFailFn(err)
+			return
 		}
 	}()
 }
