@@ -8,12 +8,12 @@ The commitlog package contains all the code for reading and writing commitlog fi
 
 The commitlog writer consists of two main components:
 
-1. The `commitlog` (`commit_log.go`) itself which contains all of the public APIs as well as the logic for managing concurrency, rotating files, and inspecting the status of the commitlog (via the `ActiveLogs` and `QueueLength` APIs).
-2. The `writer` (`writer.go`) which contains all of the logic for opening/closing files and writing bytes to disk.
+1. The `CommitLog` itself which contains all of the public APIs as well as the logic for managing concurrency, rotating files, and inspecting the status of the commitlog (via the `ActiveLogs` and `QueueLength` APIs).
+2. The `CommitLogWriter` which contains all of the logic for opening/closing files and writing bytes to disk.
 
 ### Commitlog
 
-At a high-level, the `commitlog` handles writes by inserting them into a queue (buffered channel) in batches and then dequeing the batches in a single-threaded manner and writing all of the individual writes for a batch into the commitlog file one at a time.
+At a high-level, the `CommitLog` handles writes by inserting them into a queue (buffered channel) in batches and then dequeing the batches in a single-threaded manner and writing all of the individual writes for a batch into the commitlog file one at a time.
 
 #### Synchronization
 
@@ -44,17 +44,17 @@ In addition to the queue, the commitlog has two other forms of synchronization:
 
 #### Rotating Files
 
-Rotating commitlog files is initiated by the `RotateLogs()` API so that callers can control when this occurs. The commitlog itself will never rotate files on its own without the `RotateLogs()` API being called.
+Rotating commitlog files is initiated by the `RotateLogs()` API so that callers can control when this occurs. The `CommitLog` itself will never rotate files on its own without the `RotateLogs()` API being called.
 
-The commitlog files are not rotated immediately when the `RotateLogs()` method is called because that would require a lot of complicated and expensive synchronization with the commitlog writer goroutine. Instead, a `rotateLogsEventType` is pushed into the queue and when the single-threaded writer goroutine pulls this event off of the channel it will rotate the commitlog files (since it has exclusive access to them) and then invoke a callback function which notifies the `RotateLogs()` method call (which has been blocked this whole time) to complete and return success to the caller.
+The commitlog files are not rotated immediately when the `RotateLogs()` method is called because that would require a lot of complicated and expensive synchronization with the `CommitLogWriter` goroutine. Instead, a `rotateLogsEventType` is pushed into the queue and when the single-threaded writer goroutine pulls this event off of the channel it will rotate the commitlog files (since it has exclusive access to them) and then invoke a callback function which notifies the `RotateLogs()` method call (which has been blocked this whole time) to complete and return success to the caller.
 
-While the commitlog only writes to a single file at once, it maintains two open writers at all times so that they can be "hot-swapped" when the commitlog files need to be rotated. This allows the single-threaded writer to continue uninterrupted by syscalls and I/O during rotation events which in turn prevents the queue from backing up. Otherwise, rotation events could block the writer for so long (while it waited for a new file to be created) that it caused the queue to back up significantly.
+While the `CommitLog` only writes to a single file at once, it maintains two open writers at all times so that they can be "hot-swapped" when the commitlog files need to be rotated. This allows the single-threaded writer goroutine to continue uninterrupted by syscalls and I/O during rotation events which in turn prevents the queue from backing up. Otherwise, rotation events could block the writer for so long (while it waited for a new file to be created) that it caused the queue to back up significantly.
 
-When a rotation event occurs, instead of waiting for a new file to be opened, the writer will swap the primary and secondary writers such that the secondary writer (which has an empty file) becomes the primary and vice versa. This allows the writer to continue writing uninterrupted.
+When a rotation event occurs, instead of waiting for a new file to be opened, the `CommitLog` writer goroutine will swap the primary and secondary `CommitLogWriter` such that the secondary `CommitLogWriter` (which has an empty file) becomes the primary and vice versa. This allows the `CommitLog` writer goroutine to continue writing uninterrupted.
 
-In the meantime, a goroutine is started in the background that is responsible for resetting the now secondary (formerly primary) writer by closing it (which will flush any pending / buffered writes to disk) and re-opening it (which will create a new empty commitlog file in anticipation of the next rotation event).
+In the meantime, a goroutine is started in the background that is responsible for resetting the now secondary (formerly primary) `CommitLogWriter` by closing it (which will flush any pending / buffered writes to disk) and re-opening it (which will create a new empty commitlog file in anticipation of the next rotation event).
 
-Finally, the next time the `commitlog` attempts to rotate its commitlogs it will need to use the associated `sync.WaitGroup` to ensure that the previously spawned background goroutine has completed resetting the secondary writer before it attempts a new hot-swap.
+Finally, the next time the `CommitLog` attempts to rotate its commitlogs it will need to use the associated `sync.WaitGroup` to ensure that the previously spawned background goroutine has completed resetting the secondary `CommitLogWriter` before it attempts a new hot-swap.
 
 ### Handling Errors
 
@@ -64,9 +64,9 @@ The current implementation will panic if any I/O errors are ever encountered whi
 
 The commitlog package is tested via:
 
-1. Standard unit tests (`commit_log_test.go` and `files_test.go`)
-2. Property tests (`read_write_prop_test.go`)
-3. Concurrency tests (`commit_log_conc_test.go`)
+1. Standard unit tests
+2. Property tests
+3. Concurrency tests
 
 # File Format
 
