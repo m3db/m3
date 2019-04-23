@@ -88,7 +88,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		shard  = testDatabaseShard(t, opts)
 		id     = ident.StringID("foo")
 		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
-		nCtx   = namespace.Context{}
+		nsCtx   = namespace.Context{}
 	)
 
 	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
@@ -110,7 +110,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				return
 			default:
 				bl := blPool.Get()
-				bl.SetNamespaceContext(nCtx)
+				bl.SetNamespaceContext(nsCtx)
 				bl.Close()
 			}
 		}

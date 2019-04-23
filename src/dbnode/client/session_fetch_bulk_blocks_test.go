@@ -1627,9 +1627,9 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		Segments: &rpc.Segments{},
 	}
 	for _, vals := range [][]testValue{vals0, vals1, vals2} {
-		nCtx := getContextFor(nil, opts)
+		nsCtx := namespace.NewContextFor(ident.StringID("default"), opts.SchemaRegistry())
 		encoder := encoderPool.Get()
-		encoder.SetSchema(nCtx.Schema)
+		encoder.SetSchema(nsCtx.Schema)
 		encoder.Reset(start, 0)
 		for _, val := range vals {
 			dp := ts.Datapoint{Timestamp: val.t, Value: val.value}

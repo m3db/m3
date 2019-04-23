@@ -745,9 +745,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	encoded, err := series.ReadEncoded(ctx, qStart, qEnd)
 	require.NoError(t, err)
 
-	nCtx := getContextFor(opts)
+	nsCtx := newContextFor(opts)
 	multiIt := opts.MultiReaderIteratorPool().Get()
-	multiIt.SetSchema(nCtx.Schema)
+	multiIt.SetSchema(nsCtx.Schema)
 
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	it := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{

@@ -42,7 +42,7 @@ type dbMergedBlockReader struct {
 	merged     xio.BlockReader
 	encoder    encoding.Encoder
 	err        error
-	nCtx       namespace.Context
+	nsCtx       namespace.Context
 }
 
 type mergeableStream struct {
@@ -62,14 +62,14 @@ func (ms mergeableStream) clone(pool pool.CheckedBytesPool) (mergeableStream, er
 }
 
 func newDatabaseMergedBlockReader(
-	nCtx namespace.Context,
+	nsCtx namespace.Context,
 	blockStart time.Time,
 	blockSize time.Duration,
 	streamA, streamB mergeableStream,
 	opts Options,
 ) xio.BlockReader {
 	r := &dbMergedBlockReader{
-		nCtx:       nCtx,
+		nsCtx:       nsCtx,
 		opts:       opts,
 		blockStart: blockStart,
 		blockSize:  blockSize,
@@ -102,12 +102,12 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 
 	multiIter := r.opts.MultiReaderIteratorPool().Get()
 	multiIter.Reset(r.readers[:], r.blockStart, r.blockSize)
-	multiIter.SetSchema(r.nCtx.Schema)
+	multiIter.SetSchema(r.nsCtx.Schema)
 	defer multiIter.Close()
 
 	r.encoder = r.opts.EncoderPool().Get()
 	r.encoder.Reset(r.blockStart, r.opts.DatabaseBlockAllocSize())
-	r.encoder.SetSchema(r.nCtx.Schema)
+	r.encoder.SetSchema(r.nsCtx.Schema)
 
 	for multiIter.Next() {
 		dp, unit, annotation := multiIter.Current()
@@ -156,7 +156,7 @@ func (r *dbMergedBlockReader) Clone(
 		return nil, err
 	}
 	return newDatabaseMergedBlockReader(
-		r.nCtx,
+		r.nsCtx,
 		r.blockStart,
 		r.blockSize,
 		s0,

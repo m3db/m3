@@ -70,6 +70,7 @@ const (
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
 	blockMetadataChBufSize               = 4096
+	shardResultCapacity                  = 4096
 )
 
 type resultTypeEnum string
@@ -888,38 +889,38 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 }
 
 func (s *session) Write(
-	namespace, id ident.ID,
+	nsID, id ident.ID,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	nCtx := getContextFor(namespace, s.opts)
+	nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
-	w.args.namespace, w.args.id = namespace, id
+	w.args.namespace, w.args.id = nsID, id
 	w.args.tags = ident.EmptyTagIterator
 	w.args.t, w.args.value, w.args.unit, w.args.annotation, w.args.schema =
-		t, value, unit, annotation, nCtx.Schema
+		t, value, unit, annotation, nsCtx.Schema
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
 }
 
 func (s *session) WriteTagged(
-	namespace, id ident.ID,
+	nsID, id ident.ID,
 	tags ident.TagIterator,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	nCtx := getContextFor(namespace, s.opts)
+	nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
-	w.args.namespace, w.args.id, w.args.tags = namespace, id, tags
+	w.args.namespace, w.args.id, w.args.tags = nsID, id, tags
 	w.args.t, w.args.value, w.args.unit, w.args.annotation, w.args.schema =
-		t, value, unit, annotation, nCtx.Schema
+		t, value, unit, annotation, nsCtx.Schema
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -927,7 +928,7 @@ func (s *session) WriteTagged(
 
 func (s *session) writeAttempt(
 	wType writeAttemptType,
-	namespace, id ident.ID,
+	nsID, id ident.ID,
 	inputTags ident.TagIterator,
 	t time.Time,
 	value float64,
@@ -954,7 +955,7 @@ func (s *session) writeAttempt(
 	}
 
 	state, majority, enqueued, err := s.writeAttemptWithRLock(
-		wType, namespace, id, inputTags, timestamp, value, timeType, annotation)
+		wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1084,12 +1085,12 @@ func (s *session) writeAttemptWithRLock(
 }
 
 func (s *session) Fetch(
-	namespace ident.ID,
+	nsID ident.ID,
 	id ident.ID,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterator, error) {
 	tsIDs := ident.NewIDsIterator(id)
-	results, err := s.FetchIDs(namespace, tsIDs, startInclusive, endExclusive)
+	results, err := s.FetchIDs(nsID, tsIDs, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -1097,8 +1098,8 @@ func (s *session) Fetch(
 	iters := mutableResults.Iters()
 	iter := iters[0]
 	if iter != nil {
-		nCtx := getContextFor(namespace, s.opts)
-		iter.SetSchema(nCtx.Schema)
+		nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
+		iter.SetSchema(nsCtx.Schema)
 	}
 	// Reset to zero so that when we close this results set the iter doesn't get closed
 	mutableResults.Reset(0)
@@ -1107,19 +1108,19 @@ func (s *session) Fetch(
 }
 
 func (s *session) FetchIDs(
-	namespace ident.ID,
+	nsID ident.ID,
 	ids ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
 	f := s.pools.fetchAttempt.Get()
-	f.args.namespace, f.args.ids = namespace, ids
+	f.args.namespace, f.args.ids = nsID, ids
 	f.args.start, f.args.end = startInclusive, endExclusive
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
 	s.pools.fetchAttempt.Put(f)
 	if result != nil {
-		nCtx := getContextFor(namespace, s.opts)
-		result.SetSchema(nCtx.Schema)
+		nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
+		result.SetSchema(nsCtx.Schema)
 	}
 	return result, err
 }
@@ -1196,8 +1197,8 @@ func (s *session) FetchTagged(
 	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
 	s.pools.fetchTaggedAttempt.Put(f)
 	if iters != nil {
-		nCtx := getContextFor(ns, s.opts)
-		iters.SetSchema(nCtx.Schema)
+		nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
+		iters.SetSchema(nsCtx.Schema)
 	}
 	return iters, exhaustive, err
 }
@@ -1932,8 +1933,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts result.Options,
 ) (result.ShardResult, error) {
 	var (
-		nCtx = getContextFor(nsMetadata.ID(), s.opts)
-		result = newBulkBlocksResult(nCtx, s.opts, opts,
+		nsCtx  = namespace.NewContextFrom(nsMetadata)
+		result = newBulkBlocksResult(nsCtx, s.opts, opts,
 			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
 		progress = s.newPeerMetadataStreamingProgressMetrics(shard,
@@ -2004,8 +2005,8 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		nCtx = getContextFor(nsMetadata.ID(), s.opts)
-		result   = newStreamBlocksResult(nCtx, s.opts, opts, outputCh,
+		nsCtx    = namespace.NewContextFor(nsMetadata.ID(), s.opts.SchemaRegistry())
+		result   = newStreamBlocksResult(nsCtx, s.opts, opts, outputCh,
 			s.pools.tagDecoder.Get(), s.pools.id)
 		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
@@ -3117,7 +3118,7 @@ type blocksResult interface {
 }
 
 type baseBlocksResult struct {
-	nCtx                    namespace.Context
+	nsCtx                   namespace.Context
 	blockOpts               block.Options
 	blockAllocSize          int
 	contextPool             context.Pool
@@ -3126,13 +3127,13 @@ type baseBlocksResult struct {
 }
 
 func newBaseBlocksResult(
-	nCtx namespace.Context,
+	nsCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 ) baseBlocksResult {
 	blockOpts := resultOpts.DatabaseBlockOptions()
 	return baseBlocksResult{
-		nCtx:                    nCtx,
+		nsCtx:                   nsCtx,
 		blockOpts:               blockOpts,
 		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
 		contextPool:             opts.ContextPool(),
@@ -3163,12 +3164,12 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.SetSchema(b.nCtx.Schema)
+	iter.SetSchema(b.nsCtx.Schema)
 	iter.Reset(readers, start, blockSize)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
-	encoder.SetSchema(b.nCtx.Schema)
+	encoder.SetSchema(b.nsCtx.Schema)
 	encoder.Reset(start, b.blockAllocSize)
 
 	for iter.Next() {
@@ -3193,7 +3194,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		result   = b.blockOpts.DatabaseBlockPool().Get()
 	)
 
-	result.SetNamespaceContext(b.nCtx)
+	result.SetNamespaceContext(b.nsCtx)
 
 	if segments == nil {
 		result.Close() // return block to pool
@@ -3256,7 +3257,7 @@ type streamBlocksResult struct {
 }
 
 func newStreamBlocksResult(
-	nCtx namespace.Context,
+	nsCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 	outputCh chan<- peerBlocksDatapoint,
@@ -3264,21 +3265,10 @@ func newStreamBlocksResult(
 	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(nCtx, opts, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
 		outputCh:         outputCh,
 		tagDecoder:       tagDecoder,
 		idPool:           idPool,
-	}
-}
-
-func getContextFor(id ident.ID, opts Options) namespace.Context {
-	schemaReg := opts.SchemaRegistry()
-	if id == nil || schemaReg == nil {
-		return namespace.Context{}
-	}
-	schema, _ := schemaReg.GetLatestSchema(id)
-	return namespace.Context{
-		Schema: schema,
 	}
 }
 
@@ -3367,15 +3357,15 @@ type bulkBlocksResult struct {
 }
 
 func newBulkBlocksResult(
-	nCtx namespace.Context,
+	nsCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(nCtx, opts, resultOpts),
-		result:           result.NewShardResult(nCtx,4096, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
+		result:           result.NewShardResult(shardResultCapacity, resultOpts),
 		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,
 	}
@@ -3460,7 +3450,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
 		result.Reset(start, blockSize, encoder.Discard())
-		result.SetNamespaceContext(r.nCtx)
+		result.SetNamespaceContext(r.nsCtx)
 
 		tmpCtx.Close()
 	}

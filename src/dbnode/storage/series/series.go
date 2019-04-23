@@ -449,9 +449,9 @@ func (s *dbSeries) OnRetrieveBlock(
 		return
 	}
 
-	nCtx := getContextFor(s.opts)
+	nsCtx := newContextFor(s.opts)
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	b.SetNamespaceContext(nCtx)
+	b.SetNamespaceContext(nsCtx)
 	blockSize := s.opts.RetentionOptions().BlockSize()
 	b.ResetFromDisk(startTime, blockSize, segment, s.id)
 

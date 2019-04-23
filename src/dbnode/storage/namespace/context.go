@@ -23,6 +23,25 @@ package namespace
 import "github.com/m3db/m3/src/x/ident"
 
 type Context struct {
-	Id ident.ID
+	Id     ident.ID
 	Schema SchemaDescr
+}
+
+func NewContextFrom(nsMetadata Metadata) Context {
+	schema, ok := nsMetadata.Options().SchemaHistory().GetLatest()
+	if !ok {
+		return Context{}
+	}
+	return Context{
+		Id:     nsMetadata.ID(),
+		Schema: schema,
+	}
+}
+
+func NewContextFor(id ident.ID, registry SchemaRegistry) Context {
+	schema, _ := registry.GetLatestSchema(id)
+	return Context{
+		Id:     id,
+		Schema: schema,
+	}
 }

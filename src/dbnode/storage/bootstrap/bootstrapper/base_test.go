@@ -85,8 +85,7 @@ func testShardTimeRanges() result.ShardTimeRanges {
 
 func shardResult(entries ...testBlockEntry) result.ShardResult {
 	opts := result.NewOptions()
-	nCtx := namespace.Context{}
-	res := result.NewShardResult(nCtx, 0, opts)
+	res := result.NewShardResult(0, opts)
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 

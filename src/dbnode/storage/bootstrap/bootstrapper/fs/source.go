@@ -477,14 +477,6 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 	}
 }
 
-func getContextFrom(ns namespace.Metadata) namespace.Context {
-	schema, ok := ns.Options().SchemaHistory().GetLatest()
-	if !ok {
-		return namespace.Context{}
-	}
-	return namespace.Context{Id: ns.ID(), Schema: schema}
-}
-
 func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ns namespace.Metadata,
 	run runType,
@@ -502,7 +494,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		timesWithErrors   []time.Time
 		shardResult       result.ShardResult
 		shardRetriever    block.DatabaseShardBlockRetriever
-		nCtx              = getContextFrom(ns)
+		nsCtx             = namespace.NewContextFrom(ns)
 	)
 
 	requestedRanges := timeWindowReaders.ranges
@@ -529,7 +521,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			switch run {
 			case bootstrapDataRunType:
 				capacity := r.Entries()
-				shardResult = runResult.getOrAddDataShardResult(nCtx, shard, capacity, ropts)
+				shardResult = runResult.getOrAddDataShardResult(shard, capacity, ropts)
 			case bootstrapIndexRunType:
 				indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
 			default:
@@ -541,7 +533,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			for i := 0; err == nil && i < numEntries; i++ {
 				switch run {
 				case bootstrapDataRunType:
-					err = s.readNextEntryAndRecordBlock(r, runResult, start, blockSize, shardResult,
+					err = s.readNextEntryAndRecordBlock(nsCtx, r, runResult, start, blockSize, shardResult,
 						shardRetriever, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
@@ -626,6 +618,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 }
 
 func (s *fileSystemSource) readNextEntryAndRecordBlock(
+	nsCtx namespace.Context,
 	r fs.DataFileSetReader,
 	runResult *runResult,
 	blockStart time.Time,
@@ -642,6 +635,8 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		data        checked.Bytes
 		err         error
 	)
+	seriesBlock.SetNamespaceContext(nsCtx)
+
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		id, tagsIter, data, _, err = r.Read()
@@ -1252,7 +1247,6 @@ func newRunResult() *runResult {
 }
 
 func (r *runResult) getOrAddDataShardResult(
-	nCtx namespace.Context,
 	shard uint32,
 	capacity int,
 	ropts result.Options,
@@ -1269,7 +1263,7 @@ func (r *runResult) getOrAddDataShardResult(
 
 	// NB(r): Wait until we have a reader to initialize the shard result
 	// to be able to somewhat estimate the size of it.
-	shardResult = result.NewShardResult(nCtx, capacity, ropts)
+	shardResult = result.NewShardResult(capacity, ropts)
 	dataResults[shard] = shardResult
 
 	return shardResult

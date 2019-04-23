@@ -265,9 +265,9 @@ func newTestBufferBucketWithData(t *testing.T) (*BufferBucket, Options, []value)
 	var expected []value
 	for i, d := range data {
 		encoded := 0
-		nCtx := getContextFor(opts)
+		nsCtx := newContextFor(opts)
 		encoder := opts.EncoderPool().Get()
-		encoder.SetSchema(nCtx.Schema)
+		encoder.SetSchema(nsCtx.Schema)
 		encoder.Reset(curr, 0)
 		for _, v := range data[i] {
 			dp := ts.Datapoint{
@@ -314,15 +314,15 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 
 	b := &BufferBucket{}
 	b.resetTo(curr, WarmWrite, opts)
-	nCtx := getContextFor(opts)
+	nsCtx := newContextFor(opts)
 	emptyEncoder := opts.EncoderPool().Get()
-	emptyEncoder.SetSchema(nCtx.Schema)
+	emptyEncoder.SetSchema(nsCtx.Schema)
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 	require.Nil(t, b.encoders[0].encoder.Stream())
 
 	encoder := opts.EncoderPool().Get()
-	encoder.SetSchema(nCtx.Schema)
+	encoder.SetSchema(nsCtx.Schema)
 	encoder.Reset(curr, 0)
 
 	value := ts.Datapoint{Timestamp: curr, Value: 1.0}
