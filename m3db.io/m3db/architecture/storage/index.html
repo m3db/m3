@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1079,6 +1079,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1147,7 +1159,7 @@
 <li><strong>Digests file:</strong> Stores the digest checksums of the info file, summaries file, index file, data file and bloom filter file in the fileset volume for integrity verification.</li>
 <li><strong>Checkpoint file:</strong> Stores a digest of the digests file and written at the succesful completion of a fileset volume being persisted, allows for quickly checking if a volume was completed.</li>
 </ul>
-<pre><code>                                                     ┌─────────────────────┐
+<div class="highlight"><pre><span></span>                                                     ┌─────────────────────┐
 ┌─────────────────────┐  ┌─────────────────────┐     │     Index File      │
 │      Info File      │  │   Summaries File    │     │   (sorted by ID)    │
 ├─────────────────────┤  │   (sorted by ID)    │     ├─────────────────────┤
@@ -1177,7 +1189,7 @@
 ├─────────────────────┤
 │- Digests digest     │
 └─────────────────────┘
-</code></pre>
+</pre></div>
 
 <p>In the diagram above you can see that the data file stores compressed blocks for a given shard / block start combination. The index file (which is sorted by ID and thus can be binary searched or scanned) can be used to find the offset of a specific ID.</p>
 <p>FileSet files will be kept for every shard / block start combination that is within the retention period. Once the files fall out of the period defined in the configurable namespace retention period they will be deleted.</p>

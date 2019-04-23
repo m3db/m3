@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1113,6 +1113,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1215,7 +1227,7 @@
 <h3 id="structure">Structure</h3>
 <p>Commit logs for a given time window are kept in a single file. An info structure keeping metadata is written to the header of the file and all consequent entries are a repeated log structure, optionally containing metadata describing the series if it's the first time a log entry for a given series appears.</p>
 <p>The structures can be conceptually described as:</p>
-<pre><code>CommitLogInfo {
+<div class="highlight"><pre><span></span>CommitLogInfo {
   start int64
   duration int64
   index int64
@@ -1236,7 +1248,7 @@ CommitLogMetadata {
   namespace bytes
   shard uint32
 }
-</code></pre>
+</pre></div>
 
 <h3 id="compaction-snapshotting">Compaction / Snapshotting</h3>
 <p>Commit log files are compacted via the snapshotting proccess which (if enabled at the namespace level) will snapshot all data in memory into compressed files which have the same structure as the <a href="../storage/">fileset files</a> but are stored in a different location. Once these snapshot files are created, then all the commit log files whose data are captured by the snapshot files can be deleted. This can result in significant disk savings for M3DB nodes running with large block sizes and high write volume where the size of the (uncompressed) commit logs can quickly get out of hand.</p>

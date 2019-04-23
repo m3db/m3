@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1124,6 +1124,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1231,72 +1243,72 @@
 <h2 id="ingestion">Ingestion</h2>
 <p>Setting up the M3 stack to ingest carbon metrics is straightforward. First, make sure you've followed our <a href="../../how_to/single_node/">other documentation</a> to get m3coordinator and M3DB setup. Also, familiarize yourself with how M3 <a href="../../how_to/query/">handles aggregation</a>.</p>
 <p>Once you have both of those services running properly, modify your m3coordinator configuration to add the following lines and restart it:</p>
-<pre><code class="yaml">carbon:
-  ingester:
-    listenAddress: &quot;0.0.0.0:7204&quot;
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">carbon</span><span class="p">:</span>
+  <span class="nt">ingester</span><span class="p">:</span>
+    <span class="nt">listenAddress</span><span class="p">:</span> <span class="s">&quot;0.0.0.0:7204&quot;</span>
+</pre></div>
 
 <p>This will enable a line-based TCP carbon ingestion server on the specified port. By default, the server will write all carbon metrics to every aggregated namespace specified in the m3coordinator <a href="../../how_to/query/">configuration file</a> and aggregate them using a default strategy of <code>mean</code> (equivalent to Graphite's <code>Average</code>).</p>
 <p>This default setup makes sense if your carbon metrics are unaggregated, however, if you've already aggregated your data using something like <a href="https://github.com/statsite/statsite">statsite</a> then you may want to disable M3 aggregation. In that case, you can do something like the following:</p>
-<pre><code class="yaml">carbon:
-  ingester:
-    listenAddress: &quot;0.0.0.0:7204&quot;
-    rules:
-      - pattern: .*
-        aggregation:
-          enabled: false
-        policies:
-          - resolution: 1m
-            retention: 48h
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">carbon</span><span class="p">:</span>
+  <span class="nt">ingester</span><span class="p">:</span>
+    <span class="nt">listenAddress</span><span class="p">:</span> <span class="s">&quot;0.0.0.0:7204&quot;</span>
+    <span class="nt">rules</span><span class="p">:</span>
+      <span class="p p-Indicator">-</span> <span class="nt">pattern</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">.*</span>
+        <span class="nt">aggregation</span><span class="p">:</span>
+          <span class="nt">enabled</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">false</span>
+        <span class="nt">policies</span><span class="p">:</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1m</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">48h</span>
+</pre></div>
 
 <p>This replaces M3's default behavior with a single rule which states that all metrics (since <code>.*</code> will match any string) should be written to whichever aggregated M3DB namespace has been configured with a resolution of <code>1 minute</code> and a retention of <code>48 hours</code>, bypassing aggregation / downsampling altogether. Note that there <em>must</em> be a configured M3DB namespace with the specified resolution/retention or the coordinator will fail to start.</p>
 <p>In the situation that you choose to use M3's aggregation functionality, there are a variety of aggregation types you can choose from. For example:</p>
-<pre><code class="yaml">carbon:
-  ingester:
-    listenAddress: &quot;0.0.0.0:7204&quot;
-    rules:
-      - pattern: .*
-        aggregation:
-          type: last
-        policies:
-          - resolution: 1m
-            retention: 48h
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">carbon</span><span class="p">:</span>
+  <span class="nt">ingester</span><span class="p">:</span>
+    <span class="nt">listenAddress</span><span class="p">:</span> <span class="s">&quot;0.0.0.0:7204&quot;</span>
+    <span class="nt">rules</span><span class="p">:</span>
+      <span class="p p-Indicator">-</span> <span class="nt">pattern</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">.*</span>
+        <span class="nt">aggregation</span><span class="p">:</span>
+          <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">last</span>
+        <span class="nt">policies</span><span class="p">:</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1m</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">48h</span>
+</pre></div>
 
 <p>The config above will aggregate ingested carbon metrics into <code>1 minute</code> tiles, but instead of taking the <code>mean</code> of every datapoint, it will emit the <code>last</code> datapoint that was received within a given tile's window.</p>
 <p>Similar to Graphite's <a href="https://graphite.readthedocs.io/en/latest/config-carbon.html#storage-schemas-conf">storage-schemas.conf</a>, M3 carbon ingestion rules are applied in order and only the first pattern that matches is applied. In addition, the rules can be as simple or as complex as you like. For example:</p>
-<pre><code class="yaml">carbon:
-  ingester:
-    listenAddress: &quot;0.0.0.0:7204&quot;
-    rules:
-      - pattern: stats.internal.financial-service.*
-        aggregation:
-          type: max
-        policies:
-          - resolution: 1m
-            retention: 4320h
-          - resolution: 10s
-            retention: 24h
-      - pattern: stats.internal.rest-proxy.*
-        aggregation:
-          type: mean
-        policies:
-          - resolution: 10s
-            retention: 2h
-      - pattern: stats.cloud.*
-        aggregation:
-          enabled: false
-        policies:
-          - resolution: 1m
-            retention: 2h
-      - pattern: .*
-        aggregation:
-          type: mean
-        policies:
-          - resolution: 1m
-            retention: 48h
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">carbon</span><span class="p">:</span>
+  <span class="nt">ingester</span><span class="p">:</span>
+    <span class="nt">listenAddress</span><span class="p">:</span> <span class="s">&quot;0.0.0.0:7204&quot;</span>
+    <span class="nt">rules</span><span class="p">:</span>
+      <span class="p p-Indicator">-</span> <span class="nt">pattern</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">stats.internal.financial-service.*</span>
+        <span class="nt">aggregation</span><span class="p">:</span>
+          <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">max</span>
+        <span class="nt">policies</span><span class="p">:</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1m</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">4320h</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">10s</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">24h</span>
+      <span class="p p-Indicator">-</span> <span class="nt">pattern</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">stats.internal.rest-proxy.*</span>
+        <span class="nt">aggregation</span><span class="p">:</span>
+          <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">mean</span>
+        <span class="nt">policies</span><span class="p">:</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">10s</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2h</span>
+      <span class="p p-Indicator">-</span> <span class="nt">pattern</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">stats.cloud.*</span>
+        <span class="nt">aggregation</span><span class="p">:</span>
+          <span class="nt">enabled</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">false</span>
+        <span class="nt">policies</span><span class="p">:</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1m</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2h</span>
+      <span class="p p-Indicator">-</span> <span class="nt">pattern</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">.*</span>
+        <span class="nt">aggregation</span><span class="p">:</span>
+          <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">mean</span>
+        <span class="nt">policies</span><span class="p">:</span>
+          <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1m</span>
+            <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">48h</span>
+</pre></div>
 
 <p>Lets break that down.</p>
 <p>The first rule states that any metric matching the pattern <code>stats.internal.financial-service.*</code> should be aggregated using the <code>max</code> function (meaning the datapoint with the highest value that is received in a given window will be retained) to generate two different tiles, one with <code>1 minute</code> resolution and another with <code>10 second</code> resolution which will be written out to M3DB namespaces with <code>4320 hour</code> and <code>24 hour</code> retentions respectively.</p>
@@ -1305,11 +1317,11 @@
 <p>Finally, our last rule uses a "catch-all" pattern to capture any metrics that don't match any of our other rules and aggregate them using the <code>mean</code> function into <code>1 minute</code> tiles which we store for <code>48 hours</code>.</p>
 <h3 id="debug-mode">Debug mode</h3>
 <p>If at any time you're not sure which metrics are being matched by which patterns, or want more visibility into how the carbon ingestion rule are being evaluated, modify the config to enable debug mode:</p>
-<pre><code class="yaml">carbon:
-  ingester:
-    debug: true
-    listenAddress: &quot;0.0.0.0:7204&quot;
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">carbon</span><span class="p">:</span>
+  <span class="nt">ingester</span><span class="p">:</span>
+    <span class="nt">debug</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+    <span class="nt">listenAddress</span><span class="p">:</span> <span class="s">&quot;0.0.0.0:7204&quot;</span>
+</pre></div>
 
 <p>This will make the carbon ingestion emit logs for every step that is taking. <em>Note</em>: If your coordinator is ingesting a lot of data, enabling this mode could bring the proccess to a halt due to the I/O overhead, so use this feature cautiously in production environments.</p>
 <h3 id="supported-aggregation-functions">Supported Aggregation Functions</h3>
@@ -1344,8 +1356,8 @@
 <p>Note that you'll need to set the URL to: <code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:7201/api/v1/graphite</code></p>
 <h3 id="direct">Direct</h3>
 <p>You can query for metrics directly by issuing HTTP GET requests directly against the <code>M3Coordinator</code> <code>/api/v1/graphite/render</code> endpoint which runs on port <code>7201</code> by default. For example:</p>
-<pre><code class="bash">(export now=$(date +%s) &amp;&amp; curl &quot;localhost:7201/api/v1/graphite/render?target=transformNull(foo.*.baz)&amp;from=$(($now-300))&quot; | jq .)
-</code></pre>
+<div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">export</span> <span class="nv">now</span><span class="o">=</span><span class="k">$(</span>date +%s<span class="k">)</span> <span class="o">&amp;&amp;</span> curl <span class="s2">&quot;localhost:7201/api/v1/graphite/render?target=transformNull(foo.*.baz)&amp;from=</span><span class="k">$((</span><span class="nv">$now</span><span class="o">-</span><span class="m">300</span><span class="k">))</span><span class="s2">&quot;</span> <span class="p">|</span> jq .<span class="o">)</span>
+</pre></div>
 
 <p>will query for all metrics matching the <code>foo.*.baz</code> pattern, applying the <code>transformNull</code> function, and returning all datapoints for the last 5 minutes.</p>
                 

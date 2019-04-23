@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1152,6 +1152,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1298,13 +1310,13 @@ This means that all write must be acknowledged by a quorums of nodes in order to
 <p>We recommend running M3DB with an asynchronous commitlog.
 This means that writes will be reported as successful by the client, though the data may not have been flushed to disk yet.</p>
 <p>For example, consider the default configuration:</p>
-<pre><code>commitlog:
+<div class="highlight"><pre><span></span>commitlog:
   flushMaxBytes: 524288
   flushEvery: 1s
   queue:
     calculationType: fixed
     size: 2097152
-</code></pre>
+</pre></div>
 
 <p>This configuration states that the commitlog should be flushed whenever either of the following is true:</p>
 <ol>
@@ -1314,14 +1326,14 @@ This means that writes will be reported as successful by the client, though the 
 <p>In addition, the configuration also states that M3DB should allow up to <code>2097152</code> writes to be buffered in the commitlog queue before the database node will begin rejecting incoming writes so it can attempt to drain the queue and catch up. Increasing the size of this queue can often increase the write throughput of an M3DB node at the cost of potentially losing more data if the node experiences a sudden failure like a hard crash or power loss.</p>
 <h3 id="writing-new-series-asynchronously">Writing New Series Asynchronously</h3>
 <p>The default M3DB YAML configuration will contain the following as a top-level key under the <code>db</code> section:</p>
-<pre><code>writeNewSeriesAsync: true
-</code></pre>
+<div class="highlight"><pre><span></span>writeNewSeriesAsync: true
+</pre></div>
 
 <p>This instructs M3DB to handle writes for new timeseries (for a given time block) asynchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so the default configuration of creating them asynchronously improves M3DBs write throughput significantly when many new series are being created all at once.</p>
 <p>However, since new time series are created asynchronously, it's possible that there may be a brief delay inbetween when a write is acknowledged by the client and when that series becomes available for subsequent reads.</p>
 <p>M3DB also allows operators to rate limit the number of new series that can be created per second via the following configuration:</p>
-<pre><code>writeNewSeriesLimitPerSecond: 1048576
-</code></pre>
+<div class="highlight"><pre><span></span>writeNewSeriesLimitPerSecond: 1048576
+</pre></div>
 
 <p>This value can be set much lower than the default value for workloads in which a significant increase in cardinality usually indicates a misbehaving caller.</p>
 <h3 id="ignoring-corrupt-commitlogs-on-bootstrap">Ignoring Corrupt Commitlogs on Bootstrap</h3>
@@ -1329,10 +1341,10 @@ This means that writes will be reported as successful by the client, though the 
 However, in situations where the process crashed/exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
 In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either <strong>(a)</strong> come up successfully and tolerate an ostensibly minor amount of data or loss, or <strong>(b)</strong> attempt to stream the missing data from its peers.
 This behavior is controlled by the following default configuration:</p>
-<pre><code>bootstrap:
+<div class="highlight"><pre><span></span>bootstrap:
   commitlog:
     returnUnfulfilledForCorruptCommitLogFiles: false
-</code></pre>
+</pre></div>
 
 <p>In the situation where only a single node fails, the optimal outcome is for the node to attempt to repair itself from one of its peers.
 However, if a quorum of nodes fail and encounter corrupt commitlog files, they will deadlock while attempting to stream data from each other, as no nodes will be able to make progress due to a lack of quorum.
@@ -1347,20 +1359,20 @@ You can read about the consistency levels in more detail in <a href="../../m3db/
 We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: <code>filesystem,peers,uninitialized_topology</code> as described in our <a href="../bootstrapping/">bootstrapping operational guide</a>.</p>
 <h3 id="writing-new-series-asynchronously_1">Writing New Series Asynchronously</h3>
 <p>If you want to guarantee that M3DB will immediately allow you to read data for writes that have been acknowledged by the client, including the situation where the previous write was for a brand new timeseries, then you  will need to change the default M3DB configuration to set <code>writeNewSeriesAsync: false</code> as a top-level key under the <code>db</code> section:</p>
-<pre><code>writeNewSeriesAsync: false
-</code></pre>
+<div class="highlight"><pre><span></span>writeNewSeriesAsync: false
+</pre></div>
 
 <p>This instructs M3DB to handle writes for new timeseries (for a given time block) synchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so this configuration could have an adverse effect on performance when many new timeseries are being inserted into M3DB concurrently.</p>
 <p>Since this operation is so expensive, M3DB allows operator to rate limit the number of new series that can be created per second via the following configuration (also a top-level key under the <code>db</code> section):</p>
-<pre><code>writeNewSeriesLimitPerSecond: 1048576
-</code></pre>
+<div class="highlight"><pre><span></span>writeNewSeriesLimitPerSecond: 1048576
+</pre></div>
 
 <h3 id="ignoring-corrupt-commitlogs-on-bootstrap_1">Ignoring Corrupt Commitlogs on Bootstrap</h3>
 <p>As described in the "Tuning for Performance and Availability" section, we recommend configuring M3DB to ignore corrupt commitlog files on bootstrap. However, if you want to avoid any amount of inconsistency or data loss, no matter how minor, then you should configure M3DB to return unfulfilled when the commitlog bootstrapper encounters corrupt commitlog files. You can do so by modifying your configuration to look like this:</p>
-<pre><code>bootstrap:
+<div class="highlight"><pre><span></span>bootstrap:
   commitlog:
     returnUnfulfilledForCorruptCommitLogFiles: true
-</code></pre>
+</pre></div>
 
 <p>This will force your M3DB nodes to attempt to repair corrupted commitlog files on bootstrap by streaming the data from their peers.
 In most situations this will be transparent to the operator and the M3DB node will finish bootstrapping without trouble.

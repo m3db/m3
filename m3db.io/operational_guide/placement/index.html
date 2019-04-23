@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1119,6 +1119,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1234,7 +1246,7 @@
 <p>The <code>Leaving</code> state indicates that a node has been marked for removal from the cluster. The purpose of this state is to allow the node to remain in the cluster long enough for the nodes that are taking over its responsibilities to stream data from it.</p>
 <h2 id="sample-cluster-state-transitions-node-add">Sample Cluster State Transitions - Node Add</h2>
 <p>Node adds are performed by adding the new node to the placement. Some portion of the existing shards will be assigned to the new node based on its weight, and they will begin in the <code>Initializing</code> state. Similarly, the shards will be marked as <code>Leaving</code> on the node that are destined to lose ownership of them. Once the new node finishes bootstrapping the shards, it will update the placement to indicate that the shards it owns are <code>Available</code> and that the <code>Leaving</code> node should no longer own that shard in the placement.</p>
-<pre><code>Replication factor: 3
+<div class="highlight"><pre><span></span>Replication factor: 3
 
                                  ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
                                  │     Node A      │          │     Node B      │        │     Node C      │       │     Node D      │
@@ -1273,11 +1285,11 @@
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │ └──────────────────────┘│└──────────────────────┘ │
 │                          │                             │                           │                         │                         │
 └──────────────────────────┴─────────────────────────────┴───────────────────────────┴─────────────────────────┴─────────────────────────┘
-</code></pre>
+</pre></div>
 
 <h2 id="sample-cluster-state-transitions-node-remove">Sample Cluster State Transitions - Node Remove</h2>
 <p>Node removes are performed by updating the placement such that all the shards on the node that will be removed from the cluster are marked as <code>Leaving</code> and those shards are distributed to the remaining nodes (based on their weight) and assigned a state of <code>Initializing</code>. Once the existing nodes that are taking ownership of the leaving nodes shards finish bootstrapping, they will update the placement to indicate that the shards that they just acquired are <code>Available</code> and that the leaving node should no longer own those shards in the placement.</p>
-<pre><code>Replication factor: 3
+<div class="highlight"><pre><span></span>Replication factor: 3
 
                                  ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
                                  │     Node A      │          │     Node B      │        │     Node C      │       │     Node D      │
@@ -1316,11 +1328,11 @@
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │ └──────────────────────┘│                         │
 │                          │                             │                           │                         │                         │
 └──────────────────────────┴─────────────────────────────┴───────────────────────────┴─────────────────────────┴─────────────────────────┘
-</code></pre>
+</pre></div>
 
 <h2 id="sample-cluster-state-transitions-node-replace">Sample Cluster State Transitions - Node Replace</h2>
 <p>Node replaces are performed by updating the placement such that all the shards on the node that will be removed from the cluster are marked as <code>Leaving</code> and those shards are all added to the node that is being added and assigned a state of <code>Initializing</code>. Once the replacement node finishes bootstrapping, it will update the placement to indicate that the shards that it acquired are <code>Available</code> and that the leaving node should no longer own those shards in the placement.</p>
-<pre><code>Replication factor: 3
+<div class="highlight"><pre><span></span>Replication factor: 3
 
                                  ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
                                  │     Node A      │          │     Node B      │        │     Node C      │       │     Node D      │
@@ -1359,11 +1371,11 @@
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │                         │└──────────────────────┘ │
 │                          │                             │                           │                         │                         │
 └──────────────────────────┴─────────────────────────────┴───────────────────────────┴─────────────────────────┴─────────────────────────┘
-</code></pre>
+</pre></div>
 
 <h2 id="cluster-state-transitions-placement-updates-initiation">Cluster State Transitions - Placement Updates Initiation</h2>
 <p>The diagram below depicts the sequence of events that happen during a node replace and illustrates which entity is performing the placement update (in etcd) at each step.</p>
-<pre><code> ┌────────────────────────────────┐
+<div class="highlight"><pre><span></span> ┌────────────────────────────────┐
  │             Node A             │
  │                                │
  │       Shard 1: Available       │
@@ -1409,7 +1421,7 @@
 │       Shard 3: Available       │    indicate shard state is Available and
 │                                │    that Node A should no longer own any shards
 └────────────────────────────────┘
-</code></pre>
+</pre></div>
                 
                   
                 

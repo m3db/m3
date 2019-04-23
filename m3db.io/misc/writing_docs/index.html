@@ -1,0 +1,1756 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+    
+    
+      
+        <title>Tips For Writing Documentation - M3 Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.8d40d89b.css">
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+      
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    
+      <a href="#tips-for-writing-documentation" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="M3 Documentation" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                M3 Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                Tips For Writing Documentation
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="drawer">
+    <span class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </span>
+    M3 Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Overview
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Overview
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
+      Components
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
+      Motivation
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
+      Media
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
+      Storage Engine
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
+      Sharding and Replication
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
+      Consistency Levels
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/storage/" title="Storage" class="md-nav__link">
+      Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
+      Commit Logs
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
+      Peer Streaming
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/caching/" title="Caching" class="md-nav__link">
+      Caching
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Query Engine and Coordinator
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Query Engine and Coordinator
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      API
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        API
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
+      Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
+    
+    <label class="md-nav__link" for="nav-4-4">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-4">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/fanout/" title="Query Fanout" class="md-nav__link">
+      Query Fanout
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+      Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-5" type="checkbox" id="nav-4-5">
+    
+    <label class="md-nav__link" for="nav-4-5">
+      Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-5">
+        Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
+      Annotated Config File
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      How-To's
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        How-To's
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+      M3DB Single Node Deployment
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
+      M3DB Cluster Deployment, Manually
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+      M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/query/" title="M3Query" class="md-nav__link">
+      M3Query
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Operational Guides
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
+        Operational Guides
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/replication_and_deployment_in_zones/" title="Replication and Deployment in Zones" class="md-nav__link">
+      Replication and Deployment in Zones
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/availability_consistency_durability/" title="Tuning Availability, Consistency, and Durability" class="md-nav__link">
+      Tuning Availability, Consistency, and Durability
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+      Placement/Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+      Placement/Topology Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+      Namespace Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
+      Bootstrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
+      Kernel Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/etcd/" title="etcd" class="md-nav__link">
+      etcd
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-7" type="checkbox" id="nav-7">
+    
+    <label class="md-nav__link" for="nav-7">
+      Integrations
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-7">
+        Integrations
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
+      Prometheus
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/graphite/" title="Graphite" class="md-nav__link">
+      Graphite
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/grafana/" title="Grafana" class="md-nav__link">
+      Grafana
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8" type="checkbox" id="nav-8">
+    
+    <label class="md-nav__link" for="nav-8">
+      Performance
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-8">
+        Performance
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8-2" type="checkbox" id="nav-8-2">
+    
+    <label class="md-nav__link" for="nav-8-2">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-8-2">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/m3db/" title="M3DB Performance" class="md-nav__link">
+      M3DB Performance
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-8-3" type="checkbox" id="nav-8-3">
+    
+    <label class="md-nav__link" for="nav-8-3">
+      m3query
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-8-3">
+        m3query
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../performance/m3query/" title="m3query Performance" class="md-nav__link">
+      m3query Performance
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
+      Troubleshooting
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../faqs/" title="FAQs" class="md-nav__link">
+      FAQs
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Tips For Writing Documentation
+      </label>
+    
+    <a href="./" title="Tips For Writing Documentation" class="md-nav__link md-nav__link--active">
+      Tips For Writing Documentation
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tip-1-avoid-first-and-second-person-pronouns" title="Tip #1: Avoid first- and second-person pronouns." class="md-nav__link">
+    Tip #1: Avoid first- and second-person pronouns.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-2-avoid-subjective-language" title="Tip #2: Avoid subjective language." class="md-nav__link">
+    Tip #2: Avoid subjective language.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-3-focus-on-concrete-ideas" title="Tip #3: Focus on concrete ideas." class="md-nav__link">
+    Tip #3: Focus on concrete ideas.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-4-use-concise-sentences-or-fragments" title="Tip #4: Use concise sentences (or fragments)." class="md-nav__link">
+    Tip #4: Use concise sentences (or fragments).
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-5-write-down-questions-that-the-documentation-should-answer" title="Tip #5: Write down questions that the documentation should answer." class="md-nav__link">
+    Tip #5: Write down questions that the documentation should answer.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-6-write-skeleton-documentation-first" title="Tip #6: Write skeleton documentation first." class="md-nav__link">
+    Tip #6: Write skeleton documentation first.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-7-when-in-doubt-less-is-more" title="Tip #7: When in doubt, less is more." class="md-nav__link">
+    Tip #7: When in doubt, less is more.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-8-write-for-an-uninitiated-target-audience-and-call-out-prerequisites" title="Tip #8: Write for an uninitiated target audience (and call out prerequisites)." class="md-nav__link">
+    Tip #8: Write for an uninitiated target audience (and call out prerequisites).
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-9-make-sure-that-documentation-is-reviewed-thoroughly" title="Tip #9: Make sure that documentation is reviewed thoroughly." class="md-nav__link">
+    Tip #9: Make sure that documentation is reviewed thoroughly.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-10-have-at-least-one-less-familiar-person-review-documentation" title="Tip #10: Have at least one less-familiar person review documentation." class="md-nav__link">
+    Tip #10: Have at least one less-familiar person review documentation.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-11-document-both-reality-and-intent" title="Tip #11: Document both reality and intent." class="md-nav__link">
+    Tip #11: Document both reality and intent.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-12-focus-on-readability" title="Tip #12: Focus on readability." class="md-nav__link">
+    Tip #12: Focus on readability.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-13-be-pedantic-about-grammar" title="Tip #13: Be pedantic about grammar." class="md-nav__link">
+    Tip #13: Be pedantic about grammar.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-14-use-verb-tenses-consistently" title="Tip #14: Use verb tenses consistently." class="md-nav__link">
+    Tip #14: Use verb tenses consistently.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-15-make-consistent-references" title="Tip #15: Make consistent references." class="md-nav__link">
+    Tip #15: Make consistent references.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-16-use-todotodoc-placeholders-liberally" title="Tip #16: Use TODO/TODOC placeholders liberally." class="md-nav__link">
+    Tip #16: Use TODO/TODOC placeholders liberally.
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tip-1-avoid-first-and-second-person-pronouns" title="Tip #1: Avoid first- and second-person pronouns." class="md-nav__link">
+    Tip #1: Avoid first- and second-person pronouns.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-2-avoid-subjective-language" title="Tip #2: Avoid subjective language." class="md-nav__link">
+    Tip #2: Avoid subjective language.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-3-focus-on-concrete-ideas" title="Tip #3: Focus on concrete ideas." class="md-nav__link">
+    Tip #3: Focus on concrete ideas.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-4-use-concise-sentences-or-fragments" title="Tip #4: Use concise sentences (or fragments)." class="md-nav__link">
+    Tip #4: Use concise sentences (or fragments).
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-5-write-down-questions-that-the-documentation-should-answer" title="Tip #5: Write down questions that the documentation should answer." class="md-nav__link">
+    Tip #5: Write down questions that the documentation should answer.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-6-write-skeleton-documentation-first" title="Tip #6: Write skeleton documentation first." class="md-nav__link">
+    Tip #6: Write skeleton documentation first.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-7-when-in-doubt-less-is-more" title="Tip #7: When in doubt, less is more." class="md-nav__link">
+    Tip #7: When in doubt, less is more.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-8-write-for-an-uninitiated-target-audience-and-call-out-prerequisites" title="Tip #8: Write for an uninitiated target audience (and call out prerequisites)." class="md-nav__link">
+    Tip #8: Write for an uninitiated target audience (and call out prerequisites).
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-9-make-sure-that-documentation-is-reviewed-thoroughly" title="Tip #9: Make sure that documentation is reviewed thoroughly." class="md-nav__link">
+    Tip #9: Make sure that documentation is reviewed thoroughly.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-10-have-at-least-one-less-familiar-person-review-documentation" title="Tip #10: Have at least one less-familiar person review documentation." class="md-nav__link">
+    Tip #10: Have at least one less-familiar person review documentation.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-11-document-both-reality-and-intent" title="Tip #11: Document both reality and intent." class="md-nav__link">
+    Tip #11: Document both reality and intent.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-12-focus-on-readability" title="Tip #12: Focus on readability." class="md-nav__link">
+    Tip #12: Focus on readability.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-13-be-pedantic-about-grammar" title="Tip #13: Be pedantic about grammar." class="md-nav__link">
+    Tip #13: Be pedantic about grammar.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-14-use-verb-tenses-consistently" title="Tip #14: Use verb tenses consistently." class="md-nav__link">
+    Tip #14: Use verb tenses consistently.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-15-make-consistent-references" title="Tip #15: Make consistent references." class="md-nav__link">
+    Tip #15: Make consistent references.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tip-16-use-todotodoc-placeholders-liberally" title="Tip #16: Use TODO/TODOC placeholders liberally." class="md-nav__link">
+    Tip #16: Use TODO/TODOC placeholders liberally.
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/m3db/m3/edit/master/docs/misc/writing_docs.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="tips-for-writing-documentation">Tips For Writing Documentation</h1>
+<p>Writing is easy. Writing <em>well</em> is hard. Writing documentation is even harder and, as one might
+expect, writing <em>good documentation</em> can be very hard. The challenge ultimately stems from the fact
+that good documentation requires attention to several things: consistency, clarity, detail,
+information density, unambiguity, and grammar (of course).</p>
+<p>This page describes tips for writing documentation (for M3 or otherwise). There are many different,
+equally-valid writing styles; this document isn't meant as a prescription for how to write, but
+instead as optional (but encouraged) guidelines geared toward writing consistent, clear,
+easy-to-read documentation.</p>
+<h2 id="tip-1-avoid-first-and-second-person-pronouns">Tip #1: Avoid first- and second-person pronouns.</h2>
+<p>Documentation should always be written from a <a href="https://en.wikipedia.org/wiki/Narration#Third-person">third-person point of view</a> (specifically,
+with a <a href="https://en.wikipedia.org/wiki/Narration#Third-person,_objective">third-person objective narrative voice</a>); avoid using <a href="https://en.wikipedia.org/wiki/Narration#First-person">first-</a> and
+<a href="https://en.wikipedia.org/wiki/Narration#Second-person">second-person</a>. The point of documentation is not to be a message from the author or to
+convey their point of view, but rather to be objective, factual, and canonical.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Examples</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">BAD</td>
+<td><del>You will need to set Value X to "foo", as our testing indicated that "bar" can cause issues when solar rays are present.</del></td>
+</tr>
+<tr>
+<td align="center">BAD</td>
+<td><del>We suggest setting Value X to "foo", as testing indicated that "bar" can cause issues when solar rays are present.</del></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong>Value X must not be set to "bar", as testing indicated that it may cause issues when solar rays are present.</strong></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong>Value X must be set to "foo"; a value of "bar" may cause issues when solar rays are present.</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="tip-2-avoid-subjective-language">Tip #2: Avoid subjective language.</h2>
+<p>Subjective language – language that is open to interpretation, particularly based on perspective –
+should be avoided wherever possible. Documentation should state objective or broadly empirical
+truths (and should be supported by facts). Introducing perspective inherently creates ambiguity and
+vagueness in the document, as its meaning becomes reader-dependent. Importantly, cases of subjective
+language are distinct from cases of conditional behavior.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Examples</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">BAD</td>
+<td><del>Setting PowerLevel to 9000 is required, because efficiency is better than reliability in high-rate situations.</del></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong>In high-rate situations (≥1k req/s), PowerLevel should be set to 9000 in order to maximize efficiency; otherwise, the system defaults to ensuring reliability.</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="tip-3-focus-on-concrete-ideas">Tip #3: Focus on concrete ideas.</h2>
+<p>It can be easy to get sidetracked within documentation, or to bury critical points amidst tangent,
+ancillary, or otherwise extraneous information. When writing documentation, always ask, "What am I
+trying to say?". <a href="#tip-6-write-skeleton-documentation-first">Using terse bullets</a> can help structure information, and using a
+<a href="#tip-4-use-concise-sentences-or-fragments">self-defined guideline for sentence (or paragraph) length</a> can help to optimize
+the message such that the information density is high (i.e., no fluff or filler).</p>
+<h2 id="tip-4-use-concise-sentences-or-fragments">Tip #4: Use concise sentences (or fragments).</h2>
+<p>Sentences and sentence fragments should be simple and to the point (but not stuttering). Each
+sentence should ideally convey a single idea, but clearly-structured compound sentences are
+acceptable as well.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Examples</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">BAD</td>
+<td><del>In order to time travel the MaxSpeed setting must be set to 88MPH because lower speeds will not achieve the desired result, but users should be careful around turns as high speeds are dangerous.</del></td>
+</tr>
+<tr>
+<td align="center">BAD</td>
+<td><del>Time travel requires MaxSpeed to be set. The ideal value is 88MPH. Lower speeds will not achieve the desired result. Users should be careful around turns as high speeds are dangerous.</del></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong>Setting MaxSpeed to 88MPH is required to enable time travel – lower speeds will not achieve the desired result. However, users should take care around turns, as high speeds are dangerous.</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="tip-5-write-down-questions-that-the-documentation-should-answer">Tip #5: Write down questions that the documentation should answer.</h2>
+<p>The point of writing documentation is to document the subject and educate the reader, but every
+piece of documentation should be written with an understanding of which questions it is answering.
+Questions can be as specific as "How do I deploy service X?", or as vague as "How does the system
+work?", but for vaguer questions, there are ostensibly sub-questions (or
+<a href="#tip-6-write-skeleton-documentation-first">skeleton bullets</a>) that help to flesh them out.</p>
+<p>These questions can be included as a preface to the documentation if desired, which can serve to set
+the reader's expectations and frame of reference (both of which can help to improve comprehension
+and retention).</p>
+<p>A contrived example:</p>
+<div class="highlight"><pre><span></span>After reading this document, users should be able to answer:
+
+    - What does the system&#39;s topology look like?
+    - What are components X, Y, and Z, and how are they related?
+    - When should one use Modes 1-3 of component X?
+    - How can component Y be deployed in a HA capacity?
+    - How can components X and Y be tuned to mitigate load on component Z?
+    - How can all of the components be configured for correctness versus availability?
+</pre></div>
+
+<h2 id="tip-6-write-skeleton-documentation-first">Tip #6: Write skeleton documentation first.</h2>
+<p>Starting with a skeleton shows the full breadth and depth of a document (or set of documents) before
+anything is written, enabling a more holistic view of the content and helping to ensure cohesion and
+flow. Conversely, by fleshing out each section as it's added, it can be easy to lose track of the
+scope of the section relative to the document, or the scope of the document itself. This approach
+also serves as a TODO list, helping to ensure that sections aren't forgotten about and enabling the
+documentation to be divided and conquered.</p>
+<p>A contrived example:</p>
+<div class="highlight"><pre><span></span># The Document Title
+
+## Overview
+
+    - One-sentence or elevator pitch summary
+    - Introduce components X, Y, and Z
+
+## Component X
+
+### Overview
+    - Responsible for all client ingress
+    - Sole entrypoint into the system
+    - Can be deployed to support multiple client encodings
+    - Adapter layer for translating all ingress from clients into &lt;format&gt;
+    - Traffic goes: Client -&gt; Component X -&gt; Component Y -&gt; Component Z
+
+### Deployment modes
+    - HA
+    - Lossless
+    - High-throughput
+
+## Component Y
+
+### Overview
+    - Dynamic, stateless, full-mesh cluster topology
+    - Deduplicates all ingress from Component X
+    - Partitions data among Component Z backends using perfect hashing
+
+### Deployment modes
+    - Dynamic cluster
+    - Static cluster
+    - Full mesh
+    - Ring network
+    - Isolated
+
+## Component Z
+
+### Overview
+    - Persists normalized client data
+    - Maintains a sharded, in-memory cache
+
+### Deployment modes
+    - HA
+    - Prioritized throughput
+    - Writethrough cache
+    - Readthrough cache
+    - Ring buffer
+    - LRU
+</pre></div>
+
+<h2 id="tip-7-when-in-doubt-less-is-more">Tip #7: When in doubt, less is more.</h2>
+<p>While it may seem counterintuitive to start by writing less in a given document, terseness –
+specifically, fewer sentences or words to explain an idea – is easier to fix than verboseness.
+It is far easier to find gaps in a reader's comprehension that are caused by missing documentation
+than it is to try and find the minimal subset of documentation necessary to convey an idea. In other
+words: start short, and build out.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Examples</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">BAD</td>
+<td><del>Configuring the cache to be a LRU readthrough cache ensures that the minimal amount of memory is used at the expense of guaranteed initial cache misses. Using minimal memory is important, as servers have finite memory that does not scale with the size of persisted data, and thus the bulk of the data will incur cache misses after a certain point (though compression may be used to mitigate this in the future).</del></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong>Configuring the cache as a LRU readthrough cache results in a minimal memory footprint (due to the combined behavior of both readthrough and LRU caching) at the expense of initial cache misses. Cache efficiency may be improved in the future.</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="tip-8-write-for-an-uninitiated-target-audience-and-call-out-prerequisites">Tip #8: Write for an uninitiated target audience (and call out prerequisites).</h2>
+<p>Every piece of technical documentation has at least one baseline prerequisite that the documentation
+builds upon; otherwise, every document would need to explain
+<a href="https://softwareengineering.stackexchange.com/a/81715/4860">how computers work</a>. However, in the case of M3 (as an example), the reader
+might be someone writing code that emits metrics, an infrastructure engineer that wants to run a
+metrics stack, someone with experience running other metrics stacks that is looking for nuanced
+tradeoffs between this and other platforms, or a distributed systems enthusiast (or a thousand other
+folks).</p>
+<p>It's relatively straightforward to tailor a document to a given audience: an end-user looking to
+emit metrics is a <em>much</em> different demographic than someone wanting to run M3 in their
+infrastructure (etc), and as such, there is often no conflation. However, the skill level or
+technical depth of a given audience is often varied: a person who only vaguely understands what a
+metric really is will require a much broader set of information than a person who has experience
+using metrics in complex and interesting ways.</p>
+<p>Thus, it's important to cater to a baseline: don't expect that every piece of technical jargon will
+be understood. Similarly, it's not a document's responsibility to satisfy its own prerequisites -
+it's okay to inform the reader that they should be familiar with X, Y, and Z, else they won't get
+much out of the document. If there are prerequisites that normalize the baseline of most or all
+readers, call that out at the beginning (e.g., "Users should read and understand Document X before
+reading this document").</p>
+<h2 id="tip-9-make-sure-that-documentation-is-reviewed-thoroughly">Tip #9: Make sure that documentation is reviewed thoroughly.</h2>
+<p>Erroneous documentation can lead to confusion, misunderstanding, incorrect assumptions, or – in the
+worst case – a user unknowingly implementing bad or faulty behavior. Documentation should ideally be
+reviewed like code: thoroughly and pedantically. Depending on the complexity, it may be worth
+<a href="#tip-5-write-down-questions-that-the-documentation-should-answer">asking reviewers to answer basic questions</a> and update the documentation
+based on their responses – for example, if the question "When should <code>ConfigValueX</code> be set, and
+what are its side effects?" can't be answered, it might merit adding more documentation around the
+semantics of <code>ConfigValueX</code>, as well as its direct and side effects.</p>
+<h2 id="tip-10-have-at-least-one-less-familiar-person-review-documentation">Tip #10: Have <em>at least</em> one less-familiar person review documentation.</h2>
+<p>It's <em>extremely</em> easy to let assumptions, implicit points, jargon, etc sneak in. Folks who are
+familiar with a subject are more likely to subconsciously or contextually fill in the gaps, but they
+are not the documentation's intended audience. Instead, try to find one or more folks who are closer
+to the target audience (relatively speaking) review documentation, and evaluate their comprehension
+(e.g., ask basic questions that the documentation should provide answers for).</p>
+<p>Reviewers should sanity check all assumptions, and ask any questions freely – it's important to not
+assume that they just missed the boat on some critical information that is obvious to everyone else
+(most documentation should be explanatory and not expect readers to continually read between the
+lines).</p>
+<h2 id="tip-11-document-both-reality-and-intent">Tip #11: Document both reality <em>and</em> intent.</h2>
+<p>While documentation should reflect the current state of the world, in many cases, it's also
+important to document the context or rationale around that state (the "what" and the "why").
+Documenting only the "what" leaves readers to draw their own inferences and conclusions, while the
+"why" answers many of those questions outright (or, at the least, imparts a line of thinking that
+will more accurately inform those inferences).</p>
+<h2 id="tip-12-focus-on-readability">Tip #12: Focus on readability.</h2>
+<p>The goal of documentation is to provide information to the reader. This means that, aside from
+correctness, the most important metrics of documentation are its efficiency (words per idea) and
+efficacy (readability of words and retention of ideas).</p>
+<p>Reading a sentence in isolation helps to analyze the readability of an idea in a narrow context,
+but reading multiple sentences (or a paragraph) at a time can be a good signal of how well
+information flows.</p>
+<h2 id="tip-13-be-pedantic-about-grammar">Tip #13: Be pedantic about grammar.</h2>
+<p>English grammar can often be flexible, subjectively readable, or confusing (there is more than one
+way to skin a cat). Being clear and using <a href="#tip-4-use-concise-sentences-or-fragments">simpler, well-structured sentences</a>
+can <a href="#tip-12-focus-on-readability">help with readability</a> by presenting digestible, unambiguous ideas.
+<a href="#tip-14-use-verb-tenses-consistently">Verb tense</a> and <a href="#tip--1-avoid-first-andsecond-person-pronouns">pronouns</a> can play an important role as well. Ultimately,
+the best litmus test may be the simplest: whether a reader needs to read a sentence twice to
+understand it (technical terms notwithstanding).</p>
+<p>Realistically, it is impractical to strive for or expect perfect grammar. The goal isn't to write
+flawless English; the goal is to write <em>clear, concise, unambiguous, and readable</em> documentation,
+for which grammar is an important (albeit not the only) tool.</p>
+<h2 id="tip-14-use-verb-tenses-consistently">Tip #14: Use verb tenses consistently.</h2>
+<p>Generally speaking, the bulk of documentation only makes sense when written in the present tense
+(its "common tense", so to speak), as objects are typically referred to in the abstract (e.g.
+"Component X" is abstract, "The running instance of Component X" proverbially concrete) and do not
+usually involve time (e.g. "Component X is an upstream of Component Y" refers to nominal abstract
+state, "Component X will be an upstream of Component Y" is prospective state). Of course, this is
+not always true: documentation can tell a story, and tenses should be used as needed to express ideas
+relative to time.</p>
+<p>However, cases of general fact, such as describing cause and effect:</p>
+<pre><code>Value X -&gt; Behavior Y
+</code></pre>
+<p>should be described in the present tense:</p>
+<pre><code>Setting Value X causes Behavior Y.
+</code></pre>
+<p>versus the future tense:</p>
+<pre><code>Setting Value X will cause Behavior Y.
+</code></pre>
+<p>in order to be consistent with the documentation's common tense, to maintain a time-less (and thus
+ongoing) objective truth, and to contrast actual time-relative statements (e.g. "Setting Value X
+causes Behavior Y, but will be updated to cause Behavior Z in the future").</p>
+<h2 id="tip-15-make-consistent-references">Tip #15: Make consistent references.</h2>
+<p>When communicating verbally, there is no need to distinguish between represented forms for a given
+artifact, value, method, etc - one can simply say "foo bar" to reference "the member function or
+property <code>Bar</code> on type <code>Foo</code>", or "foo dot bar" to reference "the YAML key <code>bar</code> nested under
+the key <code>foo</code>" (as simple examples).</p>
+<p>In written documentation, however, these references can either maintain continuity throughout a
+document (when used consistently), or they can cause confusion (when used inconsistently). A simple
+framework for references is, "if it's code (or code-like), it should look like code; otherwise,
+treat it like a proper noun". Thankfully, most references fall into two such categories:</p>
+<ul>
+<li><strong>Code (and code-like) references</strong>, such as <code>MyClass</code> or <code>myVar</code> or <code>some.config.property</code>. In
+  these cases, <code>PreformattedText</code> should be used, and should reference the code verbatim. All
+  instances of such a reference should be consistent, and should not be abbreviated.</li>
+<li><strong>Proper (or effectively proper) names</strong>, such as "My Component" or "My System Name". In these
+  cases, "Title Case" should be used, with the following exceptions:<ul>
+<li>Established projects, such as "etcd", "PostgreSQL", and "GitHub", should use the project's
+  official name and format, versus arbitrary ones (e.g. "Etcd", "Postgres", "Github", etc).</li>
+<li>First-party components, such as "the M3 Aggregator", can use shorthand when doing so does not
+  contextually result in ambiguity (e.g. "the Aggregator", when already discussing the Aggregator),
+  but should still be proper nouns.</li>
+</ul>
+</li>
+</ul>
+<p>For other or nuanced cases, it's more important to be consistent than it is to fit a reference into
+one of these simple categories.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Examples</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">BAD</td>
+<td><del>The Flux Capactitor is a Y-shaped component that enables time travel. Importantly, the enclosing vehicle must be capable of providing 1.21 gigawatts of power, as the flux capacitor requires this energy to function.</del></td>
+</tr>
+<tr>
+<td align="center">BAD</td>
+<td><del>FluxCapacitor's power level property should be set to 1.21.</del></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong>The Flux Capacitor is a Y-shaped component that enables time travel. Importantly, the enclosing vehicle must be capable of providing 1.21 gigawatts of power, as the Flux Capacitor requires this energy to function.</strong></td>
+</tr>
+<tr>
+<td align="center">GOOD</td>
+<td><strong><code>FluxCapacitor</code>'s <code>powerLevel</code> property should be set to <code>1.21</code>.</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="tip-16-use-todotodoc-placeholders-liberally">Tip #16: Use <code>TODO</code>/<code>TODOC</code> placeholders liberally.</h2>
+<p>Often, it might not yet be the right time to write a part of the documentation – either because a
+feature isn't ready yet, it's not the most practical time investment at present, or other reasons.
+In these cases, consider adding a <code>TODO</code> (in exactly the same way that code <code>TODO</code>s are used). If
+it's necessary/helpful to disambiguate code <code>TODO</code>s from documentation <code>TODO</code>s, <code>TODOC</code> can be used
+instead: it's similar enough to match a naive <code>TODO</code> search, but both <code>TODO</code> and <code>TODOC</code> can be
+reasoned about independently as desired. For example:</p>
+<div class="highlight"><pre><span></span><span class="c1">// FluxCapacitor TODOC(anyone)</span>
+<span class="kd">type</span> <span class="nx">FluxCapacitor</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="c1">// TODO(anyone): use a discrete GigaWatts type instead of a float</span>
+    <span class="nx">RequiredPower</span> <span class="kt">float64</span>
+<span class="p">}</span>
+</pre></div>
+
+<div class="highlight"><pre><span></span>$ grep -rnH <span class="s1">&#39;TODOC(&#39;</span> .
+./time/timetravel/flux_capacitor.go:123: // FluxCapacitor TODOC<span class="o">(</span>anyone<span class="o">)</span>
+</pre></div>
+
+<div class="highlight"><pre><span></span>$ grep -rnH <span class="s1">&#39;TODO(&#39;</span> .
+./time/timetravel/flux_capacitor.go:125:     // TODO<span class="o">(</span>anyone<span class="o">)</span>: use a discrete GigaWatts <span class="nb">type</span> instead of a float
+</pre></div>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../../faqs/" title="FAQs" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                FAQs
+              </span>
+            </div>
+          </a>
+        
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="http://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.b438e6c5.js"></script>
+      
+      <script>app.initialize({version:"0.17.3",url:{base:"../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>

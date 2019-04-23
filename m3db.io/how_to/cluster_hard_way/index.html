@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1159,6 +1159,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1323,16 +1335,14 @@
 <p>Further, we assume you have hostnames configured correctly too. i.e. running <code>hostname</code> on a host in the cluster returns the host ID you'll be using when specifying instance host IDs when creating the M3DB cluster placement. E.g. running <code>hostname</code> on a node <code>m3db001</code> should return it's host ID <code>m3db001</code>.</p>
 <p>In GCP the name of your instance when you create it will automatically be it's hostname. When you create an instance click "Management, disks, networking, SSH keys" and under "Networking" click the default interface and click the "Primary internal IP" drop down and select "Reserve a static internal IP address" and give it a name, i.e. <code>m3db001</code>, a description that describes it's a seed node IP address and use "Assign automatically".</p>
 <p>In AWS it might be simpler to just use whatever the hostname you get for the provisioned VM as your host ID when specifying M3DB placement.  Either that or use the <code>environment</code> host ID resolver and pass your host ID when launching the database process with an environment variable.  You can set to the host ID and specify the environment variable name in config as <code>envVarName: M3DB_HOST_ID</code> if you are using an environment variable named <code>M3DB_HOST_ID</code>.</p>
-<p>Relevant config snippet:</p>
-<pre><code>hostID:
+<p>Relevant config snippet:
+<div class="highlight"><pre><span></span>hostID:
   resolver: environment
   envVarName: M3DB_HOST_ID
-</code></pre>
-
-<p>Then start your process with:</p>
-<pre><code>M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
-</code></pre>
-
+</pre></div></p>
+<p>Then start your process with:
+<div class="highlight"><pre><span></span>M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
+</pre></div></p>
 <h3 id="kernel">Kernel</h3>
 <p>Ensure you review our <a href="../../operational_guide/kernel_configuration/">recommended kernel configuration</a> before running M3DB in production as M3DB may exceed the default limits for some default kernel values.</p>
 <h2 id="config-files">Config files</h2>
@@ -1344,7 +1354,7 @@
 <li>m3db003 (Region=us-east1, Zone=us-east1-c, Static IP=10.142.0.3)</li>
 </ul>
 <p>We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-cluster-template.yml">config</a>. Update the config ‘service’ and 'seedNodes' sections to read as follows:</p>
-<pre><code>config:
+<div class="highlight"><pre><span></span>config:
   service:
     env: default_env
     zone: embedded
@@ -1364,82 +1374,82 @@
         endpoint: http://10.142.0.2:2380
       - hostID: m3db003
         endpoint: http://10.142.0.3:2380
-</code></pre>
+</pre></div>
 
 <h2 id="start-the-seed-nodes">Start the seed nodes</h2>
 <p>Transfer the config you just crafted to each host in the cluster. And then starting with the seed nodes, start up the m3dbnode process:</p>
-<pre><code>m3dbnode -f &lt;config-name.yml&gt;
-</code></pre>
+<div class="highlight"><pre><span></span>m3dbnode -f &lt;config-name.yml&gt;
+</pre></div>
 
 <p>Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc</p>
 <h2 id="initialize-topology">Initialize Topology</h2>
 <p>M3DB calls its cluster topology ‘placement’. Run the command below on any of the seed nodes to initialize your first placement.</p>
 <p>Note: Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones <code>us-east1-a</code>, <code>us-east1-b</code>, <code>us-east1-c</code> as our isolation groups which matches our replication factor of 3.</p>
-<pre><code class="json">curl -X POST localhost:7201/api/v1/placement/init -d '{
-    &quot;num_shards&quot;: 1024,
-    &quot;replication_factor&quot;: 3,
-    &quot;instances&quot;: [
-        {
-            &quot;id&quot;: &quot;m3db001&quot;,
-            &quot;isolation_group&quot;: &quot;us-east1-a&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;10.142.0.1:9000&quot;,
-            &quot;hostname&quot;: &quot;m3db001&quot;,
-            &quot;port&quot;: 9000
-        },
-        {
-            &quot;id&quot;: &quot;m3db002&quot;,
-            &quot;isolation_group&quot;: &quot;us-east1-b&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;10.142.0.2:9000&quot;,
-            &quot;hostname&quot;: &quot;m3db002-us-east&quot;,
-            &quot;port&quot;: 9000
-        },
-        {
-            &quot;id&quot;: &quot;m3db003&quot;,
-            &quot;isolation_group&quot;: &quot;us-east1-c&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;10.142.0.3:9000&quot;,
-            &quot;hostname&quot;: &quot;m3db003&quot;,
-            &quot;port&quot;: 9000
-        }
-    ]
-}'
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/placement/init</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+    <span class="nt">&quot;num_shards&quot;</span><span class="p">:</span> <span class="mi">1024</span><span class="p">,</span>
+    <span class="nt">&quot;replication_factor&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="nt">&quot;instances&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db001&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;us-east1-a&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;10.142.0.1:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db001&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db002&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;us-east1-b&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;10.142.0.2:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db002-us-east&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db003&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;us-east1-c&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;10.142.0.3:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db003&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
 <h2 id="create-namespaces">Create namespace(s)</h2>
 <p>A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.</p>
 <p>Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:</p>
-<pre><code class="json">curl -X POST localhost:7201/api/v1/namespace -d '{
-  &quot;name&quot;: &quot;metrics&quot;,
-  &quot;options&quot;: {
-    &quot;bootstrapEnabled&quot;: true,
-    &quot;flushEnabled&quot;: true,
-    &quot;writesToCommitLog&quot;: true,
-    &quot;cleanupEnabled&quot;: true,
-    &quot;snapshotEnabled&quot;: true,
-    &quot;repairEnabled&quot;: false,
-    &quot;retentionOptions&quot;: {
-      &quot;retentionPeriodDuration&quot;: &quot;720h&quot;,
-      &quot;blockSizeDuration&quot;: &quot;12h&quot;,
-      &quot;bufferFutureDuration&quot;: &quot;1h&quot;,
-      &quot;bufferPastDuration&quot;: &quot;1h&quot;,
-      &quot;blockDataExpiry&quot;: true,
-      &quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;: &quot;5m&quot;
-    },
-    &quot;indexOptions&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;blockSizeDuration&quot;: &quot;12h&quot;
-    }
-  }
-}'
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/namespace</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;metrics&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;options&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;bootstrapEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;flushEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;writesToCommitLog&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;cleanupEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;snapshotEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;repairEnabled&quot;</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="nt">&quot;retentionOptions&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;retentionPeriodDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;720h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;blockSizeDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;bufferFutureDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;1h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;bufferPastDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;1h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;blockDataExpiry&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+      <span class="nt">&quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;5m&quot;</span>
+    <span class="p">},</span>
+    <span class="nt">&quot;indexOptions&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+      <span class="nt">&quot;blockSizeDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
 <p>Shortly after, you should see your node complete bootstrapping:</p>
-<pre><code>20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
+<div class="highlight"><pre><span></span>20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
 20:10:13.462798[I] node tchannelthrift: listening on 0.0.0.0:9000
 20:10:13.463107[I] cluster tchannelthrift: listening on 0.0.0.0:9001
 20:10:13.747173[I] node httpjson: listening on 0.0.0.0:9002
@@ -1449,44 +1459,44 @@
 20:10:13.757834[I] bootstrap finished [{namespace metrics} {duration 10.1261ms}]
 20:10:13.758001[I] bootstrapped
 20:10:14.764771[I] successfully updated topology to 3 hosts
-</code></pre>
+</pre></div>
 
 <p>Read more about namespaces and the various knobs in the docs.</p>
 <h2 id="test-it-out">Test it out</h2>
 <p>Now you can experiment with writing tagged metrics:</p>
-<pre><code class="json">curl -sS -X POST localhost:9003/writetagged -d '{
-  &quot;namespace&quot;: &quot;metrics&quot;,
-  &quot;id&quot;: &quot;foo&quot;,
-  &quot;tags&quot;: [
-    {
-      &quot;name&quot;: &quot;city&quot;,
-      &quot;value&quot;: &quot;new_york&quot;
-    },
-    {
-      &quot;name&quot;: &quot;endpoint&quot;,
-      &quot;value&quot;: &quot;/request&quot;
-    }
-  ],
-  &quot;datapoint&quot;: {
-    &quot;timestamp&quot;: '&quot;$(date &quot;+%s&quot;)&quot;',
-    &quot;value&quot;: 42.123456789
-  }
-}'
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-sS</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">9003</span><span class="err">/writetagged</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;namespace&quot;</span><span class="p">:</span> <span class="s2">&quot;metrics&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;foo&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;new_york&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;endpoint&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;/request&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="nt">&quot;datapoint&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="err">&#39;</span><span class="s2">&quot;$(date &quot;</span><span class="err">+%s</span><span class="s2">&quot;)&quot;</span><span class="err">&#39;</span><span class="p">,</span>
+    <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="mf">42.123456789</span>
+  <span class="p">}</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
 <p>And reading the metrics you've written:</p>
-<pre><code class="json">curl -sS -X POST http://localhost:9003/query -d '{
-  &quot;namespace&quot;: &quot;metrics&quot;,
-  &quot;query&quot;: {
-    &quot;regexp&quot;: {
-      &quot;field&quot;: &quot;city&quot;,
-      &quot;regexp&quot;: &quot;.*&quot;
-    }
-  },
-  &quot;rangeStart&quot;: 0,
-  &quot;rangeEnd&quot;: '&quot;$(date &quot;+%s&quot;)&quot;'
-}' | jq .
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-sS</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">http://localhost:</span><span class="mi">9003</span><span class="err">/query</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;namespace&quot;</span><span class="p">:</span> <span class="s2">&quot;metrics&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;regexp&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;field&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;regexp&quot;</span><span class="p">:</span> <span class="s2">&quot;.*&quot;</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="nt">&quot;rangeStart&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+  <span class="nt">&quot;rangeEnd&quot;</span><span class="p">:</span> <span class="err">&#39;</span><span class="s2">&quot;$(date &quot;</span><span class="err">+%s</span><span class="s2">&quot;)&quot;</span><span class="err">&#39;</span>
+<span class="p">}</span><span class="err">&#39;</span> <span class="err">|</span> <span class="err">jq</span> <span class="err">.</span>
+</pre></div>
 
 <h2 id="integrations">Integrations</h2>
 <p><a href="../../integrations/prometheus/">Prometheus as a long term storage remote read/write endpoint</a>.</p>

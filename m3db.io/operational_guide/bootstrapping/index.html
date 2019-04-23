@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1186,6 +1186,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1375,7 +1387,7 @@
 <p>On a shard-by-shard basis, the <code>commitlog</code> bootstrapper will consult the cluster placement to see if the node it is running on has ever achieved the <code>Available</code> status for the specified shard. If so, then the commit log bootstrapper should have all the data since the last Fileset file was flushed and will return that it can satisfy any time range for that shard. In other words, the commit log bootstrapper is all-or-nothing for a given shard: it will either return that it can satisfy any time range for a given shard or none at all. In addition, the <code>commitlog</code> bootstrapper <em>assumes</em> it is running after the <code>filesystem</code> bootstrapper. M3DB will not allow you to run with a configuration where the <code>filesystem</code> bootstrapper is placed after the <code>commitlog</code> bootstrapper, but it will allow you to run the <code>commitlog</code> bootstrapper without the <code>filesystem</code> bootstrapper which can result in loss of data, depending on the workload.</p>
 <h3 id="peers-bootstrapper">Peers Bootstrapper</h3>
 <p>The <code>peers</code> bootstrapper's responsibility is to stream in data for shard/ranges from other M3DB nodes (peers) in the cluster. This bootstrapper is only useful in M3DB clusters with more than a single node <em>and</em> where the replication factor is set to a value larger than 1. The <code>peers</code> bootstrapper will determine whether or not it can satisfy a bootstrap request on a shard-by-shard basis by consulting the cluster placement and determining if there are enough peers to satisfy the bootstrap request. For example, imagine the following M3DB placement where node A is trying to perform a peer bootstrap:</p>
-<pre><code>    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
+<div class="highlight"><pre><span></span>    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
     │     Node A      │          │     Node B      │        │     Node C      │
 ────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
 ┌─────────────────────────┐   ┌───────────────────────┐   ┌──────────────────────┐
@@ -1387,10 +1399,10 @@
 │                         │   │                       │   │                      │
 │                         │   │                       │   │                      │
 └─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
-</code></pre>
+</pre></div>
 
 <p>In this case, the <code>peers</code> bootstrapper running on node A will not be able to fullfill any requests because node B is in the <code>Initializing</code> state for all of its shards and cannot fulfill bootstrap requests. This means that node A's <code>peers</code> bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 &lt; 2 which is majority with a replication factor of 3). On the other hand, node A would be able to peer bootstrap its shards in the following placement because its peers (nodes B/C) have sufficient replicas of the shards it needs in the <code>Available</code> state:</p>
-<pre><code>    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
+<div class="highlight"><pre><span></span>    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
     │     Node A      │          │     Node B      │        │     Node C      │
 ────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
 ┌─────────────────────────┐   ┌───────────────────────┐   ┌──────────────────────┐
@@ -1402,7 +1414,7 @@
 │                         │   │                       │   │                      │
 │                         │   │                       │   │                      │
 └─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
-</code></pre>
+</pre></div>
 
 <p>Note that a bootstrap consistency level of <code>majority</code> is the default value, but can be modified by changing the value of the key <code>m3db.client.bootstrap-consistency-level</code> in <a href="https://coreos.com/etcd/">etcd</a> to one of: <code>none</code>, <code>one</code>, <code>unstrict_majority</code> (attempt to read from majority, but settle for less if any errors occur), <code>majority</code> (strict majority), and <code>all</code>. For example, if an entire cluster with a replication factor of 3 was restarted simultaneously, all the nodes would get stuck in an infinite loop trying to peer bootstrap from each other and not achieving majority until an operator modified this value. Note that this can happen even if all the shards were in the <code>Available</code> state because M3DB nodes will reject all read requests for a shard until they have bootstrapped that shard (which has to happen everytime the node is restarted).</p>
 <p><strong>Note</strong>: Any bootstrappers configuration that does not include the <code>peers</code> bootstrapper will be unable to handle dynamic placement changes of any kind.</p>

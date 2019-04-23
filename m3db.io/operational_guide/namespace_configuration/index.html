@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1213,6 +1213,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1412,11 +1424,11 @@
 <h4 id="recommended-easy-way">Recommended (Easy way)</h4>
 <p>The recommended way to add a namespace to M3DB is to use our <code>api/v1/database/namespace</code> endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.</p>
 <p>For example, the following cURL:</p>
-<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/database/namespace/create -d '{
-  &quot;namespaceName&quot;: &quot;default_unaggregated&quot;,
-  &quot;retentionTime&quot;: &quot;24h&quot;
-}'
-</code></pre>
+<div class="highlight"><pre><span></span>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT<span class="o">(</span>default <span class="m">7201</span><span class="o">)</span>&gt;/api/v1/database/namespace/create -d <span class="s1">&#39;{</span>
+<span class="s1">  &quot;namespaceName&quot;: &quot;default_unaggregated&quot;,</span>
+<span class="s1">  &quot;retentionTime&quot;: &quot;24h&quot;</span>
+<span class="s1">}&#39;</span>
+</pre></div>
 
 <p>will create a namespace called <code>default_unaggregated</code> with a retention of <code>24 hours</code>. All of the other namespace options will either use reasonable default values or be calculated based on the provided <code>retentionTime</code>.</p>
 <p>Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.</p>
@@ -1424,7 +1436,7 @@
 <h4 id="advanced-hard-way">Advanced (Hard Way)</h4>
 <p>The "advanced" API allows you to configure every aspect of the namespace that you're adding which can sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
 Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/namespace</code> API on an M3Coordinator instance.</p>
-<pre><code>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/namespace -d '{
+<div class="highlight"><pre><span></span>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/namespace -d &#39;{
   &quot;name&quot;: &quot;default_unaggregated&quot;,
   &quot;options&quot;: {
     &quot;bootstrapEnabled&quot;: true,
@@ -1446,8 +1458,8 @@ Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/names
       &quot;blockSizeDuration&quot;: &quot;4h&quot;
     }
   }
-}'
-</code></pre>
+}&#39;
+</pre></div>
 
 <p>Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.</p>
 <h3 id="deleting-a-namespace">Deleting a Namespace</h3>
@@ -1481,20 +1493,20 @@ Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/names
 <p>Can be modified without creating a new namespace: <code>no</code></p>
 <h4 id="bufferfuture-and-bufferpast">bufferFuture and bufferPast</h4>
 <p>These values control how far into the future and the past (compared to the system time on an M3DB node) writes for the namespace will be accepted. For example, consider the following configuration:</p>
-<pre><code>bufferPast: 10m
+<div class="highlight"><pre><span></span>bufferPast: 10m
 bufferFuture: 20m
 currentSystemTime: 2:35:00PM
-</code></pre>
+</pre></div>
 
 <p>Now consider the following writes (all of which arrive at 2:35:00PM system time, but include datapoints with the specified timestamps):</p>
-<pre><code>2:25:00PM - Accepted, within the 10m bufferPast
+<div class="highlight"><pre><span></span>2:25:00PM - Accepted, within the 10m bufferPast
 
 2:24:59PM - Rejected, outside the 10m bufferPast
 
 2:55:00PM - Accepted, within the 20m bufferFuture
 
 2:55:01PM - Rejected, outside the 20m bufferFuture
-</code></pre>
+</pre></div>
 
 <p>While it may be tempting to configure <code>bufferPast</code> and <code>bufferFuture</code> to very large values to prevent writes from being rejected, this may cause performance issues. M3DB is a timeseries database that is optimized for realtime data. Out of order writes, as well as writes for times that are very far into the future or past are much more expensive and will cause additional CPU / memory pressure. In addition, M3DB cannot evict a block from memory until it is no longer mutable and large <code>bufferPast</code> and <code>bufferFuture</code> values effectively increase the amount of time that a block is mutable for which means that it must be kept in memory for a longer period of time.</p>
 <p>Can be modified without creating a new namespace: <code>yes</code></p>

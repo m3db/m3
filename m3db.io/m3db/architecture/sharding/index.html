@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1134,6 +1134,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1257,15 +1269,15 @@
 <h2 id="replica">Replica</h2>
 <p>Each replica has its own assignment of a single logical shard per virtual shard.</p>
 <p>Conceptually it can be defined as:</p>
-<pre><code>Replica {
+<div class="highlight"><pre><span></span>Replica {
   id uint32
   shards []Shard
 }
-</code></pre>
+</pre></div>
 
 <h2 id="shard-state">Shard state</h2>
 <p>Each shard can be conceptually defined as:</p>
-<pre><code>Shard {
+<div class="highlight"><pre><span></span>Shard {
   id uint32
   assignments []ShardAssignment
 }
@@ -1280,7 +1292,7 @@ enum ShardState {
   AVAILABLE,
   LEAVING
 }
-</code></pre>
+</pre></div>
 
 <h2 id="shard-assignment">Shard assignment</h2>
 <p>The assignment of shards is stored in etcd. When adding, removing or replacing a node shard goal states are assigned for each shard assigned.</p>

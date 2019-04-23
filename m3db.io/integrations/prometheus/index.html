@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1084,6 +1084,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1151,7 +1163,7 @@
 <p>Start by downloading the <a href="https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-cluster-template.yml">config template</a>. Update the <code>namespaces</code> and the <code>client</code> section for a new cluster to match your cluster's configuration.</p>
 <p>You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up.  You can leave the namespace storage metrics type as <code>unaggregated</code> since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality <a href="../../how_to/query/">here</a>.</p>
 <p>It should look something like:</p>
-<pre><code>listenAddress:
+<div class="highlight"><pre><span></span>listenAddress:
   type: &quot;config&quot;
   value: &quot;0.0.0.0:7201&quot;
 
@@ -1202,42 +1214,41 @@ clusters:
          jitter: true
        backgroundHealthCheckFailLimit: 4
        backgroundHealthCheckFailThrottleFactor: 0.5
-
-</code></pre>
+</pre></div>
 
 <p>Now start the process up:</p>
-<pre><code>m3coordinator -f &lt;config-name.yml&gt;
-</code></pre>
+<div class="highlight"><pre><span></span>m3coordinator -f &lt;config-name.yml&gt;
+</pre></div>
 
 <p>Or, use the docker container:</p>
-<pre><code>docker pull quay.io/m3db/m3coordinator:latest
+<div class="highlight"><pre><span></span>docker pull quay.io/m3db/m3coordinator:latest
 docker run -p 7201:7201 --name m3coordinator -v &lt;config-name.yml&gt;:/etc/m3coordinator/m3coordinator.yml quay.io/m3db/m3coordinator:latest
-</code></pre>
+</pre></div>
 
 <h2 id="prometheus-configuration">Prometheus configuration</h2>
 <p>Add to your Prometheus configuration the <code>m3coordinator</code> sidecar remote read/write endpoints, something like:</p>
-<pre><code>remote_read:
+<div class="highlight"><pre><span></span>remote_read:
   - url: &quot;http://localhost:7201/api/v1/prom/remote/read&quot;
     # To test reading even when local Prometheus has the data
     read_recent: true
 remote_write:
   - url: &quot;http://localhost:7201/api/v1/prom/remote/write&quot;
-</code></pre>
+</pre></div>
 
 <p>Also, we recommend adding <code>M3DB</code> and <code>M3Coordinator</code>/<code>M3Query</code> to your list of jobs under <code>scrape_configs</code> so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured <a href="https://grafana.com/dashboards/8126">M3DB Grafana dashboard</a>.</p>
-<pre><code class="json">- job_name: 'm3db'
-  static_configs:
-    - targets: ['&lt;M3DB_HOST_NAME_1&gt;:7203', '&lt;M3DB_HOST_NAME_2&gt;:7203', '&lt;M3DB_HOST_NAME_3&gt;:7203']
-- job_name: 'm3coordinator'
-  static_configs:
-    - targets: ['&lt;M3COORDINATOR_HOST_NAME_1&gt;:7203']
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">-</span> <span class="err">job_name:</span> <span class="err">&#39;m</span><span class="mi">3</span><span class="err">db&#39;</span>
+  <span class="err">static_configs:</span>
+    <span class="err">-</span> <span class="err">targets:</span> <span class="p">[</span><span class="err">&#39;&lt;M</span><span class="mi">3</span><span class="err">DB_HOST_NAME_</span><span class="mi">1</span><span class="err">&gt;:</span><span class="mi">7203</span><span class="err">&#39;</span><span class="p">,</span> <span class="err">&#39;&lt;M</span><span class="mi">3</span><span class="err">DB_HOST_NAME_</span><span class="mi">2</span><span class="err">&gt;:</span><span class="mi">7203</span><span class="err">&#39;</span><span class="p">,</span> <span class="err">&#39;&lt;M</span><span class="mi">3</span><span class="err">DB_HOST_NAME_</span><span class="mi">3</span><span class="err">&gt;:</span><span class="mi">7203</span><span class="err">&#39;</span><span class="p">]</span>
+<span class="err">-</span> <span class="err">job_name:</span> <span class="err">&#39;m</span><span class="mi">3</span><span class="err">coordinator&#39;</span>
+  <span class="err">static_configs:</span>
+    <span class="err">-</span> <span class="err">targets:</span> <span class="p">[</span><span class="err">&#39;&lt;M</span><span class="mi">3</span><span class="err">COORDINATOR_HOST_NAME_</span><span class="mi">1</span><span class="err">&gt;:</span><span class="mi">7203</span><span class="err">&#39;</span><span class="p">]</span>
+</pre></div>
 
 <p><strong>NOTE:</strong> If you are running <code>M3DB</code> with embedded <code>M3Coordinator</code>, you should only have one job. We recommend just calling this job <code>m3</code>. For example:</p>
-<pre><code class="json">- job_name: 'm3'
-  static_configs:
-    - targets: ['&lt;HOST_NAME&gt;:7203']
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">-</span> <span class="err">job_name:</span> <span class="err">&#39;m</span><span class="mi">3</span><span class="err">&#39;</span>
+  <span class="err">static_configs:</span>
+    <span class="err">-</span> <span class="err">targets:</span> <span class="p">[</span><span class="err">&#39;&lt;HOST_NAME&gt;:</span><span class="mi">7203</span><span class="err">&#39;</span><span class="p">]</span>
+</pre></div>
 
 <h2 id="querying-with-grafana">Querying With Grafana</h2>
 <p>When using the Prometheus integration with Grafana, there are two different ways you can query for your metrics. The first option is to configure Grafana to query Prometheus directly by following <a href="http://docs.grafana.org/features/datasources/prometheus/">these instructions.</a></p>

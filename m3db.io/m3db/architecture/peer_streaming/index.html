@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1072,6 +1072,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1130,7 +1142,7 @@
 <p>In terms of error handling, the client will respect the consistency level specified for bootstrap. This means that when fetching metadata, indefinite retry is performed until the consistency level is achieved, for instance for quorum a majority of peers must successfully return metadata. For fetching the block data, if checksum matches from all peers then one successful fetch must occur, unless bootstrap consistency level "none" is specified, and if checksum mismatches then the specified consistency level must be achieved when the series block fetch is fanned out to peers. Fetching block data as well will indefinitely retry until the consistency level is achieved.</p>
 <p>The client supports dynamically changing the bootstrap consistency level, which is helpful in disaster scenarios where the consistency level cannot be achieved. To break the indefinite streaming attempt an operator can change the consistency level to "none" and a purely best-effort will be made to fetch the metadata and correspondingly to fetch the block data.</p>
 <p>The diagram below depicts the control flow and concurrency (goroutines and channels) in detail:</p>
-<pre><code>             ┌───────────────────────────────────────────────┐
+<div class="highlight"><pre><span></span>             ┌───────────────────────────────────────────────┐
              │                                               │
              │         FetchBootstrapBlocksFromPeers         │
              │                                               │
@@ -1166,7 +1178,7 @@
                 │          │  Stream paginated blocks metadata from a  │
                 │          │        peer while pageToken != nil        │
                 │          │                                           │
-                │          │     For each blocks' metadata --&gt; put     │
+                │          │     For each blocks&#39; metadata --&gt; put     │
                 │          │         metadata into metadataCh          │
                 │          └───────────────────────────────────────────┘
                 ▼
@@ -1211,13 +1223,13 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ newPeerBlocksQueue (processFn = streamBlocksBatchFromPeer)  │
 │                                                             │
-│For each peer we're creating a new peerBlocksQueue which will│
+│For each peer we&#39;re creating a new peerBlocksQueue which will│
 │     stream data blocks from a specific peer (using the      │
 │   streamBlocksBatchFromPeer function) and add them to the   │
 │                        blocksResult                         │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
-</code></pre>
+</pre></div>
                 
                   
                 

@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1124,6 +1124,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1241,42 +1253,42 @@
 <h3 id="m3db">M3DB</h3>
 <p>Most of our documentation demonstrates how to run <code>M3DB</code> with embedded etcd nodes. Once you're ready to switch to an external <code>etcd</code> cluster, all you need to do is modify the <code>M3DB</code> config to remove the <code>seedNodes</code> field entirely and then change the <code>endpoints</code> under <code>etcdClusters</code> to point to your external <code>etcd</code> nodes instead of the <code>M3DB</code> seed nodes.</p>
 <p>For example this portion of the config</p>
-<pre><code class="yaml">config:
-    service:
-        env: default_env
-        zone: embedded
-        service: m3db
-        cacheDir: /var/lib/m3kv
-        etcdClusters:
-            - zone: embedded
-              endpoints:
-                  - http://m3db_seed1:2379
-                  - http://m3db_seed2:2379
-                  - http://m3db_seed3:2379
-    seedNodes:
-        initialCluster:
-            - hostID: m3db_seed1
-              endpoint: http://m3db_seed1:2380
-            - hostID: m3db_seed2
-              endpoint: http://m3db_seed2:2380
-            - hostID: m3db_seed3
-              endpoint: http://m3db_seed3:2380
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">config</span><span class="p">:</span>
+    <span class="nt">service</span><span class="p">:</span>
+        <span class="nt">env</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">default_env</span>
+        <span class="nt">zone</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">embedded</span>
+        <span class="nt">service</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">m3db</span>
+        <span class="nt">cacheDir</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">/var/lib/m3kv</span>
+        <span class="nt">etcdClusters</span><span class="p">:</span>
+            <span class="p p-Indicator">-</span> <span class="nt">zone</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">embedded</span>
+              <span class="nt">endpoints</span><span class="p">:</span>
+                  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">http://m3db_seed1:2379</span>
+                  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">http://m3db_seed2:2379</span>
+                  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">http://m3db_seed3:2379</span>
+    <span class="nt">seedNodes</span><span class="p">:</span>
+        <span class="nt">initialCluster</span><span class="p">:</span>
+            <span class="p p-Indicator">-</span> <span class="nt">hostID</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">m3db_seed1</span>
+              <span class="nt">endpoint</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">http://m3db_seed1:2380</span>
+            <span class="p p-Indicator">-</span> <span class="nt">hostID</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">m3db_seed2</span>
+              <span class="nt">endpoint</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">http://m3db_seed2:2380</span>
+            <span class="p p-Indicator">-</span> <span class="nt">hostID</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">m3db_seed3</span>
+              <span class="nt">endpoint</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">http://m3db_seed3:2380</span>
+</pre></div>
 
 <p>would become</p>
-<pre><code class="yaml">config:
-    service:
-        env: default_env
-        zone: embedded
-        service: m3db
-        cacheDir: /var/lib/m3kv
-        etcdClusters:
-            - zone: embedded
-              endpoints:
-                  - http://external_etcd1:2379
-                  - http://external_etcd2:2379
-                  - http://external_etcd3:2379
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">config</span><span class="p">:</span>
+    <span class="nt">service</span><span class="p">:</span>
+        <span class="nt">env</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">default_env</span>
+        <span class="nt">zone</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">embedded</span>
+        <span class="nt">service</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">m3db</span>
+        <span class="nt">cacheDir</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">/var/lib/m3kv</span>
+        <span class="nt">etcdClusters</span><span class="p">:</span>
+            <span class="p p-Indicator">-</span> <span class="nt">zone</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">embedded</span>
+              <span class="nt">endpoints</span><span class="p">:</span>
+                  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">http://external_etcd1:2379</span>
+                  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">http://external_etcd2:2379</span>
+                  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">http://external_etcd3:2379</span>
+</pre></div>
 
 <p><strong>Note</strong>: <code>M3DB</code> placements and namespaces are stored in <code>etcd</code> so if you want to switch to an external <code>etcd</code> cluster you'll need to recreate all your placements and namespaces. You can do this manually or use <code>etcdctl</code>'s <a href="https://github.com/etcd-io/etcd/blob/v3.3.11/etcdctl/doc/mirror_maker.md">Mirror Maker</a> functionality.</p>
 <h3 id="m3coordinator">M3Coordinator</h3>

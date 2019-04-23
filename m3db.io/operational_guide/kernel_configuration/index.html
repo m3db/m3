@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1084,6 +1084,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1150,36 +1162,34 @@
 values for you. Please read the comment in that manifest to understand the implications of applying it.</p>
 <h2 id="vmmax_map_count">vm.max_map_count</h2>
 <p>M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump <code>vm.max_map_count</code>. We suggest setting this value to <code>3000000</code>, so you don’t have to come back and debug issues later.</p>
-<p>On Linux, you can increase the limits by running the following command as root:</p>
-<pre><code>sysctl -w vm.max_map_count=3000000
-</code></pre>
-
+<p>On Linux, you can increase the limits by running the following command as root:
+<div class="highlight"><pre><span></span>sysctl -w vm.max_map_count=3000000
+</pre></div></p>
 <p>To set this value permanently, update the <code>vm.max_map_count</code> setting in <code>/etc/sysctl.conf</code>.</p>
 <h2 id="vmswappiness">vm.swappiness</h2>
 <p><code>vm.swappiness</code> controls how much the virtual memory subsystem will try to swap to disk. By default, the kernel configures this value to <code>60</code>, and will try to swap out items in memory even when there is plenty of RAM available to the system.</p>
 <p>We recommend sizing clusters such that M3DB is running on a substrate (hosts/containers) such that no-swapping is necessary, i.e. the process is only using 30-50% of the maximum available memory. And therefore recommend setting the value of <code>vm.swappiness</code> to <code>1</code>. This tells the kernel to swap as little as possible, without altogether disabling swapping.</p>
-<p>On Linux, you can configure this by running the following as root:</p>
-<pre><code>sysctl -w vm.swappiness=1
-</code></pre>
-
+<p>On Linux, you can configure this by running the following as root:
+<div class="highlight"><pre><span></span>sysctl -w vm.swappiness=1
+</pre></div></p>
 <p>To set this value permanently, update the <code>vm.swappiness</code> setting in <code>/etc/sysctl.conf</code>.</p>
 <h2 id="rlimits">rlimits</h2>
 <p>M3DB also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.</p>
 <p>You may need to override the system and process-level limits set by the kernel with the following commands. To check the existing values run:</p>
-<pre><code>sysctl -n fs.file-max
-</code></pre>
+<div class="highlight"><pre><span></span>sysctl -n fs.file-max
+</pre></div>
 
 <p>and</p>
-<pre><code>sysctl -n fs.nr_open
-</code></pre>
+<div class="highlight"><pre><span></span>sysctl -n fs.nr_open
+</pre></div>
 
 <p>to see the kernel and process limits respectively.
 If either of the values are less than three million (our minimum recommended value), then you can update them with the following commands:</p>
-<pre><code>sysctl -w fs.file-max=3000000
-</code></pre>
+<div class="highlight"><pre><span></span>sysctl -w fs.file-max=3000000
+</pre></div>
 
-<pre><code>sysctl -w fs.nr_open=3000000
-</code></pre>
+<div class="highlight"><pre><span></span>sysctl -w fs.nr_open=3000000
+</pre></div>
 
 <p>To set these values permanently, update the <code>fs.file-max</code> and <code>fs.nr_open</code> settings in <code>/etc/sysctl.conf</code>.</p>
 <p>Alternatively, if you wish to have M3DB run under <code>systemd</code> you can use our <a href="https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service">service example</a> which will set sane defaults.

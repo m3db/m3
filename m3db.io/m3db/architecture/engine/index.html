@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1167,6 +1167,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1316,7 +1328,7 @@
 <h2 id="architecture">Architecture</h2>
 <p>M3DB is a persistent database with durable storage, but it is best understood via the boundary between its in-memory object layout and on-disk representations.</p>
 <h3 id="in-memory-object-layout">In-Memory Object Layout</h3>
-<pre><code>                   ┌───────────────────────────────┐
+<div class="highlight"><pre><span></span>                   ┌───────────────────────────────┐
    ┌───────────────┤           Database            ├─────────────────┐
    │               └───────────────────────────────┘                 │
    │                                                                 │
@@ -1367,7 +1379,7 @@
    │     └────────────────────────────────────────────────────┘      │
    │                                                                 │
    └─────────────────────────────────────────────────────────────────┘
-</code></pre>
+</pre></div>
 
 <p>The in-memory portion of M3DB is implemented via a hierarchy of objects:</p>
 <ol>
@@ -1432,10 +1444,10 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>If the series exists, then for every block that the request spans, M3DB needs to consolidate data from the active buffers, in-memory cache, and fileset files (disk).</p>
 <p>Lets imagine a read for a given series that requests the last 6 hours worth of data, and an M3DB namespace that is configured with a blocksize of 2 hours (i.e we need to find 3 different blocks.)</p>
 <p>If the current time is 8PM, then the location of the requested blocks might be as follows:</p>
-<pre><code>[2PM - 4PM (FileSet file)]    - Sealed and flushed block that isn't cached
+<div class="highlight"><pre><span></span>[2PM - 4PM (FileSet file)]    - Sealed and flushed block that isn&#39;t cached
 [4PM - 6PM (In-memory cache)] - Sealed and flush block that is cached
-[6PM - 8PM (active buffer)]   - Hasn't been sealed or flushed yet
-</code></pre>
+[6PM - 8PM (active buffer)]   - Hasn&#39;t been sealed or flushed yet
+</pre></div>
 
 <p>Then M3DB will need to consolidate:</p>
 <ol>

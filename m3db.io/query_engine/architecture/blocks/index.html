@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1086,6 +1086,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1153,7 +1165,7 @@
 <p>Most transformations within M3 Query will be applied across different series for each time interval. Therefore, having data stored in columnar format helps with the memory locality of the data. Moreover, most transformations within M3 Query can work in parallel on different blocks which can significantly increase the computation speed.</p>
 <h2 id="diagram">Diagram</h2>
 <p>Below is a visual representation of a set of <code>Blocks</code>. On top is the M3QL query that gets executed, and on the bottom, are the results of the query containing 3 different Blocks.</p>
-<pre><code>                              ┌───────────────────────────────────────────────────────────────────────┐
+<div class="highlight"><pre><span></span>                              ┌───────────────────────────────────────────────────────────────────────┐
                               │                                                                       │
                               │     fetch name:sign_up city_id:{new_york,san_diego,toronto} os:*     │
                               │                                                                       │
@@ -1188,7 +1200,7 @@
 │  city_id:toronto os:ios   │ │  2   │  5   │  10  │    │  2   │  5   │  10  │   │  2   │  5   │  10  │
 └───────────────────────────┘ │      │      │      │    │      │      │      │   │      │      │      │
                               └──────┴──────┴──────┘    └──────┴──────┴──────┘   └──────┴──────┴──────┘
-</code></pre>
+</pre></div>
 
 <h2 id="m3db-m3-query-blocks">M3DB =&gt; M3 Query Blocks</h2>
 <p>In order to convert M3DB blocks into M3 Query blocks, we need to consolidate across different namespaces. In short, M3DB namespaces are essentially different resolutions that metrics are stored at. For example, a metric might be stored at both 1min and 10min resolutions- meaning this metric is found in two namespaces.</p>

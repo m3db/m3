@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1193,6 +1193,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1401,63 +1413,63 @@ below before making changes.</p>
 <p><strong>Note</strong>: The <a href="../bootstrapping/">peers bootstrapper</a> must be configured on all nodes in the M3DB cluster for placement changes to work. The <code>peers</code> bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration</p>
 <h4 id="placement-initialization">Placement Initialization</h4>
 <p>Send a POST request to the <code>/api/v1/services/m3db/placement/init</code> endpoint</p>
-<pre><code class="bash">curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
-    &quot;num_shards&quot;: &lt;DESIRED_NUMBER_OF_SHARDS&gt;,
-    &quot;replication_factor&quot;: &lt;DESIRED_REPLICATION_FACTOR&gt;(recommended 3),
-    &quot;instances&quot;: [
-        {
-            &quot;id&quot;: &quot;&lt;NODE_1_ID&gt;&quot;,
-            &quot;isolation_group&quot;: &quot;&lt;NODE_1_ISOLATION_GROUP&gt;&quot;,
-            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
-            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
-            &quot;endpoint&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;:&lt;NODE_1_PORT&gt;&quot;,
-            &quot;hostname&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;&quot;,
-            &quot;port&quot;: &lt;NODE_1_PORT&gt;
-        },
-        {
-            &quot;id&quot;: &quot;&lt;NODE_2_ID&gt;&quot;,
-            &quot;isolation_group&quot;: &quot;&lt;NODE_2_ISOLATION_GROUP&gt;&quot;,
-            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
-            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
-            &quot;endpoint&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;:&lt;NODE_2_PORT&gt;&quot;,
-            &quot;hostname&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;&quot;,
-            &quot;port&quot;: &lt;NODE_2_PORT&gt;
-        },
-        {
-            &quot;id&quot;: &quot;&lt;NODE_3_ID&gt;&quot;,
-            &quot;isolation_group&quot;: &quot;&lt;NODE_3_ISOLATION_GROUP&gt;&quot;,
-            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
-            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
-            &quot;endpoint&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;:&lt;NODE_3_PORT&gt;&quot;,
-            &quot;hostname&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;&quot;,
-            &quot;port&quot;: &lt;NODE_3_PORT&gt;
-        },
-    ]
-}'
-</code></pre>
+<div class="highlight"><pre><span></span>curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d <span class="s1">&#39;{</span>
+<span class="s1">    &quot;num_shards&quot;: &lt;DESIRED_NUMBER_OF_SHARDS&gt;,</span>
+<span class="s1">    &quot;replication_factor&quot;: &lt;DESIRED_REPLICATION_FACTOR&gt;(recommended 3),</span>
+<span class="s1">    &quot;instances&quot;: [</span>
+<span class="s1">        {</span>
+<span class="s1">            &quot;id&quot;: &quot;&lt;NODE_1_ID&gt;&quot;,</span>
+<span class="s1">            &quot;isolation_group&quot;: &quot;&lt;NODE_1_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">            &quot;endpoint&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;:&lt;NODE_1_PORT&gt;&quot;,</span>
+<span class="s1">            &quot;hostname&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;&quot;,</span>
+<span class="s1">            &quot;port&quot;: &lt;NODE_1_PORT&gt;</span>
+<span class="s1">        },</span>
+<span class="s1">        {</span>
+<span class="s1">            &quot;id&quot;: &quot;&lt;NODE_2_ID&gt;&quot;,</span>
+<span class="s1">            &quot;isolation_group&quot;: &quot;&lt;NODE_2_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">            &quot;endpoint&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;:&lt;NODE_2_PORT&gt;&quot;,</span>
+<span class="s1">            &quot;hostname&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;&quot;,</span>
+<span class="s1">            &quot;port&quot;: &lt;NODE_2_PORT&gt;</span>
+<span class="s1">        },</span>
+<span class="s1">        {</span>
+<span class="s1">            &quot;id&quot;: &quot;&lt;NODE_3_ID&gt;&quot;,</span>
+<span class="s1">            &quot;isolation_group&quot;: &quot;&lt;NODE_3_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">            &quot;endpoint&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;:&lt;NODE_3_PORT&gt;&quot;,</span>
+<span class="s1">            &quot;hostname&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;&quot;,</span>
+<span class="s1">            &quot;port&quot;: &lt;NODE_3_PORT&gt;</span>
+<span class="s1">        },</span>
+<span class="s1">    ]</span>
+<span class="s1">}&#39;</span>
+</pre></div>
 
 <h4 id="adding-a-node">Adding a Node</h4>
 <p>Send a POST request to the <code>/api/v1/services/m3db/placement</code> endpoint</p>
-<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement -d '{
-  &quot;instances&quot;: [
-    {
-      &quot;id&quot;: &quot;&lt;NEW_NODE_ID&gt;&quot;,
-      &quot;isolationGroup&quot;: &quot;&lt;NEW_NODE_ISOLATION_GROUP&gt;&quot;,
-      &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
-      &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
-      &quot;endpoint&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;:&lt;NEW_NODE_PORT&gt;(default 9000)&quot;,
-      &quot;hostname&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;&quot;,
-      &quot;port&quot;: &lt;NEW_NODE_PORT&gt;
-    }
-  ]
-}'
-</code></pre>
+<div class="highlight"><pre><span></span>curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT<span class="o">(</span>default <span class="m">7201</span><span class="o">)</span>&gt;/api/v1/services/m3db/placement -d <span class="s1">&#39;{</span>
+<span class="s1">  &quot;instances&quot;: [</span>
+<span class="s1">    {</span>
+<span class="s1">      &quot;id&quot;: &quot;&lt;NEW_NODE_ID&gt;&quot;,</span>
+<span class="s1">      &quot;isolationGroup&quot;: &quot;&lt;NEW_NODE_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">      &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">      &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">      &quot;endpoint&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;:&lt;NEW_NODE_PORT&gt;(default 9000)&quot;,</span>
+<span class="s1">      &quot;hostname&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;&quot;,</span>
+<span class="s1">      &quot;port&quot;: &lt;NEW_NODE_PORT&gt;</span>
+<span class="s1">    }</span>
+<span class="s1">  ]</span>
+<span class="s1">}&#39;</span>
+</pre></div>
 
 <p>After sending the add command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the <code>Available</code> state.</p>
 <h4 id="removing-a-node">Removing a Node</h4>
 <p>Send a DELETE request to the <code>/api/v1/services/m3db/placement/&lt;NODE_ID&gt;</code> endpoint.</p>
-<pre><code class="bash">curl -X DELETE &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement/&lt;NODE_ID&gt;
-</code></pre>
+<div class="highlight"><pre><span></span>curl -X DELETE &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT<span class="o">(</span>default <span class="m">7201</span><span class="o">)</span>&gt;/api/v1/services/m3db/placement/&lt;NODE_ID&gt;
+</pre></div>
 
 <p>After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the <code>Available</code> state.</p>
 <h4 id="adding-removing-seed-nodes">Adding / Removing Seed Nodes</h4>
@@ -1470,21 +1482,21 @@ cluster members in <code>etcdctl member list</code> must match <em>exactly</em> 
 <h4 id="replacing-a-node">Replacing a Node</h4>
 <p><strong>NOTE</strong>: If using embedded etcd and replacing a seed node, please read the section below.</p>
 <p>Send a POST request to the <code>/api/v1/services/m3db/placement/replace</code> endpoint containing hosts to replace and candidates to replace it with.</p>
-<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement/replace -d '{
-    &quot;leavingInstanceIDs&quot;: [&quot;&lt;OLD_NODE_ID&gt;&quot;],
-    &quot;candidates&quot;: [
-        {
-          &quot;id&quot;: &quot;&lt;NEW_NODE_ID&gt;&quot;,
-          &quot;isolationGroup&quot;: &quot;&lt;NEW_NODE_ISOLATION_GROUP&gt;&quot;,
-          &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
-          &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
-          &quot;endpoint&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;:&lt;NEW_NODE_PORT&gt;(default 9000)&quot;,
-          &quot;hostname&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;&quot;,
-          &quot;port&quot;: &lt;NEW_NODE_PORT&gt;
-        }
-    ]
-}'
-</code></pre>
+<div class="highlight"><pre><span></span>curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT<span class="o">(</span>default <span class="m">7201</span><span class="o">)</span>&gt;/api/v1/services/m3db/placement/replace -d <span class="s1">&#39;{</span>
+<span class="s1">    &quot;leavingInstanceIDs&quot;: [&quot;&lt;OLD_NODE_ID&gt;&quot;],</span>
+<span class="s1">    &quot;candidates&quot;: [</span>
+<span class="s1">        {</span>
+<span class="s1">          &quot;id&quot;: &quot;&lt;NEW_NODE_ID&gt;&quot;,</span>
+<span class="s1">          &quot;isolationGroup&quot;: &quot;&lt;NEW_NODE_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">          &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">          &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">          &quot;endpoint&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;:&lt;NEW_NODE_PORT&gt;(default 9000)&quot;,</span>
+<span class="s1">          &quot;hostname&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;&quot;,</span>
+<span class="s1">          &quot;port&quot;: &lt;NEW_NODE_PORT&gt;</span>
+<span class="s1">        }</span>
+<span class="s1">    ]</span>
+<span class="s1">}&#39;</span>
+</pre></div>
 
 <h4 id="replacing-a-seed-node">Replacing a Seed Node</h4>
 <p>If you are using the embedded etcd mode (which is only recommended for test purposes) and replacing a seed node then
@@ -1496,40 +1508,40 @@ guide</a>, which we recommend
 reading for more context.</p>
 <p>To provide some context for the commands below, let's assume your cluster was created with the below configuration, and
 that you'd like to replace <code>host3</code> with a new host <code>host4</code>, which has IP address <code>1.1.1.4</code>:</p>
-<pre><code>initialCluster:
+<div class="highlight"><pre><span></span>initialCluster:
   - hostID: host1
     endpoint: http://1.1.1.1:2380
   - hostID: host2
     endpoint: http://1.1.1.2:2380
   - hostID: host3
     endpoint: http://1.1.1.3:2380
-</code></pre>
+</pre></div>
 
 <ol>
 <li>On an existing node in the cluster that is <strong>not</strong> the one you're removing, use <code>etcdctl</code> to remove <code>host3</code> from the
    cluster:</li>
 </ol>
-<pre><code>$ ETCDCTL_API=3 etcdctl member list
+<div class="highlight"><pre><span></span>$ ETCDCTL_API=3 etcdctl member list
 9d29673cf1328d1, started, host1, http://1.1.1.1:2380, http://1.1.1.1:2379
 f14613b6c8a336b, started, host2, http://1.1.1.2:2380, http://1.1.1.2:2379
 2fd477713daf243, started, host3, http://1.1.1.3:2380, http://1.1.1.3:2379  # &lt;&lt;&lt; INSTANCE WE WANT TO REMOVE
 
 $ ETCDCTL_API=3 etcdctl member remove 2fd477713daf243
 Removed member 2fd477713daf243 from cluster
-</code></pre>
+</pre></div>
 
 <ol>
 <li>From the same host, use <code>etcdctl</code> to add <code>host4</code> to the cluster:</li>
 </ol>
-<pre><code>$ ETCDCTL_API=3 etcdctl member add host4 --peer-urls http://1.1.1.4:2380
-</code></pre>
+<div class="highlight"><pre><span></span>$ ETCDCTL_API=3 etcdctl member add host4 --peer-urls http://1.1.1.4:2380
+</pre></div>
 
 <ol>
 <li><strong>Before</strong> starting M3DB on <code>host4</code>, modify the initial cluster list to indicate <code>host4</code> has a cluster state of
    <code>existing</code>. Note: if you had previously started M3DB on this host, you'll have to remove the <code>member</code> subdirectory in
    <code>$M3DB_DATA_DIR/etcd/</code>.</li>
 </ol>
-<pre><code>initialCluster:
+<div class="highlight"><pre><span></span>initialCluster:
   - hostID: host1
     endpoint: http://1.1.1.1:2380
   - hostID: host2
@@ -1537,7 +1549,7 @@ Removed member 2fd477713daf243 from cluster
   - hostID: host4
     clusterState: existing
     endpoint: http://1.1.1.4:2380
-</code></pre>
+</pre></div>
 
 <ol>
 <li>

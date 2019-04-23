@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1138,6 +1138,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1254,14 +1266,14 @@
                 
                 <h1 id="setting-up-m3query">Setting up m3query</h1>
 <h2 id="introduction">Introduction</h2>
-<p>m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with <a href="../../integrations/prometheus/">m3coordinator</a>, you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as <a href="http://m3db.github.io/m3/query_engine/architecture/blocks/">block processing</a>. Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.</p>
+<p>m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with <a href="../../integrations/prometheus/">m3coordinator</a>, you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as <a href="http://m3db.github.io/m3/query_engine/architecture/blocks/">block processing</a>. Furthermore, since m3query provides a Prometheus compatible API, you can use 3<sup>rd</sup> party graphing and alerting solutions like Grafana.</p>
 <h2 id="configuration">Configuration</h2>
 <p>Before setting up m3query, make sure that you have at least <a href="../single_node/">one M3DB node running</a>. In order to start m3query, you need to configure a <code>yaml</code> file, that will be used to connect to M3DB. Here is a link to a <a href="https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml">sample config</a> file that is used for an embedded etcd cluster within M3DB.</p>
 <h3 id="running">Running</h3>
 <p>You can run m3query by either building and running the binary yourself:</p>
-<pre><code>make m3query
+<div class="highlight"><pre><span></span>make m3query
 ./bin/m3query -f ./src/query/config/m3query-local-etcd.yml
-</code></pre>
+</pre></div>
 
 <p>Or you can run it with Docker using the Docker file located at <code>$GOPATH/src/github.com/m3db/m3/docker/m3query/Dockerfile</code>.</p>
 <h3 id="namespaces">Namespaces</h3>
@@ -1272,33 +1284,33 @@
 
 <h2 id="aggregation">Aggregation</h2>
 <p>You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace in M3DB <strong>and</strong> in the m3query configuration. It is important to note that all writes go to all namespaces so as long as you include all namespaces in your query config, you will be querying all namespaces. Aggregation is done strictly by the query service. For example if you have an aggregated namespace setup in M3DB named <code>metrics_10s_48h</code>, you can add the following to the query config:</p>
-<pre><code class="json">- namespace: metrics_10s_48h
-  type: aggregated
-  retention: 48h
-  resolution: 10s
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">-</span> <span class="err">namespace:</span> <span class="err">metrics_</span><span class="mi">10</span><span class="err">s_</span><span class="mi">48</span><span class="err">h</span>
+  <span class="err">type:</span> <span class="err">aggregated</span>
+  <span class="err">retention:</span> <span class="mi">48</span><span class="err">h</span>
+  <span class="err">resolution:</span> <span class="mi">10</span><span class="err">s</span>
+</pre></div>
 
 <p>If you run Statsite, m3agg, or some other aggregation tier, you will want to set the <code>all</code> flag under <code>downsample</code> to <code>false</code>. Otherwise, you will be aggregating metrics that have already been aggregated.</p>
-<pre><code class="json">- namespace: metrics_10s_48h
-  type: aggregated
-  retention: 48h
-  resolution: 10s
-  downsample:
-    all: false
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">-</span> <span class="err">namespace:</span> <span class="err">metrics_</span><span class="mi">10</span><span class="err">s_</span><span class="mi">48</span><span class="err">h</span>
+  <span class="err">type:</span> <span class="err">aggregated</span>
+  <span class="err">retention:</span> <span class="mi">48</span><span class="err">h</span>
+  <span class="err">resolution:</span> <span class="mi">10</span><span class="err">s</span>
+  <span class="err">downsample:</span>
+    <span class="err">all:</span> <span class="kc">false</span>
+</pre></div>
 
 <h2 id="id-generation">ID generation</h2>
 <p>The default generation scheme for IDs, <code>legacy</code>, is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either <code>quoted</code> or <code>prepend_meta</code>. <code>quoted</code> generation scheme yields the most human-readable IDs, whereas <code>prepend_meta</code> is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:</p>
-<pre><code class="yaml">tagOptions:
-  idScheme: &lt;name&gt;
-</code></pre>
+<div class="highlight"><pre><span></span><span class="nt">tagOptions</span><span class="p">:</span>
+  <span class="nt">idScheme</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">&lt;name&gt;</span>
+</pre></div>
 
 <p>As an example of how these schemes generate IDs, consider a series with the following 4 tags,
 <code>[{"t1":v1}, {t2:"v2"}, {t3:v3}, {t4:v4}]</code>. The following is an example of how different schemes will generate IDs.</p>
-<pre><code>legacy: &quot;t1&quot;=v1,t2=&quot;v2&quot;,t3=v3,t4=v4,
+<div class="highlight"><pre><span></span>legacy: &quot;t1&quot;=v1,t2=&quot;v2&quot;,t3=v3,t4=v4,
 prepend_meta: 4,2,2,4,2,2,2,2!&quot;t1&quot;v1t2&quot;v2&quot;t3v3t4v4
 quoted: {\&quot;t1\&quot;=&quot;v1&quot;,t2=&quot;\&quot;v2\&quot;&quot;,t3=&quot;v3&quot;,t4=&quot;v4&quot;}
-</code></pre>
+</pre></div>
 
 <p>If there is a chance that your metric tags will contain "control" characters, specifically <code>,</code> and <code>=</code>, it is highly recommended that one of either the <code>quoted</code> or <code>prepend_meta</code> schemes are specified, as the <code>legacy</code> scheme may cause ID collisions. As a general guideline, we suggest <code>quoted</code>, as it mirrors the more familiar Prometheus style IDs.</p>
 <p>We technically have a fourth ID generation scheme that is used for Graphite IDs, but it is exclusive to the Graphite ingestion path and is not selectable as a general scheme.</p>

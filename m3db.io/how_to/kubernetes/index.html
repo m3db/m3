@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -1130,6 +1130,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+      Tips For Writing Documentation
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -1251,8 +1263,8 @@ files benefit from lower random read latency.</p>
 <p>Because of this, the included manifests reference a
 <a href="https://v1-10.docs.kubernetes.io/docs/concepts/storage/storage-classes/">StorageClass</a> named <code>fast</code>. Manifests are
 provided to provide such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.</p>
-<p>If you do not already have a StorageClass named <code>fast</code>, create one using one of the provided manifests:</p>
-<pre><code># AWS EBS (class io1)
+<p>If you do not already have a StorageClass named <code>fast</code>, create one using one of the provided manifests:
+<div class="highlight"><pre><span></span># AWS EBS (class io1)
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-aws.yaml
 
 # Azure premium LRS
@@ -1260,18 +1272,16 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-f
 
 # GCE Persistent SSD
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-gcp.yaml
-</code></pre>
-
+</pre></div></p>
 <p>If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them
 manifests.</p>
 <h3 id="kernel-configuration">Kernel Configuration</h3>
 <p>We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the <a href="../../operational_guide/kernel_configuration">kernel</a> docs
 for more.</p>
 <h2 id="deploying">Deploying</h2>
-<p>Apply the following manifest to create your cluster:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/bundle.yaml
-</code></pre>
-
+<p>Apply the following manifest to create your cluster:
+<div class="highlight"><pre><span></span>kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/bundle.yaml
+</pre></div></p>
 <p>Applying this bundle will create the following resources:</p>
 <ol>
 <li>An <code>m3db</code> <a href="https://v1-10.docs.kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/">Namespace</a> for
@@ -1283,8 +1293,8 @@ for more.</p>
 <li><a href="https://v1-10.docs.kubernetes.io/docs/concepts/services-networking/dns-pod-service/#services">Headless services</a> for
    the etcd and m3db StatefulSets to provide stable DNS hostnames per-pod.</li>
 </ol>
-<p>Wait until all created pods are listed as ready:</p>
-<pre><code>$ kubectl -n m3db get po
+<p>Wait until all created pods are listed as ready:
+<div class="highlight"><pre><span></span>$ kubectl -n m3db get po
 NAME         READY     STATUS    RESTARTS   AGE
 etcd-0       1/1       Running   0          22m
 etcd-1       1/1       Running   0          22m
@@ -1292,80 +1302,78 @@ etcd-2       1/1       Running   0          22m
 m3dbnode-0   1/1       Running   0          22m
 m3dbnode-1   1/1       Running   0          22m
 m3dbnode-2   1/1       Running   0          22m
-</code></pre>
-
+</pre></div></p>
 <p>You can now proceed to initialize a namespace and placement for the cluster the same as you would for our other how-to
-guides:</p>
-<pre><code># Open a local connection to the coordinator service:
+guides:
+<div class="highlight"><pre><span></span># Open a local connection to the coordinator service:
 $ kubectl -n m3db port-forward svc/m3coordinator 7201
 Forwarding from 127.0.0.1:7201 -&gt; 7201
 Forwarding from [::1]:7201 -&gt; 7201
-</code></pre>
+</pre></div></p>
+<div class="highlight"><pre><span></span><span class="err">#</span> <span class="err">Create</span> <span class="err">an</span> <span class="err">initial</span> <span class="err">cluster</span> <span class="err">topology</span>
+<span class="err">curl</span> <span class="err">-sSf</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/placement/init</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+    <span class="nt">&quot;num_shards&quot;</span><span class="p">:</span> <span class="mi">1024</span><span class="p">,</span>
+    <span class="nt">&quot;replication_factor&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="nt">&quot;instances&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-0&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;pod0&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-0.m3dbnode:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-0.m3dbnode&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-1&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;pod1&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-1.m3dbnode:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-1.m3dbnode&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-2&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;pod2&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-2.m3dbnode:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-2.m3dbnode&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
-<pre><code class="json"># Create an initial cluster topology
-curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
-    &quot;num_shards&quot;: 1024,
-    &quot;replication_factor&quot;: 3,
-    &quot;instances&quot;: [
-        {
-            &quot;id&quot;: &quot;m3dbnode-0&quot;,
-            &quot;isolation_group&quot;: &quot;pod0&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;m3dbnode-0.m3dbnode:9000&quot;,
-            &quot;hostname&quot;: &quot;m3dbnode-0.m3dbnode&quot;,
-            &quot;port&quot;: 9000
-        },
-        {
-            &quot;id&quot;: &quot;m3dbnode-1&quot;,
-            &quot;isolation_group&quot;: &quot;pod1&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;m3dbnode-1.m3dbnode:9000&quot;,
-            &quot;hostname&quot;: &quot;m3dbnode-1.m3dbnode&quot;,
-            &quot;port&quot;: 9000
-        },
-        {
-            &quot;id&quot;: &quot;m3dbnode-2&quot;,
-            &quot;isolation_group&quot;: &quot;pod2&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;m3dbnode-2.m3dbnode:9000&quot;,
-            &quot;hostname&quot;: &quot;m3dbnode-2.m3dbnode&quot;,
-            &quot;port&quot;: 9000
-        }
-    ]
-}'
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">#</span> <span class="err">Create</span> <span class="err">a</span> <span class="err">namespace</span> <span class="err">to</span> <span class="err">hold</span> <span class="err">your</span> <span class="err">metrics</span>
+<span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/namespace</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;options&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;bootstrapEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;flushEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;writesToCommitLog&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;cleanupEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;snapshotEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;repairEnabled&quot;</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="nt">&quot;retentionOptions&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;retentionPeriodDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;720h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;blockSizeDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;bufferFutureDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;1h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;bufferPastDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;1h&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;blockDataExpiry&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+      <span class="nt">&quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;5m&quot;</span>
+    <span class="p">},</span>
+    <span class="nt">&quot;indexOptions&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+      <span class="nt">&quot;blockSizeDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
-<pre><code class="json"># Create a namespace to hold your metrics
-curl -X POST localhost:7201/api/v1/namespace -d '{
-  &quot;name&quot;: &quot;default&quot;,
-  &quot;options&quot;: {
-    &quot;bootstrapEnabled&quot;: true,
-    &quot;flushEnabled&quot;: true,
-    &quot;writesToCommitLog&quot;: true,
-    &quot;cleanupEnabled&quot;: true,
-    &quot;snapshotEnabled&quot;: true,
-    &quot;repairEnabled&quot;: false,
-    &quot;retentionOptions&quot;: {
-      &quot;retentionPeriodDuration&quot;: &quot;720h&quot;,
-      &quot;blockSizeDuration&quot;: &quot;12h&quot;,
-      &quot;bufferFutureDuration&quot;: &quot;1h&quot;,
-      &quot;bufferPastDuration&quot;: &quot;1h&quot;,
-      &quot;blockDataExpiry&quot;: true,
-      &quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;: &quot;5m&quot;
-    },
-    &quot;indexOptions&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;blockSizeDuration&quot;: &quot;12h&quot;
-    }
-  }
-}'
-</code></pre>
-
-<p>Shortly after you should see your nodes finish bootstrapping:</p>
-<pre><code>$ kubectl -n m3db logs -f m3dbnode-0
+<p>Shortly after you should see your nodes finish bootstrapping:
+<div class="highlight"><pre><span></span>$ kubectl -n m3db logs -f m3dbnode-0
 21:36:54.831698[I] cluster database initializing topology
 21:36:54.831732[I] cluster database resolving topology
 21:37:22.821740[I] resolving namespaces with namespace watch
@@ -1380,104 +1388,100 @@ curl -X POST localhost:7201/api/v1/namespace -d '{
 21:37:23.240778[I] bootstrap finished [{namespace metrics} {duration 23.325194ms}]
 21:37:23.240856[I] bootstrapped
 21:37:29.733025[I] successfully updated topology to 3 hosts
-</code></pre>
-
-<p>You can now write and read metrics using the API on the DB nodes:</p>
-<pre><code>$ kubectl -n m3db port-forward svc/m3dbnode 9003
+</pre></div></p>
+<p>You can now write and read metrics using the API on the DB nodes:
+<div class="highlight"><pre><span></span>$ kubectl -n m3db port-forward svc/m3dbnode 9003
 Forwarding from 127.0.0.1:9003 -&gt; 9003
 Forwarding from [::1]:9003 -&gt; 9003
-</code></pre>
+</pre></div></p>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-sSf</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">9003</span><span class="err">/writetagged</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;namespace&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;foo&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;new_york&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;endpoint&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;/request&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="nt">&quot;datapoint&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="err">&#39;</span><span class="s2">&quot;$(date &quot;</span><span class="err">+%s</span><span class="s2">&quot;)&quot;</span><span class="err">&#39;</span><span class="p">,</span>
+    <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="mf">42.123456789</span>
+  <span class="p">}</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
-<pre><code class="json">curl -sSf -X POST localhost:9003/writetagged -d '{
-  &quot;namespace&quot;: &quot;default&quot;,
-  &quot;id&quot;: &quot;foo&quot;,
-  &quot;tags&quot;: [
-    {
-      &quot;name&quot;: &quot;city&quot;,
-      &quot;value&quot;: &quot;new_york&quot;
-    },
-    {
-      &quot;name&quot;: &quot;endpoint&quot;,
-      &quot;value&quot;: &quot;/request&quot;
-    }
-  ],
-  &quot;datapoint&quot;: {
-    &quot;timestamp&quot;: '&quot;$(date &quot;+%s&quot;)&quot;',
-    &quot;value&quot;: 42.123456789
-  }
-}'
-</code></pre>
+<div class="highlight"><pre><span></span><span class="err">$</span> <span class="err">curl</span> <span class="err">-sSf</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">http://localhost:</span><span class="mi">9003</span><span class="err">/query</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;namespace&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;regexp&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;field&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;regexp&quot;</span><span class="p">:</span> <span class="s2">&quot;.*&quot;</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="nt">&quot;rangeStart&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+  <span class="nt">&quot;rangeEnd&quot;</span><span class="p">:</span> <span class="err">&#39;</span><span class="s2">&quot;$(date &quot;</span><span class="err">+%s</span><span class="s2">&quot;)&quot;</span><span class="err">&#39;</span>
+<span class="p">}</span><span class="err">&#39;</span> <span class="err">|</span> <span class="err">jq</span> <span class="err">.</span>
 
-<pre><code class="json">$ curl -sSf -X POST http://localhost:9003/query -d '{
-  &quot;namespace&quot;: &quot;default&quot;,
-  &quot;query&quot;: {
-    &quot;regexp&quot;: {
-      &quot;field&quot;: &quot;city&quot;,
-      &quot;regexp&quot;: &quot;.*&quot;
-    }
-  },
-  &quot;rangeStart&quot;: 0,
-  &quot;rangeEnd&quot;: '&quot;$(date &quot;+%s&quot;)&quot;'
-}' | jq .
-
-{
-  &quot;results&quot;: [
-    {
-      &quot;id&quot;: &quot;foo&quot;,
-      &quot;tags&quot;: [
-        {
-          &quot;name&quot;: &quot;city&quot;,
-          &quot;value&quot;: &quot;new_york&quot;
-        },
-        {
-          &quot;name&quot;: &quot;endpoint&quot;,
-          &quot;value&quot;: &quot;/request&quot;
-        }
-      ],
-      &quot;datapoints&quot;: [
-        {
-          &quot;timestamp&quot;: 1527630053,
-          &quot;value&quot;: 42.123456789
-        }
-      ]
-    }
-  ],
-  &quot;exhaustive&quot;: true
-}
-</code></pre>
+<span class="p">{</span>
+  <span class="nt">&quot;results&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;foo&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+          <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;new_york&quot;</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+          <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;endpoint&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;/request&quot;</span>
+        <span class="p">}</span>
+      <span class="p">],</span>
+      <span class="nt">&quot;datapoints&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+          <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="mi">1527630053</span><span class="p">,</span>
+          <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="mf">42.123456789</span>
+        <span class="p">}</span>
+      <span class="p">]</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="nt">&quot;exhaustive&quot;</span><span class="p">:</span> <span class="kc">true</span>
+<span class="p">}</span>
+</pre></div>
 
 <h3 id="adding-nodes">Adding nodes</h3>
-<p>You can easily scale your M3DB cluster by scaling the StatefulSet and informing the cluster topology of the change:</p>
-<pre><code>kubectl -n m3db scale --replicas=4 statefulset/m3dbnode
-</code></pre>
-
-<p>Once the pod is ready you can modify the cluster topology:</p>
-<pre><code>kubectl -n m3db port-forward svc/m3coordinator 7201
+<p>You can easily scale your M3DB cluster by scaling the StatefulSet and informing the cluster topology of the change:
+<div class="highlight"><pre><span></span>kubectl -n m3db scale --replicas=4 statefulset/m3dbnode
+</pre></div></p>
+<p>Once the pod is ready you can modify the cluster topology:
+<div class="highlight"><pre><span></span>kubectl -n m3db port-forward svc/m3coordinator 7201
 Forwarding from 127.0.0.1:7201 -&gt; 7201
 Forwarding from [::1]:7201 -&gt; 7201
-</code></pre>
-
-<pre><code class="json">curl -sSf -X POST localhost:7201/api/v1/placement -d '{
-    &quot;instances&quot;: [
-        {
-            &quot;id&quot;: &quot;m3dbnode-3&quot;,
-            &quot;isolation_group&quot;: &quot;pod3&quot;,
-            &quot;zone&quot;: &quot;embedded&quot;,
-            &quot;weight&quot;: 100,
-            &quot;endpoint&quot;: &quot;m3dbnode-3.m3dbnode:9000&quot;,
-            &quot;hostname&quot;: &quot;m3dbnode-3.m3dbnode&quot;,
-            &quot;port&quot;: 9000
-        }
-    ]
-}'
-</code></pre>
+</pre></div></p>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-sSf</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/placement</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+    <span class="nt">&quot;instances&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-3&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;pod3&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;zone&quot;</span><span class="p">:</span> <span class="s2">&quot;embedded&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nt">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-3.m3dbnode:9000&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;m3dbnode-3.m3dbnode&quot;</span><span class="p">,</span>
+            <span class="nt">&quot;port&quot;</span><span class="p">:</span> <span class="mi">9000</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span><span class="err">&#39;</span>
+</pre></div>
 
 <h2 id="integrations">Integrations</h2>
 <h3 id="prometheus">Prometheus</h3>
 <p>As mentioned in our integrations <a href="../../integrations/prometheus/">guide</a>, M3DB can be used as a <a href="https://prometheus.io/docs/prometheus/latest/configuration/configuration/#%3Cremote_write%3E">remote read/write
 endpoint</a> for Prometheus.</p>
 <p>If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:</p>
-<pre><code>remote_read:
+<div class="highlight"><pre><span></span>remote_read:
   - url: &quot;http://m3coordinator.m3db.svc.cluster.local:7201/api/v1/prom/remote/read&quot;
     # To test reading even when local Prometheus has the data
     read_recent: true
@@ -1488,7 +1492,7 @@ remote_write:
     write_relabel_configs:
       - target_label: metrics_storage
         replacement: m3db_remote
-</code></pre>
+</pre></div>
 
 <h2 id="scheduling">Scheduling</h2>
 <p>In some cases, you might prefer M3DB to run on certain nodes in your cluster. For example: if your cluster is comprised
