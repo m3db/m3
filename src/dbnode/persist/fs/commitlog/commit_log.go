@@ -292,6 +292,9 @@ func (l *commitLog) Open() error {
 	if err := l.writerState.primaryWriter.writer.Flush(true); err != nil {
 		return err
 	}
+	if err := l.writerState.secondaryWriter.writer.Flush(true); err != nil {
+		return err
+	}
 
 	l.commitLogFailFn = func(err error) {
 		l.log.Fatal("fatal commit log error", zap.Error(err))
