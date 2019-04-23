@@ -865,11 +865,11 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
 	require.True(t, ok)
-	require.Equal(t, int64(1), errors.Value())
+	require.Equal(t, int64(2), errors.Value())
 
 	flushErrors, ok := snapshotCounterValue(scope, "commitlog.writes.flush-errors")
 	require.True(t, ok)
-	require.Equal(t, int64(1), flushErrors.Value())
+	require.Equal(t, int64(2), flushErrors.Value())
 }
 
 func TestCommitLogActiveLogs(t *testing.T) {
