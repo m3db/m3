@@ -54,7 +54,7 @@ When a rotation event occurs, instead of waiting for a new file to be opened, th
 
 In the meantime, a goroutine is started in the background that is responsible for resetting the now secondary (formerly primary) writer by closing it (which will flush any pending / buffered writes to disk) and re-opening it (which will create a new empty commitlog file in anticipation of the next rotation event).
 
-Finally, the next time the commitlog attempts to rotate its commitlogs it will need to use the associated `sync.Waitgroup` to ensure that the previously spawned background goroutine has completed reseting the secondary writer before it attempts a new hot-swap.
+Finally, the next time the `commitlog` attempts to rotate its commitlogs it will need to use the associated `sync.WaitGroup` to ensure that the previously spawned background goroutine has completed resetting the secondary writer before it attempts a new hot-swap.
 
 ### Handling Errors
 

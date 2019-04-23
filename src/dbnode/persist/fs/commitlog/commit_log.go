@@ -560,7 +560,7 @@ func (l *commitLog) write() {
 }
 
 // newOnFlushFn is used to create new flushFns because each one needs to know which
-// slide of pendingFlushFns it should modify.
+// slice of pendingFlushFns it should modify.
 func (l *commitLog) newOnFlushFn(writer *asyncResettableWriter) flushFn {
 	return func(err error) {
 		l.flushState.setLastFlushAt(l.nowFn())
@@ -610,8 +610,23 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 	l.waitForSecondaryWriterAsyncResetComplete()
 
 	if l.writerState.primaryWriter.writer == nil || l.writerState.secondaryWriter.writer == nil {
+		if l.writerState.primaryWriter.writer != nil {
+			// Make sure to close and flush any remaining data before creating a new writer if the
+			// primary (which contains data) is not nil.
+			if err := l.writerState.primaryWriter.writer.Close(); err != nil {
+				return nil, err
+			}
+		}
+
+		if l.writerState.secondaryWriter.writer != nil {
+			// Ignore errors because the secondary file doesn't have any data.
+			l.writerState.secondaryWriter.writer.Close()
+		}
+
 		// If either of the commitlog writers is nil then open both of them synchronously. Under
-		// normal circumstances this will only occur when the commitlog is first opened.
+		// normal circumstances this will only occur when the commitlog is first opened. Although
+		// it can also happen if something goes wrong during the asynchronous reset of the secondary
+		// writer in which case this path will try again, but synchronously this time.
 		primaryWriterFlushFn := l.newOnFlushFn(&l.writerState.primaryWriter)
 		secondaryWriterFlushFn := l.newOnFlushFn(&l.writerState.secondaryWriter)
 		l.writerState.primaryWriter.writer = l.newCommitLogWriterFn(primaryWriterFlushFn, l.opts)
