@@ -64,7 +64,7 @@ type iteratorRead struct {
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
 // that want a convenient way to read all the commitlogs
 func ReadAllPredicate() FileFilterPredicate {
-	return func(_ persist.CommitLogFile) bool { return true }
+	return func(_ bool, _ persist.CommitLogFile, err ErrorWithPath) bool { return true }
 }
 
 // NewIterator creates a new commit log iterator
@@ -77,7 +77,8 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 	if err != nil {
 		return nil, nil, err
 	}
-	filteredFiles := filterFiles(opts, files, iterOpts.FileFilterPredicate)
+	filteredFiles := filterFiles(files, iterOpts.FileFilterPredicate)
+	filteredCorruptFiles := filterCorruptFiles(corruptFiles, iterOpts.FileFilterPredicate)
 
 	scope := iops.MetricsScope()
 	return &iterator{
@@ -89,7 +90,7 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 		log:        iops.Logger(),
 		files:      filteredFiles,
 		seriesPred: iterOpts.SeriesFilterPredicate,
-	}, corruptFiles, nil
+	}, filteredCorruptFiles, nil
 }
 
 func (i *iterator) Next() bool {
@@ -180,10 +181,20 @@ func (i *iterator) nextReader() bool {
 	return true
 }
 
-func filterFiles(opts Options, files []persist.CommitLogFile, predicate FileFilterPredicate) []persist.CommitLogFile {
+func filterFiles(files []persist.CommitLogFile, predicate FileFilterPredicate) []persist.CommitLogFile {
 	filtered := make([]persist.CommitLogFile, 0, len(files))
 	for _, f := range files {
-		if predicate(f) {
+		if predicate(false, f, ErrorWithPath{}) {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
+}
+
+func filterCorruptFiles(files []ErrorWithPath, predicate FileFilterPredicate) []ErrorWithPath {
+	filtered := make([]ErrorWithPath, 0, len(files))
+	for _, f := range files {
+		if predicate(true, persist.CommitLogFile{}, f) {
 			filtered = append(filtered, f)
 		}
 	}

@@ -187,8 +187,10 @@ type Options interface {
 }
 
 // FileFilterPredicate is a predicate that allows the caller to determine
-// which commitlogs the iterator should read from.
-type FileFilterPredicate func(f persist.CommitLogFile) bool
+// which commitlogs the iterator should read from. If isCorrupt is true then f will contain
+// a valid CommitLogFile, otherwise ErrorWithPath will contain an error and the path of the
+// corrupt file.
+type FileFilterPredicate func(isCorrupt bool, f persist.CommitLogFile, err ErrorWithPath) bool
 
 // SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the
