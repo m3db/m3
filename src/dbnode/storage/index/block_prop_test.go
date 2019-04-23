@@ -37,9 +37,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
-	"github.com/m3db/m3/src/m3ninx/util"
-	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -47,9 +46,7 @@ import (
 )
 
 var (
-	testFstOptions    = fst.NewOptions()
-	testBlockSize     = time.Hour
-	lotsTestDocuments = util.MustReadDocs("../../../m3ninx/util/testdata/node_exporter.json", 2000)
+	testBlockSize = time.Hour
 )
 
 // TestPostingsListCacheDoesNotAffectBlockQueryResults verifies that the postings list
