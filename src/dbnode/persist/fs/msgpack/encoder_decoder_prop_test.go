@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3/src/x/errors"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"

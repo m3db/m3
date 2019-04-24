@@ -122,7 +122,7 @@ func BenchmarkLogMetadataDecoder(b *testing.B) {
 	var (
 		enc    = NewEncoder()
 		dec    = NewDecoder(nil)
-		stream = NewDecoderStream(nil)
+		stream = NewByteDecoderStream(nil)
 		err    error
 	)
 
