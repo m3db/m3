@@ -79,7 +79,7 @@ func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, 
 	}
 
 	if err := service.Delete(); err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
+		logger.Error("unable to delete placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

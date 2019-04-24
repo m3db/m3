@@ -63,20 +63,20 @@ func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 	value, rErr := h.parseRequest(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	store, err := h.client.KV()
 	if err != nil {
-		logger.Error("unable to get kv store", zap.Any("error", err))
+		logger.Error("unable to get kv store", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := store.Set(kvconfig.BootstrapperKey, value); err != nil {
-		logger.Error("unable to set kv key", zap.Any("error", err))
+		logger.Error("unable to set kv key", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

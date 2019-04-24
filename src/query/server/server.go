@@ -137,7 +137,7 @@ func Run(runOpts RunOptions) {
 
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
-		logger.Fatal("could not connect to metrics", zap.Any("error", err))
+		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
 
 	tracer, traceCloser, err := cfg.Tracing.NewTracer(serviceName, scope, logger)

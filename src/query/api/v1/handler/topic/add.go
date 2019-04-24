@@ -58,49 +58,49 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 	rErr := parseRequest(r, &req)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	service, err := h.serviceFn(h.client)
 	if err != nil {
-		logger.Error("unable to get service", zap.Any("error", err))
+		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	t, err := service.Get(topicName(r.Header))
 	if err != nil {
-		logger.Error("unable to get topic", zap.Any("error", err))
+		logger.Error("unable to get topic", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	cs, err := topic.NewConsumerServiceFromProto(req.ConsumerService)
 	if err != nil {
-		logger.Error("unable to parse consumer service", zap.Any("error", err))
+		logger.Error("unable to parse consumer service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	t, err = t.AddConsumerService(cs)
 	if err != nil {
-		logger.Error("unable to add consumer service", zap.Any("error", err))
+		logger.Error("unable to add consumer service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	t, err = service.CheckAndSet(t, t.Version())
 	if err != nil {
-		logger.Error("unable to persist consumer service", zap.Any("error", err))
+		logger.Error("unable to persist consumer service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	topicProto, err := topic.ToProto(t)
 	if err != nil {
-		logger.Error("unable to get topic protobuf", zap.Any("error", err))
+		logger.Error("unable to get topic protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

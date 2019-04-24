@@ -127,7 +127,7 @@ func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.R
 	if endExclusiveVal != "" {
 		excludeEnd, err := strconv.ParseBool(endExclusiveVal)
 		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse end inclusive flag", zap.Any("error", err))
+			logging.WithContext(r.Context()).Warn("unable to parse end inclusive flag", zap.Error(err))
 		}
 
 		params.IncludeEnd = !excludeEnd
