@@ -331,7 +331,7 @@ type databaseNamespace interface {
 	// Bootstrap performs bootstrapping.
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
-	// Flush flushes in-memory data.
+	// Flush flushes in-memory WarmWrites.
 	Flush(
 		blockStart time.Time,
 		ShardBootstrapStates ShardBootstrapStates,
@@ -343,7 +343,12 @@ type databaseNamespace interface {
 		flush persist.IndexFlush,
 	) error
 
-	// Snapshot snapshots unflushed in-memory data
+	// Compact compacts unflushed in-memory ColdWrites.
+	Compact(
+		flush persist.FlushPreparer,
+	) error
+
+	// Snapshot snapshots unflushed in-memory WarmWrites.
 	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
@@ -465,9 +470,6 @@ type databaseShard interface {
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
-
-	// SnapshotState returns the snapshot state for this shard.
-	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
 
 	// CleanupExpiredFileSets removes expired fileset files.
 	CleanupExpiredFileSets(earliestToRetain time.Time) error

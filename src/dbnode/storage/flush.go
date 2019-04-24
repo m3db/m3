@@ -47,6 +47,7 @@ const (
 	// when we haven't begun either a flush or snapshot.
 	flushManagerNotIdle
 	flushManagerFlushInProgress
+	flushManagerCompactionInProgress
 	flushManagerSnapshotInProgress
 	flushManagerIndexFlushInProgress
 )
@@ -63,6 +64,7 @@ type flushManager struct {
 	// are used for emitting granular gauges.
 	state           flushManagerState
 	isFlushing      tally.Gauge
+	isCompacting    tally.Gauge
 	isSnapshotting  tally.Gauge
 	isIndexFlushing tally.Gauge
 	// This is a "debug" metric for making sure that the snapshotting process
@@ -81,6 +83,7 @@ func newFlushManager(
 		opts:                            opts,
 		pm:                              opts.PersistManager(),
 		isFlushing:                      scope.Gauge("flush"),
+		isCompacting:                    scope.Gauge("compact"),
 		isSnapshotting:                  scope.Gauge("snapshot"),
 		isIndexFlushing:                 scope.Gauge("index-flush"),
 		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
@@ -102,54 +105,37 @@ func (m *flushManager) Flush(
 
 	defer m.setState(flushManagerIdle)
 
-	// create flush-er
-	flushPersist, err := m.pm.StartFlushPersist()
-	if err != nil {
-		return err
-	}
-
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
 	}
 
-	// Perform two separate loops through all the namespaces so that we can emit better
-	// gauges I.E all the flushing for all the namespaces happens at once and then all
-	// the snapshotting for all the namespaces happens at once. This is also slightly
-	// better semantically because flushing should take priority over snapshotting.
+	// Perform three separate loops through all the namespaces so that we can
+	// emit better gauges, i.e. all the flushing for all the namespaces happens
+	// at once, then all the compaction, then all the snapshotting. This is also
+	// slightly better semantically because flushing should take priority over
+	// compaction and snapshotting.
 	//
-	// In addition, we need to make sure that for any given shard/blockStart combination,
-	// we attempt a flush before a snapshot as the snapshotting process will attempt to
-	// snapshot any unflushed blocks which would be wasteful if the block is already
-	// flushable.
+	// In addition, we need to make sure that for any given shard/blockStart
+	// combination, we attempt a flush before a snapshot as the snapshotting
+	// process will attempt to snapshot any unflushed blocks which would be
+	// wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	m.setState(flushManagerFlushInProgress)
-	for _, ns := range namespaces {
-		// Flush first because we will only snapshot if there are no outstanding flushes
-		flushTimes := m.namespaceFlushTimes(ns, tickStart)
-		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-		if !ok {
-			// Could happen if namespaces are added / removed.
-			multiErr = multiErr.Add(fmt.Errorf(
-				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
-			continue
-		}
+	if err = m.flush(namespaces, tickStart, dbBootstrapStateAtTickStart); err != nil {
+		multiErr = multiErr.Add(err)
+	}
 
-		err = m.flushNamespaceWithTimes(
-			ns, shardBootstrapTimes, flushTimes, flushPersist)
-		if err != nil {
+	rotatedCommitlogID, err := m.commitlog.RotateLogs()
+	if err == nil {
+		if err = m.compact(namespaces); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-	}
 
-	err = flushPersist.DoneFlush()
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
-	err = m.rotateCommitlogAndSnapshot(namespaces, tickStart)
-	if err != nil {
-		multiErr = multiErr.Add(err)
+		if err = m.snapshot(namespaces, tickStart, rotatedCommitlogID); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	} else {
+		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
 	indexFlush, err := m.pm.StartIndexPersist()
@@ -174,15 +160,73 @@ func (m *flushManager) Flush(
 	return multiErr.FinalError()
 }
 
-func (m *flushManager) rotateCommitlogAndSnapshot(
+func (m *flushManager) flush(
 	namespaces []databaseNamespace,
 	tickStart time.Time,
+	dbBootstrapStateAtTickStart DatabaseBootstrapState,
 ) error {
-	rotatedCommitlogID, err := m.commitlog.RotateLogs()
+	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
-		return fmt.Errorf("error rotating commitlog in mediator tick: %v", err)
+		return err
 	}
 
+	m.setState(flushManagerFlushInProgress)
+	multiErr := xerrors.NewMultiError()
+	for _, ns := range namespaces {
+		// Flush first because we will only snapshot if there are no outstanding flushes
+		flushTimes := m.namespaceFlushTimes(ns, tickStart)
+		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
+		if !ok {
+			// Could happen if namespaces are added / removed.
+			multiErr = multiErr.Add(fmt.Errorf(
+				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+			continue
+		}
+
+		err = m.flushNamespaceWithTimes(
+			ns, shardBootstrapTimes, flushTimes, flushPersist)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	err = flushPersist.DoneFlush()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *flushManager) compact(
+	namespaces []databaseNamespace,
+) error {
+	flushPersist, err := m.pm.StartFlushPersist()
+	if err != nil {
+		return err
+	}
+
+	m.setState(flushManagerCompactionInProgress)
+	multiErr := xerrors.NewMultiError()
+	for _, ns := range namespaces {
+		if err = ns.Compact(flushPersist); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	err = flushPersist.DoneFlush()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *flushManager) snapshot(
+	namespaces []databaseNamespace,
+	tickStart time.Time,
+	rotatedCommitlogID persist.CommitLogFile,
+) error {
 	snapshotID := uuid.NewUUID()
 
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
@@ -233,6 +277,12 @@ func (m *flushManager) Report() {
 		m.isFlushing.Update(1)
 	} else {
 		m.isFlushing.Update(0)
+	}
+
+	if state == flushManagerCompactionInProgress {
+		m.isCompacting.Update(1)
+	} else {
+		m.isCompacting.Update(0)
 	}
 
 	if state == flushManagerSnapshotInProgress {

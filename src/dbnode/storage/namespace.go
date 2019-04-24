@@ -935,6 +935,13 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
+func (n *dbNamespace) Compact(
+	flushPersist persist.FlushPreparer,
+) error {
+	// TODO(juchan): write compact implementation.
+	return nil
+}
+
 func (n *dbNamespace) FlushIndex(
 	flush persist.IndexFlush,
 ) error {
@@ -986,15 +993,6 @@ func (n *dbNamespace) Snapshot(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		isSnapshotting, _ := shard.SnapshotState()
-		if isSnapshotting {
-			// Should never happen because snapshots should never overlap
-			// each other (controlled by loop in flush manager)
-			n.log.Error("[invariant violated] tried to snapshot shard that is already snapshotting",
-				zap.Uint32("shard", shard.ID()))
-			continue
-		}
-
 		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)

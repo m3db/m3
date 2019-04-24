@@ -369,18 +369,18 @@ func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) 
 			// Should never happen.
 			return fmt.Errorf("non-existent namespace marked for schema update: %v", n.ID().String())
 		}
-		curSchemaId := "none"
+		curSchemaID := "none"
 		curSchema, found := curNamepsace.SchemaRegistry().GetLatest()
 		if found {
-			curSchemaId = curSchema.DeployId()
+			curSchemaID = curSchema.DeployId()
 		}
 		// Log schema update.
 		latestSchema, found := n.Options().SchemaRegistry().GetLatest()
 		if !found {
-			return fmt.Errorf("can not update namespace (%s) schema from %s to empty", n.ID().String(), curSchemaId)
+			return fmt.Errorf("can not update namespace (%s) schema from %s to empty", n.ID().String(), curSchemaID)
 		}
 		d.log.Info("updating database namespace schema", zap.Stringer("namespace", n.ID()),
-			zap.String("current schema", curSchemaId), zap.String("latest schema", latestSchema.DeployId()))
+			zap.String("current schema", curSchemaID), zap.String("latest schema", latestSchema.DeployId()))
 		err := curNamepsace.SetSchemaRegistry(n.Options().SchemaRegistry())
 		if err != nil {
 			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())

@@ -1283,6 +1283,20 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushIndex), flush)
 }
 
+// Compact mocks base method
+func (m *MockdatabaseNamespace) Compact(flush persist.FlushPreparer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Compact", flush)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Compact indicates an expected call of Compact
+func (mr *MockdatabaseNamespaceMockRecorder) Compact(flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Compact", reflect.TypeOf((*MockdatabaseNamespace)(nil).Compact), flush)
+}
+
 // Snapshot mocks base method
 func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error {
 	m.ctrl.T.Helper()
@@ -1714,21 +1728,6 @@ func (m *MockdatabaseShard) FlushState(blockStart time.Time) fileOpState {
 func (mr *MockdatabaseShardMockRecorder) FlushState(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseShard)(nil).FlushState), blockStart)
-}
-
-// SnapshotState mocks base method
-func (m *MockdatabaseShard) SnapshotState() (bool, time.Time) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SnapshotState")
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(time.Time)
-	return ret0, ret1
-}
-
-// SnapshotState indicates an expected call of SnapshotState
-func (mr *MockdatabaseShardMockRecorder) SnapshotState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotState", reflect.TypeOf((*MockdatabaseShard)(nil).SnapshotState))
 }
 
 // CleanupExpiredFileSets mocks base method
