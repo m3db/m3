@@ -80,7 +80,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger := logging.WithContext(r.Context())
 		logger.Error("parsing error",
 			zap.String("remoteAddr", r.RemoteAddr),
-			zap.Any("err", err))
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 
@@ -88,7 +88,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger := logging.WithContext(r.Context())
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
-			zap.Any("err", err))
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 }
