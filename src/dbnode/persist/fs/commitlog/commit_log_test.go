@@ -483,7 +483,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	require.Equal(t, errCommitLogReaderIsNotReusable, err)
 }
 
-func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
+func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	clock := mclock.NewMock()
 	opts, scope := newTestOptions(t, overrides{
 		clock:    clock,
@@ -515,22 +515,23 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 		flushUntilDone(commitLog, wg)
 	}
 
-	// Close the commit log and consequently flush
+	// Close the commit log and consequently flush.
 	require.NoError(t, commitLog.Close())
 
-	// Make sure multiple commitlog files were generated
+	// Make sure multiple commitlog files were generated.
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
 	require.Equal(t, 4, len(files))
 
-	// This predicate should eliminate the first commitlog file
-	commitLogPredicate := func(f persist.CommitLogFile) bool {
-		return f.Index > 0
+	// This predicate should eliminate the first commitlog file.
+	commitLogPredicate := func(f FileFilterInfo) bool {
+		require.False(t, f.IsCorrupt)
+		return f.File.Index > 0
 	}
 
 	// Assert that the commitlog iterator honors the predicate and only uses
-	// 2 of the 3 files
+	// 2 of the 3 files.
 	iterOpts := IteratorOpts{
 		CommitLogOptions:      opts,
 		FileFilterPredicate:   commitLogPredicate,
@@ -542,6 +543,67 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	iterStruct := iter.(*iterator)
 	require.Equal(t, 3, len(iterStruct.files))
+}
+
+func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
+	clock := mclock.NewMock()
+	opts, _ := newTestOptions(t, overrides{
+		clock:    clock,
+		strategy: StrategyWriteWait,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+	// Close the commit log and consequently flush.
+	require.NoError(t, commitLog.Close())
+
+	// Make sure a valid commitlog was created.
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
+
+	// Write out a corrupt commitlog file.
+	nextCommitlogFilePath, _, err := NextFile(opts)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(
+		nextCommitlogFilePath, []byte("not-a-valid-commitlog-file"), os.FileMode(0666))
+	require.NoError(t, err)
+
+	// Make sure the corrupt file is visibile.
+	files, err = fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	require.NoError(t, err)
+	require.Equal(t, 2, len(files))
+
+	// Assert that the corrupt file is returned from the iterator.
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, corruptFiles, err := NewIterator(iterOpts)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(corruptFiles))
+
+	iterStruct := iter.(*iterator)
+	require.Equal(t, 1, len(iterStruct.files))
+
+	// Assert that the iterator ignores the corrupt file given an appropriate predicate.
+	ignoreCorruptPredicate := func(f FileFilterInfo) bool {
+		return !f.IsCorrupt
+	}
+
+	iterOpts = IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   ignoreCorruptPredicate,
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, corruptFiles, err = NewIterator(iterOpts)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(corruptFiles))
+
+	iterStruct = iter.(*iterator)
+	require.Equal(t, 1, len(iterStruct.files))
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {

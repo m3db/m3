@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.8.5 (TBD)
+
+## Bug Fixes
+
+- **M3DB**: Prevent active commit log from appearing like a corrupt file during bootstrap.
+
 # 0.8.4 (2019-04-20)
 
 ## Performance
