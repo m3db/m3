@@ -545,7 +545,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(files))
+	require.Equal(t, 2, len(files))
 
 	// Write out a corrupt commitlog file.
 	nextCommitlogFilePath, _, err := NextFile(opts)
@@ -557,7 +557,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	// Make sure the corrupt file is visibile.
 	files, err = fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 2, len(files))
+	require.Equal(t, 3, len(files))
 
 	// Assert that the corrupt file is returned from the iterator.
 	iterOpts := IteratorOpts{
@@ -570,7 +570,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	require.Equal(t, 1, len(corruptFiles))
 
 	iterStruct := iter.(*iterator)
-	require.Equal(t, 1, len(iterStruct.files))
+	require.Equal(t, 2, len(iterStruct.files))
 
 	// Assert that the iterator ignores the corrupt file given an appropriate predicate.
 	ignoreCorruptPredicate := func(f FileFilterInfo) bool {
@@ -587,7 +587,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	require.Equal(t, 0, len(corruptFiles))
 
 	iterStruct = iter.(*iterator)
-	require.Equal(t, 1, len(iterStruct.files))
+	require.Equal(t, 2, len(iterStruct.files))
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
