@@ -335,16 +335,22 @@ func (s Stats) IncCreatedEncoders() {
 type WriteType int
 
 const (
-	// UndefinedWriteType is an undefined write type.
-	UndefinedWriteType WriteType = iota
-
 	// WarmWrite represents warm writes (within the buffer past/future window).
-	WarmWrite
+	WarmWrite WriteType = iota
 
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
 
+// BootstrapWriteType is the write type assigned for bootstraps.
+//
+// TODO(juchan): We can't know from a bootstrapped block whether data was
+// originally written as a ColdWrite or a WarmWrite. After implementing
+// persistence logic including ColdWrites, we need to revisit this to figure out
+// what write type makes sense for bootstraps.
+const BootstrapWriteType = WarmWrite
+
+// WriteOptions provides a set of options for a write.
 type WriteOptions struct {
 	SchemaDesc namespace.SchemaDescr
 }
