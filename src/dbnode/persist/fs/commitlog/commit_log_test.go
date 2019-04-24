@@ -525,9 +525,9 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	require.Equal(t, 4, len(files))
 
 	// This predicate should eliminate the first commitlog file.
-	commitLogPredicate := func(isCorrupt bool, f persist.CommitLogFile, _ ErrorWithPath) bool {
-		require.False(t, isCorrupt)
-		return f.Index > 0
+	commitLogPredicate := func(f FileFilterInfo) bool {
+		require.False(t, f.IsCorrupt)
+		return f.File.Index > 0
 	}
 
 	// Assert that the commitlog iterator honors the predicate and only uses
@@ -589,11 +589,8 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	require.Equal(t, 1, len(iterStruct.files))
 
 	// Assert that the iterator ignores the corrupt file given an appropriate predicate.
-	ignoreCorruptPredicate := func(isCorrupt bool, f persist.CommitLogFile, err ErrorWithPath) bool {
-		if isCorrupt {
-			return false
-		}
-		return true
+	ignoreCorruptPredicate := func(f FileFilterInfo) bool {
+		return !f.IsCorrupt
 	}
 
 	iterOpts = IteratorOpts{

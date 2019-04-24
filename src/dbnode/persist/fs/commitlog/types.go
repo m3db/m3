@@ -186,11 +186,19 @@ type Options interface {
 	IdentifierPool() ident.Pool
 }
 
+// FileFilterInfo contains information about a commitog file that can be used to
+// determine whether the iterator should filter it out or not.
+type FileFilterInfo struct {
+	// If isCorrupt is true then File will contain a valid CommitLogFile, otherwise
+	// ErrorWithPath will contain an error and the path of the corrupt file.
+	File      persist.CommitLogFile
+	Err       ErrorWithPath
+	IsCorrupt bool
+}
+
 // FileFilterPredicate is a predicate that allows the caller to determine
-// which commitlogs the iterator should read from. If isCorrupt is true then f will contain
-// a valid CommitLogFile, otherwise ErrorWithPath will contain an error and the path of the
-// corrupt file.
-type FileFilterPredicate func(isCorrupt bool, f persist.CommitLogFile, err ErrorWithPath) bool
+// which commitlogs the iterator should read from.
+type FileFilterPredicate func(f FileFilterInfo) bool
 
 // SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the
