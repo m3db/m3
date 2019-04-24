@@ -56,7 +56,9 @@ func NewSeriesIterator(
 
 func (it *seriesIterator) SetSchema(descr namespace.SchemaDescr) {
 	for _, iter := range it.multiReaderIters {
-		iter.SetSchema(descr)
+		if iter != nil {
+			iter.SetSchema(descr)
+		}
 	}
 }
 

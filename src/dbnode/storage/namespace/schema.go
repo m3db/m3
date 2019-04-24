@@ -278,8 +278,8 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 	return dlist, nil
 }
 
-func GenTestSchemaOptions(importPathPrefix string) *nsproto.SchemaOptions {
-	out, _ := parseProto("mainpkg/main.proto", importPathPrefix)
+func GenTestSchemaOptions(protoFile, importPathPrefix string) *nsproto.SchemaOptions {
+	out, _ := parseProto(protoFile, importPathPrefix)
 
 	dlist, _ := marshalFileDescriptors(out)
 

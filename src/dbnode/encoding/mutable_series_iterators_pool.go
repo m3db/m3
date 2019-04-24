@@ -86,6 +86,8 @@ func (p *seriesIteratorsPool) Get(capacity int) MutableSeriesIterators {
 }
 
 func (p *seriesIteratorsPool) Put(iters MutableSeriesIterators) {
+	iters.SetSchema(nil)
+
 	capacity := iters.Cap()
 	if capacity > p.maxBucketCapacity {
 		return

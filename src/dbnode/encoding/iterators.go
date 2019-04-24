@@ -54,10 +54,14 @@ type iterators struct {
 
 func (i *iterators) setSchema(descr namespace.SchemaDescr) {
 	for _, iter := range i.values {
-		iter.SetSchema(descr)
+		if iter != nil {
+			iter.SetSchema(descr)
+		}
 	}
 	for _, iter := range i.earliest {
-		iter.SetSchema(descr)
+		if iter != nil {
+			iter.SetSchema(descr)
+		}
 	}
 }
 

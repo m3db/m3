@@ -73,6 +73,7 @@ var (
 	defaultTestNs1Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	defaultTestDatabaseOptions Options
+	testSchemaOptions          = namespace.GenTestSchemaOptions("mainpkg/main.proto", "namespace/schematest")
 )
 
 func init() {
@@ -619,7 +620,7 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	sr, err := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions("namespace/schematest"))
+	sr, err := namespace.LoadSchemaHistory(testSchemaOptions)
 
 	// construct new namespace Map
 	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
@@ -668,7 +669,7 @@ func TestDatabaseUpdateScheamRegistry(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	sr, err := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions("namespace/schematest"))
+	sr, err := namespace.LoadSchemaHistory(testSchemaOptions)
 
 	// construct new namespace Map
 	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)

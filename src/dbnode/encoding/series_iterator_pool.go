@@ -44,5 +44,6 @@ func (p *seriesIteratorPool) Get() SeriesIterator {
 }
 
 func (p *seriesIteratorPool) Put(iter SeriesIterator) {
+	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }

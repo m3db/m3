@@ -33,6 +33,8 @@ import (
 )
 
 var (
+	testSchemaOptions = namespace.GenTestSchemaOptions("mainpkg/main.proto", "schematest")
+
 	toNanos = func(mins int64) int64 {
 		return int64(time.Duration(mins) * time.Minute / time.Nanosecond)
 	}
@@ -59,7 +61,7 @@ var (
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
-			SchemaOptions:     namespace.GenTestSchemaOptions("schematest"),
+			SchemaOptions:     testSchemaOptions,
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -75,7 +77,7 @@ var (
 	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
 			RetentionOptions: &validRetentionOpts,
-			SchemaOptions:    namespace.GenTestSchemaOptions("schematest"),
+			SchemaOptions:    testSchemaOptions,
 		},
 	}
 
@@ -208,7 +210,7 @@ func TestSchemaFromProto(t *testing.T) {
 
 func TestSchemaToProto(t *testing.T) {
 	// make ns map
-	testSchemaReg, err := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions("schematest"))
+	testSchemaReg, err := namespace.LoadSchemaHistory(testSchemaOptions)
 	require.NoError(t, err)
 	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
 		namespace.NewOptions().SetSchemaHistory(testSchemaReg))

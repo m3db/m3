@@ -29,8 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	testSchemaOptions = GenTestSchemaOptions("mainpkg/main.proto", "namespace/schematest")
+)
+
 func TestLoadSchemaHistory(t *testing.T) {
-	testSchemaOptions := GenTestSchemaOptions("schematest")
 	testSchemaReg, err := LoadSchemaHistory(testSchemaOptions)
 	require.NoError(t, err)
 

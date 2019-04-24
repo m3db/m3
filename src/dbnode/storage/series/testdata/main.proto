@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package mainpkg;
+
+message TestMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+  map<string, string> attributes = 5;
+}

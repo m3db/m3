@@ -40,11 +40,11 @@ func (p *readerIteratorPool) Init(alloc ReaderIteratorAllocate) {
 }
 
 func (p *readerIteratorPool) Get() ReaderIterator {
-	ri := p.pool.Get().(ReaderIterator)
-	return ri
+	return p.pool.Get().(ReaderIterator)
 }
 
 func (p *readerIteratorPool) Put(iter ReaderIterator) {
+	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }
 
@@ -64,10 +64,10 @@ func (p *multiReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {
 }
 
 func (p *multiReaderIteratorPool) Get() MultiReaderIterator {
-	mi := p.pool.Get().(MultiReaderIterator)
-	return mi
+	return p.pool.Get().(MultiReaderIterator)
 }
 
 func (p *multiReaderIteratorPool) Put(iter MultiReaderIterator) {
+	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }

@@ -79,7 +79,9 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 	var all []decodedValue
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
-		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
+		// Iterator reuse annotation byte slices, so make a copy.
+		annotationCopy := append([]byte(nil), annotation...)
+		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotationCopy})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err
@@ -88,7 +90,8 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options) {
+func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options,
+	assertAnnEqual ...func(*testing.T, []byte, []byte)) {
 	decodedValues, err := decodedValues(results, opts)
 
 	assert.NoError(t, err)
@@ -97,7 +100,11 @@ func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader
 		assert.True(t, values[i].timestamp.Equal(decodedValues[i].timestamp))
 		assert.Equal(t, values[i].value, decodedValues[i].value)
 		assert.Equal(t, values[i].unit, decodedValues[i].unit)
-		assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
+		if len(assertAnnEqual) == 0 {
+			assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
+		} else {
+			assertAnnEqual[0](t, values[i].annotation, decodedValues[i].annotation)
+		}
 	}
 }
 

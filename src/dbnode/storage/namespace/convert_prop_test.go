@@ -90,7 +90,7 @@ func genMetadata() gopter.Gen {
 			bools     = values[1].([]bool)
 			retention = values[2].(retention.Options)
 		)
-		testSchemaReg, _ := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions("schematest"))
+		testSchemaReg, _ := namespace.LoadSchemaHistory(testSchemaOptions)
 		md, err := namespace.NewMetadata(ident.StringID(id), namespace.NewOptions().
 			SetBootstrapEnabled(bools[0]).
 			SetCleanupEnabled(bools[1]).

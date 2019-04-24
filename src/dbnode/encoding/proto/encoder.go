@@ -125,7 +125,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	}
 
 	if enc.schema == nil {
-		return errEncoderSchemaIsRequired
+		panic(errEncoderSchemaIsRequired.Error())
 	}
 
 	// Proto encoder value is meaningless, but make sure its always zero just to be safe so that
@@ -358,6 +358,12 @@ func (enc *Encoder) Reset(
 // TODO(rartoul): Add support for changing the schema (and updating the ordering
 // of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
 func (enc *Encoder) SetSchema(descr namespace.SchemaDescr) {
+	if descr == nil {
+		enc.schemaDesc = nil
+		enc.schema = nil
+		return
+	}
+
 	enc.schemaDesc = descr
 	enc.resetSchema(descr.Get().MessageDescriptor)
 }

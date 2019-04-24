@@ -118,7 +118,8 @@ func TestRoundTrip(t *testing.T) {
 		},
 	}
 
-	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	curr := time.Now().Truncate(2*time.Minute)
+	enc := newTestEncoder(curr)
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	for i, tc := range testCases {
@@ -127,7 +128,7 @@ func TestRoundTrip(t *testing.T) {
 		marshaledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		currTime := time.Now().Truncate(time.Second).Add(time.Duration(i) * time.Second)
+		currTime := curr.Add(time.Duration(i) * time.Second)
 		testCases[i].timestamp = currTime
 		// Encoder should ignore value so we set it to make sure it gets ignored.
 		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, xtime.Second, marshaledVL)

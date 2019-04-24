@@ -120,7 +120,10 @@ type bufferTickResult struct {
 }
 
 func newContextFor(opts Options) namespace.Context {
-	schema, _ := opts.SchemaRegistry().GetLatestSchema(opts.NamespaceId())
+	schema, ok := opts.SchemaRegistry().GetLatestSchema(opts.NamespaceId())
+	if !ok {
+		return namespace.Context{}
+	}
 	return namespace.Context{
 		Id: opts.NamespaceId(),
 		Schema: schema,
@@ -804,10 +807,8 @@ func (b *BufferBucket) resetTo(
 	b.reset()
 	b.opts = opts
 	b.start = start
-	nsCtx := newContextFor(opts)
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
-	encoder.SetSchema(nsCtx.Schema)
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder: encoder,
@@ -872,9 +873,7 @@ func (b *BufferBucket) write(
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
 
-	nsCtx := newContextFor(b.opts)
 	encoder := b.opts.EncoderPool().Get()
-	encoder.SetSchema(nsCtx.Schema)
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 
 	b.encoders = append(b.encoders, inOrderEncoder{
@@ -898,6 +897,8 @@ func (b *BufferBucket) writeToEncoderIndex(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	nsCtx := newContextFor(b.opts)
+	b.encoders[idx].encoder.SetSchema(nsCtx.Schema)
 	err := b.encoders[idx].encoder.Encode(datapoint, unit, annotation)
 	if err != nil {
 		return err

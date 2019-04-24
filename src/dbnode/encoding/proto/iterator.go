@@ -95,7 +95,7 @@ func NewIterator(
 
 func (it *iterator) Next() bool {
 	if it.schema == nil {
-		it.err = errIteratorSchemaIsRequired
+		panic(errIteratorSchemaIsRequired.Error())
 	}
 
 	if !it.hasNext() {
@@ -253,6 +253,12 @@ func (it *iterator) Reset(reader io.Reader) {
 
 // SetSchema sets the encoders schema.
 func (it *iterator) SetSchema(schemaDesc namespace.SchemaDescr) {
+	if schemaDesc == nil {
+		it.schemaDesc = nil
+		it.schema = nil
+		return
+	}
+
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
 	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
