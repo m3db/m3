@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1504,6 +1505,269 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	require.Equal(t, 1, len(b.backgroundSegments))
 	require.Equal(t, 3, int(b.backgroundSegments[0].Segment().Size()))
 	b.RUnlock()
+}
+
+func TestBlockAggregateAfterClose(t *testing.T) {
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	b, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, start, b.StartTime())
+	require.Equal(t, start.Add(time.Hour), b.EndTime())
+	require.NoError(t, b.Close())
+
+	_, err = b.Aggregate(resource.NewCancellableLifetime(),
+		QueryOptions{}, nil)
+	require.Error(t, err)
+}
+
+func TestBlockAggregateIterationErr(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	iter := NewMockfieldsAndTermsIterator(ctrl)
+	b.newFieldsAndTermsIteratorFn = func(
+		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		return iter, nil
+	}
+
+	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit: 3,
+		Type:      AggregateTagNamesAndValues,
+	}, testOpts)
+
+	gomock.InOrder(
+		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
+		iter.EXPECT().Close().Return(nil),
+	)
+	_, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results)
+	require.Error(t, err)
+}
+
+func TestBlockAggregate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	iter := NewMockfieldsAndTermsIterator(ctrl)
+	b.newFieldsAndTermsIteratorFn = func(
+		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		return iter, nil
+	}
+
+	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit: 3,
+		Type:      AggregateTagNamesAndValues,
+	}, testOpts)
+
+	gomock.InOrder(
+		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t2")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f2"), []byte("t1")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t3")),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Close().Return(nil),
+	)
+	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+
+	assertAggregateResultsMapEquals(t, map[string][]string{
+		"f1": []string{"t1", "t2", "t3"},
+		"f2": []string{"t1"},
+	}, results)
+}
+
+func TestBlockAggregateNotExhaustive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+
+	aggResultsEntryArrayPool := NewAggregateResultsEntryArrayPool(AggregateResultsEntryArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(aggregateResultsEntryArrayPoolSize),
+		Capacity:    1,
+		MaxCapacity: 1,
+	})
+	aggResultsEntryArrayPool.Init()
+	opts := testOpts.SetAggregateResultsEntryArrayPool(aggResultsEntryArrayPool)
+
+	blk, err := NewBlock(start, testMD, BlockOptions{}, opts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	iter := NewMockfieldsAndTermsIterator(ctrl)
+	b.newFieldsAndTermsIteratorFn = func(
+		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		return iter, nil
+	}
+
+	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit: 1,
+		Type:      AggregateTagNamesAndValues,
+	}, testOpts)
+
+	gomock.InOrder(
+		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Close().Return(nil),
+	)
+	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 1}, results)
+	require.NoError(t, err)
+	require.False(t, exhaustive)
+
+	assertAggregateResultsMapEquals(t, map[string][]string{
+		"f1": []string{"t1"},
+	}, results)
+}
+
+func TestBlockE2EInsertAggregate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockSize := time.Hour
+
+	testMD := newTestNSMetadata(t)
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	// Use a larger batch size to simulate large number in a batch
+	// coming back (to ensure code path for reusing buffers for iterator
+	// is covered).
+	testOpts := optionsWithDocsArrayPool(testOpts, 16, 256)
+
+	blk, err := NewBlock(blockStart, testMD,
+		BlockOptions{
+			ForegroundCompactorMmapDocsData: true,
+			BackgroundCompactorMmapDocsData: true,
+		}, testOpts)
+	require.NoError(t, err)
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	h1 := NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+
+	h2 := NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+
+	h3 := NewMockOnIndexSeries(ctrl)
+	h3.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h3.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
+	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc2())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h3,
+	}, testDoc3())
+
+	res, err := b.WriteBatch(batch)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), res.NumSuccess)
+	require.Equal(t, int64(0), res.NumError)
+
+	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit: 10,
+		Type:      AggregateTagNamesAndValues,
+	}, testOpts)
+
+	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+
+	assertAggregateResultsMapEquals(t, map[string][]string{
+		"bar":  []string{"baz", "qux"},
+		"some": []string{"more", "other"},
+	}, results)
+}
+
+func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {
+	aggResultsMap := observed.Map()
+	// ensure `expected` contained in `observed`
+	for field, terms := range expected {
+		entry, ok := aggResultsMap.Get(ident.StringID(field))
+		require.True(t, ok, "field from expected map missing in observed", field)
+		valuesMap := entry.valuesMap
+		for _, term := range terms {
+			_, ok = valuesMap.Get(ident.StringID(term))
+			require.True(t, ok, "term from expected map missing in observed", field, term)
+		}
+	}
+	// ensure `observed` contained in `expected`
+	for _, entry := range aggResultsMap.Iter() {
+		field := entry.Key()
+		valuesMap := entry.Value().valuesMap
+		for _, entry := range valuesMap.Iter() {
+			term := entry.Key()
+			slice, ok := expected[field.String()]
+			require.True(t, ok, "field from observed map missing in expected", field.String())
+			found := false
+			for _, expTerm := range slice {
+				if expTerm == term.String() {
+					found = true
+				}
+			}
+			require.True(t, found, "term from observed map missing in expected", field.String(), term.String())
+		}
+	}
 }
 
 func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {

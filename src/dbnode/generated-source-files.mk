@@ -172,7 +172,9 @@ genny-map-storage-index-aggregation-results: genny-map-storage-index-aggregate-v
 
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
-genny-arraypool-all: genny-arraypool-node-segments
+genny-arraypool-all:                      \
+	genny-arraypool-node-segments           \
+	genny-arraypool-aggregate-results-entry \
 
 # arraypool generation rule for ./network/server/tchannelthrift/node/segmentsArrayPool
 .PHONY: genny-arraypool-node-segments
@@ -185,6 +187,19 @@ genny-arraypool-node-segments:
 	rename_type_prefix=segments                                                  \
 	rename_type_middle=Segments                                                  \
 	rename_constructor=newSegmentsArrayPool
+
+# arraypool generation rule for ./storage/index/AggregateResultsEntryArrayPool
+.PHONY: genny-arraypool-aggregate-results-entry
+genny-arraypool-aggregate-results-entry:
+	cd $(m3x_package_path) && make genny-arraypool          \
+	pkg=index                                               \
+	elem_type=AggregateResultsEntry                         \
+	target_package=$(m3db_package)/src/dbnode/storage/index \
+	out_file=aggregate_results_entry_arraypool_gen.go       \
+	rename_type_prefix=AggregateResultsEntry                \
+	rename_type_middle=AggregateResultsEntry                \
+	rename_constructor=NewAggregateResultsEntryArrayPool    \
+	rename_gen_types=true                                   \
 
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all

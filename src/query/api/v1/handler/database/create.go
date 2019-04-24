@@ -171,7 +171,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	parsedReq, namespaceRequest, placementRequest, rErr := h.parseAndValidateRequest(r, currPlacement)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
@@ -215,7 +215,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placementProto, err := currPlacement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

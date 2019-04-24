@@ -62,7 +62,7 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	nsRegistry, err := h.Get()
 
 	if err != nil {
-		logger.Error("unable to get namespace", zap.Any("error", err))
+		logger.Error("unable to get namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

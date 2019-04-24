@@ -86,7 +86,7 @@ func main() {
 		logger.Info("Calculating cardinality only")
 		cardinality, err := calculateCardinality(inputFile, logger)
 		if err != nil {
-			logger.Fatal("cannot get cardinality", zap.Any("err", err))
+			logger.Fatal("cannot get cardinality", zap.Error(err))
 			return
 		}
 		logger.Info("Cardinality", zap.String("dataFile", dataFile), zap.Int("cardinality", cardinality))
@@ -99,7 +99,7 @@ func main() {
 
 		lines, err := convertToProm(inputFile, dataDir, dataFile, workers, batch, logger)
 		if err != nil {
-			logger.Fatal("cannot convert to prom", zap.Any("err", err))
+			logger.Fatal("cannot convert to prom", zap.Error(err))
 			return
 		}
 		metricsToWrite = lines
@@ -107,7 +107,7 @@ func main() {
 	logger.Info("Benchmarking writes on m3coordinator over http endpoint...")
 	err := benchmarkCoordinator(metricsToWrite)
 	if err != nil {
-		logger.Fatal("cannot benchmark coordinator to prom", zap.Any("err", err))
+		logger.Fatal("cannot benchmark coordinator to prom", zap.Error(err))
 
 		return
 	}

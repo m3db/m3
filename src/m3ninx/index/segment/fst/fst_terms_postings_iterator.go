@@ -108,7 +108,10 @@ func (f *fstTermsPostingsIter) Err() error {
 }
 
 func (f *fstTermsPostingsIter) Close() error {
-	err := f.termsIter.Close()
+	var err error
+	if f.termsIter != nil {
+		err = f.termsIter.Close()
+	}
 	f.clear()
 	return err
 }

@@ -61,7 +61,7 @@ func (h *configGetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 	store, err := h.client.KV()
 	if err != nil {
-		logger.Error("unable to get kv store", zap.Any("error", err))
+		logger.Error("unable to get kv store", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -72,14 +72,14 @@ func (h *configGetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 		return
 	}
 	if err != nil {
-		logger.Error("unable to get kv key", zap.Any("error", err))
+		logger.Error("unable to get kv key", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	array := new(commonpb.StringArrayProto)
 	if err := value.Unmarshal(array); err != nil {
-		logger.Error("unable to unmarshal kv key", zap.Any("error", err))
+		logger.Error("unable to unmarshal kv key", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

@@ -255,6 +255,7 @@ func (n *namespaces) process(value interface{}) error {
 	n.Lock()
 	defer n.Unlock()
 
+	var watchWg sync.WaitGroup
 	for _, entry := range incoming.Iter() {
 		namespace, elem := entry.Key(), rules.Namespace(entry.Value())
 		nsName, snapshots := elem.Name(), elem.Snapshots()
@@ -282,17 +283,27 @@ func (n *namespaces) process(value interface{}) error {
 				shouldWatch = false
 			}
 		}
+
 		if !shouldWatch {
 			n.metrics.unwatched.Inc(1)
 			ruleSet.Unwatch()
 		} else {
 			n.metrics.watched.Inc(1)
-			if err := ruleSet.Watch(); err != nil {
-				n.metrics.watchErrors.Inc(1)
-				n.log.Error("failed to watch ruleset updates",
-					zap.String("ruleSetKey", ruleSet.Key()),
-					zap.Error(err))
-			}
+
+			watchWg.Add(1)
+			go func() {
+				// Start the watches in background goroutines so that if the store is unavailable they timeout
+				// (approximately) in unison. This prevents the timeouts from stacking on top of each
+				// other when the store is unavailable and causing a delay of timeout_duration * num_rules.
+				defer watchWg.Done()
+
+				if err := ruleSet.Watch(); err != nil {
+					n.metrics.watchErrors.Inc(1)
+					n.log.Error("failed to watch ruleset updates",
+						zap.String("ruleSetKey", ruleSet.Key()),
+						zap.Error(err))
+				}
+			}()
 		}
 
 		if !exists && n.onNamespaceAddedFn != nil {
@@ -300,6 +311,7 @@ func (n *namespaces) process(value interface{}) error {
 		}
 	}
 
+	watchWg.Wait()
 	for _, entry := range n.rules.Iter() {
 		namespace, ruleSet := entry.Key(), entry.Value()
 		_, exists := incoming.Get(namespace)

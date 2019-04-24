@@ -31,25 +31,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomFields(t *testing.T) {
+func TestCustomAndProtoFields(t *testing.T) {
 	testCases := []struct {
-		schema   *desc.MessageDescriptor
-		expected []customFieldState
+		schema               *desc.MessageDescriptor
+		expectedCustomFields []customFieldState
+		expectedProtoFields  []int32
 	}{
 		{
 			schema: newVLMessageDescriptor(),
-			expected: []customFieldState{
+			expectedCustomFields: []customFieldState{
 				{fieldNum: 1, fieldType: float64Field},     // latitude
 				{fieldNum: 2, fieldType: float64Field},     // longitude
 				{fieldNum: 3, fieldType: signedInt64Field}, // numTrips
 				{fieldNum: 4, fieldType: bytesField},       // deliveryID
 			},
+			expectedProtoFields: []int32{5},
 		},
 	}
 
 	for _, tc := range testCases {
-		tszFields := customFields(nil, tc.schema)
-		require.Equal(t, tc.expected, tszFields)
+		tszFields, protoFields := customAndProtoFields(nil, nil, tc.schema)
+		require.Equal(t, tc.expectedCustomFields, tszFields)
+		require.Equal(t, tc.expectedProtoFields, protoFields)
 	}
 }
 
