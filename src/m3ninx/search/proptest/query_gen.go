@@ -187,5 +187,3 @@ func GenQuery(docs []doc.Document) gopter.Gen {
 		GenConjunctionQuery(docs),
 		GenDisjunctionQuery(docs))
 }
-
-// Ge

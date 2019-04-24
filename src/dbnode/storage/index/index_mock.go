@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -390,6 +391,34 @@ func (mr *MockAggregateResultsMockRecorder) Reset(nsID, aggregateQueryOpts inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockAggregateResults)(nil).Reset), nsID, aggregateQueryOpts)
 }
 
+// AggregateResultsOptions mocks base method
+func (m *MockAggregateResults) AggregateResultsOptions() AggregateResultsOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateResultsOptions")
+	ret0, _ := ret[0].(AggregateResultsOptions)
+	return ret0
+}
+
+// AggregateResultsOptions indicates an expected call of AggregateResultsOptions
+func (mr *MockAggregateResultsMockRecorder) AggregateResultsOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateResultsOptions", reflect.TypeOf((*MockAggregateResults)(nil).AggregateResultsOptions))
+}
+
+// AddFields mocks base method
+func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddFields", batch)
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// AddFields indicates an expected call of AddFields
+func (mr *MockAggregateResultsMockRecorder) AddFields(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFields", reflect.TypeOf((*MockAggregateResults)(nil).AddFields), batch)
+}
+
 // Map mocks base method
 func (m *MockAggregateResults) Map() *AggregateResultsMap {
 	m.ctrl.T.Helper()
@@ -654,6 +683,21 @@ func (mr *MockBlockMockRecorder) Query(cancellable, query, opts, results interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), cancellable, query, opts, results)
 }
 
+// Aggregate mocks base method
+func (m *MockBlock) Aggregate(cancellable *resource.CancellableLifetime, opts QueryOptions, results AggregateResults) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Aggregate", cancellable, opts, results)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Aggregate indicates an expected call of Aggregate
+func (mr *MockBlockMockRecorder) Aggregate(cancellable, opts, results interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregate", reflect.TypeOf((*MockBlock)(nil).Aggregate), cancellable, opts, results)
+}
+
 // AddResults mocks base method
 func (m *MockBlock) AddResults(results result.IndexBlock) error {
 	m.ctrl.T.Helper()
@@ -800,6 +844,100 @@ func (m *MockBlockStatsReporter) ReportSegmentStats(stats BlockSegmentStats) {
 func (mr *MockBlockStatsReporterMockRecorder) ReportSegmentStats(stats interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportSegmentStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportSegmentStats), stats)
+}
+
+// MockfieldsAndTermsIterator is a mock of fieldsAndTermsIterator interface
+type MockfieldsAndTermsIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockfieldsAndTermsIteratorMockRecorder
+}
+
+// MockfieldsAndTermsIteratorMockRecorder is the mock recorder for MockfieldsAndTermsIterator
+type MockfieldsAndTermsIteratorMockRecorder struct {
+	mock *MockfieldsAndTermsIterator
+}
+
+// NewMockfieldsAndTermsIterator creates a new mock instance
+func NewMockfieldsAndTermsIterator(ctrl *gomock.Controller) *MockfieldsAndTermsIterator {
+	mock := &MockfieldsAndTermsIterator{ctrl: ctrl}
+	mock.recorder = &MockfieldsAndTermsIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockfieldsAndTermsIterator) EXPECT() *MockfieldsAndTermsIteratorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockfieldsAndTermsIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Next))
+}
+
+// Current mocks base method
+func (m *MockfieldsAndTermsIterator) Current() ([]byte, []byte) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].([]byte)
+	return ret0, ret1
+}
+
+// Current indicates an expected call of Current
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockfieldsAndTermsIterator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Err))
+}
+
+// Close mocks base method
+func (m *MockfieldsAndTermsIterator) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Close))
+}
+
+// Reset mocks base method
+func (m *MockfieldsAndTermsIterator) Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Reset", seg, opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Reset indicates an expected call of Reset
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(seg, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), seg, opts)
 }
 
 // MockOptions is a mock of Options interface
@@ -1173,6 +1311,34 @@ func (m *MockOptions) DocumentArrayPool() doc.DocumentArrayPool {
 func (mr *MockOptionsMockRecorder) DocumentArrayPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocumentArrayPool", reflect.TypeOf((*MockOptions)(nil).DocumentArrayPool))
+}
+
+// SetAggregateResultsEntryArrayPool mocks base method
+func (m *MockOptions) SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregateResultsEntryArrayPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAggregateResultsEntryArrayPool indicates an expected call of SetAggregateResultsEntryArrayPool
+func (mr *MockOptionsMockRecorder) SetAggregateResultsEntryArrayPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregateResultsEntryArrayPool", reflect.TypeOf((*MockOptions)(nil).SetAggregateResultsEntryArrayPool), value)
+}
+
+// AggregateResultsEntryArrayPool mocks base method
+func (m *MockOptions) AggregateResultsEntryArrayPool() AggregateResultsEntryArrayPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateResultsEntryArrayPool")
+	ret0, _ := ret[0].(AggregateResultsEntryArrayPool)
+	return ret0
+}
+
+// AggregateResultsEntryArrayPool indicates an expected call of AggregateResultsEntryArrayPool
+func (mr *MockOptionsMockRecorder) AggregateResultsEntryArrayPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateResultsEntryArrayPool", reflect.TypeOf((*MockOptions)(nil).AggregateResultsEntryArrayPool))
 }
 
 // SetForegroundCompactionPlannerOptions mocks base method
