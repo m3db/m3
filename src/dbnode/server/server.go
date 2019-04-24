@@ -1225,6 +1225,7 @@ func withEncodingAndPoolingOptions(
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
+		SetMultiReaderIteratorPool(multiIteratorPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
 
