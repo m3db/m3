@@ -21,67 +21,46 @@
 package series
 
 import (
-	"io"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/proto"
-	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/storage/series/testdata"
 )
 
 var (
-	testNamespace = ident.StringID("buffer_test_ns")
+	testNamespace     = ident.StringID("buffer_test_ns")
+	testSchemaHistory = prototest.NewSchemaHistory("../testdata/prototest")
+	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
+	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
+	testProtoEqual    = func(t *testing.T, expect, actual []byte) {
+		prototest.RequireEqual(t, testSchema, expect, actual)}
 )
 
 func newBufferTestProtoOptions(t *testing.T) Options {
-	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
-	})
-	bytesPool.Init()
-	testEncodingOptions := encoding.NewOptions().
-		SetDefaultTimeUnit(xtime.Second).
-		SetBytesPool(bytesPool)
-
-	encoderPool := encoding.NewEncoderPool(nil)
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-
-	encodingOpts := testEncodingOptions.SetEncoderPool(encoderPool)
-
-	encoderPool.Init(func() encoding.Encoder {
-		return proto.NewEncoder(timeZero, encodingOpts)
-	})
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return proto.NewIterator(r, encodingOpts)
-	})
-
 	bufferBucketPool := NewBufferBucketPool(nil)
 	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)
 
 	opts := NewOptions().
-		SetEncoderPool(encoderPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetEncoderPool(prototest.ProtoPools.EncoderPool).
+		SetMultiReaderIteratorPool(prototest.ProtoPools.MultiReaderIterPool).
 		SetBufferBucketPool(bufferBucketPool).
 		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
 	opts = opts.
 		SetRetentionOptions(opts.RetentionOptions().
-		SetBlockSize(2 * time.Minute).
-		SetBufferFuture(10 * time.Second).
-		SetBufferPast(10 * time.Second)).
+			SetBlockSize(2 * time.Minute).
+			SetBufferFuture(10 * time.Second).
+			SetBufferPast(10 * time.Second)).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
-		SetContextPool(opts.ContextPool()).
-		SetEncoderPool(opts.EncoderPool()).
-		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool())).
+			SetContextPool(opts.ContextPool()).
+			SetEncoderPool(opts.EncoderPool()).
+			SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool())).
 		SetNamespaceId(testNamespace)
 
-	err := opts.SchemaRegistry().SetSchemaHistory(testNamespace, testdata.TestSchemaHistory)
+	err := opts.SchemaRegistry().SetSchemaHistory(testNamespace, testSchemaHistory)
 	require.NoError(t, err)
 
 	return opts
@@ -94,28 +73,77 @@ func TestBufferProtoWriteRead(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
 
-	count := len(testdata.TestProtoMessages)
+	count := len(testProtoMessages)
 	data := make([]value, count)
 	for i := 0; i < count; i++ {
 		currTime := curr.Add(time.Duration(i) * time.Second)
-		testAnn, err := testdata.TestProtoMessages[i].Marshal()
-		require.NoError(t, err)
-		data[i] = value{currTime, 0, xtime.Second, testAnn}
+		data[i] = value{currTime, 0, xtime.Second, testProtoMessages[i]}
 	}
 
-	for _, v := range data {
-		verifyWriteToBuffer(t, buffer, v)
+	testBufferWriteRead(t, data, opts, testProtoEqual)
+}
+
+func newBucketsProtoFixture(t *testing.T) ([][]value, Options) {
+	opts := newBufferTestProtoOptions(t)
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+
+	iter := prototest.NewProtoMessageIterator(testProtoMessages)
+	data := [][]value{
+		{
+			{curr, 0, xtime.Second, iter.Next()},
+			{curr.Add(secs(10)), 0, xtime.Second, iter.Next()},
+			{curr.Add(secs(50)), 0, xtime.Second, iter.Next()},
+		},
+		{
+			{curr.Add(secs(20)), 0, xtime.Second, iter.Next()},
+			{curr.Add(secs(40)), 0, xtime.Second, iter.Next()},
+			{curr.Add(secs(60)), 0, xtime.Second, iter.Next()},
+		},
+		{
+			{curr.Add(secs(30)), 0, xtime.Second, iter.Next()},
+			{curr.Add(secs(70)), 0, xtime.Second, iter.Next()},
+		},
+		{
+			{curr.Add(secs(35)), 0, xtime.Second, iter.Next()},
+		},
 	}
+	return data, opts
+}
 
-	ctx := context.NewContext()
-	defer ctx.Close()
+func TestBufferProtoToStream(t *testing.T) {
+	data, opts := newBucketsProtoFixture(t)
+	testBuffertoStream(t, data, opts, testProtoEqual)
+}
 
-	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
-	assert.NoError(t, err)
-	assert.NotNil(t, results)
+func TestBufferBucketProtoMerge(t *testing.T) {
+	data, opts := newBucketsProtoFixture(t)
+	testBufferBucketMerge(t, data, opts, testProtoEqual)
+}
 
-	assertValuesEqual(t, data, results, opts, testdata.RequireEqual)
+func TestBufferProtoSnapshot(t *testing.T) {
+	var (
+		opts      = newBufferTestProtoOptions(t)
+		rops      = opts.RetentionOptions()
+		blockSize = rops.BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+	)
+
+	iter := prototest.NewProtoMessageIterator(testProtoMessages)
+	// Create test data to perform out of order writes that will create two in-order
+	// encoders so we can verify that Snapshot will perform a merge
+	data := []value{
+		{curr, 0, xtime.Second, iter.Next()},
+		{curr.Add(mins(0.5)), 0, xtime.Second, iter.Next()},
+		{curr.Add(mins(0.5)).Add(-5 * time.Second), 0, xtime.Second, iter.Next()},
+		{curr.Add(mins(1.0)), 0, xtime.Second, iter.Next()},
+		{curr.Add(mins(1.5)), 0, xtime.Second, iter.Next()},
+		{curr.Add(mins(1.5)).Add(-5 * time.Second), 0, xtime.Second, iter.Next()},
+
+		// Add one write for a different block to make sure Snapshot only returns
+		// date for the requested block
+		{curr.Add(blockSize), 6, xtime.Second, nil},
+	}
+	testBufferSnapshot(t, data, opts, testProtoEqual)
 }

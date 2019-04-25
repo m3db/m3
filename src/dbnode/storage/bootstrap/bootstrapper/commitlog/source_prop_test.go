@@ -80,6 +80,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
+	nsCtx := namespace.NewContextFrom(nsMeta)
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
 		func(input propTestInput) (bool, error) {
@@ -409,7 +410,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						dataResult.Unfulfilled().String())
 				}
 			}
-			err = verifyShardResultsAreCorrect(values, blockSize, dataResult.ShardResults(), bootstrapOpts)
+			err = verifyShardResultsAreCorrect(nsCtx, values, blockSize, dataResult.ShardResults(), bootstrapOpts, nil)
 			if err != nil {
 				return false, err
 			}

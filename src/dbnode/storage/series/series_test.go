@@ -128,7 +128,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
-	assertSegmentValuesEqual(t, data[:2], streams, opts)
+	requireSegmentValuesEqual(t, data[:2], streams, opts, nil)
 }
 
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
@@ -172,7 +172,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	streams, err := buckets.toStreams(ctx)
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
-	assertSegmentValuesEqual(t, data[:1], streams, opts)
+	requireSegmentValuesEqual(t, data[:1], streams, opts, nil)
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
@@ -206,13 +206,13 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)))
 	assert.NoError(t, err)
 
-	assertValuesEqual(t, data, results, opts)
+	requireReaderValuesEqual(t, data, results, opts, nil)
 
 	// Test wide range
 	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NoError(t, err)
 
-	assertValuesEqual(t, data, results, opts)
+	requireReaderValuesEqual(t, data, results, opts, nil)
 }
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {
@@ -806,7 +806,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 
 	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
 	require.NoError(t, err)
-	values, err := decodedValues(results, opts)
+	values, err := decodedReaderValues(results, opts)
 	require.NoError(t, err)
 
 	require.Equal(t, 3, len(values))

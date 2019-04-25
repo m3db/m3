@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var timeDistantFuture = time.Now().Add(10 * 365 * 24 * time.Hour)
@@ -61,14 +61,9 @@ func (v valuesByTime) Swap(lhs, rhs int) {
 	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
 
-type decodedValue struct {
-	timestamp  time.Time
-	value      float64
-	unit       xtime.Unit
-	annotation []byte
-}
+type requireAnnEqual func(*testing.T, []byte, []byte)
 
-func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, error) {
+func decodedReaderValues(results [][]xio.BlockReader, opts Options) ([]value, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
 	nsCtx := newContextFor(opts)
 	iter := opts.MultiReaderIteratorPool().Get()
@@ -76,12 +71,12 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 	iter.ResetSliceOfSlices(slicesIter)
 	defer iter.Close()
 
-	var all []decodedValue
+	var all []value
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		// Iterator reuse annotation byte slices, so make a copy.
 		annotationCopy := append([]byte(nil), annotation...)
-		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotationCopy})
+		all = append(all, value{dp.Timestamp, dp.Value, unit, annotationCopy})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err
@@ -90,35 +85,40 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options,
-	assertAnnEqual ...func(*testing.T, []byte, []byte)) {
-	decodedValues, err := decodedValues(results, opts)
+func requireReaderValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options,
+	annEqual requireAnnEqual) {
+	decodedValues, err := decodedReaderValues(results, opts)
+	require.NoError(t, err)
+	requireValuesEqual(t, values, decodedValues, annEqual)
+}
 
-	assert.NoError(t, err)
-	assert.Len(t, decodedValues, len(values))
-	for i := 0; i < len(decodedValues); i++ {
-		assert.True(t, values[i].timestamp.Equal(decodedValues[i].timestamp))
-		assert.Equal(t, values[i].value, decodedValues[i].value)
-		assert.Equal(t, values[i].unit, decodedValues[i].unit)
-		if len(assertAnnEqual) == 0 {
-			assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
+func requireValuesEqual(t *testing.T, expected, actual []value, annEqual requireAnnEqual) {
+	require.Len(t, actual, len(expected))
+	for i := 0; i < len(actual); i++ {
+		require.True(t, expected[i].timestamp.Equal(actual[i].timestamp))
+		require.Equal(t, expected[i].value, actual[i].value)
+		require.Equal(t, expected[i].unit, actual[i].unit)
+		if annEqual == nil {
+			require.Equal(t, expected[i].annotation, actual[i].annotation)
 		} else {
-			assertAnnEqual[0](t, values[i].annotation, decodedValues[i].annotation)
+			annEqual(t, expected[i].annotation, actual[i].annotation)
 		}
 	}
 }
 
-func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]decodedValue, error) {
+func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]value, error) {
 	nsCtx := newContextFor(opts)
 	iter := opts.MultiReaderIteratorPool().Get()
 	iter.SetSchema(nsCtx.Schema)
 	iter.Reset(results, time.Time{}, time.Duration(0))
 	defer iter.Close()
 
-	var all []decodedValue
+	var all []value
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
-		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
+		// Iterator reuse annotation byte slices, so make a copy.
+		annotationCopy := append([]byte(nil), annotation...)
+		all = append(all, value{dp.Timestamp, dp.Value, unit, annotationCopy})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err
@@ -127,15 +127,10 @@ func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]decodedV
 	return all, nil
 }
 
-func assertSegmentValuesEqual(t *testing.T, values []value, results []xio.SegmentReader, opts Options) {
+func requireSegmentValuesEqual(t *testing.T, values []value, results []xio.SegmentReader, opts Options,
+	annEqual requireAnnEqual) {
 	decodedValues, err := decodedSegmentValues(results, opts)
 
-	assert.NoError(t, err)
-	assert.Len(t, decodedValues, len(values))
-	for i := 0; i < len(decodedValues); i++ {
-		assert.True(t, values[i].timestamp.Equal(decodedValues[i].timestamp))
-		assert.Equal(t, values[i].value, decodedValues[i].value)
-		assert.Equal(t, values[i].unit, decodedValues[i].unit)
-		assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
-	}
+	require.NoError(t, err)
+	requireValuesEqual(t, values, decodedValues, annEqual)
 }

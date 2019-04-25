@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	testSchemaOptions = GenTestSchemaOptions("mainpkg/main.proto", "namespace/schematest")
+	testSchemaOptions = GenTestSchemaOptions("mainpkg/main.proto", "schematest")
 )
 
 func TestLoadSchemaHistory(t *testing.T) {

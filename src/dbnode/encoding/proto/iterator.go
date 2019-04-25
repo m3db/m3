@@ -243,9 +243,7 @@ func (it *iterator) Reset(reader io.Reader) {
 
 	it.err = nil
 	it.consumedFirstMessage = false
-	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.lastIteratedProtoBytes = nil
-	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
@@ -261,6 +259,7 @@ func (it *iterator) SetSchema(schemaDesc namespace.SchemaDescr) {
 
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
+	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 }
 

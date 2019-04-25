@@ -1,13 +1,15 @@
-package testdata
+package prototest
 
 import (
 	"time"
+	"testing"
 
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
 	"github.com/jhump/protoreflect/dynamic"
-	"testing"
 	"github.com/stretchr/testify/require"
+	"github.com/jhump/protoreflect/desc"
+	"bytes"
 )
 
 type TestMessage struct {
@@ -19,21 +21,24 @@ type TestMessage struct {
 	attributes map[string]string
 }
 
-var (
-	TestSchemaHistory = newSchemaHistory()
-	TestProtoMessages = newProtoTestMessages()
-)
-
-func newSchemaHistory() namespace.SchemaHistory {
+func NewSchemaHistory(importPath string) namespace.SchemaHistory {
 	schemaHis, err := namespace.LoadSchemaHistory(
-		namespace.GenTestSchemaOptions("main.proto", "testdata"))
+		namespace.GenTestSchemaOptions("test.proto", importPath))
 	if err != nil {
 		panic(err.Error())
 	}
 	return schemaHis
 }
 
-func newProtoTestMessages() []*dynamic.Message {
+func NewMessageDescriptor(his namespace.SchemaHistory) *desc.MessageDescriptor {
+	schema, ok := his.GetLatest()
+	if !ok {
+		panic("schema history is empty")
+	}
+	return schema.Get().MessageDescriptor
+}
+
+func NewProtoTestMessages(md *desc.MessageDescriptor) [][]byte {
 	testFixtures := []TestMessage{
 		{
 			latitude:  0.1,
@@ -88,13 +93,7 @@ func newProtoTestMessages() []*dynamic.Message {
 		},
 	}
 
-	testSchema, ok := TestSchemaHistory.GetLatest()
-	if !ok {
-		panic("test schema history is empty")
-	}
-	md := testSchema.Get().MessageDescriptor
-
-	msgs := make([]*dynamic.Message, len(testFixtures))
+	msgs := make([][]byte, len(testFixtures))
 	for i := 0; i < len(msgs); i++ {
 		newMessage := dynamic.NewMessage(md)
 		newMessage.SetFieldByName("latitude", testFixtures[i].latitude)
@@ -102,19 +101,17 @@ func newProtoTestMessages() []*dynamic.Message {
 		newMessage.SetFieldByName("deliveryID", testFixtures[i].deliveryID)
 		newMessage.SetFieldByName("epoch", testFixtures[i].epoch)
 		newMessage.SetFieldByName("attributes", testFixtures[i].attributes)
-		msgs[i] = newMessage
+		msgBytes, err := newMessage.Marshal()
+		if err != nil {
+			panic(err.Error())
+		}
+		msgs[i] = msgBytes
 	}
 
 	return msgs
 }
 
-func RequireEqual(t *testing.T, expected, actual []byte) {
-	testSchema, ok := TestSchemaHistory.GetLatest()
-	if !ok {
-		panic("test schema history is empty")
-	}
-	md := testSchema.Get().MessageDescriptor
-
+func RequireEqual(t *testing.T, md *desc.MessageDescriptor, expected, actual []byte) {
 	expectedMsg := dynamic.NewMessage(md)
 	require.NoError(t, expectedMsg.Unmarshal(expected))
 	actualMsg := dynamic.NewMessage(md)
@@ -137,4 +134,65 @@ func requireAttributesEqual(t *testing.T, expected, actual map[interface{}]inter
 	for k, v := range expected {
 		require.Equal(t, v, actual[k])
 	}
+}
+
+func ProtoEqual(md *desc.MessageDescriptor, expected, actual []byte) bool {
+	expectedMsg := dynamic.NewMessage(md)
+	if expectedMsg.Unmarshal(expected) != nil {
+		return false
+	}
+	actualMsg := dynamic.NewMessage(md)
+	if actualMsg.Unmarshal(actual) != nil {
+		return false
+	}
+
+	if expectedMsg.GetFieldByName("latitude") !=
+		actualMsg.GetFieldByName("latitude") {
+			return false
+	}
+	if expectedMsg.GetFieldByName("longitude") !=
+		actualMsg.GetFieldByName("longitude") {
+			return false
+	}
+	if !bytes.Equal(expectedMsg.GetFieldByName("deliveryID").([]byte),
+		actualMsg.GetFieldByName("deliveryID").([]byte)) {
+			return false
+	}
+	if expectedMsg.GetFieldByName("epoch") !=
+		actualMsg.GetFieldByName("epoch") {
+			return false
+	}
+	return attributesEqual(expectedMsg.GetFieldByName("attributes").(map[interface{}]interface{}),
+		actualMsg.GetFieldByName("attributes").(map[interface{}]interface{}))
+}
+
+func attributesEqual(expected, actual map[interface{}]interface{}) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	for k, v := range expected {
+		if v.(string) != actual[k].(string) {
+			return false
+		}
+	}
+	return true
+}
+
+type ProtoMessageIterator struct {
+	messages [][]byte
+	i        int
+}
+
+func NewProtoMessageIterator(messages [][]byte) ProtoMessageIterator {
+	return ProtoMessageIterator{messages: messages}
+}
+
+func (pmi ProtoMessageIterator) Next() []byte {
+	n := pmi.messages[pmi.i%len(pmi.messages)]
+	pmi.i++
+	return n
+}
+
+func (pmi ProtoMessageIterator) Reset() {
+	pmi.i = 0
 }
