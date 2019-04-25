@@ -64,8 +64,9 @@ const (
 	float64Field
 	float32Field
 	bytesField
+	boolField
 
-	numCustomTypes = 8
+	numCustomTypes = 9
 )
 
 // -1 because iota's are zero-indexed so the highest value will be the number of
@@ -102,6 +103,9 @@ const (
 
 	opCodeBitsetValueIsNotSet = 0
 	opCodeBitsetValueIsSet    = 1
+
+	opCodeBoolTrue  = 1
+	opCodeBoolFalse = 0
 )
 
 var (
@@ -132,6 +136,8 @@ var (
 
 		dpb.FieldDescriptorProto_TYPE_STRING: bytesField,
 		dpb.FieldDescriptorProto_TYPE_BYTES:  bytesField,
+
+		dpb.FieldDescriptorProto_TYPE_BOOL: boolField,
 	}
 )
 
