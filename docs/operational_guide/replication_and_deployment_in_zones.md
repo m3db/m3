@@ -28,7 +28,8 @@ consistency guarantees and read from the remaining serving node, users may exper
 whether one node had data for a time window that the other did not.
 
 Finally, it is only recommended to run with an odd number of replicas. Because the quorum size of an even-RF `N` is
-`(N/2)+1`, any cluster with an even replica factor N has the same failure tolerance as a cluster with `RF=N-1`. The
+`(N/2)+1`, any cluster with an even replica factor N has the same failure tolerance as a cluster with `RF=N-1`. "Failure
+tolerance" is defined as the number of [isolation groups][isolation-group] you can concurrently lose nodes across. The
 following table demonstrates the quorum size and failure tolerance of various RF's, inspired by etcd's [failure
 tolerance][failure-tolerance] documentation.
 
@@ -87,5 +88,5 @@ For example, in a multi-region deployment with four shards spread over five regi
 Typically, deployments have many more than four shards - this is a simple example that illustrates how M3DB maintains availability while losing up to two regions, as three of five replicas are still intact.
 
 [1107]: https://github.com/m3db/m3/issues/1107
-
 [failure-tolerance]: https://github.com/etcd-io/etcd/blob/cca0d5c1bed134ac30e1354241f7655d2a118db4/Documentation/faq.md#what-is-failure-tolerance
+[isolation-group]: ./placement_configuration.md#isolation-group
