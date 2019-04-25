@@ -730,9 +730,8 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return persist.CommitLogFile{}, nil
 	}
 
-	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primary)
 	writer.flushFn = func(bool) error {
-		onFlushFn(nil)
+		commitLog.writerState.primary.onFlush(nil)
 		return nil
 	}
 
@@ -780,9 +779,8 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		return persist.CommitLogFile{}, nil
 	}
 
-	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primary)
 	writer.flushFn = func(bool) error {
-		onFlushFn(nil)
+		commitLog.writerState.primary.onFlush(nil)
 		return nil
 	}
 
@@ -832,13 +830,12 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
-	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primary)
 	var flushes int64
 	writer.flushFn = func(bool) error {
 		if atomic.AddInt64(&flushes, 1) >= 2 {
-			onFlushFn(fmt.Errorf("an error"))
+			commitLog.writerState.primary.onFlush(fmt.Errorf("an error"))
 		} else {
-			onFlushFn(nil)
+			commitLog.writerState.primary.onFlush(nil)
 		}
 		return nil
 	}

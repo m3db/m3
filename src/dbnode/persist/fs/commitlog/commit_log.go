@@ -140,6 +140,8 @@ type writerState struct {
 }
 
 type asyncResettableWriter struct {
+	// Backreference to commitlog for the purpose of calling onFlush().
+	commitlog *commitLog
 	// The commitlog writer is single-threaded, so normally the commitLogWriter can be
 	// accessed without synchronization. However, since the secondaryWriter is reset by
 	// a background goroutine, a waitgroup is used to ensure that the previous background
@@ -158,6 +160,10 @@ type asyncResettableWriter struct {
 	// with commitlog 1 should be called as the writer associated with commitlog 2 may not have been
 	// flushed at all yet.
 	pendingFlushFns []callbackFn
+}
+
+func (w *asyncResettableWriter) onFlush(err error) {
+	w.commitlog.onFlush(w, err)
 }
 
 type closedState struct {
@@ -275,6 +281,9 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			flushDone:        scope.Counter("writes.flush-done"),
 		},
 	}
+	// Setup backreferences for onFlush().
+	commitLog.writerState.primary.commitlog = commitLog
+	commitLog.writerState.secondary.commitlog = commitLog
 
 	switch opts.Strategy() {
 	case StrategyWriteWait:
@@ -560,47 +569,43 @@ func (l *commitLog) write() {
 	l.closeErr <- multiErr.FinalError()
 }
 
-// newOnFlushFn is used to create new flushFns because each one needs to know which
-// slice of pendingFlushFns it should modify.
-func (l *commitLog) newOnFlushFn(writer *asyncResettableWriter) flushFn {
-	return func(err error) {
-		l.flushState.setLastFlushAt(l.nowFn())
+func (l *commitLog) onFlush(writer *asyncResettableWriter, err error) {
+	l.flushState.setLastFlushAt(l.nowFn())
 
-		if err != nil {
-			l.metrics.errors.Inc(1)
-			l.metrics.flushErrors.Inc(1)
-			l.log.Error("failed to flush commit log", zap.Error(err))
+	if err != nil {
+		l.metrics.errors.Inc(1)
+		l.metrics.flushErrors.Inc(1)
+		l.log.Error("failed to flush commit log", zap.Error(err))
 
-			if l.commitLogFailFn != nil {
-				l.commitLogFailFn(err)
-			}
+		if l.commitLogFailFn != nil {
+			l.commitLogFailFn(err)
 		}
-
-		// onFlush will never be called concurrently. The flushFn for the primaryWriter
-		// will only ever be called synchronously by the single-threaded writer goroutine
-		// and the flushFn for the secondaryWriter will only be called by the asynchronous
-		// goroutine (created by the single-threaded writer) when it calls Close() on the
-		// secondary (previously primary due to a hot-swap) writer during the reset.
-		//
-		// Note that both the primary and secondar's flushFn may be called during calls to
-		// Open() on the commitlog, but this takes place before the single-threaded writer
-		// is spawned which precludes it from occurring concurrently with either of the
-		// scenarios described above.
-		if len(writer.pendingFlushFns) == 0 {
-			l.metrics.flushDone.Inc(1)
-			return
-		}
-
-		for i := range writer.pendingFlushFns {
-			writer.pendingFlushFns[i](callbackResult{
-				eventType: flushEventType,
-				err:       err,
-			})
-			writer.pendingFlushFns[i] = nil
-		}
-		writer.pendingFlushFns = writer.pendingFlushFns[:0]
-		l.metrics.flushDone.Inc(1)
 	}
+
+	// onFlush will never be called concurrently. The flushFn for the primaryWriter
+	// will only ever be called synchronously by the single-threaded writer goroutine
+	// and the flushFn for the secondaryWriter will only be called by the asynchronous
+	// goroutine (created by the single-threaded writer) when it calls Close() on the
+	// secondary (previously primary due to a hot-swap) writer during the reset.
+	//
+	// Note that both the primary and secondar's flushFn may be called during calls to
+	// Open() on the commitlog, but this takes place before the single-threaded writer
+	// is spawned which precludes it from occurring concurrently with either of the
+	// scenarios described above.
+	if len(writer.pendingFlushFns) == 0 {
+		l.metrics.flushDone.Inc(1)
+		return
+	}
+
+	for i := range writer.pendingFlushFns {
+		writer.pendingFlushFns[i](callbackResult{
+			eventType: flushEventType,
+			err:       err,
+		})
+		writer.pendingFlushFns[i] = nil
+	}
+	writer.pendingFlushFns = writer.pendingFlushFns[:0]
+	l.metrics.flushDone.Inc(1)
 }
 
 // writerState lock must be held for the duration of this function call.
@@ -628,10 +633,8 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 		// normal circumstances this will only occur when the commitlog is first opened. Although
 		// it can also happen if something goes wrong during the asynchronous reset of the secondary
 		// writer in which case this path will try again, but synchronously this time.
-		primaryWriterFlushFn := l.newOnFlushFn(&l.writerState.primary)
-		secondaryWriterFlushFn := l.newOnFlushFn(&l.writerState.secondary)
-		l.writerState.primary.writer = l.newCommitLogWriterFn(primaryWriterFlushFn, l.opts)
-		l.writerState.secondary.writer = l.newCommitLogWriterFn(secondaryWriterFlushFn, l.opts)
+		l.writerState.primary.writer = l.newCommitLogWriterFn(l.writerState.primary.onFlush, l.opts)
+		l.writerState.secondary.writer = l.newCommitLogWriterFn(l.writerState.secondary.onFlush, l.opts)
 
 		primaryFile, err := l.writerState.primary.writer.Open()
 		if err != nil {
