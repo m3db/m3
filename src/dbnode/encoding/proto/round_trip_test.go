@@ -139,7 +139,7 @@ func TestRoundTrip(t *testing.T) {
 		require.Equal(t, float64(0), lastEncoded.Value)
 	}
 	// Add some sanity to make sure that the string compression is working.
-	require.Equal(t, 368, enc.Stats().CompressedBytes)
+	require.Equal(t, 369, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
