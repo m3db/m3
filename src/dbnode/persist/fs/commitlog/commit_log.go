@@ -127,10 +127,10 @@ func (f *flushState) getLastFlushAt() time.Time {
 
 type writerState struct {
 	// See "Rotating Files" section of README.md for an explanation of how the
-	// primaryWriter and secondaryWriter fields are used during commitlog rotation.
-	primaryWriter   asyncResettableWriter
-	secondaryWriter asyncResettableWriter
-	activeFiles     persist.CommitLogFiles
+	// primary and secondary fields are used during commitlog rotation.
+	primary     asyncResettableWriter
+	secondary   asyncResettableWriter
+	activeFiles persist.CommitLogFiles
 }
 
 type asyncResettableWriter struct {
@@ -248,10 +248,10 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 		newCommitLogWriterFn: newCommitLogWriter,
 		writes:               make(chan commitLogWrite, opts.BacklogQueueChannelSize()),
 		writerState: writerState{
-			primaryWriter: asyncResettableWriter{
+			primary: asyncResettableWriter{
 				WaitGroup: &sync.WaitGroup{},
 			},
-			secondaryWriter: asyncResettableWriter{
+			secondary: asyncResettableWriter{
 				WaitGroup: &sync.WaitGroup{},
 			},
 		},
@@ -291,10 +291,10 @@ func (l *commitLog) Open() error {
 
 	// Sync the info header to ensure we can write to disk and make sure that we can at least
 	// read the info about the commitlog file later.
-	if err := l.writerState.primaryWriter.writer.Flush(true); err != nil {
+	if err := l.writerState.primary.writer.Flush(true); err != nil {
 		return err
 	}
-	if err := l.writerState.secondaryWriter.writer.Flush(true); err != nil {
+	if err := l.writerState.secondary.writer.Flush(true); err != nil {
 		return err
 	}
 
@@ -440,7 +440,7 @@ func (l *commitLog) write() {
 
 	for write := range l.writes {
 		if write.eventType == flushEventType {
-			l.writerState.primaryWriter.writer.Flush(false)
+			l.writerState.primary.writer.Flush(false)
 			continue
 		}
 
@@ -457,8 +457,8 @@ func (l *commitLog) write() {
 
 		// For writes requiring acks add to pending acks
 		if write.eventType == writeEventType && write.callbackFn != nil {
-			l.writerState.primaryWriter.pendingFlushFns = append(
-				l.writerState.primaryWriter.pendingFlushFns, write.callbackFn)
+			l.writerState.primary.pendingFlushFns = append(
+				l.writerState.primary.pendingFlushFns, write.callbackFn)
 		}
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
@@ -516,7 +516,7 @@ func (l *commitLog) write() {
 			}
 
 			write := writeBatch.Write
-			err := l.writerState.primaryWriter.writer.Write(write.Series,
+			err := l.writerState.primary.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
 				l.handleWriteErr(err)
@@ -539,15 +539,15 @@ func (l *commitLog) write() {
 	l.waitForSecondaryWriterAsyncResetComplete()
 	// Can be nil in the case where the background goroutine spawned in openWriters
 	// encountered an error trying to re-open it.
-	if l.writerState.secondaryWriter.writer != nil {
+	if l.writerState.secondary.writer != nil {
 		// Don't care about errors closing the secondary writer because it doesn't
 		// have any data.
-		l.writerState.secondaryWriter.writer.Close()
-		l.writerState.secondaryWriter.writer = nil
+		l.writerState.secondary.writer.Close()
+		l.writerState.secondary.writer = nil
 	}
 
-	writer := l.writerState.primaryWriter.writer
-	l.writerState.primaryWriter.writer = nil
+	writer := l.writerState.primary.writer
+	l.writerState.primary.writer = nil
 
 	l.closeErr <- writer.Close()
 }
@@ -602,35 +602,35 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 	// in any way.
 	l.waitForSecondaryWriterAsyncResetComplete()
 
-	if l.writerState.primaryWriter.writer == nil || l.writerState.secondaryWriter.writer == nil {
-		if l.writerState.primaryWriter.writer != nil {
+	if l.writerState.primary.writer == nil || l.writerState.secondary.writer == nil {
+		if l.writerState.primary.writer != nil {
 			// Make sure to close and flush any remaining data before creating a new writer if the
 			// primary (which contains data) is not nil.
-			if err := l.writerState.primaryWriter.writer.Close(); err != nil {
+			if err := l.writerState.primary.writer.Close(); err != nil {
 				return zeroFile, zeroFile, err
 			}
 		}
 
-		if l.writerState.secondaryWriter.writer != nil {
+		if l.writerState.secondary.writer != nil {
 			// Ignore errors because the secondary file doesn't have any data.
-			l.writerState.secondaryWriter.writer.Close()
+			l.writerState.secondary.writer.Close()
 		}
 
 		// If either of the commitlog writers is nil then open both of them synchronously. Under
 		// normal circumstances this will only occur when the commitlog is first opened. Although
 		// it can also happen if something goes wrong during the asynchronous reset of the secondary
 		// writer in which case this path will try again, but synchronously this time.
-		primaryWriterFlushFn := l.newOnFlushFn(&l.writerState.primaryWriter)
-		secondaryWriterFlushFn := l.newOnFlushFn(&l.writerState.secondaryWriter)
-		l.writerState.primaryWriter.writer = l.newCommitLogWriterFn(primaryWriterFlushFn, l.opts)
-		l.writerState.secondaryWriter.writer = l.newCommitLogWriterFn(secondaryWriterFlushFn, l.opts)
+		primaryWriterFlushFn := l.newOnFlushFn(&l.writerState.primary)
+		secondaryWriterFlushFn := l.newOnFlushFn(&l.writerState.secondary)
+		l.writerState.primary.writer = l.newCommitLogWriterFn(primaryWriterFlushFn, l.opts)
+		l.writerState.secondary.writer = l.newCommitLogWriterFn(secondaryWriterFlushFn, l.opts)
 
-		primaryFile, err := l.writerState.primaryWriter.writer.Open()
+		primaryFile, err := l.writerState.primary.writer.Open()
 		if err != nil {
 			return zeroFile, zeroFile, err
 		}
 
-		secondaryFile, err := l.writerState.secondaryWriter.writer.Open()
+		secondaryFile, err := l.writerState.secondary.writer.Open()
 		if err != nil {
 			return zeroFile, zeroFile, err
 		}
@@ -642,9 +642,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 	// Swap the primary and secondary writers so that the secondary becomes primary and vice versa.
 	// This consumes the standby secondary writer, but a new one will be prepared asynchronously by
 	// resetting the formerly primary writer.
-	prevPrimary := l.writerState.primaryWriter
-	l.writerState.primaryWriter = l.writerState.secondaryWriter
-	l.writerState.secondaryWriter = prevPrimary
+	l.writerState.primary, l.writerState.secondary = l.writerState.secondary, l.writerState.primary
 	l.startSecondaryWriterAsyncReset()
 
 	var (
@@ -665,7 +663,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 }
 
 func (l *commitLog) startSecondaryWriterAsyncReset() {
-	l.writerState.secondaryWriter.Add(1)
+	l.writerState.secondary.Add(1)
 
 	go func() {
 		var err error
@@ -673,21 +671,21 @@ func (l *commitLog) startSecondaryWriterAsyncReset() {
 			if err != nil {
 				// Set to nil so that the next call to openWriters() will attempt
 				// to try and create a new writer.
-				l.writerState.secondaryWriter.writer = nil
+				l.writerState.secondary.writer = nil
 
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
 			}
 
-			l.writerState.secondaryWriter.Done()
+			l.writerState.secondary.Done()
 		}()
 
-		if err = l.writerState.secondaryWriter.writer.Close(); err != nil {
+		if err = l.writerState.secondary.writer.Close(); err != nil {
 			l.commitLogFailFn(err)
 			return
 		}
 
-		_, err = l.writerState.secondaryWriter.writer.Open()
+		_, err = l.writerState.secondary.writer.Open()
 		if err != nil {
 			l.commitLogFailFn(err)
 			return
@@ -696,7 +694,7 @@ func (l *commitLog) startSecondaryWriterAsyncReset() {
 }
 
 func (l *commitLog) waitForSecondaryWriterAsyncResetComplete() {
-	l.writerState.secondaryWriter.Wait()
+	l.writerState.secondary.Wait()
 }
 
 func (l *commitLog) Write(
