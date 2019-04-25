@@ -371,8 +371,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Replace bitset in writer with one that configurably returns true or false
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
-	primaryWriter := commitLog.writerState.primaryWriter.writer.(*writer)
-	secondaryWriter := commitLog.writerState.secondaryWriter.writer.(*writer)
+	primary := commitLog.writerState.primary.writer.(*writer)
+	secondary := commitLog.writerState.secondary.writer.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
 
@@ -392,8 +392,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 			bitSet.Set(uint(i))
 		}
 	}
-	primaryWriter.seen = bitSet
-	secondaryWriter.seen = bitSet
+	primary.seen = bitSet
+	secondary.seen = bitSet
 
 	// Generate fake writes for each of the series
 	writes := []testWrite{}
@@ -730,7 +730,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return persist.CommitLogFile{}, nil
 	}
 
-	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primaryWriter)
+	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primary)
 	writer.flushFn = func(bool) error {
 		onFlushFn(nil)
 		return nil
@@ -780,7 +780,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		return persist.CommitLogFile{}, nil
 	}
 
-	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primaryWriter)
+	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primary)
 	writer.flushFn = func(bool) error {
 		onFlushFn(nil)
 		return nil
@@ -832,7 +832,7 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
-	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primaryWriter)
+	onFlushFn := commitLog.newOnFlushFn(&commitLog.writerState.primary)
 	var flushes int64
 	writer.flushFn = func(bool) error {
 		if atomic.AddInt64(&flushes, 1) >= 2 {
