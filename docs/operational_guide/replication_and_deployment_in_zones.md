@@ -11,20 +11,36 @@ A replication factor of at least 3 is highly recommended for any M3DB deployment
 M3DB will do its best to distribute shards evenly among the availability zones while still taking each individual node's weight into account, but if some of the availability zones have less available hosts than others then each host in that zone will be responsible for more shards than hosts in the other zones and will thus be subjected to heavier load.
 
 
-### Dangers of Replication Factor of 1 or 2
+### Replication Factor Recommendations
 
-Running with RF=1 or RF=2 is not recommended for any use cases (testing or production), and in [the future][1107] such
-topologies may be rejected by M3DB entirely.
+Running with `RF=1` or `RF=2` is not recommended for any multi-node use cases (testing or production). In [the
+future][1107] such topologies may be rejected by M3DB entirely. It is also recommended to only run with an odd number of
+replicas.
 
-RF=1 is not recommended as it is impossible to perform safe upgrade or tolerate any node failures: as soon as one node
-is down, all writes destined for the shards it owned will fail. If the node's storage is lost (i.e. the disk fails), the
-data is gone forever.
+`RF=1` is not recommended as it is impossible to perform a safe upgrade or tolerate any node failures: as soon as one
+node is down, all writes destined for the shards it owned will fail. If the node's storage is lost (e.g. the disk
+fails), the data is gone forever.
 
-RF=2, despite having an extra replica, entails many of the same problems RF=1 does. As M3DB performs quorum writes and
-reads, as soon as a single node is down (for planned maintenance or an unplanned disruption) clients will be unable to
-perform quorum reads or writes (quorum of 2 nodes is 2). Even if clients relax their consistency guarantees and read
-from the 1 serving node, users may experience flapping results depending on whether one node had data for a time window
-that the other did not.
+`RF=2`, despite having an extra replica, entails many of the same problems `RF=1` does. When M3DB is configured to
+perform quorum writes and reads (the default), as soon as a single node is down (for planned maintenance or an unplanned
+disruption) clients will be unable to read or write (as the quorum of 2 nodes is 2). Even if clients relax their
+consistency guarantees and read from the remaining serving node, users may experience flapping results depending on
+whether one node had data for a time window that the other did not.
+
+Finally, it is only recommended to run with an odd number of replicas. Because the quorum size of an even-RF `N` is
+`(N/2)+1`, any cluster with an even replica factor N has the same failure tolerance as a cluster with `RF=N-1`. The
+following table demonstrates the quorum size and failure tolerance of various RF's, inspired by etcd's [failure
+tolerance][failure-tolerance] documentation.
+
+| Replica Factor | Quorum Size | Failure Tolerance |
+|:-:|:-:|:-:|
+| 1 | 1 | 0 |
+| 2 | 2 | 0 |
+| 3 | 2 | 1 |
+| 4 | 3 | 1 |
+| 5 | 3 | 2 |
+| 6 | 4 | 2 |
+| 7 | 4 | 3 |
 
 ### Upgrading hosts in a deployment
 
@@ -71,3 +87,5 @@ For example, in a multi-region deployment with four shards spread over five regi
 Typically, deployments have many more than four shards - this is a simple example that illustrates how M3DB maintains availability while losing up to two regions, as three of five replicas are still intact.
 
 [1107]: https://github.com/m3db/m3/issues/1107
+
+[failure-tolerance]: https://github.com/etcd-io/etcd/blob/cca0d5c1bed134ac30e1354241f7655d2a118db4/Documentation/faq.md#what-is-failure-tolerance
