@@ -787,6 +787,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#replication-factor-recommendations" title="Replication Factor Recommendations" class="md-nav__link">
+    Replication Factor Recommendations
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#upgrading-hosts-in-a-deployment" title="Upgrading hosts in a deployment" class="md-nav__link">
     Upgrading hosts in a deployment
   </a>
@@ -1159,6 +1166,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#replication-factor-recommendations" title="Replication Factor Recommendations" class="md-nav__link">
+    Replication Factor Recommendations
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#upgrading-hosts-in-a-deployment" title="Upgrading hosts in a deployment" class="md-nav__link">
     Upgrading hosts in a deployment
   </a>
@@ -1216,6 +1230,69 @@
 <h3 id="replication">Replication</h3>
 <p>A replication factor of at least 3 is highly recommended for any M3DB deployment, due to the consistency levels (for both reads and writes) that require quorum in order to complete an operation. For more information on consistency levels, see the documentation concerning <a href="../availability_consistency_durability/">tuning availability, consistency and durability</a>.</p>
 <p>M3DB will do its best to distribute shards evenly among the availability zones while still taking each individual node's weight into account, but if some of the availability zones have less available hosts than others then each host in that zone will be responsible for more shards than hosts in the other zones and will thus be subjected to heavier load.</p>
+<h3 id="replication-factor-recommendations">Replication Factor Recommendations</h3>
+<p>Running with <code>RF=1</code> or <code>RF=2</code> is not recommended for any multi-node use cases (testing or production). In <a href="https://github.com/m3db/m3/issues/1107">the
+future</a> such topologies may be rejected by M3DB entirely. It is also recommended to only run with an odd number of
+replicas.</p>
+<p><code>RF=1</code> is not recommended as it is impossible to perform a safe upgrade or tolerate any node failures: as soon as one
+node is down, all writes destined for the shards it owned will fail. If the node's storage is lost (e.g. the disk
+fails), the data is gone forever.</p>
+<p><code>RF=2</code>, despite having an extra replica, entails many of the same problems <code>RF=1</code> does. When M3DB is configured to
+perform quorum writes and reads (the default), as soon as a single node is down (for planned maintenance or an unplanned
+disruption) clients will be unable to read or write (as the quorum of 2 nodes is 2). Even if clients relax their
+consistency guarantees and read from the remaining serving node, users may experience flapping results depending on
+whether one node had data for a time window that the other did not.</p>
+<p>Finally, it is only recommended to run with an odd number of replicas. Because the quorum size of an even-RF <code>N</code> is
+<code>(N/2)+1</code>, any cluster with an even replica factor N has the same failure tolerance as a cluster with <code>RF=N-1</code>. "Failure
+tolerance" is defined as the number of <a href="../placement_configuration/#isolation-group">isolation groups</a> you can concurrently lose nodes across. The
+following table demonstrates the quorum size and failure tolerance of various RF's, inspired by etcd's <a href="https://github.com/etcd-io/etcd/blob/cca0d5c1bed134ac30e1354241f7655d2a118db4/Documentation/faq.md#what-is-failure-tolerance">failure
+tolerance</a> documentation.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Replica Factor</th>
+<th align="center">Quorum Size</th>
+<th align="center">Failure Tolerance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">1</td>
+<td align="center">1</td>
+<td align="center">0</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center">2</td>
+<td align="center">0</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center">2</td>
+<td align="center">1</td>
+</tr>
+<tr>
+<td align="center">4</td>
+<td align="center">3</td>
+<td align="center">1</td>
+</tr>
+<tr>
+<td align="center">5</td>
+<td align="center">3</td>
+<td align="center">2</td>
+</tr>
+<tr>
+<td align="center">6</td>
+<td align="center">4</td>
+<td align="center">2</td>
+</tr>
+<tr>
+<td align="center">7</td>
+<td align="center">4</td>
+<td align="center">3</td>
+</tr>
+</tbody>
+</table>
 <h3 id="upgrading-hosts-in-a-deployment">Upgrading hosts in a deployment</h3>
 <p>When an M3DB node is restarted it has to perform a bootstrap process before it can serve reads. During this time the node will continue to accept writes, but will not be available for reads.</p>
 <p>Obviously, there is also a small window of time during between when the process is stopped and then started again where it will also be unavailable for writes.</p>
