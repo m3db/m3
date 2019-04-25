@@ -44,6 +44,8 @@ var (
 	ErrCommitLogQueueFull = errors.New("commit log queue is full")
 
 	errCommitLogClosed = errors.New("commit log is closed")
+
+	zeroFile = persist.CommitLogFile{}
 )
 
 type newCommitLogWriterFn func(
@@ -283,7 +285,7 @@ func (l *commitLog) Open() error {
 	defer l.closedState.Unlock()
 
 	// Open the buffered commit log writer
-	if _, err := l.openWriters(); err != nil {
+	if _, _, err := l.openWriters(); err != nil {
 		return err
 	}
 
@@ -355,7 +357,7 @@ func (l *commitLog) RotateLogs() (persist.CommitLogFile, error) {
 	defer l.closedState.RUnlock()
 
 	if l.closedState.closed {
-		return persist.CommitLogFile{}, errCommitLogClosed
+		return zeroFile, errCommitLogClosed
 	}
 
 	var (
@@ -378,7 +380,7 @@ func (l *commitLog) RotateLogs() (persist.CommitLogFile, error) {
 	wg.Wait()
 
 	if err != nil {
-		return persist.CommitLogFile{}, err
+		return zeroFile, err
 	}
 
 	return file, nil
@@ -461,7 +463,7 @@ func (l *commitLog) write() {
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
 		if isRotateLogsEvent {
-			files, err := l.openWriters()
+			primaryFile, _, err := l.openWriters()
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -472,20 +474,11 @@ func (l *commitLog) write() {
 				}
 			}
 
-			var file persist.CommitLogFile
-			if err == nil {
-				// The contract for the RotateLogs() API is that it will return the
-				// commitlog file that became the primary one as a direct result of
-				// the method call. The new active file corresponds to index zero and
-				// the new secondary file corresponds to index 1.
-				file = files[0]
-			}
-
 			write.callbackFn(callbackResult{
 				eventType: write.eventType,
 				err:       err,
 				rotateLogs: rotateLogsResult{
-					file: file,
+					file: primaryFile,
 				},
 			})
 
@@ -603,7 +596,7 @@ func (l *commitLog) newOnFlushFn(writer *asyncResettableWriter) flushFn {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
+func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile, error) {
 	// Ensure that the previous asynchronous reset of the secondary writer (if any)
 	// has completed before attempting to start a new one and/or modify the writerState
 	// in any way.
@@ -614,7 +607,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 			// Make sure to close and flush any remaining data before creating a new writer if the
 			// primary (which contains data) is not nil.
 			if err := l.writerState.primaryWriter.writer.Close(); err != nil {
-				return nil, err
+				return zeroFile, zeroFile, err
 			}
 		}
 
@@ -634,16 +627,16 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 
 		primaryFile, err := l.writerState.primaryWriter.writer.Open()
 		if err != nil {
-			return nil, err
+			return zeroFile, zeroFile, err
 		}
 
 		secondaryFile, err := l.writerState.secondaryWriter.writer.Open()
 		if err != nil {
-			return nil, err
+			return zeroFile, zeroFile, err
 		}
 
 		l.writerState.activeFiles = persist.CommitLogFiles{primaryFile, secondaryFile}
-		return l.writerState.activeFiles, nil
+		return primaryFile, secondaryFile, nil
 	}
 
 	// Swap the primary and secondary writers so that the secondary becomes primary and vice versa.
@@ -668,7 +661,7 @@ func (l *commitLog) openWriters() (persist.CommitLogFiles, error) {
 	files := persist.CommitLogFiles{primaryFile, secondaryFile}
 	l.writerState.activeFiles = files
 
-	return files, nil
+	return primaryFile, secondaryFile, nil
 }
 
 func (l *commitLog) startSecondaryWriterAsyncReset() {
