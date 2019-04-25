@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -128,8 +129,13 @@ func (f *flushState) getLastFlushAt() time.Time {
 type writerState struct {
 	// See "Rotating Files" section of README.md for an explanation of how the
 	// primary and secondary fields are used during commitlog rotation.
-	primary     asyncResettableWriter
-	secondary   asyncResettableWriter
+	primary   asyncResettableWriter
+	secondary asyncResettableWriter
+	// Convenience slice that is used to simplify code whenever an operation needs
+	// to be performed on both primary and secondary writers. Note that order is not
+	// maintained (I.E primary may be index 1 and secondary index 0) so the slice can
+	// only be used when the order of operations does not matter.
+	writers     []commitLogWriter
 	activeFiles persist.CommitLogFiles
 }
 
@@ -291,11 +297,10 @@ func (l *commitLog) Open() error {
 
 	// Sync the info header to ensure we can write to disk and make sure that we can at least
 	// read the info about the commitlog file later.
-	if err := l.writerState.primary.writer.Flush(true); err != nil {
-		return err
-	}
-	if err := l.writerState.secondary.writer.Flush(true); err != nil {
-		return err
+	for _, writer := range l.writerState.writers {
+		if err := writer.Flush(true); err != nil {
+			return err
+		}
 	}
 
 	l.commitLogFailFn = func(err error) {
@@ -537,19 +542,22 @@ func (l *commitLog) write() {
 	// Ensure that there is no active background goroutine in the middle of reseting
 	// the secondary writer / modifying its state.
 	l.waitForSecondaryWriterAsyncResetComplete()
-	// Can be nil in the case where the background goroutine spawned in openWriters
-	// encountered an error trying to re-open it.
-	if l.writerState.secondary.writer != nil {
-		// Don't care about errors closing the secondary writer because it doesn't
-		// have any data.
-		l.writerState.secondary.writer.Close()
-		l.writerState.secondary.writer = nil
+
+	var multiErr xerrors.MultiError
+	for i, writer := range l.writerState.writers {
+		if writer == nil {
+			// Can be nil in the case where the background goroutine spawned in openWriters
+			// encountered an error trying to re-open it.
+			continue
+		}
+
+		multiErr = multiErr.Add(writer.Close())
+		l.writerState.writers[i] = nil
 	}
-
-	writer := l.writerState.primary.writer
 	l.writerState.primary.writer = nil
+	l.writerState.secondary.writer = nil
 
-	l.closeErr <- writer.Close()
+	l.closeErr <- multiErr.FinalError()
 }
 
 // newOnFlushFn is used to create new flushFns because each one needs to know which
@@ -636,6 +644,10 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 		}
 
 		l.writerState.activeFiles = persist.CommitLogFiles{primaryFile, secondaryFile}
+		l.writerState.writers = []commitLogWriter{
+			l.writerState.primary.writer,
+			l.writerState.secondary.writer}
+
 		return primaryFile, secondaryFile, nil
 	}
 
