@@ -125,7 +125,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
 	require.True(t, exists)
-	streams, err := buckets.toStreams(ctx)
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 	requireSegmentValuesEqual(t, data[:2], streams, opts, nil)
@@ -169,7 +169,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
 	require.True(t, exists)
-	streams, err := buckets.toStreams(ctx)
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 	requireSegmentValuesEqual(t, data[:1], streams, opts, nil)
@@ -545,6 +545,60 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
+}
+
+func TestSeriesTickCachedBlockRemove(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	opts = opts.SetCachePolicy(CacheAll)
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+
+	// Add current block
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	series.cachedBlocks.AddBlock(b)
+	// Add (current - 1) block
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr.Add(-ropts.BlockSize()))
+	b.EXPECT().Close().Return()
+	series.cachedBlocks.AddBlock(b)
+	// Add (current - 2) block
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr.Add(-2 * ropts.BlockSize()))
+	b.EXPECT().Close().Return()
+	series.cachedBlocks.AddBlock(b)
+
+	// Set up the buffer
+	buffer := NewMockdatabaseBuffer(ctrl)
+	buffer.EXPECT().
+		Stats().
+		Return(bufferStats{
+			wiredBlocks: 0,
+		})
+	buffer.EXPECT().
+		Tick(gomock.Any()).
+		Return(bufferTickResult{
+			// This means that (curr - 1 block) and (curr - 2 blocks) should
+			// be removed after the tick.
+			evictedBucketTimes: evictedTimes{
+				arrIdx: 2,
+				arr: [evictedTimesArraySize]xtime.UnixNano{
+					xtime.ToUnixNano(curr.Add(-ropts.BlockSize())),
+					xtime.ToUnixNano(curr.Add(-2 * ropts.BlockSize())),
+				},
+			},
+		})
+	series.buffer = buffer
+
+	assert.Equal(t, 3, series.cachedBlocks.Len())
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	_, err := series.Tick(blockStates)
+	require.NoError(t, err)
+	assert.Equal(t, 1, series.cachedBlocks.Len())
 }
 
 func TestSeriesFetchBlocks(t *testing.T) {

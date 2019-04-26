@@ -320,7 +320,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 	}
 
 	for i := 1; i <= int(numCustomFields); i++ {
-		fieldTypeBits, err := it.stream.ReadBits(3)
+		fieldTypeBits, err := it.stream.ReadBits(numBitsToEncodeCustomType)
 		if err != nil {
 			return err
 		}
@@ -343,12 +343,16 @@ func (it *iterator) readCustomValues() error {
 			if err := it.readFloatValue(i); err != nil {
 				return err
 			}
+		case isCustomIntEncodedField(customField.fieldType):
+			if err := it.readIntValue(i); err != nil {
+				return err
+			}
 		case customField.fieldType == bytesField:
 			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
-		case isCustomIntEncodedField(customField.fieldType):
-			if err := it.readIntValue(i); err != nil {
+		case customField.fieldType == boolField:
+			if err := it.readBoolValue(i); err != nil {
 				return err
 			}
 		default:
@@ -461,7 +465,8 @@ func (it *iterator) readFloatValue(i int) error {
 		return err
 	}
 
-	return it.updateLastIteratedWithCustomValues(i, nil)
+	updateArg := updateLastIterArg{i: i}
+	return it.updateLastIteratedWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
@@ -537,7 +542,9 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	}
 
 	it.addToBytesDict(i, buf)
-	return it.updateLastIteratedWithCustomValues(i, buf)
+
+	updateArg := updateLastIterArg{i: i, bytesFieldBuf: buf}
+	return it.updateLastIteratedWithCustomValues(updateArg)
 }
 
 func (it *iterator) readIntValue(i int) error {
@@ -545,21 +552,41 @@ func (it *iterator) readIntValue(i int) error {
 		return err
 	}
 
-	return it.updateLastIteratedWithCustomValues(i, nil)
+	updateArg := updateLastIterArg{i: i}
+	return it.updateLastIteratedWithCustomValues(updateArg)
+}
+
+func (it *iterator) readBoolValue(i int) error {
+	boolOpCode, err := it.stream.ReadBit()
+	if err != nil {
+		return fmt.Errorf(
+			"%s: error trying to read bool value: %v",
+			itErrPrefix, err)
+	}
+
+	boolVal := boolOpCode == opCodeBoolTrue
+	updateArg := updateLastIterArg{i: i, boolVal: boolVal}
+	return it.updateLastIteratedWithCustomValues(updateArg)
+}
+
+type updateLastIterArg struct {
+	i             int
+	bytesFieldBuf []byte
+	boolVal       bool
 }
 
 // updateLastIteratedWithCustomValues updates lastIterated with the current
 // value of the custom field in it.customFields at index i. This ensures that
 // when we return it.lastIterated in the call to Current() that all the
 // most recent values are present.
-func (it *iterator) updateLastIteratedWithCustomValues(i int, bytesFieldBuf []byte) error {
+func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) error {
 	if it.lastIterated == nil {
 		it.lastIterated = dynamic.NewMessage(it.schema)
 	}
 
 	var (
-		fieldNum  = it.customFields[i].fieldNum
-		fieldType = it.customFields[i].fieldType
+		fieldNum  = it.customFields[arg.i].fieldNum
+		fieldType = it.customFields[arg.i].fieldType
 	)
 
 	if field := it.schema.FindFieldByNumber(int32(fieldNum)); field == nil {
@@ -572,7 +599,7 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int, bytesFieldBuf []by
 	switch {
 	case isCustomFloatEncodedField(fieldType):
 		var (
-			val = math.Float64frombits(it.customFields[i].floatEncAndIter.PrevFloatBits)
+			val = math.Float64frombits(it.customFields[arg.i].floatEncAndIter.PrevFloatBits)
 			err error
 		)
 		if fieldType == float64Field {
@@ -585,19 +612,19 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int, bytesFieldBuf []by
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
 		case signedInt64Field:
-			val := int64(it.customFields[i].intEncAndIter.prevIntBits)
+			val := int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case unsignedInt64Field:
-			val := it.customFields[i].intEncAndIter.prevIntBits
+			val := it.customFields[arg.i].intEncAndIter.prevIntBits
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case signedInt32Field:
-			val := int32(it.customFields[i].intEncAndIter.prevIntBits)
+			val := int32(it.customFields[arg.i].intEncAndIter.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		case unsignedInt32Field:
-			val := uint32(it.customFields[i].intEncAndIter.prevIntBits)
+			val := uint32(it.customFields[arg.i].intEncAndIter.prevIntBits)
 			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
 
 		default:
@@ -612,15 +639,15 @@ func (it *iterator) updateLastIteratedWithCustomValues(i int, bytesFieldBuf []by
 		schemaField := it.schema.FindFieldByNumber(int32(fieldNum))
 		schemaFieldType := schemaField.GetType()
 		if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-			return it.lastIterated.TrySetFieldByNumber(fieldNum, string(bytesFieldBuf))
+			return it.lastIterated.TrySetFieldByNumber(fieldNum, string(arg.bytesFieldBuf))
 		}
-		return it.lastIterated.TrySetFieldByNumber(fieldNum, bytesFieldBuf)
+		return it.lastIterated.TrySetFieldByNumber(fieldNum, arg.bytesFieldBuf)
+	case fieldType == boolField:
+		return it.lastIterated.TrySetFieldByNumber(fieldNum, arg.boolVal)
 	default:
 		return fmt.Errorf(
 			"%s unhandled fieldType: %v", itErrPrefix, fieldType)
 	}
-
-	return nil
 }
 
 // readBitset does the inverse of encodeBitset on the encoder struct.

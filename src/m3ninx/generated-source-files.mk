@@ -98,9 +98,9 @@ genny-map-segment-mem-fieldsmap:
 
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
-genny-arraypool-all:                     \
-	genny-arraypool-bytes-slice-array-pool \
-	genny-arraypool-document-array-pool    \
+genny-arraypool-all:                        \
+	genny-arraypool-bytes-slice-array-pool    \
+	genny-arraypool-document-array-pool       \
 
 # arraypool generation rule for ./x/bytes.SliceArrayPool
 .PHONY: genny-arraypool-bytes-slice-array-pool
@@ -114,7 +114,7 @@ genny-arraypool-bytes-slice-array-pool:
 	rename_type_middle=Slice                       \
 	rename_constructor=NewSliceArrayPool           \
 
-	# arraypool generation rule for ./doc.DocumentArrayPool
+# arraypool generation rule for ./doc.DocumentArrayPool
 .PHONY: genny-arraypool-document-array-pool
 genny-arraypool-document-array-pool:
 	cd $(m3x_package_path) && make genny-arraypool \
@@ -126,5 +126,4 @@ genny-arraypool-document-array-pool:
 	rename_type_middle=Document                    \
 	rename_constructor=NewDocumentArrayPool        \
 	rename_gen_types=true                          \
-
 

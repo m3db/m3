@@ -667,13 +667,28 @@ func (s *commitLogSource) newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 		}
 	}
 
-	return func(f persist.CommitLogFile) bool {
+	// TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
+	// the number of commitlog files that need to be read.
+	return func(f commitlog.FileFilterInfo) bool {
 		// Read all the commitlog files that were available on disk before the node started
 		// accepting writes.
-		// TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
-		// the number of commitlog files that need to be read.
 		commitlogFilesPresentBeforeStart := s.inspection.CommitLogFilesSet()
-		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
+		if f.IsCorrupt {
+			// Corrupt files that existed on disk before the node started should be included so
+			// that the commitlog bootstrapper can detect them and determine if it will return
+			// unfulfilled or ignore them.
+			//
+			// Corrupt files that did not exist on disk before the node started should always be
+			// ignored since they have no impact on the bootstrapping process and likely only
+			// appear corrupt because they were just created recently by the current node as
+			// its alreadying accepting writes at this point.
+			_, ok := commitlogFilesPresentBeforeStart[f.Err.Path()]
+			return ok
+		}
+		// Only attempt to read commitlog files that were present on disk before the node started.
+		// If a commitlog file was not present when the node started then it was created once the
+		// node began accepting writes and the data is already in memory.
+		_, ok := commitlogFilesPresentBeforeStart[f.File.FilePath]
 		return ok
 	}, mostRecentCompleteSnapshotByBlockShard, nil
 }

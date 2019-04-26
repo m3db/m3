@@ -46,6 +46,22 @@ func BenchmarkLogEntryDecoder(b *testing.B) {
 	}
 }
 
+func BenchmarkLogEntryDecoderFast(b *testing.B) {
+	var (
+		enc = NewEncoder()
+		err error
+	)
+
+	require.NoError(b, enc.EncodeLogEntry(testLogEntry))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		_, err = DecodeLogEntryFast(buf)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 var benchmarkBuf []byte
 
 func BenchmarkLogEntryEncoderFast(b *testing.B) {
@@ -96,6 +112,42 @@ func BenchmarkLogMetadataEncoderFast(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		benchmarkBuf, err = EncodeLogMetadataFast(benchmarkBuf[:0], testLogMetadata)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkLogMetadataDecoder(b *testing.B) {
+	var (
+		enc    = NewEncoder()
+		dec    = NewDecoder(nil)
+		stream = NewByteDecoderStream(nil)
+		err    error
+	)
+
+	require.NoError(b, enc.EncodeLogMetadata(testLogMetadata))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		stream.Reset(buf)
+		dec.Reset(stream)
+		_, err = dec.DecodeLogMetadata()
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkLogMetadataDecoderFast(b *testing.B) {
+	var (
+		enc = NewEncoder()
+		err error
+	)
+
+	require.NoError(b, enc.EncodeLogMetadata(testLogMetadata))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		_, err = DecodeLogMetadataFast(buf)
 		if err != nil {
 			panic(err)
 		}

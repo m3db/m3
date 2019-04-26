@@ -82,14 +82,14 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 		if _, ok := err.(unsafeAddError); ok {
 			status = http.StatusBadRequest
 		}
-		logger.Error("unable to add placement", zap.Any("error", err))
+		logger.Error("unable to add placement", zap.Error(err))
 		xhttp.Error(w, err, status)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

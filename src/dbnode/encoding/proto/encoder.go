@@ -468,6 +468,10 @@ func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
 			if err := enc.encodeBytesValue(i, iVal); err != nil {
 				return err
 			}
+		case customField.fieldType == boolField:
+			if err := enc.encodeBoolValue(i, iVal); err != nil {
+				return err
+			}
 		default:
 			// This should never happen.
 			return fmt.Errorf(
@@ -626,6 +630,22 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 		startPos: bytePos,
 		length:   length,
 	})
+	return nil
+}
+
+func (enc *Encoder) encodeBoolValue(i int, val interface{}) error {
+	boolVal, ok := val.(bool)
+	if !ok {
+		return fmt.Errorf(
+			"%s found unknown type in fieldNum %d", encErrPrefix, enc.customFields[i].fieldNum)
+	}
+
+	if boolVal {
+		enc.stream.WriteBit(opCodeBoolTrue)
+	} else {
+		enc.stream.WriteBit(opCodeBoolFalse)
+	}
+
 	return nil
 }
 
