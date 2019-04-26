@@ -43,8 +43,6 @@ func ParseProtoSchema(filePath string, messageName string) (*desc.MessageDescrip
 			filePath, len(fds))
 	}
 
-	// TODO(rartoul): This will be more sophisticated later, but for now assume
-	// that the message will be called "Schema".
 	schema := fds[0].FindMessage(messageName)
 	if schema == nil {
 		return nil, fmt.Errorf(
