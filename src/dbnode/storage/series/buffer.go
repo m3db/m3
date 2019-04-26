@@ -55,11 +55,17 @@ var (
 
 const (
 	bucketsCacheSize = 2
-	// TODO(juchan): This represents the maximum number of blocks we think we'll
-	// be flushing at one time. This should be revisited to after ColdWrites are
-	// enabled to see if this is a sane number.
-	evictedTimesArraySize = 8
-	writableBucketVer     = 0
+	// optimizedTimesArraySize is the size of the internal array for the
+	// optimizedTimes struct. Since the size of this array determines the
+	// effectiveness of minimizing heap allocations, usage of this struct and/or
+	// changing this const should only be done after considering its current
+	// use cases:
+	// 1) The number of buckets that will be removed within a tick due to that
+	//    block being recently flushed
+	// 2) The number of buckets that contain ColdWrites within a cold flush
+	//    cycle
+	optimizedTimesArraySize = 8
+	writableBucketVer       = 0
 )
 
 type databaseBuffer interface {
@@ -77,7 +83,7 @@ type databaseBuffer interface {
 		blockStart time.Time,
 	) (xio.SegmentReader, error)
 
-	Flush(
+	WarmFlush(
 		ctx context.Context,
 		blockStart time.Time,
 		id ident.ID,
@@ -104,6 +110,8 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
+	NeedsColdFlushBlockStarts() OptimizedTimes
+
 	Stats() bufferStats
 
 	Tick(versions map[xtime.UnixNano]BlockState) bufferTickResult
@@ -119,25 +127,26 @@ type bufferStats struct {
 
 type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
-	evictedBucketTimes     evictedTimes
+	evictedBucketTimes     OptimizedTimes
 }
 
-// evictedTimes is a struct that holds an unknown number of times. This is used
-// to avoid heap allocations as much as possible by trying to not allocate a
-// slice of times. To do this, `evictedTimesArraySize` needs to be strategically
-// sized such that for the vast majority of the time, the internal array can
-// hold all the times required so that `slice` is nil.
+// OptimizedTimes is a struct that holds an unknown number of times. This is
+// used to avoid heap allocations as much as possible by trying to not allocate
+// a slice of times. To do this, `optimizedTimesArraySize` needs to be
+// strategically sized such that for the vast majority of the time, the internal
+// array can hold all the times required so that `slice` is nil.
 //
-// evictedTimes should only be interacted with via its helper functions - its
+// OptimizedTimes should only be interacted with via its helper functions - its
 // fields should never be accessed or modified directly, which could cause an
 // invalid state.
-type evictedTimes struct {
+type OptimizedTimes struct {
 	arrIdx int
-	arr    [evictedTimesArraySize]xtime.UnixNano
+	arr    [optimizedTimesArraySize]xtime.UnixNano
 	slice  []xtime.UnixNano
 }
 
-func (t *evictedTimes) add(newTime xtime.UnixNano) {
+// Add adds a time to this OptimizedTimes.
+func (t *OptimizedTimes) Add(newTime xtime.UnixNano) {
 	if t.arrIdx < cap(t.arr) {
 		t.arr[t.arrIdx] = newTime
 		t.arrIdx++
@@ -146,11 +155,13 @@ func (t *evictedTimes) add(newTime xtime.UnixNano) {
 	}
 }
 
-func (t *evictedTimes) len() int {
+// Len returns the number of times in this OptimizedTimes.
+func (t *OptimizedTimes) Len() int {
 	return t.arrIdx + len(t.slice)
 }
 
-func (t *evictedTimes) contains(target xtime.UnixNano) bool {
+// Contains returns whether the target time is in this OptimizedTimes.
+func (t *OptimizedTimes) Contains(target xtime.UnixNano) bool {
 	for i := 0; i < t.arrIdx; i++ {
 		if t.arr[i].Equal(target) {
 			return true
@@ -162,6 +173,16 @@ func (t *evictedTimes) contains(target xtime.UnixNano) bool {
 		}
 	}
 	return false
+}
+
+// ForEach runs the given function for each time in this OptimizedTimes.
+func (t *OptimizedTimes) ForEach(fn func(t xtime.UnixNano)) {
+	for _, tNano := range t.arr {
+		fn(tNano)
+	}
+	for _, tNano := range t.slice {
+		fn(tNano)
+	}
 }
 
 type dbBuffer struct {
@@ -264,6 +285,21 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
+func (b *dbBuffer) NeedsColdFlushBlockStarts() OptimizedTimes {
+	var times OptimizedTimes
+
+	for t, bucketVersions := range b.bucketsMap {
+		for _, bucket := range bucketVersions.buckets {
+			if bucket.writeType == ColdWrite {
+				times.Add(t)
+				break
+			}
+		}
+	}
+
+	return times
+}
+
 func (b *dbBuffer) Stats() bufferStats {
 	return bufferStats{
 		wiredBlocks: len(b.bucketsMap),
@@ -272,7 +308,7 @@ func (b *dbBuffer) Stats() bufferStats {
 
 func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickResult {
 	mergedOutOfOrder := 0
-	var evictedBucketTimes evictedTimes
+	var evictedBucketTimes OptimizedTimes
 	for tNano, buckets := range b.bucketsMap {
 		// The blockStates map is never written to after creation, so this
 		// read access is safe. Since this version map is a snapshot of the
@@ -302,7 +338,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 				// It's unclear whether recently flushed data would frequently be
 				// read soon afterward, so we're choosing (1) here, since it has a
 				// simpler implementation (just removing from a map).
-				evictedBucketTimes.add(tNano)
+				evictedBucketTimes.Add(tNano)
 				continue
 			}
 		}
@@ -382,7 +418,7 @@ func (b *dbBuffer) Snapshot(
 	return encoder.Stream(), nil
 }
 
-func (b *dbBuffer) Flush(
+func (b *dbBuffer) WarmFlush(
 	ctx context.Context,
 	blockStart time.Time,
 	id ident.ID,
@@ -396,7 +432,7 @@ func (b *dbBuffer) Flush(
 	}
 
 	// Flush only deals with WarmWrites. ColdWrites get persisted to disk via
-	// the compaction cycle.
+	// the cold flush cycle.
 	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
 	if err != nil {
 		return FlushOutcomeErr, err

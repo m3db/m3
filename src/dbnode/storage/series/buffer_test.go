@@ -890,30 +890,45 @@ func assertTimeSlicesEqual(t *testing.T, t1, t2 []time.Time) {
 	}
 }
 
-func TestEvictedTimes(t *testing.T) {
-	var times evictedTimes
+func TestOptimizedTimes(t *testing.T) {
+	var times OptimizedTimes
 	assert.Equal(t, 0, cap(times.slice))
-	assert.Equal(t, 0, times.len())
-	assert.False(t, times.contains(xtime.UnixNano(0)))
+	assert.Equal(t, 0, times.Len())
+	assert.False(t, times.Contains(xtime.UnixNano(0)))
+
+	var expectedTimes []xtime.UnixNano
 
 	// These adds should only go in the array.
-	for i := 0; i < evictedTimesArraySize; i++ {
+	for i := 0; i < optimizedTimesArraySize; i++ {
 		tNano := xtime.UnixNano(i)
-		times.add(tNano)
+		times.Add(tNano)
+		expectedTimes = append(expectedTimes, tNano)
 
 		assert.Equal(t, 0, cap(times.slice))
 		assert.Equal(t, i+1, times.arrIdx)
-		assert.Equal(t, i+1, times.len())
-		assert.True(t, times.contains(tNano))
+		assert.Equal(t, i+1, times.Len())
+		assert.True(t, times.Contains(tNano))
 	}
 
+	numExtra := 5
 	// These adds don't fit in the array any more, will go to the slice.
-	for i := evictedTimesArraySize; i < evictedTimesArraySize+5; i++ {
+	for i := optimizedTimesArraySize; i < optimizedTimesArraySize+numExtra; i++ {
 		tNano := xtime.UnixNano(i)
-		times.add(tNano)
+		times.Add(tNano)
+		expectedTimes = append(expectedTimes, tNano)
 
-		assert.Equal(t, evictedTimesArraySize, times.arrIdx)
-		assert.Equal(t, i+1, times.len())
-		assert.True(t, times.contains(tNano))
+		assert.Equal(t, optimizedTimesArraySize, times.arrIdx)
+		assert.Equal(t, i+1, times.Len())
+		assert.True(t, times.Contains(tNano))
+	}
+
+	var forEachTimes []xtime.UnixNano
+	times.ForEach(func(tNano xtime.UnixNano) {
+		forEachTimes = append(forEachTimes, tNano)
+	})
+
+	require.Equal(t, len(expectedTimes), len(forEachTimes))
+	for i := range expectedTimes {
+		assert.Equal(t, expectedTimes[i], forEachTimes[i])
 	}
 }

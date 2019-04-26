@@ -150,6 +150,7 @@ type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
 	flush               instrument.MethodMetrics
 	flushIndex          instrument.MethodMetrics
+	coldFlush           instrument.MethodMetrics
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
@@ -868,7 +869,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	return err
 }
 
-func (n *dbNamespace) Flush(
+func (n *dbNamespace) WarmFlush(
 	blockStart time.Time,
 	shardBootstrapStatesAtTickStart ShardBootstrapStates,
 	flushPersist persist.FlushPreparer,
@@ -923,7 +924,7 @@ func (n *dbNamespace) Flush(
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flushPersist); err != nil {
+		if err := shard.WarmFlush(blockStart, flushPersist); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -935,11 +936,40 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) Compact(
+func (n *dbNamespace) ColdFlush(
 	flushPersist persist.FlushPreparer,
 ) error {
-	// TODO(juchan): write compact implementation.
-	return nil
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
+	callStart := n.nowFn()
+
+	n.RLock()
+	if n.bootstrapState != Bootstrapped {
+		n.RUnlock()
+		n.metrics.coldFlush.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceNotBootstrapped
+	}
+	n.RUnlock()
+
+	if !n.nopts.ColdWritesEnabled() {
+		n.metrics.coldFlush.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
+
+	multiErr := xerrors.NewMultiError()
+	shards := n.GetOwnedShards()
+	for _, shard := range shards {
+		err := shard.ColdFlush(flushPersist)
+		if err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to comapct: %v", shard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			// Continue with remaining shards
+		}
+	}
+
+	res := multiErr.FinalError()
+	n.metrics.coldFlush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
 }
 
 func (n *dbNamespace) FlushIndex(

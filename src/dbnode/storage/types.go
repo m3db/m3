@@ -331,8 +331,8 @@ type databaseNamespace interface {
 	// Bootstrap performs bootstrapping.
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
-	// Flush flushes in-memory WarmWrites.
-	Flush(
+	// WarmFlush flushes in-memory WarmWrites.
+	WarmFlush(
 		blockStart time.Time,
 		ShardBootstrapStates ShardBootstrapStates,
 		flush persist.FlushPreparer,
@@ -343,8 +343,8 @@ type databaseNamespace interface {
 		flush persist.IndexFlush,
 	) error
 
-	// Compact compacts unflushed in-memory ColdWrites.
-	Compact(
+	// ColdFlush flushes unflushed in-memory ColdWrites.
+	ColdFlush(
 		flush persist.FlushPreparer,
 	) error
 
@@ -459,13 +459,16 @@ type databaseShard interface {
 		bootstrappedSeries *result.Map,
 	) error
 
-	// Flush flushes the series' in this shard.
-	Flush(
+	// WarmFlush flushes the WarmWrites in this shard.
+	WarmFlush(
 		blockStart time.Time,
 		flush persist.FlushPreparer,
 	) error
 
-	// Snapshot snapshot's the unflushed series' in this shard.
+	// ColdFlush flushes the unflushed ColdWrites in this shard.
+	ColdFlush(flush persist.FlushPreparer) error
+
+	// Snapshot snapshot's the unflushed WarmWrites in this shard.
 	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer) error
 
 	// FlushState returns the flush state for this shard at block start.

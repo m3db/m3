@@ -1833,7 +1833,7 @@ func (s *dbShard) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Flush(
+func (s *dbShard) WarmFlush(
 	blockStart time.Time,
 	flushPreparer persist.FlushPreparer,
 ) error {
@@ -1870,7 +1870,7 @@ func (s *dbShard) Flush(
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version)
+		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist, version)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1892,6 +1892,49 @@ func (s *dbShard) Flush(
 	}
 
 	return s.markFlushStateSuccessOrError(blockStart, version, multiErr.FinalError())
+}
+
+func (s *dbShard) ColdFlush(
+	flushPreparer persist.FlushPreparer,
+) error {
+	// We don't flush data when the shard is still bootstrapping.
+	s.RLock()
+	if s.bootstrapState != Bootstrapped {
+		s.RUnlock()
+		return errShardNotBootstrappedToFlush
+	}
+	s.RUnlock()
+
+	// Map from block start -> series ID -> whether it was persisted during the
+	// disk merge loop.
+	var seriesWithColdWrites map[xtime.UnixNano]map[ident.ID]bool
+
+	var multiErr xerrors.MultiError
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		curr := entry.Series
+
+		blockStarts := curr.NeedsColdFlushBlockStarts()
+		blockStarts.ForEach(func(t xtime.UnixNano) {
+			var (
+				seriesMap map[ident.ID]bool
+				exists    bool
+			)
+
+			if seriesMap, exists = seriesWithColdWrites[t]; !exists {
+				seriesMap = make(map[ident.ID]bool)
+			}
+
+			seriesMap[curr.ID()] = false
+		})
+
+		return true
+	})
+
+	// for blockStart, seriesMap := range seriesWithColdWrites {
+	// TODO(juchan): implement merging logic with disk
+	// }
+
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) Snapshot(
@@ -1992,6 +2035,14 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	state.Status = fileOpFailed
 	state.NumFailures++
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) setFlushStateVersion(blockStart time.Time, version int) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.Version = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }

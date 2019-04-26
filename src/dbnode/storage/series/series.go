@@ -124,7 +124,7 @@ func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, 
 
 	bufferResult := s.buffer.Tick(blockStates)
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
-	r.EvictedBuckets = bufferResult.evictedBucketTimes.len()
+	r.EvictedBuckets = bufferResult.evictedBucketTimes.Len()
 	update, err := s.updateBlocksWithLock(blockStates, bufferResult.evictedBucketTimes)
 	if err != nil {
 		s.Unlock()
@@ -150,7 +150,7 @@ type updateBlocksResult struct {
 
 func (s *dbSeries) updateBlocksWithLock(
 	blockStates map[xtime.UnixNano]BlockState,
-	evictedBucketTimes evictedTimes,
+	evictedBucketTimes OptimizedTimes,
 ) (updateBlocksResult, error) {
 	var (
 		result       updateBlocksResult
@@ -162,7 +162,7 @@ func (s *dbSeries) updateBlocksWithLock(
 	)
 	for startNano, currBlock := range s.cachedBlocks.AllBlocks() {
 		start := startNano.ToTime()
-		if start.Before(expireCutoff) || evictedBucketTimes.contains(xtime.ToUnixNano(start)) {
+		if start.Before(expireCutoff) || evictedBucketTimes.Contains(xtime.ToUnixNano(start)) {
 			s.cachedBlocks.RemoveBlockAt(start)
 			// If we're using the LRU policy and the block was retrieved from disk,
 			// then don't close the block because that is the WiredList's
@@ -514,7 +514,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	}
 }
 
-func (s *dbSeries) Flush(
+func (s *dbSeries) WarmFlush(
 	ctx context.Context,
 	blockStart time.Time,
 	persistFn persist.DataFn,
@@ -527,7 +527,7 @@ func (s *dbSeries) Flush(
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
-	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn, version)
+	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, version)
 }
 
 func (s *dbSeries) Snapshot(
@@ -564,6 +564,13 @@ func (s *dbSeries) Snapshot(
 	}
 
 	return persistFn(s.id, s.tags, segment, digest.SegmentChecksum(segment))
+}
+
+func (s *dbSeries) NeedsColdFlushBlockStarts() OptimizedTimes {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.buffer.NeedsColdFlushBlockStarts()
 }
 
 func (s *dbSeries) Close() {

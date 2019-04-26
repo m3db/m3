@@ -236,7 +236,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.Flush(nil, flushTime, nil, 1)
+	outcome, err := series.WarmFlush(nil, flushTime, nil, 1)
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -265,7 +265,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.Flush(ctx, curr, persistFn, 1)
+		outcome, err := series.WarmFlush(ctx, curr, persistFn, 1)
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
@@ -584,9 +584,9 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 		Return(bufferTickResult{
 			// This means that (curr - 1 block) and (curr - 2 blocks) should
 			// be removed after the tick.
-			evictedBucketTimes: evictedTimes{
+			evictedBucketTimes: OptimizedTimes{
 				arrIdx: 2,
-				arr: [evictedTimesArraySize]xtime.UnixNano{
+				arr: [optimizedTimesArraySize]xtime.UnixNano{
 					xtime.ToUnixNano(curr.Add(-ropts.BlockSize())),
 					xtime.ToUnixNano(curr.Add(-2 * ropts.BlockSize())),
 				},

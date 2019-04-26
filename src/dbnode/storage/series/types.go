@@ -49,7 +49,7 @@ type DatabaseSeries interface {
 	// Tags return the tags of the series.
 	Tags() ident.Tags
 
-	// Tick executes async updates
+	// Tick executes async updates.
 	Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, error)
 
 	// Write writes a new value.
@@ -93,8 +93,8 @@ type DatabaseSeries interface {
 	// Bootstrap merges the raw series bootstrapped along with any buffered data.
 	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
 
-	// Flush flushes the data blocks of this series for a given start time
-	Flush(
+	// WarmFlush flushes the WarmWrites of this series for a given start time.
+	WarmFlush(
 		ctx context.Context,
 		blockStart time.Time,
 		persistFn persist.DataFn,
@@ -102,12 +102,15 @@ type DatabaseSeries interface {
 	) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
-	// not been rotated into a block yet
+	// not been rotated into a block yet.
 	Snapshot(
 		ctx context.Context,
 		blockStart time.Time,
 		persistFn persist.DataFn,
 	) error
+
+	// NeedsColdFlushBlockStarts returns the block starts that need cold flushes.
+	NeedsColdFlushBlockStarts() OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -199,7 +202,7 @@ type DatabaseSeriesPool interface {
 }
 
 // FlushOutcome is an enum that provides more context about the outcome
-// of series.Flush() to the caller.
+// of series.WarmFlush() to the caller.
 type FlushOutcome int
 
 const (

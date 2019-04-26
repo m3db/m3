@@ -375,7 +375,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Flush(time.Now(), nil, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(time.Now(), nil, nil))
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
@@ -384,7 +384,7 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
-	require.NoError(t, ns.Flush(time.Now(), nil, nil))
+	require.NoError(t, ns.WarmFlush(time.Now(), nil, nil))
 }
 
 func TestNamespaceFlushSkipFlushed(t *testing.T) {
@@ -409,7 +409,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		shard.EXPECT().FlushState(blockStart).Return(s)
 		if s.Status != fileOpSuccess {
-			shard.EXPECT().Flush(blockStart, nil).Return(nil)
+			shard.EXPECT().WarmFlush(blockStart, nil).Return(nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -419,7 +419,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		ShardBootstrapStates[testShardIDs[i].ID()] = Bootstrapped
 	}
 
-	require.NoError(t, ns.Flush(blockStart, ShardBootstrapStates, nil))
+	require.NoError(t, ns.WarmFlush(blockStart, ShardBootstrapStates, nil))
 }
 
 func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
@@ -442,7 +442,7 @@ func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
 	shardBootstrapStates := ShardBootstrapStates{}
 	shardBootstrapStates[testShardIDs[0].ID()] = Bootstrapping
 
-	require.NoError(t, ns.Flush(blockStart, shardBootstrapStates, nil))
+	require.NoError(t, ns.WarmFlush(blockStart, shardBootstrapStates, nil))
 }
 
 type snapshotTestCase struct {

@@ -184,7 +184,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bootstrapState = Bootstrapping
-	err := s.Flush(time.Now(), nil)
+	err := s.WarmFlush(time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
@@ -226,7 +226,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any(), 1).
+			WarmFlush(gomock.Any(), blockStart, gomock.Any(), 1).
 			Do(func(context.Context, time.Time, persist.DataFn, int) {
 				flushed[i] = struct{}{}
 			}).
@@ -234,7 +234,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
-	err := s.Flush(blockStart, flush)
+	err := s.WarmFlush(blockStart, flush)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -293,7 +293,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any(), 1).
+			WarmFlush(gomock.Any(), blockStart, gomock.Any(), 1).
 			Do(func(context.Context, time.Time, persist.DataFn, int) {
 				flushed[i] = struct{}{}
 			}).
@@ -301,7 +301,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
-	err := s.Flush(blockStart, flush)
+	err := s.WarmFlush(blockStart, flush)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
