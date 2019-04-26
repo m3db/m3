@@ -27,14 +27,10 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 )
 
-const (
-	schemaMessageName = "Schema"
-)
-
 // ParseProtoSchema parses a Protobuf schema.
 // TODO(rartoul): This is temporary code that will eventually be replaced with
 // storing the schemas in etcd.
-func ParseProtoSchema(filePath string) (*desc.MessageDescriptor, error) {
+func ParseProtoSchema(filePath string, messageName string) (*desc.MessageDescriptor, error) {
 	fds, err := protoparse.Parser{}.ParseFiles(filePath)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -49,7 +45,7 @@ func ParseProtoSchema(filePath string) (*desc.MessageDescriptor, error) {
 
 	// TODO(rartoul): This will be more sophisticated later, but for now assume
 	// that the message will be called "Schema".
-	schema := fds[0].FindMessage(schemaMessageName)
+	schema := fds[0].FindMessage(messageName)
 	if schema == nil {
 		return nil, fmt.Errorf(
 			"expected to find message with name 'Schema' in %s, but did not",

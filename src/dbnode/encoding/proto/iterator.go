@@ -751,7 +751,7 @@ func (it *iterator) resetUnmarshalProtoBuffer(n int) {
 	// If none exists (or one existed but it was too small) get a new one
 	// and IncRef(). DecRef() will never be called unless this one is
 	// replaced by a new one later.
-	it.unmarshalProtoBuf = it.opts.BytesPool().Get(n)
+	it.unmarshalProtoBuf = it.newBuffer(n)
 	it.unmarshalProtoBuf.IncRef()
 	it.unmarshalProtoBuf.Resize(n)
 }
@@ -770,4 +770,11 @@ func (it *iterator) isDone() bool {
 
 func (it *iterator) isClosed() bool {
 	return it.closed
+}
+
+func (it *iterator) newBuffer(capacity int) checked.Bytes {
+	if bytesPool := it.opts.BytesPool(); bytesPool != nil {
+		return bytesPool.Get(capacity)
+	}
+	return checked.NewBytes(make([]byte, 0, capacity), nil)
 }
