@@ -33,6 +33,14 @@ import (
 )
 
 func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
+	testCommitLogBootstrapWithSnapshots(t, nil, nil)
+}
+
+func TestProtoCommitLogBootstrapWithSnapshots(t *testing.T) {
+	testCommitLogBootstrapWithSnapshots(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -49,6 +57,12 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+		ns2 = opts.Namespaces()[1]
+	}
+
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
@@ -64,7 +78,7 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	log.Info("generating data")
 	var (
 		now        = setup.getNowFn().Truncate(blockSize)
-		seriesMaps = generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+		seriesMaps = generateSeriesMaps(30, updateInputConfig, now.Add(-2*blockSize), now.Add(-blockSize))
 	)
 	log.Info("writing data")
 

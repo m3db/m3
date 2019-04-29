@@ -41,6 +41,8 @@ type BlockConfig struct {
 	Proto     bool
 }
 
+type UpdateBlockConfig func([]BlockConfig)
+
 type TestValue struct {
 	ts.Datapoint
 	ts.Annotation

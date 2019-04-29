@@ -37,6 +37,14 @@ import (
 )
 
 func TestPeersBootstrapMergeLocal(t *testing.T) {
+	testPeersBootstrapMergeLocal(t, nil, nil)
+}
+
+func TestProtoPeersBootstrapMergeLocal(t *testing.T) {
+	testPeersBootstrapMergeLocal(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -74,6 +82,10 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		}
 	)
 
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+	}
+
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
@@ -82,10 +94,14 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	cutoverAt := now.Add(retentionOpts.BufferFuture())
 	completeAt := now.Add(180 * time.Second)
 	blockSize := retentionOpts.BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: int(completeAt.Sub(now) / time.Second), Start: now},
-	})
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	firstNodeSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	directWritesSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	for start, s := range seriesMaps {

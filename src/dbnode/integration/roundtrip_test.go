@@ -28,32 +28,30 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+	"github.com/stretchr/testify/require"
 )
 
-type inputGen func(now time.Time, blockSize time.Duration) []generate.BlockConfig
+type setTestOptions func(t *testing.T, testOpts testOptions) testOptions
 
 func TestRoundtrip(t *testing.T) {
-	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
-
-	inputDataGen := func(now time.Time, blockSize time.Duration) []generate.BlockConfig {
-		return []generate.BlockConfig{
-			{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
-			{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
-		}
-	}
-	testRoundtrip(t, testOpts, inputDataGen)
+	testRoundtrip(t, nil, nil)
 }
 
 func TestProtoRoundtrip(t *testing.T) {
-	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second).SetProtoEncoding(true)
+	testRoundtrip(t, setProtoTestOptions, setProtoTestInputConfig)
+}
 
+func setProtoTestInputConfig(inputData []generate.BlockConfig) {
+	for i := 0; i < len(inputData); i++ {
+		inputData[i].Proto = true
+	}
+}
+
+func setProtoTestOptions(t *testing.T, testOpts testOptions) testOptions {
 	var namespaces []namespace.Metadata
 	for _, nsMeta := range testOpts.Namespaces() {
 		nsOpts := nsMeta.Options().SetSchemaHistory(testSchemaHistory)
@@ -61,15 +59,9 @@ func TestProtoRoundtrip(t *testing.T) {
 		require.NoError(t, err)
 		namespaces = append(namespaces, md)
 	}
-	testOpts = testOpts.SetNamespaces(namespaces).SetAssertTestDataEqual(assertProtoDataEqual)
-
-	inputDataGen := func(now time.Time, blockSize time.Duration) []generate.BlockConfig {
-		return []generate.BlockConfig{
-			{Proto: true, IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
-			{Proto: true, IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
-		}
-	}
-	testRoundtrip(t, testOpts, inputDataGen)
+	return testOpts.SetProtoEncoding(true).
+		SetNamespaces(namespaces).
+		SetAssertTestDataEqual(assertProtoDataEqual)
 }
 
 func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) bool {
@@ -90,11 +82,16 @@ func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) b
 	return true
 }
 
-func testRoundtrip(t *testing.T, testOpts testOptions, inputDataGen inputGen) {
+func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
+	testOpts := newTestOptions(t).
+		SetTickMinimumInterval(time.Second)
+	if setTestOpts != nil {
+		testOpts = setTestOpts(t, testOpts)
+	}
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -102,7 +99,13 @@ func testRoundtrip(t *testing.T, testOpts testOptions, inputDataGen inputGen) {
 	// Input data setup
 	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
 	now := testSetup.getNowFn()
-	inputData := inputDataGen(now, blockSize)
+	inputData := []generate.BlockConfig{
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()

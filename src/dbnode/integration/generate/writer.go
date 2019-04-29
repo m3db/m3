@@ -120,6 +120,11 @@ func (w *writer) writeWithPredicate(
 		return err
 	}
 	encoder := gOpts.EncoderPool().Get()
+	schema, ok := testSchemaHistory.GetLatest()
+	if !ok {
+		panic("schema history is empty")
+	}
+	encoder.SetSchema(schema)
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
 			writer, shardSet, encoder, start.ToTime(), namespace, blockSize,

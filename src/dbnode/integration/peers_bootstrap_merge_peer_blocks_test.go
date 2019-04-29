@@ -36,6 +36,14 @@ import (
 )
 
 func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
+	testPeersBootstrapMergePeerBlocks(t, nil, nil)
+}
+
+func TestProtoPeersBootstrapMergePeerBlocks(t *testing.T) {
+	testPeersBootstrapMergePeerBlocks(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -53,6 +61,9 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+	}
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
@@ -66,13 +77,17 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
-	})
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	left := make(map[xtime.UnixNano]generate.SeriesBlock)
 	right := make(map[xtime.UnixNano]generate.SeriesBlock)
 	remainder := 0
