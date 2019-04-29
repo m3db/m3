@@ -83,14 +83,14 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 			xhttp.Error(w, err, http.StatusConflict)
 			return
 		}
-		logger.Error("unable to initialize placement", zap.Any("error", err))
+		logger.Error("unable to initialize placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

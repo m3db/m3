@@ -57,7 +57,7 @@ func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	doc, err := assets.FSByte(false, docPath)
 
 	if err != nil {
-		logger.Error("unable to load doc", zap.Any("error", err))
+		logger.Error("unable to load doc", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

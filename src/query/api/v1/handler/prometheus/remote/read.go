@@ -100,7 +100,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result, err := h.read(ctx, w, req, timeout)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to fetch data", zap.Any("error", err))
+		logger.Error("unable to fetch data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -112,7 +112,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to marshal read results to protobuf", zap.Any("error", err))
+		logger.Error("unable to marshal read results to protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -123,7 +123,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to encode read results to snappy", zap.Any("err", err))
+		logger.Error("unable to encode read results to snappy",
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

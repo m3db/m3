@@ -20,6 +20,8 @@
 
 package encoding
 
+import "math/bits"
+
 // Bit is just a byte
 type Bit byte
 
@@ -44,16 +46,8 @@ func LeadingAndTrailingZeros(v uint64) (int, int) {
 		return 64, 0
 	}
 
-	numTrailing := 0
-	for tmp := v; (tmp & 1) == 0; tmp >>= 1 {
-		numTrailing++
-	}
-
-	numLeading := 0
-	for tmp := v; (tmp & (1 << 63)) == 0; tmp <<= 1 {
-		numLeading++
-	}
-
+	numLeading := bits.LeadingZeros64(v)
+	numTrailing := bits.TrailingZeros64(v)
 	return numLeading, numTrailing
 }
 

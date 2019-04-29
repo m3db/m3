@@ -22,11 +22,14 @@ package functions
 
 import (
 	"testing"
+	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -47,4 +50,68 @@ func TestFetch(t *testing.T) {
 	expected := values
 	assert.Len(t, sink.Values, 2)
 	assert.Equal(t, expected, sink.Values)
+}
+
+type predicateMatcher struct {
+	name string
+	fn   func(interface{}) bool
+}
+
+var _ gomock.Matcher = &predicateMatcher{}
+
+func (m *predicateMatcher) Matches(i interface{}) bool {
+	return m.fn(i)
+}
+
+func (m *predicateMatcher) String() string {
+	return m.name
+}
+
+func TestOffsetFetch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	op := &FetchOp{
+		Offset: time.Minute,
+	}
+
+	now := time.Now()
+	start := now.Add(time.Hour * -1)
+	opts := transform.Options{
+		TimeSpec: transform.TimeSpec{
+			Start: start,
+			End:   now,
+			Now:   now,
+		},
+	}
+
+	qMatcher := &predicateMatcher{
+		name: "query",
+		fn: func(i interface{}) bool {
+			q, ok := i.(*storage.FetchQuery)
+			if !ok {
+				return false
+			}
+
+			return q.Start.Equal(start.Add(time.Minute*-1)) &&
+				q.End.Equal(now.Add(time.Minute*-1))
+		},
+	}
+
+	optsMatcher := &predicateMatcher{
+		name: "opts",
+		fn: func(i interface{}) bool {
+			_, ok := i.(*storage.FetchOptions)
+			return ok
+		},
+	}
+
+	store.EXPECT().FetchBlocks(gomock.Any(), qMatcher, optsMatcher)
+
+	c, _ := executor.NewControllerWithSink(parser.NodeID(1))
+	node := op.Node(c, store, opts)
+
+	err := node.Execute(models.NoopQueryContext())
+	require.NoError(t, err)
 }

@@ -1,5 +1,5 @@
-hash: e6add7f147cdbbe96d8d94afa6a38be1a20bb1dad6c852910c6fee926d38ce02
-updated: 2019-04-09T09:48:41.197153-04:00
+hash: 933723e6eabebd9954e5823b2912f7ef87c7f46a53cc6ffad9ee2624ee5eb85c
+updated: 2019-04-18T12:06:00.343433-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -124,7 +124,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-kit/kit
-  version: 40f35b54ddf5f5ff66be44705e006a370b65028e
+  version: 22a2d43a4ffeb2460fdf0d332b4d4f0638253fb2
   subpackages:
   - log
   - log/level
@@ -180,7 +180,7 @@ imports:
   - cmp/internal/function
   - cmp/internal/value
 - name: github.com/google/uuid
-  version: 0cd6bf5da1e1c83f8b45653022c74f71af0538a4
+  version: c2e93f3ae59f2904160ceaab466009f965df46d6
 - name: github.com/gorilla/mux
   version: c5c6c98bc25355028a63748a498942a6398ccd22
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
@@ -208,7 +208,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jhump/protoreflect
-  version: 6feecbc20c4c369d6494c59ac5aee5d0df3c9d80
+  version: e0795ed1d1ada047d01e90243863def21db467fc
   subpackages:
   - desc
   - desc/builder
@@ -292,9 +292,9 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 63909f0a90ab0f36909e8e044e46ace10cf13ba2
+  version: 65b27e6823c427415d156c92d7034dd57a154cf8
 - name: github.com/pilosa/pilosa
-  version: b263d8ccdf2aa21dba981b64c964265b3aa3c24b
+  version: 4cc1505b2f68ca3ea229028ddeb815bdc2161e28
   subpackages:
   - logger
   - stats
@@ -478,7 +478,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: e225da77a7e68af35c70ccbf71af2b83e6acac3c
+  version: 56d357773e8497dfd526f0727e187720d1093757
   subpackages:
   - errgroup
 - name: golang.org/x/sys

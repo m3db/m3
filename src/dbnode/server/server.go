@@ -178,7 +178,8 @@ func Run(runOpts RunOptions) {
 	var schema *desc.MessageDescriptor
 	if cfg.Proto != nil {
 		logger.Info("Probuf data mode enabled")
-		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
+		schema, err = proto.ParseProtoSchema(
+			cfg.Proto.SchemaFilePath, cfg.Proto.MessageName)
 		if err != nil {
 			logger.Fatal("error parsing protobuffer schema", zap.Error(err))
 		}
@@ -1046,7 +1047,7 @@ func withEncodingAndPoolingOptions(
 		logger.Sugar().Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
 			bucket.Capacity, bucket.Size,
-			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
+			bucket.RefillLowWaterMarkOrDefault(), bucket.RefillHighWaterMarkOrDefault())
 	}
 
 	var bytesPool pool.CheckedBytesPool
@@ -1225,6 +1226,7 @@ func withEncodingAndPoolingOptions(
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
+		SetMultiReaderIteratorPool(multiIteratorPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
 

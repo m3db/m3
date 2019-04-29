@@ -190,7 +190,7 @@ release-snapshot: check-for-goreleaser-github-token
 .PHONY: docs-container
 docs-container:
 	docker run --rm hello-world >/dev/null
-	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
+	docker build -t m3db-docs docs
 
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our

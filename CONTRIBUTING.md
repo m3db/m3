@@ -1,23 +1,15 @@
 Contributing
 ============
 
-We'd love your help making M3DB great!
+We'd love your help making M3DB better!
 
-## Getting Started
+## Proposing A Change
 
-M3DB uses Go vendoring to manage dependencies.
-To get started:
+*Before making any significant changes, please
+[open an issue](https://github.com/m3db/proposal/issues).*
 
-```bash
-git submodule update --init --recursive
-make test
-```
-
-## Making A Change
-
-*Before making any significant changes, please [open an
-issue](https://github.com/m3db/m3/issues).* Discussing your proposed
-changes ahead of time will make the contribution process smooth for everyone.
+Discussing your proposed changes ahead of time will make the contribution
+process smooth for everyone.
 
 Once we've discussed your changes and you've got your code ready, make sure
 that tests are passing (`make test` or `make cover`) and open your PR! Your
@@ -29,4 +21,8 @@ pull request is most likely to be accepted if it:
   review comments](https://github.com/golang/go/wiki/CodeReviewComments).
 * Has a [good commit
   message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
- 
+
+## Developing
+
+See the [developer notes](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
+for details on how to develop M3DB.

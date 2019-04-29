@@ -88,6 +88,7 @@ type Configuration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	SchemaFilePath string `yaml:"schemaFilePath"`
+	MessageName    string `yaml:"messageName"`
 }
 
 // Validate validates the ProtoConfiguration.
@@ -98,6 +99,10 @@ func (c *ProtoConfiguration) Validate() error {
 
 	if c.SchemaFilePath == "" {
 		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	if c.MessageName == "" {
+		return errors.New("messageName is required for Proto data mode")
 	}
 
 	return nil
@@ -286,7 +291,7 @@ func (c Configuration) NewAdminClient(
 	})
 
 	if c.Proto != nil {
-		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath)
+		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath, c.Proto.MessageName)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"unable to parse protobuf schema: %s, err: %v",

@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/offset"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/tag"
 	"github.com/m3db/m3/src/query/functions/temporal"
@@ -38,7 +39,7 @@ import (
 )
 
 func TestDAGWithCountOp(t *testing.T) {
-	q := "count(http_requests_total{method=\"GET\"} offset 5m) by (service)"
+	q := "count(http_requests_total{method=\"GET\"}) by (service)"
 	p, err := Parse(q, models.NewTagOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
@@ -51,6 +52,22 @@ func TestDAGWithCountOp(t *testing.T) {
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
+}
+
+func TestDAGWithOffset(t *testing.T) {
+	q := "up offset 2m"
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Equal(t, transforms[1].Op.OpType(), offset.OffsetType)
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "offset should be the child")
 }
 
 func TestDAGWithEmptyExpression(t *testing.T) {

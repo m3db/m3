@@ -64,8 +64,9 @@ const (
 	float64Field
 	float32Field
 	bytesField
+	boolField
 
-	numCustomTypes = 8
+	numCustomTypes = 9
 )
 
 // -1 because iota's are zero-indexed so the highest value will be the number of
@@ -76,11 +77,17 @@ const (
 	// Single bit op codes that get encoded into the compressed stream and
 	// inform the iterator / decoder how it should interpret subsequent
 	// bits.
-	opCodeNoMoreDataOrTimeUnitChange = 0
-	opCodeMoreData                   = 1
+	opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange = 0
+	opCodeMoreData                                    = 1
 
-	opCodeNoMoreData     = 0
-	opCodeTimeUnitChange = 1
+	opCodeNoMoreData                      = 0
+	opCodeTimeUnitChangeAndOrSchemaChange = 1
+
+	opCodeTimeUnitUnchanged = 0
+	opCodeTimeUnitChange    = 1
+
+	opCodeSchemaUnchanged = 0
+	opCodeSchemaChange    = 1
 
 	opCodeNoChange = 0
 	opCodeChange   = 1
@@ -96,6 +103,9 @@ const (
 
 	opCodeBitsetValueIsNotSet = 0
 	opCodeBitsetValueIsSet    = 1
+
+	opCodeBoolTrue  = 1
+	opCodeBoolFalse = 0
 )
 
 var (
@@ -126,6 +136,8 @@ var (
 
 		dpb.FieldDescriptorProto_TYPE_STRING: bytesField,
 		dpb.FieldDescriptorProto_TYPE_BYTES:  bytesField,
+
+		dpb.FieldDescriptorProto_TYPE_BOOL: boolField,
 	}
 )
 
@@ -160,30 +172,43 @@ type encoderBytesFieldDictState struct {
 }
 
 func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldState {
-	return customFieldState{fieldNum: fieldNum, fieldType: fieldType}
+	s := customFieldState{fieldNum: fieldNum, fieldType: fieldType}
+	if isUnsignedInt(fieldType) {
+		s.intEncAndIter.unsigned = true
+	}
+	return s
 }
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customFields(s []customFieldState, schema *desc.MessageDescriptor) []customFieldState {
+func customAndProtoFields(s []customFieldState, protoFields []int32, schema *desc.MessageDescriptor) ([]customFieldState, []int32) {
+	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
+	numProtoFields := len(fields) - numCustomFields
+
 	if cap(s) >= numCustomFields {
+		for i := range s {
+			s[i] = customFieldState{}
+		}
 		s = s[:0]
 	} else {
 		s = make([]customFieldState, 0, numCustomFields)
 	}
 
-	fields := schema.GetFields()
+	if cap(protoFields) >= numProtoFields {
+		protoFields = protoFields[:0]
+	} else {
+		protoFields = make([]int32, 0, numProtoFields)
+	}
+
 	for _, field := range fields {
 		customFieldType, ok := isCustomField(field.GetType(), field.IsRepeated())
 		if !ok {
+			protoFields = append(protoFields, field.GetNumber())
 			continue
 		}
 
 		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
-		if isUnsignedInt(customFieldType) {
-			fieldState.intEncAndIter.unsigned = true
-		}
 		s = append(s, fieldState)
 	}
 
@@ -192,7 +217,7 @@ func customFields(s []customFieldState, schema *desc.MessageDescriptor) []custom
 		return s[a].fieldNum < s[b].fieldNum
 	})
 
-	return s
+	return s, protoFields
 }
 
 func isCustomFloatEncodedField(t customFieldType) bool {

@@ -102,7 +102,10 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := h.write(r.Context(), req)
 	if err != nil {
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
-		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
+		logger := logging.WithContext(r.Context())
+		logger.Error("write error",
+			zap.String("remoteAddr", r.RemoteAddr),
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
