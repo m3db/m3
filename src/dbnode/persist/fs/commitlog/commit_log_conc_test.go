@@ -109,7 +109,7 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			require.Equal(t, 1, len(logs))
+			require.Equal(t, 2, len(logs))
 			if logs[0].FilePath != lastSeenFile {
 				lastSeenFile = logs[0].FilePath
 				numFilesSeen++
