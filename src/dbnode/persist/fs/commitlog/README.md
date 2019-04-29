@@ -34,6 +34,7 @@ The primary synchronization that happens in the commitlog is via the queue (buff
 │Goroutine 3: WriteBatch() ├─────┘                                                         └───────────────────────────────────┘          └───────────────────────────────────┘
 └──────────────────────────┘
 ```
+*The monopic file that was used to generate the diagram above is located at `docs/code_assets/commitlog/queue.monopic`.*
 
 Since there is only one goroutine pulling items off of the queue, any state that it alone manages can remain unsynchronized since no other goroutines will interact with it.
 
