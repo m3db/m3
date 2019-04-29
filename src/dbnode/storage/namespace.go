@@ -148,9 +148,9 @@ type databaseNamespaceIndexStatsLastTick struct {
 
 type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
-	flush               instrument.MethodMetrics
+	flushWarmData       instrument.MethodMetrics
+	flushColdData       instrument.MethodMetrics
 	flushIndex          instrument.MethodMetrics
-	coldFlush           instrument.MethodMetrics
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
@@ -227,7 +227,8 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", samplingRate),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", samplingRate),
 		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
@@ -881,13 +882,13 @@ func (n *dbNamespace) WarmFlush(
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
-		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.flushWarmData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() {
-		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -932,7 +933,7 @@ func (n *dbNamespace) WarmFlush(
 	}
 
 	res := multiErr.FinalError()
-	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.metrics.flushWarmData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 	return res
 }
 
@@ -946,13 +947,13 @@ func (n *dbNamespace) ColdFlush(
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
-		n.metrics.coldFlush.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()
 
 	if !n.nopts.ColdWritesEnabled() {
-		n.metrics.coldFlush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -968,7 +969,7 @@ func (n *dbNamespace) ColdFlush(
 	}
 
 	res := multiErr.FinalError()
-	n.metrics.coldFlush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.metrics.flushColdData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 	return res
 }
 
@@ -985,12 +986,12 @@ func (n *dbNamespace) FlushIndex(
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
-		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
 	err := n.reverseIndex.Flush(flush, n.GetOwnedShards())
-	n.metrics.flush.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
 
