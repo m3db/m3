@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -81,7 +81,6 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Support multiple result types
 	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)

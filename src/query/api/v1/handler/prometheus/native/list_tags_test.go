@@ -22,6 +22,7 @@ package native
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"net/url"
@@ -74,31 +75,6 @@ func (m *listTagsMatcher) Matches(x interface{}) bool {
 var _ gomock.Matcher = &listTagsMatcher{}
 
 func b(s string) []byte { return []byte(s) }
-func bs(ss ...string) [][]byte {
-	bb := make([][]byte, len(ss))
-	for i, s := range ss {
-		bb[i] = b(s)
-	}
-
-	return bb
-}
-
-func setupStorage(ctrl *gomock.Controller) storage.Storage {
-	store := storage.NewMockStorage(ctrl)
-	result := &storage.CompleteTagsResult{
-		CompleteNameOnly: true,
-		CompletedTags: []storage.CompletedTag{
-			{Name: b("bar")},
-			{Name: b("baz")},
-			{Name: b("foo")},
-		},
-	}
-
-	store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
-		Return(result, nil)
-
-	return store
-}
 
 type writer struct {
 	results []string
@@ -122,14 +98,26 @@ type result struct {
 	Data   []string `json:"data"`
 }
 
-func TestFind(t *testing.T) {
+func TestListTags(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// setup storage and handler
-	store := setupStorage(ctrl)
+	store := storage.NewMockStorage(ctrl)
+	storeResult := &storage.CompleteTagsResult{
+		CompleteNameOnly: true,
+		CompletedTags: []storage.CompletedTag{
+			{Name: b("bar")},
+			{Name: b("baz")},
+			{Name: b("foo")},
+		},
+	}
+
+	store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
+		Return(storeResult, nil)
+
 	handler := NewListTagsHandler(store)
 
 	// execute the query
@@ -148,6 +136,42 @@ func TestFind(t *testing.T) {
 	ex := result{
 		Status: "success",
 		Data:   []string{"bar", "baz", "foo"},
+	}
+
+	require.Equal(t, ex, r)
+}
+
+type errResult struct {
+	Error string `json:"error"`
+}
+
+func TestListErrorTags(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// setup storage and handler
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
+		Return(nil, errors.New("err"))
+	handler := NewListTagsHandler(store)
+
+	// execute the query
+	w := &writer{}
+	req := &http.Request{
+		URL: &url.URL{
+			RawQuery: "",
+		},
+	}
+
+	handler.ServeHTTP(w, req)
+	require.Equal(t, 1, len(w.results))
+	var r errResult
+	json.Unmarshal([]byte(w.results[0]), &r)
+
+	ex := errResult{
+		Error: "err",
 	}
 
 	require.Equal(t, ex, r)
