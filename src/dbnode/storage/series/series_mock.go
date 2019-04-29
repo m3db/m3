@@ -284,18 +284,18 @@ func (mr *MockDatabaseSeriesMockRecorder) Tick(arg0 interface{}) *gomock.Call {
 }
 
 // WarmFlush mocks base method
-func (m *MockDatabaseSeries) WarmFlush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 int) (FlushOutcome, error) {
+func (m *MockDatabaseSeries) WarmFlush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "WarmFlush", arg0, arg1, arg2)
 	ret0, _ := ret[0].(FlushOutcome)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WarmFlush indicates an expected call of WarmFlush
-func (mr *MockDatabaseSeriesMockRecorder) WarmFlush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) WarmFlush(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockDatabaseSeries)(nil).WarmFlush), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockDatabaseSeries)(nil).WarmFlush), arg0, arg1, arg2)
 }
 
 // Write mocks base method

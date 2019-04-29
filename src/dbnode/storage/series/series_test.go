@@ -236,7 +236,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.WarmFlush(nil, flushTime, nil, 1)
+	outcome, err := series.WarmFlush(nil, flushTime, nil)
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -265,7 +265,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.WarmFlush(ctx, curr, persistFn, 1)
+		outcome, err := series.WarmFlush(ctx, curr, persistFn)
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {

@@ -98,7 +98,6 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		blockStart time.Time,
 		persistFn persist.DataFn,
-		version int,
 	) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has

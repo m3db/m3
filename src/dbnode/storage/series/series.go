@@ -518,7 +518,6 @@ func (s *dbSeries) WarmFlush(
 	ctx context.Context,
 	blockStart time.Time,
 	persistFn persist.DataFn,
-	version int,
 ) (FlushOutcome, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -527,7 +526,7 @@ func (s *dbSeries) WarmFlush(
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
-	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, version)
+	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn)
 }
 
 func (s *dbSeries) Snapshot(

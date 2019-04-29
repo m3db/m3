@@ -89,7 +89,6 @@ type databaseBuffer interface {
 		id ident.ID,
 		tags ident.Tags,
 		persistFn persist.DataFn,
-		version int,
 	) (FlushOutcome, error)
 
 	ReadEncoded(
@@ -424,7 +423,6 @@ func (b *dbBuffer) WarmFlush(
 	id ident.ID,
 	tags ident.Tags,
 	persistFn persist.DataFn,
-	version int,
 ) (FlushOutcome, error) {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
@@ -469,7 +467,9 @@ func (b *dbBuffer) WarmFlush(
 	}
 
 	if bucket, exists := buckets.writableBucket(WarmWrite); exists {
-		bucket.version = version
+		// WarmFlushes only happen once per block, so it makes sense to always
+		// set this to 1.
+		bucket.version = 1
 	}
 
 	return FlushOutcomeFlushedToDisk, nil

@@ -335,7 +335,7 @@ func (s *dbShard) Stream(
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.Status)
+	return statusIsRetrievable(flushState.Status) || flushState.Version > 0
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -1823,7 +1823,7 @@ func (s *dbShard) Bootstrap(
 			continue // Already recorded progress
 		}
 
-		s.markFlushStateSuccess(at, 0)
+		s.markFlushStateSuccess(at)
 	}
 
 	s.Lock()
@@ -1857,20 +1857,19 @@ func (s *dbShard) WarmFlush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markFlushStateSuccessOrError(blockStart, 0, err)
+		return s.markFlushStateSuccessOrError(blockStart, err)
 	}
 
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
 	flushResult := dbShardFlushResult{}
-	version := s.RetrievableBlockVersion(blockStart) + 1
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist, version)
+		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1891,7 +1890,7 @@ func (s *dbShard) WarmFlush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markFlushStateSuccessOrError(blockStart, version, multiErr.FinalError())
+	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 }
 
 func (s *dbShard) ColdFlush(
@@ -2010,22 +2009,21 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	return state
 }
 
-func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, version int, err error) error {
+func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markFlushStateSuccess(blockStart, version)
+		s.markFlushStateSuccess(blockStart)
 	} else {
 		s.markFlushStateFail(blockStart)
 	}
 	return err
 }
 
-func (s *dbShard) markFlushStateSuccess(blockStart time.Time, version int) {
+func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
 		fileOpState{
-			Status:  fileOpSuccess,
-			Version: version,
+			Status: fileOpSuccess,
 		}
 	s.flushState.Unlock()
 }

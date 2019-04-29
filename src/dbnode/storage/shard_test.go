@@ -226,8 +226,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			WarmFlush(gomock.Any(), blockStart, gomock.Any(), 1).
-			Do(func(context.Context, time.Time, persist.DataFn, int) {
+			WarmFlush(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.DataFn) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
@@ -293,8 +293,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			WarmFlush(gomock.Any(), blockStart, gomock.Any(), 1).
-			Do(func(context.Context, time.Time, persist.DataFn, int) {
+			WarmFlush(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.DataFn) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
@@ -315,7 +315,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
 		Status:      fileOpSuccess,
-		Version:     1,
+		Version:     0,
 		NumFailures: 0,
 	}, flushState)
 }
@@ -1059,8 +1059,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markFlushStateSuccess(start, 1)
-	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()), 1)
+	shard.markFlushStateSuccess(start)
+	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
