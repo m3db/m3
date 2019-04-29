@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -37,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // TestSeriesWiredListConcurrentInteractions was added as a regression test
@@ -88,7 +88,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		shard  = testDatabaseShard(t, opts)
 		id     = ident.StringID("foo")
 		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
-		nsCtx   = namespace.Context{}
+		nsCtx  = namespace.Context{}
 	)
 
 	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)

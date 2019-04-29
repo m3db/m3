@@ -367,73 +367,6 @@ func (mr *MockOptionsMockRecorder) SchemaHistory() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHistory", reflect.TypeOf((*MockOptions)(nil).SchemaHistory))
 }
 
-// MockSchemaRegistry is a mock of SchemaRegistry interface
-type MockSchemaRegistry struct {
-	ctrl     *gomock.Controller
-	recorder *MockSchemaRegistryMockRecorder
-}
-
-// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
-type MockSchemaRegistryMockRecorder struct {
-	mock *MockSchemaRegistry
-}
-
-// NewMockSchemaRegistry creates a new mock instance
-func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
-	mock := &MockSchemaRegistry{ctrl: ctrl}
-	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
-	return m.recorder
-}
-
-// GetLatestSchema mocks base method
-func (m *MockSchemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLatestSchema", id)
-	ret0, _ := ret[0].(SchemaDescr)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// GetLatestSchema indicates an expected call of GetLatestSchema
-func (mr *MockSchemaRegistryMockRecorder) GetLatestSchema(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetLatestSchema), id)
-}
-
-// GetSchema mocks base method
-func (m *MockSchemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSchema", id, schemaId)
-	ret0, _ := ret[0].(SchemaDescr)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// GetSchema indicates an expected call of GetSchema
-func (mr *MockSchemaRegistryMockRecorder) GetSchema(id, schemaId interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id, schemaId)
-}
-
-// SetSchemaHistory mocks base method
-func (m *MockSchemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSchemaHistory", id, history)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetSchemaHistory indicates an expected call of SetSchemaHistory
-func (mr *MockSchemaRegistryMockRecorder) SetSchemaHistory(id, history interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaHistory", reflect.TypeOf((*MockSchemaRegistry)(nil).SetSchemaHistory), id, history)
-}
-
 // MockIndexOptions is a mock of IndexOptions interface
 type MockIndexOptions struct {
 	ctrl     *gomock.Controller
@@ -699,6 +632,73 @@ func (m *MockSchemaHistory) GetLatest() (SchemaDescr, bool) {
 func (mr *MockSchemaHistoryMockRecorder) GetLatest() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatest", reflect.TypeOf((*MockSchemaHistory)(nil).GetLatest))
+}
+
+// MockSchemaRegistry is a mock of SchemaRegistry interface
+type MockSchemaRegistry struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaRegistryMockRecorder
+}
+
+// MockSchemaRegistryMockRecorder is the mock recorder for MockSchemaRegistry
+type MockSchemaRegistryMockRecorder struct {
+	mock *MockSchemaRegistry
+}
+
+// NewMockSchemaRegistry creates a new mock instance
+func NewMockSchemaRegistry(ctrl *gomock.Controller) *MockSchemaRegistry {
+	mock := &MockSchemaRegistry{ctrl: ctrl}
+	mock.recorder = &MockSchemaRegistryMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaRegistry) EXPECT() *MockSchemaRegistryMockRecorder {
+	return m.recorder
+}
+
+// GetLatestSchema mocks base method
+func (m *MockSchemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestSchema", id)
+	ret0, _ := ret[0].(SchemaDescr)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetLatestSchema indicates an expected call of GetLatestSchema
+func (mr *MockSchemaRegistryMockRecorder) GetLatestSchema(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetLatestSchema), id)
+}
+
+// GetSchema mocks base method
+func (m *MockSchemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchema", id, schemaId)
+	ret0, _ := ret[0].(SchemaDescr)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetSchema indicates an expected call of GetSchema
+func (mr *MockSchemaRegistryMockRecorder) GetSchema(id, schemaId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id, schemaId)
+}
+
+// SetSchemaHistory mocks base method
+func (m *MockSchemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaHistory", id, history)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetSchemaHistory indicates an expected call of SetSchemaHistory
+func (mr *MockSchemaRegistryMockRecorder) SetSchemaHistory(id, history interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaHistory", reflect.TypeOf((*MockSchemaRegistry)(nil).SetSchemaHistory), id, history)
 }
 
 // MockMetadata is a mock of Metadata interface

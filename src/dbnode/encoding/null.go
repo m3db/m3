@@ -25,10 +25,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type nullEncoder struct {
@@ -68,8 +68,8 @@ func NewNullReaderIterator() ReaderIterator {
 func (r *nullReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return ts.Datapoint{}, xtime.Unit(0), nil
 }
-func (r *nullReaderIterator) Next() bool             { return false }
-func (r *nullReaderIterator) Err() error             { return fmt.Errorf("not implemented") }
-func (r *nullReaderIterator) Close()                 {}
-func (r *nullReaderIterator) Reset(reader io.Reader) {}
+func (r *nullReaderIterator) Next() bool                            { return false }
+func (r *nullReaderIterator) Err() error                            { return fmt.Errorf("not implemented") }
+func (r *nullReaderIterator) Close()                                {}
+func (r *nullReaderIterator) Reset(reader io.Reader)                {}
 func (r *nullReaderIterator) SetSchema(descr namespace.SchemaDescr) {}

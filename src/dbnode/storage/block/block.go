@@ -27,12 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -45,7 +45,7 @@ var (
 type dbBlock struct {
 	sync.RWMutex
 
-	nsCtx           namespace.Context
+	nsCtx          namespace.Context
 	opts           Options
 	startUnixNanos int64
 	segment        ts.Segment

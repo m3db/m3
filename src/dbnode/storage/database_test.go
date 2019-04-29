@@ -689,9 +689,9 @@ func TestDatabaseUpdateScheamRegistry(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// ensure schema registry is updated
-	_, ok := d.SchemaRegistry().GetLatestSchema(defaultTestNs1ID)
+	_, ok := d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs1ID)
 	require.False(t, ok)
-	actualSchema, found := d.SchemaRegistry().GetLatestSchema(defaultTestNs2ID)
+	actualSchema, found := d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs2ID)
 	require.True(t, found)
 	expectedSchema, _ := sr.GetLatest()
 	require.True(t, expectedSchema.Equal(actualSchema))

@@ -233,7 +233,7 @@ type Options interface {
 	// SetEncodingM3TSZ sets M3TSZ encoding.
 	SetEncodingM3TSZ() Options
 
-	// SetEncodingProto sets proto encoding based on the provided schema.
+	// SetEncodingProto sets proto encoding.
 	SetEncodingProto(encodingOpts encoding.Options) Options
 
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
@@ -500,8 +500,10 @@ type Options interface {
 	// ReaderIteratorAllocate returns the readerIteratorAllocate.
 	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
 
+	// SetSchemaRegistry sets the schema registry.
 	SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions
 
+	// SchemaRegistry returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
 }
 

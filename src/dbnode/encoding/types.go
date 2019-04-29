@@ -24,15 +24,15 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // Encoder is the generic interface for different types of encoders.
@@ -70,7 +70,6 @@ type Encoder interface {
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
 	DiscardReset(t time.Time, capacity int) ts.Segment
-
 }
 
 // NewEncoderFn creates a new encoder

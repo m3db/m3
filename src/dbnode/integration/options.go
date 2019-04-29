@@ -261,8 +261,11 @@ type testOptions interface {
 	// ProtoEncoding returns whether proto encoder is turned on.
 	ProtoEncoding() bool
 
+	// SetAssertTestDataEqual sets a comparator to compare two byte arrays,
+	// useful for proto-encoded annotations.
 	SetAssertTestDataEqual(value assertTestDataEqual) testOptions
 
+	// AssertTestDataEqual returns a comparator to compare two byte arrays.
 	AssertTestDataEqual() assertTestDataEqual
 }
 

@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -36,7 +37,6 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // Make sure encoder implements encoding.Encoder.
@@ -60,9 +60,9 @@ var (
 type Encoder struct {
 	opts encoding.Options
 
-	stream encoding.OStream
+	stream     encoding.OStream
 	schemaDesc namespace.SchemaDescr
-	schema *desc.MessageDescriptor
+	schema     *desc.MessageDescriptor
 
 	numEncoded    int
 	lastEncodedDP ts.Datapoint

@@ -30,10 +30,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xretry "github.com/m3db/m3/src/x/retry"
@@ -43,9 +46,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/x/checked"
 )
 
 const (
@@ -122,7 +122,7 @@ func TestSessionFetchNotOpenError(t *testing.T) {
 
 func TestSessionFetchIDs(t *testing.T) {
 	opts := newSessionTestOptions()
-	testSessionFetchIDs(t, testOptions{nsID:ident.StringID(testNamespaceName), opts: opts})
+	testSessionFetchIDs(t, testOptions{nsID: ident.StringID(testNamespaceName), opts: opts})
 }
 
 func testSessionFetchIDs(t *testing.T, testOpts testOptions) {

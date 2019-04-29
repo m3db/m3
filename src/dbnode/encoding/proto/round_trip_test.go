@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -35,7 +36,6 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -118,7 +118,7 @@ func TestRoundTrip(t *testing.T) {
 		},
 	}
 
-	curr := time.Now().Truncate(2*time.Minute)
+	curr := time.Now().Truncate(2 * time.Minute)
 	enc := newTestEncoder(curr)
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
@@ -329,11 +329,11 @@ func newVL2(
 }
 
 func newVLMessageDescriptor() *desc.MessageDescriptor {
-	return newVLMessageDescriptorFromFile("./vehicle_location.proto")
+	return newVLMessageDescriptorFromFile("./testdata/vehicle_location.proto")
 }
 
 func newVL2MessageDescriptor() *desc.MessageDescriptor {
-	return newVLMessageDescriptorFromFile("./vehicle_location_schema_change.proto")
+	return newVLMessageDescriptorFromFile("./testdata/vehicle_location_schema_change.proto")
 }
 
 func newVLMessageDescriptorFromFile(protoSchemaPath string) *desc.MessageDescriptor {

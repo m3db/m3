@@ -98,12 +98,6 @@ type Options interface {
 	SchemaHistory() SchemaHistory
 }
 
-type SchemaRegistry interface {
-	GetLatestSchema(id ident.ID) (SchemaDescr, bool)
-	GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool)
-	SetSchemaHistory(id ident.ID, history SchemaHistory) error
-}
-
 // IndexOptions controls the indexing options for a namespace.
 type IndexOptions interface {
 	// Equal returns true if the provide value is equal to this one.
@@ -136,7 +130,7 @@ type SchemaDescr interface {
 	Equal(SchemaDescr) bool
 }
 
-// SchemaHistory represents namespace schema registry.
+// SchemaHistory represents schema history for a namespace.
 type SchemaHistory interface {
 	// Equal returns true if the provided value is equal to this one.
 	Equal(SchemaHistory) bool
@@ -149,6 +143,15 @@ type SchemaHistory interface {
 
 	// GetLatest gets the latest version of schema descriptor.
 	GetLatest() (SchemaDescr, bool)
+}
+
+// SchemaRegistry represents the schema registry for a database.
+// It is where dynamic schema updates are delivered into,
+// and where schema is retrieved from at series read and write path.
+type SchemaRegistry interface {
+	GetLatestSchema(id ident.ID) (SchemaDescr, bool)
+	GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool)
+	SetSchemaHistory(id ident.ID, history SchemaHistory) error
 }
 
 // Metadata represents namespace metadata information

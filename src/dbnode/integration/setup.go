@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -49,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -58,8 +60,6 @@ import (
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 )
 
 var (
@@ -83,7 +83,6 @@ var (
 	testProtoEqual    = func(expect, actual []byte) bool {
 		return prototest.ProtoEqual(testSchema, expect, actual)
 	}
-
 )
 
 // nowSetterFn is the function that sets the current time
@@ -94,8 +93,8 @@ type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValu
 var _ topology.MapProvider = &testSetup{}
 
 type testSetup struct {
-	t    *testing.T
-	opts testOptions
+	t         *testing.T
+	opts      testOptions
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
@@ -736,12 +735,12 @@ func newClients(
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
-		adminOpts             = clientOpts.(client.AdminOptions).
-			SetOrigin(origin).
-			SetSchemaRegistry(schemaReg)
+		adminOpts = clientOpts.(client.AdminOptions).
+				SetOrigin(origin).
+				SetSchemaRegistry(schemaReg)
 		verificationAdminOpts = adminOpts.
-			SetOrigin(verificationOrigin).
-			SetSchemaRegistry(schemaReg)
+					SetOrigin(verificationOrigin).
+					SetSchemaRegistry(schemaReg)
 	)
 
 	if opts.ProtoEncoding() {

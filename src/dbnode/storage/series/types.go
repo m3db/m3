@@ -311,12 +311,16 @@ type Options interface {
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
 
+	// SetSchemaRegistry sets the schema registry for series to use.
 	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
 
+	// SchemaRegistry returns the schema registry for series to use.
 	SchemaRegistry() namespace.SchemaRegistry
 
+	// SetNamespaceId sets the namespace Id.
 	SetNamespaceId(ident.ID) Options
 
+	// NamespaceId returns the namespace Id.
 	NamespaceId() ident.ID
 }
 

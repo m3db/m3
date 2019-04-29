@@ -209,8 +209,6 @@ type Database interface {
 	// BootstrapState captures and returns a snapshot of the databases'
 	// bootstrap state.
 	BootstrapState() DatabaseBootstrapState
-
-	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // database is the internal database interface
@@ -223,6 +221,7 @@ type database interface {
 	// UpdateOwnedNamespaces updates the namespaces this database owns.
 	UpdateOwnedNamespaces(namespaces namespace.Map) error
 
+	// UpdateSchemaRegistry updates the schema registry this database uses.
 	UpdateSchemaRegistry(namespaces namespace.Map)
 }
 
@@ -915,8 +914,10 @@ type Options interface {
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 
+	// SetSchemaRegistry sets the schema registry the database uses.
 	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
 
+	// SchemaRegistry returns the schema registry the database uses.
 	SchemaRegistry() namespace.SchemaRegistry
 }
 

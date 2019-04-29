@@ -752,8 +752,8 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		}
 		if !wroteExisting {
 			enc := encoderPool.Get()
-			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 			enc.SetSchema(nsCtx.Schema)
+			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 
 			err = enc.Encode(dp, unit, annotation)
 			if err == nil {

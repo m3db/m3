@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+
 	tchannel "github.com/uber/tchannel-go"
 )
 

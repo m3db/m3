@@ -289,18 +289,6 @@ func (m *MockDatabaseBlock) EXPECT() *MockDatabaseBlockMockRecorder {
 	return m.recorder
 }
 
-// SetNamespaceContext mocks base method
-func (m *MockDatabaseBlock) SetNamespaceContext(arg0 namespace.Context) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetNamespaceContext", arg0)
-}
-
-// SetNamespaceContext indicates an expected call of SetNamespaceContext
-func (mr *MockDatabaseBlockMockRecorder) SetNamespaceContext(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceContext", reflect.TypeOf((*MockDatabaseBlock)(nil).SetNamespaceContext), arg0)
-}
-
 // StartTime mocks base method
 func (m *MockDatabaseBlock) StartTime() time.Time {
 	m.ctrl.T.Helper()
@@ -425,6 +413,18 @@ func (m *MockDatabaseBlock) HasMergeTarget() bool {
 func (mr *MockDatabaseBlockMockRecorder) HasMergeTarget() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMergeTarget", reflect.TypeOf((*MockDatabaseBlock)(nil).HasMergeTarget))
+}
+
+// SetNamespaceContext mocks base method
+func (m *MockDatabaseBlock) SetNamespaceContext(arg0 namespace.Context) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetNamespaceContext", arg0)
+}
+
+// SetNamespaceContext indicates an expected call of SetNamespaceContext
+func (mr *MockDatabaseBlockMockRecorder) SetNamespaceContext(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceContext", reflect.TypeOf((*MockDatabaseBlock)(nil).SetNamespaceContext), arg0)
 }
 
 // WasRetrievedFromDisk mocks base method

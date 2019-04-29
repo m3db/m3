@@ -28,15 +28,15 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -249,7 +249,7 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.byteFieldDictLRUSize = 0
 }
 
-// SetSchema sets the encoders schema.
+// SetSchema sets the schema for the iterator.
 func (it *iterator) SetSchema(schemaDesc namespace.SchemaDescr) {
 	if schemaDesc == nil {
 		it.schemaDesc = nil

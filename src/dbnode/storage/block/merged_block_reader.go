@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type dbMergedBlockReader struct {
@@ -42,7 +42,7 @@ type dbMergedBlockReader struct {
 	merged     xio.BlockReader
 	encoder    encoding.Encoder
 	err        error
-	nsCtx       namespace.Context
+	nsCtx      namespace.Context
 }
 
 type mergeableStream struct {
@@ -69,7 +69,7 @@ func newDatabaseMergedBlockReader(
 	opts Options,
 ) xio.BlockReader {
 	r := &dbMergedBlockReader{
-		nsCtx:       nsCtx,
+		nsCtx:      nsCtx,
 		opts:       opts,
 		blockStart: blockStart,
 		blockSize:  blockSize,

@@ -224,10 +224,6 @@ func NewDatabase(
 	return d, nil
 }
 
-func (d *db) SchemaRegistry() namespace.SchemaRegistry {
-	return d.opts.SchemaRegistry()
-}
-
 func (d *db) UpdateSchemaRegistry(newNamespaces namespace.Map) {
 	schemaReg := d.opts.SchemaRegistry()
 	schemaUpdates := newNamespaces.Metadatas()

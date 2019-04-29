@@ -24,10 +24,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -37,6 +37,7 @@ var (
 // multiReaderIterator is an iterator that iterates in order over a list of sets of
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type multiReaderIterator struct {
+	schemaDesc       namespace.SchemaDescr
 	iters            iterators
 	slicesIter       xio.ReaderSliceOfSlicesIterator
 	iteratorAlloc    ReaderIteratorAllocate
@@ -45,7 +46,6 @@ type multiReaderIterator struct {
 	err              error
 	firstNext        bool
 	closed           bool
-	schemaDesc       namespace.SchemaDescr
 }
 
 // NewMultiReaderIterator creates a new multi-reader iterator.

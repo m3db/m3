@@ -136,8 +136,6 @@ type NewDatabaseBlockFn func() DatabaseBlock
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
 
-	SetNamespaceContext(namespace.Context)
-
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -168,6 +166,9 @@ type DatabaseBlock interface {
 	// HasMergeTarget returns whether the block requires multiple blocks to be
 	// merged during Stream().
 	HasMergeTarget() bool
+
+	// SetNamespaceContext sets up the namespace context needed for database block to do merge.
+	SetNamespaceContext(namespace.Context)
 
 	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
 	WasRetrievedFromDisk() bool

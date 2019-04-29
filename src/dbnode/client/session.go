@@ -1992,7 +1992,7 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		nsCtx    = namespace.NewContextFor(nsMetadata.ID(), s.opts.SchemaRegistry())
+		nsCtx    = namespace.NewContextFrom(nsMetadata)
 		result   = newStreamBlocksResult(nsCtx, s.opts, opts, outputCh,
 			s.pools.tagDecoder.Get(), s.pools.id)
 		onDone = func(err error) {

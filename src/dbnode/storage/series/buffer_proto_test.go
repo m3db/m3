@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/stretchr/testify/require"
 )
 

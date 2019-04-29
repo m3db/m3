@@ -469,20 +469,6 @@ func (mr *MockDatabaseMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockDatabase)(nil).BootstrapState))
 }
 
-// SchemaRegistry mocks base method
-func (m *MockDatabase) SchemaRegistry() namespace.SchemaRegistry {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(namespace.SchemaRegistry)
-	return ret0
-}
-
-// SchemaRegistry indicates an expected call of SchemaRegistry
-func (mr *MockDatabaseMockRecorder) SchemaRegistry() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockDatabase)(nil).SchemaRegistry))
-}
-
 // Mockdatabase is a mock of database interface
 type Mockdatabase struct {
 	ctrl     *gomock.Controller
@@ -861,20 +847,6 @@ func (m *Mockdatabase) BootstrapState() DatabaseBootstrapState {
 func (mr *MockdatabaseMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*Mockdatabase)(nil).BootstrapState))
-}
-
-// SchemaRegistry mocks base method
-func (m *Mockdatabase) SchemaRegistry() namespace.SchemaRegistry {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(namespace.SchemaRegistry)
-	return ret0
-}
-
-// SchemaRegistry indicates an expected call of SchemaRegistry
-func (mr *MockdatabaseMockRecorder) SchemaRegistry() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*Mockdatabase)(nil).SchemaRegistry))
 }
 
 // GetOwnedNamespaces mocks base method
