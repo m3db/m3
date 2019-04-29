@@ -297,10 +297,10 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		if !ok {
 			dp = generate.Series{ID: point.series}
 		}
-		dp.Data = append(dp.Data, ts.Datapoint{
+		dp.Data = append(dp.Data, generate.TestValue{Datapoint: ts.Datapoint{
 			Timestamp: t,
 			Value:     point.value,
-		})
+		}})
 		seriesBlock[idString] = dp
 		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock
 	}

@@ -39,6 +39,7 @@ type Pools struct {
 	EncoderPool encoding.EncoderPool
 	ReaderIterPool encoding.ReaderIteratorPool
 	MultiReaderIterPool encoding.MultiReaderIteratorPool
+	BytesPool pool.CheckedBytesPool
 }
 
 func newPools() Pools {
@@ -70,6 +71,7 @@ func newPools() Pools {
 	})
 
 	return Pools {
+		BytesPool: bytesPool,
 		EncoderPool: encoderPool,
 		ReaderIterPool: readerIterPool,
 		MultiReaderIterPool: multiReaderIteratorPool,

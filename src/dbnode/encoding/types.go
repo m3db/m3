@@ -37,6 +37,11 @@ import (
 
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
+	// SetSchema sets up the schema needed by schema-aware encoder to encode the stream.
+	// Must be called before Encode/Reset
+	// SetSchema can be called multiple times between reset for mid-stream schema changes.
+	SetSchema(descr namespace.SchemaDescr)
+
 	// Encode encodes a datapoint and optionally an annotation.
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
@@ -66,7 +71,6 @@ type Encoder interface {
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
 	DiscardReset(t time.Time, capacity int) ts.Segment
 
-	SetSchema(descr namespace.SchemaDescr)
 }
 
 // NewEncoderFn creates a new encoder
@@ -142,13 +146,15 @@ type Iterator interface {
 
 	// Close closes the iterator and if pooled will return to the pool.
 	Close()
-
-	SetSchema(descr namespace.SchemaDescr)
 }
 
 // ReaderIterator is the interface for a single-reader iterator.
 type ReaderIterator interface {
 	Iterator
+
+	// SetSchema sets up the schema needed by schema-aware iterator to decode the stream.
+	// Must be called before Next.
+	SetSchema(descr namespace.SchemaDescr)
 
 	// Reset resets the iterator to read from a new reader.
 	Reset(reader io.Reader)
@@ -158,6 +164,10 @@ type ReaderIterator interface {
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type MultiReaderIterator interface {
 	Iterator
+
+	// SetSchema sets up the schema needed by schema-aware iterator to decode the stream.
+	// Must be called before Next.
+	SetSchema(descr namespace.SchemaDescr)
 
 	// Reset resets the iterator to read from a slice of readers.
 	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration)
@@ -228,8 +238,6 @@ type SeriesIterators interface {
 
 	// Close closes all iterators contained
 	Close()
-
-	SetSchema(descr namespace.SchemaDescr)
 }
 
 // MutableSeriesIterators is a mutable SeriesIterators

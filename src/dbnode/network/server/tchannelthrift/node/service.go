@@ -55,6 +55,7 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -388,6 +389,8 @@ func (s *service) readDatapoints(
 	datapoints := make([]*rpc.Datapoint, 0)
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
+	nsCtx := namespace.NewContextFor(nsID, s.db.Options().SchemaRegistry())
+	multiIt.SetSchema(nsCtx.Schema)
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	defer multiIt.Close()
 

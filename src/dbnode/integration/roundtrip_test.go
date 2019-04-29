@@ -31,20 +31,78 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 )
 
+type inputGen func(now time.Time, blockSize time.Duration) []generate.BlockConfig
+
 func TestRoundtrip(t *testing.T) {
+	testOpts := newTestOptions(t).
+		SetTickMinimumInterval(time.Second)
+
+	inputDataGen := func(now time.Time, blockSize time.Duration) []generate.BlockConfig {
+		return []generate.BlockConfig{
+			{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
+			{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
+		}
+	}
+	testRoundtrip(t, testOpts, inputDataGen)
+}
+
+func TestProtoRoundtrip(t *testing.T) {
+	testOpts := newTestOptions(t).
+		SetTickMinimumInterval(time.Second).SetProtoEncoding(true)
+
+	var namespaces []namespace.Metadata
+	for _, nsMeta := range testOpts.Namespaces() {
+		nsOpts := nsMeta.Options().SetSchemaHistory(testSchemaHistory)
+		md, err := namespace.NewMetadata(nsMeta.ID(), nsOpts)
+		require.NoError(t, err)
+		namespaces = append(namespaces, md)
+	}
+	testOpts = testOpts.SetNamespaces(namespaces).SetAssertTestDataEqual(assertProtoDataEqual)
+
+	inputDataGen := func(now time.Time, blockSize time.Duration) []generate.BlockConfig {
+		return []generate.BlockConfig{
+			{Proto: true, IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
+			{Proto: true, IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
+		}
+	}
+	testRoundtrip(t, testOpts, inputDataGen)
+}
+
+func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	for i := 0; i < len(expected); i++ {
+		if !assert.Equal(t, expected[i].Timestamp, actual[i].Timestamp) {
+			return false
+		}
+		if !assert.Equal(t, expected[i].Value, actual[i].Value) {
+			return false
+		}
+		if !prototest.ProtoEqual(testSchema, expected[i].Annotation, actual[i].Annotation) {
+			return false
+		}
+	}
+	return true
+}
+
+func testRoundtrip(t *testing.T, testOpts testOptions, inputDataGen inputGen) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 
+	// Input data setup
 	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
+	now := testSetup.getNowFn()
+	inputData := inputDataGen(now, blockSize)
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -59,12 +117,7 @@ func TestRoundtrip(t *testing.T) {
 	}()
 
 	// Write test data
-	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
-	inputData := []generate.BlockConfig{
-		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
-		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
-	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)

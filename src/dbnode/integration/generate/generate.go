@@ -30,6 +30,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+)
+
+var (
+	testSchemaHistory = prototest.NewSchemaHistory("../storage/testdata/prototest")
+	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
+	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
+	testProtoIter     = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // Making SeriesBlock sortable
@@ -46,14 +54,27 @@ func Block(conf BlockConfig) SeriesBlock {
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	testData := make(SeriesBlock, len(conf.IDs))
+
 	for i, name := range conf.IDs {
-		datapoints := make([]ts.Datapoint, 0, conf.NumPoints)
+		datapoints := make([]TestValue, 0, conf.NumPoints)
 		for j := 0; j < conf.NumPoints; j++ {
 			timestamp := conf.Start.Add(time.Duration(j) * time.Second)
-			datapoints = append(datapoints, ts.Datapoint{
-				Timestamp: timestamp,
-				Value:     testgen.GenerateFloatVal(r, 3, 1),
-			})
+			if !conf.Proto {
+				datapoints = append(datapoints, TestValue{
+					Datapoint: ts.Datapoint{
+						Timestamp: timestamp,
+						Value:     testgen.GenerateFloatVal(r, 3, 1),
+					},
+				})
+			} else {
+				datapoints = append(datapoints, TestValue{
+					Datapoint: ts.Datapoint{
+						Timestamp: timestamp,
+						Value:     0,
+					},
+					Annotation: testProtoIter.Next(),
+				})
+			}
 		}
 		testData[i] = Series{
 			ID:   ident.StringID(name),
@@ -83,7 +104,7 @@ func ToPointsByTime(seriesMaps SeriesBlocksByStart) SeriesDataPointsByTime {
 			for _, dp := range blk.Data {
 				pointsByTime = append(pointsByTime, SeriesDataPoint{
 					ID:        blk.ID,
-					Datapoint: dp,
+					Value:     dp,
 				})
 			}
 		}
@@ -117,8 +138,8 @@ func (l SeriesDataPointsByTime) Dearrange(percent float64) SeriesDataPointsByTim
 func (l SeriesDataPointsByTime) Len() int      { return len(l) }
 func (l SeriesDataPointsByTime) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l SeriesDataPointsByTime) Less(i, j int) bool {
-	if !l[i].Timestamp.Equal(l[j].Timestamp) {
-		return l[i].Timestamp.Before(l[j].Timestamp)
+	if !l[i].Value.Timestamp.Equal(l[j].Value.Timestamp) {
+		return l[i].Value.Timestamp.Before(l[j].Value.Timestamp)
 	}
 	return bytes.Compare(l[i].ID.Bytes(), l[j].ID.Bytes()) < 0
 }

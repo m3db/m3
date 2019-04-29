@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/ident/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -190,12 +189,12 @@ func verifyForTime(
 
 			data.IncRef()
 
-			var datapoints []ts.Datapoint
+			var datapoints []generate.TestValue
 			it := iteratorPool.Get()
 			it.Reset(bytes.NewBuffer(data.Bytes()))
 			for it.Next() {
-				dp, _, _ := it.Current()
-				datapoints = append(datapoints, dp)
+				dp, _, ann := it.Current()
+				datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: ann})
 			}
 			require.NoError(t, it.Err())
 			it.Close()

@@ -21,6 +21,7 @@
 package prototest
 
 import (
+	"bytes"
 	"time"
 	"testing"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 	"github.com/jhump/protoreflect/desc"
-	"bytes"
 )
 
 type TestMessage struct {
@@ -58,7 +58,7 @@ func NewMessageDescriptor(his namespace.SchemaHistory) *desc.MessageDescriptor {
 	return schema.Get().MessageDescriptor
 }
 
-func NewProtoTestMessages(md *desc.MessageDescriptor) [][]byte {
+func NewProtoTestMessages(md *desc.MessageDescriptor) []*dynamic.Message {
 	testFixtures := []TestMessage{
 		{
 			latitude:  0.1,
@@ -113,7 +113,7 @@ func NewProtoTestMessages(md *desc.MessageDescriptor) [][]byte {
 		},
 	}
 
-	msgs := make([][]byte, len(testFixtures))
+	msgs := make([]*dynamic.Message, len(testFixtures))
 	for i := 0; i < len(msgs); i++ {
 		newMessage := dynamic.NewMessage(md)
 		newMessage.SetFieldByName("latitude", testFixtures[i].latitude)
@@ -121,11 +121,7 @@ func NewProtoTestMessages(md *desc.MessageDescriptor) [][]byte {
 		newMessage.SetFieldByName("deliveryID", testFixtures[i].deliveryID)
 		newMessage.SetFieldByName("epoch", testFixtures[i].epoch)
 		newMessage.SetFieldByName("attributes", testFixtures[i].attributes)
-		msgBytes, err := newMessage.Marshal()
-		if err != nil {
-			panic(err.Error())
-		}
-		msgs[i] = msgBytes
+		msgs[i] = newMessage
 	}
 
 	return msgs
@@ -136,6 +132,9 @@ func RequireEqual(t *testing.T, md *desc.MessageDescriptor, expected, actual []b
 	require.NoError(t, expectedMsg.Unmarshal(expected))
 	actualMsg := dynamic.NewMessage(md)
 	require.NoError(t, actualMsg.Unmarshal(actual))
+
+	//fmt.Printf("expected: %s\n", expectedMsg.String())
+	//fmt.Printf("actual: %s\n", actualMsg.String())
 
 	require.Equal(t, expectedMsg.GetFieldByName("latitude"),
 		actualMsg.GetFieldByName("latitude"))
@@ -165,6 +164,8 @@ func ProtoEqual(md *desc.MessageDescriptor, expected, actual []byte) bool {
 	if actualMsg.Unmarshal(actual) != nil {
 		return false
 	}
+	//fmt.Printf("expected: %s\n", expectedMsg.String())
+	//fmt.Printf("actual: %s\n", actualMsg.String())
 
 	if expectedMsg.GetFieldByName("latitude") !=
 		actualMsg.GetFieldByName("latitude") {
@@ -199,20 +200,25 @@ func attributesEqual(expected, actual map[interface{}]interface{}) bool {
 }
 
 type ProtoMessageIterator struct {
-	messages [][]byte
+	messages []*dynamic.Message
 	i        int
 }
 
-func NewProtoMessageIterator(messages [][]byte) ProtoMessageIterator {
-	return ProtoMessageIterator{messages: messages}
+func NewProtoMessageIterator(messages []*dynamic.Message) *ProtoMessageIterator {
+	return &ProtoMessageIterator{messages: messages}
 }
 
-func (pmi ProtoMessageIterator) Next() []byte {
+func (pmi *ProtoMessageIterator) Next() []byte {
 	n := pmi.messages[pmi.i%len(pmi.messages)]
 	pmi.i++
-	return n
+	//fmt.Printf("next message is: %d, %s\n", pmi.i, n.String())
+	mbytes, err := n.Marshal()
+	if err != nil {
+		panic(err.Error())
+	}
+	return mbytes
 }
 
-func (pmi ProtoMessageIterator) Reset() {
+func (pmi *ProtoMessageIterator) Reset() {
 	pmi.i = 0
 }

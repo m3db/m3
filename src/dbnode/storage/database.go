@@ -212,6 +212,7 @@ func NewDatabase(
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		return nil, err
 	}
+	d.UpdateSchemaRegistry(nsMap)
 
 	mediator, err := newMediator(
 		d, commitLog, opts.SetInstrumentOptions(databaseIOpts))
@@ -239,7 +240,7 @@ func (d *db) UpdateSchemaRegistry(newNamespaces namespace.Map) {
 		// Log schema update.
 		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
 		if !found {
-			d.log.Warn("skip updating namespace schema to empty", zap.Stringer("namespace", metadata.ID()))
+			d.log.Info("skip updating namespace schema to empty", zap.Stringer("namespace", metadata.ID()))
 		} else {
 			d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
 				zap.String("current schema", curSchemaId), zap.String("latest schema", latestSchema.DeployId()))

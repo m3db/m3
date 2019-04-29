@@ -26,8 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 	"github.com/m3db/m3/src/x/ident"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,84 +64,31 @@ func newBufferTestProtoOptions(t *testing.T) Options {
 	return opts
 }
 
-func TestBufferProtoWriteRead(t *testing.T) {
-	opts := newBufferTestProtoOptions(t)
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-
-	count := len(testProtoMessages)
-	data := make([]value, count)
-	for i := 0; i < count; i++ {
-		currTime := curr.Add(time.Duration(i) * time.Second)
-		data[i] = value{currTime, 0, xtime.Second, testProtoMessages[i]}
+func testSetProtoAnnotation(data []value) []value {
+	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
+	for i := 0; i < len(data); i++ {
+		data[i].value = 0
+		data[i].annotation = protoIter.Next()
 	}
-
-	testBufferWriteRead(t, data, opts, testProtoEqual)
+	return data
 }
 
-func newBucketsProtoFixture(t *testing.T) ([][]value, Options) {
+func TestBufferProtoWriteRead(t *testing.T) {
 	opts := newBufferTestProtoOptions(t)
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
-
-	iter := prototest.NewProtoMessageIterator(testProtoMessages)
-	data := [][]value{
-		{
-			{curr, 0, xtime.Second, iter.Next()},
-			{curr.Add(secs(10)), 0, xtime.Second, iter.Next()},
-			{curr.Add(secs(50)), 0, xtime.Second, iter.Next()},
-		},
-		{
-			{curr.Add(secs(20)), 0, xtime.Second, iter.Next()},
-			{curr.Add(secs(40)), 0, xtime.Second, iter.Next()},
-			{curr.Add(secs(60)), 0, xtime.Second, iter.Next()},
-		},
-		{
-			{curr.Add(secs(30)), 0, xtime.Second, iter.Next()},
-			{curr.Add(secs(70)), 0, xtime.Second, iter.Next()},
-		},
-		{
-			{curr.Add(secs(35)), 0, xtime.Second, iter.Next()},
-		},
-	}
-	return data, opts
+	testBufferWriteRead(t, opts, testSetProtoAnnotation, testProtoEqual)
 }
 
 func TestBufferProtoToStream(t *testing.T) {
-	data, opts := newBucketsProtoFixture(t)
-	testBuffertoStream(t, data, opts, testProtoEqual)
+	opts := newBufferTestProtoOptions(t)
+	testBuffertoStream(t, opts, testSetProtoAnnotation, testProtoEqual)
 }
 
 func TestBufferBucketProtoMerge(t *testing.T) {
-	data, opts := newBucketsProtoFixture(t)
-	testBufferBucketMerge(t, data, opts, testProtoEqual)
+	opts := newBufferTestProtoOptions(t)
+	testBufferBucketMerge(t, opts, testSetProtoAnnotation, testProtoEqual)
 }
 
 func TestBufferProtoSnapshot(t *testing.T) {
-	var (
-		opts      = newBufferTestProtoOptions(t)
-		rops      = opts.RetentionOptions()
-		blockSize = rops.BlockSize()
-		curr      = time.Now().Truncate(blockSize)
-	)
-
-	iter := prototest.NewProtoMessageIterator(testProtoMessages)
-	// Create test data to perform out of order writes that will create two in-order
-	// encoders so we can verify that Snapshot will perform a merge
-	data := []value{
-		{curr, 0, xtime.Second, iter.Next()},
-		{curr.Add(mins(0.5)), 0, xtime.Second, iter.Next()},
-		{curr.Add(mins(0.5)).Add(-5 * time.Second), 0, xtime.Second, iter.Next()},
-		{curr.Add(mins(1.0)), 0, xtime.Second, iter.Next()},
-		{curr.Add(mins(1.5)), 0, xtime.Second, iter.Next()},
-		{curr.Add(mins(1.5)).Add(-5 * time.Second), 0, xtime.Second, iter.Next()},
-
-		// Add one write for a different block to make sure Snapshot only returns
-		// date for the requested block
-		{curr.Add(blockSize), 6, xtime.Second, nil},
-	}
-	testBufferSnapshot(t, data, opts, testProtoEqual)
+	opts := newBufferTestProtoOptions(t)
+	testBufferSnapshot(t, opts, testSetProtoAnnotation, testProtoEqual)
 }

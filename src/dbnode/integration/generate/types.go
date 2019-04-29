@@ -38,19 +38,25 @@ type BlockConfig struct {
 	Tags      ident.Tags
 	NumPoints int
 	Start     time.Time
+	Proto     bool
+}
+
+type TestValue struct {
+	ts.Datapoint
+	ts.Annotation
 }
 
 // Series represents a generated series of data
 type Series struct {
 	ID   ident.ID
 	Tags ident.Tags
-	Data []ts.Datapoint
+	Data []TestValue
 }
 
 // SeriesDataPoint represents a single data point of a generated series of data
 type SeriesDataPoint struct {
-	ts.Datapoint
-	ID ident.ID
+	Value TestValue
+	ID    ident.ID
 }
 
 // SeriesDataPointsByTime are a sorted list of SeriesDataPoints
@@ -158,4 +164,4 @@ type Options interface {
 }
 
 // WriteDatapointPredicate returns a boolean indicating whether a datapoint should be written.
-type WriteDatapointPredicate func(dp ts.Datapoint) bool
+type WriteDatapointPredicate func(dp TestValue) bool

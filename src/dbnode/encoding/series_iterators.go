@@ -36,12 +36,6 @@ func NewSeriesIterators(
 	return &seriesIterators{iters: iters}
 }
 
-func (iters *seriesIterators) SetSchema(descr namespace.SchemaDescr) {
-	for _, iter := range iters.iters {
-		iter.SetSchema(descr)
-	}
-}
-
 func (iters *seriesIterators) Iters() []SeriesIterator {
 	return iters.iters
 }

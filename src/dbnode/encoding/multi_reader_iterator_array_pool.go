@@ -93,12 +93,6 @@ func (p *multiReaderIteratorArrayPool) Get(capacity int) []MultiReaderIterator {
 }
 
 func (p *multiReaderIteratorArrayPool) Put(array []MultiReaderIterator) {
-	for _, iter := range array {
-		if iter != nil {
-			iter.SetSchema(nil)
-		}
-	}
-
 	capacity := cap(array)
 	if capacity > p.maxBucketCapacity {
 		return

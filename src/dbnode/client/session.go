@@ -895,13 +895,12 @@ func (s *session) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = nsID, id
 	w.args.tags = ident.EmptyTagIterator
-	w.args.t, w.args.value, w.args.unit, w.args.annotation, w.args.schema =
-		t, value, unit, annotation, nsCtx.Schema
+	w.args.t, w.args.value, w.args.unit, w.args.annotation =
+		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -915,12 +914,11 @@ func (s *session) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
 	w.args.namespace, w.args.id, w.args.tags = nsID, id, tags
-	w.args.t, w.args.value, w.args.unit, w.args.annotation, w.args.schema =
-		t, value, unit, annotation, nsCtx.Schema
+	w.args.t, w.args.value, w.args.unit, w.args.annotation =
+		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -934,7 +932,6 @@ func (s *session) writeAttempt(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	schema namespace.SchemaDescr,
 ) error {
 	startWriteAttempt := s.nowFn()
 
@@ -1097,10 +1094,6 @@ func (s *session) Fetch(
 	mutableResults := results.(encoding.MutableSeriesIterators)
 	iters := mutableResults.Iters()
 	iter := iters[0]
-	if iter != nil {
-		nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
-		iter.SetSchema(nsCtx.Schema)
-	}
 	// Reset to zero so that when we close this results set the iter doesn't get closed
 	mutableResults.Reset(0)
 	mutableResults.Close()
@@ -1118,10 +1111,6 @@ func (s *session) FetchIDs(
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
 	s.pools.fetchAttempt.Put(f)
-	if result != nil {
-		nsCtx := namespace.NewContextFor(nsID, s.opts.SchemaRegistry())
-		result.SetSchema(nsCtx.Schema)
-	}
 	return result, err
 }
 
@@ -1196,10 +1185,6 @@ func (s *session) FetchTagged(
 	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
 	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
 	s.pools.fetchTaggedAttempt.Put(f)
-	if iters != nil {
-		nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
-		iters.SetSchema(nsCtx.Schema)
-	}
 	return iters, exhaustive, err
 }
 
@@ -1425,6 +1410,7 @@ func (s *session) fetchIDsAttempt(
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 		startFetchAttempt      = s.nowFn()
+		nsCtx                  = namespace.NewContextFor(inputNamespace, s.opts.SchemaRegistry())
 	)
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
@@ -1573,6 +1559,7 @@ func (s *session) fetchIDsAttempt(
 				slicesIter := s.pools.readerSliceOfSlicesIterator.Get()
 				slicesIter.Reset(result.([]*rpc.Segments))
 				multiIter := s.pools.multiReaderIterator.Get()
+				multiIter.SetSchema(nsCtx.Schema)
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
 				resultsLock.Lock()

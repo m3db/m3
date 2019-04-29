@@ -120,22 +120,26 @@ func TestBufferWriteTooPast(t *testing.T) {
 
 func TestBufferWriteRead(t *testing.T) {
 	opts := newBufferTestOptions()
+	testBufferWriteRead(t, opts, nil, nil)
+}
+
+func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation, annEqual requireAnnEqual) {
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(opts)
+
 	data := []value{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
 		{curr.Add(secs(2)), 2, xtime.Second, nil},
 		{curr.Add(secs(3)), 3, xtime.Second, nil},
 	}
-	testBufferWriteRead(t, data, opts, nil)
-}
-
-func testBufferWriteRead(t *testing.T, data []value, opts Options, annEqual requireAnnEqual) {
-	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	if setAnn != nil {
+		data = setAnn(data)
+	}
 
 	for _, v := range data {
 		verifyWriteToBuffer(t, buffer, v)
@@ -236,51 +240,11 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	requireReaderValuesEqual(t, data, results, opts, nil)
 }
 
-func newTestBufferBucketWithData(t *testing.T, data [][]value, opts Options) (*BufferBucket, []value) {
+func newTestBufferBucketWithData(t *testing.T, opts Options, setAnn setAnnotation) (*BufferBucket, []value) {
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 	b := &BufferBucket{opts: opts}
 	b.resetTo(curr, WarmWrite, opts)
-
-	// Empty all existing encoders.
-	b.encoders = nil
-
-	var expected []value
-	for i, d := range data {
-		encoded := 0
-		nsCtx := newContextFor(opts)
-		encoder := opts.EncoderPool().Get()
-		encoder.SetSchema(nsCtx.Schema)
-		encoder.Reset(curr, 0)
-		for _, v := range data[i] {
-			dp := ts.Datapoint{
-				Timestamp: v.timestamp,
-				Value:     v.value,
-			}
-			err := encoder.Encode(dp, v.unit, v.annotation)
-			require.NoError(t, err)
-			encoded++
-		}
-		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
-		expected = append(expected, d...)
-	}
-	sort.Sort(valuesByTime(expected))
-	return b, expected
-}
-
-func newTestBufferBucketsWithData(t *testing.T, data [][]value, opts Options) (*BufferBucketVersions, []value) {
-	newBucket, vals := newTestBufferBucketWithData(t, data, opts)
-	return &BufferBucketVersions{
-		buckets: []*BufferBucket{newBucket},
-		start:   newBucket.start,
-		opts:    opts,
-	}, vals
-}
-
-func newBucketsFixture() ([][]value, Options) {
-	opts := newBufferTestOptions()
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
 
 	data := [][]value{
 		{
@@ -301,16 +265,54 @@ func newBucketsFixture() ([][]value, Options) {
 			{curr.Add(secs(35)), 6, xtime.Second, nil},
 		},
 	}
-	return data, opts
+
+	// Empty all existing encoders.
+	b.encoders = nil
+
+	var expected []value
+	for i := 0; i < len(data); i++ {
+		if setAnn != nil {
+			data[i] = setAnn(data[i])
+		}
+
+		encoded := 0
+		nsCtx := newContextFor(opts)
+		encoder := opts.EncoderPool().Get()
+		encoder.SetSchema(nsCtx.Schema)
+		encoder.Reset(curr, 0)
+		for _, v := range data[i] {
+			dp := ts.Datapoint{
+				Timestamp: v.timestamp,
+				Value:     v.value,
+			}
+			err := encoder.Encode(dp, v.unit, v.annotation)
+			require.NoError(t, err)
+			encoded++
+		}
+		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
+		expected = append(expected, data[i]...)
+	}
+	sort.Sort(valuesByTime(expected))
+	return b, expected
+}
+
+func newTestBufferBucketsWithData(t *testing.T, opts Options, setAnn setAnnotation) (*BufferBucketVersions, []value) {
+	newBucket, vals := newTestBufferBucketWithData(t, opts, setAnn)
+	return &BufferBucketVersions{
+		buckets: []*BufferBucket{newBucket},
+		start:   newBucket.start,
+		opts:    opts,
+	}, vals
 }
 
 func TestBufferBucketMerge(t *testing.T) {
-	data, opts := newBucketsFixture()
-	testBufferBucketMerge(t, data, opts, nil)
+	opts := newBufferTestOptions()
+
+	testBufferBucketMerge(t, opts, nil,nil)
 }
 
-func testBufferBucketMerge(t *testing.T, data [][]value, opts Options, annEqual requireAnnEqual) {
-	b, expected := newTestBufferBucketWithData(t, data, opts)
+func testBufferBucketMerge(t *testing.T, opts Options, setAnn setAnnotation, annEqual requireAnnEqual) {
+	b, expected := newTestBufferBucketWithData(t, opts, setAnn)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -496,8 +498,9 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 }
 
 func TestBufferFetchBlocks(t *testing.T) {
-	data, opts := newBucketsFixture()
-	b, expected := newTestBufferBucketsWithData(t, data, opts)
+	opts := newBufferTestOptions()
+
+	b, expected := newTestBufferBucketsWithData(t, opts, nil)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -590,8 +593,9 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 }
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {
-	data, opts := newBucketsFixture()
-	b, _ := newTestBufferBucketsWithData(t, data, opts)
+	opts := newBufferTestOptions()
+
+	b, _ := newTestBufferBucketsWithData(t, opts, nil)
 
 	expectedLastRead := time.Now()
 	b.lastReadUnixNanos = expectedLastRead.UnixNano()
@@ -762,12 +766,13 @@ func TestBufferRemoveBucket(t *testing.T) {
 }
 
 func TestBuffertoStream(t *testing.T) {
-	data, opts := newBucketsFixture()
-	testBuffertoStream(t, data, opts, nil)
+	opts := newBufferTestOptions()
+
+	testBuffertoStream(t, opts, nil,nil)
 }
 
-func testBuffertoStream(t *testing.T, data [][]value, opts Options, annEqual requireAnnEqual) {
-	b, expected := newTestBufferBucketsWithData(t, data, opts)
+func testBuffertoStream(t *testing.T, opts Options, setAnn setAnnotation, annEqual requireAnnEqual) {
+	b, expected := newTestBufferBucketsWithData(t, opts, setAnn)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -782,13 +787,24 @@ func testBuffertoStream(t *testing.T, data [][]value, opts Options, annEqual req
 }
 
 func TestBufferSnapshot(t *testing.T) {
-	// Setup.
+	opts := newBufferTestOptions()
+	testBufferSnapshot(t, opts, nil, nil)
+}
+
+func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation, annEqual requireAnnEqual) {
+	// Setup
 	var (
-		opts      = newBufferTestOptions()
 		rops      = opts.RetentionOptions()
 		blockSize = rops.BlockSize()
 		curr      = time.Now().Truncate(blockSize)
+		start     = curr
+		buffer    = newDatabaseBuffer().(*dbBuffer)
 	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
 	// Create test data to perform out of order writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
 	data := []value{
@@ -803,22 +819,9 @@ func TestBufferSnapshot(t *testing.T) {
 		// date for the requested block.
 		{curr.Add(blockSize), 6, xtime.Second, nil},
 	}
-	testBufferSnapshot(t, data, opts, nil)
-}
-
-func testBufferSnapshot(t *testing.T, data []value, opts Options, annEqual requireAnnEqual) {
-	// Setup
-	var (
-		rops      = opts.RetentionOptions()
-		blockSize = rops.BlockSize()
-		curr      = time.Now().Truncate(blockSize)
-		start     = curr
-		buffer    = newDatabaseBuffer().(*dbBuffer)
-	)
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	buffer.Reset(opts)
+	if setAnn != nil {
+		data = setAnn(data)
+	}
 
 	// Perform the writes.
 	for _, v := range data {

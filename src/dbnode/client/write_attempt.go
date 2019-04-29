@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type writeAttemptType byte
@@ -53,7 +52,6 @@ type writeAttempt struct {
 type writeAttemptArgs struct {
 	namespace   ident.ID
 	id          ident.ID
-	schema      namespace.SchemaDescr
 	tags        ident.TagIterator
 	t           time.Time
 	value       float64
@@ -69,7 +67,7 @@ func (w *writeAttempt) reset() {
 func (w *writeAttempt) perform() error {
 	err := w.session.writeAttempt(w.args.attemptType,
 		w.args.namespace, w.args.id, w.args.tags, w.args.t,
-		w.args.value, w.args.unit, w.args.annotation, w.args.schema)
+		w.args.value, w.args.unit, w.args.annotation)
 
 	if IsBadRequestError(err) {
 		// Do not retry bad request errors

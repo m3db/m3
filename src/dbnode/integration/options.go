@@ -254,6 +254,16 @@ type testOptions interface {
 
 	// FilePathPrefix returns the file path prefix.
 	FilePathPrefix() string
+
+	// SetProtoEncoding turns on proto encoder.
+	SetProtoEncoding (value bool) testOptions
+
+	// ProtoEncoding returns whether proto encoder is turned on.
+	ProtoEncoding() bool
+
+	SetAssertTestDataEqual(value assertTestDataEqual) testOptions
+
+	AssertTestDataEqual() assertTestDataEqual
 }
 
 type options struct {
@@ -283,6 +293,8 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	writeNewSeriesAsync                bool
+	protoEncoding                      bool
+	assertEqual                        assertTestDataEqual
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -577,4 +589,24 @@ func (o *options) SetFilePathPrefix(value string) testOptions {
 
 func (o *options) FilePathPrefix() string {
 	return o.filePathPrefix
+}
+
+func (o *options) SetProtoEncoding(value bool) testOptions {
+	opts := *o
+	opts.protoEncoding = value
+	return &opts
+}
+
+func (o *options) ProtoEncoding() bool {
+	return o.protoEncoding
+}
+
+func (o *options) SetAssertTestDataEqual(value assertTestDataEqual) testOptions {
+	opts := *o
+	opts.assertEqual = value
+	return &opts
+}
+
+func (o *options) AssertTestDataEqual() assertTestDataEqual {
+	return o.assertEqual
 }

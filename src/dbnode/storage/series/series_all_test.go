@@ -61,6 +61,7 @@ func (v valuesByTime) Swap(lhs, rhs int) {
 	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
 
+type setAnnotation func([]value) []value
 type requireAnnEqual func(*testing.T, []byte, []byte)
 
 func decodedReaderValues(results [][]xio.BlockReader, opts Options) ([]value, error) {

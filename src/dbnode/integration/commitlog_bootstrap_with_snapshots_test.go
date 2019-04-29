@@ -29,8 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +71,7 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	var (
 		snapshotInterval            = 10 * time.Second
 		numDatapointsNotInSnapshots = 0
-		pred                        = func(dp ts.Datapoint) bool {
+		pred                        = func(dp generate.TestValue) bool {
 			blockStart := dp.Timestamp.Truncate(blockSize)
 			if dp.Timestamp.Before(blockStart.Add(snapshotInterval)) {
 				return true
@@ -88,7 +86,7 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 		t, setup, commitLogOpts, seriesMaps, ns1, nil, pred, snapshotInterval)
 
 	numDatapointsNotInCommitLogs := 0
-	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp ts.Datapoint) bool {
+	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp generate.TestValue) bool {
 		blockStart := dp.Timestamp.Truncate(blockSize)
 		if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
 			return true

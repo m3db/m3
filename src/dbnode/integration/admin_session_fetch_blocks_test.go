@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -188,10 +187,10 @@ func testSetupToSeriesMaps(
 			readerIter := iterPool.Get()
 			readerIter.Reset(reader)
 
-			var datapoints []ts.Datapoint
+			var datapoints []generate.TestValue
 			for readerIter.Next() {
-				datapoint, _, _ := readerIter.Current()
-				datapoints = append(datapoints, datapoint)
+				datapoint, _, ann := readerIter.Current()
+				datapoints = append(datapoints, generate.TestValue{Datapoint: datapoint, Annotation: ann})
 			}
 			require.NoError(t, readerIter.Err())
 			require.NotEmpty(t, datapoints)

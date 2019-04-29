@@ -58,6 +58,8 @@ import (
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 )
 
 var (
@@ -73,16 +75,28 @@ var (
 	testNamespaces         = []ident.ID{ident.StringID("testNs1"), ident.StringID("testNs2")}
 
 	created = uint64(0)
+
+	testSchemaHistory = prototest.NewSchemaHistory("../storage/testdata/prototest")
+	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
+	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
+	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
+	testProtoEqual    = func(expect, actual []byte) bool {
+		return prototest.ProtoEqual(testSchema, expect, actual)
+	}
+
 )
 
 // nowSetterFn is the function that sets the current time
 type nowSetterFn func(t time.Time)
+
+type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValue) bool
 
 var _ topology.MapProvider = &testSetup{}
 
 type testSetup struct {
 	t    *testing.T
 	opts testOptions
+	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
 
@@ -105,6 +119,9 @@ type testSetup struct {
 	m3dbAdminClient             client.AdminClient
 	m3dbVerificationAdminClient client.AdminClient
 	workerPool                  xsync.WorkerPool
+
+	// compare expected with actual data function
+	assertEqual assertTestDataEqual
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -141,8 +158,25 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		return nil, err
 	}
 
+	// Schema registry is shared between database and admin client.
+	schemaReg := namespace.NewSchemaRegistry()
+
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit)
+		SetNamespaceInitializer(nsInit).
+		SetSchemaRegistry(schemaReg)
+
+	if opts.ProtoEncoding() {
+		blockOpts := storageOpts.DatabaseBlockOptions().
+			SetEncoderPool(prototest.ProtoPools.EncoderPool).
+			SetReaderIteratorPool(prototest.ProtoPools.ReaderIterPool).
+			SetMultiReaderIteratorPool(prototest.ProtoPools.MultiReaderIterPool)
+		storageOpts = storageOpts.
+			SetDatabaseBlockOptions(blockOpts).
+			SetEncoderPool(prototest.ProtoPools.EncoderPool).
+			SetReaderIteratorPool(prototest.ProtoPools.ReaderIterPool).
+			SetMultiReaderIteratorPool(prototest.ProtoPools.MultiReaderIterPool)
+	}
+
 	if strings.ToLower(os.Getenv("TEST_DEBUG_LOG")) == "true" {
 		zapConfig.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
 		logger, err = zapConfig.Build()
@@ -223,7 +257,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		}
 	}
 
-	adminClient, verificationAdminClient, err := newClients(topoInit, opts, id, tchannelNodeAddr)
+	adminClient, verificationAdminClient, err := newClients(topoInit, opts, schemaReg, id, tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -343,6 +377,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	return &testSetup{
 		t:                           t,
 		opts:                        opts,
+		schemaReg:                   schemaReg,
 		logger:                      logger,
 		storageOpts:                 storageOpts,
 		fsOpts:                      fsOpts,
@@ -362,6 +397,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		namespaces:                  opts.Namespaces(),
 		doneCh:                      make(chan struct{}),
 		closedCh:                    make(chan struct{}),
+		assertEqual:                 opts.AssertTestDataEqual(),
 	}, nil
 }
 
@@ -574,7 +610,7 @@ func (ts *testSetup) writeBatch(namespace ident.ID, seriesList generate.SeriesBl
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, namespace, seriesList)
 }
 
-func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]ts.Datapoint, error) {
+func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]generate.TestValue, error) {
 	if ts.opts.UseTChannelClientForReading() {
 		return tchannelClientFetch(ts.tchannelClient, ts.opts.ReadRequestTimeout(), req)
 	}
@@ -659,7 +695,7 @@ func (ts *testSetup) maybeResetClients() error {
 	if ts.m3dbClient == nil {
 		// Recreate the clients as their session was destroyed by stopServer()
 		adminClient, verificationAdminClient, err := newClients(
-			ts.topoInit, ts.opts, ts.hostID, ts.tchannelNodeAddr())
+			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
 		if err != nil {
 			return err
 		}
@@ -687,6 +723,7 @@ func newOrigin(id string, tchannelNodeAddr string) topology.Host {
 func newClients(
 	topoInit topology.Initializer,
 	opts testOptions,
+	schemaReg namespace.SchemaRegistry,
 	id,
 	tchannelNodeAddr string,
 ) (client.AdminClient, client.AdminClient, error) {
@@ -699,9 +736,18 @@ func newClients(
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
-		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
-		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
+		adminOpts             = clientOpts.(client.AdminOptions).
+			SetOrigin(origin).
+			SetSchemaRegistry(schemaReg)
+		verificationAdminOpts = adminOpts.
+			SetOrigin(verificationOrigin).
+			SetSchemaRegistry(schemaReg)
 	)
+
+	if opts.ProtoEncoding() {
+		adminOpts.SetEncodingProto(encoding.NewOptions())
+		verificationAdminOpts.SetEncodingProto(encoding.NewOptions())
+	}
 
 	// Set up m3db client
 	adminClient, err := m3dbAdminClient(adminOpts)

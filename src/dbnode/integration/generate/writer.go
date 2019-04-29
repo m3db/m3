@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -39,7 +38,7 @@ type writer struct {
 }
 
 // WriteAllPredicate writes all datapoints
-func WriteAllPredicate(_ ts.Datapoint) bool {
+func WriteAllPredicate(_ TestValue) bool {
 	return true
 }
 
@@ -191,7 +190,7 @@ func writeToDiskWithPredicate(
 					continue
 				}
 
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
+				if err := encoder.Encode(dp.Datapoint, xtime.Second, dp.Annotation); err != nil {
 					return err
 				}
 			}

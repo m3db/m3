@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -50,19 +49,6 @@ type iterators struct {
 
 	// Used for caching reuse of value frequency lookup
 	valueFrequencies map[float64]int
-}
-
-func (i *iterators) setSchema(descr namespace.SchemaDescr) {
-	for _, iter := range i.values {
-		if iter != nil {
-			iter.SetSchema(descr)
-		}
-	}
-	for _, iter := range i.earliest {
-		if iter != nil {
-			iter.SetSchema(descr)
-		}
-	}
 }
 
 func (i *iterators) len() int {

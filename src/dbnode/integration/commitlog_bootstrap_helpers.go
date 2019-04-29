@@ -187,8 +187,8 @@ func writeCommitLogDataBase(
 				Tags:        series.tags,
 				UniqueIndex: series.uniqueIndex,
 			}
-			if pred(point.Datapoint) {
-				require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
+			if pred(point.Value) {
+				require.NoError(t, commitLog.Write(ctx, cId, point.Value.Datapoint, xtime.Second, point.Value.Annotation))
 			}
 		}
 
