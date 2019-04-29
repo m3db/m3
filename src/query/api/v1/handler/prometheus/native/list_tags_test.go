@@ -21,11 +21,11 @@
 package native
 
 import (
-	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"math"
-	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -76,28 +76,6 @@ var _ gomock.Matcher = &listTagsMatcher{}
 
 func b(s string) []byte { return []byte(s) }
 
-type writer struct {
-	results []string
-}
-
-var _ http.ResponseWriter = &writer{}
-
-func (w *writer) WriteHeader(_ int)   {}
-func (w *writer) Header() http.Header { return make(http.Header) }
-func (w *writer) Write(b []byte) (int, error) {
-	if w.results == nil {
-		w.results = make([]string, 0, 10)
-	}
-
-	w.results = append(w.results, string(b))
-	return len(b), nil
-}
-
-type result struct {
-	Status string   `json:"status"`
-	Data   []string `json:"data"`
-}
-
 func TestListTags(t *testing.T) {
 	logging.InitWithCores(nil)
 
@@ -115,34 +93,24 @@ func TestListTags(t *testing.T) {
 		},
 	}
 
-	store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
-		Return(storeResult, nil)
-
 	handler := NewListTagsHandler(store)
+	for _, method := range []string{"GET", "POST"} {
+		store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
+			Return(storeResult, nil)
 
-	// execute the query
-	w := &writer{}
-	req := &http.Request{
-		URL: &url.URL{
-			RawQuery: "",
-		},
+		req := httptest.NewRequest(method, "/labels", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+		body := w.Result().Body
+		defer body.Close()
+
+		r, err := ioutil.ReadAll(body)
+		require.NoError(t, err)
+
+		ex := `{"status":"success","data":["bar","baz","foo"]}`
+		require.Equal(t, ex, string(r))
 	}
-
-	handler.ServeHTTP(w, req)
-	require.Equal(t, 1, len(w.results))
-	var r result
-	json.Unmarshal([]byte(w.results[0]), &r)
-
-	ex := result{
-		Status: "success",
-		Data:   []string{"bar", "baz", "foo"},
-	}
-
-	require.Equal(t, ex, r)
-}
-
-type errResult struct {
-	Error string `json:"error"`
 }
 
 func TestListErrorTags(t *testing.T) {
@@ -153,26 +121,25 @@ func TestListErrorTags(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
-		Return(nil, errors.New("err"))
 	handler := NewListTagsHandler(store)
 
-	// execute the query
-	w := &writer{}
-	req := &http.Request{
-		URL: &url.URL{
-			RawQuery: "",
-		},
+	for _, method := range []string{"GET", "POST"} {
+		store.EXPECT().CompleteTags(gomock.Any(), &listTagsMatcher{}, gomock.Any()).
+			Return(nil, errors.New("err"))
+
+		req := httptest.NewRequest(method, "/labels", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+		body := w.Result().Body
+		defer body.Close()
+
+		r, err := ioutil.ReadAll(body)
+		require.NoError(t, err)
+
+		ex := `{"error":"err"}`
+		// NB: error handler adds a newline to the output.
+		ex = fmt.Sprintf("%s\n", ex)
+		require.Equal(t, ex, string(r))
 	}
-
-	handler.ServeHTTP(w, req)
-	require.Equal(t, 1, len(w.results))
-	var r errResult
-	json.Unmarshal([]byte(w.results[0]), &r)
-
-	ex := errResult{
-		Error: "err",
-	}
-
-	require.Equal(t, ex, r)
 }
