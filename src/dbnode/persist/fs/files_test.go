@@ -1078,7 +1078,7 @@ func TestSnapshotFileSnapshotTimeAndIDNotSnapshot(t *testing.T) {
 
 func TestCommitLogFilePath(t *testing.T) {
 	expected := "/var/lib/m3db/commitlogs/commitlog-0-1.db"
-	actual := CommitLogFilePath("/var/lib/m3db", time.Unix(0, 0), 1)
+	actual := CommitLogFilePath("/var/lib/m3db", 1)
 	require.Equal(t, expected, actual)
 }
 
@@ -1231,7 +1231,7 @@ func createCommitLogFiles(t *testing.T, iter int) string {
 	commitLogsDir := path.Join(dir, commitLogsDirName)
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
 	for i := 0; i < iter; i++ {
-		filePath := CommitLogFilePath(dir, time.Unix(0, 0), i)
+		filePath := CommitLogFilePath(dir, i)
 		fd, err := os.Create(filePath)
 		assert.NoError(t, err)
 		assert.NoError(t, fd.Close())

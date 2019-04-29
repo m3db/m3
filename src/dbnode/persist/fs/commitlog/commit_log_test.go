@@ -209,7 +209,7 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.True(t, len(files) == 1)
+	require.True(t, len(files) == 2)
 
 	return commitLog
 }
@@ -258,9 +258,13 @@ func writeCommitLogs(
 			err := commitLog.Write(ctx, series, datapoint, write.u, write.a)
 
 			if write.expectedErr != nil {
-				require.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))
+				if !strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)) {
+					panic(fmt.Sprintf("unexpected error: %v", err))
+				}
 			} else {
-				require.NoError(t, err)
+				if err != nil {
+					panic(err)
+				}
 			}
 		}()
 	}
@@ -271,26 +275,6 @@ func writeCommitLogs(
 	}
 
 	return &wg
-}
-
-func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
-	done := uint64(0)
-	blockWg := sync.WaitGroup{}
-	blockWg.Add(1)
-	go func() {
-		for atomic.LoadUint64(&done) == 0 {
-			l.writes <- commitLogWrite{eventType: flushEventType}
-			time.Sleep(time.Millisecond)
-		}
-		blockWg.Done()
-	}()
-
-	go func() {
-		wg.Wait()
-		atomic.StoreUint64(&done, 1)
-	}()
-
-	blockWg.Wait()
 }
 
 type seriesTestWritesAndReadPosition struct {
@@ -387,7 +371,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Replace bitset in writer with one that configurably returns true or false
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
-	writer := commitLog.writerState.writer.(*writer)
+	primary := commitLog.writerState.primary.writer.(*writer)
+	secondary := commitLog.writerState.secondary.writer.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
 
@@ -407,7 +392,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 			bitSet.Set(uint(i))
 		}
 	}
-	writer.seen = bitSet
+	primary.seen = bitSet
+	secondary.seen = bitSet
 
 	// Generate fake writes for each of the series
 	writes := []testWrite{}
@@ -472,7 +458,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(files))
+	require.Equal(t, 2, len(files))
 
 	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
@@ -510,9 +496,7 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 		// Rotate frequently to ensure we're generating multiple files.
 		_, err := commitLog.RotateLogs()
 		require.NoError(t, err)
-		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
-		// Flush until finished, this is required as timed flusher not active when clock is mocked.
-		flushUntilDone(commitLog, wg)
+		writeCommitLogs(t, scope, commitLog, []testWrite{write})
 	}
 
 	// Close the commit log and consequently flush.
@@ -522,7 +506,7 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 4, len(files))
+	require.Equal(t, 5, len(files))
 
 	// This predicate should eliminate the first commitlog file.
 	commitLogPredicate := func(f FileFilterInfo) bool {
@@ -539,10 +523,10 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(corruptFiles))
+	require.True(t, len(corruptFiles) <= 1)
 
 	iterStruct := iter.(*iterator)
-	require.Equal(t, 3, len(iterStruct.files))
+	require.True(t, len(iterStruct.files) >= 4)
 }
 
 func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
@@ -561,7 +545,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(files))
+	require.Equal(t, 2, len(files))
 
 	// Write out a corrupt commitlog file.
 	nextCommitlogFilePath, _, err := NextFile(opts)
@@ -573,7 +557,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	// Make sure the corrupt file is visibile.
 	files, err = fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, 2, len(files))
+	require.Equal(t, 3, len(files))
 
 	// Assert that the corrupt file is returned from the iterator.
 	iterOpts := IteratorOpts{
@@ -586,7 +570,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	require.Equal(t, 1, len(corruptFiles))
 
 	iterStruct := iter.(*iterator)
-	require.Equal(t, 1, len(iterStruct.files))
+	require.Equal(t, 2, len(iterStruct.files))
 
 	// Assert that the iterator ignores the corrupt file given an appropriate predicate.
 	ignoreCorruptPredicate := func(f FileFilterInfo) bool {
@@ -603,7 +587,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	require.Equal(t, 0, len(corruptFiles))
 
 	iterStruct = iter.(*iterator)
-	require.Equal(t, 1, len(iterStruct.files))
+	require.Equal(t, 2, len(iterStruct.files))
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
@@ -747,7 +731,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	writer.flushFn = func(bool) error {
-		commitLog.onFlush(nil)
+		commitLog.writerState.primary.onFlush(nil)
 		return nil
 	}
 
@@ -789,14 +773,14 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 
 	var opens int64
 	writer.openFn = func() (persist.CommitLogFile, error) {
-		if atomic.AddInt64(&opens, 1) >= 2 {
+		if atomic.AddInt64(&opens, 1) >= 3 {
 			return persist.CommitLogFile{}, fmt.Errorf("an error")
 		}
 		return persist.CommitLogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
-		commitLog.onFlush(nil)
+		commitLog.writerState.primary.onFlush(nil)
 		return nil
 	}
 
@@ -821,6 +805,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	commitLog.RotateLogs()
 
 	wg.Wait()
+	// Secondary writer open is async so wait for it to complete before asserting
+	// that it failed.
+	commitLog.waitForSecondaryWriterAsyncResetComplete()
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
@@ -846,9 +833,9 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	var flushes int64
 	writer.flushFn = func(bool) error {
 		if atomic.AddInt64(&flushes, 1) >= 2 {
-			commitLog.onFlush(fmt.Errorf("an error"))
+			commitLog.writerState.primary.onFlush(fmt.Errorf("an error"))
 		} else {
-			commitLog.onFlush(nil)
+			commitLog.writerState.primary.onFlush(nil)
 		}
 		return nil
 	}
@@ -875,11 +862,11 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
 	require.True(t, ok)
-	require.Equal(t, int64(1), errors.Value())
+	require.Equal(t, int64(2), errors.Value())
 
 	flushErrors, ok := snapshotCounterValue(scope, "commitlog.writes.flush-errors")
 	require.True(t, ok)
-	require.Equal(t, int64(1), flushErrors.Value())
+	require.Equal(t, int64(2), flushErrors.Value())
 }
 
 func TestCommitLogActiveLogs(t *testing.T) {
@@ -903,7 +890,7 @@ func TestCommitLogActiveLogs(t *testing.T) {
 
 	logs, err := commitLog.ActiveLogs()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(logs))
+	require.Equal(t, 2, len(logs))
 
 	// Close the commit log and consequently flush
 	require.NoError(t, commitLog.Close())
@@ -938,22 +925,24 @@ func TestCommitLogRotateLogs(t *testing.T) {
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry.
-		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
+		writeCommitLogs(t, scope, commitLog, []testWrite{write})
 
 		file, err := commitLog.RotateLogs()
 		require.NoError(t, err)
 		require.Equal(t, file.Index, int64(i+1))
 		require.Contains(t, file.FilePath, "commitlog-0")
-
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
-		flushUntilDone(commitLog, wg)
 	}
+
+	// Secondary writer open is async so wait for it to complete so that its safe to assert
+	// on the number of files that should be on disk otherwise test will flake depending
+	// on whether or not the async open completed in time.
+	commitLog.waitForSecondaryWriterAsyncResetComplete()
 
 	// Ensure files present for each call to RotateLogs().
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.Equal(t, len(files), len(writes)+1) // +1 to account for the initial file
+	require.Equal(t, len(writes)+2, len(files)) // +2 to account for the initial files.
 
 	// Close and consequently flush.
 	require.NoError(t, commitLog.Close())
