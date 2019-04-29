@@ -42,9 +42,22 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
 )
 
+type annotationGenerator interface {
+	Next() []byte
+}
+
 func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
+	testFsCommitLogMixedModeReadWrite(t, nil, nil)
+}
+
+func TestProtoFsCommitLogMixedModeReadWrite(t *testing.T) {
+	testFsCommitLogMixedModeReadWrite(t, setProtoTestOptions, prototest.NewProtoMessageIterator(testProtoMessages))
+}
+
+func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions, annGen annotationGenerator) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -61,6 +74,11 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
+
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+	}
 
 	// Test setup
 	setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
@@ -100,11 +118,11 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	)
 	defer ctx.Close()
 	log.Info("writing datapoints")
-	datapoints := generateDatapoints(fakeStart, total, ids)
+	datapoints := generateDatapoints(fakeStart, total, ids, annGen)
 	for _, dp := range datapoints {
 		ts := dp.time
 		setup.setNowFn(ts)
-		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil))
+		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann))
 	}
 	log.Info("wrote datapoints")
 
@@ -255,22 +273,38 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	return setup
 }
 
-func generateDatapoints(start time.Time, numPoints int, ig *idGen) dataPointsInTimeOrder {
+func generateDatapoints(start time.Time, numPoints int, ig *idGen, annGen annotationGenerator) dataPointsInTimeOrder {
 	var points dataPointsInTimeOrder
 	for i := 0; i < numPoints; i++ {
 		t := start.Add(time.Duration(i) * time.Minute)
-		points = append(points,
-			seriesDatapoint{
-				series: ig.base(),
-				time:   t,
-				value:  float64(i),
-			},
-			seriesDatapoint{
-				series: ig.nth(i),
-				time:   t,
-				value:  float64(i),
-			},
-		)
+		if annGen == nil {
+			points = append(points,
+				seriesDatapoint{
+					series: ig.base(),
+					time:   t,
+					value:  float64(i),
+				},
+				seriesDatapoint{
+					series: ig.nth(i),
+					time:   t,
+					value:  float64(i),
+				},
+			)
+		} else {
+			annBytes := annGen.Next()
+			points = append(points,
+				seriesDatapoint{
+					series: ig.base(),
+					time:   t,
+					ann:    annBytes,
+				},
+				seriesDatapoint{
+					series: ig.nth(i),
+					time:   t,
+					ann:    annBytes,
+				},
+			)
+		}
 	}
 	return points
 }
@@ -281,6 +315,7 @@ type seriesDatapoint struct {
 	series ident.ID
 	time   time.Time
 	value  float64
+	ann    []byte
 }
 
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
@@ -300,7 +335,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		dp.Data = append(dp.Data, generate.TestValue{Datapoint: ts.Datapoint{
 			Timestamp: t,
 			Value:     point.value,
-		}})
+		}, Annotation: point.ann})
 		seriesBlock[idString] = dp
 		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock
 	}
