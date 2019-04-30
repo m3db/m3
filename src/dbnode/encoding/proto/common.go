@@ -34,7 +34,7 @@ import (
 type Schema *desc.MessageDescriptor
 
 const (
-	// ~1GiB is an intentionally a very large number to avoid users ever running into any
+	// ~1GiB is intentionally a very large number to avoid users ever running into any
 	// limitations, but we want some theoretical maximum so that in the case of data / memory
 	// corruption the iterator can avoid panicing due to trying to allocate a massive byte slice
 	// (MAX_UINT64 for example) and return a reasonable error message instead.

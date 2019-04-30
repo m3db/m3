@@ -1,8 +1,4 @@
-package dynamic
-
-// A reader/writer type that assists with encoding and decoding protobuf's binary representation.
-// This code is largely a fork of proto.Buffer, which cannot be used because it has no exported
-// field or method that provides access to its underlying reader index.
+package proto
 
 import (
 	"errors"
@@ -11,33 +7,359 @@ import (
 	"math"
 
 	"github.com/golang/protobuf/proto"
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/dynamic"
 )
 
-// ErrOverflow is returned when an integer is too large to be represented.
-var ErrOverflow = errors.New("proto: integer overflow")
+var (
+	// ErrOverflow is returned when an integer is too large to be represented.
+	ErrOverflow = errors.New("proto: integer overflow")
+
+	errGroupsAreDeprecated = errors.New("use of groups in proto wire format are deprecated")
+
+	zeroValue unmarshalValue
+
+	varintTypes  = map[dpb.FieldDescriptorProto_Type]bool{}
+	fixed32Types = map[dpb.FieldDescriptorProto_Type]bool{}
+	fixed64Types = map[dpb.FieldDescriptorProto_Type]bool{}
+)
+
+func init() {
+	varintTypes[dpb.FieldDescriptorProto_TYPE_BOOL] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_INT32] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_INT64] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_UINT32] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_UINT64] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_SINT32] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_SINT64] = true
+	varintTypes[dpb.FieldDescriptorProto_TYPE_ENUM] = true
+
+	fixed32Types[dpb.FieldDescriptorProto_TYPE_FIXED32] = true
+	fixed32Types[dpb.FieldDescriptorProto_TYPE_SFIXED32] = true
+	fixed32Types[dpb.FieldDescriptorProto_TYPE_FLOAT] = true
+
+	fixed64Types[dpb.FieldDescriptorProto_TYPE_FIXED64] = true
+	fixed64Types[dpb.FieldDescriptorProto_TYPE_SFIXED64] = true
+	fixed64Types[dpb.FieldDescriptorProto_TYPE_DOUBLE] = true
+}
 
 type unmarshalIter struct {
-	hasNext: true,
-	codedBuffer codedBuffer
+	schema        *desc.MessageDescriptor
+	repeatedAccum map[int32][]unmarshalValue
+	codedBuffer   *codedBuffer
+	last          unmarshalValue
+	err           error
+}
+
+// TODO: Make smaller
+type unmarshalValue struct {
+	fd            *desc.FieldDescriptor
+	fieldNum      int32
+	boolVal       bool
+	int32Val      int32
+	int64Val      int64
+	uint32Val     uint32
+	uint64Val     uint64
+	float32Val    float32
+	float64Val    float64
+	bytesVal      []byte
+	stringVal     string
+	messageVal    *dynamic.Message
+	ifaceVal      interface{}
+	ifaceSliceVal []interface{}
 }
 
 func newUnmarshalIter() *unmarshalIter {
 	return &unmarshalIter{
-		codedBuffer: newCodedBuffer(nil),
+		repeatedAccum: map[int32][]unmarshalValue{},
+		codedBuffer:   newCodedBuffer(nil),
 	}
 }
 
-func(u *unmarshalIter) next() {
-	tag, wireType, err := i.codedBuffer.decodeTagAndWireType()
+func (u *unmarshalIter) next() bool {
+	if !u.hasNext() {
+		return false
+	}
+
+	err := u.unmarshalField(false)
 	if err != nil {
-		i.err =
+		u.err = err
+		return false
+	}
+
+	return true
+}
+
+func (u *unmarshalIter) current() unmarshalValue {
+	return u.last
+}
+
+func (u *unmarshalIter) unmarshalField(isGroup bool) error {
+	var isFirst = true
+	for !u.codedBuffer.eof() && (isFirst || isGroup) {
+		isFirst = false
+		tag, wireType, err := u.codedBuffer.decodeTagAndWireType()
+		if err != nil {
+			return err
+		}
+		fmt.Println("tag: ", tag)
+
+		if wireType == proto.WireEndGroup {
+			panic("wire end group!?")
+			if isGroup {
+				// Finished parsing group.
+				return nil
+			}
+			return proto.ErrInternalBadWireType
+		}
+
+		fd := u.schema.FindFieldByNumber(tag)
+		if fd == nil {
+			return fmt.Errorf("encountered unknown field with tag: %d", tag)
+		}
+
+		last, err := u.unmarshalKnownField(fd, wireType)
+		if err != nil {
+			return err
+		}
+
+		if !fd.IsRepeated() {
+			u.last = last
+			continue
+		}
+
+		fmt.Println("Repeated!")
+		// TODO: Rename isRepeated
+		isGroup = true
+		fieldNum := fd.GetNumber()
+		existing, ok := u.repeatedAccum[fieldNum]
+		if !ok {
+			existing = []unmarshalValue{}
+		}
+		existing = append(existing, last)
+		u.repeatedAccum[fieldNum] = existing
+	}
+
+	// TODO: Maybe delete this code path
+	// if isGroup {
+	// 	return io.ErrUnexpectedEOF
+	// }
+
+	fmt.Println("eof?", u.codedBuffer.eof())
+	return nil
+}
+
+func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
+	switch wireType {
+	case proto.WireFixed32:
+		num, err := u.codedBuffer.decodeFixed32()
+		if err != nil {
+			return zeroValue, err
+		}
+		return unmarshalSimpleField(fd, num)
+	case proto.WireFixed64:
+		num, err := u.codedBuffer.decodeFixed64()
+		if err != nil {
+			return zeroValue, err
+		}
+		return unmarshalSimpleField(fd, num)
+	case proto.WireVarint:
+		num, err := u.codedBuffer.decodeVarint()
+		if err != nil {
+			return zeroValue, err
+		}
+		return unmarshalSimpleField(fd, num)
+
+	case proto.WireBytes:
+		if fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES ||
+			fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
+			raw, err := u.codedBuffer.decodeRawBytes(true) // defensive copy
+			if err != nil {
+				return zeroValue, err
+			}
+
+			val := unmarshalValue{fd: fd}
+			if fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES {
+				val.bytesVal = raw
+				return val, nil
+			}
+
+			val.stringVal = string(raw)
+			return val, nil
+		}
+
+		raw, err := u.codedBuffer.decodeRawBytes(false)
+		if err != nil {
+			return zeroValue, err
+		}
+
+		return unmarshalLengthDelimitedField(fd, raw)
+
+	case proto.WireStartGroup:
+		fmt.Println("group!???")
+		return zeroValue, errGroupsAreDeprecated
+	default:
+		return zeroValue, proto.ErrInternalBadWireType
 	}
 }
 
-func (u *unmarshalIter) reset(buf []byte) {
-	i.codedBuffer.reset(buf)
+func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, error) {
+	val := unmarshalValue{fd: fd}
+	switch fd.GetType() {
+	case dpb.FieldDescriptorProto_TYPE_BOOL:
+		val.boolVal = v != 0
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_UINT32,
+		dpb.FieldDescriptorProto_TYPE_FIXED32:
+		if v > math.MaxUint32 {
+			return zeroValue, dynamic.NumericOverflowError
+		}
+		val.uint32Val = uint32(v)
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_INT32,
+		dpb.FieldDescriptorProto_TYPE_ENUM:
+		s := int64(v)
+		if s > math.MaxInt32 || s < math.MinInt32 {
+			return zeroValue, dynamic.NumericOverflowError
+		}
+		val.int32Val = int32(s)
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_SFIXED32:
+		if v > math.MaxUint32 {
+			return zeroValue, dynamic.NumericOverflowError
+		}
+		val.int32Val = int32(v)
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_SINT32:
+		if v > math.MaxUint32 {
+			return zeroValue, dynamic.NumericOverflowError
+		}
+		val.int32Val = decodeZigZag32(v)
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_UINT64,
+		dpb.FieldDescriptorProto_TYPE_FIXED64:
+		val.uint64Val = v
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_INT64,
+		dpb.FieldDescriptorProto_TYPE_SFIXED64:
+		val.int64Val = int64(v)
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_SINT64:
+		val.int64Val = decodeZigZag64(v)
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_FLOAT:
+		if v > math.MaxUint32 {
+			return zeroValue, dynamic.NumericOverflowError
+		}
+		val.float32Val = math.Float32frombits(uint32(v))
+		return val, nil
+
+	case dpb.FieldDescriptorProto_TYPE_DOUBLE:
+		val.float64Val = math.Float64frombits(v)
+		return val, nil
+
+	default:
+		// bytes, string, message, and group cannot be represented as a simple numeric value
+		return zeroValue, fmt.Errorf("bad input; field %s requires length-delimited wire type", fd.GetFullyQualifiedName())
+	}
 }
 
+func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unmarshalValue, error) {
+	val := unmarshalValue{fd: fd}
+	switch {
+	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES:
+		val.bytesVal = bytes
+		return val, nil
+
+	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING:
+		val.stringVal = string(bytes)
+		return val, nil
+
+	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE ||
+		fd.GetType() == dpb.FieldDescriptorProto_TYPE_GROUP:
+		fmt.Println("type message or group, map?", fd.IsMap())
+		fmt.Println("type:", fd.GetType())
+		fmt.Println("message type", fd.GetMessageType())
+		msg := dynamic.NewMessage(fd.GetMessageType())
+		err := proto.Unmarshal(bytes, msg)
+		if err != nil {
+			return zeroValue, err
+		}
+
+		val.messageVal = msg
+		return val, nil
+
+	default:
+		fmt.Println("REPEATED")
+		// even if the field is not repeated or not packed, we still parse it as such for
+		// backwards compatibility (e.g. message we are de-serializing could have been both
+		// repeated and packed at the time of serialization)
+		packedBuf := newCodedBuffer(bytes)
+		var slice []interface{}
+		var ifaceVal interface{}
+		for !packedBuf.eof() {
+			var v uint64
+			var err error
+			if varintTypes[fd.GetType()] {
+				v, err = packedBuf.decodeVarint()
+			} else if fixed32Types[fd.GetType()] {
+				v, err = packedBuf.decodeFixed32()
+			} else if fixed64Types[fd.GetType()] {
+				v, err = packedBuf.decodeFixed64()
+			} else {
+				return zeroValue, fmt.Errorf("bad input; cannot parse length-delimited wire type for field %s", fd.GetFullyQualifiedName())
+			}
+			if err != nil {
+				return zeroValue, err
+			}
+			ifaceVal, err = unmarshalSimpleField(fd, v)
+			if err != nil {
+				return zeroValue, err
+			}
+			if fd.IsRepeated() {
+				slice = append(slice, ifaceVal)
+			}
+		}
+
+		if fd.IsRepeated() {
+			val.ifaceSliceVal = slice
+			return val, nil
+		}
+
+		// TODO: Return error here? Not sure when this can happen
+		// if not a repeated field, last value wins
+		val.ifaceVal = val
+		return val, nil
+	}
+}
+
+func (u *unmarshalIter) skip(wireType int8) {
+
+}
+
+func (u *unmarshalIter) hasNext() bool {
+	return !u.codedBuffer.eof() && u.err == nil
+}
+
+func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
+	u.schema = schema
+	u.last = unmarshalValue{}
+	u.err = nil
+	u.codedBuffer.reset(buf)
+}
+
+// A reader/writer type that assists with encoding and decoding protobuf's binary representation.
+// This code is largely a fork of proto.Buffer, which cannot be used because it has no exported
+// field or method that provides access to its underlying reader index.
 type codedBuffer struct {
 	buf   []byte
 	index int
