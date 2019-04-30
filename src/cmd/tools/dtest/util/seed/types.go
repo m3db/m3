@@ -24,8 +24,8 @@ import (
 	"math/rand"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Generator generates data

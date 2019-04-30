@@ -88,7 +88,9 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	}
 	// Test setup
 	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
+		SetTickMinimumInterval(time.Second).
+		SetUseTChannelClientForReading(false).
+		SetUseTChannelClientForWriting(false)
 	if setTestOpts != nil {
 		testOpts = setTestOpts(t, testOpts)
 	}
