@@ -45,11 +45,10 @@ func init() {
 }
 
 type unmarshalIter struct {
-	schema        *desc.MessageDescriptor
-	repeatedAccum map[int32][]unmarshalValue
-	codedBuffer   *codedBuffer
-	last          unmarshalValue
-	err           error
+	schema      *desc.MessageDescriptor
+	codedBuffer *codedBuffer
+	last        unmarshalValue
+	err         error
 }
 
 // TODO: Make smaller
@@ -72,8 +71,7 @@ type unmarshalValue struct {
 
 func newUnmarshalIter() *unmarshalIter {
 	return &unmarshalIter{
-		repeatedAccum: map[int32][]unmarshalValue{},
-		codedBuffer:   newCodedBuffer(nil),
+		codedBuffer: newCodedBuffer(nil),
 	}
 }
 
@@ -106,7 +104,7 @@ func (u *unmarshalIter) unmarshalField(isGroup bool) error {
 		fmt.Println("tag: ", tag)
 
 		if wireType == proto.WireEndGroup {
-			panic("wire end group!?")
+			panic("wire end")
 			if isGroup {
 				// Finished parsing group.
 				return nil
@@ -119,32 +117,16 @@ func (u *unmarshalIter) unmarshalField(isGroup bool) error {
 			return fmt.Errorf("encountered unknown field with tag: %d", tag)
 		}
 
-		last, err := u.unmarshalKnownField(fd, wireType)
+		u.last, err = u.unmarshalKnownField(fd, wireType)
 		if err != nil {
 			return err
 		}
-
-		if !fd.IsRepeated() {
-			u.last = last
-			continue
-		}
-
-		fmt.Println("Repeated!")
-		// TODO: Rename isRepeated
-		isGroup = true
-		fieldNum := fd.GetNumber()
-		existing, ok := u.repeatedAccum[fieldNum]
-		if !ok {
-			existing = []unmarshalValue{}
-		}
-		existing = append(existing, last)
-		u.repeatedAccum[fieldNum] = existing
 	}
 
 	// TODO: Maybe delete this code path
-	// if isGroup {
-	// 	return io.ErrUnexpectedEOF
-	// }
+	if isGroup {
+		return io.ErrUnexpectedEOF
+	}
 
 	fmt.Println("eof?", u.codedBuffer.eof())
 	return nil
