@@ -460,6 +460,34 @@ func (mr *MockIndexOptionsMockRecorder) BlockSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockSize", reflect.TypeOf((*MockIndexOptions)(nil).BlockSize))
 }
 
+// SetUseAsIndex mocks base method
+func (m *MockIndexOptions) SetUseAsIndex(b bool) IndexOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetUseAsIndex", b)
+	ret0, _ := ret[0].(IndexOptions)
+	return ret0
+}
+
+// SetUseAsIndex indicates an expected call of SetUseAsIndex
+func (mr *MockIndexOptionsMockRecorder) SetUseAsIndex(b interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUseAsIndex", reflect.TypeOf((*MockIndexOptions)(nil).SetUseAsIndex), b)
+}
+
+// UseAsIndex mocks base method
+func (m *MockIndexOptions) UseAsIndex() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UseAsIndex")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// UseAsIndex indicates an expected call of UseAsIndex
+func (mr *MockIndexOptionsMockRecorder) UseAsIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseAsIndex", reflect.TypeOf((*MockIndexOptions)(nil).UseAsIndex))
+}
+
 // MockSchemaDescr is a mock of SchemaDescr interface
 type MockSchemaDescr struct {
 	ctrl     *gomock.Controller
