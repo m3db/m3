@@ -440,6 +440,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#nodeaffinityterm" title="NodeAffinityTerm" class="md-nav__link">
+    NodeAffinityTerm
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#indexoptions" title="IndexOptions" class="md-nav__link">
     IndexOptions
   </a>
@@ -562,6 +569,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#nodeaffinityterm" title="NodeAffinityTerm" class="md-nav__link">
+    NodeAffinityTerm
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#indexoptions" title="IndexOptions" class="md-nav__link">
     IndexOptions
   </a>
@@ -632,6 +646,7 @@
 <li><a href="#m3dbcluster">M3DBCluster</a></li>
 <li><a href="#m3dbclusterlist">M3DBClusterList</a></li>
 <li><a href="#m3dbstatus">M3DBStatus</a></li>
+<li><a href="#nodeaffinityterm">NodeAffinityTerm</a></li>
 <li><a href="#indexoptions">IndexOptions</a></li>
 <li><a href="#namespace">Namespace</a></li>
 <li><a href="#namespaceoptions">NamespaceOptions</a></li>
@@ -814,15 +829,9 @@
 <td>true</td>
 </tr>
 <tr>
-<td>nodeAffinityKey</td>
-<td>NodeAffinityKey is the node label that will be used in corresponding StatefulSet match expression to assign pods to nodes. Defaults to \"failure-domain.beta.kubernetes.io/zone\".</td>
-<td>string</td>
-<td>false</td>
-</tr>
-<tr>
-<td>nodeAffinityValues</td>
-<td>NodeSelectorValues is the node label value that will be used to assign pods to nodes. Defaults to the isolation group's name, but can be overridden to allow multiple IsolationGroups to be assigned to the same zone.</td>
-<td>[]string</td>
+<td>nodeAffinityTerms</td>
+<td>NodeAffinityTerms is an array of NodeAffinityTerm requirements, which are ANDed together to indicate what nodes an isolation group can be assigned to.</td>
+<td>[]<a href="#nodeaffinityterm">NodeAffinityTerm</a></td>
 <td>false</td>
 </tr>
 <tr>
@@ -941,6 +950,33 @@
 <td>ObservedGeneration is the last generation of the cluster the controller observed. Kubernetes will automatically increment metadata.Generation every time the cluster spec is changed.</td>
 <td>int64</td>
 <td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="nodeaffinityterm">NodeAffinityTerm</h2>
+<p>NodeAffinityTerm represents a node label and a set of label values, any of which can be matched to assign a pod to a node.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>key</td>
+<td>Key is the label of the node.</td>
+<td>string</td>
+<td>true</td>
+</tr>
+<tr>
+<td>values</td>
+<td>Values is an array of values, any of which a node can have for a pod to be assigned to it.</td>
+<td>[]string</td>
+<td>true</td>
 </tr>
 </tbody>
 </table>
