@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -17,6 +18,8 @@ var (
 	ErrOverflow = errors.New("proto: integer overflow")
 
 	errGroupsAreDeprecated = errors.New("use of groups in proto wire format are deprecated")
+
+	errMessagesShouldNotBeIterativelyUnmarshaled = errors.New("messages should not be iteratively unmarshaled")
 
 	zeroValue unmarshalValue
 
@@ -45,27 +48,33 @@ func init() {
 }
 
 type unmarshalIter struct {
-	schema       *desc.MessageDescriptor
-	encodeBuf    *codedBuffer
-	decodeBuf    *codedBuffer
-	found        bool
-	last         unmarshalValue
+	schema *desc.MessageDescriptor
+
+	encodeBuf *codedBuffer
+	decodeBuf *codedBuffer
+
+	calculateSortedOffsetsComplete bool
+	// TODO: Rename this
+	found bool
+
+	last unmarshalValue
+
+	sortedOffsets    []int
+	sortedOffsetsIdx int
+
 	skippedCount int
 	err          error
 }
 
 // TODO: Make smaller
 type unmarshalValue struct {
-	fd            *desc.FieldDescriptor
-	fieldNum      int32
-	boolVal       bool
-	int64Val      int64
-	uint64Val     uint64
-	float64Val    float64
-	bytesVal      []byte
-	messageVal    *dynamic.Message
-	ifaceVal      interface{}
-	ifaceSliceVal []interface{}
+	fd         *desc.FieldDescriptor
+	fieldNum   int32
+	boolVal    bool
+	int64Val   int64
+	uint64Val  uint64
+	float64Val float64
+	bytesVal   []byte
 }
 
 func newUnmarshalIter() *unmarshalIter {
@@ -78,6 +87,14 @@ func newUnmarshalIter() *unmarshalIter {
 func (u *unmarshalIter) next() bool {
 	if !u.hasNext() {
 		return false
+	}
+
+	if !u.calculateSortedOffsetsComplete {
+		err := u.calculateSortedOffsets()
+		if err != nil {
+			u.err = err
+			return false
+		}
 	}
 
 	err := u.unmarshalField()
@@ -102,10 +119,38 @@ func (u *unmarshalIter) skipped() (*dynamic.Message, error) {
 	return m, m.Unmarshal(u.encodeBuf.buf)
 }
 
+// calculateSortedOffsets calculates the sorted offsets for all the encoded
+// fields in the marshaled protobuf so that they can subsequently be iterated
+// in sorted order.
+func (u *unmarshalIter) calculateSortedOffsets() error {
+	u.sortedOffsets = u.sortedOffsets[:0]
+	u.sortedOffsetsIdx = 0
+
+	for !u.decodeBuf.eof() {
+		startOffset := u.decodeBuf.index
+		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
+		if err != nil {
+			return err
+		}
+		u.skip(tag, wireType)
+		u.sortedOffsets = append(u.sortedOffsets, startOffset)
+	}
+
+	u.decodeBuf.reset(u.decodeBuf.buf)
+	sort.Slice(u.sortedOffsets, func(i, j int) bool {
+		return u.sortedOffsets[i] < u.sortedOffsets[j]
+	})
+	u.calculateSortedOffsetsComplete = true
+	return nil
+}
+
 func (u *unmarshalIter) unmarshalField() error {
 	u.found = false
 	var shouldContinue = true
-	for !u.decodeBuf.eof() && shouldContinue {
+	for u.sortedOffsetsIdx < len(u.sortedOffsets) && shouldContinue {
+		u.decodeBuf.index = u.sortedOffsets[u.sortedOffsetsIdx]
+		u.sortedOffsetsIdx++
+
 		shouldContinue = false
 
 		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
@@ -353,55 +398,50 @@ func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unma
 
 	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE ||
 		fd.GetType() == dpb.FieldDescriptorProto_TYPE_GROUP:
-		msg := dynamic.NewMessage(fd.GetMessageType())
-		err := proto.Unmarshal(bytes, msg)
-		if err != nil {
-			return zeroValue, err
-		}
+		return zeroValue, errMessagesShouldNotBeIterativelyUnmarshaled
 
-		val.messageVal = msg
-		return val, nil
-
+		// TODO: Can this ever happen? maybe delete
 	default:
+		return zeroValue, errors.New("wtf")
 		// even if the field is not repeated or not packed, we still parse it as such for
 		// backwards compatibility (e.g. message we are de-serializing could have been both
 		// repeated and packed at the time of serialization)
-		packedBuf := newCodedBuffer(bytes)
-		var slice []interface{}
-		var ifaceVal interface{}
-		for !packedBuf.eof() {
-			var v uint64
-			var err error
-			if varintTypes[fd.GetType()] {
-				v, err = packedBuf.decodeVarint()
-			} else if fixed32Types[fd.GetType()] {
-				v, err = packedBuf.decodeFixed32()
-			} else if fixed64Types[fd.GetType()] {
-				v, err = packedBuf.decodeFixed64()
-			} else {
-				return zeroValue, fmt.Errorf("bad input; cannot parse length-delimited wire type for field %s", fd.GetFullyQualifiedName())
-			}
-			if err != nil {
-				return zeroValue, err
-			}
-			ifaceVal, err = unmarshalSimpleField(fd, v)
-			if err != nil {
-				return zeroValue, err
-			}
-			if fd.IsRepeated() {
-				slice = append(slice, ifaceVal)
-			}
-		}
+		// packedBuf := newCodedBuffer(bytes)
+		// var slice []interface{}
+		// var ifaceVal interface{}
+		// for !packedBuf.eof() {
+		// 	var v uint64
+		// 	var err error
+		// 	if varintTypes[fd.GetType()] {
+		// 		v, err = packedBuf.decodeVarint()
+		// 	} else if fixed32Types[fd.GetType()] {
+		// 		v, err = packedBuf.decodeFixed32()
+		// 	} else if fixed64Types[fd.GetType()] {
+		// 		v, err = packedBuf.decodeFixed64()
+		// 	} else {
+		// 		return zeroValue, fmt.Errorf("bad input; cannot parse length-delimited wire type for field %s", fd.GetFullyQualifiedName())
+		// 	}
+		// 	if err != nil {
+		// 		return zeroValue, err
+		// 	}
+		// 	ifaceVal, err = unmarshalSimpleField(fd, v)
+		// 	if err != nil {
+		// 		return zeroValue, err
+		// 	}
+		// 	if fd.IsRepeated() {
+		// 		slice = append(slice, ifaceVal)
+		// 	}
+		// }
 
-		if fd.IsRepeated() {
-			val.ifaceSliceVal = slice
-			return val, nil
-		}
+		// if fd.IsRepeated() {
+		// 	val.ifaceSliceVal = slice
+		// 	return val, nil
+		// }
 
-		// TODO: Return error here? Not sure when this can happen
-		// if not a repeated field, last value wins
-		val.ifaceVal = val
-		return val, nil
+		// // TODO: Return error here? Not sure when this can happen
+		// // if not a repeated field, last value wins
+		// val.ifaceVal = val
+		// return val, nil
 	}
 }
 
@@ -414,6 +454,9 @@ func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
 	u.last = unmarshalValue{}
 	u.err = nil
 	u.skippedCount = 0
+	u.calculateSortedOffsetsComplete = false
+	u.sortedOffsets = u.sortedOffsets[:0]
+	u.sortedOffsetsIdx = 0
 	// TODO: pools?
 	u.encodeBuf.reset(nil)
 	u.decodeBuf.reset(buf)
