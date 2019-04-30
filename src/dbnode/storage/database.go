@@ -237,6 +237,7 @@ func (d *db) UpdateSchemaRegistry(newNamespaces namespace.Map) {
 		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
 		if !found {
 			d.log.Info("skip updating namespace schema to empty", zap.Stringer("namespace", metadata.ID()))
+			continue
 		} else {
 			d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
 				zap.String("current schema", curSchemaId), zap.String("latest schema", latestSchema.DeployId()))
