@@ -364,8 +364,8 @@ func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
-			Retrievable: statusIsRetrievable(state.WarmStatus),
-			ColdVersion: state.Version,
+			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
+			ColdVersion:     state.ColdVersion,
 		}
 	}
 
