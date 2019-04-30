@@ -354,65 +354,68 @@ func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
 	// TODO: Reuse
 	iter := newUnmarshalIter()
 	iter.reset(enc.schema, buf)
-	vals := []unmarshalValue{}
-	for iter.next() {
-		vals = append(vals, iter.current())
-	}
-	// TODO: Method
-	if iter.err != nil {
-		return iter.err
-	}
 
+	var (
+		// If there is no initial value (due to next returning false) then
+		// lastMarshaledValue should be considered unusable.
+		lastMarshaledValueConsumed = !iter.next()
+		lastMarshaledValue         = iter.current()
+	)
 	for i, customField := range enc.customFields {
-		found := false
-		for _, cur := range vals {
-			if customField.fieldNum != int(cur.fd.GetNumber()) {
-				continue
-			}
-
-			switch {
-			case isCustomFloatEncodedField(customField.fieldType):
-				if err := enc.encodeTSZValue(i, cur.float64Val); err != nil {
-					return err
-				}
-			case isCustomIntEncodedField(customField.fieldType):
-				if isUnsignedInt(customField.fieldType) {
-					if err := enc.encodeIntValue(i, cur.uint64Val); err != nil {
-						return err
-					}
-				} else {
-					if err := enc.encodeIntValue(i, cur.int64Val); err != nil {
-						return err
-					}
-				}
-
-			case customField.fieldType == bytesField:
-				if err := enc.encodeBytesValue(i, cur.bytesVal); err != nil {
-					return err
-				}
-			case customField.fieldType == boolField:
-				if err := enc.encodeBoolValue(i, cur.boolVal); err != nil {
-					return err
-				}
-			default:
-				// This should never happen.
-				return fmt.Errorf(
-					"%s error no logic for custom encoding field number: %d",
-					encErrPrefix, customField.fieldNum)
-			}
-
-			found = true
-			break
+		lastMarshaledValueFieldNumber := -1
+		if !lastMarshaledValueConsumed {
+			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
 		}
-
-		if !found {
-			// If a value for the field wasn't provided in the message then it should
-			// be the default value for that field since there are no optional fields
-			// in proto3.
-			if err := enc.encodeZeroValue(i); err != nil {
+		noMarshaledValue := (lastMarshaledValueConsumed ||
+			customField.fieldNum != lastMarshaledValueFieldNumber)
+		if noMarshaledValue {
+			err := enc.encodeZeroValue(i)
+			if err != nil {
 				return err
 			}
+			continue
 		}
+
+		switch {
+		case isCustomFloatEncodedField(customField.fieldType):
+			if err := enc.encodeTSZValue(i, lastMarshaledValue.float64Val); err != nil {
+				return err
+			}
+		case isCustomIntEncodedField(customField.fieldType):
+			if isUnsignedInt(customField.fieldType) {
+				if err := enc.encodeIntValue(i, lastMarshaledValue.uint64Val); err != nil {
+					return err
+				}
+			} else {
+				if err := enc.encodeIntValue(i, lastMarshaledValue.int64Val); err != nil {
+					return err
+				}
+			}
+
+		case customField.fieldType == bytesField:
+			if err := enc.encodeBytesValue(i, lastMarshaledValue.bytesVal); err != nil {
+				return err
+			}
+		case customField.fieldType == boolField:
+			if err := enc.encodeBoolValue(i, lastMarshaledValue.boolVal); err != nil {
+				return err
+			}
+		default:
+			// This should never happen.
+			return fmt.Errorf(
+				"%s error no logic for custom encoding field number: %d",
+				encErrPrefix, customField.fieldNum)
+		}
+
+		lastMarshaledValueConsumed = !iter.next()
+		lastMarshaledValue = iter.current()
+
+	}
+
+	// TODO: Method
+	// TODO: Only safe to do this at the end if we have a safe rollback mechanism.
+	if iter.err != nil {
+		return iter.err
 	}
 
 	skipped, err := iter.skipped()
