@@ -123,7 +123,7 @@ func (u *unmarshalIter) unmarshalField() error {
 		}
 
 		if u.shouldSkip(fd) {
-			err := u.skip(tag, wireType)
+			err := u.encodeSkipped(tag, wireType)
 			if err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ func (u *unmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
 	return false
 }
 
-func (u *unmarshalIter) skip(tag int32, wireType int8) error {
+func (u *unmarshalIter) encodeSkipped(tag int32, wireType int8) error {
 	if err := u.encodeBuf.encodeTagAndWireType(tag, wireType); err != nil {
 		return err
 	}
@@ -183,10 +183,6 @@ func (u *unmarshalIter) skip(tag int32, wireType int8) error {
 		}
 		return u.encodeBuf.encodeVarint(dec)
 	case proto.WireBytes:
-		// dec, err := u.decodeBuf.decodeVarint()
-		// if err != nil {
-		// 	return err
-		// }
 		// TODO: Definetly optimize this
 		raw, err := u.decodeBuf.decodeRawBytes(true)
 		if err != nil {
@@ -194,12 +190,41 @@ func (u *unmarshalIter) skip(tag int32, wireType int8) error {
 		}
 		return u.encodeBuf.encodeRawBytes(raw)
 	case proto.WireStartGroup:
+		return errGroupsAreDeprecated
+	case proto.WireEndGroup:
+		return errGroupsAreDeprecated
+	default:
+		return proto.ErrInternalBadWireType
+	}
+}
+
+func (u *unmarshalIter) skip(tag int32, wireType int8) error {
+	// TODO: OPTIMIZE THESE
+	switch wireType {
+	case proto.WireFixed32:
+		u.decodeBuf.index += 4
+	case proto.WireFixed64:
+		u.decodeBuf.index += 8
+	case proto.WireVarint:
+		_, err := u.decodeBuf.decodeVarint()
+		if err != nil {
+			return err
+		}
+	case proto.WireBytes:
+		// TODO: Optimize this? might be fast already
+		_, err := u.decodeBuf.decodeRawBytes(false)
+		if err != nil {
+			return err
+		}
+	case proto.WireStartGroup:
 		panic("wire start group")
 	case proto.WireEndGroup:
 		panic("wire end group")
 	default:
 		return proto.ErrInternalBadWireType
 	}
+
+	return nil
 }
 
 func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
