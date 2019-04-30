@@ -70,7 +70,7 @@ func TestUnmarshalIter(t *testing.T) {
 				2: {
 					float64Val: 1.1,
 				},
-				// TODO: Leave a comment about this
+				// TODO: Leave a comment about this in the docs
 				// 3: {
 				// 	int64Val: 0,
 				// },
@@ -99,9 +99,6 @@ func TestUnmarshalIter(t *testing.T) {
 				4: {
 					bytesVal: []byte("789789789789"),
 				},
-				5: {
-					ifaceVal: map[string]string{"key1": "val1"},
-				},
 			},
 
 			expectedSkipped: newVL(
@@ -119,12 +116,15 @@ func TestUnmarshalIter(t *testing.T) {
 		unmarshalIter.reset(testVLSchema, marshaledVL)
 
 		i := 0
+		lastFieldNum := -1
 		for unmarshalIter.next() {
 			var (
 				curr     = unmarshalIter.current()
 				fieldNum = curr.fd.GetNumber()
 				expected = tc.expectedIter[fieldNum]
 			)
+			// Make sure iteration is sorted.
+			require.True(t, int(fieldNum) > lastFieldNum)
 
 			curr.fd = nil
 			require.Equal(t, expected, curr)
