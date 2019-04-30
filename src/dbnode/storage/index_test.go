@@ -118,8 +118,8 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpSuccess})
+	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess})
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
@@ -185,8 +185,8 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpFailed})
+	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpFailed})
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
@@ -220,13 +220,13 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 
 	mockShard1 := NewMockdatabaseShard(ctrl)
 	mockShard1.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpSuccess})
+	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess})
 
 	mockShard2 := NewMockdatabaseShard(ctrl)
 	mockShard2.EXPECT().ID().Return(uint32(1)).AnyTimes()
-	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpSuccess})
+	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess})
 
 	shards := []databaseShard{mockShard1, mockShard2}
 

@@ -652,8 +652,8 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	// Perform a tick and ensure merged out of order blocks.
 	r := buffer.Tick(blockStates)
@@ -726,8 +726,8 @@ func TestBufferRemoveBucket(t *testing.T) {
 	// get removed from the bucket.
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	bucket.version = 1
 

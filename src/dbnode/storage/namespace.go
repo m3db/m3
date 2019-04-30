@@ -920,7 +920,7 @@ func (n *dbNamespace) WarmFlush(
 		}
 
 		// skip flushing if the shard has already flushed data for the `blockStart`
-		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
+		if s := shard.FlushState(blockStart); s.WarmStatus == fileOpSuccess {
 			continue
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
@@ -1110,7 +1110,7 @@ func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, aligne
 			continue
 		}
 		for _, blockStart := range blockStarts {
-			if shard.FlushState(blockStart).Status != fileOpSuccess {
+			if shard.FlushState(blockStart).WarmStatus != fileOpSuccess {
 				return true
 			}
 		}

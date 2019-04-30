@@ -134,7 +134,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	notStarted := fileOpState{Status: fileOpNotStarted}
+	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
 		assert.Equal(t, notStarted, s.FlushState(earliest))
 	}
@@ -198,7 +198,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
 	}
 
@@ -248,7 +248,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 2,
 	}, flushState)
 }
@@ -268,7 +268,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
 	}
 
@@ -314,8 +314,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
-		Status:      fileOpSuccess,
-		Version:     0,
+		WarmStatus:  fileOpSuccess,
+		ColdVersion: 0,
 		NumFailures: 0,
 	}, flushState)
 }
@@ -472,10 +472,10 @@ func TestShardTick(t *testing.T) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -633,10 +633,10 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 

@@ -335,7 +335,7 @@ func (s *dbShard) Stream(
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.Status) || flushState.Version > 0
+	return statusIsRetrievable(flushState.WarmStatus) || flushState.ColdVersion > 0
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -352,7 +352,7 @@ func statusIsRetrievable(status fileOpStatus) bool {
 // RetrievableBlockVersion implements series.QueryableBlockRetriever
 func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
-	return flushState.Version
+	return flushState.ColdVersion
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -364,8 +364,8 @@ func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
-			Retrievable: statusIsRetrievable(state.Status),
-			Version:     state.Version,
+			Retrievable: statusIsRetrievable(state.WarmStatus),
+			ColdVersion: state.Version,
 		}
 	}
 
@@ -1819,7 +1819,7 @@ func (s *dbShard) Bootstrap(
 		info := result.Info
 		at := xtime.FromNanoseconds(info.BlockStart)
 		fs := s.FlushState(at)
-		if fs.Status != fileOpNotStarted {
+		if fs.WarmStatus != fileOpNotStarted {
 			continue // Already recorded progress
 		}
 
@@ -2004,7 +2004,7 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return fileOpState{Status: fileOpNotStarted}
+		return fileOpState{WarmStatus: fileOpNotStarted}
 	}
 	return state
 }
@@ -2023,7 +2023,7 @@ func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
 		fileOpState{
-			Status: fileOpSuccess,
+			WarmStatus: fileOpSuccess,
 		}
 	s.flushState.Unlock()
 }
@@ -2031,7 +2031,7 @@ func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.Status = fileOpFailed
+	state.WarmStatus = fileOpFailed
 	state.NumFailures++
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
@@ -2040,7 +2040,7 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 func (s *dbShard) setFlushStateVersion(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.Version = version
+	state.ColdVersion = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }

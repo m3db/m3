@@ -334,12 +334,12 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(blockStart)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	r, err := series.Tick(blockStates)
 	require.NoError(t, err)
@@ -381,8 +381,8 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
@@ -410,8 +410,8 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates = make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
@@ -448,8 +448,8 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
@@ -484,8 +484,8 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates = make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)
@@ -522,8 +522,8 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	tickResult, err := series.Tick(blockStates)
 	require.NoError(t, err)
@@ -538,8 +538,8 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates = make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	tickResult, err = series.Tick(blockStates)
 	require.NoError(t, err)

@@ -318,8 +318,15 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 		// Retrievable and higher versioned buckets will be left to be
 		// collected in the next tick.
 		blockState := blockStates[tNano]
-		if blockState.Retrievable {
-			buckets.removeBucketsUpToVersion(blockState.Version)
+		if coldVersion := blockState.ColdVersion; blockState.WarmRetrievable || coldVersion > 0 {
+			if blockState.WarmRetrievable {
+				// Buckets for WarmWrites that are retrievable will only be version 1, since
+				// they only get successfully persisted once.
+				buckets.removeBucketsUpToVersion(WarmWrite, 1)
+			}
+			if coldVersion > 0 {
+				buckets.removeBucketsUpToVersion(ColdWrite, coldVersion)
+			}
 
 			if buckets.streamsLen() == 0 {
 				t := tNano.ToTime()
@@ -774,20 +781,16 @@ func (b *BufferBucketVersions) merge(writeType WriteType) (int, error) {
 	return res, nil
 }
 
-func (b *BufferBucketVersions) removeBucketsUpToVersion(version int) {
-	// TODO(juchan): in order to support ColdWrites, we need to keep track of
-	// separate bucket versions for ColdWrites and WarmWrites, since they have
-	// different persist cycles. This will involve storing that state in the
-	// shard flush state management. That state will need to be passed down
-	// here so that this function will know which WriteType/version is safe to
-	// remove.
-
+func (b *BufferBucketVersions) removeBucketsUpToVersion(
+	writeType WriteType,
+	version int,
+) {
 	// Avoid allocating a new backing array.
 	nonEvictedBuckets := b.buckets[:0]
 
 	for _, bucket := range b.buckets {
 		bVersion := bucket.version
-		if bucket.writeType == WarmWrite && bVersion != writableBucketVer &&
+		if bucket.writeType == writeType && bVersion != writableBucketVer &&
 			bVersion <= version {
 			// We no longer need to keep any version which is equal to
 			// or less than the retrievable version, since that means

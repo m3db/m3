@@ -157,10 +157,10 @@ type QueryableBlockRetriever interface {
 	BlockStatesSnapshot() map[xtime.UnixNano]BlockState
 }
 
-// BlockState contains the state of a block
+// BlockState contains the state of a block.
 type BlockState struct {
-	Retrievable bool
-	Version     int
+	WarmRetrievable bool
+	ColdVersion     int
 }
 
 // TickStatus is the status of a series for a given tick.

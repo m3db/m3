@@ -207,7 +207,7 @@ func (s *dbSeries) updateBlocksWithLock(
 		// Makes sure that the block has been flushed, which
 		// prevents us from unwiring blocks that haven't been flushed yet which
 		// would cause data loss.
-		if blockState := blockStates[startNano]; blockState.Retrievable {
+		if blockState := blockStates[startNano]; blockState.WarmRetrievable {
 			switch cachePolicy {
 			case CacheNone:
 				shouldUnwire = true

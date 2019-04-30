@@ -735,7 +735,7 @@ func (i *nsIndex) canFlushBlock(
 		start := block.StartTime()
 		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
 		for t := start; t.Before(block.EndTime()); t = t.Add(dataBlockSize) {
-			if shard.FlushState(t).Status != fileOpSuccess {
+			if shard.FlushState(t).WarmStatus != fileOpSuccess {
 				return false
 			}
 		}
