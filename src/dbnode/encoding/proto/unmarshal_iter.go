@@ -59,11 +59,27 @@ type unmarshalIter struct {
 
 	last unmarshalValue
 
-	sortedOffsets    []int
+	sortedOffsets    sortedOffsets
 	sortedOffsetsIdx int
 
-	skippedCount int
-	err          error
+	skippedMessage *dynamic.Message
+	skippedCount   int
+	err            error
+}
+
+// Implement Sort interface because sort.Slice allocates.
+type sortedOffsets []int
+
+func (s sortedOffsets) Len() int {
+	return len(s)
+}
+
+func (s sortedOffsets) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+func (s sortedOffsets) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
 // TODO: Make smaller
@@ -115,8 +131,10 @@ func (u *unmarshalIter) numSkipped() int {
 }
 
 func (u *unmarshalIter) skipped() (*dynamic.Message, error) {
-	m := dynamic.NewMessage(u.schema)
-	return m, m.Unmarshal(u.encodeBuf.buf)
+	if u.skippedMessage == nil {
+		u.skippedMessage = dynamic.NewMessage(u.schema)
+	}
+	return u.skippedMessage, u.skippedMessage.Unmarshal(u.encodeBuf.buf)
 }
 
 // calculateSortedOffsets calculates the sorted offsets for all the encoded
@@ -126,6 +144,7 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 	u.sortedOffsets = u.sortedOffsets[:0]
 	u.sortedOffsetsIdx = 0
 
+	isSorted := true
 	for !u.decodeBuf.eof() {
 		startOffset := u.decodeBuf.index
 		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
@@ -133,15 +152,32 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 			return err
 		}
 		u.skip(tag, wireType)
+
+		if isSorted && len(u.sortedOffsets) > 1 {
+			// Check if the slice is sorted as its built to avoid resorting
+			// it at the end if there is no need.
+			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1]
+			if startOffset < lastOffset {
+				isSorted = false
+			}
+		}
+
 		u.sortedOffsets = append(u.sortedOffsets, startOffset)
 	}
 
 	u.decodeBuf.reset(u.decodeBuf.buf)
-	sort.Slice(u.sortedOffsets, func(i, j int) bool {
-		return u.sortedOffsets[i] < u.sortedOffsets[j]
-	})
+
+	if !isSorted {
+		// Avoid resorting if possible.
+		sort.Sort(u.sortedOffsets)
+	}
+
 	u.calculateSortedOffsetsComplete = true
 	return nil
+}
+
+func (u *unmarshalIter) swapFn(i, j int) bool {
+	return u.sortedOffsets[i] < u.sortedOffsets[j]
 }
 
 func (u *unmarshalIter) unmarshalField() error {
@@ -228,8 +264,7 @@ func (u *unmarshalIter) encodeSkipped(tag int32, wireType int8) error {
 		}
 		return u.encodeBuf.encodeVarint(dec)
 	case proto.WireBytes:
-		// TODO: Definetly optimize this
-		raw, err := u.decodeBuf.decodeRawBytes(true)
+		raw, err := u.decodeBuf.decodeRawBytes(false)
 		if err != nil {
 			return err
 		}
@@ -296,7 +331,7 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 	case proto.WireBytes:
 		if fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES ||
 			fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
-			raw, err := u.decodeBuf.decodeRawBytes(true) // defensive copy
+			raw, err := u.decodeBuf.decodeRawBytes(false)
 			if err != nil {
 				return zeroValue, err
 			}
@@ -450,6 +485,11 @@ func (u *unmarshalIter) hasNext() bool {
 }
 
 func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
+	if schema != u.schema {
+		u.skippedMessage = dynamic.NewMessage(schema)
+		u.skippedMessage.Reset()
+	}
+
 	u.schema = schema
 	u.last = unmarshalValue{}
 	u.err = nil
