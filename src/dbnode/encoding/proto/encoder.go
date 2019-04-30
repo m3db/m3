@@ -377,13 +377,14 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 			}
 
 		case customField.fieldType == bytesField:
-			if err := enc.encodeBytesValue(i, lastMarshaledValue.bytesVal); err != nil {
+			err := enc.encodeBytesValue(i, lastMarshaledValue.bytesVal)
+			if err != nil {
 				return err
 			}
+
 		case customField.fieldType == boolField:
-			if err := enc.encodeBoolValue(i, lastMarshaledValue.boolVal); err != nil {
-				return err
-			}
+			enc.encodeBoolValue(i, lastMarshaledValue.boolVal)
+
 		default:
 			// This should never happen.
 			return fmt.Errorf(
@@ -437,7 +438,8 @@ func (enc *Encoder) encodeZeroValue(i int) error {
 		return enc.encodeBytesValue(i, zeroBytes)
 
 	case customField.fieldType == boolField:
-		return enc.encodeBoolValue(i, false)
+		enc.encodeBoolValue(i, false)
+		return nil
 
 	default:
 		// This should never happen.
@@ -660,20 +662,12 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	return nil
 }
 
-func (enc *Encoder) encodeBoolValue(i int, val interface{}) error {
-	boolVal, ok := val.(bool)
-	if !ok {
-		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, enc.customFields[i].fieldNum)
-	}
-
+func (enc *Encoder) encodeBoolValue(i int, val bool) {
 	if boolVal {
 		enc.stream.WriteBit(opCodeBoolTrue)
 	} else {
 		enc.stream.WriteBit(opCodeBoolFalse)
 	}
-
-	return nil
 }
 
 func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
