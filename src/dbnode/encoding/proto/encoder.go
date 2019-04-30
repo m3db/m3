@@ -663,7 +663,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 }
 
 func (enc *Encoder) encodeBoolValue(i int, val bool) {
-	if boolVal {
+	if val {
 		enc.stream.WriteBit(opCodeBoolTrue)
 	} else {
 		enc.stream.WriteBit(opCodeBoolFalse)
