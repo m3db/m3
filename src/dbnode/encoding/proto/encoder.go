@@ -668,7 +668,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	fmt.Println("encoding: ", m.String())
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
