@@ -101,6 +101,7 @@ type dbNamespace struct {
 	sync.RWMutex
 
 	closed             bool
+	useAsIndex         bool
 	shutdownCh         chan struct{}
 	id                 ident.ID
 	shardSet           sharding.ShardSet
@@ -285,11 +286,15 @@ func newDatabaseNamespace(
 	opts Options,
 ) (databaseNamespace, error) {
 	var (
-		nopts = metadata.Options()
-		id    = metadata.ID()
+		nopts      = metadata.Options()
+		id         = metadata.ID()
+		useAsIndex bool
 	)
 	if !nopts.WritesToCommitLog() {
 		commitLogWriter = commitLogWriteNoOp
+	}
+	if nopts.IndexOptions().UseAsIndex() {
+		useAsIndex = true
 	}
 
 	iops := opts.InstrumentOptions()
@@ -335,6 +340,7 @@ func newDatabaseNamespace(
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
+		useAsIndex:             useAsIndex,
 		schemaRegistry:         metadata.Options().SchemaRegistry(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
@@ -591,8 +597,11 @@ func (n *dbNamespace) Write(
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
+	opts := series.WriteOptions{
+		UseAsIndex: n.useAsIndex,
+	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
-		value, unit, annotation, series.WriteOptions{})
+		value, unit, annotation, opts)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -616,8 +625,11 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
+	opts := series.WriteOptions{
+		UseAsIndex: n.useAsIndex,
+	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
-		value, unit, annotation, series.WriteOptions{})
+		value, unit, annotation, opts)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }

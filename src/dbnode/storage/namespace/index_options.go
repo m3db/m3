@@ -33,8 +33,9 @@ var (
 )
 
 type indexOpts struct {
-	enabled   bool
-	blockSize time.Duration
+	enabled    bool
+	useAsIndex bool
+	blockSize  time.Duration
 }
 
 // NewIndexOptions returns a new IndexOptions.
@@ -68,4 +69,14 @@ func (i *indexOpts) SetBlockSize(value time.Duration) IndexOptions {
 
 func (i *indexOpts) BlockSize() time.Duration {
 	return i.blockSize
+}
+
+func (i *indexOpts) SetUseAsIndex(b bool) IndexOptions {
+	io := *i
+	io.useAsIndex = b
+	return &io
+}
+
+func (i *indexOpts) UseAsIndex() bool {
+	return i.useAsIndex
 }

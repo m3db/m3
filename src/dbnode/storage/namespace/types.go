@@ -114,6 +114,12 @@ type IndexOptions interface {
 
 	// BlockSize returns the block size.
 	BlockSize() time.Duration
+
+	// SetUseAsIndex sets whether or not this namespace is being used as an index.
+	SetUseAsIndex(b bool) IndexOptions
+
+	// UseAsIndex returns whether this namespace is being used as an index.
+	UseAsIndex() bool
 }
 
 // SchemaDescr describes the schema for a complex type value.
