@@ -78,8 +78,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	// TODO: May not need this buf anymore
-	unmarshaled *dynamic.Message
+	unmarshalIter *unmarshalIter
 
 	hardErr          error
 	hasEncodedSchema bool
@@ -135,29 +134,13 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// it doesn't cause LastEncoded() to produce invalid results.
 	dp.Value = float64(0)
 
-	if enc.unmarshaled == nil {
+	if enc.unmarshalIter == nil {
 		// Lazy init.
-		enc.unmarshaled = dynamic.NewMessage(enc.schema)
+		enc.unmarshalIter = newUnmarshalIter()
 	}
 
-	// Unmarshal the ProtoBuf message first to ensure we have a valid message before
-	// we do anything else to reduce the change that we'll end up with a partially
-	// encoded message.
-	// TODO(rartoul): No need to allocate and unmarshal here, could do this in a streaming
-	// fashion if we write our own decoder or expose the one in the underlying library.
-	// if err := enc.unmarshaled.Unmarshal(protoBytes); err != nil {
-	// 	return fmt.Errorf(
-	// 		"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
-	// }
-
-	// TODO: Reinstate this behavior somehow
-	// if len(enc.unmarshaled.GetUnknownFields()) > 0 {
-	// 	// TODO(rartoul): Make this behavior configurable / this may change once we implement
-	// 	// mid-stream schema changes to make schema upgrades easier for clients.
-	// 	// https://github.com/m3db/m3/issues/1471
-	// 	return errEncoderMessageHasUnknownFields
-	// }
-
+	// TODO: Handle unknown fields by rejecitng
+	// TODO: Support "rollbacks" if we partially encode a bad message
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
 
@@ -170,6 +153,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
 	)
 	if needToEncodeSchema || needToEncodeTimeUnit {
+		// TODO: Add helper method here
 		// First bit means either there is no more data OR the time unit and/or schema has changed.
 		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
 		// Next bit means there is more data, but the time unit and/or schema has changed has changed.
@@ -341,7 +325,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	// TODO: Reuse
-	iter := newUnmarshalIter()
+	iter := enc.unmarshalIter
 	iter.reset(enc.schema, buf)
 
 	var (
@@ -481,7 +465,6 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 		start, enc.opts.DefaultTimeUnit(), enc.opts)
 	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
-	enc.unmarshaled = nil
 
 	// Prevent this from growing too large and remaining in the pools.
 	enc.marshalBuf = nil
@@ -504,9 +487,10 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	} else {
 		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
-		enc.lastEncoded = dynamic.NewMessage(schema)
-		enc.unmarshaled = dynamic.NewMessage(schema)
-	}
+	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
+	// schemas to see if they have changed:
+	// https://github.com/m3db/m3/issues/1471
+	enc.lastEncoded = dynamic.NewMessage(schema)
 	enc.hasEncodedSchema = false
 }
 
