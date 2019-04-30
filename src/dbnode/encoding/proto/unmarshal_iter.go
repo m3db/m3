@@ -138,8 +138,6 @@ func (u *unmarshalIter) unmarshalField() error {
 			return err
 		}
 		u.found = true
-		fmt.Println("hmm: ", u.last.fd)
-		fmt.Println("hmm: ", u.last.fd.GetNumber())
 	}
 
 	return nil
