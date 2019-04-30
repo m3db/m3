@@ -45,10 +45,12 @@ func init() {
 }
 
 type unmarshalIter struct {
-	schema      *desc.MessageDescriptor
-	codedBuffer *codedBuffer
-	last        unmarshalValue
-	err         error
+	schema       *desc.MessageDescriptor
+	encodeBuf    *codedBuffer
+	decodeBuf    *codedBuffer
+	last         unmarshalValue
+	skippedCount int
+	err          error
 }
 
 // TODO: Make smaller
@@ -71,7 +73,8 @@ type unmarshalValue struct {
 
 func newUnmarshalIter() *unmarshalIter {
 	return &unmarshalIter{
-		codedBuffer: newCodedBuffer(nil),
+		encodeBuf: newCodedBuffer(nil),
+		decodeBuf: newCodedBuffer(nil),
 	}
 }
 
@@ -80,7 +83,7 @@ func (u *unmarshalIter) next() bool {
 		return false
 	}
 
-	err := u.unmarshalField(false)
+	err := u.unmarshalField()
 	if err != nil {
 		u.err = err
 		return false
@@ -93,28 +96,43 @@ func (u *unmarshalIter) current() unmarshalValue {
 	return u.last
 }
 
-func (u *unmarshalIter) unmarshalField(isGroup bool) error {
-	var isFirst = true
-	for !u.codedBuffer.eof() && (isFirst || isGroup) {
-		isFirst = false
-		tag, wireType, err := u.codedBuffer.decodeTagAndWireType()
+func (u *unmarshalIter) numSkipped() int {
+	return u.skippedCount
+}
+
+func (u *unmarshalIter) skipped() (*dynamic.Message, error) {
+	m := dynamic.NewMessage(u.schema)
+	return m, m.Unmarshal(u.encodeBuf.buf)
+}
+
+func (u *unmarshalIter) unmarshalField() error {
+	var shouldContinue = true
+	for !u.decodeBuf.eof() && shouldContinue {
+		shouldContinue = false
+
+		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
 		if err != nil {
 			return err
 		}
-		fmt.Println("tag: ", tag)
 
 		if wireType == proto.WireEndGroup {
-			panic("wire end")
-			if isGroup {
-				// Finished parsing group.
-				return nil
-			}
-			return proto.ErrInternalBadWireType
+			return errGroupsAreDeprecated
 		}
 
 		fd := u.schema.FindFieldByNumber(tag)
 		if fd == nil {
 			return fmt.Errorf("encountered unknown field with tag: %d", tag)
+		}
+
+		if u.shouldSkip(fd) {
+			err := u.skip(tag, wireType)
+			if err != nil {
+				return err
+			}
+
+			u.skippedCount++
+			shouldContinue = true
+			continue
 		}
 
 		u.last, err = u.unmarshalKnownField(fd, wireType)
@@ -123,31 +141,84 @@ func (u *unmarshalIter) unmarshalField(isGroup bool) error {
 		}
 	}
 
-	// TODO: Maybe delete this code path
-	if isGroup {
-		return io.ErrUnexpectedEOF
+	return nil
+}
+
+func (u *unmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
+	if fd.IsRepeated() || fd.IsMap() {
+		// Map should always be repeated but include the guard just in case.
+		return true
 	}
 
-	fmt.Println("eof?", u.codedBuffer.eof())
-	return nil
+	if fd.GetMessageType() != nil {
+		// Skip nested messages.
+		return true
+	}
+
+	return false
+}
+
+func (u *unmarshalIter) skip(tag int32, wireType int8) error {
+	if err := u.encodeBuf.encodeTagAndWireType(tag, wireType); err != nil {
+		return err
+	}
+
+	// TODO: OPTIMIZE THESE
+	switch wireType {
+	case proto.WireFixed32:
+		dec, err := u.decodeBuf.decodeFixed32()
+		if err != nil {
+			return err
+		}
+		return u.encodeBuf.encodeFixed32(dec)
+	case proto.WireFixed64:
+		dec, err := u.decodeBuf.decodeFixed64()
+		if err != nil {
+			return err
+		}
+		return u.encodeBuf.encodeFixed64(dec)
+	case proto.WireVarint:
+		dec, err := u.decodeBuf.decodeVarint()
+		if err != nil {
+			return err
+		}
+		return u.encodeBuf.encodeVarint(dec)
+	case proto.WireBytes:
+		// dec, err := u.decodeBuf.decodeVarint()
+		// if err != nil {
+		// 	return err
+		// }
+		// TODO: Definetly optimize this
+		raw, err := u.decodeBuf.decodeRawBytes(true)
+		if err != nil {
+			return err
+		}
+		return u.encodeBuf.encodeRawBytes(raw)
+	case proto.WireStartGroup:
+		panic("wire start group")
+	case proto.WireEndGroup:
+		panic("wire end group")
+	default:
+		return proto.ErrInternalBadWireType
+	}
 }
 
 func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
 	switch wireType {
 	case proto.WireFixed32:
-		num, err := u.codedBuffer.decodeFixed32()
+		num, err := u.decodeBuf.decodeFixed32()
 		if err != nil {
 			return zeroValue, err
 		}
 		return unmarshalSimpleField(fd, num)
 	case proto.WireFixed64:
-		num, err := u.codedBuffer.decodeFixed64()
+		num, err := u.decodeBuf.decodeFixed64()
 		if err != nil {
 			return zeroValue, err
 		}
 		return unmarshalSimpleField(fd, num)
 	case proto.WireVarint:
-		num, err := u.codedBuffer.decodeVarint()
+		num, err := u.decodeBuf.decodeVarint()
 		if err != nil {
 			return zeroValue, err
 		}
@@ -156,7 +227,7 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 	case proto.WireBytes:
 		if fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES ||
 			fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
-			raw, err := u.codedBuffer.decodeRawBytes(true) // defensive copy
+			raw, err := u.decodeBuf.decodeRawBytes(true) // defensive copy
 			if err != nil {
 				return zeroValue, err
 			}
@@ -171,7 +242,7 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 			return val, nil
 		}
 
-		raw, err := u.codedBuffer.decodeRawBytes(false)
+		raw, err := u.decodeBuf.decodeRawBytes(false)
 		if err != nil {
 			return zeroValue, err
 		}
@@ -179,7 +250,6 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 		return unmarshalLengthDelimitedField(fd, raw)
 
 	case proto.WireStartGroup:
-		fmt.Println("group!???")
 		return zeroValue, errGroupsAreDeprecated
 	default:
 		return zeroValue, proto.ErrInternalBadWireType
@@ -268,9 +338,6 @@ func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unma
 
 	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE ||
 		fd.GetType() == dpb.FieldDescriptorProto_TYPE_GROUP:
-		fmt.Println("type message or group, map?", fd.IsMap())
-		fmt.Println("type:", fd.GetType())
-		fmt.Println("message type", fd.GetMessageType())
 		msg := dynamic.NewMessage(fd.GetMessageType())
 		err := proto.Unmarshal(bytes, msg)
 		if err != nil {
@@ -281,7 +348,6 @@ func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unma
 		return val, nil
 
 	default:
-		fmt.Println("REPEATED")
 		// even if the field is not repeated or not packed, we still parse it as such for
 		// backwards compatibility (e.g. message we are de-serializing could have been both
 		// repeated and packed at the time of serialization)
@@ -324,19 +390,18 @@ func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unma
 	}
 }
 
-func (u *unmarshalIter) skip(wireType int8) {
-
-}
-
 func (u *unmarshalIter) hasNext() bool {
-	return !u.codedBuffer.eof() && u.err == nil
+	return !u.decodeBuf.eof() && u.err == nil
 }
 
 func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
 	u.schema = schema
 	u.last = unmarshalValue{}
 	u.err = nil
-	u.codedBuffer.reset(buf)
+	u.skippedCount = 0
+	// TODO: pools?
+	u.encodeBuf.reset(nil)
+	u.decodeBuf.reset(buf)
 }
 
 // A reader/writer type that assists with encoding and decoding protobuf's binary representation.
@@ -511,6 +576,14 @@ func (cb *codedBuffer) decodeTagAndWireType() (tag int32, wireType int8, err err
 	return
 }
 
+// TODO: Maybe delete?
+func (cb *codedBuffer) peekTagAndWireType() (tag int32, wireType int8, err error) {
+	start := cb.index
+	tag, wireType, err = cb.decodeTagAndWireType()
+	cb.index = start
+	return tag, wireType, err
+}
+
 // DecodeFixed64 reads a 64-bit integer from the Buffer.
 // This is the format for the
 // fixed64, sfixed64, and double protocol buffer types.
@@ -640,35 +713,11 @@ func (cb *codedBuffer) encodeFixed32(x uint64) error {
 	return nil
 }
 
-func encodeZigZag64(v int64) uint64 {
-	return (uint64(v) << 1) ^ uint64(v>>63)
-}
-
-func encodeZigZag32(v int32) uint64 {
-	return uint64((uint32(v) << 1) ^ uint32((v >> 31)))
-}
-
 // EncodeRawBytes writes a count-delimited byte buffer to the Buffer.
 // This is the format used for the bytes protocol buffer
 // type and for embedded messages.
 func (cb *codedBuffer) encodeRawBytes(b []byte) error {
 	cb.encodeVarint(uint64(len(b)))
 	cb.buf = append(cb.buf, b...)
-	return nil
-}
-
-func (cb *codedBuffer) encodeMessage(pm proto.Message) error {
-	bytes, err := proto.Marshal(pm)
-	if err != nil {
-		return err
-	}
-	if len(bytes) == 0 {
-		return nil
-	}
-
-	if err := cb.encodeVarint(uint64(len(bytes))); err != nil {
-		return err
-	}
-	cb.buf = append(cb.buf, bytes...)
 	return nil
 }

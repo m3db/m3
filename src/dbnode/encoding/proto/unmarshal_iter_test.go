@@ -21,10 +21,10 @@
 package proto
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,14 +37,15 @@ func TestUnmarshalIter(t *testing.T) {
 		deliveryID []byte
 		attributes map[string]string
 
-		expected map[int32]unmarshalValue
+		expectedIter    map[int32]unmarshalValue
+		expectedSkipped *dynamic.Message
 	}{
 		{
 			latitude:  0.1,
 			longitude: 1.1,
 			epoch:     -1,
 
-			expected: map[int32]unmarshalValue{
+			expectedIter: map[int32]unmarshalValue{
 				1: {
 					float64Val: 0.1,
 				},
@@ -62,7 +63,7 @@ func TestUnmarshalIter(t *testing.T) {
 			epoch:      0,
 			deliveryID: []byte("123123123123"),
 
-			expected: map[int32]unmarshalValue{
+			expectedIter: map[int32]unmarshalValue{
 				1: {
 					float64Val: 0.1,
 				},
@@ -85,7 +86,7 @@ func TestUnmarshalIter(t *testing.T) {
 			deliveryID: []byte("789789789789"),
 			attributes: map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"},
 
-			expected: map[int32]unmarshalValue{
+			expectedIter: map[int32]unmarshalValue{
 				1: {
 					float64Val: 0.2,
 				},
@@ -102,6 +103,9 @@ func TestUnmarshalIter(t *testing.T) {
 					ifaceVal: map[string]string{"key1": "val1"},
 				},
 			},
+
+			expectedSkipped: newVL(
+				0, 0, 0, nil, map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"}),
 		},
 	}
 
@@ -114,19 +118,14 @@ func TestUnmarshalIter(t *testing.T) {
 
 		unmarshalIter.reset(testVLSchema, marshaledVL)
 
-		fmt.Println("-------------")
 		i := 0
 		for unmarshalIter.next() {
 			var (
 				curr     = unmarshalIter.current()
 				fieldNum = curr.fd.GetNumber()
-				expected = tc.expected[fieldNum]
+				expected = tc.expectedIter[fieldNum]
 			)
 
-			fmt.Println(curr)
-			if curr.messageVal != nil {
-				fmt.Println(curr.messageVal.String())
-			}
 			curr.fd = nil
 			require.Equal(t, expected, curr)
 			i++
@@ -134,6 +133,18 @@ func TestUnmarshalIter(t *testing.T) {
 
 		// TODO: Make this a method?
 		require.NoError(t, unmarshalIter.err)
-		require.Equal(t, len(tc.expected), i)
+		require.Equal(t, len(tc.expectedIter), i)
+
+		if len(tc.attributes) > 0 {
+			require.Equal(t, len(tc.attributes), unmarshalIter.numSkipped())
+			m, err := unmarshalIter.skipped()
+			require.NoError(t, err)
+			assertAttributesEqual(
+				t,
+				tc.attributes,
+				m.GetFieldByName("attributes").(map[interface{}]interface{}))
+		} else {
+			require.Equal(t, 0, unmarshalIter.numSkipped())
+		}
 	}
 }
