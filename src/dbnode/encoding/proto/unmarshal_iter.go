@@ -48,6 +48,7 @@ type unmarshalIter struct {
 	schema       *desc.MessageDescriptor
 	encodeBuf    *codedBuffer
 	decodeBuf    *codedBuffer
+	found        bool
 	last         unmarshalValue
 	skippedCount int
 	err          error
@@ -58,14 +59,10 @@ type unmarshalValue struct {
 	fd            *desc.FieldDescriptor
 	fieldNum      int32
 	boolVal       bool
-	int32Val      int32
 	int64Val      int64
-	uint32Val     uint32
 	uint64Val     uint64
-	float32Val    float32
 	float64Val    float64
 	bytesVal      []byte
-	stringVal     string
 	messageVal    *dynamic.Message
 	ifaceVal      interface{}
 	ifaceSliceVal []interface{}
@@ -89,7 +86,7 @@ func (u *unmarshalIter) next() bool {
 		return false
 	}
 
-	return true
+	return u.found
 }
 
 func (u *unmarshalIter) current() unmarshalValue {
@@ -106,6 +103,7 @@ func (u *unmarshalIter) skipped() (*dynamic.Message, error) {
 }
 
 func (u *unmarshalIter) unmarshalField() error {
+	u.found = false
 	var shouldContinue = true
 	for !u.decodeBuf.eof() && shouldContinue {
 		shouldContinue = false
@@ -139,6 +137,9 @@ func (u *unmarshalIter) unmarshalField() error {
 		if err != nil {
 			return err
 		}
+		u.found = true
+		fmt.Println("hmm: ", u.last.fd)
+		fmt.Println("hmm: ", u.last.fd.GetNumber())
 	}
 
 	return nil
@@ -233,12 +234,7 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 			}
 
 			val := unmarshalValue{fd: fd}
-			if fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES {
-				val.bytesVal = raw
-				return val, nil
-			}
-
-			val.stringVal = string(raw)
+			val.bytesVal = raw
 			return val, nil
 		}
 
@@ -268,7 +264,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.uint32Val = uint32(v)
+		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_INT32,
@@ -277,21 +273,21 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 		if s > math.MaxInt32 || s < math.MinInt32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.int32Val = int32(s)
+		val.int64Val = s
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SFIXED32:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.int32Val = int32(v)
+		val.int64Val = int64(v)
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT32:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.int32Val = decodeZigZag32(v)
+		val.int64Val = int64(decodeZigZag32(v))
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_UINT64,
@@ -312,7 +308,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.float32Val = math.Float32frombits(uint32(v))
+		val.float64Val = float64(math.Float32frombits(uint32(v)))
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_DOUBLE:
@@ -328,12 +324,8 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unmarshalValue, error) {
 	val := unmarshalValue{fd: fd}
 	switch {
-	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES:
+	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES, fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING:
 		val.bytesVal = bytes
-		return val, nil
-
-	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING:
-		val.stringVal = string(bytes)
 		return val, nil
 
 	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE ||

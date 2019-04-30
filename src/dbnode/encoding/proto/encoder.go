@@ -78,6 +78,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
+	// TODO: May not need this buf anymore
 	unmarshaled *dynamic.Message
 
 	hardErr          error
@@ -144,17 +145,18 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// encoded message.
 	// TODO(rartoul): No need to allocate and unmarshal here, could do this in a streaming
 	// fashion if we write our own decoder or expose the one in the underlying library.
-	if err := enc.unmarshaled.Unmarshal(protoBytes); err != nil {
-		return fmt.Errorf(
-			"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
-	}
+	// if err := enc.unmarshaled.Unmarshal(protoBytes); err != nil {
+	// 	return fmt.Errorf(
+	// 		"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
+	// }
 
-	if len(enc.unmarshaled.GetUnknownFields()) > 0 {
-		// TODO(rartoul): Make this behavior configurable / this may change once we implement
-		// mid-stream schema changes to make schema upgrades easier for clients.
-		// https://github.com/m3db/m3/issues/1471
-		return errEncoderMessageHasUnknownFields
-	}
+	// TODO: Reinstate this behavior somehow
+	// if len(enc.unmarshaled.GetUnknownFields()) > 0 {
+	// 	// TODO(rartoul): Make this behavior configurable / this may change once we implement
+	// 	// mid-stream schema changes to make schema upgrades easier for clients.
+	// 	// https://github.com/m3db/m3/issues/1471
+	// 	return errEncoderMessageHasUnknownFields
+	// }
 
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
@@ -214,7 +216,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
-	if err := enc.encodeProto(enc.unmarshaled); err != nil {
+	if err := enc.encodeProtoFromBuf(protoBytes); err != nil {
 		enc.hardErr = err
 		return fmt.Errorf(
 			"%s error encoding proto portion of message: %v", encErrPrefix, err)
@@ -342,6 +344,111 @@ func (enc *Encoder) encodeProto(m *dynamic.Message) error {
 		return err
 	}
 	if err := enc.encodeProtoValues(m); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
+	// TODO: Reuse
+	iter := newUnmarshalIter()
+	iter.reset(enc.schema, buf)
+	vals := []unmarshalValue{}
+	for iter.next() {
+		fmt.Println("appending: ", iter.current())
+		vals = append(vals, iter.current())
+	}
+	// TODO: Method
+	if iter.err != nil {
+		return iter.err
+	}
+
+	for i, customField := range enc.customFields {
+		found := false
+		for _, cur := range vals {
+			fmt.Println("cur", cur)
+			if customField.fieldNum != int(cur.fd.GetNumber()) {
+				continue
+			}
+
+			switch {
+			case isCustomFloatEncodedField(customField.fieldType):
+				fmt.Println("writing", cur.float64Val)
+				if err := enc.encodeTSZValue(i, cur.float64Val); err != nil {
+					return err
+				}
+			case isCustomIntEncodedField(customField.fieldType):
+				if isUnsignedInt(customField.fieldType) {
+					fmt.Println("writing", cur.uint64Val)
+					if err := enc.encodeIntValue(i, cur.uint64Val); err != nil {
+						return err
+					}
+				} else {
+					fmt.Println("writing", cur.int64Val)
+					if err := enc.encodeIntValue(i, cur.int64Val); err != nil {
+						return err
+					}
+				}
+
+			case customField.fieldType == bytesField:
+				fmt.Println("writing", cur.bytesVal)
+				if err := enc.encodeBytesValue(i, cur.bytesVal); err != nil {
+					return err
+				}
+			case customField.fieldType == boolField:
+				fmt.Println("writing", cur.boolVal)
+				if err := enc.encodeBoolValue(i, cur.boolVal); err != nil {
+					return err
+				}
+			default:
+				// This should never happen.
+				return fmt.Errorf(
+					"%s error no logic for custom encoding field number: %d",
+					encErrPrefix, customField.fieldNum)
+			}
+
+			found = true
+			break
+		}
+
+		if !found {
+			// Encode zero value.
+			switch {
+			case isCustomFloatEncodedField(customField.fieldType):
+				var zeroFloat64 float64
+				if err := enc.encodeTSZValue(i, zeroFloat64); err != nil {
+					return err
+				}
+			case isCustomIntEncodedField(customField.fieldType):
+				var zeroInt64 int64
+				if err := enc.encodeIntValue(i, zeroInt64); err != nil {
+					return err
+				}
+			case customField.fieldType == bytesField:
+				var zeroBytes []byte
+				if err := enc.encodeBytesValue(i, zeroBytes); err != nil {
+					return err
+				}
+			case customField.fieldType == boolField:
+				if err := enc.encodeBoolValue(i, false); err != nil {
+					return err
+				}
+			default:
+				// This should never happen.
+				return fmt.Errorf(
+					"%s error no logic for custom encoding field number: %d",
+					encErrPrefix, customField.fieldNum)
+			}
+		}
+	}
+
+	skipped, err := iter.skipped()
+	if err != nil {
+		return err
+	}
+
+	if err := enc.encodeProtoValues(skipped); err != nil {
 		return err
 	}
 
@@ -670,6 +777,7 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
+	fmt.Println("encoding: ", m.String())
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
