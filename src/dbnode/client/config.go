@@ -87,6 +87,7 @@ type Configuration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	SchemaFilePath string `yaml:"schemaFilePath"`
+	MessageName    string `yaml:"messageName"`
 }
 
 // Validate validates the ProtoConfiguration.
@@ -97,6 +98,10 @@ func (c *ProtoConfiguration) Validate() error {
 
 	if c.SchemaFilePath == "" {
 		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	if c.MessageName == "" {
+		return errors.New("messageName is required for Proto data mode")
 	}
 
 	return nil

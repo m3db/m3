@@ -34,10 +34,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/os"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xos "github.com/m3db/m3/src/x/os"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
@@ -128,7 +128,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 // TestCommitLogPropTest property tests the commitlog by performing various
 // operations (Open, Write, Close) in various orders, and then ensuring that
 // all the data can be read back. In addition, in some runs it will arbitrarily
-// (based on a randomly generate probability) corrupt any bytes written to disk by
+// (based on a randomly generated probability) corrupt any bytes written to disk by
 // the commitlog to ensure that the commitlog reader is resilient to arbitrarily
 // corrupted files and will not deadlock / panic.
 func TestCommitLogPropTest(t *testing.T) {
@@ -244,7 +244,7 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 			return &gopter.PropResult{Status: gopter.PropTrue}
 		}
 		return &gopter.PropResult{
-			Status: gopter.PropFalse,
+			Status: gopter.PropError,
 			Error:  result.(error),
 		}
 	},
@@ -319,7 +319,7 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 					return &gopter.PropResult{Status: gopter.PropTrue}
 				}
 				return &gopter.PropResult{
-					Status: gopter.PropFalse,
+					Status: gopter.PropError,
 					Error:  result.(error),
 				}
 			},
@@ -350,8 +350,8 @@ var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
 			return err
 		}
 
-		if len(logs) != 1 {
-			return fmt.Errorf("ActiveLogs did not return exactly one log file: %v", logs)
+		if len(logs) != 2 {
+			return fmt.Errorf("ActiveLogs did not return exactly two log files: %v", logs)
 		}
 
 		return nil
@@ -365,7 +365,7 @@ var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
 			return &gopter.PropResult{Status: gopter.PropTrue}
 		}
 		return &gopter.PropResult{
-			Status: gopter.PropFalse,
+			Status: gopter.PropError,
 			Error:  result.(error),
 		}
 	},
@@ -406,7 +406,7 @@ var genRotateLogsCommand = gen.Const(&commands.ProtoCommand{
 			return &gopter.PropResult{Status: gopter.PropTrue}
 		}
 		return &gopter.PropResult{
-			Status: gopter.PropFalse,
+			Status: gopter.PropError,
 			Error:  result.(error),
 		}
 	},
@@ -473,7 +473,7 @@ func newInitState(
 		opts:                  opts,
 		shouldCorrupt:         shouldCorrupt,
 		corruptionProbability: corruptionProbability,
-		seed: seed,
+		seed:                  seed,
 	}
 }
 
@@ -637,7 +637,7 @@ func newCorruptingChunkWriter(
 	return &corruptingChunkWriter{
 		chunkWriter:           chunkWriter,
 		corruptionProbability: corruptionProbability,
-		seed: seed,
+		seed:                  seed,
 	}
 }
 

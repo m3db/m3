@@ -306,6 +306,11 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
 func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
+	logger := m.opts.InstrumentOptions().Logger().With(
+		zap.String("comment",
+			"partial/corrupt files are expected as result of a restart (this is ok)"),
+	)
+
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
@@ -374,11 +379,10 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 					// retained.
 					m.metrics.corruptSnapshotFile.Inc(1)
-					m.opts.InstrumentOptions().Logger().With(
+					logger.With(
 						zap.Error(err),
 						zap.Strings("files", snapshot.AbsoluteFilepaths),
-					).Error(
-						"encountered corrupt snapshot file during cleanup, marking files for deletion")
+					).Warn("corrupt snapshot file during cleanup, marking files for deletion")
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilepaths...)
 					continue
 				}
@@ -402,12 +406,11 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 	// Delete corrupt snapshot metadata files.
 	for _, errorWithPath := range snapshotMetadataErrorsWithPaths {
 		m.metrics.corruptSnapshotMetadataFile.Inc(1)
-		m.opts.InstrumentOptions().Logger().With(
+		logger.With(
 			zap.Error(errorWithPath.Error),
 			zap.String("metadataFilePath", errorWithPath.MetadataFilePath),
 			zap.String("checkpointFilePath", errorWithPath.CheckpointFilePath),
-		).Error(
-			"encountered corrupt snapshot metadata file during cleanup, marking files for deletion")
+		).Warn("corrupt snapshot metadata file during cleanup, marking files for deletion")
 		filesToDelete = append(filesToDelete, errorWithPath.MetadataFilePath)
 		filesToDelete = append(filesToDelete, errorWithPath.CheckpointFilePath)
 	}
@@ -454,10 +457,10 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 		// sudden shutdown.
-		m.opts.InstrumentOptions().Logger().With(
+		logger.With(
 			zap.Error(errorWithPath),
 			zap.String("path", errorWithPath.Path()),
-		).Error("encountered corrupt commitlog file during cleanup, marking file for deletion")
+		).Warn("corrupt commitlog file during cleanup, marking file for deletion")
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 
