@@ -336,7 +336,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 	generator := seed.NewGenerator(seedDataOpts)
 	outputNamespace := ident.StringID(seedConf.Namespace)
 
-	if err := generator.Generate(outputNamespace, seedConf.LocalShardNum); err != nil {
+	if err := generator.Generate(namespace.Context{Id: outputNamespace}, seedConf.LocalShardNum); err != nil {
 		return fmt.Errorf("unable to generate data: %v", err)
 	}
 

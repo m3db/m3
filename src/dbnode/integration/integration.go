@@ -314,7 +314,7 @@ func writeTestDataToDisk(
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(metadata.ID(), setup.shardSet, seriesMaps)
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
@@ -327,7 +327,7 @@ func writeTestSnapshotsToDiskWithPredicate(
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		metadata.ID(), setup.shardSet, seriesMaps, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

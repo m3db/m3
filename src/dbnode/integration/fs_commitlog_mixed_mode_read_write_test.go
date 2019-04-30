@@ -42,7 +42,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 )
 
 type annotationGenerator interface {

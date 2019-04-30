@@ -50,7 +50,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -76,13 +76,15 @@ var (
 
 	created = uint64(0)
 
-	testSchemaHistory = prototest.NewSchemaHistory("../storage/testdata/prototest")
+	// Relative to $pwd to testdata/prototest, $pwd is integration directory.
+	testSchemaHistory = prototest.NewSchemaHistory("../")
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
 	testProtoEqual    = func(expect, actual []byte) bool {
 		return prototest.ProtoEqual(testSchema, expect, actual)
 	}
+	testProtoIter    = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // nowSetterFn is the function that sets the current time

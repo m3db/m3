@@ -30,6 +30,8 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 	"github.com/jhump/protoreflect/desc"
+	"os"
+	"fmt"
 )
 
 type TestMessage struct {
@@ -42,8 +44,12 @@ type TestMessage struct {
 }
 
 func NewSchemaHistory(importPath string) namespace.SchemaHistory {
+	srcRoot := os.Getenv("SRC_ROOT")
+	curDir := os.Getenv("PWD")
+	fmt.Printf("SRC_ROOT=%s, PWD=%s, importPath=%s\n", srcRoot, curDir, importPath)
+
 	schemaHis, err := namespace.LoadSchemaHistory(
-		namespace.GenTestSchemaOptions("test.proto", importPath))
+		namespace.GenTestSchemaOptions("testdata/prototest/test.proto", importPath, srcRoot))
 	if err != nil {
 		panic(err.Error())
 	}

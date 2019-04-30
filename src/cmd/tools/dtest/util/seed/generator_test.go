@@ -40,6 +40,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func TestGenerator(t *testing.T) {
@@ -69,7 +70,7 @@ func TestGenerator(t *testing.T) {
 	defer ctrl.Finish()
 
 	shard := uint32(123)
-	require.NoError(t, generator.Generate(ident.StringID("testmetrics"), shard))
+	require.NoError(t, generator.Generate(namespace.Context{Id: ident.StringID("testmetrics")}, shard))
 
 	te := newFileInfoExtractor()
 	require.NoError(t, filepath.Walk(dir, te.visit))

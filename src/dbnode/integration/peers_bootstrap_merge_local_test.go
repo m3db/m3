@@ -84,6 +84,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)
+		namesp = opts.Namespaces()[0]
 	}
 
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)

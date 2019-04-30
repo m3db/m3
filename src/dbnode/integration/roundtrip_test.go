@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +47,7 @@ func TestProtoRoundtrip(t *testing.T) {
 
 func setProtoTestInputConfig(inputData []generate.BlockConfig) {
 	for i := 0; i < len(inputData); i++ {
-		inputData[i].Proto = true
+		inputData[i].AnnGen = testProtoIter
 	}
 }
 

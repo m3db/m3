@@ -30,14 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
-)
-
-var (
-	testSchemaHistory = prototest.NewSchemaHistory("../storage/testdata/prototest")
-	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
-	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
-	testProtoIter     = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // Making SeriesBlock sortable
@@ -59,7 +51,7 @@ func Block(conf BlockConfig) SeriesBlock {
 		datapoints := make([]TestValue, 0, conf.NumPoints)
 		for j := 0; j < conf.NumPoints; j++ {
 			timestamp := conf.Start.Add(time.Duration(j) * time.Second)
-			if !conf.Proto {
+			if conf.AnnGen == nil {
 				datapoints = append(datapoints, TestValue{
 					Datapoint: ts.Datapoint{
 						Timestamp: timestamp,
@@ -72,7 +64,7 @@ func Block(conf BlockConfig) SeriesBlock {
 						Timestamp: timestamp,
 						Value:     0,
 					},
-					Annotation: testProtoIter.Next(),
+					Annotation: conf.AnnGen.Next(),
 				})
 			}
 		}

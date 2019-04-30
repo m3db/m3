@@ -30,7 +30,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
 )
+
+type AnnotationGenerator interface {
+	Next() []byte
+}
 
 // BlockConfig represents the configuration to generate a SeriesBlock
 type BlockConfig struct {
@@ -38,7 +43,7 @@ type BlockConfig struct {
 	Tags      ident.Tags
 	NumPoints int
 	Start     time.Time
-	Proto     bool
+	AnnGen    AnnotationGenerator
 }
 
 type UpdateBlockConfig func([]BlockConfig)
@@ -74,11 +79,11 @@ type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 type Writer interface {
 	// WriteData writes the data as data files.
 	WriteData(
-		ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+		nsCtx ns.Context, shards sharding.ShardSet, data SeriesBlocksByStart) error
 
 	// WriteSnapshot writes the data as snapshot files.
 	WriteSnapshot(
-		ns ident.ID,
+		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		snapshotInterval time.Duration,
@@ -86,7 +91,7 @@ type Writer interface {
 
 	// WriteDataWithPredicate writes all data that passes the predicate test as data files.
 	WriteDataWithPredicate(
-		ns ident.ID,
+		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		pred WriteDatapointPredicate,
@@ -94,7 +99,7 @@ type Writer interface {
 
 	// WriteSnapshotWithPredicate writes all data that passes the predicate test as snapshot files.
 	WriteSnapshotWithPredicate(
-		ns ident.ID,
+		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		pred WriteDatapointPredicate,

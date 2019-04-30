@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,8 @@ import (
 
 var (
 	testNamespace     = ident.StringID("buffer_test_ns")
-	testSchemaHistory = prototest.NewSchemaHistory("../testdata/prototest")
+	// Relative to $pwd to testdata/prototest, $pwd is currnet directory.
+	testSchemaHistory = prototest.NewSchemaHistory("../../")
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
 	testProtoEqual    = func(t *testing.T, expect, actual []byte) {

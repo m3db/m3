@@ -60,6 +60,7 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 		SetNamespaces([]namespace.Metadata{namesp})
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)
+		namesp = opts.Namespaces()[0]
 	}
 
 	setupOpts := []bootstrappableTestSetupOptions{

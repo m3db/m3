@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/storage/testdata/prototest"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -38,7 +38,8 @@ import (
 
 var (
 	testNamespace     = ident.StringID("session_prototest_ns")
-	testSchemaHistory = prototest.NewSchemaHistory("../storage/testdata/prototest")
+	// Relative path to $pwd to reach testdata/prototest, $pwd is current directory.
+	testSchemaHistory = prototest.NewSchemaHistory("../")
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
 	testProtoEqual    = func(t *testing.T, expect, actual []byte) {

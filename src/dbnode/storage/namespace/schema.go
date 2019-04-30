@@ -22,7 +22,6 @@ package namespace
 
 import (
 	"errors"
-
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
@@ -278,8 +277,8 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 	return dlist, nil
 }
 
-func GenTestSchemaOptions(protoFile, importPathPrefix string) *nsproto.SchemaOptions {
-	out, _ := parseProto(protoFile, importPathPrefix)
+func GenTestSchemaOptions(protoFile string, importPathPrefix ...string) *nsproto.SchemaOptions {
+	out, _ := parseProto(protoFile, importPathPrefix...)
 
 	dlist, _ := marshalFileDescriptors(out)
 

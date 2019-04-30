@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type writer struct {
@@ -50,46 +51,46 @@ func NewWriter(opts Options) Writer {
 }
 
 func (w *writer) WriteData(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 ) error {
-	return w.WriteDataWithPredicate(namespace, shardSet, seriesMaps, WriteAllPredicate)
+	return w.WriteDataWithPredicate(nsCtx, shardSet, seriesMaps, WriteAllPredicate)
 }
 
 func (w *writer) WriteSnapshot(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	snapshotInterval time.Duration,
 ) error {
 	return w.WriteSnapshotWithPredicate(
-		namespace, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
+		nsCtx, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
 }
 
 func (w *writer) WriteSnapshotWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
 }
 
 func (w *writer) writeWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
@@ -120,14 +121,10 @@ func (w *writer) writeWithPredicate(
 		return err
 	}
 	encoder := gOpts.EncoderPool().Get()
-	schema, ok := testSchemaHistory.GetLatest()
-	if !ok {
-		panic("schema history is empty")
-	}
-	encoder.SetSchema(schema)
+	encoder.SetSchema(nsCtx.Schema)
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
+			writer, shardSet, encoder, start.ToTime(), nsCtx.Id, blockSize,
 			data, pred, fileSetType, snapshotInterval)
 		if err != nil {
 			return err
@@ -139,7 +136,7 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
+				writer, shardSet, encoder, start.ToTime(), nsCtx.Id, blockSize,
 				nil, pred, fileSetType, snapshotInterval)
 			if err != nil {
 				return err

@@ -64,6 +64,8 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+		ns2 = opts.Namespaces()[1]
 	}
 
 	// Test setup
