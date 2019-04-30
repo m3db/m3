@@ -216,7 +216,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
-	if err := enc.encodeProtoFromBuf(protoBytes); err != nil {
+	if err := enc.encodeProto(protoBytes); err != nil {
 		enc.hardErr = err
 		return fmt.Errorf(
 			"%s error encoding proto portion of message: %v", encErrPrefix, err)
@@ -339,18 +339,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 	}
 }
 
-func (enc *Encoder) encodeProto(m *dynamic.Message) error {
-	if err := enc.encodeCustomValues(m); err != nil {
-		return err
-	}
-	if err := enc.encodeProtoValues(m); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
+func (enc *Encoder) encodeProto(buf []byte) error {
 	// TODO: Reuse
 	iter := newUnmarshalIter()
 	iter.reset(enc.schema, buf)
@@ -378,18 +367,13 @@ func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
 
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
-			if err := enc.encodeTSZValue(i, lastMarshaledValue.float64Val); err != nil {
-				return err
-			}
+			enc.encodeTSZValue(i, lastMarshaledValue.float64Val)
+
 		case isCustomIntEncodedField(customField.fieldType):
 			if isUnsignedInt(customField.fieldType) {
-				if err := enc.encodeIntValue(i, lastMarshaledValue.uint64Val); err != nil {
-					return err
-				}
+				enc.encodeUnsignedIntValue(i, lastMarshaledValue.uint64Val)
 			} else {
-				if err := enc.encodeIntValue(i, lastMarshaledValue.int64Val); err != nil {
-					return err
-				}
+				enc.encodeSignedIntValue(i, lastMarshaledValue.int64Val)
 			}
 
 		case customField.fieldType == bytesField:
@@ -435,11 +419,18 @@ func (enc *Encoder) encodeZeroValue(i int) error {
 	switch {
 	case isCustomFloatEncodedField(customField.fieldType):
 		var zeroFloat64 float64
-		return enc.encodeTSZValue(i, zeroFloat64)
+		enc.encodeTSZValue(i, zeroFloat64)
+		return nil
 
 	case isCustomIntEncodedField(customField.fieldType):
-		var zeroInt64 int64
-		return enc.encodeIntValue(i, zeroInt64)
+		if isUnsignedInt(customField.fieldType) {
+			var zeroUInt64 uint64
+			enc.encodeUnsignedIntValue(i, zeroUInt64)
+		} else {
+			var zeroInt64 int64
+			enc.encodeSignedIntValue(i, zeroInt64)
+		}
+		return nil
 
 	case customField.fieldType == bytesField:
 		var zeroBytes []byte
@@ -564,104 +555,22 @@ func (enc *Encoder) Bytes() ([]byte, error) {
 	return bytes, nil
 }
 
-func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
-	for i, customField := range enc.customFields {
-		iVal, err := m.TryGetFieldByNumber(customField.fieldNum)
-		if err != nil {
-			return fmt.Errorf(
-				"%s error trying to get field number: %d",
-				encErrPrefix, customField.fieldNum)
-		}
-
-		switch {
-		case isCustomFloatEncodedField(customField.fieldType):
-			if err := enc.encodeTSZValue(i, iVal); err != nil {
-				return err
-			}
-		case isCustomIntEncodedField(customField.fieldType):
-			if err := enc.encodeIntValue(i, iVal); err != nil {
-				return err
-			}
-		case customField.fieldType == bytesField:
-			if err := enc.encodeBytesValue(i, iVal); err != nil {
-				return err
-			}
-		case customField.fieldType == boolField:
-			if err := enc.encodeBoolValue(i, iVal); err != nil {
-				return err
-			}
-		default:
-			// This should never happen.
-			return fmt.Errorf(
-				"%s error no logic for custom encoding field number: %d",
-				encErrPrefix, customField.fieldNum)
-		}
-	}
-
-	return nil
-}
-
-func (enc *Encoder) encodeTSZValue(i int, iVal interface{}) error {
-	var (
-		val         float64
-		customField = enc.customFields[i]
-	)
-	switch typedVal := iVal.(type) {
-	case float64:
-		val = typedVal
-	case float32:
-		val = float64(typedVal)
-	default:
-		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
-	}
-
+func (enc *Encoder) encodeTSZValue(i int, val float64) {
 	enc.customFields[i].floatEncAndIter.WriteFloat(enc.stream, val)
-	return nil
 }
 
-func (enc *Encoder) encodeIntValue(i int, iVal interface{}) error {
-	var (
-		signedVal   int64
-		unsignedVal uint64
-	)
-	switch typedVal := iVal.(type) {
-	case uint64:
-		unsignedVal = typedVal
-	case uint32:
-		unsignedVal = uint64(typedVal)
-	case int64:
-		signedVal = typedVal
-	case int32:
-		signedVal = int64(typedVal)
-	default:
-		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, enc.customFields[i].fieldNum)
-	}
-
-	if isUnsignedInt(enc.customFields[i].fieldType) {
-		enc.customFields[i].intEncAndIter.encodeUnsignedIntValue(enc.stream, unsignedVal)
-	} else {
-		enc.customFields[i].intEncAndIter.encodeSignedIntValue(enc.stream, signedVal)
-	}
-
-	return nil
+func (enc *Encoder) encodeSignedIntValue(i int, val int64) {
+	enc.customFields[i].intEncAndIter.encodeSignedIntValue(enc.stream, val)
 }
 
-func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
-	customField := enc.customFields[i]
-	currBytes, ok := iVal.([]byte)
-	if !ok {
-		currString, ok := iVal.(string)
-		if !ok {
-			return fmt.Errorf(
-				"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
-		}
-		currBytes = []byte(currString)
-	}
+func (enc *Encoder) encodeUnsignedIntValue(i int, val uint64) {
+	enc.customFields[i].intEncAndIter.encodeUnsignedIntValue(enc.stream, val)
+}
 
+func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	var (
-		hash             = xxhash.Sum64(currBytes)
+		customField      = enc.customFields[i]
+		hash             = xxhash.Sum64(val)
 		numPreviousBytes = len(customField.bytesFieldDict)
 		lastStateIdx     = numPreviousBytes - 1
 		lastState        encoderBytesFieldDictState
@@ -673,7 +582,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	if numPreviousBytes > 0 && hash == lastState.hash {
 		streamBytes, _ := enc.stream.Rawbytes()
 		match, err := enc.bytesMatchEncodedDictionaryValue(
-			streamBytes, lastState, currBytes)
+			streamBytes, lastState, val)
 		if err != nil {
 			return fmt.Errorf(
 				"%s error checking if bytes match last encoded dictionary bytes: %v",
@@ -696,7 +605,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 		}
 
 		match, err := enc.bytesMatchEncodedDictionaryValue(
-			streamBytes, state, currBytes)
+			streamBytes, state, val)
 		if err != nil {
 			return fmt.Errorf(
 				"%s error checking if bytes match encoded dictionary bytes: %v",
@@ -722,7 +631,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	// []byte we haven't seen before.
 	enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsBytesLengthVarInt)
 
-	length := len(currBytes)
+	length := len(val)
 	enc.encodeVarInt(uint64(length))
 
 	// Add padding bits until we reach the next byte. This ensures that the startPos
@@ -741,7 +650,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	bytePos := len(streamBytes)
 
 	// Write the actual bytes.
-	enc.stream.WriteBytes(currBytes)
+	enc.stream.WriteBytes(val)
 
 	enc.addToBytesDict(i, encoderBytesFieldDictState{
 		hash:     hash,
