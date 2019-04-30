@@ -356,7 +356,6 @@ func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
 	iter.reset(enc.schema, buf)
 	vals := []unmarshalValue{}
 	for iter.next() {
-		fmt.Println("appending: ", iter.current())
 		vals = append(vals, iter.current())
 	}
 	// TODO: Method
@@ -367,37 +366,31 @@ func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
 	for i, customField := range enc.customFields {
 		found := false
 		for _, cur := range vals {
-			fmt.Println("cur", cur)
 			if customField.fieldNum != int(cur.fd.GetNumber()) {
 				continue
 			}
 
 			switch {
 			case isCustomFloatEncodedField(customField.fieldType):
-				fmt.Println("writing", cur.float64Val)
 				if err := enc.encodeTSZValue(i, cur.float64Val); err != nil {
 					return err
 				}
 			case isCustomIntEncodedField(customField.fieldType):
 				if isUnsignedInt(customField.fieldType) {
-					fmt.Println("writing", cur.uint64Val)
 					if err := enc.encodeIntValue(i, cur.uint64Val); err != nil {
 						return err
 					}
 				} else {
-					fmt.Println("writing", cur.int64Val)
 					if err := enc.encodeIntValue(i, cur.int64Val); err != nil {
 						return err
 					}
 				}
 
 			case customField.fieldType == bytesField:
-				fmt.Println("writing", cur.bytesVal)
 				if err := enc.encodeBytesValue(i, cur.bytesVal); err != nil {
 					return err
 				}
 			case customField.fieldType == boolField:
-				fmt.Println("writing", cur.boolVal)
 				if err := enc.encodeBoolValue(i, cur.boolVal); err != nil {
 					return err
 				}
@@ -413,32 +406,11 @@ func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
 		}
 
 		if !found {
-			// Encode zero value.
-			switch {
-			case isCustomFloatEncodedField(customField.fieldType):
-				var zeroFloat64 float64
-				if err := enc.encodeTSZValue(i, zeroFloat64); err != nil {
-					return err
-				}
-			case isCustomIntEncodedField(customField.fieldType):
-				var zeroInt64 int64
-				if err := enc.encodeIntValue(i, zeroInt64); err != nil {
-					return err
-				}
-			case customField.fieldType == bytesField:
-				var zeroBytes []byte
-				if err := enc.encodeBytesValue(i, zeroBytes); err != nil {
-					return err
-				}
-			case customField.fieldType == boolField:
-				if err := enc.encodeBoolValue(i, false); err != nil {
-					return err
-				}
-			default:
-				// This should never happen.
-				return fmt.Errorf(
-					"%s error no logic for custom encoding field number: %d",
-					encErrPrefix, customField.fieldNum)
+			// If a value for the field wasn't provided in the message then it should
+			// be the default value for that field since there are no optional fields
+			// in proto3.
+			if err := enc.encodeZeroValue(i); err != nil {
+				return err
 			}
 		}
 	}
@@ -453,6 +425,32 @@ func (enc *Encoder) encodeProtoFromBuf(buf []byte) error {
 	}
 
 	return nil
+}
+
+func (enc *Encoder) encodeZeroValue(i int) error {
+	customField := enc.customFields[i]
+	switch {
+	case isCustomFloatEncodedField(customField.fieldType):
+		var zeroFloat64 float64
+		return enc.encodeTSZValue(i, zeroFloat64)
+
+	case isCustomIntEncodedField(customField.fieldType):
+		var zeroInt64 int64
+		return enc.encodeIntValue(i, zeroInt64)
+
+	case customField.fieldType == bytesField:
+		var zeroBytes []byte
+		return enc.encodeBytesValue(i, zeroBytes)
+
+	case customField.fieldType == boolField:
+		return enc.encodeBoolValue(i, false)
+
+	default:
+		// This should never happen.
+		return fmt.Errorf(
+			"%s error no logic for custom encoding field number: %d",
+			encErrPrefix, customField.fieldNum)
+	}
 }
 
 // Reset resets the encoder for reuse.
@@ -777,7 +775,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	fmt.Println("encoding: ", m.String())
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
 	changedFields := enc.changedValues
