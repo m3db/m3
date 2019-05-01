@@ -33,6 +33,10 @@ func TestIndexOptionsEqual(t *testing.T) {
 	require.False(t, opts.SetEnabled(true).Equal(opts.SetEnabled(false)))
 	require.False(t, opts.SetBlockSize(time.Hour).Equal(
 		opts.SetBlockSize(time.Hour*2)))
+	require.False(t, opts.SetForwardIndexProbability(0.0).
+		Equal(opts.SetForwardIndexProbability(0.1)))
+	require.False(t, opts.SetForwardIndexThreshold(0.0).
+		Equal(opts.SetForwardIndexThreshold(0.1)))
 }
 
 func TestIndexOptionsEnabled(t *testing.T) {
@@ -44,4 +48,16 @@ func TestIndexOptionsEnabled(t *testing.T) {
 func TestIndexOptionsBlockSize(t *testing.T) {
 	opts := NewIndexOptions()
 	require.Equal(t, time.Hour, opts.SetBlockSize(time.Hour).BlockSize())
+}
+
+func TestIndexOptionsForwardIndexThreshold(t *testing.T) {
+	threshold := 0.3
+	opts := NewIndexOptions().SetForwardIndexThreshold(threshold)
+	require.Equal(t, threshold, opts.ForwardIndexThreshold())
+}
+
+func TestIndexOptionsForwardIndexProbability(t *testing.T) {
+	threshold := 0.3
+	opts := NewIndexOptions().SetForwardIndexProbability(threshold)
+	require.Equal(t, threshold, opts.ForwardIndexProbability())
 }

@@ -339,6 +339,34 @@ func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
+// SetTruncateType mocks base method
+func (m *MockOptions) SetTruncateType(value TruncateType) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTruncateType", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateType indicates an expected call of SetTruncateType
+func (mr *MockOptionsMockRecorder) SetTruncateType(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateType", reflect.TypeOf((*MockOptions)(nil).SetTruncateType), value)
+}
+
+// TruncateType mocks base method
+func (m *MockOptions) TruncateType() TruncateType {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TruncateType")
+	ret0, _ := ret[0].(TruncateType)
+	return ret0
+}
+
+// TruncateType indicates an expected call of TruncateType
+func (mr *MockOptionsMockRecorder) TruncateType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateType", reflect.TypeOf((*MockOptions)(nil).TruncateType))
+}
+
 // SetSchemaRegistry mocks base method
 func (m *MockOptions) SetSchemaRegistry(value SchemaRegistry) Options {
 	m.ctrl.T.Helper()
@@ -460,32 +488,60 @@ func (mr *MockIndexOptionsMockRecorder) BlockSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockSize", reflect.TypeOf((*MockIndexOptions)(nil).BlockSize))
 }
 
-// SetUseAsIndex mocks base method
-func (m *MockIndexOptions) SetUseAsIndex(b bool) IndexOptions {
+// SetForwardIndexProbability mocks base method
+func (m *MockIndexOptions) SetForwardIndexProbability(value float64) IndexOptions {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetUseAsIndex", b)
+	ret := m.ctrl.Call(m, "SetForwardIndexProbability", value)
 	ret0, _ := ret[0].(IndexOptions)
 	return ret0
 }
 
-// SetUseAsIndex indicates an expected call of SetUseAsIndex
-func (mr *MockIndexOptionsMockRecorder) SetUseAsIndex(b interface{}) *gomock.Call {
+// SetForwardIndexProbability indicates an expected call of SetForwardIndexProbability
+func (mr *MockIndexOptionsMockRecorder) SetForwardIndexProbability(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUseAsIndex", reflect.TypeOf((*MockIndexOptions)(nil).SetUseAsIndex), b)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetForwardIndexProbability", reflect.TypeOf((*MockIndexOptions)(nil).SetForwardIndexProbability), value)
 }
 
-// UseAsIndex mocks base method
-func (m *MockIndexOptions) UseAsIndex() bool {
+// ForwardIndexProbability mocks base method
+func (m *MockIndexOptions) ForwardIndexProbability() float64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UseAsIndex")
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "ForwardIndexProbability")
+	ret0, _ := ret[0].(float64)
 	return ret0
 }
 
-// UseAsIndex indicates an expected call of UseAsIndex
-func (mr *MockIndexOptionsMockRecorder) UseAsIndex() *gomock.Call {
+// ForwardIndexProbability indicates an expected call of ForwardIndexProbability
+func (mr *MockIndexOptionsMockRecorder) ForwardIndexProbability() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseAsIndex", reflect.TypeOf((*MockIndexOptions)(nil).UseAsIndex))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardIndexProbability", reflect.TypeOf((*MockIndexOptions)(nil).ForwardIndexProbability))
+}
+
+// SetForwardIndexThreshold mocks base method
+func (m *MockIndexOptions) SetForwardIndexThreshold(value float64) IndexOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetForwardIndexThreshold", value)
+	ret0, _ := ret[0].(IndexOptions)
+	return ret0
+}
+
+// SetForwardIndexThreshold indicates an expected call of SetForwardIndexThreshold
+func (mr *MockIndexOptionsMockRecorder) SetForwardIndexThreshold(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetForwardIndexThreshold", reflect.TypeOf((*MockIndexOptions)(nil).SetForwardIndexThreshold), value)
+}
+
+// ForwardIndexThreshold mocks base method
+func (m *MockIndexOptions) ForwardIndexThreshold() float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForwardIndexThreshold")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// ForwardIndexThreshold indicates an expected call of ForwardIndexThreshold
+func (mr *MockIndexOptionsMockRecorder) ForwardIndexThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardIndexThreshold", reflect.TypeOf((*MockIndexOptions)(nil).ForwardIndexThreshold))
 }
 
 // MockSchemaDescr is a mock of SchemaDescr interface

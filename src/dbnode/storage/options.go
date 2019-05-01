@@ -354,6 +354,16 @@ func (o *options) RepairEnabled() bool {
 	return o.repairEnabled
 }
 
+func (o *options) SetIndexOptions(b bool) Options {
+	opts := *o
+	opts.useAsIndex = b
+	return &opts
+}
+
+func (o *options) UseAsIndex() bool {
+	return o.useAsIndex
+}
+
 func (o *options) SetRepairOptions(value repair.Options) Options {
 	opts := *o
 	opts.repairOpts = value

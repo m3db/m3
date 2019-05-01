@@ -91,6 +91,12 @@ type Options interface {
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
 
+	// SetTruncateType sets the truncation type for this namespace.
+	SetTruncateType(value TruncateType) Options
+
+	// TruncateType returns the truncation type for this namespace.
+	TruncateType() TruncateType
+
 	// SetSchemaRegistry sets the schema registry for this namespace.
 	SetSchemaRegistry(value SchemaRegistry) Options
 
@@ -115,11 +121,18 @@ type IndexOptions interface {
 	// BlockSize returns the block size.
 	BlockSize() time.Duration
 
-	// SetUseAsIndex sets whether or not this namespace is being used as an index.
-	SetUseAsIndex(b bool) IndexOptions
+	// SetForwardIndexProbability sets the probability chance for forward writes.
+	SetForwardIndexProbability(value float64) IndexOptions
 
-	// UseAsIndex returns whether this namespace is being used as an index.
-	UseAsIndex() bool
+	// ForwardIndexProbability returns the probability chance for forward writes.
+	ForwardIndexProbability() float64
+
+	// SetForwardIndexProbability sets the threshold for forward writes as a
+	// fraction of the bufferFuture.
+	SetForwardIndexThreshold(value float64) IndexOptions
+
+	// ForwardIndexProbability returns the threshold for forward writes.
+	ForwardIndexThreshold() float64
 }
 
 // SchemaDescr describes the schema for a complex type value.

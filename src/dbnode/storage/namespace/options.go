@@ -63,6 +63,7 @@ type options struct {
 	cleanupEnabled    bool
 	repairEnabled     bool
 	coldWritesEnabled bool
+	truncateType      TruncateType
 	retentionOpts     retention.Options
 	indexOpts         IndexOptions
 	schemaReg         SchemaRegistry
@@ -210,6 +211,16 @@ func (o *options) SetIndexOptions(value IndexOptions) Options {
 
 func (o *options) IndexOptions() IndexOptions {
 	return o.indexOpts
+}
+
+func (o *options) SetTruncateType(t TruncateType) Options {
+	opts := *o
+	opts.truncateType = t
+	return &opts
+}
+
+func (o *options) TruncateType() TruncateType {
+	return o.truncateType
 }
 
 func (o *options) SetSchemaRegistry(value SchemaRegistry) Options {
