@@ -26,5 +26,9 @@ import (
 
 // SetGlobals sets etcd globals such as log output level, etc.
 func SetGlobals() {
+	// Setting all log messages to only emit at warning/error or greater,
+	// to quiet the info/verbose messages.
+	// More info here:
+	// https://godoc.org/github.com/coreos/pkg/capnslog
 	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 }
