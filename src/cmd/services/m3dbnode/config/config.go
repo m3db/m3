@@ -204,8 +204,11 @@ type IndexConfiguration struct {
 // TransformConfiguration contains configuration options that can transform
 // incoming writes.
 type TransformConfiguration struct {
-	// TruncateBy determines what type of truncatation
+	// TruncateBy determines what type of truncatation is applied to incoming
+	// writes.
 	TruncateBy series.TruncateType `yaml:"truncateBy"`
+	// ForcedValue determines what to set all incoming write values to.
+	ForcedValue *float64 `yaml:"forceValue"`
 }
 
 func (c *TransformConfiguration) Validate() error {

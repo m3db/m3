@@ -335,6 +335,7 @@ func TestConfiguration(t *testing.T) {
     forwardIndexThreshold: 0
   transforms:
     truncateBy: 0
+    forceValue: null
   logging:
     file: /var/log/m3dbnode.log
     level: info

@@ -60,10 +60,6 @@ const (
 	// enabled to see if this is a sane number.
 	evictedTimesArraySize = 8
 	writableBucketVer     = 0
-
-	// NB: this is the value all points will be truncated to.
-	truncatedValue float64 = 0
-	truncatedUnit          = xtime.Second
 )
 
 type databaseBuffer interface {
@@ -261,8 +257,10 @@ func (b *dbBuffer) Write(
 
 	if wOpts.TruncateType == TypeBlock {
 		timestamp = blockStart
-		value = truncatedValue
-		unit = truncatedUnit
+	}
+
+	if wOpts.TransformOptions.ForceValueEnabled {
+		value = wOpts.TransformOptions.ForceValue
 	}
 
 	return buckets.write(timestamp, value, unit, annotation, writeType)

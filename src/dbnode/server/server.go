@@ -1280,8 +1280,17 @@ func withEncodingAndPoolingOptions(
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
-	// Set index options.
+	// Set value transformation options.
 	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
+	forcedValue := cfg.Transforms.ForcedValue
+	if forcedValue != nil {
+		opts = opts.SetWriteTransformOptions(series.WriteTransformOptions{
+			ForceValueEnabled: true,
+			ForceValue:        *forcedValue,
+		})
+	}
+
+	// Set index options.
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(

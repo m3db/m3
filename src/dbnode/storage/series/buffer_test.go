@@ -491,10 +491,18 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 		{curr.Add(secs(3)), 3, xtime.Second, nil},
 	}
 
+	forceValue := 1.0
 	for i, v := range data {
 		ctx := context.NewContext()
+		writeOpts := WriteOptions{
+			TruncateType: TypeBlock,
+			TransformOptions: WriteTransformOptions{
+				ForceValueEnabled: true,
+				ForceValue:        forceValue,
+			},
+		}
 		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit,
-			v.annotation, WriteOptions{TruncateType: TypeBlock})
+			v.annotation, writeOpts)
 		require.NoError(t, err)
 		expectedWrite := i == 0
 		require.Equal(t, expectedWrite, wasWritten)
@@ -509,7 +517,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	assert.NotNil(t, results)
 
 	ex := []value{
-		{curr, truncatedValue, truncatedUnit, nil},
+		{curr, forceValue, xtime.Second, nil},
 	}
 
 	assertValuesEqual(t, ex, results, opts)

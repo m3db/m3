@@ -788,6 +788,14 @@ type Options interface {
 	// TruncateType returns the truncation type for the database.
 	TruncateType() series.TruncateType
 
+	// SetWriteTransformOptions sets options for transforming incoming writes
+	// to the database.
+	SetWriteTransformOptions(value series.WriteTransformOptions) Options
+
+	// WriteTransformOptions returns the options for transforming incoming writes
+	// to the database.
+	WriteTransformOptions() series.WriteTransformOptions
+
 	// SetRepairEnabled sets whether or not to enable the repair.
 	SetRepairEnabled(b bool) Options
 
