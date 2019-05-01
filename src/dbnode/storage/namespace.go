@@ -937,6 +937,11 @@ func (n *dbNamespace) WarmFlush(
 	return res
 }
 
+type idAndBlockStart struct {
+	id         ident.ID
+	blockStart int64
+}
+
 func (n *dbNamespace) ColdFlush(
 	flushPersist persist.FlushPreparer,
 ) error {
