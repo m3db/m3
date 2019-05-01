@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package proto
+package docs
 
 import (
-	"fmt"
+	"testing"
 
-	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoparse"
+	"github.com/stretchr/testify/assert"
 )
 
-// ParseProtoSchema parses a Protobuf schema.
-// TODO(rartoul): This is temporary code that will eventually be replaced with
-// storing the schemas in etcd.
-func ParseProtoSchema(filePath string, messageName string) (*desc.MessageDescriptor, error) {
-	fds, err := protoparse.Parser{}.ParseFiles(filePath)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"error parsing proto schema: %s, err: %v", filePath, err)
+func TestPath(t *testing.T) {
+	p := Path("foo")
+	assert.Equal(t, "https://m3db.github.io/m3/foo", p)
+}
+
+func TestParseRepoPathURL(t *testing.T) {
+	tests := []struct {
+		url     string
+		expPath string
+		inRepo  bool
+	}{
+		{
+			url: "https://wikipedia.com/foo/bar",
+		},
+		{
+			url:     "https://github.com/m3db/m3/blob/master/docs/foo.md",
+			expPath: "docs/foo.md",
+			inRepo:  true,
+		},
+		{
+			url: "https://github.com/foo/bar/blob/master/docs/baz.md",
+		},
 	}
 
-	if len(fds) != 1 {
-		return nil, fmt.Errorf(
-			"expected to parse %s into one file descriptor but parsed: %d",
-			filePath, len(fds))
+	for _, test := range tests {
+		path, inRepo := ParseRepoPathURL(test.url)
+		assert.Equal(t, test.inRepo, inRepo)
+		assert.Equal(t, test.expPath, path.RepoPath)
 	}
-
-	schema := fds[0].FindMessage(messageName)
-	if schema == nil {
-		return nil, fmt.Errorf(
-			"expected to find message with name 'Schema' in %s, but did not",
-			filePath,
-		)
-	}
-
-	return schema, nil
 }

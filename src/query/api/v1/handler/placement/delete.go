@@ -80,7 +80,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	)
 
 	if id == "" {
-		logger.Error("no placement ID provided to delete", zap.Any("error", errEmptyID))
+		logger.Error("no placement ID provided to delete", zap.Error(errEmptyID))
 		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
@@ -108,7 +108,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	if force {
 		newPlacement, err = service.RemoveInstances(toRemove)
 		if err != nil {
-			logger.Error("unable to delete instances", zap.Any("error", err))
+			logger.Error("unable to delete instances", zap.Error(err))
 			xhttp.Error(w, err, http.StatusNotFound)
 			return
 		}
@@ -151,7 +151,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	placementProto, err := newPlacement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

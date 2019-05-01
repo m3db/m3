@@ -21,8 +21,12 @@
 package json
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -95,4 +99,38 @@ func TestJSONWrite(t *testing.T) {
 
 	writeErr := jsonWrite.store.Write(context.TODO(), writeQuery)
 	require.NoError(t, writeErr)
+}
+
+func TestJSONWriteError(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	expectedErr := fmt.Errorf("an error")
+
+	ctrl := gomock.NewController(t)
+	storage, session := m3.NewStorageAndSession(t, ctrl)
+	session.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AnyTimes().
+		Return(expectedErr)
+	session.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
+
+	jsonWrite := &WriteJSONHandler{store: storage}
+
+	jsonReq := generateJSONWriteRequest()
+	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,
+		strings.NewReader(jsonReq))
+	require.NoError(t, err)
+
+	writer := httptest.NewRecorder()
+	jsonWrite.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.True(t, bytes.Contains(body, []byte(expectedErr.Error())),
+		fmt.Sprintf("body: %s", body))
 }
