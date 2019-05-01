@@ -80,7 +80,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/coreos/etcd/embed"
-	"github.com/coreos/pkg/capnslog"
 	"github.com/jhump/protoreflect/desc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -222,8 +221,6 @@ func Run(runOpts RunOptions) {
 			logger.Info("tracing enabled", zap.String("service", serviceName))
 		}
 	}
-
-	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 
 	// Presence of KV server config indicates embedded etcd cluster
 	if cfg.EnvironmentConfig.SeedNodes == nil {

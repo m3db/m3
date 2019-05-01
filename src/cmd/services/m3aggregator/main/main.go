@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/etcd"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -52,6 +53,9 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	// Set globals for etcd related packages.
+	etcd.SetGlobals()
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
