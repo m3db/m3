@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	aggruntime "github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -113,6 +114,9 @@ type AggregatorConfiguration struct {
 
 	// Flushing handler configuration.
 	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+
+	// PassThrough m3msg topic name.
+	PassThroughTopicName *string `yaml:"passThroughTopicName"`
 
 	// Forwarding configuration.
 	Forwarding forwardingConfiguration `yaml:"forwarding"`
@@ -285,6 +289,25 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 	opts = opts.SetFlushHandler(flushHandler)
+
+	// Set pass-through handler.
+	passThroughScope := scope.SubScope("pass-through-handler")
+	iOpts = instrumentOpts.SetMetricsScope(passThroughScope)
+	// fishie9: this is a temporary change to use a separate m3msg topic for pass-through metrics during the migration
+	for _, handler := range c.Flush.Handlers {
+		if handler.DynamicBackend != nil && c.PassThroughTopicName != nil {
+			handler.DynamicBackend.Producer.Writer.TopicName = *c.PassThroughTopicName
+		}
+	}
+	passThroughHandler, err := c.Flush.NewHandler(client, iOpts)
+	if err != nil {
+		return nil, err
+	}
+	passThroughWriter, err := passThroughHandler.NewWriter(passThroughScope)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetPassThroughWriter(writer.NewMutexWriter(passThroughWriter))
 
 	// Set max allowed forwarding delay function.
 	jitterEnabled := flushManagerOpts.JitterEnabled()

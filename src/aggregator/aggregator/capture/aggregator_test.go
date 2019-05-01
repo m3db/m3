@@ -47,17 +47,17 @@ var (
 	}
 	testBatchTimer = unaggregated.MetricUnion{
 		Type:          metric.TimerType,
-		ID:            id.RawID("testCounter"),
+		ID:            id.RawID("testBatch"),
 		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 	}
 	testGauge = unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
-		ID:       id.RawID("testCounter"),
+		ID:       id.RawID("testGauge"),
 		GaugeVal: 123.456,
 	}
 	testTimed = aggregated.Metric{
 		Type:      metric.CounterType,
-		ID:        []byte("testForwarded"),
+		ID:        []byte("testTimed"),
 		TimeNanos: 12345,
 		Value:     -13.5,
 	}
@@ -67,6 +67,12 @@ var (
 		TimeNanos: 12345,
 		Values:    []float64{908, -13.5},
 	}
+	testPassThrough = aggregated.Metric{
+		Type:      metric.GaugeType,
+		ID:        []byte("testPassThrough"),
+		TimeNanos: 12345,
+		Value:     -13.5,
+	}
 	testInvalid = unaggregated.MetricUnion{
 		Type: metric.UnknownType,
 		ID:   id.RawID("invalid"),
@@ -75,6 +81,10 @@ var (
 	testTimedMetadata    = metadata.TimedMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+	}
+	testPassThroughMetadata = metadata.TimedMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
 	}
 	testForwardMetadata = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
@@ -154,6 +164,17 @@ func TestAggregator(t *testing.T) {
 	require.NoError(t, agg.AddForwarded(testForwarded, testForwardMetadata))
 
 	require.Equal(t, 5, agg.NumMetricsAdded())
+
+	// add valid pass-through metrics with metadata
+	expected.PassThroughMetricWithMetadata = append(
+		expected.PassThroughMetricWithMetadata,
+		aggregated.TimedMetricWithMetadata{
+			Metric:        testPassThrough,
+			TimedMetadata: testPassThroughMetadata,
+		},
+	)
+	require.NoError(t, agg.AddPassThrough(testPassThrough, testPassThroughMetadata))
+	require.Equal(t, 6, agg.NumMetricsAdded())
 
 	res := agg.Snapshot()
 	require.Equal(t, expected, res)

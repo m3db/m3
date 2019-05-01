@@ -126,7 +126,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-kit/kit
-  version: fbab14bd4c487151b206c2a41ecfbb015e32c1e0
+  version: da68e7640663097af890b9bdd76da9cb816ebb82
   subpackages:
   - log
   - log/level
@@ -263,7 +263,7 @@ imports:
   subpackages:
   - regexp
 - name: github.com/magiconair/properties
-  version: de8848e004dd33dc07a2947b3d76f618a7fc7ef1
+  version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -279,7 +279,7 @@ imports:
 - name: github.com/nightlyone/lockfile
   version: 0ad87eef1443f64d3d8c50da647e2b1552851124
 - name: github.com/oklog/ulid
-  version: be3bccf06dda9a40aa6800c4736ac77f2fef987f
+  version: bacfb41fdd06edf5294635d18ec387dee671a964
 - name: github.com/opentracing-contrib/go-stdlib
   version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
   subpackages:
@@ -297,7 +297,7 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 728039f679cbcd4f6a54e080d2219a4c4928c546
 - name: github.com/pilosa/pilosa
-  version: 29e6bd29d7db38d17be01cea3a452e554089b108
+  version: 962d8c200c23acf981002b332217d3efde60cb24
   subpackages:
   - logger
   - stats
@@ -353,7 +353,7 @@ imports:
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
-  version: 8d778e47dd84f169ef4436abb474b0e0101a6dae
+  version: df298267d3e5c232b8b7bdf28d891d0b57253843
 - name: github.com/russross/blackfriday
   version: d3b5b032dc8e8927d31a5071b56e14c89f045135
 - name: github.com/satori/go.uuid
@@ -381,7 +381,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 9e56dacc08fbbf8c9ee2dbc717553c758ce42bc9
+  version: b5bf975e5823809fb22c7644d008757f78a4259e
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify

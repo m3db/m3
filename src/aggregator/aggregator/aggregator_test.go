@@ -660,6 +660,25 @@ func TestAggregatorResignSuccess(t *testing.T) {
 	require.NoError(t, agg.Resign())
 }
 
+func TestAggregatorAddPassThroughNotOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
+	err := agg.AddPassThrough(testTimedMetric, testTimedMetadata)
+	require.Equal(t, errAggregatorNotOpenOrClosed, err)
+}
+
+func TestAggregatorAddPassThroughSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
+	require.NoError(t, agg.Open())
+	err := agg.AddPassThrough(testTimedMetric, testTimedMetadata)
+	require.NoError(t, err)
+}
+
 func TestAggregatorStatus(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1113,6 +1132,11 @@ func testOptions(ctrl *gomock.Controller) Options {
 	h.EXPECT().NewWriter(gomock.Any()).Return(w, nil).AnyTimes()
 	h.EXPECT().Close().AnyTimes()
 
+	pw := writer.NewMockWriter(ctrl)
+	pw.EXPECT().Write(gomock.Any()).Return(nil).AnyTimes()
+	pw.EXPECT().Flush().Return(nil).AnyTimes()
+	pw.EXPECT().Close().Return(nil).AnyTimes()
+
 	cl := client.NewMockAdminClient(ctrl)
 	cl.EXPECT().Flush().Return(nil).AnyTimes()
 	cl.EXPECT().Close().AnyTimes()
@@ -1129,6 +1153,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 		SetElectionManager(electionMgr).
 		SetFlushManager(flushManager).
 		SetFlushHandler(h).
+		SetPassThroughWriter(pw).
 		SetAdminClient(cl).
 		SetMaxAllowedForwardingDelayFn(infiniteAllowedDelayFn).
 		SetBufferForFutureTimedMetric(math.MaxInt64).
