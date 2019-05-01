@@ -21,6 +21,7 @@
 package config
 
 import (
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/log"
 )
@@ -38,6 +39,9 @@ type Configuration struct {
 
 	// HTTP server configuration.
 	HTTP HTTPServerConfiguration `yaml:"http"`
+
+	// M3msg server configuration.
+	M3msg *m3msg.Configuration `yaml:"m3msg"`
 
 	// Client configuration for key value store.
 	KVClient KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`

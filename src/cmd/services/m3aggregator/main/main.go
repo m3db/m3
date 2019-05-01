@@ -29,6 +29,7 @@ import (
 	"time"
 
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/server/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	xconfig "github.com/m3db/m3/src/x/config"
@@ -92,6 +93,11 @@ func main() {
 	httpAddr := cfg.HTTP.ListenAddress
 	httpServerOpts := cfg.HTTP.NewServerOptions()
 
+	// Get the m3msg server options.
+	m3msgServerScope := scope.SubScope("m3msg-server").Tagged(map[string]string{"server": "m3msg"})
+	iOpts = instrumentOpts.SetMetricsScope(m3msgServerScope)
+	m3msgAddr, m3msgServerOpts := m3msg.NewServerOptions(iOpts, cfg.M3msg)
+
 	// Create the kv client.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kv-client"))
 	client, err := cfg.KVClient.NewKVClient(iOpts)
@@ -125,6 +131,8 @@ func main() {
 			rawTCPServerOpts,
 			httpAddr,
 			httpServerOpts,
+			m3msgAddr,
+			m3msgServerOpts,
 			aggregator,
 			doneCh,
 		); err != nil {

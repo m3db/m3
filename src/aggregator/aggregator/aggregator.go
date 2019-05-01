@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -72,6 +73,9 @@ type Aggregator interface {
 	// AddForwarded adds a forwarded metric with metadata.
 	AddForwarded(metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
+	// AddPassThrough add a pass-through metric with metadata
+	AddPassThrough(metric aggregated.Metric, metadata metadata.TimedMetadata) error
+
 	// Resign stops the aggregator from participating in leader election and resigns
 	// from ongoing campaign if any.
 	Resign() error
@@ -98,6 +102,7 @@ type aggregator struct {
 	electionManager   ElectionManager
 	flushManager      FlushManager
 	flushHandler      handler.Handler
+	passThroughWriter writer.Writer
 	adminClient       client.AdminClient
 	resignTimeout     time.Duration
 
@@ -131,6 +136,7 @@ func NewAggregator(opts Options) Aggregator {
 		electionManager:   opts.ElectionManager(),
 		flushManager:      opts.FlushManager(),
 		flushHandler:      opts.FlushHandler(),
+		passThroughWriter: opts.PassThroughWriter(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
 		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
@@ -231,6 +237,29 @@ func (agg *aggregator) AddForwarded(
 	return nil
 }
 
+func (agg *aggregator) AddPassThrough(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	if agg.state != aggregatorOpen {
+		return errAggregatorNotOpenOrClosed
+	}
+
+	mp := aggregated.ChunkedMetricWithStoragePolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: id.ChunkedID{
+				Prefix: nil,
+				Data:   metric.ID,
+				Suffix: nil,
+			},
+			TimeNanos: metric.TimeNanos,
+			Value:     metric.Value,
+		},
+		StoragePolicy: metadata.StoragePolicy,
+	}
+	return agg.passThroughWriter.Write(mp)
+}
+
 func (agg *aggregator) Resign() error {
 	ctx, cancel := context.WithTimeout(context.Background(), agg.resignTimeout)
 	defer cancel()
@@ -258,6 +287,7 @@ func (agg *aggregator) Close() error {
 		agg.closeShardSetWithLock()
 	}
 	agg.flushHandler.Close()
+	agg.passThroughWriter.Close()
 	if agg.adminClient != nil {
 		agg.adminClient.Close()
 	}
@@ -736,8 +766,8 @@ func newAggregatorAddForwardedMetrics(
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
 	return aggregatorAddForwardedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		scope: scope,
+		aggregatorAddMetricMetrics:  newAggregatorAddMetricMetrics(scope, samplingRate),
+		scope:                       scope,
 		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
 		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
 	}
@@ -778,6 +808,40 @@ func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(
 	m.forwardingLatency[key] = histogram
 	m.Unlock()
 	histogram.RecordDuration(duration)
+}
+
+type aggregatorAddPassThroughMetrics struct {
+	aggregatorAddMetricMetrics
+
+	// todo (fishie9): better error handling and more comprehensive metrics
+	tooFarInTheFuture tally.Counter
+	tooFarInThePast   tally.Counter
+}
+
+func newAggregatorAddPassThroughMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddPassThroughMetrics {
+	return aggregatorAddPassThroughMetrics{
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		tooFarInTheFuture: scope.Tagged(map[string]string{
+			"reason": "too-far-in-the-future",
+		}).Counter("errors"),
+		tooFarInThePast: scope.Tagged(map[string]string{
+			"reason": "too-far-in-the-past",
+		}).Counter("errors"),
+	}
+}
+
+func (m *aggregatorAddPassThroughMetrics) ReportError(err error) {
+	switch err {
+	case errTooFarInTheFuture:
+		m.tooFarInTheFuture.Inc(1)
+	case errTooFarInThePast:
+		m.tooFarInThePast.Inc(1)
+	default:
+		m.aggregatorAddMetricMetrics.ReportError(err)
+	}
 }
 
 type tickMetricsForMetricCategory struct {
@@ -886,19 +950,21 @@ func newAggregatorShardSetIDMetrics(scope tally.Scope) aggregatorShardSetIDMetri
 }
 
 type aggregatorMetrics struct {
-	counters     tally.Counter
-	timers       tally.Counter
-	timerBatches tally.Counter
-	gauges       tally.Counter
-	forwarded    tally.Counter
-	timed        tally.Counter
-	addUntimed   aggregatorAddUntimedMetrics
-	addTimed     aggregatorAddTimedMetrics
-	addForwarded aggregatorAddForwardedMetrics
-	placement    aggregatorPlacementMetrics
-	shards       aggregatorShardsMetrics
-	shardSetID   aggregatorShardSetIDMetrics
-	tick         aggregatorTickMetrics
+	counters       tally.Counter
+	timers         tally.Counter
+	timerBatches   tally.Counter
+	gauges         tally.Counter
+	forwarded      tally.Counter
+	timed          tally.Counter
+	passthrough    tally.Counter
+	addUntimed     aggregatorAddUntimedMetrics
+	addTimed       aggregatorAddTimedMetrics
+	addForwarded   aggregatorAddForwardedMetrics
+	addPassThrough aggregatorAddPassThroughMetrics
+	placement      aggregatorPlacementMetrics
+	shards         aggregatorShardsMetrics
+	shardSetID     aggregatorShardSetIDMetrics
+	tick           aggregatorTickMetrics
 }
 
 func newAggregatorMetrics(

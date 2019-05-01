@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/x/clock"
@@ -147,6 +148,15 @@ func TestSetFlushHandler(t *testing.T) {
 	h := handler.NewMockHandler(ctrl)
 	o := NewOptions().SetFlushHandler(h)
 	require.Equal(t, h, o.FlushHandler())
+}
+
+func TestSetPassThroughWriter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	w := writer.NewMockWriter(ctrl)
+	o := NewOptions().SetPassThroughWriter(w)
+	require.Equal(t, w, o.PassThroughWriter())
 }
 
 func TestSetEntryTTL(t *testing.T) {
