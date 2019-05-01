@@ -259,7 +259,7 @@ func (b *dbBuffer) Write(
 	buckets := b.bucketVersionsAtCreate(blockStart)
 	b.putBucketVersionsInCache(buckets)
 
-	if wOpts.UseAsIndex {
+	if wOpts.TruncateType == TypeBlock {
 		timestamp = blockStart
 		value = truncatedValue
 		unit = truncatedUnit

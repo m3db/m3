@@ -494,7 +494,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	for i, v := range data {
 		ctx := context.NewContext()
 		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit,
-			v.annotation, WriteOptions{UseAsIndex: true})
+			v.annotation, WriteOptions{TruncateType: TypeBlock})
 		require.NoError(t, err)
 		expectedWrite := i == 0
 		require.Equal(t, expectedWrite, wasWritten)

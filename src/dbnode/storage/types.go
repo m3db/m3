@@ -782,6 +782,12 @@ type Options interface {
 	// IndexOptions returns the indexing options.
 	IndexOptions() index.Options
 
+	// SetTruncateType sets the truncation type for the database.
+	SetTruncateType(value series.TruncateType) Options
+
+	// TruncateType returns the truncation type for the database.
+	TruncateType() series.TruncateType
+
 	// SetRepairEnabled sets whether or not to enable the repair.
 	SetRepairEnabled(b bool) Options
 

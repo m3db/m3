@@ -18,69 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace
+package series
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-// TruncateType determines the scheme for truncating transforms.
-type TruncateType uint8
-
-const (
-	TypeNone TruncateType = iota
-	TypeBlock
-)
-
-var validTruncationTypes = []TruncateType{
-	TypeNone,
-	TypeBlock,
+func TestTruncateTypeValidation(t *testing.T) {
+	err := TypeNone.Validate()
+	assert.NoError(t, err)
+	err = TypeBlock.Validate()
+	assert.NoError(t, err)
+	err = TruncateType(4).Validate()
+	assert.Error(t, err)
 }
 
-// Validate validates that the scheme type is valid.
-func (t TruncateType) Validate() error {
-	if t == TypeNone {
-		return nil
+func TestTruncateTypeUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Type TruncateType `yaml:"type"`
 	}
 
-	if t >= TypeNone && t <= TypeBlock {
-		return nil
+	validParseSchemes := []TruncateType{
+		TypeNone,
+		TypeBlock,
 	}
 
-	return fmt.Errorf("invalid truncation type: '%v' valid types are: %v",
-		t, validTruncationTypes)
-}
+	for _, value := range validParseSchemes {
+		str := fmt.Sprintf("type: %s\n", value.String())
 
-func (t TruncateType) String() string {
-	switch t {
-	case TypeNone:
-		return "none"
-	case TypeBlock:
-		return "block"
-	default:
-		// Should never get here.
-		return "unknown"
-	}
-}
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 
-// UnmarshalYAML unmarshals a stored merics type.
-func (t *TruncateType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
+		assert.Equal(t, value, cfg.Type)
 	}
 
-	if str == "" {
-		*t = TypeNone
-	}
+	var cfg config
+	// Bad type fails.
+	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
 
-	for _, valid := range validTruncationTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid truncation type: '%s' valid types are: %v",
-		str, validTruncationTypes)
+	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
+	assert.Equal(t, TypeNone, cfg.Type)
 }

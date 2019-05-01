@@ -18,49 +18,69 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace
+package series
 
 import (
 	"fmt"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 )
 
-func TestTruncateTypeValidation(t *testing.T) {
-	err := TypeNone.Validate()
-	assert.NoError(t, err)
-	err = TypeBlock.Validate()
-	assert.NoError(t, err)
-	err = TruncateType(4).Validate()
-	assert.Error(t, err)
+// TruncateType determines the scheme for truncating transforms.
+type TruncateType uint8
+
+const (
+	TypeNone TruncateType = iota
+	TypeBlock
+)
+
+var validTruncationTypes = []TruncateType{
+	TypeNone,
+	TypeBlock,
 }
 
-func TestTruncateTypeUnmarshalYAML(t *testing.T) {
-	type config struct {
-		Type TruncateType `yaml:"type"`
+// Validate validates that the scheme type is valid.
+func (t TruncateType) Validate() error {
+	if t == TypeNone {
+		return nil
 	}
 
-	validParseSchemes := []TruncateType{
-		TypeNone,
-		TypeBlock,
+	if t >= TypeNone && t <= TypeBlock {
+		return nil
 	}
 
-	for _, value := range validParseSchemes {
-		str := fmt.Sprintf("type: %s\n", value.String())
+	return fmt.Errorf("invalid truncation type: '%v' valid types are: %v",
+		t, validTruncationTypes)
+}
 
-		var cfg config
-		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+func (t TruncateType) String() string {
+	switch t {
+	case TypeNone:
+		return "none"
+	case TypeBlock:
+		return "block"
+	default:
+		// Should never get here.
+		return "unknown"
+	}
+}
 
-		assert.Equal(t, value, cfg.Type)
+// UnmarshalYAML unmarshals a stored merics type.
+func (t *TruncateType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
 	}
 
-	var cfg config
-	// Bad type fails.
-	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+	if str == "" {
+		*t = TypeNone
+	}
 
-	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
-	assert.Equal(t, TypeNone, cfg.Type)
+	for _, valid := range validTruncationTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid truncation type: '%s' valid types are: %v",
+		str, validTruncationTypes)
 }

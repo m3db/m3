@@ -339,34 +339,6 @@ func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
-// SetTruncateType mocks base method
-func (m *MockOptions) SetTruncateType(value TruncateType) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetTruncateType", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTruncateType indicates an expected call of SetTruncateType
-func (mr *MockOptionsMockRecorder) SetTruncateType(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateType", reflect.TypeOf((*MockOptions)(nil).SetTruncateType), value)
-}
-
-// TruncateType mocks base method
-func (m *MockOptions) TruncateType() TruncateType {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TruncateType")
-	ret0, _ := ret[0].(TruncateType)
-	return ret0
-}
-
-// TruncateType indicates an expected call of TruncateType
-func (mr *MockOptionsMockRecorder) TruncateType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateType", reflect.TypeOf((*MockOptions)(nil).TruncateType))
-}
-
 // SetSchemaRegistry mocks base method
 func (m *MockOptions) SetSchemaRegistry(value SchemaRegistry) Options {
 	m.ctrl.T.Helper()

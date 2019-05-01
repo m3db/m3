@@ -35,9 +35,6 @@ var (
 type indexOpts struct {
 	enabled   bool
 	blockSize time.Duration
-
-	forwardIndexThreshold   float64
-	forwardIndexProbability float64
 }
 
 // NewIndexOptions returns a new IndexOptions.
@@ -50,9 +47,7 @@ func NewIndexOptions() IndexOptions {
 
 func (i *indexOpts) Equal(value IndexOptions) bool {
 	return i.Enabled() == value.Enabled() &&
-		i.BlockSize() == value.BlockSize() &&
-		i.ForwardIndexProbability() == value.ForwardIndexProbability() &&
-		i.ForwardIndexThreshold() == value.ForwardIndexThreshold()
+		i.BlockSize() == value.BlockSize()
 }
 
 func (i *indexOpts) SetEnabled(value bool) IndexOptions {
@@ -75,22 +70,3 @@ func (i *indexOpts) BlockSize() time.Duration {
 	return i.blockSize
 }
 
-func (i *indexOpts) SetForwardIndexProbability(value float64) IndexOptions {
-	io := *i
-	io.forwardIndexProbability = value
-	return &io
-}
-
-func (i *indexOpts) ForwardIndexProbability() float64 {
-	return i.forwardIndexProbability
-}
-
-func (i *indexOpts) SetForwardIndexThreshold(value float64) IndexOptions {
-	io := *i
-	io.forwardIndexThreshold = value
-	return &io
-}
-
-func (i *indexOpts) ForwardIndexThreshold() float64 {
-	return i.forwardIndexThreshold
-}

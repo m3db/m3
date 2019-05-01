@@ -342,7 +342,6 @@ func Run(runOpts RunOptions) {
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
 		})
-	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -1281,6 +1280,8 @@ func withEncodingAndPoolingOptions(
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
+	// Set index options.
+	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
@@ -1297,7 +1298,9 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
-		SetAggregateResultsPool(aggregateQueryResultsPool)
+		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so

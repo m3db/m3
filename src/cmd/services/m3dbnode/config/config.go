@@ -32,7 +32,7 @@ import (
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
@@ -169,6 +169,10 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 		return err
 	}
 
+	if err := c.Transforms.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -201,7 +205,7 @@ type IndexConfiguration struct {
 // incoming writes.
 type TransformConfiguration struct {
 	// TruncateBy determines what type of truncatation
-	TruncateBy namespace.TruncateType `yaml:"truncateBy"`
+	TruncateBy series.TruncateType `yaml:"truncateBy"`
 }
 
 func (c *TransformConfiguration) Validate() error {

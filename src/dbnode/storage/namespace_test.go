@@ -98,6 +98,21 @@ func newTestNamespaceWithIDOpts(
 	return ns.(*dbNamespace), closer
 }
 
+func newTestNamespaceWithOpts(
+	t *testing.T,
+	dopts Options,
+) (*dbNamespace, closerFn) {
+	nsID, opts := defaultTestNs1ID, defaultTestNs1Opts
+	metadata := newTestNamespaceMetadataWithIDOpts(t, nsID, opts)
+	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
+	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
+	require.NoError(t, err)
+	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	require.NoError(t, err)
+	closer := dopts.RuntimeOptionsManager().Close
+	return ns.(*dbNamespace), closer
+}
+
 func newTestNamespaceWithIndex(
 	t *testing.T,
 	index namespaceIndex,
@@ -112,11 +127,13 @@ func newTestNamespaceWithIndex(
 func newTestNamespaceWithUseAsIndex(
 	t *testing.T,
 	index namespaceIndex,
-	useAsIndex bool,
+	truncateType series.TruncateType,
 ) (*dbNamespace, closerFn) {
-	nsOpts := defaultTestNs1Opts
-	nsOpts = nsOpts.SetIndexOptions(nsOpts.IndexOptions().SetUseAsIndex(useAsIndex))
-	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, nsOpts)
+	opts := testDatabaseOptions().
+		SetRuntimeOptionsManager(runtime.NewOptionsManager()).
+		SetTruncateType(truncateType)
+
+	ns, closer := newTestNamespaceWithOpts(t, opts)
 	ns.reverseIndex = index
 	return ns, closer
 }
@@ -196,12 +213,13 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	unit := xtime.Second
 	ant := []byte(nil)
 
-	for _, useAsIndex := range []bool{true, false} {
-		ns, closer := newTestNamespaceWithUseAsIndex(t, nil, useAsIndex)
+	truncateTypes := []series.TruncateType{series.TypeBlock, series.TypeNone}
+	for _, truncateType := range truncateTypes {
+		ns, closer := newTestNamespaceWithUseAsIndex(t, nil, truncateType)
 		defer closer()
 		shard := NewMockdatabaseShard(ctrl)
 		opts := series.WriteOptions{
-			UseAsIndex: useAsIndex,
+			TruncateType: truncateType,
 		}
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
 			Return(ts.Series{}, true, nil).Times(1)
@@ -1085,9 +1103,11 @@ func TestNamespaceIndexInsert(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	for _, useAsIndex := range []bool{true, false} {
+	truncateTypes := []series.TruncateType{series.TypeBlock, series.TypeNone}
+	for _, truncateType := range truncateTypes {
 		idx := NewMocknamespaceIndex(ctrl)
-		ns, closer := newTestNamespaceWithUseAsIndex(t, idx, useAsIndex)
+
+		ns, closer := newTestNamespaceWithUseAsIndex(t, idx, truncateType)
 		ns.reverseIndex = idx
 		defer closer()
 
@@ -1097,7 +1117,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 
 		opts := series.WriteOptions{
-			UseAsIndex: useAsIndex,
+			TruncateType: truncateType,
 		}
 		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
 			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, true, nil)

@@ -352,6 +352,6 @@ const BootstrapWriteType = WarmWrite
 
 // WriteOptions provides a set of options for a write.
 type WriteOptions struct {
-	SchemaDesc namespace.SchemaDescr
-	UseAsIndex bool
+	SchemaDesc   namespace.SchemaDescr
+	TruncateType TruncateType
 }

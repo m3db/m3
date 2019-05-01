@@ -118,6 +118,7 @@ type options struct {
 	errThresholdForLoad            int64
 	indexingEnabled                bool
 	repairEnabled                  bool
+	truncateType                   series.TruncateType
 	indexOpts                      index.Options
 	repairOpts                     repair.Options
 	newEncoderFn                   encoding.NewEncoderFn
@@ -354,14 +355,14 @@ func (o *options) RepairEnabled() bool {
 	return o.repairEnabled
 }
 
-func (o *options) SetIndexOptions(b bool) Options {
+func (o *options) SetTruncateType(value series.TruncateType) Options {
 	opts := *o
-	opts.useAsIndex = b
+	opts.truncateType = value
 	return &opts
 }
 
-func (o *options) UseAsIndex() bool {
-	return o.useAsIndex
+func (o *options) TruncateType() series.TruncateType {
+	return o.truncateType
 }
 
 func (o *options) SetRepairOptions(value repair.Options) Options {
