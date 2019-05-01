@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,33 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package etcd
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
-
-	"github.com/m3db/m3/src/collector/server"
-	"github.com/m3db/m3/src/x/etcd"
+	"github.com/coreos/pkg/capnslog"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+// SetGlobals sets etcd globals such as log output level, etc.
+func SetGlobals() {
+	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 }
