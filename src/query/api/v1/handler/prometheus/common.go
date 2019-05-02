@@ -241,6 +241,9 @@ func ParseTagValuesToQuery(
 
 	nameBytes := []byte(name)
 	return &storage.CompleteTagsQuery{
+		// NB: necessarily spans the entire timerange for the index.
+		Start:            time.Time{},
+		End:              time.Now(),
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers: models.Matchers{
