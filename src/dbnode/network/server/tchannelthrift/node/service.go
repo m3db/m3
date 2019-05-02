@@ -36,23 +36,26 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/resource"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 var (
@@ -134,7 +137,8 @@ type service struct {
 	db      storage.Database
 	dbIsSet uint64 // Atomic, 1 for true 0 for false.
 
-	logger  log.Logger
+	logger *zap.Logger
+
 	opts    tchannelthrift.Options
 	nowFn   clock.NowFn
 	pools   pools
@@ -281,15 +285,30 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
-	var (
-		ctx                  = tchannelthrift.Context(tctx)
-		start, rangeStartErr = convert.ToTime(req.RangeStart, req.RangeType)
-		end, rangeEndErr     = convert.ToTime(req.RangeEnd, req.RangeType)
+	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.Query)
+	sp.LogFields(
+		opentracinglog.String("query", req.Query.String()),
+		opentracinglog.String("namespace", req.NameSpace),
+		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+		xopentracing.Time("end", time.Unix(0, req.RangeStart)),
 	)
+
+	result, err := s.query(ctx, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) query(ctx context.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
@@ -348,7 +367,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -421,12 +440,30 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
+	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.FetchTagged)
+	sp.LogFields(
+		opentracinglog.String("query", string(req.Query)),
+		opentracinglog.String("namespace", string(req.NameSpace)),
+		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+		xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+	)
+
+	result, err := s.fetchTagged(ctx, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
@@ -479,7 +516,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -521,7 +558,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -569,7 +606,7 @@ func (s *service) encodeTags(
 	if err := enc.Encode(tags); err != nil {
 		// should never happen
 		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error(err.Error())
 		})
 		return nil, err
@@ -578,7 +615,7 @@ func (s *service) encodeTags(
 	if !ok {
 		// should never happen
 		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error(err.Error())
 		})
 		return nil, err
@@ -587,7 +624,7 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -642,7 +679,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -663,7 +700,8 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
 	ropts := nsMetadata.Options().RetentionOptions()
-	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
+	blockStarts := make([]time.Time, 0,
+		(ropts.RetentionPeriod()+ropts.FutureRetentionPeriod())/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
@@ -715,7 +753,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -849,7 +887,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return err
 	}
 
@@ -876,8 +914,13 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	}
 
 	if err = s.db.Write(
-		ctx, s.pools.id.GetStringID(ctx, req.NameSpace), s.pools.id.GetStringID(ctx, req.ID),
-		xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
+		ctx,
+		s.pools.id.GetStringID(ctx, req.NameSpace),
+		s.pools.id.GetStringID(ctx, req.ID),
+		xtime.FromNormalizedTime(dp.Timestamp, d),
+		dp.Value,
+		unit,
+		dp.Annotation,
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -889,7 +932,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return err
 	}
 
@@ -941,7 +984,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return err
 	}
 
@@ -997,7 +1040,8 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
@@ -1022,7 +1066,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return err
 	}
 
@@ -1110,7 +1154,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 }
 
 func (s *service) Repair(tctx thrift.Context) error {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return err
 	}
 
@@ -1127,7 +1171,7 @@ func (s *service) Repair(tctx thrift.Context) error {
 }
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1150,7 +1194,7 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 func (s *service) GetPersistRateLimit(
 	ctx thrift.Context,
 ) (*rpc.NodePersistRateLimitResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1171,7 +1215,7 @@ func (s *service) SetPersistRateLimit(
 	ctx thrift.Context,
 	req *rpc.NodeSetPersistRateLimitRequest,
 ) (*rpc.NodePersistRateLimitResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1196,7 +1240,7 @@ func (s *service) SetPersistRateLimit(
 func (s *service) GetWriteNewSeriesAsync(
 	ctx thrift.Context,
 ) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1211,7 +1255,7 @@ func (s *service) SetWriteNewSeriesAsync(
 	ctx thrift.Context,
 	req *rpc.NodeSetWriteNewSeriesAsyncRequest,
 ) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1229,7 +1273,7 @@ func (s *service) GetWriteNewSeriesBackoffDuration(
 	*rpc.NodeWriteNewSeriesBackoffDurationResult_,
 	error,
 ) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1248,7 +1292,7 @@ func (s *service) SetWriteNewSeriesBackoffDuration(
 	*rpc.NodeWriteNewSeriesBackoffDurationResult_,
 	error,
 ) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1271,7 +1315,7 @@ func (s *service) GetWriteNewSeriesLimitPerShardPerSecond(
 	*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_,
 	error,
 ) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1289,7 +1333,7 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_,
 	error,
 ) {
-	if err := s.canDoRPC(); err != nil {
+	if err := s.acceptRPC(); err != nil {
 		return nil, err
 	}
 
@@ -1321,7 +1365,7 @@ func (s *service) SetDatabase(db storage.Database) error {
 	return nil
 }
 
-func (s *service) canDoRPC() error {
+func (s *service) acceptRPC() error {
 	if atomic.LoadUint64(&s.dbIsSet) != 1 {
 		return convert.ToRPCError(errDatabaseIsNotInitializedYet)
 	}

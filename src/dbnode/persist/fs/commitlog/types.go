@@ -27,11 +27,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Strategy describes the commit log writing strategy
@@ -186,9 +186,19 @@ type Options interface {
 	IdentifierPool() ident.Pool
 }
 
+// FileFilterInfo contains information about a commitog file that can be used to
+// determine whether the iterator should filter it out or not.
+type FileFilterInfo struct {
+	// If isCorrupt is true then File will contain a valid CommitLogFile, otherwise
+	// ErrorWithPath will contain an error and the path of the corrupt file.
+	File      persist.CommitLogFile
+	Err       ErrorWithPath
+	IsCorrupt bool
+}
+
 // FileFilterPredicate is a predicate that allows the caller to determine
 // which commitlogs the iterator should read from.
-type FileFilterPredicate func(f persist.CommitLogFile) bool
+type FileFilterPredicate func(f FileFilterInfo) bool
 
 // SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the

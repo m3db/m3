@@ -34,11 +34,11 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/sync"
 	bytetest "github.com/m3db/m3/src/x/test"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/sync"
-	xtest "github.com/m3db/m3x/test"
-	xtime "github.com/m3db/m3x/time"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -123,9 +123,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	queryCache, err := storage.NewQueryConversionLRU(100)
-	require.NoError(t, err)
-	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute, storage.NewQueryConversionCache(queryCache))
+	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute)
 	require.NoError(t, err)
 	return storage
 }

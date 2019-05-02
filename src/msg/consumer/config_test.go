@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -65,5 +65,4 @@ decoder:
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
 	require.Equal(t, 200, opts.DecoderOptions().MaxMessageSize())
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
-	require.Equal(t, instrument.NewOptions(), opts.InstrumentOptions())
 }

@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // Supported aggregation types.

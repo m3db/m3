@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/benchmark/common"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"

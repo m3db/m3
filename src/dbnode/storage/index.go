@@ -41,20 +41,21 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
-	xclose "github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -72,23 +73,29 @@ const (
 	nsIndexReportStatsInterval          = 10 * time.Second
 )
 
+var (
+	allQuery = idx.NewAllQuery()
+)
+
 // nolint: maligned
 type nsIndex struct {
 	state nsIndexState
 
 	// all the vars below this line are not modified past the ctor
 	// and don't require a lock when being accessed.
-	nowFn           clock.NowFn
-	blockSize       time.Duration
-	retentionPeriod time.Duration
-	bufferPast      time.Duration
-	bufferFuture    time.Duration
+	nowFn                 clock.NowFn
+	blockSize             time.Duration
+	retentionPeriod       time.Duration
+	futureRetentionPeriod time.Duration
+	bufferPast            time.Duration
+	bufferFuture          time.Duration
+	coldWritesEnabled     bool
 
 	indexFilesetsBeforeFn indexFilesetsBeforeFn
 	deleteFilesFn         deleteFilesFn
 
 	newBlockFn          newBlockFn
-	logger              xlog.Logger
+	logger              *zap.Logger
 	opts                Options
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
@@ -163,6 +170,23 @@ type newNamespaceIndexOpts struct {
 	opts            Options
 	newIndexQueueFn newNamespaceIndexInsertQueueFn
 	newBlockFn      newBlockFn
+}
+
+// execBlockQueryFn executes a query against the given block whilst tracking state.
+type execBlockQueryFn func(
+	cancellable *resource.CancellableLifetime,
+	block index.Block,
+	query index.Query,
+	opts index.QueryOptions,
+	state *asyncQueryExecState,
+	results index.BaseResults,
+)
+
+// asyncQueryExecState tracks the async execution errors and results for a query.
+type asyncQueryExecState struct {
+	sync.Mutex
+	multiErr   xerrors.MultiError
+	exhaustive bool
 }
 
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
@@ -241,11 +265,13 @@ func newNamespaceIndexWithOptions(
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
 
-		nowFn:           nowFn,
-		blockSize:       nsMD.Options().IndexOptions().BlockSize(),
-		retentionPeriod: nsMD.Options().RetentionOptions().RetentionPeriod(),
-		bufferPast:      nsMD.Options().RetentionOptions().BufferPast(),
-		bufferFuture:    nsMD.Options().RetentionOptions().BufferFuture(),
+		nowFn:                 nowFn,
+		blockSize:             nsMD.Options().IndexOptions().BlockSize(),
+		retentionPeriod:       nsMD.Options().RetentionOptions().RetentionPeriod(),
+		futureRetentionPeriod: nsMD.Options().RetentionOptions().FutureRetentionPeriod(),
+		bufferPast:            nsMD.Options().RetentionOptions().BufferPast(),
+		bufferFuture:          nsMD.Options().RetentionOptions().BufferFuture(),
+		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
@@ -261,6 +287,7 @@ func newNamespaceIndexWithOptions(
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
+
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
 	}
@@ -303,7 +330,7 @@ func (i *nsIndex) reportStatsUntilClosed() {
 		case <-ticker.C:
 			err := i.reportStats()
 			if err != nil {
-				i.logger.Warnf("could not report index stats: %v", err)
+				i.logger.Warn("could not report index stats", zap.Error(err))
 			}
 		case <-i.state.closeCh:
 			return
@@ -488,7 +515,6 @@ func (i *nsIndex) writeBatches(
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
-
 			if !futureLimit.After(entry.Timestamp) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
@@ -516,11 +542,11 @@ func (i *nsIndex) writeBatchForBlockStart(
 	block, err := i.ensureBlockPresent(blockStart)
 	if err != nil {
 		batch.MarkUnmarkedEntriesError(err)
-		i.logger.WithFields(
-			xlog.NewField("blockStart", blockStart),
-			xlog.NewField("numWrites", batch.Len()),
-			xlog.NewField("err", err.Error()),
-		).Error("unable to write to index, dropping inserts")
+		i.logger.Error("unable to write to index, dropping inserts",
+			zap.Time("blockStart", blockStart),
+			zap.Int("numWrites", batch.Len()),
+			zap.Error(err),
+		)
 		i.metrics.AsyncInsertErrors.Inc(int64(batch.Len()))
 		return
 	}
@@ -556,7 +582,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 		}
 	}
 	if err != nil {
-		i.logger.Errorf("error writing to index block: %v", err)
+		i.logger.Error("error writing to index block", zap.Error(err))
 	}
 }
 
@@ -689,10 +715,10 @@ func (i *nsIndex) Flush(
 		if err := block.EvictMutableSegments(); err != nil {
 			// deliberately choosing to not mark this as an error as we have successfully
 			// flushed any mutable data.
-			i.logger.WithFields(
-				xlog.NewField("err", err.Error()),
-				xlog.NewField("blockStart", block.StartTime()),
-			).Warnf("encountered error while evicting mutable segments for index block")
+			i.logger.Warn("encountered error while evicting mutable segments for index block",
+				zap.Error(err),
+				zap.Time("blockStart", block.StartTime()),
+			)
 		}
 	}
 	i.metrics.BlocksEvictedMutableSegments.Inc(int64(evicted))
@@ -865,7 +891,8 @@ func (i *nsIndex) Query(
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
 		SizeLimit: opts.Limit,
 	})
-	exhaustive, err := i.query(ctx, query, results, opts)
+	ctx.RegisterFinalizer(results)
+	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn)
 	if err != nil {
 		return index.QueryResult{}, err
 	}
@@ -887,7 +914,13 @@ func (i *nsIndex) AggregateQuery(
 		TermFilter: opts.TermFilter,
 		Type:       opts.Type,
 	})
-	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions)
+	ctx.RegisterFinalizer(results)
+	// use appropriate fn to query underlying blocks.
+	fn := i.execBlockQueryFn
+	if query.Equal(allQuery) {
+		fn = i.execBlockAggregateQueryFn
+	}
+	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
@@ -902,6 +935,7 @@ func (i *nsIndex) query(
 	query index.Query,
 	results index.BaseResults,
 	opts index.QueryOptions,
+	execBlockFn execBlockQueryFn,
 ) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
@@ -937,49 +971,18 @@ func (i *nsIndex) query(
 	}
 
 	var (
-		deadline = start.Add(timeout)
-		wg       sync.WaitGroup
-
 		// State contains concurrent mutable state for async execution below.
-		state = struct {
-			sync.Mutex
-			multiErr   xerrors.MultiError
-			exhaustive bool
-		}{
+		state = asyncQueryExecState{
 			exhaustive: true,
 		}
+		deadline = start.Add(timeout)
+		wg       sync.WaitGroup
 	)
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
 	// no child async task modifies the result after this method returns.
 	cancellable := resource.NewCancellableLifetime()
 	defer cancellable.Cancel()
-
-	execBlockQuery := func(block index.Block) {
-		blockExhaustive, err := block.Query(cancellable, query, opts, results)
-		if err == index.ErrUnableToQueryBlockClosed {
-			// NB(r): Because we query this block outside of the results lock, it's
-			// possible this block may get closed if it slides out of retention, in
-			// that case those results are no longer considered valid and outside of
-			// retention regardless, so this is a non-issue.
-			err = nil
-		}
-
-		state.Lock()
-		defer state.Unlock()
-
-		if err != nil {
-			state.multiErr = state.multiErr.Add(err)
-			return
-		}
-
-		if blockExhaustive {
-			return
-		}
-
-		// If block had more data but we stopped early, need to notify caller.
-		state.exhaustive = false
-	}
 
 	for _, block := range blocks {
 		// Capture block for async query execution below.
@@ -1006,7 +1009,7 @@ func (i *nsIndex) query(
 			// No timeout, just wait blockingly for a worker.
 			wg.Add(1)
 			i.queryWorkersPool.Go(func() {
-				execBlockQuery(block)
+				execBlockFn(cancellable, block, query, opts, &state, results)
 				wg.Done()
 			})
 			continue
@@ -1017,7 +1020,7 @@ func (i *nsIndex) query(
 		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
 			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
-				execBlockQuery(block)
+				execBlockFn(cancellable, block, query, opts, &state, results)
 				wg.Done()
 			}, timeLeft)
 
@@ -1082,6 +1085,66 @@ func (i *nsIndex) query(
 	return exhaustive, nil
 }
 
+func (i *nsIndex) execBlockQueryFn(
+	cancellable *resource.CancellableLifetime,
+	block index.Block,
+	query index.Query,
+	opts index.QueryOptions,
+	state *asyncQueryExecState,
+	results index.BaseResults,
+) {
+	blockExhaustive, err := block.Query(cancellable, query, opts, results)
+	if err == index.ErrUnableToQueryBlockClosed {
+		// NB(r): Because we query this block outside of the results lock, it's
+		// possible this block may get closed if it slides out of retention, in
+		// that case those results are no longer considered valid and outside of
+		// retention regardless, so this is a non-issue.
+		err = nil
+	}
+
+	state.Lock()
+	defer state.Unlock()
+
+	if err != nil {
+		state.multiErr = state.multiErr.Add(err)
+	}
+	state.exhaustive = state.exhaustive && blockExhaustive
+}
+
+func (i *nsIndex) execBlockAggregateQueryFn(
+	cancellable *resource.CancellableLifetime,
+	block index.Block,
+	query index.Query,
+	opts index.QueryOptions,
+	state *asyncQueryExecState,
+	results index.BaseResults,
+) {
+	aggResults, ok := results.(index.AggregateResults)
+	if !ok { // should never happen
+		state.Lock()
+		state.multiErr = state.multiErr.Add(
+			fmt.Errorf("unknown results type [%T] received during aggregation", results))
+		state.Unlock()
+		return
+	}
+
+	blockExhaustive, err := block.Aggregate(cancellable, opts, aggResults)
+	if err == index.ErrUnableToQueryBlockClosed {
+		// NB(r): Because we query this block outside of the results lock, it's
+		// possible this block may get closed if it slides out of retention, in
+		// that case those results are no longer considered valid and outside of
+		// retention regardless, so this is a non-issue.
+		err = nil
+	}
+
+	state.Lock()
+	defer state.Unlock()
+	if err != nil {
+		state.multiErr = state.multiErr.Add(err)
+	}
+	state.exhaustive = state.exhaustive && blockExhaustive
+}
+
 func (i *nsIndex) timeoutForQueryWithRLock(
 	ctx context.Context,
 ) time.Duration {
@@ -1096,8 +1159,9 @@ func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	// Override query response limit if needed.
 	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
 		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
-		i.logger.Debugf("overriding query response limit, requested: %d, max-allowed: %d",
-			opts.Limit, i.state.runtimeOpts.maxQueryLimit) // FOLLOWUP(prateek): log query too once it's serializable.
+		i.logger.Debug("overriding query response limit",
+			zap.Int("requested", opts.Limit),
+			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
 		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
 	}
 	return opts
@@ -1306,16 +1370,16 @@ func (i *nsIndex) Close() error {
 
 func (i *nsIndex) missingBlockInvariantError(t xtime.UnixNano) error {
 	err := fmt.Errorf("index query did not find block %d despite seeing it in slice", t)
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(err.Error())
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+		l.Error(err.Error())
 	})
 	return err
 }
 
 func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 	ierr := fmt.Errorf("index unable to allocate block: %v", err)
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l xlog.Logger) {
-		l.Errorf(ierr.Error())
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+		l.Error(ierr.Error())
 	})
 	return ierr
 }

@@ -22,6 +22,7 @@ package node
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -37,15 +38,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
@@ -1184,6 +1188,10 @@ func TestServiceFetchTagged(t *testing.T) {
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
 
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(context.Background(), sp))
+
 	start := time.Now().Add(-2 * time.Hour)
 	end := start.Add(2 * time.Hour)
 
@@ -1218,7 +1226,7 @@ func TestServiceFetchTagged(t *testing.T) {
 
 		streams[id] = enc.Stream()
 		mockDB.EXPECT().
-			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{{
 				xio.BlockReader{
 					SegmentReader: enc.Stream(),
@@ -1242,7 +1250,7 @@ func TestServiceFetchTagged(t *testing.T) {
 	))
 
 	mockDB.EXPECT().QueryIDs(
-		ctx,
+		gomock.Any(),
 		ident.NewIDMatcher(nsID),
 		index.NewQueryMatcher(qry),
 		index.QueryOptions{
@@ -1299,6 +1307,12 @@ func TestServiceFetchTagged(t *testing.T) {
 		assert.Equal(t, expectHead, seg.Merged.Head)
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.FetchTagged, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
@@ -1623,7 +1637,8 @@ func TestServiceWrite(t *testing.T) {
 	value := 42.42
 
 	mockDB.EXPECT().
-		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
+		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
+			xtime.Second, nil).
 		Return(nil)
 
 	mockDB.EXPECT().IsOverloaded().Return(false)

@@ -1,5 +1,44 @@
 # Changelog
 
+# 0.8.5 (TBD)
+
+## Bug Fixes
+
+- **M3DB**: Prevent active commit log from appearing like a corrupt file during bootstrap.
+
+# 0.8.4 (2019-04-20)
+
+## Performance
+
+- **M3DB**: Fix index query and aggregate query pooling using finalizers (#1567)
+
+## Bug Fixes
+
+- **M3Query**: Fix PromQL `offset` modifier implementation (#1561)
+- **M3DB**: Fix index flush recovery when previous index flush attempts have failed (#1574)
+
+# 0.8.3 (2019-04-12)
+
+## Performance
+
+- **M3DB**: Bump TagLiteralLength limit to 64K (#1552)
+
+# 0.8.2 (2019-04-11)
+
+## New Features
+
+- **M3DB**: Add Jaeger tracing to M3DB QueryIDs path (#1506)
+
+## Performance
+
+- **M3DB**: Add postingsList caching for FieldQuery (#1530)
+- **M3DB**: Add write & read latency histogram metrics to M3DB client and emit from M3Coordinator (#1533)
+- **M3DB**: Persist block at retention edge when building index after peer streaming (#1531)
+
+## Bug Fixes
+
+- **M3Query**: Fixed a bug that could cause a panic when converting queries (#1546)
+
 # 0.8.1 (2019-04-02)
 
 ## Bug Fixes

@@ -30,7 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3x/close"
+	"github.com/m3db/m3/src/x/close"
 
 	"github.com/golang/mock/gomock"
 )

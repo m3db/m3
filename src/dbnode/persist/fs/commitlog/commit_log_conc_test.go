@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -109,7 +109,7 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			require.Equal(t, 1, len(logs))
+			require.Equal(t, 2, len(logs))
 			if logs[0].FilePath != lastSeenFile {
 				lastSeenFile = logs[0].FilePath
 				numFilesSeen++

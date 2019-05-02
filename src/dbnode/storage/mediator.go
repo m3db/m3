@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 
+	"go.uber.org/zap"
 	"github.com/uber-go/tally"
 )
 
@@ -205,7 +206,7 @@ func (m *mediator) ongoingTick() {
 				m.sleepFn(tickCheckInterval)
 			} else if err != nil {
 				log := m.opts.InstrumentOptions().Logger()
-				log.Errorf("error within ongoingTick: %v", err)
+				log.Error("error within ongoingTick", zap.Error(err))
 			}
 		}
 	}

@@ -30,15 +30,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -181,6 +182,16 @@ type AggregateResults interface {
 		aggregateQueryOpts AggregateResultsOptions,
 	)
 
+	// AggregateResultsOptions returns the options for this AggregateResult.
+	AggregateResultsOptions() AggregateResultsOptions
+
+	// AddFields adds the batch of fields to the results set, it will
+	// assume ownership of the idents (and backing bytes) provided to it.
+	// i.e. it is not safe to use/modify the idents once this function returns.
+	AddFields(
+		batch []AggregateResultsEntry,
+	) (size int)
+
 	// Map returns a map from tag name -> possible tag values,
 	// comprising aggregate results.
 	// Since a lock is not held when accessing the map after a call to this
@@ -238,6 +249,13 @@ type AggregateValuesPool interface {
 	Put(value AggregateValues)
 }
 
+// AggregateResultsEntry is used during block.Aggregate() execution
+// to collect entries.
+type AggregateResultsEntry struct {
+	Field ident.ID
+	Terms []ident.ID
+}
+
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
@@ -273,7 +291,16 @@ type Block interface {
 		results BaseResults,
 	) (exhaustive bool, err error)
 
-	// AddResults adds bootstrap results to the block, if c.
+	// Aggregate aggregates known tag names/values.
+	// NB(prateek): different from aggregating by means of Query, as we can
+	// avoid going to documents, relying purely on the indexed FSTs.
+	Aggregate(
+		cancellable *resource.CancellableLifetime,
+		opts QueryOptions,
+		results AggregateResults,
+	) (exhaustive bool, err error)
+
+	// AddResults adds bootstrap results to the block.
 	AddResults(results result.IndexBlock) error
 
 	// Tick does internal house keeping operations.
@@ -698,6 +725,25 @@ func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
 }
 
+// fieldsAndTermsIterator iterates over all known fields and terms for a segment.
+type fieldsAndTermsIterator interface {
+	// Next returns a bool indicating if there are any more elements.
+	Next() bool
+
+	// Current returns the current element.
+	// NB: the element returned is only valid until the subsequent call to Next().
+	Current() (field, term []byte)
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Close releases any resources held by the iterator.
+	Close() error
+
+	// Reset resets the iterator to the start iterating the given segment.
+	Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error
+}
+
 // Options control the Indexing knobs.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -774,6 +820,12 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetAggregateResultsEntryArrayPool sets the aggregate results entry array pool.
+	SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options
+
+	// AggregateResultsEntryArrayPool returns the aggregate results entry array pool.
+	AggregateResultsEntryArrayPool() AggregateResultsEntryArrayPool
 
 	// SetForegroundCompactionPlannerOptions sets the compaction planner options.
 	SetForegroundCompactionPlannerOptions(v compaction.PlannerOptions) Options

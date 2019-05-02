@@ -68,5 +68,5 @@ func TestFileTransfer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, confContents, obsBytes)
 
-	th.logger.Infof("verified contents")
+	th.logger.Info("verified contents")
 }

@@ -34,12 +34,30 @@ edit_uri: edit/master/docs/
 repo_name: m3db/m3
 repo_url: https://github.com/m3db/m3
 
+markdown_extensions:
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:pymdownx.emoji.to_svg
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
 pages:
   - "Introduction": "index.md"
   - "Overview":
-    - "Components": "introduction/components/components.md"
-    - "Motivation": "introduction/motivation/motivation.md"
-    - "Media":      "introduction/media/media.md"
+    - "Components": "overview/components.md"
+    - "Motivation": "overview/motivation.md"
+    - "Media":      "overview/media.md"
   - "M3DB":
     - "Introduction": "m3db/index.md"
     - "Architecture":
@@ -69,6 +87,7 @@ pages:
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
     - "M3Query": "how_to/query.md"
   - "Operational Guides":
+    - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
@@ -88,3 +107,4 @@ pages:
       - "m3query Performance":  "performance/m3query/index.md"
   - "Troubleshooting": "troubleshooting/index.md"
   - "FAQs": "faqs/index.md"
+  - "Tips For Writing Documentation": "misc/writing_docs.md"

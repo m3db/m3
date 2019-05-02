@@ -40,10 +40,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -324,8 +324,9 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 					VolumeIndex: 0,
 				},
 				// Make sure path passes the "is snapshot" check in SnapshotTimeAndID method.
-				AbsoluteFilepaths:  []string{"snapshots/checkpoint"},
-				CachedSnapshotTime: start.Add(time.Minute),
+				AbsoluteFilepaths:               []string{"snapshots/checkpoint"},
+				CachedHasCompleteCheckpointFile: fs.EvalTrue,
+				CachedSnapshotTime:              start.Add(time.Minute),
 			},
 		}, nil
 	}

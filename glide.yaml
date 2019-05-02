@@ -1,20 +1,5 @@
 package: github.com/m3db/m3
 import:
-  - package: github.com/m3db/m3x
-    version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
-    vcs: git
-    subpackages:
-      - checked
-      - close
-      - errors
-      - instrument
-      - log
-      - pool
-      - retry
-      - time
-      - watch
-      - ident
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
@@ -26,6 +11,9 @@ import:
 
   - package: github.com/m3db/stackadler32
     version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+
+  - package: github.com/MichaelTJones/pcg
+    version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 
   - package: github.com/willf/bitset
     version: e553b05586428962bf7058d1044519d87ca72d74
@@ -56,9 +44,13 @@ import:
     subpackages:
       - proto
       - ptypes/timestamp
+      - jsonpb
 
   - package: github.com/gogo/protobuf
     version: ^1
+
+  - package: github.com/jhump/protoreflect
+    version: e0795ed1d1ada047d01e90243863def21db467fc
 
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
@@ -114,9 +106,8 @@ import:
     version: ^1.2.0
 
   # NB(r): make sure to use the master commit for vellum
-  # once all upstream changes are complete in github.com/couchbase/vellum.
-  - package: github.com/couchbase/vellum
-    repo: https://github.com/m3db/vellum
+  # once all upstream changes are complete in github.com/m3db/vellum.
+  - package: github.com/m3db/vellum
     version: e766292d14de216c324bb60b17320af72dee59c6
 
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
@@ -203,10 +194,10 @@ import:
 
   # START_JAEGER_DEPS
   - package: github.com/uber/jaeger-lib
-    version: ^1.5.0
+    version: ^2.0.0
 
   - package: github.com/uber/jaeger-client-go
-    version: ~2.15.0
+    version: ~2.16.0
 
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting

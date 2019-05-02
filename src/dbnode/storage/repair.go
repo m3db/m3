@@ -35,13 +35,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -56,7 +56,7 @@ type shardRepairer struct {
 	rpopts   repair.Options
 	client   client.AdminClient
 	recordFn recordFn
-	logger   xlog.Logger
+	logger   *zap.Logger
 	scope    tally.Scope
 	nowFn    clock.NowFn
 }
@@ -237,7 +237,7 @@ type dbRepairer struct {
 	repairFn            repairFn
 	sleepFn             sleepFn
 	nowFn               clock.NowFn
-	logger              xlog.Logger
+	logger              *zap.Logger
 	repairInterval      time.Duration
 	repairTimeOffset    time.Duration
 	repairTimeJitter    time.Duration
@@ -319,7 +319,7 @@ func (r *dbRepairer) run() {
 
 		curIntervalStart = intervalStart
 		if err := r.repairFn(); err != nil {
-			r.logger.Errorf("error repairing database: %v", err)
+			r.logger.Error("error repairing database", zap.Error(err))
 		}
 	}
 }
@@ -330,7 +330,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 		rtopts    = ns.Options().RetentionOptions()
 		blockSize = rtopts.BlockSize()
 		start     = now.Add(-rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
+		end       = now.Add(rtopts.FutureRetentionPeriod()).Add(-rtopts.BufferPast()).Truncate(blockSize)
 	)
 
 	targetRanges := xtime.NewRanges(xtime.Range{Start: start, End: end})

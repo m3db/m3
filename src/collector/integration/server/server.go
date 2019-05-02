@@ -30,8 +30,9 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3x/log"
-	xserver "github.com/m3db/m3x/server"
+	xserver "github.com/m3db/m3/src/x/server"
+
+	"go.uber.org/zap"
 )
 
 // NewServer creates a new server.
@@ -41,7 +42,7 @@ func NewServer(addr string, opts Options) xserver.Server {
 }
 
 type handler struct {
-	logger         log.Logger
+	logger         *zap.Logger
 	itOpts         protobuf.UnaggregatedOptions
 	readBufferSize int
 	handleFn       HandleFn
@@ -78,23 +79,22 @@ func (h *handler) Handle(conn net.Conn) {
 			metric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			metadatas = current.GaugeWithMetadatas.StagedMetadatas
 		default:
-			h.logger.WithFields(
-				log.NewField("messageType", current.Type),
-			).Error("unrecognized message type")
+			h.logger.Error("unrecognized message type",
+				zap.Any("messageType", current.Type),
+			)
 		}
 		if err := h.handleFn(metric, metadatas); err != nil {
-			h.logger.WithFields(
-				log.NewField("metric", metric),
-				log.NewField("metadatas", metadatas),
-				log.NewErrField(err),
-			).Error("error handling metrics")
+			h.logger.Error("error handling metrics",
+				zap.Any("metric", metric),
+				zap.Any("metadatas", metadatas),
+				zap.Error(err),
+			)
 		}
 	}
 
 	if err := it.Err(); err != nil && err != io.EOF {
-		h.logger.WithFields(
-			log.NewErrField(err),
-		).Error("decode error")
+		h.logger.Error("decode error",
+			zap.Error(err))
 	}
 }
 

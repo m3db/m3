@@ -28,8 +28,9 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/ident"
+
+	"go.uber.org/zap"
 )
 
 // specific to data generation
@@ -42,7 +43,7 @@ const (
 
 type generator struct {
 	opts      Options
-	logger    xlog.Logger
+	logger    *zap.Logger
 	r         *rand.Rand
 	numPoints unifStats
 	idLength  normStats

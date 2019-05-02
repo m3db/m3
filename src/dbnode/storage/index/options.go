@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
@@ -45,16 +45,26 @@ const (
 	documentArrayPoolSize        = 256
 	documentArrayPoolCapacity    = 256
 	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
+
+	// aggregateResultsEntryArrayPool size in general: 256*256*sizeof(doc.Field)
+	// = 256 * 256 * 16
+	// = 1mb (but with Go's heap probably 2mb)
+	// TODO(prateek): Make this configurable in a followup change.
+	aggregateResultsEntryArrayPoolSize        = 256
+	aggregateResultsEntryArrayPoolCapacity    = 256
+	aggregateResultsEntryArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 )
 
 var (
-	errOptionsIdentifierPoolUnspecified = errors.New("identifier pool is unset")
-	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
-	errOptionsResultsPoolUnspecified    = errors.New("results pool is unset")
-	errOptionsAggResultsPoolUnspecified = errors.New("aggregate results pool is unset")
-	errOptionsAggValuesPoolUnspecified  = errors.New("aggregate values pool is unset")
-	errIDGenerationDisabled             = errors.New("id generation is disabled")
-	errPostingsListCacheUnspecified     = errors.New("postings list cache is unset")
+	errOptionsIdentifierPoolUnspecified      = errors.New("identifier pool is unset")
+	errOptionsBytesPoolUnspecified           = errors.New("checkedbytes pool is unset")
+	errOptionsResultsPoolUnspecified         = errors.New("results pool is unset")
+	errOptionsAggResultsPoolUnspecified      = errors.New("aggregate results pool is unset")
+	errOptionsAggValuesPoolUnspecified       = errors.New("aggregate values pool is unset")
+	errOptionsDocPoolUnspecified             = errors.New("docs array pool is unset")
+	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
+	errIDGenerationDisabled                  = errors.New("id generation is disabled")
+	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
@@ -102,6 +112,7 @@ type opts struct {
 	aggResultsPool                  AggregateResultsPool
 	aggValuesPool                   AggregateValuesPool
 	docArrayPool                    doc.DocumentArrayPool
+	aggResultsEntryArrayPool        AggregateResultsEntryArrayPool
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
@@ -131,6 +142,14 @@ func NewOptions() Options {
 	})
 	docArrayPool.Init()
 
+	aggResultsEntryArrayPool := NewAggregateResultsEntryArrayPool(AggregateResultsEntryArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(aggregateResultsEntryArrayPoolSize),
+		Capacity:    aggregateResultsEntryArrayPoolCapacity,
+		MaxCapacity: aggregateResultsEntryArrayPoolMaxCapacity,
+	})
+	aggResultsEntryArrayPool.Init()
+
 	instrumentOpts := instrument.NewOptions()
 	opts := &opts{
 		insertMode:                      defaultIndexInsertMode,
@@ -145,6 +164,7 @@ func NewOptions() Options {
 		aggResultsPool:                  aggResultsPool,
 		aggValuesPool:                   aggValuesPool,
 		docArrayPool:                    docArrayPool,
+		aggResultsEntryArrayPool:        aggResultsEntryArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
@@ -171,8 +191,14 @@ func (o *opts) Validate() error {
 	if o.aggResultsPool == nil {
 		return errOptionsAggResultsPoolUnspecified
 	}
-	if o.aggResultsPool == nil {
+	if o.aggValuesPool == nil {
 		return errOptionsAggValuesPoolUnspecified
+	}
+	if o.docArrayPool == nil {
+		return errOptionsDocPoolUnspecified
+	}
+	if o.aggResultsEntryArrayPool == nil {
+		return errOptionsAggResultsEntryPoolUnspecified
 	}
 	if o.postingsListCache == nil {
 		return errPostingsListCacheUnspecified
@@ -302,6 +328,16 @@ func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 
 func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
+}
+
+func (o *opts) SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options {
+	opts := *o
+	opts.aggResultsEntryArrayPool = value
+	return &opts
+}
+
+func (o *opts) AggregateResultsEntryArrayPool() AggregateResultsEntryArrayPool {
+	return o.aggResultsEntryArrayPool
 }
 
 func (o *opts) SetForegroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {

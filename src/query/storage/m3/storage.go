@@ -37,8 +37,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-	"github.com/m3db/m3x/ident"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (
@@ -63,7 +63,6 @@ type m3storage struct {
 	writeWorkerPool xsync.PooledWorkerPool
 	opts            m3db.Options
 	nowFn           func() time.Time
-	conversionCache *storage.QueryConversionCache
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -74,7 +73,6 @@ func NewStorage(
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	lookbackDuration time.Duration,
-	queryConversionCache *storage.QueryConversionCache,
 ) (Storage, error) {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
@@ -87,7 +85,6 @@ func NewStorage(
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
-		conversionCache: queryConversionCache,
 	}, nil
 }
 
@@ -229,7 +226,7 @@ func (s *m3storage) fetchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query, s.conversionCache)
+	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +330,7 @@ func (s *m3storage) CompleteTags(
 		TagMatchers: query.TagMatchers,
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(fetchQuery, s.conversionCache)
+	m3query, err := storage.FetchQueryToM3Query(fetchQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +432,7 @@ func (s *m3storage) SearchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query, s.conversionCache)
+	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
 		return nil, noop, err
 	}

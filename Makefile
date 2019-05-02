@@ -34,21 +34,13 @@ cache_policy         ?= recently_read
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
-GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3_package)
-GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
+GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
-
-# LD Flags
-GIT_REVISION              := $(shell git rev-parse --short HEAD)
-GIT_BRANCH                := $(shell git rev-parse --abbrev-ref HEAD)
-GIT_VERSION               := $(shell git describe --tags --abbrev=0 2>/dev/null || echo unknown)
-BUILD_DATE                := $(shell date '+%F-%T') # outputs something in this format 2017-08-21-18:58:45
-BUILD_TS_UNIX             := $(shell date '+%s') # second since epoch
-BASE_PACKAGE              := ${m3_package}/vendor/github.com/m3db/m3x/instrument
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
@@ -187,7 +179,8 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e "GIT_REVISION=$(GIT_REVISION)" -e "GIT_BRANCH=$(GIT_BRANCH)" -e "GIT_VERSION=$(GIT_VERSION)" -e "BUILD_DATE=$(BUILD_DATE)" -e "BUILD_TS_UNIX=$(BUILD_TS_UNIX)" -e "BASE_PACKAGE=$(BASE_PACKAGE)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
+	$(GO_BUILD_LDFLAGS_CMD) ECHO > $(BUILD)/release-vars.env
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
@@ -197,7 +190,7 @@ release-snapshot: check-for-goreleaser-github-token
 .PHONY: docs-container
 docs-container:
 	docker run --rm hello-world >/dev/null
-	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
+	docker build -t m3db-docs docs
 
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our
@@ -240,14 +233,14 @@ site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
 
-SUBDIR_TARGETS :=     \
-	mock-gen            \
-	thrift-gen          \
-	proto-gen           \
-	asset-gen           \
-	genny-gen           \
-	license-gen         \
-	all-gen             \
+SUBDIR_TARGETS := \
+	mock-gen        \
+	thrift-gen      \
+	proto-gen       \
+	asset-gen       \
+	genny-gen       \
+	license-gen     \
+	all-gen         \
 	metalint
 
 .PHONY: test-ci-unit

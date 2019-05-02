@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // Options is a set of runtime options.

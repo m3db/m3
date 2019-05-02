@@ -30,12 +30,35 @@ git checkout -t origin/docs
 # between docs branch and our changes.
 if diff -qr site m3db.io; then
   echo "no docs changes"
+else
+  rm -rf m3db.io/*
+  cp -r site/* m3db.io/
+
+  git add m3db.io
+  git commit -m "Docs update $(date)"
+  git push
+fi
+
+# Also build & push the operator's docs.
+git clean -dffx
+git checkout -t origin/operator
+git pull
+
+git clone git@github.com:m3db/m3db-operator.git
+
+(
+  cd m3db-operator
+  mkdocs build -e docs/theme -t material
+)
+
+if diff -qr m3db-operator/site m3db.io; then
+  echo "no operator docs changes"
   exit 0
 fi
 
 rm -rf m3db.io/*
-cp -r site/* m3db.io/
-
+cp -r m3db-operator/site/* m3db.io
+git clean -dffx
 git add m3db.io
-git commit -m "Docs update $(date)"
+git commit -m "Operator docs update $(date)"
 git push

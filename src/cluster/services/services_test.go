@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/instrument"
-	xwatch "github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/instrument"
+	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

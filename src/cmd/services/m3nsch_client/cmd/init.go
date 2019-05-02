@@ -25,10 +25,11 @@ import (
 	"log"
 
 	"github.com/m3db/m3/src/m3nsch/coordinator"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var (
@@ -116,7 +117,7 @@ func initExec(cmd *cobra.Command, _ []string) {
 	)
 
 	if err != nil {
-		logger.Fatalf("unable to create coord: %v", err)
+		logger.Fatal("unable to create coord", zap.Error(err))
 	}
 	defer coord.Teardown()
 
@@ -124,6 +125,6 @@ func initExec(cmd *cobra.Command, _ []string) {
 		localInitFlags.targetZone, localInitFlags.targetEnv)
 
 	if err != nil {
-		logger.Fatalf("unable to initialize: %v", err)
+		logger.Fatal("unable to initialize", zap.Error(err))
 	}
 }

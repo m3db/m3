@@ -28,7 +28,7 @@ import (
 	jsonhandler "github.com/m3db/m3/src/collector/api/v1/handler/json"
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gorilla/mux"
 )

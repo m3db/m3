@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -317,7 +317,7 @@ func FromRPCAggregateQueryRequest(
 		opts.Type = index.AggregateTagNames
 	}
 
-	ns := ident.StringID(string(req.NameSpace))
+	ns := ident.StringID(req.NameSpace)
 	return ns, index.Query{Query: query}, opts, nil
 }
 

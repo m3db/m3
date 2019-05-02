@@ -32,10 +32,10 @@ import (
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -59,7 +59,7 @@ type newLockedEncoderFn func(protobuf.UnaggregatedOptions) *lockedEncoder
 type writer struct {
 	sync.RWMutex
 
-	log               log.Logger
+	log               *zap.Logger
 	metrics           writerMetrics
 	flushSize         int
 	maxTimerBatchSize int
@@ -267,11 +267,11 @@ func (w *writer) encodeUntimedWithLock(
 	}
 
 	if encodeErr != nil {
-		w.log.WithFields(
-			log.NewField("metric", metricUnion),
-			log.NewField("metadatas", metadatas),
-			log.NewErrField(encodeErr),
-		).Error("encode untimed metric error")
+		w.log.Error("encode untimed metric error",
+			zap.Any("metric", metricUnion),
+			zap.Any("metadatas", metadatas),
+			zap.Error(encodeErr),
+		)
 		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore)
 		encoder.Unlock()
@@ -311,11 +311,11 @@ func (w *writer) encodeForwardedWithLock(
 			ForwardMetadata: metadata,
 		}}
 	if err := encoder.EncodeMessage(msg); err != nil {
-		w.log.WithFields(
-			log.NewField("metric", metric),
-			log.NewField("metadata", metadata),
-			log.NewErrField(err),
-		).Error("encode forwarded metric error")
+		w.log.Error("encode forwarded metric error",
+			zap.Any("metric", metric),
+			zap.Any("metadata", metadata),
+			zap.Error(err),
+		)
 		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore)
 		encoder.Unlock()
@@ -350,11 +350,11 @@ func (w *writer) encodeTimedWithLock(
 			TimedMetadata: metadata,
 		}}
 	if err := encoder.EncodeMessage(msg); err != nil {
-		w.log.WithFields(
-			log.NewField("metric", metric),
-			log.NewField("metadata", metadata),
-			log.NewErrField(err),
-		).Error("encode timed metric error")
+		w.log.Error("encode timed metric error",
+			zap.Any("metric", metric),
+			zap.Any("metadata", metadata),
+			zap.Error(err),
+		)
 		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore)
 		encoder.Unlock()

@@ -3,7 +3,7 @@ services:
   docs:
     build:
         context: ./
-        dockerfile: ../scripts/docs.Dockerfile
+        dockerfile: ../docs/Dockerfile
     volumes:
       - ../:/go/src/github.com/m3db/m3
       - $SSH_AUTH_SOCK:/ssh-agent

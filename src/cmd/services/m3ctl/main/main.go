@@ -34,9 +34,10 @@ import (
 	"github.com/m3db/m3/src/ctl/server/http"
 	"github.com/m3db/m3/src/ctl/service/health"
 	"github.com/m3db/m3/src/ctl/service/r2"
-	"github.com/m3db/m3x/clock"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/etcd"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -54,18 +55,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Set globals for etcd related packages.
+	etcd.SetGlobals()
+
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
 		fmt.Printf("error loading config file: %v\n", err)
 		os.Exit(1)
 	}
 
-	logger, err := cfg.Logging.BuildLogger()
+	rawLogger, err := cfg.Logging.BuildLogger()
 	if err != nil {
 		fmt.Printf("error creating logger: %v\n", err)
 		os.Exit(1)
 	}
+	defer rawLogger.Sync()
 
+	logger := rawLogger.Sugar()
 	envPort := os.Getenv(portEnvVar)
 	if envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
@@ -87,7 +93,7 @@ func main() {
 	defer closer.Close()
 
 	instrumentOpts := instrument.NewOptions().
-		SetLogger(logger).
+		SetLogger(rawLogger).
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())

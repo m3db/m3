@@ -23,8 +23,8 @@ package ts
 import (
 	"bytes"
 
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // Segment represents a binary blob consisting of two byte slices and

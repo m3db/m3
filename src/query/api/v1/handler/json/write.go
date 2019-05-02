@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
-	xtime "github.com/m3db/m3x/time"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
@@ -77,12 +77,18 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	writeQuery, err := newStorageWriteQuery(req)
 	if err != nil {
-		logging.WithContext(r.Context()).Error("Parsing error", zap.Any("err", err))
+		logger := logging.WithContext(r.Context())
+		logger.Error("parsing error",
+			zap.String("remoteAddr", r.RemoteAddr),
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
-		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
+		logger := logging.WithContext(r.Context())
+		logger.Error("write error",
+			zap.String("remoteAddr", r.RemoteAddr),
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 }

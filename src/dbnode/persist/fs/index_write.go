@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -125,9 +125,18 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 		return err
 	}
-	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
 	w.infoFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, infoFileSuffix)
 	w.digestFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, digestFileSuffix)
+	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
+
+	exists, err := CompleteCheckpointFileExists(w.checkpointFilePath)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("checkpoint already exists for volume: %s",
+			w.checkpointFilePath)
+	}
 
 	return nil
 }
@@ -173,14 +182,6 @@ func (w *indexWriter) WriteSegmentFileSet(
 				idx, segFileType)
 		default:
 			err := fmt.Errorf("unknown fileset type: %s", w.fileSetType)
-			return w.markSegmentWriteError(segType, segFileType, err)
-		}
-		exists, err := FileExists(filePath)
-		if err != nil {
-			return err
-		}
-		if exists {
-			err := fmt.Errorf("segment file type already exists at %s", filePath)
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 

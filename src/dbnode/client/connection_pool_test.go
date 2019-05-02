@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3/src/x/close"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

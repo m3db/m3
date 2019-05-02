@@ -77,14 +77,14 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx)
 	id := strings.TrimSpace(mux.Vars(r)[namespaceIDVar])
 	if id == "" {
-		logger.Error("no namespace ID to delete", zap.Any("error", errEmptyID))
+		logger.Error("no namespace ID to delete", zap.Error(errEmptyID))
 		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
 
 	err := h.Delete(id)
 	if err != nil {
-		logger.Error("unable to delete namespace", zap.Any("error", err))
+		logger.Error("unable to delete namespace", zap.Error(err))
 		if err == errNamespaceNotFound {
 			xhttp.Error(w, err, http.StatusNotFound)
 		} else {

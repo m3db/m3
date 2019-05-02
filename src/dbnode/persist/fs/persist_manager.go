@@ -34,13 +34,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -438,15 +438,15 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		// a monotonically increasing number to avoid collisions.
 		// instrument.
 		iopts := pm.opts.InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iopts, func(l xlog.Logger) {
-			l.WithFields(
-				xlog.NewField("blockStart", blockStart.String()),
-				xlog.NewField("fileSetType", opts.FileSetType.String()),
-				xlog.NewField("volumeIndex", volumeIndex),
-				xlog.NewField("snapshotStart", snapshotTime.String()),
-				xlog.NewField("namespace", nsID.String()),
-				xlog.NewField("shard", shard),
-			).Errorf("prepared writing fileset volume that already exists")
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.With(
+				zap.Time("blockStart", blockStart),
+				zap.String("fileSetType", opts.FileSetType.String()),
+				zap.Int("volumeIndex", volumeIndex),
+				zap.Time("snapshotStart", snapshotTime),
+				zap.String("namespace", nsID.String()),
+				zap.Uint32("shard", shard),
+			).Error("prepared writing fileset volume that already exists")
 		})
 
 		return prepared, errPersistManagerFileSetAlreadyExists

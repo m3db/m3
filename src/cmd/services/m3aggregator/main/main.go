@@ -31,8 +31,11 @@ import (
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/etcd"
+	"github.com/m3db/m3/src/x/instrument"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -51,6 +54,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Set globals for etcd related packages.
+	etcd.SetGlobals()
+
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
 		fmt.Printf("error loading config file: %v\n", err)
@@ -63,9 +69,11 @@ func main() {
 		fmt.Printf("error creating logger: %v\n", err)
 		os.Exit(1)
 	}
+	defer logger.Sync()
+
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
-		logger.Fatalf("error creating metrics root scope: %v", err)
+		logger.Fatal("error creating metrics root scope", zap.Error(err))
 	}
 	defer closer.Close()
 	instrumentOpts := instrument.NewOptions().
@@ -88,7 +96,7 @@ func main() {
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kv-client"))
 	client, err := cfg.KVClient.NewKVClient(iOpts)
 	if err != nil {
-		logger.Fatalf("error creating the kv client: %v", err)
+		logger.Fatal("error creating the kv client", zap.Error(err))
 	}
 
 	// Create the runtime options manager.
@@ -98,11 +106,11 @@ func main() {
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
 	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(rawTCPAddr, client, runtimeOptsManager, iOpts)
 	if err != nil {
-		logger.Fatalf("error creating aggregator options: %v", err)
+		logger.Fatal("error creating aggregator options", zap.Error(err))
 	}
 	aggregator := m3aggregator.NewAggregator(aggregatorOpts)
 	if err := aggregator.Open(); err != nil {
-		logger.Fatalf("error opening the aggregator: %v", err)
+		logger.Fatal("error opening the aggregator", zap.Error(err))
 	}
 
 	// Watch runtime option changes after aggregator is open.
@@ -120,14 +128,14 @@ func main() {
 			aggregator,
 			doneCh,
 		); err != nil {
-			logger.Fatalf("could not start serving traffic: %v", err)
+			logger.Fatal("could not start serving traffic", zap.Error(err))
 		}
 		logger.Debug("server closed")
 		close(closedCh)
 	}()
 
 	// Handle interrupts.
-	logger.Warnf("interrupt: %v", interrupt())
+	logger.Warn("interrupt", zap.Any("signal", interrupt()))
 
 	close(doneCh)
 
@@ -135,7 +143,7 @@ func main() {
 	case <-closedCh:
 		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
-		logger.Infof("server closed due to %s timeout", gracefulShutdownTimeout.String())
+		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
 	}
 }
 

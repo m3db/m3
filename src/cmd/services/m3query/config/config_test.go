@@ -25,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/models"
+	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
-	xconfig "github.com/m3db/m3x/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -257,23 +257,6 @@ func TestTagOptionsConfig(t *testing.T) {
 	assert.Equal(t, []byte("abcdefg"), opts.MetricName())
 	assert.Equal(t, []byte("foo"), opts.BucketName())
 	assert.Equal(t, models.TypePrependMeta, opts.IDSchemeType())
-}
-
-func TestNegativeQueryConversionSize(t *testing.T) {
-	size := -2
-	q := QueryConversionCacheConfiguration{
-		Size: &size,
-	}
-
-	err := q.Validate()
-	require.Error(t, err)
-}
-
-func TestNilQueryConversionSize(t *testing.T) {
-	q := &QueryConversionCacheConfiguration{}
-
-	err := q.Validate()
-	require.NoError(t, err)
 }
 
 func TestKeepNaNsDefault(t *testing.T) {

@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	genericstorage "github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed

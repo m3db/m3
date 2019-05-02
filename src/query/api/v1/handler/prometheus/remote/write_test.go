@@ -21,7 +21,10 @@
 package remote
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -30,8 +33,9 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
-	xclock "github.com/m3db/m3x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -70,6 +74,36 @@ func TestPromWrite(t *testing.T) {
 
 	writeErr := promWrite.write(context.TODO(), r)
 	require.NoError(t, writeErr)
+}
+
+func TestPromWriteError(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	anError := fmt.Errorf("an error")
+
+	ctrl := gomock.NewController(t)
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any()).
+		Return(anError)
+
+	promWrite, err := NewPromWriteHandler(mockDownsamplerAndWriter,
+		models.NewTagOptions(), tally.NoopScope)
+	require.NoError(t, err)
+
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req, err := http.NewRequest("POST", PromWriteURL, promReqBody)
+	require.NoError(t, err)
+
+	writer := httptest.NewRecorder()
+	promWrite.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.True(t, bytes.Contains(body, []byte(anError.Error())))
 }
 
 func TestWriteErrorMetricCount(t *testing.T) {

@@ -37,7 +37,7 @@ func Serve(
 	aggregator aggregator.Aggregator,
 	doneCh chan struct{},
 ) error {
-	log := rawTCPServerOpts.InstrumentOptions().Logger()
+	log := rawTCPServerOpts.InstrumentOptions().Logger().Sugar()
 	defer aggregator.Close()
 
 	rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, rawTCPServerOpts)

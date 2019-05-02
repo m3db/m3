@@ -43,11 +43,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -102,7 +102,9 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
-		SetIdentifierPool(opts.IdentifierPool())
+		SetIdentifierPool(opts.IdentifierPool()).
+		SetBufferBucketPool(opts.BufferBucketPool()).
+		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool())
 }
 
 type options struct {
@@ -138,6 +140,8 @@ type options struct {
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 	queryIDsWorkerPool             xsync.WorkerPool
 	writeBatchPool                 *ts.WriteBatchPool
+	bufferBucketPool               *series.BufferBucketPool
+	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -193,6 +197,8 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 		queryIDsWorkerPool:             queryIDsWorkerPool,
 		writeBatchPool:                 writeBatchPool,
+		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
+		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -609,4 +615,24 @@ func (o *options) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
 
 func (o *options) WriteBatchPool() *ts.WriteBatchPool {
 	return o.writeBatchPool
+}
+
+func (o *options) SetBufferBucketPool(value *series.BufferBucketPool) Options {
+	opts := *o
+	opts.bufferBucketPool = value
+	return &opts
+}
+
+func (o *options) BufferBucketPool() *series.BufferBucketPool {
+	return o.bufferBucketPool
+}
+
+func (o *options) SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options {
+	opts := *o
+	opts.bufferBucketVersionsPool = value
+	return &opts
+}
+
+func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
+	return o.bufferBucketVersionsPool
 }
