@@ -21,7 +21,7 @@
 package tchannelthrift
 
 import (
-	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
