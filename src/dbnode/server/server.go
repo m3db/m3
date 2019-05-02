@@ -1288,6 +1288,17 @@ func withEncodingAndPoolingOptions(
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
+	// Set value transformation options.
+	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
+	forcedValue := cfg.Transforms.ForcedValue
+	if forcedValue != nil {
+		opts = opts.SetWriteTransformOptions(series.WriteTransformOptions{
+			ForceValueEnabled: true,
+			ForceValue:        *forcedValue,
+		})
+	}
+
+	// Set index options.
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
@@ -1304,7 +1315,9 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
-		SetAggregateResultsPool(aggregateQueryResultsPool)
+		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so
