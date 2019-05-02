@@ -272,7 +272,7 @@ genny-list-storage-id:
 		pkg=storage                                           \
 		value_type=ident.ID                                   \
 		rename_type_prefix=id                                 \
-		rename_type_middle=Id                                 \
+		rename_type_middle=ID                                 \
 		target_package=github.com/m3db/m3/src/dbnode/storage
 	# Rename generated list file
 	mv -f $(m3db_package_path)/src/dbnode/storage/list_gen.go $(m3db_package_path)/src/dbnode/storage/id_list_gen.go

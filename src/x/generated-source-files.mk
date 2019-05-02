@@ -204,6 +204,7 @@ endif
 	gorename -from '"$(target_package)$(temp_suffix)".List' -to $(rename_type_prefix)List
 	gorename -from '"$(target_package)$(temp_suffix)".ElementPool' -to $(rename_type_prefix)ElementPool
 	gorename -from '"$(target_package)$(temp_suffix)".newElementPool' -to new$(rename_type_middle)ElementPool
+	gorename -from '"$(target_package)$(temp_suffix)".newList' -to new$(rename_type_middle)List
 ifneq ($(rename_gen_types),)
 	rm $(temp_outdir)/types.go
 endif

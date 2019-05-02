@@ -99,10 +99,9 @@ func (e *Element) Prev() *Element {
 // List represents a doubly linked list.
 // The zero value for List is an empty list ready to use.
 type List struct {
-	root     Element // sentinel list element, only &root, root.prev, and root.next are used
-	len      int     // current list length excluding (this) sentinel element
-	ePool    *ElementPool
-	poolOpts pool.ObjectPoolOptions
+	root  Element // sentinel list element, only &root, root.prev, and root.next are used
+	len   int     // current list length excluding (this) sentinel element
+	ePool *ElementPool
 }
 
 // Init initializes or clears list l.
@@ -110,13 +109,15 @@ func (l *List) Init() *List {
 	l.root.next = &l.root
 	l.root.prev = &l.root
 	l.len = 0
-	l.ePool = newElementPool(l.poolOpts)
+	if l.ePool == nil {
+		l.ePool = newElementPool(nil)
+	}
 	return l
 }
 
-// New returns an initialized list.
-func New(opts pool.ObjectPoolOptions) *List {
-	l := &List{poolOpts: opts}
+// newList returns an initialized list.
+func newList(p *ElementPool) *List {
+	l := &List{ePool: p}
 	return l.Init()
 }
 

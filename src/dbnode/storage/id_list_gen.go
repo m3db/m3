@@ -119,10 +119,9 @@ func (e *idElement) Prev() *idElement {
 // idList represents a doubly linked list.
 // The zero value for idList is an empty list ready to use.
 type idList struct {
-	root     idElement // sentinel list element, only &root, root.prev, and root.next are used
-	len      int       // current list length excluding (this) sentinel element
-	ePool    *idElementPool
-	poolOpts pool.ObjectPoolOptions
+	root  idElement // sentinel list element, only &root, root.prev, and root.next are used
+	len   int       // current list length excluding (this) sentinel element
+	ePool *idElementPool
 }
 
 // Init initializes or clears list l.
@@ -130,13 +129,15 @@ func (l *idList) Init() *idList {
 	l.root.next = &l.root
 	l.root.prev = &l.root
 	l.len = 0
-	l.ePool = newIdElementPool(l.poolOpts)
+	if l.ePool == nil {
+		l.ePool = newIDElementPool(nil)
+	}
 	return l
 }
 
-// New returns an initialized list.
-func New(opts pool.ObjectPoolOptions) *idList {
-	l := &idList{poolOpts: opts}
+// newIDList returns an initialized list.
+func newIDList(p *idElementPool) *idList {
+	l := &idList{ePool: p}
 	return l.Init()
 }
 
@@ -315,18 +316,18 @@ type idElementPool struct {
 	pool pool.ObjectPool
 }
 
-// Get gets a BufferBucketVersions from the pool.
+// Get gets an Element from the pool.
 func (p *idElementPool) get() *idElement {
 	return p.pool.Get().(*idElement)
 }
 
-// Put puts a BufferBucketVersions back into the pool.
+// Put puts an Element back into the pool.
 func (p *idElementPool) put(e *idElement) {
 	p.pool.Put(e)
 }
 
-// newIdElementPool creates a new BufferBucketVersionsPool.
-func newIdElementPool(opts pool.ObjectPoolOptions) *idElementPool {
+// newIDElementPool creates a new generic ElementPool.
+func newIDElementPool(opts pool.ObjectPoolOptions) *idElementPool {
 	p := &idElementPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
 		return &idElement{}
