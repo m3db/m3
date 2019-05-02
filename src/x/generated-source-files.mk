@@ -176,8 +176,8 @@ genny-leakcheckpool:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
 	cat $(m3x_package_path)/generics/leakcheckpool/pool.go | grep -v nolint | genny -pkg $(pkg) -ast gen "elemType=$(elem_type) elemTypePool=$(elem_type_pool)" > "$(out_dir)/$(out_file)"
 
-.PHONY: list-gen
-list-gen:
+.PHONY: genny-pooled-elem-list-gen
+genny-pooled-elem-list-gen:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
 	cd $(m3x_package_path)/generics/list && cat ./list.go | grep -v nolint | genny -pkg $(pkg) -ast gen "ValueType=$(value_type)" > "$(out_dir)/list_gen.go"
 ifneq ($(rename_type_prefix),)

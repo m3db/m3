@@ -268,11 +268,11 @@ genny-list-all:                              \
 # List generation rule for storage/idList
 .PHONY: genny-list-storage-id
 genny-list-storage-id:
-	cd $(m3x_package_path) && make list-gen                  \
-		pkg=storage                                          \
-		value_type=ident.ID                                  \
-		rename_type_prefix=id                                \
-		rename_type_middle=Id                                \
+	cd $(m3x_package_path) && make genny-pooled-elem-list-gen \
+		pkg=storage                                           \
+		value_type=ident.ID                                   \
+		rename_type_prefix=id                                 \
+		rename_type_middle=Id                                 \
 		target_package=github.com/m3db/m3/src/dbnode/storage
 	# Rename generated list file
 	mv -f $(m3db_package_path)/src/dbnode/storage/list_gen.go $(m3db_package_path)/src/dbnode/storage/id_list_gen.go

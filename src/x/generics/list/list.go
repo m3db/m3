@@ -57,6 +57,7 @@ package list
 
 import (
 	"github.com/m3db/m3/src/x/pool"
+
 	"github.com/mauricelam/genny/generic"
 )
 
@@ -294,17 +295,17 @@ type ElementPool struct {
 	pool pool.ObjectPool
 }
 
-// Get gets a BufferBucketVersions from the pool.
+// Get gets an Element from the pool.
 func (p *ElementPool) get() *Element {
 	return p.pool.Get().(*Element)
 }
 
-// Put puts a BufferBucketVersions back into the pool.
+// Put puts an Element back into the pool.
 func (p *ElementPool) put(e *Element) {
 	p.pool.Put(e)
 }
 
-// newElementPool creates a new BufferBucketVersionsPool.
+// newElementPool creates a new generic ElementPool.
 func newElementPool(opts pool.ObjectPoolOptions) *ElementPool {
 	p := &ElementPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
