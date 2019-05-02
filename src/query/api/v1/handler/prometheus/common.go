@@ -37,13 +37,10 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 )
 
 const (
-	// NameReplace is the parameter that gets replaced.
-	NameReplace         = "name"
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
@@ -52,8 +49,7 @@ const (
 )
 
 var (
-	matchValues = []byte(".*")
-	roleName    = []byte("role")
+	roleName = []byte("role")
 )
 
 // TimeoutOpts stores options related to various timeout configurations.
@@ -227,33 +223,6 @@ func ParseSeriesMatchQuery(
 	}
 
 	return queries, nil
-}
-
-// ParseTagValuesToQuery parses a tag values request to a complete tags query.
-func ParseTagValuesToQuery(
-	r *http.Request,
-) (*storage.CompleteTagsQuery, error) {
-	vars := mux.Vars(r)
-	name, ok := vars[NameReplace]
-	if !ok || len(name) == 0 {
-		return nil, errors.ErrNoName
-	}
-
-	nameBytes := []byte(name)
-	return &storage.CompleteTagsQuery{
-		// NB: necessarily spans the entire timerange for the index.
-		Start:            time.Time{},
-		End:              time.Now(),
-		CompleteNameOnly: false,
-		FilterNameTags:   [][]byte{nameBytes},
-		TagMatchers: models.Matchers{
-			models.Matcher{
-				Type:  models.MatchRegexp,
-				Name:  nameBytes,
-				Value: matchValues,
-			},
-		},
-	}, nil
 }
 
 func renderNameOnlyTagCompletionResultsJSON(

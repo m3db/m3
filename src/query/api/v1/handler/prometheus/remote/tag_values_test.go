@@ -18,30 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package remote
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
-type listTagsMatcher struct {
-	now time.Time
+type tagValuesMatcher struct {
+	now       time.Time
+	filterTag string
 }
 
-func (m *listTagsMatcher) String() string { return "list tags query" }
-func (m *listTagsMatcher) Matches(x interface{}) bool {
+func (m *tagValuesMatcher) String() string { return "tag values query" }
+func (m *tagValuesMatcher) Matches(x interface{}) bool {
 	q, ok := x.(*storage.CompleteTagsQuery)
 	if !ok {
 		return false
@@ -51,16 +55,15 @@ func (m *listTagsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	// NB: end time for the query should be roughly `Now`
 	if !q.End.Equal(m.now) {
 		return false
 	}
 
-	if !q.CompleteNameOnly {
+	if q.CompleteNameOnly {
 		return false
 	}
 
-	if len(q.FilterNameTags) != 0 {
+	if len(q.FilterNameTags) != 1 {
 		return false
 	}
 
@@ -68,14 +71,25 @@ func (m *listTagsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	return models.MatchAll == q.TagMatchers[0].Type
+	tm := q.TagMatchers[0]
+	return models.MatchRegexp == tm.Type &&
+		bytes.Equal([]byte(m.filterTag), tm.Name) &&
+		bytes.Equal(matchValues, tm.Value)
 }
 
-var _ gomock.Matcher = &listTagsMatcher{}
+var _ gomock.Matcher = &tagValuesMatcher{}
 
 func b(s string) []byte { return []byte(s) }
+func bs(ss ...string) [][]byte {
+	bb := make([][]byte, len(ss))
+	for i, s := range ss {
+		bb[i] = b(s)
+	}
 
-func TestListTags(t *testing.T) {
+	return bb
+}
+
+func TestTagValues(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
@@ -83,42 +97,59 @@ func TestListTags(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	storeResult := &storage.CompleteTagsResult{
-		CompleteNameOnly: true,
-		CompletedTags: []storage.CompletedTag{
-			{Name: b("bar")},
-			{Name: b("baz")},
-			{Name: b("foo")},
-		},
-	}
-
 	now := time.Now()
 	nowFn := func() time.Time {
 		return now
 	}
 
-	handler := NewListTagsHandler(store, nowFn)
-	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{now: now}
+	handler := NewTagValuesHandler(store, nowFn)
+	names := []struct {
+		name string
+	}{
+		{"up"},
+		{"__name__"},
+	}
+	url := fmt.Sprintf("/label/{%s}/values", NameReplace)
+
+	for _, tt := range names {
+		path := fmt.Sprintf("/label/%s/values", tt.name)
+		req, err := http.NewRequest("GET", path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		matcher := &tagValuesMatcher{
+			now:       now,
+			filterTag: tt.name,
+		}
+
+		storeResult := &storage.CompleteTagsResult{
+			CompleteNameOnly: false,
+			CompletedTags: []storage.CompletedTag{
+				{
+					Name:   b(tt.name),
+					Values: bs("a", "b", "c", tt.name),
+				},
+			},
+		}
+
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(storeResult, nil)
 
-		req := httptest.NewRequest(method, "/labels", nil)
-		w := httptest.NewRecorder()
+		router.HandleFunc(url, handler.ServeHTTP)
+		router.ServeHTTP(rr, req)
 
-		handler.ServeHTTP(w, req)
-		body := w.Result().Body
-		defer body.Close()
-
-		r, err := ioutil.ReadAll(body)
+		read, err := ioutil.ReadAll(rr.Body)
 		require.NoError(t, err)
 
-		ex := `{"status":"success","data":["bar","baz","foo"]}`
-		require.Equal(t, ex, string(r))
+		ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, tt.name)
+		assert.Equal(t, ex, string(read))
 	}
 }
 
-func TestListErrorTags(t *testing.T) {
+func TestTagValueErrors(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
@@ -131,25 +162,21 @@ func TestListErrorTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store, nowFn)
-	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{now: now}
-		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
-			Return(nil, errors.New("err"))
-
-		req := httptest.NewRequest(method, "/labels", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-		body := w.Result().Body
-		defer body.Close()
-
-		r, err := ioutil.ReadAll(body)
-		require.NoError(t, err)
-
-		ex := `{"error":"err"}`
-		// NB: error handler adds a newline to the output.
-		ex = fmt.Sprintf("%s\n", ex)
-		require.Equal(t, ex, string(r))
+	handler := NewTagValuesHandler(store, nowFn)
+	url := "/label"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc(url, handler.ServeHTTP)
+	router.ServeHTTP(rr, req)
+
+	read, err := ioutil.ReadAll(rr.Body)
+	require.NoError(t, err)
+
+	ex := fmt.Sprintf(`{"error":"invalid path with no name present"}%s`, "\n")
+	assert.Equal(t, ex, string(read))
 }
