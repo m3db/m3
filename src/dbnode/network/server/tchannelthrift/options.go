@@ -21,13 +21,17 @@
 package tchannelthrift
 
 import (
-	"github.com/m3db/m3/src/x/serialize"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type options struct {
+	clockOpts                clock.Options
 	instrumentOpts           instrument.Options
+	idPool                   ident.Pool
 	blockMetadataV2Pool      BlockMetadataV2Pool
 	blockMetadataV2SlicePool BlockMetadataV2SlicePool
 	tagEncoderPool           serialize.TagEncoderPool
@@ -36,6 +40,13 @@ type options struct {
 
 // NewOptions creates new options
 func NewOptions() Options {
+	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	bytesPool.Init()
+
+	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
+
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions(),
 	)
@@ -47,12 +58,24 @@ func NewOptions() Options {
 	tagDecoderPool.Init()
 
 	return &options{
+		clockOpts:                clock.NewOptions(),
 		instrumentOpts:           instrument.NewOptions(),
+		idPool:                   idPool,
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
 	}
+}
+
+func (o *options) SetClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {
@@ -63,6 +86,16 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
+	opts := *o
+	opts.idPool = value
+	return &opts
+}
+
+func (o *options) IdentifierPool() ident.Pool {
+	return o.idPool
 }
 
 func (o *options) SetBlockMetadataV2Pool(value BlockMetadataV2Pool) Options {

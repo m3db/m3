@@ -533,10 +533,9 @@ func Run(runOpts RunOptions) {
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			if cfg.Proto != nil {
-				return opts.SetEncodingProto(
-					schema,
-					encoding.NewOptions(),
-				).(client.AdminOptions)
+				adminOpts := opts.SetEncodingProto(schema,
+					encoding.NewOptions())
+				return adminOpts.(client.AdminOptions)
 			}
 			return opts
 		},
@@ -560,7 +559,9 @@ func Run(runOpts RunOptions) {
 
 	// Set tchannelthrift options
 	ttopts := tchannelthrift.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool)
 
