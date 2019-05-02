@@ -1,12 +1,4 @@
 db:
-  transforms:
-    truncateBy: block
-    truncateDuration: 1h
-
-  index:
-    forwardIndexThreshold: 0.1
-    forwardIndexProbability: 0.1
-
   logging:
     level: info
 

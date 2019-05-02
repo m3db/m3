@@ -58,8 +58,9 @@ func TestTruncateTypeUnmarshalYAML(t *testing.T) {
 	}
 
 	var cfg config
-	// Bad type fails.
-	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+	// Bad type marshalls to TypeNone.
+	require.NoError(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+	assert.Equal(t, TypeNone, cfg.Type)
 
 	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
 	assert.Equal(t, TypeNone, cfg.Type)

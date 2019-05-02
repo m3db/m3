@@ -69,4 +69,3 @@ func (i *indexOpts) SetBlockSize(value time.Duration) IndexOptions {
 func (i *indexOpts) BlockSize() time.Duration {
 	return i.blockSize
 }
-

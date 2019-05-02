@@ -33,16 +33,15 @@ const (
 )
 
 var validTruncationTypes = []TruncateType{
+	// TypeNone indicates that no truncation occurs.
 	TypeNone,
+	// TypeBlock truncates incoming writes to the block boundary immediately
+	// preceeding this point's timestamp.
 	TypeBlock,
 }
 
 // Validate validates that the scheme type is valid.
 func (t TruncateType) Validate() error {
-	if t == TypeNone {
-		return nil
-	}
-
 	if t >= TypeNone && t <= TypeBlock {
 		return nil
 	}
@@ -63,15 +62,11 @@ func (t TruncateType) String() string {
 	}
 }
 
-// UnmarshalYAML unmarshals a stored merics type.
+// UnmarshalYAML unmarshals a stored truncation type.
 func (t *TruncateType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
-	}
-
-	if str == "" {
-		*t = TypeNone
 	}
 
 	for _, valid := range validTruncationTypes {
@@ -81,6 +76,6 @@ func (t *TruncateType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	return fmt.Errorf("invalid truncation type: '%s' valid types are: %v",
-		str, validTruncationTypes)
+	*t = TypeNone
+	return nil
 }
