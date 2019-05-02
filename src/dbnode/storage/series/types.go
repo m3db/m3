@@ -350,7 +350,21 @@ const (
 // what write type makes sense for bootstraps.
 const BootstrapWriteType = WarmWrite
 
+// WriteTransformOptions describes transforms to run on incoming writes.
+type WriteTransformOptions struct {
+	// ForceValueEnabled indicates if the values for incoming writes
+	// should be forced to `ForceValue`.
+	ForceValueEnabled bool
+	// ForceValue is the value that incoming writes should be forced to.
+	ForceValue float64
+}
+
 // WriteOptions provides a set of options for a write.
 type WriteOptions struct {
+	// SchemaDesc is the schema description.
 	SchemaDesc namespace.SchemaDescr
+	// TruncateType is the truncation type for incoming writes.
+	TruncateType TruncateType
+	// TransformOptions describes transformation options for incoming writes.
+	TransformOptions WriteTransformOptions
 }
