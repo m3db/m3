@@ -100,6 +100,8 @@ func init() {
 
 // nolint: maligned
 type opts struct {
+	forwardIndexThreshold           float64
+	forwardIndexProbability         float64
 	insertMode                      InsertMode
 	clockOpts                       clock.Options
 	instrumentOpts                  instrument.Options
@@ -378,4 +380,24 @@ func (o *opts) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Opt
 
 func (o *opts) ReadThroughSegmentOptions() ReadThroughSegmentOptions {
 	return o.readThroughSegmentOptions
+}
+
+func (o *opts) SetForwardIndexProbability(value float64) Options {
+	opts := *o
+	opts.forwardIndexProbability = value
+	return &opts
+}
+
+func (o *opts) ForwardIndexProbability() float64 {
+	return o.forwardIndexProbability
+}
+
+func (o *opts) SetForwardIndexThreshold(value float64) Options {
+	opts := *o
+	opts.forwardIndexThreshold = value
+	return &opts
+}
+
+func (o *opts) ForwardIndexThreshold() float64 {
+	return o.forwardIndexThreshold
 }
