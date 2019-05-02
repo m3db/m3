@@ -339,6 +339,7 @@ func Run(runOpts RunOptions) {
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
 		})
+	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
