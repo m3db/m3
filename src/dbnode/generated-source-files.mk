@@ -9,7 +9,7 @@ m3x_package_path     := $(gopath_prefix)/$(m3x_package)
 
 # Generation rule for all generated types
 .PHONY: genny-all
-genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all
+genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all genny-list-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
@@ -259,3 +259,20 @@ genny-leakcheckpool-aggregate-attempt:
 	elem_type_pool=aggregateAttemptPool                     \
 	target_package=$(m3db_package)/src/dbnode/client        \
 	out_file=aggregate_attempt_leakcheckpool_gen_test.go
+
+# Generation rule for all generated lists
+.PHONY: genny-list-all
+genny-list-all:                              \
+	genny-list-storage-id
+
+# List generation rule for storage/idList
+.PHONY: genny-list-storage-id
+genny-list-storage-id:
+	cd $(m3x_package_path) && make list-gen                  \
+		pkg=storage                                          \
+		value_type=ident.ID                                  \
+		rename_type_prefix=id                                \
+		rename_type_middle=Id                                \
+		target_package=github.com/m3db/m3/src/dbnode/storage
+	# Rename generated list file
+	mv -f $(m3db_package_path)/src/dbnode/storage/list_gen.go $(m3db_package_path)/src/dbnode/storage/id_list_gen.go

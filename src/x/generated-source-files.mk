@@ -176,6 +176,38 @@ genny-leakcheckpool:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
 	cat $(m3x_package_path)/generics/leakcheckpool/pool.go | grep -v nolint | genny -pkg $(pkg) -ast gen "elemType=$(elem_type) elemTypePool=$(elem_type_pool)" > "$(out_dir)/$(out_file)"
 
+.PHONY: list-gen
+list-gen:
+	$(eval out_dir=$(gopath_prefix)/$(target_package))
+	cd $(m3x_package_path)/generics/list && cat ./list.go | grep -v nolint | genny -pkg $(pkg) -ast gen "ValueType=$(value_type)" > "$(out_dir)/list_gen.go"
+ifneq ($(rename_type_prefix),)
+	$(eval temp_outdir=$(out_dir)$(temp_suffix))
+	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
+	mkdir -p $(temp_outdir)
+	mv $(out_dir)/list_gen.go $(temp_outdir)/list_gen.go
+	make list-gen-rename out_dir=$(out_dir)
+	mv $(temp_outdir)/list_gen.go $(out_dir)/list_gen.go
+	rmdir $(temp_outdir)
+endif
+
+elem_type_alias ?= $(elem_type)
+.PHONY: list-gen-rename
+list-gen-rename: install-gorename
+	$(eval temp_outdir=$(out_dir)$(temp_suffix))
+ifneq ($(rename_gen_types),)
+	# allow users to short circuit the generation of types.go if they don't need it.
+	echo 'package $(pkg)' > $(temp_outdir)/types.go
+	echo '' >> $(temp_outdir)/types.go
+	echo "type $(elem_type_alias) interface{}" >> $(temp_outdir)/types.go
+endif
+	gorename -from '"$(target_package)$(temp_suffix)".Element' -to $(rename_type_prefix)Element
+	gorename -from '"$(target_package)$(temp_suffix)".List' -to $(rename_type_prefix)List
+	gorename -from '"$(target_package)$(temp_suffix)".ElementPool' -to $(rename_type_prefix)ElementPool
+	gorename -from '"$(target_package)$(temp_suffix)".newElementPool' -to new$(rename_type_middle)ElementPool
+ifneq ($(rename_gen_types),)
+	rm $(temp_outdir)/types.go
+endif
+
 install-gorename:
 	$(eval gorename_dir=$(gopath_prefix)/$(gorename_package))
 	@([ -d $(gorename_dir) ] && which gorename >/dev/null ) || \
