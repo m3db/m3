@@ -137,7 +137,6 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		enc.unmarshalIter = newUnmarshalIter()
 	}
 
-	// TODO: Handle unknown fields by rejecitng
 	// TODO: Support "rollbacks" if we partially encode a bad message
 	// From this point onwards all errors are "hard errors" meaning that they should render
 	// the encoder unusable since we may have encoded partial data.
