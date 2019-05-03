@@ -214,7 +214,7 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 
 		if isSorted && len(u.sortedOffsets) > 1 {
 			// Check if the slice is sorted as its built to avoid resorting
-			// it at the end if there is no need.
+			// unnecessarily at the end.
 			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1].offset
 			if tagAndWireTypeStartOffset < lastOffset {
 				isSorted = false
