@@ -140,16 +140,11 @@ func TestRoundTrip(t *testing.T) {
 		require.True(t, currTime.Equal(lastEncoded.Timestamp))
 		require.Equal(t, float64(0), lastEncoded.Value)
 	}
-<<<<<<< HEAD
 
 	// Add some sanity to make sure that the compression (especially string compression)
 	// is working properly.
 	numExpectedBytes := 231
 	require.Equal(t, numExpectedBytes, enc.Stats().CompressedBytes)
-=======
-	// Add some sanity to make sure that the string compression is working.
-	// require.Equal(t, 369, enc.Stats().CompressedBytes)
->>>>>>> passing prop test
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
