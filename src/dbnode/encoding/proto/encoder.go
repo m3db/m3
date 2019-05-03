@@ -151,41 +151,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
 	)
 	if needToEncodeSchema || needToEncodeTimeUnit {
-		// TODO: Add helper method here
-		// First bit means either there is no more data OR the time unit and/or schema has changed.
-		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
-		// Next bit means there is more data, but the time unit and/or schema has changed has changed.
-		enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
-
-		// Next bit is a boolean indicating whether the time unit has changed.
-		if needToEncodeTimeUnit {
-			enc.stream.WriteBit(opCodeTimeUnitChange)
-		} else {
-			enc.stream.WriteBit(opCodeTimeUnitUnchanged)
-		}
-
-		// Next bit is a boolean indicating whether the schema has changed.
-		if needToEncodeSchema {
-			enc.stream.WriteBit(opCodeSchemaChange)
-		} else {
-			enc.stream.WriteBit(opCodeSchemaUnchanged)
-		}
-
-		if needToEncodeTimeUnit {
-			// The encoder manages encoding time unit changes manually (instead of deferring to
-			// the timestamp encoder) because by default the WriteTime() API will use a marker
-			// encoding scheme that relies on looking ahead into the stream for bit combinations that
-			// could not possibly exist in the M3TSZ encoding scheme.
-			// The protobuf encoder can't rely on this behavior because its possible for the protobuf
-			// encoder to encode a legitimate bit combination that matches the "impossible" M3TSZ
-			// markers exactly.
-			enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
-		}
-
-		if needToEncodeSchema {
-			enc.encodeCustomSchemaTypes()
-			enc.hasEncodedSchema = true
-		}
+		enc.encodeSchemaAndOrTimeUnit(needToEncodeSchema, needToEncodeTimeUnit, timeUnit)
 	} else {
 		// Control bit that indicates the stream has more data but no time unit or schema changes.
 		enc.stream.WriteBit(opCodeMoreData)
@@ -208,6 +174,46 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	enc.lastEncodedDP = dp
 	enc.stats.IncUncompressedBytes(len(protoBytes))
 	return nil
+}
+
+func (enc *Encoder) encodeSchemaAndOrTimeUnit(
+	needToEncodeSchema bool,
+	needToEncodeTimeUnit bool,
+	timeUnit xtime.Unit) {
+	// First bit means either there is no more data OR the time unit and/or schema has changed.
+	enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
+	// Next bit means there is more data, but the time unit and/or schema has changed has changed.
+	enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
+
+	// Next bit is a boolean indicating whether the time unit has changed.
+	if needToEncodeTimeUnit {
+		enc.stream.WriteBit(opCodeTimeUnitChange)
+	} else {
+		enc.stream.WriteBit(opCodeTimeUnitUnchanged)
+	}
+
+	// Next bit is a boolean indicating whether the schema has changed.
+	if needToEncodeSchema {
+		enc.stream.WriteBit(opCodeSchemaChange)
+	} else {
+		enc.stream.WriteBit(opCodeSchemaUnchanged)
+	}
+
+	if needToEncodeTimeUnit {
+		// The encoder manages encoding time unit changes manually (instead of deferring to
+		// the timestamp encoder) because by default the WriteTime() API will use a marker
+		// encoding scheme that relies on looking ahead into the stream for bit combinations that
+		// could not possibly exist in the M3TSZ encoding scheme.
+		// The protobuf encoder can't rely on this behavior because its possible for the protobuf
+		// encoder to encode a legitimate bit combination that matches the "impossible" M3TSZ
+		// markers exactly.
+		enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+	}
+
+	if needToEncodeSchema {
+		enc.encodeCustomSchemaTypes()
+		enc.hasEncodedSchema = true
+	}
 }
 
 // Stream returns a copy of the underlying data stream.
