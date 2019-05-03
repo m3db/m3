@@ -21,129 +21,146 @@
 package proto
 
 import (
+	"bytes"
+	"math"
 	"testing"
+	"time"
+
+	"github.com/jhump/protoreflect/dynamic"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshalIter(t *testing.T) {
 	// Store in a var to prevent the compiler from complaining about overflow errors.
-	// neg1 := -1
+	neg1 := -1
 
-	// testCases := []struct {
-	// 	timestamp  time.Time
-	// 	latitude   float64
-	// 	longitude  float64
-	// 	epoch      int64
-	// 	deliveryID []byte
-	// 	attributes map[string]string
+	testCases := []struct {
+		timestamp  time.Time
+		latitude   float64
+		longitude  float64
+		epoch      int64
+		deliveryID []byte
+		attributes map[string]string
 
-	// 	expectedIter    map[int32]unmarshalValue
-	// 	expectedSkipped *dynamic.Message
-	// }{
-	// 	{
-	// 		latitude:  0.1,
-	// 		longitude: 1.1,
-	// 		epoch:     -1,
+		expectedIter    map[int32]unmarshalValue
+		expectedSkipped *dynamic.Message
+	}{
+		{
+			latitude:  0.1,
+			longitude: 1.1,
+			epoch:     -1,
 
-	// 		expectedIter: map[int32]unmarshalValue{
-	// 			1: {
-	// 				float64Val: 0.1,
-	// 			},
-	// 			2: {
-	// 				float64Val: 1.1,
-	// 			},
-	// 			3: {
-	// 				uint64Val: uint64(neg1),
-	// 			},
-	// 		},
-	// 	},
-	// 	{
-	// 		latitude:   0.1,
-	// 		longitude:  1.1,
-	// 		epoch:      0,
-	// 		deliveryID: []byte("123123123123"),
+			expectedIter: map[int32]unmarshalValue{
+				1: {
+					v: math.Float64bits(0.1),
+				},
+				2: {
+					v: math.Float64bits(1.1),
+				},
+				3: {
+					v: uint64(neg1),
+				},
+			},
+		},
+		{
+			latitude:   0.1,
+			longitude:  1.1,
+			epoch:      0,
+			deliveryID: []byte("123123123123"),
 
-	// 		expectedIter: map[int32]unmarshalValue{
-	// 			1: {
-	// 				float64Val: 0.1,
-	// 			},
-	// 			2: {
-	// 				float64Val: 1.1,
-	// 			},
-	// 			// TODO: Leave a comment about this in the docs
-	// 			// 3: {
-	// 			// 	int64Val: 0,
-	// 			// },
-	// 			4: {
-	// 				bytesVal: []byte("123123123123"),
-	// 			},
-	// 		},
-	// 	},
-	// 	{
-	// 		latitude:   0.2,
-	// 		longitude:  2.2,
-	// 		epoch:      1,
-	// 		deliveryID: []byte("789789789789"),
-	// 		attributes: map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"},
+			expectedIter: map[int32]unmarshalValue{
+				1: {
+					v: math.Float64bits(0.1),
+				},
+				2: {
+					v: math.Float64bits(1.1),
+				},
+				// TODO: Leave a comment about this in the docs
+				// 3: {
+				// 	int64Val: 0,
+				// },
+				4: {
+					bytes: []byte("123123123123"),
+				},
+			},
+		},
+		{
+			latitude:   0.2,
+			longitude:  2.2,
+			epoch:      1,
+			deliveryID: []byte("789789789789"),
+			attributes: map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"},
 
-	// 		expectedIter: map[int32]unmarshalValue{
-	// 			1: {
-	// 				float64Val: 0.2,
-	// 			},
-	// 			2: {
-	// 				float64Val: 2.2,
-	// 			},
-	// 			3: {
-	// 				uint64Val: 1,
-	// 			},
-	// 			4: {
-	// 				bytesVal: []byte("789789789789"),
-	// 			},
-	// 		},
+			expectedIter: map[int32]unmarshalValue{
+				1: {
+					v: math.Float64bits(0.2),
+				},
+				2: {
+					v: math.Float64bits(2.2),
+				},
+				3: {
+					v: (1),
+				},
+				4: {
+					bytes: []byte("789789789789"),
+				},
+			},
 
-	// 		expectedSkipped: newVL(
-	// 			0, 0, 0, nil, map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"}),
-	// 	},
-	// }
+			expectedSkipped: newVL(
+				0, 0, 0, nil, map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"}),
+		},
+	}
 
-	// unmarshalIter := newUnmarshalIter()
-	// for _, tc := range testCases {
-	// 	vl := newVL(
-	// 		tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
-	// 	marshaledVL, err := vl.Marshal()
-	// 	require.NoError(t, err)
+	unmarshalIter := newUnmarshalIter()
+	for _, tc := range testCases {
+		vl := newVL(
+			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
+		marshaledVL, err := vl.Marshal()
+		require.NoError(t, err)
 
-	// 	unmarshalIter.reset(testVLSchema, marshaledVL)
+		unmarshalIter.reset(testVLSchema, marshaledVL)
 
-	// 	i := 0
-	// 	lastFieldNum := -1
-	// 	for unmarshalIter.next() {
-	// 		var (
-	// 			curr     = unmarshalIter.current()
-	// 			fieldNum = curr.fd.GetNumber()
-	// 			expected = tc.expectedIter[fieldNum]
-	// 		)
-	// 		// Make sure iteration is sorted.
-	// 		require.True(t, int(fieldNum) > lastFieldNum)
+		i := 0
+		lastFieldNum := -1
+		for unmarshalIter.next() {
+			var (
+				curr     = unmarshalIter.current()
+				fieldNum = curr.fd.GetNumber()
+				expected = tc.expectedIter[fieldNum]
+			)
+			// Make sure iteration is sorted.
+			require.True(t, int(fieldNum) > lastFieldNum)
 
-	// 		curr.fd = nil
-	// 		require.Equal(t, expected, curr)
-	// 		i++
-	// 	}
+			curr.fd = nil
+			require.Equal(t, expected, curr)
 
-	// 	// TODO: Make this a method?
-	// 	require.NoError(t, unmarshalIter.err)
-	// 	require.Equal(t, len(tc.expectedIter), i)
+			switch fieldNum {
+			case 1:
+				require.Equal(t, tc.latitude, curr.asFloat64())
+			case 2:
+				require.Equal(t, tc.longitude, curr.asFloat64())
+			case 3:
+				require.Equal(t, tc.epoch, curr.asInt64())
+			case 4:
+				require.True(t, bytes.Equal(tc.deliveryID, curr.asBytes()))
+			}
+			i++
+		}
 
-	// 	if len(tc.attributes) > 0 {
-	// 		require.Equal(t, len(tc.attributes), unmarshalIter.numSkipped())
-	// 		m, err := unmarshalIter.skipped()
-	// 		require.NoError(t, err)
-	// 		assertAttributesEqual(
-	// 			t,
-	// 			tc.attributes,
-	// 			m.GetFieldByName("attributes").(map[interface{}]interface{}))
-	// 	} else {
-	// 		require.Equal(t, 0, unmarshalIter.numSkipped())
-	// 	}
-	// }
+		// TODO: Make this a method?
+		require.NoError(t, unmarshalIter.err)
+		require.Equal(t, len(tc.expectedIter), i)
+
+		if len(tc.attributes) > 0 {
+			require.Equal(t, len(tc.attributes), unmarshalIter.numSkipped())
+			m, err := unmarshalIter.skipped()
+			require.NoError(t, err)
+			assertAttributesEqual(
+				t,
+				tc.attributes,
+				m.GetFieldByName("attributes").(map[interface{}]interface{}))
+		} else {
+			require.Equal(t, 0, unmarshalIter.numSkipped())
+		}
+	}
 }
