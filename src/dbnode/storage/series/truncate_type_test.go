@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,33 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package series
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"fmt"
+	"testing"
 
-	"github.com/m3db/m3/src/collector/server"
-	"github.com/m3db/m3/src/x/etcd"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+func TestTruncateTypeValidation(t *testing.T) {
+	err := TypeNone.Validate()
+	assert.NoError(t, err)
+	err = TypeBlock.Validate()
+	assert.NoError(t, err)
+	err = TruncateType(4).Validate()
+	assert.Error(t, err)
+}
 
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+func TestTruncateTypeUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Type TruncateType `yaml:"type"`
 	}
 
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
+	validParseSchemes := []TruncateType{
+		TypeNone,
+		TypeBlock,
+	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	for _, value := range validParseSchemes {
+		str := fmt.Sprintf("type: %s\n", value.String())
+
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+
+		assert.Equal(t, value, cfg.Type)
+	}
+
+	var cfg config
+	// Bad type marshalls to TypeNone.
+	require.NoError(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+	assert.Equal(t, TypeNone, cfg.Type)
+
+	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
+	assert.Equal(t, TypeNone, cfg.Type)
 }

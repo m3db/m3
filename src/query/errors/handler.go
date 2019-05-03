@@ -40,6 +40,8 @@ var (
 	ErrInvalidMatchers = errors.New("invalid matchers")
 	// ErrNamesOnly is returned when label values results are name only
 	ErrNamesOnly = errors.New("can not render label values; result has label names only")
+	// ErrWithNames is returned when label values results are name only
+	ErrWithNames = errors.New("can not render label list; result has label names and values")
 	// ErrMultipleResults is returned when there are multiple label values results
 	ErrMultipleResults = errors.New("can not render label values; multiple results detected")
 )
