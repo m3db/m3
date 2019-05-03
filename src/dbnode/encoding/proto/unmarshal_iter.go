@@ -64,20 +64,27 @@ type unmarshalIter struct {
 	sortedOffsets    sortedOffsets
 	sortedOffsetsIdx int
 
+	skippedOffsets sortedOffsets
+
 	skippedMessage *dynamic.Message
 	skippedCount   int
 	e              error
 }
 
 // Implement Sort interface because sort.Slice allocates.
-type sortedOffsets []int
+type sortedOffsets []sortedOffset
+
+type sortedOffset struct {
+	offset int
+	length int
+}
 
 func (s sortedOffsets) Len() int {
 	return len(s)
 }
 
 func (s sortedOffsets) Less(i, j int) bool {
-	return s[i] < s[j]
+	return s[i].offset < s[j].offset
 }
 
 func (s sortedOffsets) Swap(i, j int) {
@@ -148,10 +155,22 @@ func (u *unmarshalIter) numSkipped() int {
 }
 
 func (u *unmarshalIter) skipped() (*dynamic.Message, error) {
+	fmt.Println("calling skiiped!!+======")
 	if u.skippedMessage == nil {
 		u.skippedMessage = dynamic.NewMessage(u.schema)
 	}
-	return u.skippedMessage, u.skippedMessage.Unmarshal(u.skippedBuf.buf)
+	u.skippedMessage.Reset()
+	for _, o := range u.skippedOffsets {
+		fmt.Println("offset: ", o.offset)
+		fmt.Println("length: ", o.length)
+		fmt.Println("length: ", o.offset+o.length)
+		fmt.Println("len(decodeBuf): ", u.decodeBuf.buf)
+		err := u.skippedMessage.UnmarshalMerge(u.decodeBuf.buf[o.offset : o.offset+o.length])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return u.skippedMessage, nil
 }
 
 // calculateSortedOffsets calculates the sorted offsets for all the encoded
@@ -161,25 +180,47 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 	u.sortedOffsets = u.sortedOffsets[:0]
 	u.sortedOffsetsIdx = 0
 
+	u.skippedOffsets = u.skippedOffsets[:0]
+
 	isSorted := true
 	for !u.decodeBuf.eof() {
-		startOffset := u.decodeBuf.index
+		sortedOffset := sortedOffset{offset: u.decodeBuf.index}
 		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
 		if err != nil {
 			return err
 		}
-		u.skip(tag, wireType, false)
+
+		// TODO: Fix this
+		fd := u.schema.FindFieldByNumber(tag)
+		if fd == nil {
+			return fmt.Errorf("encountered unknown field with tag: %d", tag)
+		}
+
+		n, err := u.skip(tag, wireType, false)
+		if err != nil {
+			return err
+		}
+		fmt.Println("----------")
+		fmt.Println(fd.GetName())
+		fmt.Println("skipped: ", n)
+
+		sortedOffset.length = u.decodeBuf.index - sortedOffset.offset
+		if u.shouldSkip(fd) {
+			u.skippedOffsets = append(u.skippedOffsets, sortedOffset)
+			u.skippedCount++
+			continue
+		}
 
 		if isSorted && len(u.sortedOffsets) > 1 {
 			// Check if the slice is sorted as its built to avoid resorting
 			// it at the end if there is no need.
-			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1]
-			if startOffset < lastOffset {
+			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1].offset
+			if sortedOffset.offset < lastOffset {
 				isSorted = false
 			}
 		}
 
-		u.sortedOffsets = append(u.sortedOffsets, startOffset)
+		u.sortedOffsets = append(u.sortedOffsets, sortedOffset)
 	}
 
 	u.decodeBuf.reset(u.decodeBuf.buf)
@@ -194,14 +235,15 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 }
 
 func (u *unmarshalIter) swapFn(i, j int) bool {
-	return u.sortedOffsets[i] < u.sortedOffsets[j]
+	return u.sortedOffsets[i].offset < u.sortedOffsets[j].offset
 }
 
 func (u *unmarshalIter) unmarshalField() error {
 	u.found = false
 	var shouldContinue = true
+	// TODO: DOes this need to a be a field on the struct?
 	for u.sortedOffsetsIdx < len(u.sortedOffsets) && shouldContinue {
-		u.decodeBuf.index = u.sortedOffsets[u.sortedOffsetsIdx]
+		u.decodeBuf.index = u.sortedOffsets[u.sortedOffsetsIdx].offset
 		u.sortedOffsetsIdx++
 
 		shouldContinue = false
@@ -220,16 +262,16 @@ func (u *unmarshalIter) unmarshalField() error {
 			return fmt.Errorf("encountered unknown field with tag: %d", tag)
 		}
 
-		if u.shouldSkip(fd) {
-			err := u.skip(tag, wireType, true)
-			if err != nil {
-				return err
-			}
+		// if u.shouldSkip(fd) {
+		// 	err := u.skip(tag, wireType, true)
+		// 	if err != nil {
+		// 		return err
+		// 	}
 
-			u.skippedCount++
-			shouldContinue = true
-			continue
-		}
+		// 	u.skippedCount++
+		// 	shouldContinue = true
+		// 	continue
+		// }
 
 		u.last, err = u.unmarshalKnownField(fd, wireType)
 		if err != nil {
@@ -259,66 +301,78 @@ func (u *unmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
 // wiretype have already been decoded). Additionally, it can optionally re-encode
 // the skipped <tag,wireType,value> tuple into the skippedBuf stream so that it can
 // be handled later.
-func (u *unmarshalIter) skip(tag int32, wireType int8, encodeSkipped bool) error {
+func (u *unmarshalIter) skip(tag int32, wireType int8, encodeSkipped bool) (int, error) {
 	if encodeSkipped {
 		if err := u.skippedBuf.encodeTagAndWireType(tag, wireType); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
 	switch wireType {
 	case proto.WireFixed32:
+		numSkipped := 4
 		if !encodeSkipped {
 			u.decodeBuf.index += 4
-			return nil
+			return numSkipped, nil
 		}
 
 		dec, err := u.decodeBuf.decodeFixed32()
 		if err != nil {
-			return err
+			return numSkipped, err
 		}
-		return u.skippedBuf.encodeFixed32(dec)
+		return numSkipped, u.skippedBuf.encodeFixed32(dec)
 
 	case proto.WireFixed64:
+		numSkipped := 8
 		if !encodeSkipped {
 			u.decodeBuf.index += 8
-			return nil
+			return numSkipped, nil
 		}
 
 		dec, err := u.decodeBuf.decodeFixed64()
 		if err != nil {
-			return err
+			return numSkipped, err
 		}
-		return u.skippedBuf.encodeFixed64(dec)
+		return numSkipped, u.skippedBuf.encodeFixed64(dec)
 
 	case proto.WireVarint:
+		var (
+			numSkipped               = 0
+			offsetBeforeDecodeVarInt = u.decodeBuf.index
+		)
 		dec, err := u.decodeBuf.decodeVarint()
 		if err != nil {
-			return err
+			return numSkipped, err
 		}
+		numSkipped += u.decodeBuf.index - offsetBeforeDecodeVarInt
 		if !encodeSkipped {
-			return nil
+			return numSkipped, nil
 		}
-		return u.skippedBuf.encodeVarint(dec)
+		return numSkipped, u.skippedBuf.encodeVarint(dec)
 
 	case proto.WireBytes:
+		var (
+			numSkipped                 = 0
+			offsetBeforeDecodeRawBytes = u.decodeBuf.index
+		)
 		// Bytes aren't copied because they're just being skipped over so
 		// copying would be wasteful.
 		raw, err := u.decodeBuf.decodeRawBytes(false)
 		if err != nil {
-			return err
+			return numSkipped, err
 		}
+		numSkipped += u.decodeBuf.index - offsetBeforeDecodeRawBytes
 		if !encodeSkipped {
-			return nil
+			return numSkipped, nil
 		}
-		return u.skippedBuf.encodeRawBytes(raw)
+		return numSkipped, u.skippedBuf.encodeRawBytes(raw)
 
 	case proto.WireStartGroup:
-		return errGroupsAreNotSupported
+		return 0, errGroupsAreNotSupported
 	case proto.WireEndGroup:
-		return errGroupsAreNotSupported
+		return 0, errGroupsAreNotSupported
 	default:
-		return proto.ErrInternalBadWireType
+		return 0, proto.ErrInternalBadWireType
 	}
 }
 
@@ -452,6 +506,7 @@ func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
 	u.skippedCount = 0
 	u.calculateSortedOffsetsComplete = false
 	u.sortedOffsets = u.sortedOffsets[:0]
+	u.skippedOffsets = u.skippedOffsets[:0]
 	u.sortedOffsetsIdx = 0
 	// TODO: pools?
 	u.skippedBuf.reset(nil)
@@ -479,13 +534,13 @@ func (cb *codedBuffer) eof() bool {
 	return cb.index >= len(cb.buf)
 }
 
-func (cb *codedBuffer) skip(count int) bool {
+func (cb *codedBuffer) skip(count int) (int, bool) {
 	newIndex := cb.index + count
 	if newIndex > len(cb.buf) {
-		return false
+		return 0, false
 	}
 	cb.index = newIndex
-	return true
+	return 0, true
 }
 
 func (cb *codedBuffer) decodeVarintSlow() (x uint64, err error) {
