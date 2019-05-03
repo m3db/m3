@@ -61,7 +61,7 @@ type unmarshalIter struct {
 	sortedOffsets    sortedOffsets
 	sortedOffsetsIdx int
 
-	skippedOffsets sortedOffsets
+	skippedOffsets skippedOffsets
 
 	skippedMessage *dynamic.Message
 	skippedCount   int
@@ -71,7 +71,14 @@ type unmarshalIter struct {
 // Implement Sort interface because sort.Slice allocates.
 type sortedOffsets []sortedOffset
 
+type skippedOffsets []skippedOffset
+
 type sortedOffset struct {
+	offset int
+	fd     *desc.FieldDescriptor
+}
+
+type skippedOffset struct {
 	offset int
 	length int
 }
@@ -175,7 +182,7 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 
 	isSorted := true
 	for !u.decodeBuf.eof() {
-		sortedOffset := sortedOffset{offset: u.decodeBuf.index}
+		startOffset := u.decodeBuf.index
 		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
 		if err != nil {
 			return err
@@ -192,9 +199,10 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 			return err
 		}
 
-		sortedOffset.length = u.decodeBuf.index - sortedOffset.offset
+		length := u.decodeBuf.index - startOffset
 		if u.shouldSkip(fd) {
-			u.skippedOffsets = append(u.skippedOffsets, sortedOffset)
+			skippedOffset := skippedOffset{offset: startOffset, length: length}
+			u.skippedOffsets = append(u.skippedOffsets, skippedOffset)
 			u.skippedCount++
 			continue
 		}
@@ -203,11 +211,12 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 			// Check if the slice is sorted as its built to avoid resorting
 			// it at the end if there is no need.
 			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1].offset
-			if sortedOffset.offset < lastOffset {
+			if startOffset < lastOffset {
 				isSorted = false
 			}
 		}
 
+		sortedOffset := sortedOffset{offset: startOffset, fd: fd}
 		u.sortedOffsets = append(u.sortedOffsets, sortedOffset)
 	}
 
@@ -229,7 +238,8 @@ func (u *unmarshalIter) swapFn(i, j int) bool {
 func (u *unmarshalIter) unmarshalField() error {
 	// Reposition the decodeBuf to the correct offset so that it decodes the next
 	// value according to correct sort order.
-	u.decodeBuf.index = u.sortedOffsets[u.sortedOffsetsIdx].offset
+	sortedOffset := u.sortedOffsets[u.sortedOffsetsIdx]
+	u.decodeBuf.index = sortedOffset.offset
 	u.sortedOffsetsIdx++
 
 	tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
@@ -241,12 +251,7 @@ func (u *unmarshalIter) unmarshalField() error {
 		return errGroupsAreNotSupported
 	}
 
-	fd := u.schema.FindFieldByNumber(tag)
-	if fd == nil {
-		return fmt.Errorf("encountered unknown field with tag: %d", tag)
-	}
-
-	u.last, err = u.unmarshalKnownField(fd, wireType)
+	u.last, err = u.unmarshalKnownField(sortedOffset.fd, wireType)
 	if err != nil {
 		return err
 	}
@@ -625,14 +630,6 @@ func (cb *codedBuffer) decodeTagAndWireType() (tag int32, wireType int8, err err
 	}
 	tag = int32(v)
 	return
-}
-
-// TODO: Maybe delete?
-func (cb *codedBuffer) peekTagAndWireType() (tag int32, wireType int8, err error) {
-	start := cb.index
-	tag, wireType, err = cb.decodeTagAndWireType()
-	cb.index = start
-	return tag, wireType, err
 }
 
 // DecodeFixed64 reads a 64-bit integer from the Buffer.
