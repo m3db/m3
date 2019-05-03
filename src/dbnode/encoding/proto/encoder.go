@@ -356,7 +356,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 			if isUnsignedInt(customField.fieldType) {
 				enc.encodeUnsignedIntValue(i, lastMarshaledValue.uint64Val)
 			} else {
-				enc.encodeSignedIntValue(i, lastMarshaledValue.int64Val)
+				enc.encodeSignedIntValue(i, int64(lastMarshaledValue.uint64Val))
 			}
 
 		case customField.fieldType == bytesField:

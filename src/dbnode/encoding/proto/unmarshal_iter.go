@@ -89,7 +89,6 @@ type unmarshalValue struct {
 	fd         *desc.FieldDescriptor
 	fieldNum   int32
 	boolVal    bool
-	int64Val   int64
 	uint64Val  uint64
 	float64Val float64
 	bytesVal   []byte
@@ -380,21 +379,21 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 		if s > math.MaxInt32 || s < math.MinInt32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.int64Val = s
+		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SFIXED32:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.int64Val = int64(v)
+		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT32:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.int64Val = int64(decodeZigZag32(v))
+		val.uint64Val = uint64(decodeZigZag32(v))
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_UINT64,
@@ -404,11 +403,11 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 
 	case dpb.FieldDescriptorProto_TYPE_INT64,
 		dpb.FieldDescriptorProto_TYPE_SFIXED64:
-		val.int64Val = int64(v)
+		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT64:
-		val.int64Val = decodeZigZag64(v)
+		val.uint64Val = uint64(decodeZigZag64(v))
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_FLOAT:
