@@ -24,30 +24,7 @@ var (
 	errMessagesShouldNotBeIterativelyUnmarshaled = errors.New("messages should not be iteratively unmarshaled")
 
 	zeroValue unmarshalValue
-
-	varintTypes  = map[dpb.FieldDescriptorProto_Type]bool{}
-	fixed32Types = map[dpb.FieldDescriptorProto_Type]bool{}
-	fixed64Types = map[dpb.FieldDescriptorProto_Type]bool{}
 )
-
-func init() {
-	varintTypes[dpb.FieldDescriptorProto_TYPE_BOOL] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_INT32] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_INT64] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_UINT32] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_UINT64] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_SINT32] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_SINT64] = true
-	varintTypes[dpb.FieldDescriptorProto_TYPE_ENUM] = true
-
-	fixed32Types[dpb.FieldDescriptorProto_TYPE_FIXED32] = true
-	fixed32Types[dpb.FieldDescriptorProto_TYPE_SFIXED32] = true
-	fixed32Types[dpb.FieldDescriptorProto_TYPE_FLOAT] = true
-
-	fixed64Types[dpb.FieldDescriptorProto_TYPE_FIXED64] = true
-	fixed64Types[dpb.FieldDescriptorProto_TYPE_SFIXED64] = true
-	fixed64Types[dpb.FieldDescriptorProto_TYPE_DOUBLE] = true
-}
 
 type unmarshalIter struct {
 	schema *desc.MessageDescriptor
