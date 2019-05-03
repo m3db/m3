@@ -74,8 +74,9 @@ type sortedOffsets []sortedOffset
 type skippedOffsets []skippedOffset
 
 type sortedOffset struct {
-	offset int
-	fd     *desc.FieldDescriptor
+	offset   int
+	fd       *desc.FieldDescriptor
+	wireType int8
 }
 
 type skippedOffset struct {
@@ -182,11 +183,16 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 
 	isSorted := true
 	for !u.decodeBuf.eof() {
-		startOffset := u.decodeBuf.index
+		// This offset is used for skipped fields that will be unmarshaled by the protobuf
+		// library which will expect to decode the tag and wire type on its own.
+		tagAndWireTypeStartOffset := u.decodeBuf.index
 		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
 		if err != nil {
 			return err
 		}
+		// This offset is used for non-skipped fields so that the iterator can avoid
+		// decoding the tag and wire type again.
+		valueStartOffset := u.decodeBuf.index
 
 		// TODO: Fix this
 		fd := u.schema.FindFieldByNumber(tag)
@@ -199,9 +205,9 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 			return err
 		}
 
-		length := u.decodeBuf.index - startOffset
+		length := u.decodeBuf.index - tagAndWireTypeStartOffset
 		if u.shouldSkip(fd) {
-			skippedOffset := skippedOffset{offset: startOffset, length: length}
+			skippedOffset := skippedOffset{offset: tagAndWireTypeStartOffset, length: length}
 			u.skippedOffsets = append(u.skippedOffsets, skippedOffset)
 			u.skippedCount++
 			continue
@@ -211,12 +217,12 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 			// Check if the slice is sorted as its built to avoid resorting
 			// it at the end if there is no need.
 			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1].offset
-			if startOffset < lastOffset {
+			if tagAndWireTypeStartOffset < lastOffset {
 				isSorted = false
 			}
 		}
 
-		sortedOffset := sortedOffset{offset: startOffset, fd: fd}
+		sortedOffset := sortedOffset{offset: valueStartOffset, fd: fd, wireType: wireType}
 		u.sortedOffsets = append(u.sortedOffsets, sortedOffset)
 	}
 
@@ -242,16 +248,8 @@ func (u *unmarshalIter) unmarshalField() error {
 	u.decodeBuf.index = sortedOffset.offset
 	u.sortedOffsetsIdx++
 
-	_, wireType, err := u.decodeBuf.decodeTagAndWireType()
-	if err != nil {
-		return err
-	}
-
-	if wireType == proto.WireEndGroup {
-		return errGroupsAreNotSupported
-	}
-
-	u.last, err = u.unmarshalKnownField(sortedOffset.fd, wireType)
+	var err error
+	u.last, err = u.unmarshalKnownField(sortedOffset.fd, sortedOffset.wireType)
 	if err != nil {
 		return err
 	}
