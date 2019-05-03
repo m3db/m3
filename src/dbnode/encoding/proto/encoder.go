@@ -56,8 +56,6 @@ var (
 )
 
 // Encoder compresses arbitrary ProtoBuf streams given a schema.
-// TODO(rartoul): Add support for changing the schema (and updating the ordering
-// of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
 type Encoder struct {
 	opts encoding.Options
 
@@ -485,11 +483,12 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	} else {
 		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
-	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
-	// schemas to see if they have changed:
-	// https://github.com/m3db/m3/issues/1471
-	enc.lastEncoded = dynamic.NewMessage(schema)
-	enc.hasEncodedSchema = false
+		// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
+		// schemas to see if they have changed:
+		// https://github.com/m3db/m3/issues/1471
+		enc.lastEncoded = dynamic.NewMessage(schema)
+		enc.hasEncodedSchema = false
+	}
 }
 
 // Close closes the encoder.

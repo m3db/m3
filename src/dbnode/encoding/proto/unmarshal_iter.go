@@ -194,7 +194,6 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 		// decoding the tag and wire type again.
 		valueStartOffset := u.decodeBuf.index
 
-		// TODO: Fix this
 		fd := u.schema.FindFieldByNumber(tag)
 		if fd == nil {
 			return fmt.Errorf("encountered unknown field with tag: %d", tag)
