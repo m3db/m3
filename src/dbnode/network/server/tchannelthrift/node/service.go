@@ -26,8 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/topology"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -141,8 +139,6 @@ type service struct {
 	nowFn   clock.NowFn
 	pools   pools
 	metrics serviceMetrics
-
-	topoInit topology.Initializer
 }
 
 type serviceState struct {
@@ -287,7 +283,7 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 }
 
 func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc.NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
-	hasPlacement, err := s.topoInit.TopologySet()
+	hasPlacement, err := s.opts.TopologyInitializer().TopologySet()
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
