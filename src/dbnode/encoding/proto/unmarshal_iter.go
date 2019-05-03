@@ -84,14 +84,30 @@ func (s sortedOffsets) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// TODO: Make smaller
 type unmarshalValue struct {
-	fd         *desc.FieldDescriptor
-	fieldNum   int32
-	boolVal    bool
-	uint64Val  uint64
-	float64Val float64
-	bytesVal   []byte
+	fd    *desc.FieldDescriptor
+	v     uint64
+	bytes []byte
+}
+
+func (v *unmarshalValue) asBool() bool {
+	return v.v != 0
+}
+
+func (v *unmarshalValue) asUint64() uint64 {
+	return v.v
+}
+
+func (v *unmarshalValue) asInt64() int64 {
+	return int64(v.v)
+}
+
+func (v *unmarshalValue) asFloat64() float64 {
+	return math.Float64frombits(v.v)
+}
+
+func (v *unmarshalValue) asBytes() []byte {
+	return v.bytes
 }
 
 func newUnmarshalIter() *unmarshalIter {
@@ -348,7 +364,7 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 		}
 
 		val := unmarshalValue{fd: fd}
-		val.bytesVal = raw
+		val.bytes = raw
 		return val, nil
 
 	case proto.WireStartGroup:
@@ -359,10 +375,14 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 }
 
 func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, error) {
-	val := unmarshalValue{fd: fd}
+	val := unmarshalValue{fd: fd, v: v}
 	switch fd.GetType() {
-	case dpb.FieldDescriptorProto_TYPE_BOOL:
-		val.boolVal = v != 0
+	case dpb.FieldDescriptorProto_TYPE_BOOL,
+		dpb.FieldDescriptorProto_TYPE_UINT64,
+		dpb.FieldDescriptorProto_TYPE_FIXED64,
+		dpb.FieldDescriptorProto_TYPE_INT64,
+		dpb.FieldDescriptorProto_TYPE_SFIXED64,
+		dpb.FieldDescriptorProto_TYPE_DOUBLE:
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_UINT32,
@@ -370,7 +390,6 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_INT32,
@@ -379,50 +398,36 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 		if s > math.MaxInt32 || s < math.MinInt32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SFIXED32:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.uint64Val = v
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT32:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.uint64Val = uint64(decodeZigZag32(v))
-		return val, nil
-
-	case dpb.FieldDescriptorProto_TYPE_UINT64,
-		dpb.FieldDescriptorProto_TYPE_FIXED64:
-		val.uint64Val = v
-		return val, nil
-
-	case dpb.FieldDescriptorProto_TYPE_INT64,
-		dpb.FieldDescriptorProto_TYPE_SFIXED64:
-		val.uint64Val = v
+		val.v = uint64(decodeZigZag32(v))
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT64:
-		val.uint64Val = uint64(decodeZigZag64(v))
+		val.v = uint64(decodeZigZag64(v))
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_FLOAT:
 		if v > math.MaxUint32 {
 			return zeroValue, dynamic.NumericOverflowError
 		}
-		val.float64Val = float64(math.Float32frombits(uint32(v)))
-		return val, nil
-
-	case dpb.FieldDescriptorProto_TYPE_DOUBLE:
-		val.float64Val = math.Float64frombits(v)
+		float32Val := math.Float32frombits(uint32(v))
+		float64Bits := math.Float64bits(float64(float32Val))
+		val.v = float64Bits
 		return val, nil
 
 	default:
-		// bytes, string, message, and group cannot be represented as a simple numeric value
+		// bytes, string, message, and group cannot be represented as a simple numeric value.
 		return zeroValue, fmt.Errorf("bad input; field %s requires length-delimited wire type", fd.GetFullyQualifiedName())
 	}
 }
