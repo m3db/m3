@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/topology"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -139,6 +141,8 @@ type service struct {
 	nowFn   clock.NowFn
 	pools   pools
 	metrics serviceMetrics
+
+	topoInit topology.Initializer
 }
 
 type serviceState struct {
@@ -154,23 +158,11 @@ func (s *serviceState) DB() storage.Database {
 	return v
 }
 
-func (s *serviceState) SetDB(v storage.Database) {
-	s.Lock()
-	s.db = v
-	s.Unlock()
-}
-
 func (s *serviceState) Health() *rpc.NodeHealthResult_ {
 	s.RLock()
 	v := s.health
 	s.RUnlock()
 	return v
-}
-
-func (s *serviceState) SetHealth(v *rpc.NodeHealthResult_) {
-	s.Lock()
-	s.health = v
-	s.Unlock()
 }
 
 type pools struct {
@@ -282,7 +274,9 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 			*newHealth = *health
 			newHealth.Bootstrapped = bootstrapped
 
-			s.state.SetHealth(newHealth)
+			s.state.Lock()
+			s.state.health = newHealth
+			s.state.Unlock()
 
 			// Update response
 			health = newHealth
@@ -290,6 +284,29 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	}
 
 	return health, nil
+}
+
+func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc.NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
+	hasPlacement, err := s.topoInit.TopologySet()
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	if !hasPlacement {
+		// No placement at all
+		return &rpc.NodeBootstrappedInPlacementOrNoPlacementResult_{}, nil
+	}
+
+	db := s.state.DB()
+	if db == nil {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+
+	if bootstrapped := db.IsBootstrappedAndDurable(); !bootstrapped {
+		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
+	}
+
+	return &rpc.NodeBootstrappedInPlacementOrNoPlacementResult_{}, nil
 }
 
 // Bootstrapped is design to be used with cluster management tools like k8 that expect an endpoint

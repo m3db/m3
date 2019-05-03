@@ -22,6 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -31,6 +32,7 @@ import (
 type options struct {
 	clockOpts                clock.Options
 	instrumentOpts           instrument.Options
+	topologyInitializer      topology.Initializer
 	idPool                   ident.Pool
 	blockMetadataV2Pool      BlockMetadataV2Pool
 	blockMetadataV2SlicePool BlockMetadataV2SlicePool
@@ -86,6 +88,16 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
+	opts := *o
+	opts.topologyInitializer = value
+	return &opts
+}
+
+func (o *options) TopologyInitializer() topology.Initializer {
+	return o.topologyInitializer
 }
 
 func (o *options) SetIdentifierPool(value ident.Pool) Options {

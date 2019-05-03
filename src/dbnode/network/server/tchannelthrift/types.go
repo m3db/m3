@@ -22,6 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
@@ -40,6 +41,12 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
+
+	// SetTopologyInitializer sets the TopologyInitializer.
+	SetTopologyInitializer(value topology.Initializer) Options
+
+	// TopologyInitializer returns the TopologyInitializer.
+	TopologyInitializer() topology.Initializer
 
 	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options

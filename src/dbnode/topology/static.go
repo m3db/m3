@@ -46,6 +46,11 @@ func (i staticInitializer) Init() (Topology, error) {
 	return NewStaticTopology(i.opts), nil
 }
 
+func (i staticInitializer) TopologySet() (bool, error) {
+	// Always has the specified static topology ready
+	return true, nil
+}
+
 type staticTopology struct {
 	w xwatch.Watchable
 }
