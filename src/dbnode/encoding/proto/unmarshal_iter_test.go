@@ -147,8 +147,7 @@ func TestUnmarshalIter(t *testing.T) {
 			i++
 		}
 
-		// TODO: Make this a method?
-		require.NoError(t, unmarshalIter.err)
+		require.NoError(t, unmarshalIter.err())
 		require.Equal(t, len(tc.expectedIter), i)
 
 		if len(tc.attributes) > 0 {

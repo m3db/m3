@@ -66,7 +66,7 @@ type unmarshalIter struct {
 
 	skippedMessage *dynamic.Message
 	skippedCount   int
-	err            error
+	e              error
 }
 
 // Implement Sort interface because sort.Slice allocates.
@@ -125,14 +125,14 @@ func (u *unmarshalIter) next() bool {
 	if !u.calculateSortedOffsetsComplete {
 		err := u.calculateSortedOffsets()
 		if err != nil {
-			u.err = err
+			u.e = err
 			return false
 		}
 	}
 
 	err := u.unmarshalField()
 	if err != nil {
-		u.err = err
+		u.e = err
 		return false
 	}
 
@@ -433,7 +433,11 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 }
 
 func (u *unmarshalIter) hasNext() bool {
-	return !u.decodeBuf.eof() && u.err == nil
+	return !u.decodeBuf.eof() && u.e == nil
+}
+
+func (u *unmarshalIter) err() error {
+	return u.e
 }
 
 func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
@@ -444,7 +448,7 @@ func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
 
 	u.schema = schema
 	u.last = unmarshalValue{}
-	u.err = nil
+	u.e = nil
 	u.skippedCount = 0
 	u.calculateSortedOffsetsComplete = false
 	u.sortedOffsets = u.sortedOffsets[:0]
