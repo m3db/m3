@@ -17,7 +17,9 @@ var (
 	// ErrOverflow is returned when an integer is too large to be represented.
 	ErrOverflow = errors.New("proto: integer overflow")
 
-	errGroupsAreDeprecated = errors.New("use of groups in proto wire format are deprecated")
+	// Groups in the Protobuf wire format are deprecated, so simplify the code significantly by
+	// not supporting them.
+	errGroupsAreNotSupported = errors.New("use of groups in proto wire format is not supported")
 
 	errMessagesShouldNotBeIterativelyUnmarshaled = errors.New("messages should not be iteratively unmarshaled")
 
@@ -50,8 +52,8 @@ func init() {
 type unmarshalIter struct {
 	schema *desc.MessageDescriptor
 
-	encodeBuf *codedBuffer
-	decodeBuf *codedBuffer
+	skippedBuf *codedBuffer
+	decodeBuf  *codedBuffer
 
 	calculateSortedOffsetsComplete bool
 	// TODO: Rename this
@@ -95,8 +97,8 @@ type unmarshalValue struct {
 
 func newUnmarshalIter() *unmarshalIter {
 	return &unmarshalIter{
-		encodeBuf: newCodedBuffer(nil),
-		decodeBuf: newCodedBuffer(nil),
+		skippedBuf: newCodedBuffer(nil),
+		decodeBuf:  newCodedBuffer(nil),
 	}
 }
 
@@ -134,7 +136,7 @@ func (u *unmarshalIter) skipped() (*dynamic.Message, error) {
 	if u.skippedMessage == nil {
 		u.skippedMessage = dynamic.NewMessage(u.schema)
 	}
-	return u.skippedMessage, u.skippedMessage.Unmarshal(u.encodeBuf.buf)
+	return u.skippedMessage, u.skippedMessage.Unmarshal(u.skippedBuf.buf)
 }
 
 // calculateSortedOffsets calculates the sorted offsets for all the encoded
@@ -151,7 +153,7 @@ func (u *unmarshalIter) calculateSortedOffsets() error {
 		if err != nil {
 			return err
 		}
-		u.skip(tag, wireType)
+		u.skip(tag, wireType, false)
 
 		if isSorted && len(u.sortedOffsets) > 1 {
 			// Check if the slice is sorted as its built to avoid resorting
@@ -195,7 +197,7 @@ func (u *unmarshalIter) unmarshalField() error {
 		}
 
 		if wireType == proto.WireEndGroup {
-			return errGroupsAreDeprecated
+			return errGroupsAreNotSupported
 		}
 
 		fd := u.schema.FindFieldByNumber(tag)
@@ -204,7 +206,7 @@ func (u *unmarshalIter) unmarshalField() error {
 		}
 
 		if u.shouldSkip(fd) {
-			err := u.encodeSkipped(tag, wireType)
+			err := u.skip(tag, wireType, true)
 			if err != nil {
 				return err
 			}
@@ -238,73 +240,71 @@ func (u *unmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
 	return false
 }
 
-func (u *unmarshalIter) encodeSkipped(tag int32, wireType int8) error {
-	if err := u.encodeBuf.encodeTagAndWireType(tag, wireType); err != nil {
-		return err
+// skip will skip over the next value in the encoded stream (given that the tag and
+// wiretype have already been decoded). Additionally, it can optionally re-encode
+// the skipped <tag,wireType,value> tuple into the skippedBuf stream so that it can
+// be handled later.
+func (u *unmarshalIter) skip(tag int32, wireType int8, encodeSkipped bool) error {
+	if encodeSkipped {
+		if err := u.skippedBuf.encodeTagAndWireType(tag, wireType); err != nil {
+			return err
+		}
 	}
 
-	// TODO: OPTIMIZE THESE
 	switch wireType {
 	case proto.WireFixed32:
+		if !encodeSkipped {
+			u.decodeBuf.index += 4
+			return nil
+		}
+
 		dec, err := u.decodeBuf.decodeFixed32()
 		if err != nil {
 			return err
 		}
-		return u.encodeBuf.encodeFixed32(dec)
+		return u.skippedBuf.encodeFixed32(dec)
+
 	case proto.WireFixed64:
+		if !encodeSkipped {
+			u.decodeBuf.index += 8
+			return nil
+		}
+
 		dec, err := u.decodeBuf.decodeFixed64()
 		if err != nil {
 			return err
 		}
-		return u.encodeBuf.encodeFixed64(dec)
+		return u.skippedBuf.encodeFixed64(dec)
+
 	case proto.WireVarint:
 		dec, err := u.decodeBuf.decodeVarint()
 		if err != nil {
 			return err
 		}
-		return u.encodeBuf.encodeVarint(dec)
+		if !encodeSkipped {
+			return nil
+		}
+		return u.skippedBuf.encodeVarint(dec)
+
 	case proto.WireBytes:
+		// Bytes aren't copied because they're just being skipped over so
+		// copying would be wasteful.
 		raw, err := u.decodeBuf.decodeRawBytes(false)
 		if err != nil {
 			return err
 		}
-		return u.encodeBuf.encodeRawBytes(raw)
+		if !encodeSkipped {
+			return nil
+		}
+		return u.skippedBuf.encodeRawBytes(raw)
+
 	case proto.WireStartGroup:
-		return errGroupsAreDeprecated
+		return errGroupsAreNotSupported
 	case proto.WireEndGroup:
-		return errGroupsAreDeprecated
+		return errGroupsAreNotSupported
 	default:
 		return proto.ErrInternalBadWireType
 	}
-}
-
-func (u *unmarshalIter) skip(tag int32, wireType int8) error {
-	// TODO: OPTIMIZE THESE
-	switch wireType {
-	case proto.WireFixed32:
-		u.decodeBuf.index += 4
-	case proto.WireFixed64:
-		u.decodeBuf.index += 8
-	case proto.WireVarint:
-		_, err := u.decodeBuf.decodeVarint()
-		if err != nil {
-			return err
-		}
-	case proto.WireBytes:
-		// TODO: Optimize this? might be fast already
-		_, err := u.decodeBuf.decodeRawBytes(false)
-		if err != nil {
-			return err
-		}
-	case proto.WireStartGroup:
-		panic("wire start group")
-	case proto.WireEndGroup:
-		panic("wire end group")
-	default:
-		return proto.ErrInternalBadWireType
-	}
-
-	return nil
 }
 
 func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
@@ -329,27 +329,31 @@ func (u *unmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType i
 		return unmarshalSimpleField(fd, num)
 
 	case proto.WireBytes:
-		if fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES ||
-			fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
-			raw, err := u.decodeBuf.decodeRawBytes(false)
-			if err != nil {
-				return zeroValue, err
-			}
-
-			val := unmarshalValue{fd: fd}
-			val.bytesVal = raw
-			return val, nil
+		if fd.GetType() != dpb.FieldDescriptorProto_TYPE_BYTES &&
+			fd.GetType() != dpb.FieldDescriptorProto_TYPE_STRING {
+			// This should never happen since it means the skipping logic is not working
+			// correctly or the message is malformed since proto.WireBytes should only be
+			// used for fields of type bytes, string, group, or message. Groups/messages
+			// should be handled by the skipping logic (for now).
+			return zeroValue, fmt.Errorf(
+				"tried to unmarshal field with wire type: bytes and proto field type: %s",
+				fd.GetType().String())
 		}
 
+		// Don't bother copying the bytes now because the encoder has exclusive ownership
+		// of them until the call to Encode() completes and  they will get "copied" anyways
+		// once they're written into the OStream.
 		raw, err := u.decodeBuf.decodeRawBytes(false)
 		if err != nil {
 			return zeroValue, err
 		}
 
-		return unmarshalLengthDelimitedField(fd, raw)
+		val := unmarshalValue{fd: fd}
+		val.bytesVal = raw
+		return val, nil
 
 	case proto.WireStartGroup:
-		return zeroValue, errGroupsAreDeprecated
+		return zeroValue, errGroupsAreNotSupported
 	default:
 		return zeroValue, proto.ErrInternalBadWireType
 	}
@@ -424,62 +428,6 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	}
 }
 
-func unmarshalLengthDelimitedField(fd *desc.FieldDescriptor, bytes []byte) (unmarshalValue, error) {
-	val := unmarshalValue{fd: fd}
-	switch {
-	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_BYTES, fd.GetType() == dpb.FieldDescriptorProto_TYPE_STRING:
-		val.bytesVal = bytes
-		return val, nil
-
-	case fd.GetType() == dpb.FieldDescriptorProto_TYPE_MESSAGE ||
-		fd.GetType() == dpb.FieldDescriptorProto_TYPE_GROUP:
-		return zeroValue, errMessagesShouldNotBeIterativelyUnmarshaled
-
-		// TODO: Can this ever happen? maybe delete
-	default:
-		return zeroValue, errors.New("wtf")
-		// even if the field is not repeated or not packed, we still parse it as such for
-		// backwards compatibility (e.g. message we are de-serializing could have been both
-		// repeated and packed at the time of serialization)
-		// packedBuf := newCodedBuffer(bytes)
-		// var slice []interface{}
-		// var ifaceVal interface{}
-		// for !packedBuf.eof() {
-		// 	var v uint64
-		// 	var err error
-		// 	if varintTypes[fd.GetType()] {
-		// 		v, err = packedBuf.decodeVarint()
-		// 	} else if fixed32Types[fd.GetType()] {
-		// 		v, err = packedBuf.decodeFixed32()
-		// 	} else if fixed64Types[fd.GetType()] {
-		// 		v, err = packedBuf.decodeFixed64()
-		// 	} else {
-		// 		return zeroValue, fmt.Errorf("bad input; cannot parse length-delimited wire type for field %s", fd.GetFullyQualifiedName())
-		// 	}
-		// 	if err != nil {
-		// 		return zeroValue, err
-		// 	}
-		// 	ifaceVal, err = unmarshalSimpleField(fd, v)
-		// 	if err != nil {
-		// 		return zeroValue, err
-		// 	}
-		// 	if fd.IsRepeated() {
-		// 		slice = append(slice, ifaceVal)
-		// 	}
-		// }
-
-		// if fd.IsRepeated() {
-		// 	val.ifaceSliceVal = slice
-		// 	return val, nil
-		// }
-
-		// // TODO: Return error here? Not sure when this can happen
-		// // if not a repeated field, last value wins
-		// val.ifaceVal = val
-		// return val, nil
-	}
-}
-
 func (u *unmarshalIter) hasNext() bool {
 	return !u.decodeBuf.eof() && u.err == nil
 }
@@ -498,7 +446,7 @@ func (u *unmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
 	u.sortedOffsets = u.sortedOffsets[:0]
 	u.sortedOffsetsIdx = 0
 	// TODO: pools?
-	u.encodeBuf.reset(nil)
+	u.skippedBuf.reset(nil)
 	u.decodeBuf.reset(buf)
 }
 
