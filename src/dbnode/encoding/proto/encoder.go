@@ -76,7 +76,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	unmarshalIter *unmarshalIter
+	unmarshalIter *sortedUnmarshalIter
 
 	hardErr          error
 	hasEncodedSchema bool
