@@ -242,7 +242,7 @@ func (u *unmarshalIter) unmarshalField() error {
 	u.decodeBuf.index = sortedOffset.offset
 	u.sortedOffsetsIdx++
 
-	tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
+	_, wireType, err := u.decodeBuf.decodeTagAndWireType()
 	if err != nil {
 		return err
 	}
