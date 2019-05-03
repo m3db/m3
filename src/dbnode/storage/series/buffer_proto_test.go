@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -35,6 +36,7 @@ var (
 	// Relative to $pwd to testdata/prototest, $pwd is currnet directory.
 	testSchemaHistory = prototest.NewSchemaHistory("../../")
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
+	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
 	testProtoEqual    = func(t *testing.T, expect, actual []byte) {
 		prototest.RequireEqual(t, testSchema, expect, actual)}

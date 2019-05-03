@@ -38,6 +38,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func newBufferTestOptions() Options {
@@ -73,9 +74,9 @@ func newBufferTestOptions() Options {
 }
 
 // Writes to buffer, verifying no error and that further writes should happen.
-func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value) {
+func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value, schema namespace.SchemaDescr) {
 	ctx := context.NewContext()
-	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{})
+	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{SchemaDesc: schema})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -137,12 +138,14 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation, annEq
 		{curr.Add(secs(2)), 2, xtime.Second, nil},
 		{curr.Add(secs(3)), 3, xtime.Second, nil},
 	}
+	var schema namespace.SchemaDescr
 	if setAnn != nil {
 		data = setAnn(data)
+		schema = testSchemaDesc
 	}
 
 	for _, v := range data {
-		verifyWriteToBuffer(t, buffer, v)
+		verifyWriteToBuffer(t, buffer, v, schema)
 	}
 
 	ctx := context.NewContext()
@@ -173,7 +176,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		verifyWriteToBuffer(t, buffer, v)
+		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
 	ctx := context.NewContext()
@@ -216,7 +219,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		if v.timestamp.After(curr) {
 			curr = v.timestamp
 		}
-		verifyWriteToBuffer(t, buffer, v)
+		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
 	buckets, ok := buffer.bucketVersionsAt(start)
@@ -406,7 +409,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	for _, values := range data {
 		for _, value := range values {
 			wasWritten, err := b.write(value.timestamp, value.value,
-				value.unit, value.annotation)
+				value.unit, value.annotation, nil)
 			require.NoError(t, err)
 			require.True(t, wasWritten)
 		}
@@ -474,7 +477,7 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 		for _, valueWithMeta := range valuesWithMeta {
 			value := valueWithMeta.v
 			wasWritten, err := b.write(value.timestamp, value.value,
-				value.unit, value.annotation)
+				value.unit, value.annotation, nil)
 			require.NoError(t, err)
 			assert.Equal(t, valueWithMeta.w, wasWritten)
 		}
@@ -706,7 +709,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		verifyWriteToBuffer(t, buffer, v)
+		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
 	var encoders []encoding.Encoder
@@ -788,7 +791,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.timestamp
-		verifyWriteToBuffer(t, buffer, v)
+		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
 	buckets, exists := buffer.bucketVersionsAt(start)
@@ -847,6 +850,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation, annEqu
 		curr      = time.Now().Truncate(blockSize)
 		start     = curr
 		buffer    = newDatabaseBuffer().(*dbBuffer)
+		schema    namespace.SchemaDescr
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
@@ -869,12 +873,13 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation, annEqu
 	}
 	if setAnn != nil {
 		data = setAnn(data)
+		schema = testSchemaDesc
 	}
 
 	// Perform the writes.
 	for _, v := range data {
 		curr = v.timestamp
-		verifyWriteToBuffer(t, buffer, v)
+		verifyWriteToBuffer(t, buffer, v, schema)
 	}
 
 	// Verify internal state.

@@ -115,6 +115,10 @@ type dbNamespace struct {
 	log                *zap.Logger
 	bootstrapState     BootstrapState
 
+	// schemaDescr caches the latest schema for the namespace.
+	// schemaDescr is updated whenver schema registry is updated.
+	schemaDescr        namespace.SchemaDescr
+
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
@@ -565,13 +569,14 @@ func (n *dbNamespace) Write(
 	annotation []byte,
 ) (ts.Series, bool, error) {
 	callStart := n.nowFn()
-	shard, err := n.shardFor(id)
+	shard, schema, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
+		SchemaDesc: schema,
 	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
@@ -593,13 +598,14 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, errNamespaceIndexingDisabled
 	}
-	shard, err := n.shardFor(id)
+	shard, schema, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
+		SchemaDesc: schema,
 	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
 		value, unit, annotation, opts)
@@ -1196,12 +1202,13 @@ func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
 	return n.reverseIndex, nil
 }
 
-func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, error) {
+func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.SchemaDescr, error) {
 	n.RLock()
+	schema := n.schemaDescr
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, schema, err
 }
 
 func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, error) {

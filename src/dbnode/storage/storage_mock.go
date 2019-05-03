@@ -2990,6 +2990,62 @@ func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
+// SetTruncateType mocks base method
+func (m *MockOptions) SetTruncateType(value series.TruncateType) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTruncateType", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateType indicates an expected call of SetTruncateType
+func (mr *MockOptionsMockRecorder) SetTruncateType(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateType", reflect.TypeOf((*MockOptions)(nil).SetTruncateType), value)
+}
+
+// TruncateType mocks base method
+func (m *MockOptions) TruncateType() series.TruncateType {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TruncateType")
+	ret0, _ := ret[0].(series.TruncateType)
+	return ret0
+}
+
+// TruncateType indicates an expected call of TruncateType
+func (mr *MockOptionsMockRecorder) TruncateType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateType", reflect.TypeOf((*MockOptions)(nil).TruncateType))
+}
+
+// SetWriteTransformOptions mocks base method
+func (m *MockOptions) SetWriteTransformOptions(value series.WriteTransformOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteTransformOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTransformOptions indicates an expected call of SetWriteTransformOptions
+func (mr *MockOptionsMockRecorder) SetWriteTransformOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTransformOptions", reflect.TypeOf((*MockOptions)(nil).SetWriteTransformOptions), value)
+}
+
+// WriteTransformOptions mocks base method
+func (m *MockOptions) WriteTransformOptions() series.WriteTransformOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTransformOptions")
+	ret0, _ := ret[0].(series.WriteTransformOptions)
+	return ret0
+}
+
+// WriteTransformOptions indicates an expected call of WriteTransformOptions
+func (mr *MockOptionsMockRecorder) WriteTransformOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTransformOptions", reflect.TypeOf((*MockOptions)(nil).WriteTransformOptions))
+}
+
 // SetRepairEnabled mocks base method
 func (m *MockOptions) SetRepairEnabled(b bool) Options {
 	m.ctrl.T.Helper()

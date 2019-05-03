@@ -275,7 +275,7 @@ func (b *dbBuffer) Write(
 		value = wOpts.TransformOptions.ForceValue
 	}
 
-	return buckets.write(timestamp, value, unit, annotation, writeType)
+	return buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
 }
 
 func (b *dbBuffer) IsEmpty() bool {
@@ -742,8 +742,9 @@ func (b *BufferBucketVersions) write(
 	unit xtime.Unit,
 	annotation []byte,
 	writeType WriteType,
+	schema namespace.SchemaDescr,
 ) (bool, error) {
-	return b.writableBucketCreate(writeType).write(timestamp, value, unit, annotation)
+	return b.writableBucketCreate(writeType).write(timestamp, value, unit, annotation, schema)
 }
 
 func (b *BufferBucketVersions) merge(writeType WriteType) (int, error) {
@@ -899,6 +900,7 @@ func (b *BufferBucket) write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	schema namespace.SchemaDescr,
 ) (bool, error) {
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
@@ -934,7 +936,7 @@ func (b *BufferBucket) write(
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-		return true, b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+		return true, b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 	}
 
 	// Need a new encoder, we didn't find an encoder to write to
@@ -952,7 +954,7 @@ func (b *BufferBucket) write(
 	})
 
 	idx = len(b.encoders) - 1
-	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 	if err != nil {
 		encoder.Close()
 		b.encoders = b.encoders[:idx]
@@ -966,9 +968,9 @@ func (b *BufferBucket) writeToEncoderIndex(
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation []byte,
+	schema namespace.SchemaDescr,
 ) error {
-	nsCtx := newContextFor(b.opts)
-	b.encoders[idx].encoder.SetSchema(nsCtx.Schema)
+	b.encoders[idx].encoder.SetSchema(schema)
 	err := b.encoders[idx].encoder.Encode(datapoint, unit, annotation)
 	if err != nil {
 		return err
