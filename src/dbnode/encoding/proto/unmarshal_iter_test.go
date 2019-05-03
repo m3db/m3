@@ -29,6 +29,9 @@ import (
 )
 
 func TestUnmarshalIter(t *testing.T) {
+	// Store in a var to prevent the compiler from complaining about overflow errors.
+	neg1 := -1
+
 	testCases := []struct {
 		timestamp  time.Time
 		latitude   float64
@@ -53,7 +56,7 @@ func TestUnmarshalIter(t *testing.T) {
 					float64Val: 1.1,
 				},
 				3: {
-					int64Val: -1,
+					uint64Val: uint64(neg1),
 				},
 			},
 		},
@@ -94,7 +97,7 @@ func TestUnmarshalIter(t *testing.T) {
 					float64Val: 2.2,
 				},
 				3: {
-					int64Val: 1,
+					uint64Val: 1,
 				},
 				4: {
 					bytesVal: []byte("789789789789"),
