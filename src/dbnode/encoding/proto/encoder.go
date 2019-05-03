@@ -350,23 +350,23 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
-			enc.encodeTSZValue(i, lastMarshaledValue.float64Val)
+			enc.encodeTSZValue(i, lastMarshaledValue.asFloat64())
 
 		case isCustomIntEncodedField(customField.fieldType):
 			if isUnsignedInt(customField.fieldType) {
-				enc.encodeUnsignedIntValue(i, lastMarshaledValue.uint64Val)
+				enc.encodeUnsignedIntValue(i, lastMarshaledValue.asUint64())
 			} else {
-				enc.encodeSignedIntValue(i, int64(lastMarshaledValue.uint64Val))
+				enc.encodeSignedIntValue(i, lastMarshaledValue.asInt64())
 			}
 
 		case customField.fieldType == bytesField:
-			err := enc.encodeBytesValue(i, lastMarshaledValue.bytesVal)
+			err := enc.encodeBytesValue(i, lastMarshaledValue.asBytes())
 			if err != nil {
 				return err
 			}
 
 		case customField.fieldType == boolField:
-			enc.encodeBoolValue(i, lastMarshaledValue.boolVal)
+			enc.encodeBoolValue(i, lastMarshaledValue.asBool())
 
 		default:
 			// This should never happen.
