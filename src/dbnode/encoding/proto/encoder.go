@@ -380,10 +380,9 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 	}
 
-	// TODO: Method
 	// TODO: Only safe to do this at the end if we have a safe rollback mechanism.
-	if iter.err != nil {
-		return iter.err
+	if err := iter.err(); err != nil {
+		return err
 	}
 
 	skipped, err := iter.skipped()
