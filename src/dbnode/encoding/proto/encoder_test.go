@@ -100,7 +100,6 @@ func getCurrEncoderBytes(t *testing.T, enc *Encoder) []byte {
 
 	currSeg, err := stream.Segment()
 	require.NoError(t, err)
-
 	if currSeg.Tail != nil {
 		require.Equal(t, 0, currSeg.Tail.Len())
 	}
