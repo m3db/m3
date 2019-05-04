@@ -66,3 +66,36 @@ func TestClosedEncoderIsNotUsable(t *testing.T) {
 	_, err = enc.LastEncoded()
 	require.Equal(t, errEncoderClosed, err)
 }
+
+func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
+	start := time.Now().Truncate(time.Second)
+	enc := newTestEncoder(start)
+	enc.SetSchema(testVLSchema)
+
+	vl := newVL(1.0, 2.0, 3, []byte("some-delivery-id"), nil)
+	vlBytes, err := vl.Marshal()
+	require.NoError(t, err)
+
+	dp := ts.Datapoint{Timestamp: start.Add(time.Second)}
+	err = enc.Encode(dp, xtime.Second, vlBytes)
+	require.NoError(t, err)
+
+	bytesBeforeBadWrite := getCurrEncoderBytes(t, enc)
+
+	dp = ts.Datapoint{Timestamp: start.Add(2 * time.Second)}
+	err = enc.Encode(dp, xtime.Second, []byte("not-valid-proto"))
+	require.Error(t, err)
+
+	bytesAfterBadWrite := getCurrEncoderBytes(t, enc)
+	// The encoder should have rolled back any partial data (the timestamp for
+	// example) it wrote as part of the previous write before detecting that the
+	// protobuf message was invalid.
+	require.Equal(t, bytesBeforeBadWrite, bytesAfterBadWrite)
+}
+
+func getCurrEncoderBytes(t *testing.T, enc *Encoder) []byte {
+	currSeg, err := enc.Stream().Segment()
+	require.NoError(t, err)
+	require.Nil(t, currSeg)
+	return currSeg.Head.Bytes()
+}
