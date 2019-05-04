@@ -78,7 +78,6 @@ type Encoder struct {
 
 	unmarshalIter *sortedUnmarshalIter
 
-	hardErr          error
 	hasEncodedSchema bool
 	closed           bool
 
@@ -137,10 +136,15 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		enc.unmarshalIter = newUnmarshalIter()
 	}
 
-	// TODO: Support "rollbacks" if we partially encode a bad message
-	// From this point onwards all errors are "hard errors" meaning that they should render
-	// the encoder unusable since we may have encoded partial data.
-
+	// TODO: Delete is usable stuff.
+	// Capture a rollback token that allows the OStream to be rolled back to the state it was in before any
+	// encoding of the current message began.
+	// The protobuf message is unmarshaled and encoded one field at a time which means that it is possible
+	// for the encoder to detect that the message is corrupt or invalid mid-way through the stream.
+	// Without the rollback mechanism this would leave the encoder in an unusable state since all protobuf
+	// messages must be written in their entirety and stopping mid-way through encoding a message leaves
+	// the stream in a corrupt state.
+	rollbackToken := enc.stream.RollbackToken()
 	if enc.numEncoded == 0 {
 		enc.encodeStreamHeader()
 	}
@@ -158,13 +162,13 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	err := enc.timestampEncoder.WriteTime(enc.stream, dp.Timestamp, nil, timeUnit)
 	if err != nil {
-		enc.hardErr = err
+		enc.stream.Rollback(rollbackToken)
 		return fmt.Errorf(
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
 	if err := enc.encodeProto(protoBytes); err != nil {
-		enc.hardErr = err
+		enc.stream.Rollback(rollbackToken)
 		return fmt.Errorf(
 			"%s error encoding proto portion of message: %v", encErrPrefix, err)
 	}
@@ -747,12 +751,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 func (enc *Encoder) isUsable() error {
 	if enc.closed {
 		return errEncoderClosed
-	}
-
-	if enc.hardErr != nil {
-		return fmt.Errorf(
-			"%s err encoder unusable due to hard err: %v",
-			encErrPrefix, enc.hardErr)
 	}
 
 	return nil
