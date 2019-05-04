@@ -38,8 +38,6 @@ func (m MatchType) String() string {
 		return "=~"
 	case MatchNotRegexp:
 		return "!~"
-	case MatchAll:
-		return "*"
 	default:
 		return "unknown match type"
 	}

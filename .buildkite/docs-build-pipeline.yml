@@ -7,9 +7,6 @@ steps:
     agents:
       queue: workers
     timeout_in_minutes: 20
-    # Don't let doc failures block other steps (like docker builds)
-    soft_fail:
-    - exit_status: "*"
     retry:
       automatic:
         limit: 1

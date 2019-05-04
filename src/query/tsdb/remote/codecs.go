@@ -192,8 +192,6 @@ func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
 		return rpc.MatcherType_REGEXP, nil
 	case models.MatchNotRegexp:
 		return rpc.MatcherType_NOTREGEXP, nil
-	case models.MatchAll:
-		return rpc.MatcherType_EXISTS, nil
 	default:
 		return rpc.MatcherType_EQUAL, fmt.Errorf("Unknown matcher type for proto encoding")
 	}

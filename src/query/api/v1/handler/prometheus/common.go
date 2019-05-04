@@ -304,35 +304,6 @@ func renderDefaultTagCompletionResultsJSON(
 	return jw.Close()
 }
 
-// RenderListTagResultsJSON renders list tag results to json format.
-func RenderListTagResultsJSON(
-	w io.Writer,
-	result *storage.CompleteTagsResult,
-) error {
-	if !result.CompleteNameOnly {
-		return errors.ErrWithNames
-	}
-
-	jw := json.NewWriter(w)
-	jw.BeginObject()
-
-	jw.BeginObjectField("status")
-	jw.WriteString("success")
-
-	jw.BeginObjectField("data")
-	jw.BeginArray()
-
-	for _, t := range result.CompletedTags {
-		jw.WriteString(string(t.Name))
-	}
-
-	jw.EndArray()
-
-	jw.EndObject()
-
-	return jw.Close()
-}
-
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
 func RenderTagCompletionResultsJSON(
 	w io.Writer,

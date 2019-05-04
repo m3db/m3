@@ -118,8 +118,6 @@ type options struct {
 	errThresholdForLoad            int64
 	indexingEnabled                bool
 	repairEnabled                  bool
-	truncateType                   series.TruncateType
-	transformOptions               series.WriteTransformOptions
 	indexOpts                      index.Options
 	repairOpts                     repair.Options
 	newEncoderFn                   encoding.NewEncoderFn
@@ -356,28 +354,6 @@ func (o *options) SetRepairEnabled(b bool) Options {
 
 func (o *options) RepairEnabled() bool {
 	return o.repairEnabled
-}
-
-func (o *options) SetTruncateType(value series.TruncateType) Options {
-	opts := *o
-	opts.truncateType = value
-	return &opts
-}
-
-func (o *options) TruncateType() series.TruncateType {
-	return o.truncateType
-}
-
-func (o *options) SetWriteTransformOptions(
-	value series.WriteTransformOptions,
-) Options {
-	opts := *o
-	opts.transformOptions = value
-	return &opts
-}
-
-func (o *options) WriteTransformOptions() series.WriteTransformOptions {
-	return o.transformOptions
 }
 
 func (o *options) SetRepairOptions(value repair.Options) Options {

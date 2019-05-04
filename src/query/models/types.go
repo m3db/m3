@@ -120,7 +120,6 @@ const (
 	MatchNotEqual
 	MatchRegexp
 	MatchNotRegexp
-	MatchAll
 )
 
 // Matcher models the matching of a label.

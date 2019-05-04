@@ -331,11 +331,6 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
-    forwardIndexProbability: 0
-    forwardIndexThreshold: 0
-  transforms:
-    truncateBy: 0
-    forceValue: null
   logging:
     file: /var/log/m3dbnode.log
     level: info

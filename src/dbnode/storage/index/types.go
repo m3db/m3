@@ -850,17 +850,4 @@ type Options interface {
 
 	// ReadThroughSegmentOptions returns the read through segment cache options.
 	ReadThroughSegmentOptions() ReadThroughSegmentOptions
-
-	// SetForwardIndexProbability sets the probability chance for forward writes.
-	SetForwardIndexProbability(value float64) Options
-
-	// ForwardIndexProbability returns the probability chance for forward writes.
-	ForwardIndexProbability() float64
-
-	// SetForwardIndexProbability sets the threshold for forward writes as a
-	// fraction of the bufferFuture.
-	SetForwardIndexThreshold(value float64) Options
-
-	// ForwardIndexProbability returns the threshold for forward writes.
-	ForwardIndexThreshold() float64
 }

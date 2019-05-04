@@ -32,7 +32,6 @@ import (
 	dbserver "github.com/m3db/m3/src/dbnode/server"
 	coordinatorserver "github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/etcd"
 )
 
 var (
@@ -46,9 +45,6 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {

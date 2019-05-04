@@ -1086,6 +1086,7 @@ func (s *dbShard) newShardEntry(
 
 	default:
 		return nil, errNewShardEntryTagsTypeInvalid
+
 	}
 
 	series := s.seriesPool.Get()

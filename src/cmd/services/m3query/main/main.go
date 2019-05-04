@@ -26,7 +26,6 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/query/server"
-	"github.com/m3db/m3/src/x/etcd"
 )
 
 var (
@@ -40,9 +39,6 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
 
 	server.Run(server.RunOptions{
 		ConfigFile: *configFile,
