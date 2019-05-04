@@ -51,6 +51,14 @@ type ostream struct {
 	bytesPool pool.CheckedBytesPool
 }
 
+// RollbackToken encapsulates the state required to rollback the ostream to a
+// previous state.
+type RollbackToken struct {
+	lastByte  byte
+	bufferPos int
+	bytePos   int
+}
+
 // NewOStream creates a new Ostream
 func NewOStream(
 	bytes checked.Bytes,
@@ -260,4 +268,30 @@ func max(x, y int) int {
 		return x
 	}
 	return y
+}
+
+// RollbackToken() returns a RollbackToken which can be used to rollback the ostream to the
+// state it was in when the token was generated. This can be useful in situations in which
+// data is written into the stream iteratively, but its important that all of the writes as
+// a whole are handled "atomically".
+func (os *ostream) RollbackToken() RollbackToken {
+	var (
+		lastByte byte
+		length   = len(os.rawBuffer)
+	)
+	if length > 0 {
+		lastByte = os.rawBuffer[os.lastIndex()]
+	}
+
+	return RollbackToken{
+		lastByte:  lastByte,
+		bufferPos: length,
+		bytePos:   os.pos,
+	}
+}
+
+func (os *ostream) Rollback(token RollbackToken) {
+	os.rawBuffer = os.rawBuffer[:token.bufferPos]
+	os.pos = token.bytePos
+	os.rawBuffer[os.lastIndex()] = token.lastByte
 }
