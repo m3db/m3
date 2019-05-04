@@ -39,6 +39,7 @@ import (
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func TestShardTickReadFnRace(t *testing.T) {
@@ -79,7 +80,7 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
@@ -174,7 +175,7 @@ func TestShardTickWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		shard.Tick(context.NewNoOpCanncellable(), time.Now())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 	}()
 
 	for i := 0; i < numRoutines; i++ {

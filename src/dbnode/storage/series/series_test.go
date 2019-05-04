@@ -43,6 +43,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func newSeriesTestOptions() Options {
@@ -128,7 +129,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
-	requireSegmentValuesEqual(t, data[:2], streams, opts, nil)
+	requireSegmentValuesEqual(t, data[:2], streams, opts, namespace.Context{})
 }
 
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
@@ -172,7 +173,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
-	requireSegmentValuesEqual(t, data[:1], streams, opts, nil)
+	requireSegmentValuesEqual(t, data[:1], streams, opts, namespace.Context{})
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
@@ -201,18 +202,19 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 
 	ctx := context.NewContext()
 	defer ctx.Close()
+	nsCtx := namespace.Context{}
 
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)))
+	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
 	assert.NoError(t, err)
 
-	requireReaderValuesEqual(t, data, results, opts, nil)
+	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
 	assert.NoError(t, err)
 
-	requireReaderValuesEqual(t, data, results, opts, nil)
+	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 }
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {
@@ -223,8 +225,9 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 
 	ctx := context.NewContext()
 	defer ctx.Close()
+	nsCtx := namespace.Context{}
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second))
+	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 	assert.Nil(t, results)
@@ -236,7 +239,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.Flush(nil, flushTime, nil, 1)
+	outcome, err := series.Flush(nil, flushTime, nil, 1, namespace.Context{})
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -265,7 +268,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.Flush(ctx, curr, persistFn, 1)
+		outcome, err := series.Flush(ctx, curr, persistFn, 1, namespace.Context{})
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
@@ -281,7 +284,7 @@ func TestSeriesTickEmptySeries(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
-	_, err = series.Tick(nil)
+	_, err = series.Tick(nil, namespace.Context{})
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -295,9 +298,9 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick(nil).Return(bufferTickResult{})
+	buffer.EXPECT().Tick(nil, gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	r, err := series.Tick(nil)
+	r, err := series.Tick(nil, namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
@@ -330,7 +333,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, 2, series.cachedBlocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick(gomock.Any()).Return(bufferTickResult{})
+	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(blockStart)] = BlockState{
@@ -341,7 +344,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 		Retrievable: false,
 		Version:     0,
 	}
-	r, err := series.Tick(blockStates)
+	r, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
@@ -384,7 +387,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 		Retrievable: true,
 		Version:     1,
 	}
-	tickResult, err := series.Tick(blockStates)
+	tickResult, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -397,7 +400,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick(blockStates)
+	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -413,7 +416,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 		Retrievable: false,
 		Version:     0,
 	}
-	tickResult, err = series.Tick(blockStates)
+	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -451,7 +454,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 		Retrievable: true,
 		Version:     1,
 	}
-	tickResult, err := series.Tick(blockStates)
+	tickResult, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -463,7 +466,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick(blockStates)
+	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -487,7 +490,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 		Retrievable: false,
 		Version:     0,
 	}
-	tickResult, err = series.Tick(blockStates)
+	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -525,7 +528,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 		Retrievable: true,
 		Version:     1,
 	}
-	tickResult, err := series.Tick(blockStates)
+	tickResult, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -541,7 +544,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 		Retrievable: false,
 		Version:     0,
 	}
-	tickResult, err = series.Tick(blockStates)
+	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -580,7 +583,7 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 			wiredBlocks: 0,
 		})
 	buffer.EXPECT().
-		Tick(gomock.Any()).
+		Tick(gomock.Any(), gomock.Any()).
 		Return(bufferTickResult{
 			// This means that (curr - 1 block) and (curr - 2 blocks) should
 			// be removed after the tick.
@@ -596,7 +599,7 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 
 	assert.Equal(t, 3, series.cachedBlocks.Len())
 	blockStates := make(map[xtime.UnixNano]BlockState)
-	_, err := series.Tick(blockStates)
+	_, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, series.cachedBlocks.Len())
 }
@@ -628,7 +631,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().
-		FetchBlocks(ctx, starts).
+		FetchBlocks(ctx, starts, namespace.Context{}).
 		Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
@@ -637,7 +640,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 
 	series.cachedBlocks = blocks
 	series.buffer = buffer
-	res, err := series.FetchBlocks(ctx, starts)
+	res, err := series.FetchBlocks(ctx, starts, namespace.Context{})
 	require.NoError(t, err)
 
 	expectedTimes := []time.Time{starts[2], starts[0], starts[1]}
@@ -796,12 +799,10 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd)
+	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
 	require.NoError(t, err)
 
-	nsCtx := newContextFor(opts)
 	multiIt := opts.MultiReaderIteratorPool().Get()
-	multiIt.SetSchema(nsCtx.Schema)
 
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	it := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
@@ -858,9 +859,9 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
+	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute), namespace.Context{})
 	require.NoError(t, err)
-	values, err := decodedReaderValues(results, opts)
+	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)
 
 	require.Equal(t, 3, len(values))

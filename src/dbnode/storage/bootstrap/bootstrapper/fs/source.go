@@ -635,7 +635,6 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		data        checked.Bytes
 		err         error
 	)
-	seriesBlock.SetNamespaceContext(nsCtx)
 
 	switch seriesCachePolicy {
 	case series.CacheAll:
@@ -674,7 +673,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-		seriesBlock.Reset(blockStart, blockSize, seg)
+		seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
 	default:
 		return fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 	}

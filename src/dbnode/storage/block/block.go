@@ -85,8 +85,10 @@ func NewDatabaseBlock(
 	blockSize time.Duration,
 	segment ts.Segment,
 	opts Options,
+	nsCtx namespace.Context,
 ) DatabaseBlock {
 	b := &dbBlock{
+		nsCtx:          nsCtx,
 		opts:           opts,
 		startUnixNanos: start.UnixNano(),
 		blockSize:      blockSize,
@@ -96,10 +98,6 @@ func NewDatabaseBlock(
 		b.resetSegmentWithLock(segment)
 	}
 	return b
-}
-
-func (b *dbBlock) SetNamespaceContext(nsCtx namespace.Context) {
-	b.nsCtx = nsCtx
 }
 
 func (b *dbBlock) StartTime() time.Time {
@@ -257,20 +255,22 @@ func (b *dbBlock) Merge(other DatabaseBlock) error {
 	return nil
 }
 
-func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment) {
+func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
 	b.resetSegmentWithLock(segment)
+	b.nsCtx = nsCtx
 }
 
-func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID) {
+func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID, nsCtx namespace.Context) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
 	// resetSegmentWithLock sets seriesID to nil
 	b.resetSegmentWithLock(segment)
 	b.seriesID = id
+	b.nsCtx = nsCtx
 	b.wasRetrievedFromDisk = true
 }
 

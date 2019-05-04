@@ -36,6 +36,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type bootstrapState int
@@ -117,12 +118,12 @@ func (s *dbSeries) Tags() ident.Tags {
 	return tags
 }
 
-func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, error) {
+func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error) {
 	var r TickResult
 
 	s.Lock()
 
-	bufferResult := s.buffer.Tick(blockStates)
+	bufferResult := s.buffer.Tick(blockStates, nsCtx)
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
 	r.EvictedBuckets = bufferResult.evictedBucketTimes.len()
 	update, err := s.updateBlocksWithLock(blockStates, bufferResult.evictedBucketTimes)
@@ -292,10 +293,11 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
+	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer)
+	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
 }
@@ -303,6 +305,7 @@ func (s *dbSeries) ReadEncoded(
 func (s *dbSeries) FetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
+	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	r, err := Reader{
@@ -310,7 +313,7 @@ func (s *dbSeries) FetchBlocks(
 		id:         s.id,
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
-	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer)
+	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
 }
@@ -422,6 +425,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
+	nsCtx namespace.Context,
 ) {
 	var (
 		b    block.DatabaseBlock
@@ -452,11 +456,9 @@ func (s *dbSeries) OnRetrieveBlock(
 		return
 	}
 
-	nsCtx := newContextFor(s.opts)
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	b.SetNamespaceContext(nsCtx)
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetFromDisk(startTime, blockSize, segment, s.id)
+	b.ResetFromDisk(startTime, blockSize, segment, s.id, nsCtx)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
@@ -521,6 +523,7 @@ func (s *dbSeries) Flush(
 	blockStart time.Time,
 	persistFn persist.DataFn,
 	version int,
+	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -529,13 +532,14 @@ func (s *dbSeries) Flush(
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
-	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn, version)
+	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn, version, nsCtx)
 }
 
 func (s *dbSeries) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
 	persistFn persist.DataFn,
+	nsCtx namespace.Context,
 ) error {
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).
@@ -551,7 +555,7 @@ func (s *dbSeries) Snapshot(
 		err    error
 	)
 
-	stream, err = s.buffer.Snapshot(ctx, blockStart)
+	stream, err = s.buffer.Snapshot(ctx, blockStart, nsCtx)
 
 	if err != nil {
 		return err

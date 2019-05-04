@@ -50,7 +50,7 @@ type DatabaseSeries interface {
 	Tags() ident.Tags
 
 	// Tick executes async updates
-	Tick(blockStates map[xtime.UnixNano]BlockState) (TickResult, error)
+	Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error)
 
 	// Write writes a new value.
 	Write(
@@ -66,12 +66,14 @@ type DatabaseSeries interface {
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
+		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
 		starts []time.Time,
+		nsCtx namespace.Context,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata returns the blocks metadata.
@@ -99,6 +101,7 @@ type DatabaseSeries interface {
 		blockStart time.Time,
 		persistFn persist.DataFn,
 		version int,
+		nsCtx namespace.Context,
 	) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
@@ -107,6 +110,7 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		blockStart time.Time,
 		persistFn persist.DataFn,
+		nsCtx namespace.Context,
 	) error
 
 	// Close will close the series and if pooled returned to the pool.
@@ -311,18 +315,6 @@ type Options interface {
 
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
-
-	// SetSchemaRegistry sets the schema registry for series to use.
-	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
-
-	// SchemaRegistry returns the schema registry for series to use.
-	SchemaRegistry() namespace.SchemaRegistry
-
-	// SetNamespaceId sets the namespace Id.
-	SetNamespaceId(ident.ID) Options
-
-	// NamespaceId returns the namespace Id.
-	NamespaceId() ident.ID
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.

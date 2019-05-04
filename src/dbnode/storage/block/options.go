@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 const (
@@ -80,7 +81,7 @@ func NewOptions() Options {
 	}
 	o.closeContextWorkers.Init()
 	o.databaseBlockPool.Init(func() DatabaseBlock {
-		return NewDatabaseBlock(timeZero, 0, ts.Segment{}, o)
+		return NewDatabaseBlock(timeZero, 0, ts.Segment{}, o, namespace.Context{})
 	})
 
 	encodingOpts := encoding.NewOptions().

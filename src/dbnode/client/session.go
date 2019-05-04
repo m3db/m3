@@ -3149,14 +3149,14 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(nsCtx namespace.Context, start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.SetSchema(b.nsCtx.Schema)
+	iter.SetSchema(nsCtx.Schema)
 	iter.Reset(readers, start, blockSize)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
-	encoder.SetSchema(b.nsCtx.Schema)
+	encoder.SetSchema(nsCtx.Schema)
 	encoder.Reset(start, b.blockAllocSize)
 
 	for iter.Next() {
@@ -3174,14 +3174,12 @@ func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration
 	return encoder, nil
 }
 
-func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
+func (b *baseBlocksResult) newDatabaseBlock(nsCtx namespace.Context, block *rpc.Block) (block.DatabaseBlock, error) {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
 		result   = b.blockOpts.DatabaseBlockPool().Get()
 	)
-
-	result.SetNamespaceContext(b.nsCtx)
 
 	if segments == nil {
 		result.Close() // return block to pool
@@ -3192,7 +3190,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
 		mergedBlock := segments.Merged
-		result.Reset(start, durationConvert(mergedBlock.BlockSize), b.segmentForBlock(mergedBlock))
+		result.Reset(start, durationConvert(mergedBlock.BlockSize), b.segmentForBlock(mergedBlock), nsCtx)
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -3210,7 +3208,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 				blockSize = bs
 			}
 		}
-		encoder, err := b.mergeReaders(start, blockSize, readers)
+		encoder, err := b.mergeReaders(nsCtx, start, blockSize, readers)
 		for _, reader := range readers {
 			// Close each reader
 			reader.Finalize()
@@ -3223,7 +3221,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 
 		// Set the block data
-		result.Reset(start, blockSize, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard(), nsCtx)
 
 	default:
 		result.Close() // return block to pool
@@ -3241,6 +3239,7 @@ type streamBlocksResult struct {
 	outputCh   chan<- peerBlocksDatapoint
 	tagDecoder serialize.TagDecoder
 	idPool     ident.Pool
+	nsCtx      namespace.Context
 }
 
 func newStreamBlocksResult(
@@ -3252,6 +3251,7 @@ func newStreamBlocksResult(
 	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
+		nsCtx:            nsCtx,
 		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
 		outputCh:         outputCh,
 		tagDecoder:       tagDecoder,
@@ -3272,7 +3272,7 @@ func (s *streamBlocksResult) addBlockFromPeer(
 	peer topology.Host,
 	block *rpc.Block,
 ) error {
-	result, err := s.newDatabaseBlock(block)
+	result, err := s.newDatabaseBlock(s.nsCtx, block)
 	if err != nil {
 		return err
 	}
@@ -3341,6 +3341,7 @@ type bulkBlocksResult struct {
 	result         result.ShardResult
 	tagDecoderPool serialize.TagDecoderPool
 	idPool         ident.Pool
+	nsCtx          namespace.Context
 }
 
 func newBulkBlocksResult(
@@ -3351,6 +3352,7 @@ func newBulkBlocksResult(
 	idPool ident.Pool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
+		nsCtx:            nsCtx,
 		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
 		result:           result.NewShardResult(shardResultCapacity, resultOpts),
 		tagDecoderPool:   tagDecoderPool,
@@ -3365,7 +3367,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 	block *rpc.Block,
 ) error {
 	start := time.Unix(0, block.Start)
-	result, err := r.newDatabaseBlock(block)
+	result, err := r.newDatabaseBlock(r.nsCtx, block)
 	if err != nil {
 		return err
 	}
@@ -3427,7 +3429,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		readers := []xio.SegmentReader{currReader.SegmentReader, resultReader.SegmentReader}
 		blockSize := currReader.BlockSize
 
-		encoder, err := r.mergeReaders(start, blockSize, readers)
+		encoder, err := r.mergeReaders(r.nsCtx, start, blockSize, readers)
 
 		if err != nil {
 			return err
@@ -3436,8 +3438,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-		result.Reset(start, blockSize, encoder.Discard())
-		result.SetNamespaceContext(r.nsCtx)
+		result.Reset(start, blockSize, encoder.Discard(), r.nsCtx)
 
 		tmpCtx.Close()
 	}

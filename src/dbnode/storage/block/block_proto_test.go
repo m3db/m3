@@ -89,15 +89,13 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	encoder.Reset(data[0].Timestamp, 10)
 	encoder.Encode(data[0], xtime.Second, piter.Next())
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
-	block1.SetNamespaceContext(testNamespaceCtx)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, testNamespaceCtx).(*dbBlock)
 
 	encoder.SetSchema(testSchemaDesc)
 	encoder.Reset(data[1].Timestamp, 10)
 	encoder.Encode(data[1], xtime.Second, piter.Next())
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
-	block2.SetNamespaceContext(testNamespaceCtx)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, testNamespaceCtx).(*dbBlock)
 
 	// Lazily merge the two blocks
 	block1.Merge(block2)

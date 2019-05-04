@@ -76,6 +76,7 @@ type databaseBuffer interface {
 	Snapshot(
 		ctx context.Context,
 		blockStart time.Time,
+		nsCtx namespace.Context,
 	) (xio.SegmentReader, error)
 
 	Flush(
@@ -85,16 +86,19 @@ type databaseBuffer interface {
 		tags ident.Tags,
 		persistFn persist.DataFn,
 		version int,
+		nsCtx namespace.Context,
 	) (FlushOutcome, error)
 
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
+		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
 	FetchBlocks(
 		ctx context.Context,
 		starts []time.Time,
+		nsCtx namespace.Context,
 	) []block.FetchBlockResult
 
 	FetchBlocksMetadata(
@@ -107,7 +111,7 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	Tick(versions map[xtime.UnixNano]BlockState) bufferTickResult
+	Tick(versions map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult
 
 	Bootstrap(bl block.DatabaseBlock)
 
@@ -163,17 +167,6 @@ func (t *evictedTimes) contains(target xtime.UnixNano) bool {
 		}
 	}
 	return false
-}
-
-func newContextFor(opts Options) namespace.Context {
-	schema, ok := opts.SchemaRegistry().GetLatestSchema(opts.NamespaceId())
-	if !ok {
-		return namespace.Context{}
-	}
-	return namespace.Context{
-		Id: opts.NamespaceId(),
-		Schema: schema,
-	}
 }
 
 type dbBuffer struct {
@@ -291,7 +284,7 @@ func (b *dbBuffer) Stats() bufferStats {
 	}
 }
 
-func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickResult {
+func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult {
 	mergedOutOfOrder := 0
 	var evictedBucketTimes evictedTimes
 	for tNano, buckets := range b.bucketsMap {
@@ -330,7 +323,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState) bufferTickRes
 
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
 		// in the remaining ones to try and reclaim memory.
-		merges, err := buckets.merge(WarmWrite)
+		merges, err := buckets.merge(WarmWrite, nsCtx)
 		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
 			log.Error("buffer merge encode error", zap.Error(err))
@@ -354,6 +347,7 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
 func (b *dbBuffer) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
+	nsCtx namespace.Context,
 ) (xio.SegmentReader, error) {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
@@ -362,7 +356,7 @@ func (b *dbBuffer) Snapshot(
 
 	// We only snapshot warm writes since cold writes get force merged every
 	// tick anyway.
-	_, err := buckets.merge(WarmWrite)
+	_, err := buckets.merge(WarmWrite, nsCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +375,6 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	bopts := b.opts.DatabaseBlockOptions()
-	nsCtx := newContextFor(b.opts)
 	encoder := bopts.EncoderPool().Get()
 	encoder.SetSchema(nsCtx.Schema)
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
@@ -413,6 +406,7 @@ func (b *dbBuffer) Flush(
 	tags ident.Tags,
 	persistFn persist.DataFn,
 	version int,
+	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
@@ -421,7 +415,7 @@ func (b *dbBuffer) Flush(
 
 	// Flush only deals with WarmWrites. ColdWrites get persisted to disk via
 	// the compaction cycle.
-	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite, nsCtx: nsCtx})
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -435,7 +429,7 @@ func (b *dbBuffer) Flush(
 		// there be buckets for previous versions. In this case, we need to try
 		// to flush them again, so we merge them together to one stream and
 		// persist it.
-		encoder, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts)
+		encoder, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts, nsCtx)
 		if err != nil {
 			return FlushOutcomeErr, err
 		}
@@ -467,6 +461,7 @@ func (b *dbBuffer) ReadEncoded(
 	ctx context.Context,
 	start time.Time,
 	end time.Time,
+	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
@@ -504,7 +499,7 @@ func (b *dbBuffer) ReadEncoded(
 	return res, nil
 }
 
-func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
+func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
 	for _, start := range starts {
@@ -513,7 +508,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			continue
 		}
 
-		if streams := buckets.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
+		if streams := buckets.streams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx}); len(streams) > 0 {
 			res = append(res, block.NewFetchBlockResult(start, streams, nil))
 		}
 	}
@@ -747,12 +742,12 @@ func (b *BufferBucketVersions) write(
 	return b.writableBucketCreate(writeType).write(timestamp, value, unit, annotation, schema)
 }
 
-func (b *BufferBucketVersions) merge(writeType WriteType) (int, error) {
+func (b *BufferBucketVersions) merge(writeType WriteType, nsCtx namespace.Context) (int, error) {
 	res := 0
 	for _, bucket := range b.buckets {
 		// Only makes sense to merge buckets that are writable.
 		if bucket.version == writableBucketVer && writeType == bucket.writeType {
-			merges, err := bucket.merge()
+			merges, err := bucket.merge(nsCtx)
 			if err != nil {
 				return 0, err
 			}
@@ -836,7 +831,7 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 
 	for _, bucket := range buckets {
 		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			stream, err := bucket.mergeToStream(ctx)
+			stream, err := bucket.mergeToStream(ctx, opts.nsCtx)
 			if err != nil {
 				return nil, err
 			}
@@ -850,6 +845,7 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 type streamsOptions struct {
 	filterWriteType bool
 	writeType       WriteType
+	nsCtx           namespace.Context
 }
 
 // BufferBucket is a specific version of a bucket of encoders, which is where
@@ -1052,7 +1048,7 @@ func (b *BufferBucket) hasJustSingleBootstrappedBlock() bool {
 	return encodersEmpty && len(b.bootstrapped) == 1
 }
 
-func (b *BufferBucket) merge() (int, error) {
+func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 	if !b.needsMerge() {
 		// Save unnecessary work
 		return 0, nil
@@ -1093,7 +1089,7 @@ func (b *BufferBucket) merge() (int, error) {
 		}
 	}
 
-	encoder, lastWriteAt, err := mergeStreamsToEncoder(start, readers, b.opts)
+	encoder, lastWriteAt, err := mergeStreamsToEncoder(start, readers, b.opts, nsCtx)
 	if err != nil {
 		return 0, err
 	}
@@ -1116,9 +1112,9 @@ func mergeStreamsToEncoder(
 	blockStart time.Time,
 	streams []xio.SegmentReader,
 	opts Options,
+	nsCtx namespace.Context,
 ) (encoding.Encoder, time.Time, error) {
 	bopts := opts.DatabaseBlockOptions()
-	nsCtx := newContextFor(opts)
 	encoder := opts.EncoderPool().Get()
 	encoder.SetSchema(nsCtx.Schema)
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
@@ -1146,7 +1142,7 @@ func mergeStreamsToEncoder(
 
 // mergeToStream merges all streams in this BufferBucket into one stream and
 // returns it.
-func (b *BufferBucket) mergeToStream(ctx context.Context) (xio.SegmentReader, error) {
+func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Context) (xio.SegmentReader, error) {
 	if b.hasJustSingleEncoder() {
 		b.resetBootstrapped()
 		// Already merged as a single encoder.
@@ -1162,7 +1158,7 @@ func (b *BufferBucket) mergeToStream(ctx context.Context) (xio.SegmentReader, er
 		return b.bootstrapped[0].Stream(ctx)
 	}
 
-	_, err := b.merge()
+	_, err := b.merge(nsCtx)
 	if err != nil {
 		b.resetEncoders()
 		b.resetBootstrapped()

@@ -103,9 +103,10 @@ func (r *shardBlockRetriever) Stream(
 	id ident.ID,
 	blockStart time.Time,
 	onRetrieve OnRetrieveBlock,
+	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
 	return r.DatabaseBlockRetriever.Stream(ctx, r.shard, id,
-		blockStart, onRetrieve)
+		blockStart, onRetrieve, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

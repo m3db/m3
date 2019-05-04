@@ -32,6 +32,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var testBlockSize = 2 * time.Hour
@@ -47,9 +48,9 @@ func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
 	}
 
 	srs := []ShardResult{
@@ -141,9 +142,9 @@ func TestResultNumSeries(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
 	}
 
 	srs := []ShardResult{
@@ -172,9 +173,9 @@ func TestResultAddResult(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
 	}
 
 	srs := []ShardResult{
@@ -233,7 +234,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	sr := NewShardResult(0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(time.Now(), time.Hour, ts.Segment{})
+	block.Reset(time.Now(), time.Hour, ts.Segment{}, namespace.Context{})
 	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
 	sr.AddBlock(ident.StringID("foo"), fooTags, block)
 	require.False(t, sr.IsEmpty())
@@ -254,7 +255,7 @@ func TestShardResultAddBlock(t *testing.T) {
 	}
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		block.Reset(input.timestamp, time.Hour, ts.Segment{})
+		block.Reset(input.timestamp, time.Hour, ts.Segment{}, namespace.Context{})
 		sr.AddBlock(ident.StringID(input.id), input.tags, block)
 	}
 	allSeries := sr.AllSeries()
@@ -284,7 +285,7 @@ func TestShardResultAddSeries(t *testing.T) {
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0)
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(start, time.Hour, ts.Segment{})
+	block.Reset(start, time.Hour, ts.Segment{}, namespace.Context{})
 	moreSeries.AddBlock(block)
 	sr.AddSeries(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "foe")), moreSeries)
 	allSeries := sr.AllSeries()

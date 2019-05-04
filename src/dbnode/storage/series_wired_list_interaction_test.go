@@ -76,7 +76,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		)
 	)
 	blPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts, namespace.Context{})
 	})
 
 	var (
@@ -88,7 +88,6 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		shard  = testDatabaseShard(t, opts)
 		id     = ident.StringID("foo")
 		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
-		nsCtx  = namespace.Context{}
 	)
 
 	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
@@ -110,7 +109,6 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				return
 			default:
 				bl := blPool.Get()
-				bl.SetNamespaceContext(nsCtx)
 				bl.Close()
 			}
 		}
@@ -132,9 +130,9 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			blTime := getAndIncStart()
-			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
+			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{}, namespace.Context{})
 			// Simulate concurrent reads
-			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize))
+			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize), namespace.Context{})
 			require.NoError(t, err)
 			wg.Done()
 		}()

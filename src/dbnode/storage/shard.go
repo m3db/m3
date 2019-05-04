@@ -335,8 +335,9 @@ func (s *dbShard) Stream(
 	id ident.ID,
 	blockStart time.Time,
 	onRetrieve block.OnRetrieveBlock,
+	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -384,6 +385,7 @@ func (s *dbShard) OnRetrieveBlock(
 	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
+	nsCtx namespace.Context,
 ) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
@@ -398,7 +400,7 @@ func (s *dbShard) OnRetrieveBlock(
 	}
 
 	if entry != nil {
-		entry.Series.OnRetrieveBlock(id, tags, startTime, segment)
+		entry.Series.OnRetrieveBlock(id, tags, startTime, segment, nsCtx)
 		return
 	}
 
@@ -427,6 +429,7 @@ func (s *dbShard) OnRetrieveBlock(
 				tags:    copiedTagsIter,
 				start:   startTime,
 				segment: segment,
+				nsCtx:   nsCtx,
 			},
 		},
 	})
@@ -581,7 +584,7 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard)
+	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard, namespace.Context{})
 	return err
 }
 
@@ -596,14 +599,15 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time) (tickResult, error) {
+func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error) {
 	s.removeAnyFlushStatesTooEarly(tickStart)
-	return s.tickAndExpire(c, tickPolicyRegular)
+	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
 }
 
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
 	policy tickPolicy,
+	nsCtx namespace.Context,
 ) (tickResult, error) {
 	s.Lock()
 	// ensure only one tick can execute at a time
@@ -682,7 +686,7 @@ func (s *dbShard) tickAndExpire(
 			)
 			switch policy {
 			case tickPolicyRegular:
-				result, err = entry.Series.Tick(blockStates)
+				result, err = entry.Series.Tick(blockStates, nsCtx)
 			case tickPolicyCloseShard:
 				err = series.ErrSeriesAllDatapointsExpired
 			}
@@ -934,6 +938,7 @@ func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
+	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
@@ -956,14 +961,14 @@ func (s *dbShard) ReadEncoded(
 	}
 
 	if entry != nil {
-		return entry.Series.ReadEncoded(ctx, start, end)
+		return entry.Series.ReadEncoded(ctx, start, end, nsCtx)
 	}
 
 	retriever := s.seriesBlockRetriever
 	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
-	return reader.ReadEncoded(ctx, start, end)
+	return reader.ReadEncoded(ctx, start, end, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -1381,7 +1386,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
 			block := inserts[i].opts.pendingRetrievedBlock
-			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment)
+			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment, block.nsCtx)
 		}
 
 		if releaseEntryRef {
@@ -1405,6 +1410,7 @@ func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id ident.ID,
 	starts []time.Time,
+	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
@@ -1427,7 +1433,7 @@ func (s *dbShard) FetchBlocks(
 	}
 
 	if entry != nil {
-		return entry.Series.FetchBlocks(ctx, starts)
+		return entry.Series.FetchBlocks(ctx, starts, nsCtx)
 	}
 
 	retriever := s.seriesBlockRetriever
@@ -1437,7 +1443,7 @@ func (s *dbShard) FetchBlocks(
 	// the behavior of the LRU
 	var onReadCb block.OnReadBlock
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, onReadCb, opts)
-	return reader.FetchBlocks(ctx, starts)
+	return reader.FetchBlocks(ctx, starts, nsCtx)
 }
 
 func (s *dbShard) fetchActiveBlocksMetadata(
@@ -1842,6 +1848,7 @@ func (s *dbShard) Bootstrap(
 func (s *dbShard) Flush(
 	blockStart time.Time,
 	flushPreparer persist.FlushPreparer,
+	nsCtx namespace.Context,
 ) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
@@ -1876,7 +1883,7 @@ func (s *dbShard) Flush(
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version)
+		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version, nsCtx)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1904,6 +1911,7 @@ func (s *dbShard) Snapshot(
 	blockStart time.Time,
 	snapshotTime time.Time,
 	snapshotPreparer persist.SnapshotPreparer,
+	nsCtx namespace.Context,
 ) error {
 	// We don't snapshot data when the shard is still bootstrapping
 	s.RLock()
@@ -1947,7 +1955,7 @@ func (s *dbShard) Snapshot(
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
 		tmpCtx.Reset()
-		err := series.Snapshot(tmpCtx, blockStart, prepared.Persist)
+		err := series.Snapshot(tmpCtx, blockStart, prepared.Persist, nsCtx)
 		tmpCtx.BlockingClose()
 
 		if err != nil {

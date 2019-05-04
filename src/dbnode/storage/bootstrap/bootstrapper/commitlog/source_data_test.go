@@ -105,10 +105,10 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 func TestReadOrderedValues(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
-	testReadOrderedValues(t, opts, md, nil, nil)
+	testReadOrderedValues(t, opts, md, nil)
 }
 
-func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation, annEqual annotationEqual) {
+func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
 	nsCtx := namespace.NewContextFrom(md)
 
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
@@ -154,16 +154,16 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values[:4], blockSize, res.ShardResults(), opts, annEqual))
+		values[:4], blockSize, res.ShardResults(), opts))
 }
 
 func TestReadUnorderedValues(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
-	testReadUnorderedValues(t, opts, md, nil, nil)
+	testReadUnorderedValues(t, opts, md, nil)
 }
 
-func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation, annEqual annotationEqual) {
+func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
 	nsCtx := namespace.NewContextFrom(md)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -205,20 +205,20 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values, blockSize, res.ShardResults(), opts, annEqual))
+		values, blockSize, res.ShardResults(), opts))
 }
 
 func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
-	testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t, opts, md, nil, nil)
+	testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t, opts, md, nil)
 }
 // TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a regression test to make
 // sure that the commit log bootstrapper does not make any assumptions about series having a unique
 // unique index because that only holds for the duration that an M3DB node is on, but commit log
 // files can span multiple M3DB processes which means that unique indexes could be re-used for multiple
 // different series.
-func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation, annEqual annotationEqual) {
+func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
 	nsCtx := namespace.NewContextFrom(md)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -259,16 +259,16 @@ func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T, opts O
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values, blockSize, res.ShardResults(), opts, annEqual))
+		values, blockSize, res.ShardResults(), opts))
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
-	testReadTrimsToRanges(t, opts, md, nil, nil)
+	testReadTrimsToRanges(t, opts, md, nil)
 }
 
-func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation, annEqual annotationEqual) {
+func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
 	nsCtx := namespace.NewContextFrom(md)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -309,17 +309,17 @@ func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, se
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values[1:3], blockSize, res.ShardResults(), opts, annEqual))
+		values[1:3], blockSize, res.ShardResults(), opts))
 }
 
 func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
 
-	testItMergesSnapshotsAndCommitLogs(t, opts, md, nil, nil)
+	testItMergesSnapshotsAndCommitLogs(t, opts, md, nil)
 }
 
-func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation, annEqual annotationEqual) {
+func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -434,7 +434,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	expectedValues = append(expectedValues, commitLogValues[0:3]...)
 
 	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		expectedValues, blockSize, res.ShardResults(), opts, annEqual))
+		expectedValues, blockSize, res.ShardResults(), opts))
 }
 
 type setAnnotation func([]testValue) []testValue
@@ -463,7 +463,6 @@ func verifyShardResultsAreCorrect(
 	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
-	annEqual annotationEqual,
 ) error {
 	if actual == nil {
 		if len(values) == 0 {
@@ -493,7 +492,7 @@ func verifyShardResultsAreCorrect(
 			return fmt.Errorf("shard: %d present in expected, but not actual", shard)
 		}
 
-		err = verifyShardResultsAreEqual(nsCtx, opts, shard, actualResult, expectedResult, annEqual)
+		err = verifyShardResultsAreEqual(nsCtx, opts, shard, actualResult, expectedResult)
 		if err != nil {
 			return err
 		}
@@ -564,7 +563,7 @@ func createExpectedShardResult(
 	for _, r := range allResults {
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
-			bl := block.NewDatabaseBlock(start.ToTime(), blockSize, enc.Discard(), blopts)
+			bl := block.NewDatabaseBlock(start.ToTime(), blockSize, enc.Discard(), blopts, nsCtx)
 			if r.result != nil {
 				r.result.AddBlock(bl)
 			}
@@ -575,7 +574,7 @@ func createExpectedShardResult(
 	return expected, nil
 }
 
-func verifyShardResultsAreEqual(nsCtx namespace.Context, opts Options, shard uint32, actualResult, expectedResult result.ShardResult, annEqual annotationEqual) error {
+func verifyShardResultsAreEqual(nsCtx namespace.Context, opts Options, shard uint32, actualResult, expectedResult result.ShardResult) error {
 	expectedSeries := expectedResult.AllSeries()
 	actualSeries := actualResult.AllSeries()
 	if expectedSeries.Len() != actualSeries.Len() {
@@ -610,7 +609,7 @@ func verifyShardResultsAreEqual(nsCtx namespace.Context, opts Options, shard uin
 			)
 		}
 
-		err := verifyBlocksAreEqual(nsCtx, opts, expectedAllBlocks, actualAllBlocks, annEqual)
+		err := verifyBlocksAreEqual(nsCtx, opts, expectedAllBlocks, actualAllBlocks)
 		if err != nil {
 			return err
 		}
@@ -619,7 +618,7 @@ func verifyShardResultsAreEqual(nsCtx namespace.Context, opts Options, shard uin
 	return nil
 }
 
-func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock, annEqual annotationEqual) error {
+func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
 	blopts := opts.ResultOptions().DatabaseBlockOptions()
 	for start, expectedBlock := range expectedAllBlocks {
 		actualBlock, ok := actualAllBlocks[start]
@@ -629,9 +628,6 @@ func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBloc
 
 		ctx := blopts.ContextPool().Get()
 		defer ctx.Close()
-
-		expectedBlock.SetNamespaceContext(nsCtx)
-		actualBlock.SetNamespaceContext(nsCtx)
 
 		expectedStream, expectedStreamErr := expectedBlock.Stream(ctx)
 		if expectedStreamErr != nil {
@@ -697,17 +693,23 @@ func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBloc
 				)
 			}
 
-			if annEqual == nil {
-				annEqual = func(e, a []byte) bool {
-					return reflect.DeepEqual(e, a)
+
+			if nsCtx.Schema == nil {
+				if !reflect.DeepEqual(expectedAnnotation, actualAnnotation) {
+					return fmt.Errorf(
+						"expectedAnnotation was: %v, but actualAnnotation was: %v",
+						expectedAnnotation,
+						actualAnnotation,
+					)
 				}
-			}
-			if !annEqual(expectedAnnotation, actualAnnotation) {
-				return fmt.Errorf(
-					"expectedAnnotation was: %v, but actualAnnotation was: %v",
-					expectedAnnotation,
-					actualAnnotation,
-				)
+			} else {
+				if !testProtoEqual(expectedAnnotation, actualAnnotation) {
+					return fmt.Errorf(
+						"expectedAnnotation was: %v, but actualAnnotation was: %v",
+						expectedAnnotation,
+						actualAnnotation,
+					)
+				}
 			}
 		}
 	}

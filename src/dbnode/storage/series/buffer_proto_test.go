@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
@@ -59,11 +58,7 @@ func newBufferTestProtoOptions(t *testing.T) Options {
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
 			SetContextPool(opts.ContextPool()).
 			SetEncoderPool(opts.EncoderPool()).
-			SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool())).
-		SetNamespaceId(testNamespace)
-
-	err := opts.SchemaRegistry().SetSchemaHistory(testNamespace, testSchemaHistory)
-	require.NoError(t, err)
+			SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()))
 
 	return opts
 }
@@ -77,22 +72,27 @@ func testSetProtoAnnotation(data []value) []value {
 	return data
 }
 
-func TestBufferProtoWriteRead(t *testing.T) {
+func TestProtoBufferWriteRead(t *testing.T) {
 	opts := newBufferTestProtoOptions(t)
-	testBufferWriteRead(t, opts, testSetProtoAnnotation, testProtoEqual)
+	testBufferWriteRead(t, opts, testSetProtoAnnotation)
 }
 
-func TestBufferProtoToStream(t *testing.T) {
+func TestProtoBufferToStream(t *testing.T) {
 	opts := newBufferTestProtoOptions(t)
-	testBuffertoStream(t, opts, testSetProtoAnnotation, testProtoEqual)
+	testBuffertoStream(t, opts, testSetProtoAnnotation)
 }
 
-func TestBufferBucketProtoMerge(t *testing.T) {
+func TestProtoBufferBucketMerge(t *testing.T) {
 	opts := newBufferTestProtoOptions(t)
-	testBufferBucketMerge(t, opts, testSetProtoAnnotation, testProtoEqual)
+	testBufferBucketMerge(t, opts, testSetProtoAnnotation)
 }
 
-func TestBufferProtoSnapshot(t *testing.T) {
+func TestProtoBufferSnapshot(t *testing.T) {
 	opts := newBufferTestProtoOptions(t)
-	testBufferSnapshot(t, opts, testSetProtoAnnotation, testProtoEqual)
+	testBufferSnapshot(t, opts, testSetProtoAnnotation)
+}
+
+func TestProtoBufferFetchBlocks(t *testing.T) {
+	opts := newBufferTestProtoOptions(t)
+	testBufferFetchBlocks(t, opts, testSetProtoAnnotation)
 }

@@ -32,6 +32,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 // TestSeriesWriteReadParallel is a regression test that was added to capture panics that might
@@ -72,7 +73,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < numStepsPerWorker; i++ {
-				_, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
+				_, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute), namespace.Context{})
 				if err != nil {
 					panic(err)
 				}

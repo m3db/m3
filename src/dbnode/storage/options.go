@@ -104,8 +104,7 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetBufferBucketPool(opts.BufferBucketPool()).
-		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool()).
-		SetSchemaRegistry(opts.SchemaRegistry())
+		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool())
 }
 
 type options struct {

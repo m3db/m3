@@ -575,8 +575,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		dbBlock := blocksPool.Get()
-		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
-		dbBlock.SetNamespaceContext(nsCtx)
+		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead), nsCtx)
 
 		if !metadataOnly {
 			// Resetting the block will trigger a checksum calculation, so use that instead
@@ -1064,8 +1063,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		pooledBlock := blocksPool.Get()
-		pooledBlock.Reset(start, blockSize, enc.Discard())
-		pooledBlock.SetNamespaceContext(nsCtx)
+		pooledBlock.Reset(start, blockSize, enc.Discard(), nsCtx)
 		if seriesBlocks == nil {
 			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedCommitlogBlocks.encoders))
 		}

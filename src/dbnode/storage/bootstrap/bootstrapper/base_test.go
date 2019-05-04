@@ -89,7 +89,7 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 
-		block.Reset(entry.t, time.Hour, ts.Segment{})
+		block.Reset(entry.t, time.Hour, ts.Segment{}, namespace.Context{})
 
 		if len(entry.tags)%2 != 0 {
 			panic(fmt.Sprintf("entry tags must be of even length: %v", entry.tags))

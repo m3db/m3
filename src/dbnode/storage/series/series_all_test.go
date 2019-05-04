@@ -28,6 +28,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var timeDistantFuture = time.Now().Add(10 * 365 * 24 * time.Hour)
@@ -64,9 +65,8 @@ func (v valuesByTime) Swap(lhs, rhs int) {
 type setAnnotation func([]value) []value
 type requireAnnEqual func(*testing.T, []byte, []byte)
 
-func decodedReaderValues(results [][]xio.BlockReader, opts Options) ([]value, error) {
+func decodedReaderValues(results [][]xio.BlockReader, opts Options, nsCtx namespace.Context) ([]value, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
-	nsCtx := newContextFor(opts)
 	iter := opts.MultiReaderIteratorPool().Get()
 	iter.SetSchema(nsCtx.Schema)
 	iter.ResetSliceOfSlices(slicesIter)
@@ -87,28 +87,27 @@ func decodedReaderValues(results [][]xio.BlockReader, opts Options) ([]value, er
 }
 
 func requireReaderValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options,
-	annEqual requireAnnEqual) {
-	decodedValues, err := decodedReaderValues(results, opts)
+	nsCtx namespace.Context) {
+	decodedValues, err := decodedReaderValues(results, opts, nsCtx)
 	require.NoError(t, err)
-	requireValuesEqual(t, values, decodedValues, annEqual)
+	requireValuesEqual(t, values, decodedValues, nsCtx)
 }
 
-func requireValuesEqual(t *testing.T, expected, actual []value, annEqual requireAnnEqual) {
+func requireValuesEqual(t *testing.T, expected, actual []value, nsCtx namespace.Context) {
 	require.Len(t, actual, len(expected))
 	for i := 0; i < len(actual); i++ {
 		require.True(t, expected[i].timestamp.Equal(actual[i].timestamp))
 		require.Equal(t, expected[i].value, actual[i].value)
 		require.Equal(t, expected[i].unit, actual[i].unit)
-		if annEqual == nil {
+		if nsCtx.Schema == nil {
 			require.Equal(t, expected[i].annotation, actual[i].annotation)
 		} else {
-			annEqual(t, expected[i].annotation, actual[i].annotation)
+			testProtoEqual(t, expected[i].annotation, actual[i].annotation)
 		}
 	}
 }
 
-func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]value, error) {
-	nsCtx := newContextFor(opts)
+func decodedSegmentValues(results []xio.SegmentReader, opts Options, nsCtx namespace.Context) ([]value, error) {
 	iter := opts.MultiReaderIteratorPool().Get()
 	iter.SetSchema(nsCtx.Schema)
 	iter.Reset(results, time.Time{}, time.Duration(0))
@@ -129,9 +128,9 @@ func decodedSegmentValues(results []xio.SegmentReader, opts Options) ([]value, e
 }
 
 func requireSegmentValuesEqual(t *testing.T, values []value, results []xio.SegmentReader, opts Options,
-	annEqual requireAnnEqual) {
-	decodedValues, err := decodedSegmentValues(results, opts)
+	nsCtx namespace.Context) {
+	decodedValues, err := decodedSegmentValues(results, opts, nsCtx)
 
 	require.NoError(t, err)
-	requireValuesEqual(t, values, decodedValues, annEqual)
+	requireValuesEqual(t, values, decodedValues, nsCtx)
 }

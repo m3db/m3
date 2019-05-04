@@ -31,6 +31,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
@@ -62,18 +63,18 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, onRetrieveBlock).
+			start, onRetrieveBlock, gomock.Any()).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), onRetrieveBlock).
+			start.Add(ropts.BlockSize()), onRetrieveBlock, gomock.Any()).
 		Return(blockReaders[1], nil)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
 
 	// Check reads as expected
-	r, err := reader.ReadEncoded(ctx, start, end)
+	r, err := reader.ReadEncoded(ctx, start, end, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 2, len(r))
 	for i, readers := range r {
@@ -116,11 +117,11 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, nil).
+			start, nil, gomock.Any()).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), nil).
+			start.Add(ropts.BlockSize()), nil, gomock.Any()).
 		Return(blockReaders[1], nil)
 
 	reader := NewReaderUsingRetriever(
@@ -132,7 +133,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		start.Add(ropts.BlockSize()),
 	}
 
-	r, err := reader.FetchBlocks(ctx, times)
+	r, err := reader.FetchBlocks(ctx, times, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 2, len(r))
 

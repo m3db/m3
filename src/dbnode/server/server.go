@@ -1241,7 +1241,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)

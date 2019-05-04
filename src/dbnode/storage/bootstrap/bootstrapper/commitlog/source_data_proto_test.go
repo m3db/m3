@@ -69,18 +69,18 @@ func setProtoAnnotation(value []testValue) []testValue {
 func TestProtoReadOrderedValues(t *testing.T) {
 	opts := testProtoOptions()
 	md := testProtoNsMetadata(t)
-	testReadOrderedValues(t, opts, md, setProtoAnnotation, testProtoEqual)
+	testReadOrderedValues(t, opts, md, setProtoAnnotation)
 }
 
 func TestProtoReadUnorderedValues(t *testing.T) {
 	opts := testProtoOptions()
 	md := testProtoNsMetadata(t)
-	testReadUnorderedValues(t, opts, md, setProtoAnnotation, testProtoEqual)
+	testReadUnorderedValues(t, opts, md, setProtoAnnotation)
 }
 
 func TestProtoItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	opts := testProtoOptions()
 	md := testProtoNsMetadata(t)
-	testItMergesSnapshotsAndCommitLogs(t, opts, md, setProtoAnnotation, testProtoEqual)
+	testItMergesSnapshotsAndCommitLogs(t, opts, md, setProtoAnnotation)
 }
 

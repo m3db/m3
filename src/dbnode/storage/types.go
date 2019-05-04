@@ -399,7 +399,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -427,6 +427,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
+		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -435,6 +436,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		starts []time.Time,
+		nsCtx namespace.Context,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
@@ -455,10 +457,11 @@ type databaseShard interface {
 	Flush(
 		blockStart time.Time,
 		flush persist.FlushPreparer,
+		nsCtx namespace.Context,
 	) error
 
 	// Snapshot snapshot's the unflushed series' in this shard.
-	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer) error
+	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) error
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
