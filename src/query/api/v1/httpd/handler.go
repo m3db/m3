@@ -162,6 +162,7 @@ func (h *Handler) RegisterRoutes() error {
 	// Wrap requests with response time logging as well as panic recovery.
 	wrapped := logging.WithResponseTimeAndPanicErrorLogging
 	panicOnly := logging.WithPanicErrorResponder
+	nowFn := time.Now
 
 	h.router.HandleFunc(openapi.URL,
 		wrapped(&openapi.DocHandler{}).ServeHTTP,
@@ -214,13 +215,13 @@ func (h *Handler) RegisterRoutes() error {
 		wrapped(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
 	).Methods(native.CompleteTagsHTTPMethod)
 	h.router.HandleFunc(remote.TagValuesURL,
-		wrapped(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
+		wrapped(remote.NewTagValuesHandler(h.storage, nowFn)).ServeHTTP,
 	).Methods(remote.TagValuesHTTPMethod)
 
 	// List tag endpoints
 	for _, method := range native.ListTagsHTTPMethods {
 		h.router.HandleFunc(native.ListTagsURL,
-			wrapped(native.NewListTagsHandler(h.storage)).ServeHTTP,
+			wrapped(native.NewListTagsHandler(h.storage, nowFn)).ServeHTTP,
 		).Methods(method)
 	}
 

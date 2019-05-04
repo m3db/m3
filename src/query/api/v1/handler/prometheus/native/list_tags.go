@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -48,14 +49,17 @@ var (
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
 	storage storage.Storage
+	nowFn   clock.NowFn
 }
 
 // NewListTagsHandler returns a new instance of handler.
 func NewListTagsHandler(
 	storage storage.Storage,
+	nowFn clock.NowFn,
 ) http.Handler {
 	return &ListTagsHandler{
 		storage: storage,
+		nowFn:   nowFn,
 	}
 }
 
@@ -70,7 +74,7 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// NB: necessarily spans entire possible query range.
 		Start: time.Time{},
-		End:   time.Now(),
+		End:   h.nowFn(),
 	}
 
 	opts := storage.NewFetchOptions()

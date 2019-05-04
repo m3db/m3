@@ -23,28 +23,41 @@ package remote
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/net/http"
 
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
 const (
+	// NameReplace is the parameter that gets replaced.
+	NameReplace = "name"
+
 	// TagValuesURL is the url for tag values.
 	TagValuesURL = handler.RoutePrefixV1 +
-		"/label/{" + prometheus.NameReplace + "}/values"
+		"/label/{" + NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
 )
 
+var (
+	matchValues = []byte(".*")
+)
+
 // TagValuesHandler represents a handler for search tags endpoint.
 type TagValuesHandler struct {
 	storage storage.Storage
+	nowFn   clock.NowFn
 }
 
 // TagValuesResponse is the response that gets returned to the user
@@ -55,9 +68,11 @@ type TagValuesResponse struct {
 // NewTagValuesHandler returns a new instance of handler.
 func NewTagValuesHandler(
 	storage storage.Storage,
+	nowFn clock.NowFn,
 ) http.Handler {
 	return &TagValuesHandler{
 		storage: storage,
+		nowFn:   nowFn,
 	}
 }
 
@@ -66,7 +81,7 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx)
 	w.Header().Set("Content-Type", "application/json")
 
-	query, err := prometheus.ParseTagValuesToQuery(r)
+	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {
 		logger.Error("unable to parse tag values to query", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
@@ -87,4 +102,30 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("unable to render tag values", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 	}
+}
+
+func (h *TagValuesHandler) parseTagValuesToQuery(
+	r *http.Request,
+) (*storage.CompleteTagsQuery, error) {
+	vars := mux.Vars(r)
+	name, ok := vars[NameReplace]
+	if !ok || len(name) == 0 {
+		return nil, errors.ErrNoName
+	}
+
+	nameBytes := []byte(name)
+	return &storage.CompleteTagsQuery{
+		// NB: necessarily spans the entire timerange for the index.
+		Start:            time.Time{},
+		End:              h.nowFn(),
+		CompleteNameOnly: false,
+		FilterNameTags:   [][]byte{nameBytes},
+		TagMatchers: models.Matchers{
+			models.Matcher{
+				Type:  models.MatchRegexp,
+				Name:  nameBytes,
+				Value: matchValues,
+			},
+		},
+	}, nil
 }
