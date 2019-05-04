@@ -38,6 +38,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func TestShardConcurrentForEaches(t *testing.T) {
@@ -125,7 +126,7 @@ func testShardConcurrentForEachTick(
 
 	go func() {
 		<-barrier
-		shard.Tick(context.NewNoOpCanncellable(), time.Now())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
