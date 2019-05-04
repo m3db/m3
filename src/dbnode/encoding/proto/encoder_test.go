@@ -96,6 +96,8 @@ func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 func getCurrEncoderBytes(t *testing.T, enc *Encoder) []byte {
 	currSeg, err := enc.Stream().Segment()
 	require.NoError(t, err)
-	require.Nil(t, currSeg)
+	if currSeg.Tail != nil {
+		require.Equal(t, 0, currSeg.Tail.Len())
+	}
 	return currSeg.Head.Bytes()
 }
