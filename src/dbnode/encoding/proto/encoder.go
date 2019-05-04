@@ -76,7 +76,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	unmarshalIter *sortedUnmarshalIter
+	sortedUnmarshalIter *sortedUnmarshalIter
 
 	hasEncodedSchema bool
 	closed           bool
@@ -131,12 +131,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// it doesn't cause LastEncoded() to produce invalid results.
 	dp.Value = float64(0)
 
-	if enc.unmarshalIter == nil {
+	if enc.sortedUnmarshalIter == nil {
 		// Lazy init.
-		enc.unmarshalIter = newUnmarshalIter()
+		enc.sortedUnmarshalIter = newUnmarshalIter()
 	}
 
-	// TODO: Delete is usable stuff.
 	// Capture a rollback token that allows the OStream to be rolled back to the state it was in before any
 	// encoding of the current message began.
 	// The protobuf message is unmarshaled and encoded one field at a time which means that it is possible
@@ -331,20 +330,32 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 }
 
 func (enc *Encoder) encodeProto(buf []byte) error {
-	iter := enc.unmarshalIter
-	iter.reset(enc.schema, buf)
+	sortedIter := enc.sortedUnmarshalIter
+	sortedIter.reset(enc.schema, buf)
 
 	var (
 		// If there is no initial value (due to next returning false) then
 		// lastMarshaledValue should be considered unusable.
-		lastMarshaledValueConsumed = !iter.next()
-		lastMarshaledValue         = iter.current()
+		lastMarshaledValueConsumed = !sortedIter.next()
+		lastMarshaledValue         = sortedIter.current()
 	)
+
+	// Loop through the customFields slice and sortedUnmarshalIter (both
+	// of which are sorted by field number) at the same time and match each
+	// customField to its encoded value in the stream (if any).
 	for i, customField := range enc.customFields {
 		lastMarshaledValueFieldNumber := -1
 		if !lastMarshaledValueConsumed {
 			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
 		}
+
+		// TODO(rartoul): Might be cleaner to just bake this logic into the iter itself.
+		// Since both the customFields slice and the sortedUnmarshalIter are sorted
+		// by field number, if the iterator contains no more values or it contains a
+		// next value, but the field number is not equal to the field number of the
+		// current customField, it is safe to conclude that the current customField's
+		// value was not encoded in this message which means that it should be interpreted
+		// as the default value for that field according to the proto3 specification.
 		noMarshaledValue := (lastMarshaledValueConsumed ||
 			customField.fieldNum != lastMarshaledValueFieldNumber)
 		if noMarshaledValue {
@@ -382,17 +393,18 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 				encErrPrefix, customField.fieldNum)
 		}
 
-		lastMarshaledValueConsumed = !iter.next()
-		lastMarshaledValue = iter.current()
+		lastMarshaledValueConsumed = !sortedIter.next()
+		lastMarshaledValue = sortedIter.current()
 
 	}
 
-	// TODO: Only safe to do this at the end if we have a safe rollback mechanism.
-	if err := iter.err(); err != nil {
+	// Safe to do this check at the very end because the encoder has a
+	// rollback mechanism for undoing partial writes.
+	if err := sortedIter.err(); err != nil {
 		return err
 	}
 
-	skipped, err := iter.skipped()
+	skipped, err := sortedIter.skipped()
 	if err != nil {
 		return err
 	}
