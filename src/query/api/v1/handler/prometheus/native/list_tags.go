@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package remote
+package native
 
 import (
 	"context"
@@ -27,105 +27,67 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/net/http"
 
-	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
 const (
-	// NameReplace is the parameter that gets replaced.
-	NameReplace = "name"
-
-	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 +
-		"/label/{" + NameReplace + "}/values"
-
-	// TagValuesHTTPMethod is the HTTP method used with this resource.
-	TagValuesHTTPMethod = http.MethodGet
+	// ListTagsURL is the url for listing tags.
+	ListTagsURL = handler.RoutePrefixV1 + "/labels"
 )
 
 var (
-	matchValues = []byte(".*")
+	// ListTagsHTTPMethods are the HTTP methods used with this resource.
+	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-// TagValuesHandler represents a handler for search tags endpoint.
-type TagValuesHandler struct {
+// ListTagsHandler represents a handler for list tags endpoint.
+type ListTagsHandler struct {
 	storage storage.Storage
 	nowFn   clock.NowFn
 }
 
-// TagValuesResponse is the response that gets returned to the user
-type TagValuesResponse struct {
-	Results storage.CompleteTagsResult `json:"results,omitempty"`
-}
-
-// NewTagValuesHandler returns a new instance of handler.
-func NewTagValuesHandler(
+// NewListTagsHandler returns a new instance of handler.
+func NewListTagsHandler(
 	storage storage.Storage,
 	nowFn clock.NowFn,
 ) http.Handler {
-	return &TagValuesHandler{
+	return &ListTagsHandler{
 		storage: storage,
 		nowFn:   nowFn,
 	}
 }
 
-func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 	w.Header().Set("Content-Type", "application/json")
 
-	query, err := h.parseTagValuesToQuery(r)
-	if err != nil {
-		logger.Error("unable to parse tag values to query", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
+	query := &storage.CompleteTagsQuery{
+		CompleteNameOnly: true,
+		TagMatchers:      models.Matchers{{Type: models.MatchAll}},
+
+		// NB: necessarily spans entire possible query range.
+		Start: time.Time{},
+		End:   h.nowFn(),
 	}
 
 	opts := storage.NewFetchOptions()
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
-		logger.Error("unable to get tag values", zap.Error(err))
+		logger.Error("unable to complete tags", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	// TODO: Support multiple result types
-	err = prometheus.RenderTagValuesResultsJSON(w, result)
-	if err != nil {
-		logger.Error("unable to render tag values", zap.Error(err))
+	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
+		logger.Error("unable to render results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
+		return
 	}
-}
-
-func (h *TagValuesHandler) parseTagValuesToQuery(
-	r *http.Request,
-) (*storage.CompleteTagsQuery, error) {
-	vars := mux.Vars(r)
-	name, ok := vars[NameReplace]
-	if !ok || len(name) == 0 {
-		return nil, errors.ErrNoName
-	}
-
-	nameBytes := []byte(name)
-	return &storage.CompleteTagsQuery{
-		// NB: necessarily spans the entire timerange for the index.
-		Start:            time.Time{},
-		End:              h.nowFn(),
-		CompleteNameOnly: false,
-		FilterNameTags:   [][]byte{nameBytes},
-		TagMatchers: models.Matchers{
-			models.Matcher{
-				Type:  models.MatchRegexp,
-				Name:  nameBytes,
-				Value: matchValues,
-			},
-		},
-	}, nil
 }

@@ -158,6 +158,15 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			expected: "all()",
 			matchers: models.Matchers{},
 		},
+		{
+			name:     "all matchers",
+			expected: "all()",
+			matchers: models.Matchers{
+				{
+					Type: models.MatchAll,
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

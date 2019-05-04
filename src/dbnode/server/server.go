@@ -80,8 +80,8 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/coreos/etcd/embed"
-	"github.com/coreos/pkg/capnslog"
-	"github.com/opentracing/opentracing-go"
+	"github.com/jhump/protoreflect/desc"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -211,8 +211,6 @@ func Run(runOpts RunOptions) {
 			logger.Info("tracing enabled", zap.String("service", serviceName))
 		}
 	}
-
-	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 
 	// Presence of KV server config indicates embedded etcd cluster
 	if cfg.EnvironmentConfig.SeedNodes == nil {
@@ -1273,6 +1271,17 @@ func withEncodingAndPoolingOptions(
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
+	// Set value transformation options.
+	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
+	forcedValue := cfg.Transforms.ForcedValue
+	if forcedValue != nil {
+		opts = opts.SetWriteTransformOptions(series.WriteTransformOptions{
+			ForceValueEnabled: true,
+			ForceValue:        *forcedValue,
+		})
+	}
+
+	// Set index options.
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
@@ -1289,7 +1298,9 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
-		SetAggregateResultsPool(aggregateQueryResultsPool)
+		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so
