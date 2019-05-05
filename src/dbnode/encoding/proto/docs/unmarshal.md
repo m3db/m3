@@ -1,4 +1,4 @@
-# Iterative Protobuf Unmarshaling
+# Top Level Scalar Unmarshaler
 
 ## Overview
 
@@ -10,10 +10,9 @@ In order to accomplish this, it needs to unmarshal the Protobuf messages so that
 
 Since the schemas for the Protobuf messages are provided dynamically (and thus efficient unmarshaling code can not be generated ahead of time) the easiest way to accomplish the unmarshaling is to rely on a dynamic Protobuf package like `jhump/protoreflect` to perform the heavy lfting.
 
-This is inefficient primarily because unmarshaling into a `*dynamic.Message` is very expensive since it involves a lot of `interface{}` magic as well as allocating a large number of very short-lived objects that are difficult to reuse.
+This is inefficient primarily because unmarshaling into a `*dynamic.Message` is very expensive since it involves a lot of `interface{}` magic as well as allocating a large number of very short-lived objects that are difficult to reuse. Its especially inefficient for Protobuf schemas that are optimized for this package (specifically those that make heavy use of top-level scalar fields).
 
-<!-- TODO: Rename this iterator? -->
-As a result, this package implements a `SortedUnmarshalIterator` that accepts a `[]byte` which constitutes a marshaled Protobuf message and returns an iterator that can be used to iterate through the the fields of the marshaled Protobuf message one at a time ordered by field number.
+As a result, this package implements a `topLevelScalarUnmarshaler` that accepts a `[]byte` which constitutes a marshaled Protobuf message and returns an iterator that can be used to iterate through the the fields of the marshaled Protobuf message one at a time ordered by field number.
 
 This iterator is optimized such that top-level scalar fields can be iterated quickly and with zero allocations.
 

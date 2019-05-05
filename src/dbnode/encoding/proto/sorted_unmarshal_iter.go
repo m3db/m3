@@ -42,50 +42,50 @@ var (
 	zeroValue unmarshalValue
 )
 
-type topLevelScalarUnmarshaler interface {
-	sortedTopLevelScalarValues() sortedTopLevelScalarValues
-	otherValues() *dynamic.Message
-	numOtherValues() int
+type customFieldUnmarshaler interface {
+	sortedCustomFieldValues() sortedCustomFieldValues
+	nonCustomFieldValues() *dynamic.Message
+	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
 
-type sortedUnmarshalIter struct {
+type customUnmarshaler struct {
 	schema *desc.MessageDescriptor
 
 	decodeBuf *buffer
 
-	sortedTopLevelScalar sortedTopLevelScalarValues
+	customValues sortedCustomFieldValues
 
-	skippedMessage *dynamic.Message
-	skippedCount   int
+	nonCustomValues *dynamic.Message
+	numNonCustom    int
 }
 
-func newUnmarshalIter() topLevelScalarUnmarshaler {
-	return &sortedUnmarshalIter{
+func newCustomFieldUnmarshaler() customFieldUnmarshaler {
+	return &customUnmarshaler{
 		decodeBuf: newCodedBuffer(nil),
 	}
 }
 
-func (u *sortedUnmarshalIter) sortedTopLevelScalarValues() sortedTopLevelScalarValues {
-	return u.sortedTopLevelScalar
+func (u *customUnmarshaler) sortedCustomFieldValues() sortedCustomFieldValues {
+	return u.customValues
 }
 
-func (u *sortedUnmarshalIter) numOtherValues() int {
-	return u.skippedCount
+func (u *customUnmarshaler) numNonCustomValues() int {
+	return u.numNonCustom
 }
 
-func (u *sortedUnmarshalIter) otherValues() *dynamic.Message {
-	if u.skippedMessage == nil {
-		u.skippedMessage = dynamic.NewMessage(u.schema)
+func (u *customUnmarshaler) nonCustomFieldValues() *dynamic.Message {
+	if u.nonCustomValues == nil {
+		u.nonCustomValues = dynamic.NewMessage(u.schema)
 	}
-	return u.skippedMessage
+	return u.nonCustomValues
 }
 
-func (u *sortedUnmarshalIter) unmarshal() error {
-	u.sortedTopLevelScalar = u.sortedTopLevelScalar[:0]
+func (u *customUnmarshaler) unmarshal() error {
+	u.customValues = u.customValues[:0]
 
-	if u.skippedMessage != nil {
-		u.skippedMessage.Reset()
+	if u.nonCustomValues != nil {
+		u.nonCustomValues.Reset()
 	}
 
 	isSorted := true
@@ -103,8 +103,8 @@ func (u *sortedUnmarshalIter) unmarshal() error {
 
 		shouldSkip := u.shouldSkip(fd)
 		if shouldSkip {
-			if u.skippedMessage == nil {
-				u.skippedMessage = dynamic.NewMessage(u.schema)
+			if u.nonCustomValues == nil {
+				u.nonCustomValues = dynamic.NewMessage(u.schema)
 			}
 
 			_, err = u.skip(wireType)
@@ -117,8 +117,8 @@ func (u *sortedUnmarshalIter) unmarshal() error {
 				startIdx = tagAndWireTypeStartOffset
 				endIdx   = startIdx + length
 			)
-			u.skippedMessage.UnmarshalMerge(u.decodeBuf.buf[tagAndWireTypeStartOffset:endIdx])
-			u.skippedCount++
+			u.nonCustomValues.UnmarshalMerge(u.decodeBuf.buf[tagAndWireTypeStartOffset:endIdx])
+			u.numNonCustom++
 			continue
 		}
 
@@ -127,29 +127,29 @@ func (u *sortedUnmarshalIter) unmarshal() error {
 			return err
 		}
 
-		if isSorted && len(u.sortedTopLevelScalar) > 1 {
+		if isSorted && len(u.customValues) > 1 {
 			// Check if the slice is sorted as its built to avoid resorting
 			// unnecessarily at the end.
-			lastFieldNum := u.sortedTopLevelScalar[len(u.sortedTopLevelScalar)-1].fd.GetNumber()
+			lastFieldNum := u.customValues[len(u.customValues)-1].fd.GetNumber()
 			if fieldNum < lastFieldNum {
 				isSorted = false
 			}
 		}
 
-		u.sortedTopLevelScalar = append(u.sortedTopLevelScalar, value)
+		u.customValues = append(u.customValues, value)
 	}
 
 	u.decodeBuf.reset(u.decodeBuf.buf)
 
 	if !isSorted {
 		// Avoid resorting if possible.
-		sort.Sort(u.sortedTopLevelScalar)
+		sort.Sort(u.customValues)
 	}
 
 	return nil
 }
 
-func (u *sortedUnmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
+func (u *customUnmarshaler) shouldSkip(fd *desc.FieldDescriptor) bool {
 	if fd.IsRepeated() || fd.IsMap() {
 		// Map should always be repeated but include the guard just in case.
 		return true
@@ -167,7 +167,7 @@ func (u *sortedUnmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
 // wiretype have already been decoded). Additionally, it can optionally re-encode
 // the skipped <tag,wireType,value> tuple into the skippedBuf stream so that it can
 // be handled later.
-func (u *sortedUnmarshalIter) skip(wireType int8) (int, error) {
+func (u *customUnmarshaler) skip(wireType int8) (int, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		numSkipped := 4
@@ -214,7 +214,7 @@ func (u *sortedUnmarshalIter) skip(wireType int8) (int, error) {
 	}
 }
 
-func (u *sortedUnmarshalIter) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
+func (u *customUnmarshaler) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		num, err := u.decodeBuf.decodeFixed32()
@@ -324,33 +324,33 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	}
 }
 
-func (u *sortedUnmarshalIter) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
+func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
 	if schema != u.schema {
-		u.skippedMessage = dynamic.NewMessage(schema)
-		u.skippedMessage.Reset()
+		u.nonCustomValues = dynamic.NewMessage(schema)
+		u.nonCustomValues.Reset()
 	}
 
 	u.schema = schema
-	u.skippedCount = 0
-	u.sortedTopLevelScalar = u.sortedTopLevelScalar[:0]
+	u.numNonCustom = 0
+	u.customValues = u.customValues[:0]
 	// TODO: pools?
 	u.decodeBuf.reset(buf)
 
 	return u.unmarshal()
 }
 
-type sortedTopLevelScalarValues []unmarshalValue
+type sortedCustomFieldValues []unmarshalValue
 
-func (s sortedTopLevelScalarValues) Len() int {
+func (s sortedCustomFieldValues) Len() int {
 	return len(s)
 }
 
-func (s sortedTopLevelScalarValues) Less(i, j int) bool {
+func (s sortedCustomFieldValues) Less(i, j int) bool {
 	// TODO: Try and remove func calls here
 	return s[i].fd.GetNumber() < s[j].fd.GetNumber()
 }
 
-func (s sortedTopLevelScalarValues) Swap(i, j int) {
+func (s sortedCustomFieldValues) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
