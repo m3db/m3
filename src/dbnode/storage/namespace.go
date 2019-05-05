@@ -1233,7 +1233,7 @@ func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
 
 func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
-	nsCtx := namespace.Context{Id: n.id, Schema: n.schemaDescr}
+	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
@@ -1242,7 +1242,7 @@ func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, e
 
 func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
-	nsCtx := namespace.Context{Id: n.id, Schema: n.schemaDescr}
+	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()

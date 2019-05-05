@@ -72,7 +72,7 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	}
 
 	testNamespaceCtx := namespace.Context{
-		Id:     testNamespace,
+		ID:     testNamespace,
 		Schema: testSchemaDesc,
 	}
 

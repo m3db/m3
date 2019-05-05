@@ -161,7 +161,7 @@ func verifyForTime(
 	for shard := range shards {
 		rOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  nsCtx.Id,
+				Namespace:  nsCtx.ID,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
@@ -174,7 +174,7 @@ func verifyForTime(
 			// same blockStart, but increasing "indexes" which indicates which one is
 			// most recent (and thus has more cumulative data).
 			filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, nsCtx.Id, shard)
+			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, nsCtx.ID, shard)
 			require.NoError(t, err)
 			latest, ok := snapshotFiles.LatestVolumeForBlock(timestamp)
 			require.True(t, ok)

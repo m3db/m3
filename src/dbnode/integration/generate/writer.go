@@ -172,7 +172,7 @@ func writeToDiskWithPredicate(
 		writerOpts := fs.DataWriterOpenOptions{
 			BlockSize: blockSize,
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  nsCtx.Id,
+				Namespace:  nsCtx.ID,
 				Shard:      shard,
 				BlockStart: start,
 			},

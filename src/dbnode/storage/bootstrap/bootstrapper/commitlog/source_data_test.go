@@ -127,9 +127,9 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 		End:   end,
 	})
 
-	foo := ts.Series{Namespace: nsCtx.Id, Shard: 0, ID: ident.StringID("foo")}
-	bar := ts.Series{Namespace: nsCtx.Id, Shard: 1, ID: ident.StringID("bar")}
-	baz := ts.Series{Namespace: nsCtx.Id, Shard: 2, ID: ident.StringID("baz")}
+	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
+	bar := ts.Series{Namespace: nsCtx.ID, Shard: 1, ID: ident.StringID("bar")}
+	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -181,7 +181,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 		End:   end,
 	})
 
-	foo := ts.Series{Namespace: nsCtx.Id, Shard: 0, ID: ident.StringID("foo")}
+	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
@@ -236,9 +236,9 @@ func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T, opts O
 
 	// All series need to be in the same shard to exercise the regression.
 	foo := ts.Series{
-		Namespace: nsCtx.Id, Shard: 0, ID: ident.StringID("foo"), UniqueIndex: 0}
+		Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo"), UniqueIndex: 0}
 	bar := ts.Series{
-		Namespace: nsCtx.Id, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
+		Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -286,7 +286,7 @@ func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, se
 		End:   end,
 	})
 
-	foo := ts.Series{Namespace: nsCtx.Id, Shard: 0, ID: ident.StringID("foo")}
+	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
@@ -332,7 +332,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 		end       = now.Truncate(blockSize)
 		ranges    = xtime.Ranges{}
 
-		foo             = ts.Series{Namespace: nsCtx.Id, Shard: 0, ID: ident.StringID("foo")}
+		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 		commitLogValues = []testValue{
 			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
@@ -378,7 +378,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	mockReader := fs.NewMockDataFileSetReader(ctrl)
 	mockReader.EXPECT().Open(fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
-			Namespace:   nsCtx.Id,
+			Namespace:   nsCtx.ID,
 			BlockStart:  start,
 			Shard:       0,
 			VolumeIndex: 0,

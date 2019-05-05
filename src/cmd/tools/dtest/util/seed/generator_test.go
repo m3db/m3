@@ -70,7 +70,7 @@ func TestGenerator(t *testing.T) {
 	defer ctrl.Finish()
 
 	shard := uint32(123)
-	require.NoError(t, generator.Generate(namespace.Context{Id: ident.StringID("testmetrics")}, shard))
+	require.NoError(t, generator.Generate(namespace.Context{ID: ident.StringID("testmetrics")}, shard))
 
 	te := newFileInfoExtractor()
 	require.NoError(t, filepath.Walk(dir, te.visit))

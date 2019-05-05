@@ -295,13 +295,13 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	assert.NoError(t, err)
 
 	now := s.getNowFn()
-	res, err := s.db.QueryIDs(ctx, nsCtx.Id, index.Query{reQuery}, index.QueryOptions{
+	res, err := s.db.QueryIDs(ctx, nsCtx.ID, index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-2 * time.Minute),
 		EndExclusive:   now.Add(2 * time.Minute),
 	})
 	require.NoError(t, err)
 	results := res.Results
-	require.Equal(t, nsCtx.Id.String(), results.Namespace().String())
+	require.Equal(t, nsCtx.ID.String(), results.Namespace().String())
 	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
 	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
 		"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
@@ -316,7 +316,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	id := ident.StringID("quorumTest")
 	start := s.getNowFn()
 	end := s.getNowFn().Add(5 * time.Minute)
-	readers, err := s.db.ReadEncoded(ctx, nsCtx.Id, id, start, end)
+	readers, err := s.db.ReadEncoded(ctx, nsCtx.ID, id, start, end)
 	require.NoError(t, err)
 
 	mIter := s.db.Options().MultiReaderIteratorPool().Get()

@@ -25,12 +25,12 @@ import (
 )
 
 type Context struct {
-	Id     ident.ID
+	ID     ident.ID
 	Schema SchemaDescr
 }
 
 func NewContextFrom(nsMetadata Metadata) Context {
-	ctx := Context{Id: nsMetadata.ID()}
+	ctx := Context{ID: nsMetadata.ID()}
 	if schema, ok := nsMetadata.Options().SchemaHistory().GetLatest(); ok {
 		ctx.Schema = schema
 	}
@@ -38,7 +38,7 @@ func NewContextFrom(nsMetadata Metadata) Context {
 }
 
 func NewContextFor(id ident.ID, registry SchemaRegistry) Context {
-	ctx := Context{Id: id}
+	ctx := Context{ID: id}
 	if schema, ok := registry.GetLatestSchema(id); ok {
 		ctx.Schema = schema
 	}
