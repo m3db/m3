@@ -332,9 +332,9 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		lastMarshaledValue            unmarshalValue
 	)
 
-	// Loop through the customFields slice and sortedUnmarshalIter (both
-	// of which are sorted by field number) at the same time and match each
-	// customField to its encoded value in the stream (if any).
+	// Loop through the customFields slice and sortedTopLevelScalarValues slice (both
+	// of which are sorted by field number) at the same time and match each customField
+	// to its encoded value in the stream (if any).
 	for i, customField := range enc.customFields {
 		if sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues) {
 			lastMarshaledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
