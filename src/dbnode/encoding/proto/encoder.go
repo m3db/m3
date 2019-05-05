@@ -407,11 +407,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		return err
 	}
 
-	skipped, err := sortedIter.skipped()
-	if err != nil {
-		return err
-	}
-
+	skipped := sortedIter.skipped()
 	if err := enc.encodeProtoValues(skipped); err != nil {
 		return err
 	}
