@@ -44,9 +44,9 @@ var (
 
 type sortedUnmarshalIterator interface {
 	sortedTopLevelScalarValues() sortedTopLevelScalarValues
-	numOtherValues() int
 	otherValues() *dynamic.Message
-	reset(schema *desc.MessageDescriptor, buf []byte) error
+	numOtherValues() int
+	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
 
 type sortedUnmarshalIter struct {
@@ -324,7 +324,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	}
 }
 
-func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) error {
+func (u *sortedUnmarshalIter) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
 	if schema != u.schema {
 		u.skippedMessage = dynamic.NewMessage(schema)
 		u.skippedMessage.Reset()
