@@ -12,7 +12,7 @@ Since the schemas for the Protobuf messages are provided dynamically (and thus e
 
 This is inefficient primarily because unmarshaling into a `*dynamic.Message` is very expensive since it involves a lot of `interface{}` magic as well as allocating a large number of very short-lived objects that are difficult to reuse. Its especially inefficient for Protobuf schemas that are optimized for this package (specifically those that make heavy use of top-level scalar fields).
 
-As a result, this package implements a `topLevelScalarUnmarshaler` that accepts a `[]byte` which constitutes a marshaled Protobuf message and returns an iterator that can be used to iterate through the the fields of the marshaled Protobuf message one at a time ordered by field number.
+As a result, this package implements a `customFieldUnmarshaler` that accepts a `[]byte` which constitutes a marshaled Protobuf message and returns an iterator that can be used to iterate through the the fields of the marshaled Protobuf message one at a time ordered by field number.
 
 This iterator is optimized such that top-level scalar fields can be iterated quickly and with zero allocations.
 

@@ -344,7 +344,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
 		if hasNext {
-			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
+			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fieldNumber)
 		}
 
 		// Since both the customFields slice and the sortedTopLevelScalarValues slice
