@@ -142,6 +142,10 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 			"%s error unmarshaling message: %v", encErrPrefix, err)
 	}
 
+	if enc.numEncoded == 0 {
+		enc.encodeStreamHeader()
+	}
+
 	var (
 		needToEncodeSchema   = !enc.hasEncodedSchema
 		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
