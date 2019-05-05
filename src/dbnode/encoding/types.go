@@ -299,8 +299,6 @@ type OStream interface {
 	Reset(buffer checked.Bytes)
 	Discard() checked.Bytes
 	Rawbytes() ([]byte, int)
-	RollbackToken() RollbackToken
-	Rollback(RollbackToken)
 }
 
 // EncoderPool provides a pool for encoders

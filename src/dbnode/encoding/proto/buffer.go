@@ -35,7 +35,7 @@ var (
 	errOverflow = errors.New("proto: integer overflow")
 )
 
-// A reader/writer type that assists with encoding and decoding protobuf's binary representation.
+// A reader/writer type that assists with decoding protobuf's binary representation.
 // This code is largely a fork of proto.Buffer, which cannot be used because it has no exported
 // field or method that provides access to its underlying reader index.
 type buffer struct {
