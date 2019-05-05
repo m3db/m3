@@ -51,14 +51,6 @@ type ostream struct {
 	bytesPool pool.CheckedBytesPool
 }
 
-// RollbackToken encapsulates the state required to rollback the ostream to a
-// previous state.
-type RollbackToken struct {
-	lastByte  byte
-	bufferPos int
-	bytePos   int
-}
-
 // NewOStream creates a new Ostream
 func NewOStream(
 	bytes checked.Bytes,

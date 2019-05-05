@@ -119,11 +119,11 @@ func TestUnmarshalIter(t *testing.T) {
 		require.NoError(t, err)
 
 		unmarshaler.resetAndUnmarshal(testVLSchema, marshaledVL)
-		topLevelScalarValues := unmarshaler.sortedTopLevelScalarValues()
+		topLevelScalarValues := unmarshaler.sortedCustomFieldValues()
 		require.Equal(t, len(tc.expectedIter), len(topLevelScalarValues))
 
 		lastFieldNum := -1
-		for i, curr := range unmarshaler.sortedTopLevelScalarValues() {
+		for i, curr := range unmarshaler.sortedCustomFieldValues() {
 			var (
 				fieldNum = curr.fd.GetNumber()
 				expected = tc.expectedIter[fieldNum]
@@ -148,14 +148,14 @@ func TestUnmarshalIter(t *testing.T) {
 		}
 
 		if len(tc.attributes) > 0 {
-			require.Equal(t, len(tc.attributes), unmarshaler.numOtherValues())
-			m := unmarshaler.otherValues()
+			require.Equal(t, len(tc.attributes), unmarshaler.numNonCustomValues())
+			m := unmarshaler.nonCustomFieldValues()
 			assertAttributesEqual(
 				t,
 				tc.attributes,
 				m.GetFieldByName("attributes").(map[interface{}]interface{}))
 		} else {
-			require.Equal(t, 0, unmarshaler.numOtherValues())
+			require.Equal(t, 0, unmarshaler.numNonCustomValues())
 		}
 	}
 }
