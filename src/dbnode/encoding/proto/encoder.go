@@ -135,7 +135,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		// Lazy init.
 		enc.sortedUnmarshalIter = newUnmarshalIter()
 	}
-	// Reset the sortedUnmarshalIterator as early as possible so that the marshaled
+	// TODO: Leave a comment here
 	if err := enc.sortedUnmarshalIter.reset(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
