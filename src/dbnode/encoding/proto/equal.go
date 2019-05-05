@@ -142,7 +142,7 @@ func mapsEqual(a, b reflect.Value) bool {
 	}
 
 	if a.Len() == 0 && b.Len() == 0 {
-		// Optimize the case where maps are always empty because MapKeys()
+		// Optimize the case where maps are frequently empty because MapKeys()
 		// function allocates heavily.
 		return true
 	}
