@@ -33,9 +33,6 @@ import (
 )
 
 var (
-	// ErrOverflow is returned when an integer is too large to be represented.
-	ErrOverflow = errors.New("proto: integer overflow")
-
 	// Groups in the Protobuf wire format are deprecated, so simplify the code significantly by
 	// not supporting them.
 	errGroupsAreNotSupported = errors.New("use of groups in proto wire format is not supported")
@@ -45,12 +42,19 @@ var (
 	zeroValue unmarshalValue
 )
 
+type sortedUnmarshalIterator interface {
+	next() bool
+	current() unmarshalValue
+	numSkipped() int
+	skipped() (*dynamic.Message, error)
+	reset(schema *desc.MessageDescriptor, buf []byte) error
+	err() error
+}
+
 type sortedUnmarshalIter struct {
 	schema *desc.MessageDescriptor
 
 	decodeBuf *buffer
-
-	findAllFieldOffsetsComplete bool
 
 	last unmarshalValue
 
@@ -67,7 +71,6 @@ type sortedUnmarshalIter struct {
 	e error
 }
 
-// Implement Sort interface because sort.Slice allocates.
 type sortedOffsets []sortedOffset
 
 type skippedOffsets []skippedOffset
@@ -83,59 +86,13 @@ type skippedOffset struct {
 	length int
 }
 
-func (s sortedOffsets) Len() int {
-	return len(s)
-}
-
-func (s sortedOffsets) Less(i, j int) bool {
-	return s[i].offset < s[j].offset
-}
-
-func (s sortedOffsets) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-type unmarshalValue struct {
-	fd    *desc.FieldDescriptor
-	v     uint64
-	bytes []byte
-}
-
-func (v *unmarshalValue) asBool() bool {
-	return v.v != 0
-}
-
-func (v *unmarshalValue) asUint64() uint64 {
-	return v.v
-}
-
-func (v *unmarshalValue) asInt64() int64 {
-	return int64(v.v)
-}
-
-func (v *unmarshalValue) asFloat64() float64 {
-	return math.Float64frombits(v.v)
-}
-
-func (v *unmarshalValue) asBytes() []byte {
-	return v.bytes
-}
-
-func newUnmarshalIter() *sortedUnmarshalIter {
+func newUnmarshalIter() sortedUnmarshalIterator {
 	return &sortedUnmarshalIter{
 		decodeBuf: newCodedBuffer(nil),
 	}
 }
 
 func (u *sortedUnmarshalIter) next() bool {
-	if !u.findAllFieldOffsetsComplete {
-		err := u.findAllFieldOffsets()
-		if err != nil {
-			u.e = err
-			return false
-		}
-	}
-
 	if !u.hasNext() {
 		return false
 	}
@@ -204,13 +161,18 @@ func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
 			return fmt.Errorf("encountered unknown field with tag: %d", tag)
 		}
 
-		_, err = u.skip(tag, wireType)
+		shouldSkip := u.shouldSkip(fd)
+		if shouldSkip {
+			_, err = u.skip(wireType)
+		} else {
+			_, err = u.unmarshalKnownField(fd, wireType)
+		}
 		if err != nil {
 			return err
 		}
 
 		length := u.decodeBuf.index - tagAndWireTypeStartOffset
-		if u.shouldSkip(fd) {
+		if shouldSkip {
 			skippedOffset := skippedOffset{offset: tagAndWireTypeStartOffset, length: length}
 			u.skippedOffsets = append(u.skippedOffsets, skippedOffset)
 			u.skippedCount++
@@ -237,7 +199,6 @@ func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
 		sort.Sort(u.sortedOffsets)
 	}
 
-	u.findAllFieldOffsetsComplete = true
 	return nil
 }
 
@@ -279,7 +240,7 @@ func (u *sortedUnmarshalIter) shouldSkip(fd *desc.FieldDescriptor) bool {
 // wiretype have already been decoded). Additionally, it can optionally re-encode
 // the skipped <tag,wireType,value> tuple into the skippedBuf stream so that it can
 // be handled later.
-func (u *sortedUnmarshalIter) skip(tag int32, wireType int8) (int, error) {
+func (u *sortedUnmarshalIter) skip(wireType int8) (int, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		numSkipped := 4
@@ -444,7 +405,7 @@ func (u *sortedUnmarshalIter) err() error {
 	return u.e
 }
 
-func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) {
+func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) error {
 	if schema != u.schema {
 		u.skippedMessage = dynamic.NewMessage(schema)
 		u.skippedMessage.Reset()
@@ -454,10 +415,49 @@ func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) 
 	u.last = unmarshalValue{}
 	u.e = nil
 	u.skippedCount = 0
-	u.findAllFieldOffsetsComplete = false
 	u.sortedOffsets = u.sortedOffsets[:0]
 	u.skippedOffsets = u.skippedOffsets[:0]
 	u.sortedOffsetsIdx = 0
 	// TODO: pools?
 	u.decodeBuf.reset(buf)
+
+	return u.findAllFieldOffsets()
+}
+
+func (s sortedOffsets) Len() int {
+	return len(s)
+}
+
+func (s sortedOffsets) Less(i, j int) bool {
+	return s[i].offset < s[j].offset
+}
+
+func (s sortedOffsets) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+type unmarshalValue struct {
+	fd    *desc.FieldDescriptor
+	v     uint64
+	bytes []byte
+}
+
+func (v *unmarshalValue) asBool() bool {
+	return v.v != 0
+}
+
+func (v *unmarshalValue) asUint64() uint64 {
+	return v.v
+}
+
+func (v *unmarshalValue) asInt64() int64 {
+	return int64(v.v)
+}
+
+func (v *unmarshalValue) asFloat64() float64 {
+	return math.Float64frombits(v.v)
+}
+
+func (v *unmarshalValue) asBytes() []byte {
+	return v.bytes
 }
