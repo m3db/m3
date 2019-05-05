@@ -80,10 +80,6 @@ func TestUnmarshalIter(t *testing.T) {
 					fieldNumber: 2,
 					v:           math.Float64bits(1.1),
 				},
-				// TODO: Leave a comment about this in the docs
-				// 3: {
-				// 	int64Val: 0,
-				// },
 				4: {
 					fieldNumber: 4,
 					bytes:       []byte("123123123123"),
