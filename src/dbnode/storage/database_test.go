@@ -602,6 +602,11 @@ func TestDatabaseAddNamespace(t *testing.T) {
 }
 
 func TestDatabaseUpdateNamespace(t *testing.T) {
+	// Clear schema registry as database option is shared.
+	defer func() {
+		defaultTestDatabaseOptions = defaultTestDatabaseOptions.SetSchemaRegistry(namespace.NewSchemaRegistry())
+	}()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -648,36 +653,17 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	ns2, ok := d.Namespace(defaultTestNs2ID)
 	require.True(t, ok)
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
-}
 
-func TestDatabaseUpdateScheamRegistry(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	// Ensure schema is set for ns2
+	require.Nil(t, ns1.Schema())
+	require.NotNil(t, ns2.Schema())
+	_, ok = d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs2ID)
+	require.True(t, ok)
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
-	require.NoError(t, d.Open())
-	defer func() {
-		close(mapCh)
-		require.NoError(t, d.Close())
-		leaktest.CheckTimeout(t, time.Second)()
-	}()
-
-	// retrieve the update channel to track propatation
-	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
-
-	// check initial namespaces
-	nses := d.Namespaces()
-	require.Len(t, nses, 2)
-
-	sr, err := namespace.LoadSchemaHistory(testSchemaOptions)
-
-	// construct new namespace Map
-	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
-	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
+	// Update ns1 schema
+	md1, err = namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetSchemaHistory(sr))
 	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts.SetSchemaHistory(sr))
-	require.NoError(t, err)
-	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	nsMap, err = namespace.NewMap([]namespace.Metadata{md1})
 	require.NoError(t, err)
 
 	// update the database watch with new Map
@@ -685,16 +671,23 @@ func TestDatabaseUpdateScheamRegistry(t *testing.T) {
 
 	// wait till the update has propagated
 	<-updateCh
-	<-updateCh
 	time.Sleep(10 * time.Millisecond)
 
-	// ensure schema registry is updated
-	_, ok := d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs1ID)
-	require.False(t, ok)
-	actualSchema, found := d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs2ID)
-	require.True(t, found)
-	expectedSchema, _ := sr.GetLatest()
-	require.True(t, expectedSchema.Equal(actualSchema))
+	// Ensure the namespaces have old properties
+	nses = d.Namespaces()
+	require.Len(t, nses, 2)
+	ns1, ok = d.Namespace(defaultTestNs1ID)
+	require.True(t, ok)
+	ns2, ok = d.Namespace(defaultTestNs2ID)
+	require.True(t, ok)
+
+	// Ensure schema is set for ns1
+	require.NotNil(t, ns1.Schema())
+	require.NotNil(t, ns2.Schema())
+
+	_, ok = d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs1ID)
+	require.True(t, ok)
+
 }
 
 func TestDatabaseNamespaceIndexFunctions(t *testing.T) {

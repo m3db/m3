@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -634,6 +635,41 @@ func (mr *MockSchemaHistoryMockRecorder) GetLatest() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatest", reflect.TypeOf((*MockSchemaHistory)(nil).GetLatest))
 }
 
+// MockSchemaListener is a mock of SchemaListener interface
+type MockSchemaListener struct {
+	ctrl     *gomock.Controller
+	recorder *MockSchemaListenerMockRecorder
+}
+
+// MockSchemaListenerMockRecorder is the mock recorder for MockSchemaListener
+type MockSchemaListenerMockRecorder struct {
+	mock *MockSchemaListener
+}
+
+// NewMockSchemaListener creates a new mock instance
+func NewMockSchemaListener(ctrl *gomock.Controller) *MockSchemaListener {
+	mock := &MockSchemaListener{ctrl: ctrl}
+	mock.recorder = &MockSchemaListenerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSchemaListener) EXPECT() *MockSchemaListenerMockRecorder {
+	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockSchemaListener) SetSchema(value SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", value)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockSchemaListenerMockRecorder) SetSchema(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockSchemaListener)(nil).SetSchema), value)
+}
+
 // MockSchemaRegistry is a mock of SchemaRegistry interface
 type MockSchemaRegistry struct {
 	ctrl     *gomock.Controller
@@ -699,6 +735,33 @@ func (m *MockSchemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory
 func (mr *MockSchemaRegistryMockRecorder) SetSchemaHistory(id, history interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaHistory", reflect.TypeOf((*MockSchemaRegistry)(nil).SetSchemaHistory), id, history)
+}
+
+// RegisterListener mocks base method
+func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (close.SimpleCloser, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterListener", id, listener)
+	ret0, _ := ret[0].(close.SimpleCloser)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// RegisterListener indicates an expected call of RegisterListener
+func (mr *MockSchemaRegistryMockRecorder) RegisterListener(id, listener interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterListener", reflect.TypeOf((*MockSchemaRegistry)(nil).RegisterListener), id, listener)
+}
+
+// Close mocks base method
+func (m *MockSchemaRegistry) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockSchemaRegistryMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSchemaRegistry)(nil).Close))
 }
 
 // MockMetadata is a mock of Metadata interface

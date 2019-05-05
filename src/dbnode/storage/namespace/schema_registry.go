@@ -21,29 +21,28 @@
 package namespace
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/x/ident"
-	"fmt"
+	xclose "github.com/m3db/m3/src/x/close"
+	xwatch "github.com/m3db/m3/src/x/watch"
 )
-
-var (
-	defaultSchemaRegistry = newSchemaRegistry()
-)
-
 
 type schemaRegistry struct {
 	sync.RWMutex
 
-	registry map[string]SchemaHistory
+	registry map[string]xwatch.Watchable
 }
 
 func NewSchemaRegistry() SchemaRegistry {
-	return defaultSchemaRegistry
+	return newSchemaRegistry()
 }
 
 func newSchemaRegistry() SchemaRegistry {
-	return &schemaRegistry{registry: make(map[string]SchemaHistory)}
+	return &schemaRegistry{
+		registry: make(map[string]xwatch.Watchable),
+	}
 }
 
 func (sr *schemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) error {
@@ -52,20 +51,19 @@ func (sr *schemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) e
 
 	current, ok := sr.registry[id.String()]
 	if ok {
-		if !history.Extends(current) {
+		if !history.Extends(current.Get().(SchemaHistory)) {
 			return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
 		}
+	} else {
+		sr.registry[id.String()] = xwatch.NewWatchable()
 	}
 
-	sr.registry[id.String()] = history
+	sr.registry[id.String()].Update(history)
 	return nil
 }
 
 func (sr *schemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, bool) {
-	sr.RLock()
-	defer sr.RUnlock()
-
-	history, ok := sr.registry[id.String()]
+	history, ok := sr.getSchemaHistory(id)
 	if !ok {
 		return nil, false
 	}
@@ -73,6 +71,14 @@ func (sr *schemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, bool) {
 }
 
 func (sr *schemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool) {
+	history, ok := sr.getSchemaHistory(id)
+	if !ok {
+		return nil, false
+	}
+	return history.Get(schemaId)
+}
+
+func (sr *schemaRegistry) getSchemaHistory(id ident.ID) (SchemaHistory, bool) {
 	sr.RLock()
 	defer sr.RUnlock()
 
@@ -80,5 +86,50 @@ func (sr *schemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, 
 	if !ok {
 		return nil, false
 	}
-	return history.Get(schemaId)
+	return history.Get().(SchemaHistory), true
+}
+
+
+func (sr *schemaRegistry) RegisterListener(
+	nsID ident.ID,
+	listener SchemaListener,
+) (xclose.SimpleCloser, bool) {
+	sr.RLock()
+	defer sr.RUnlock()
+
+	watchable, ok := sr.registry[nsID.String()]
+	if !ok {
+		return nil, false
+	}
+
+	_, watch, _ := watchable.Watch()
+
+	// We always initialize the watchable so always read
+	// the first notification value
+	<-watch.C()
+
+	// Deliver the current schema
+	if schema, ok := watchable.Get().(SchemaHistory).GetLatest(); ok {
+		listener.SetSchema(schema)
+	}
+
+	// Spawn a new goroutine that will terminate when the
+	// watchable terminates on the close of the runtime options manager
+	go func() {
+		for range watch.C() {
+			if schema, ok := watchable.Get().(SchemaHistory).GetLatest(); ok {
+				listener.SetSchema(schema)
+			}
+		}
+	}()
+
+	return watch, true
+}
+
+func (sr *schemaRegistry) Close() {
+	sr.RLock()
+	defer sr.RUnlock()
+	for _, w := range sr.registry {
+		w.Close()
+	}
 }

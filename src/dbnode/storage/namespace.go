@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -117,7 +118,8 @@ type dbNamespace struct {
 
 	// schemaDescr caches the latest schema for the namespace.
 	// schemaDescr is updated whenver schema registry is updated.
-	schemaDescr        namespace.SchemaDescr
+	schemaListener xclose.SimpleCloser
+	schemaDescr    namespace.SchemaDescr
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -348,10 +350,23 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
+	sl, ok := opts.SchemaRegistry().RegisterListener(id, n)
+	if !ok {
+		n.log.Warn("unable to registry schema listener",
+		zap.Stringer("namespace", n.id))
+	}
+	n.schemaListener = sl
 	n.initShards(nopts.BootstrapEnabled())
 	go n.reportStatusLoop()
 
 	return n, nil
+}
+
+// SetSchema implements namespace.SchemaListener.
+func (n *dbNamespace) SetSchema(value namespace.SchemaDescr) {
+	n.Lock()
+	n.schemaDescr = value
+	n.Unlock()
 }
 
 func (n *dbNamespace) reportStatusLoop() {
@@ -380,6 +395,13 @@ func (n *dbNamespace) Options() namespace.Options {
 
 func (n *dbNamespace) ID() ident.ID {
 	return n.id
+}
+
+func (n *dbNamespace) Schema() namespace.SchemaDescr {
+	n.RLock()
+	schema := n.schemaDescr
+	n.RUnlock()
+	return schema
 }
 
 func (n *dbNamespace) NumSeries() int64 {
@@ -579,7 +601,7 @@ func (n *dbNamespace) Write(
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
-		SchemaDesc: nsCtx.Schema,
+		SchemaDesc:   nsCtx.Schema,
 	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
@@ -608,7 +630,7 @@ func (n *dbNamespace) WriteTagged(
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
-		SchemaDesc: nsCtx.Schema,
+		SchemaDesc:   nsCtx.Schema,
 	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
 		value, unit, annotation, opts)
@@ -768,7 +790,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	}
 
 	var (
-		owned = n.GetOwnedShards()
+		owned  = n.GetOwnedShards()
 		shards = make([]databaseShard, 0, len(owned))
 	)
 	for _, shard := range owned {
@@ -1290,6 +1312,9 @@ func (n *dbNamespace) Close() error {
 	close(n.shutdownCh)
 	if n.reverseIndex != nil {
 		return n.reverseIndex.Close()
+	}
+	if n.schemaListener != nil {
+		n.schemaListener.Close()
 	}
 	return nil
 }

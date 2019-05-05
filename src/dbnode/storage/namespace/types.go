@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // Options controls namespace behavior
@@ -145,6 +146,13 @@ type SchemaHistory interface {
 	GetLatest() (SchemaDescr, bool)
 }
 
+// SchemaListener listens for updates to schema registry for a namespace.
+type SchemaListener interface {
+	// SetSchema is called when the listener is registered
+	// and when any updates occurred passing the new schema history.
+	SetSchema(value SchemaDescr)
+}
+
 // SchemaRegistry represents the schema registry for a database.
 // It is where dynamic schema updates are delivered into,
 // and where schema is retrieved from at series read and write path.
@@ -152,6 +160,8 @@ type SchemaRegistry interface {
 	GetLatestSchema(id ident.ID) (SchemaDescr, bool)
 	GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool)
 	SetSchemaHistory(id ident.ID, history SchemaHistory) error
+	RegisterListener(id ident.ID, listener SchemaListener) (xclose.SimpleCloser, bool)
+	Close()
 }
 
 // Metadata represents namespace metadata information

@@ -941,6 +941,20 @@ func (mr *MockNamespaceMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockNamespace)(nil).ID))
 }
 
+// Schema mocks base method
+func (m *MockNamespace) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockNamespaceMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockNamespace)(nil).Schema))
+}
+
 // NumSeries mocks base method
 func (m *MockNamespace) NumSeries() int64 {
 	m.ctrl.T.Helper()
@@ -1018,6 +1032,20 @@ func (m *MockdatabaseNamespace) ID() ident.ID {
 func (mr *MockdatabaseNamespaceMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseNamespace)(nil).ID))
+}
+
+// Schema mocks base method
+func (m *MockdatabaseNamespace) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockdatabaseNamespaceMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockdatabaseNamespace)(nil).Schema))
 }
 
 // NumSeries mocks base method

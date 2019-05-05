@@ -68,6 +68,11 @@ type options struct {
 	schemaHis         SchemaHistory
 }
 
+// NewSchemaHistory returns an empty schema history.
+func NewSchemaHistory() SchemaHistory {
+	return emptySchemaHistory()
+}
+
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
@@ -80,7 +85,7 @@ func NewOptions() Options {
 		coldWritesEnabled: defaultColdWritesEnabled,
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
-		schemaHis:         emptySchemaHistory(),
+		schemaHis:         NewSchemaHistory(),
 	}
 }
 

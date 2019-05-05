@@ -233,6 +233,9 @@ type Namespace interface {
 	// ID returns the ID of the namespace
 	ID() ident.ID
 
+	// Schema returns the schema of the namespace.
+	Schema() namespace.SchemaDescr
+
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
 
