@@ -199,7 +199,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	vl2WriteTime := vl1WriteTime.Add(time.Second)
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
 	require.Equal(t,
-		"proto encoder: error unmarshaling message: encountered unknown field with tag: 6",
+		"proto encoder: error unmarshaling message: encountered unknown field with field number: 6",
 		err.Error())
 
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
