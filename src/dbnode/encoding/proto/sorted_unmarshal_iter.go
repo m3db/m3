@@ -50,18 +50,21 @@ type sortedUnmarshalIter struct {
 
 	decodeBuf *buffer
 
-	calculateSortedOffsetsComplete bool
+	findAllFieldOffsetsComplete bool
 
 	last unmarshalValue
 
+	// The offsets of fields that will be directly exposed by the iterator.
 	sortedOffsets    sortedOffsets
 	sortedOffsetsIdx int
 
+	// The offsets of fields that the iterator will skip over, but will make
+	// available in the *dynamic.Message returned by Skipped().
 	skippedOffsets skippedOffsets
-
 	skippedMessage *dynamic.Message
 	skippedCount   int
-	e              error
+
+	e error
 }
 
 // Implement Sort interface because sort.Slice allocates.
@@ -125,8 +128,8 @@ func newUnmarshalIter() *sortedUnmarshalIter {
 }
 
 func (u *sortedUnmarshalIter) next() bool {
-	if !u.calculateSortedOffsetsComplete {
-		err := u.calculateSortedOffsets()
+	if !u.findAllFieldOffsetsComplete {
+		err := u.findAllFieldOffsets()
 		if err != nil {
 			u.e = err
 			return false
@@ -168,10 +171,16 @@ func (u *sortedUnmarshalIter) skipped() (*dynamic.Message, error) {
 	return u.skippedMessage, nil
 }
 
-// calculateSortedOffsets calculates the sorted offsets for all the encoded
-// fields in the marshaled protobuf so that they can subsequently be iterated
-// in sorted order.
-func (u *sortedUnmarshalIter) calculateSortedOffsets() error {
+// findAllFieldOffsets iterates through the message (skipping over values) to
+// find the offset for every field and buckets them into two groups:
+//
+// 1) Those that will be exposed by the iterator directly.
+// 2) Those that will be skipped and subsequently unmarshaled into a
+//    *dynamic.Message.
+//
+// This pre-processing is required to ensure that the iterator provides values
+// in sorted order by field number.
+func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
 	u.sortedOffsets = u.sortedOffsets[:0]
 	u.sortedOffsetsIdx = 0
 
@@ -228,7 +237,7 @@ func (u *sortedUnmarshalIter) calculateSortedOffsets() error {
 		sort.Sort(u.sortedOffsets)
 	}
 
-	u.calculateSortedOffsetsComplete = true
+	u.findAllFieldOffsetsComplete = true
 	return nil
 }
 
@@ -445,7 +454,7 @@ func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) 
 	u.last = unmarshalValue{}
 	u.e = nil
 	u.skippedCount = 0
-	u.calculateSortedOffsetsComplete = false
+	u.findAllFieldOffsetsComplete = false
 	u.sortedOffsets = u.sortedOffsets[:0]
 	u.skippedOffsets = u.skippedOffsets[:0]
 	u.sortedOffsetsIdx = 0
