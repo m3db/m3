@@ -130,7 +130,7 @@ func (u *customUnmarshaler) unmarshal() error {
 		if isSorted && len(u.customValues) > 1 {
 			// Check if the slice is sorted as its built to avoid resorting
 			// unnecessarily at the end.
-			lastFieldNum := u.customValues[len(u.customValues)-1].fd.GetNumber()
+			lastFieldNum := u.customValues[len(u.customValues)-1].fieldNumber
 			if fieldNum < lastFieldNum {
 				isSorted = false
 			}
@@ -255,8 +255,7 @@ func (u *customUnmarshaler) unmarshalKnownField(fd *desc.FieldDescriptor, wireTy
 			return zeroValue, err
 		}
 
-		val := unmarshalValue{fd: fd}
-		val.bytes = raw
+		val := unmarshalValue{fieldNumber: fd.GetNumber(), bytes: raw}
 		return val, nil
 
 	case proto.WireStartGroup:
@@ -267,7 +266,7 @@ func (u *customUnmarshaler) unmarshalKnownField(fd *desc.FieldDescriptor, wireTy
 }
 
 func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, error) {
-	val := unmarshalValue{fd: fd, v: v}
+	val := unmarshalValue{fieldNumber: fd.GetNumber(), v: v}
 	switch fd.GetType() {
 	case dpb.FieldDescriptorProto_TYPE_BOOL,
 		dpb.FieldDescriptorProto_TYPE_UINT64,
@@ -346,8 +345,7 @@ func (s sortedCustomFieldValues) Len() int {
 }
 
 func (s sortedCustomFieldValues) Less(i, j int) bool {
-	// TODO: Try and remove func calls here
-	return s[i].fd.GetNumber() < s[j].fd.GetNumber()
+	return s[i].fieldNumber < s[j].fieldNumber
 }
 
 func (s sortedCustomFieldValues) Swap(i, j int) {
@@ -355,9 +353,9 @@ func (s sortedCustomFieldValues) Swap(i, j int) {
 }
 
 type unmarshalValue struct {
-	fd    *desc.FieldDescriptor
-	v     uint64
-	bytes []byte
+	fieldNumber int32
+	v           uint64
+	bytes       []byte
 }
 
 func (v *unmarshalValue) asBool() bool {
