@@ -23,7 +23,6 @@ package proto
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -144,12 +143,12 @@ func TestRoundTrip(t *testing.T) {
 
 	// Add some sanity to make sure that the compression (especially string compression)
 	// is working properly.
-	// numExpectedBytes := 231
-	// require.Equal(t, numExpectedBytes, enc.Stats().CompressedBytes)
+	numExpectedBytes := 231
+	require.Equal(t, numExpectedBytes, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
-	// require.Equal(t, numExpectedBytes, len(rawBytes))
+	require.Equal(t, numExpectedBytes, len(rawBytes))
 
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
@@ -162,7 +161,6 @@ func TestRoundTrip(t *testing.T) {
 		)
 		m := dynamic.NewMessage(testVLSchema)
 		require.NoError(t, m.Unmarshal(annotation))
-		fmt.Println(m.String())
 
 		require.Equal(t, unit, xtime.Second)
 		require.True(t, tc.timestamp.Equal(dp.Timestamp))
