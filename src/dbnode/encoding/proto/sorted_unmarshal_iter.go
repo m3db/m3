@@ -58,9 +58,8 @@ type sortedUnmarshalIter struct {
 
 	last unmarshalValue
 
-	// The offsets of fields that will be directly exposed by the iterator.
-	sortedOffsets    sortedOffsets
-	sortedOffsetsIdx int
+	sortedTopLevelScalar    sortedTopLevelScalarValues
+	sortedTopLevelScalarIdx int
 
 	// The offsets of fields that the iterator will skip over, but will make
 	// available in the *dynamic.Message returned by Skipped().
@@ -71,15 +70,7 @@ type sortedUnmarshalIter struct {
 	e error
 }
 
-type sortedOffsets []sortedOffset
-
 type skippedOffsets []skippedOffset
-
-type sortedOffset struct {
-	offset   int
-	fd       *desc.FieldDescriptor
-	wireType int8
-}
 
 type skippedOffset struct {
 	offset int
@@ -97,11 +88,8 @@ func (u *sortedUnmarshalIter) next() bool {
 		return false
 	}
 
-	err := u.unmarshalField()
-	if err != nil {
-		u.e = err
-		return false
-	}
+	u.last = u.sortedTopLevelScalar[u.sortedTopLevelScalarIdx]
+	u.sortedTopLevelScalarIdx++
 
 	return true
 }
@@ -138,85 +126,60 @@ func (u *sortedUnmarshalIter) skipped() (*dynamic.Message, error) {
 // This pre-processing is required to ensure that the iterator provides values
 // in sorted order by field number.
 func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
-	u.sortedOffsets = u.sortedOffsets[:0]
-	u.sortedOffsetsIdx = 0
+	u.sortedTopLevelScalar = u.sortedTopLevelScalar[:0]
+	u.sortedTopLevelScalarIdx = 0
 
 	u.skippedOffsets = u.skippedOffsets[:0]
 
 	isSorted := true
 	for !u.decodeBuf.eof() {
-		// This offset is used for skipped fields that will be unmarshaled by the protobuf
-		// library which will expect to decode the tag and wire type on its own.
 		tagAndWireTypeStartOffset := u.decodeBuf.index
-		tag, wireType, err := u.decodeBuf.decodeTagAndWireType()
+		fieldNum, wireType, err := u.decodeBuf.decodeTagAndWireType()
 		if err != nil {
 			return err
 		}
-		// This offset is used for non-skipped fields so that the iterator can avoid
-		// decoding the tag and wire type again.
-		valueStartOffset := u.decodeBuf.index
 
-		fd := u.schema.FindFieldByNumber(tag)
+		fd := u.schema.FindFieldByNumber(fieldNum)
 		if fd == nil {
-			return fmt.Errorf("encountered unknown field with tag: %d", tag)
+			return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
 		}
 
 		shouldSkip := u.shouldSkip(fd)
 		if shouldSkip {
 			_, err = u.skip(wireType)
-		} else {
-			_, err = u.unmarshalKnownField(fd, wireType)
-		}
-		if err != nil {
-			return err
-		}
+			if err != nil {
+				return err
+			}
 
-		length := u.decodeBuf.index - tagAndWireTypeStartOffset
-		if shouldSkip {
+			length := u.decodeBuf.index - tagAndWireTypeStartOffset
 			skippedOffset := skippedOffset{offset: tagAndWireTypeStartOffset, length: length}
 			u.skippedOffsets = append(u.skippedOffsets, skippedOffset)
 			u.skippedCount++
 			continue
 		}
 
-		if isSorted && len(u.sortedOffsets) > 1 {
+		value, err := u.unmarshalKnownField(fd, wireType)
+		if err != nil {
+			return err
+		}
+
+		if isSorted && len(u.sortedTopLevelScalar) > 1 {
 			// Check if the slice is sorted as its built to avoid resorting
 			// unnecessarily at the end.
-			lastOffset := u.sortedOffsets[len(u.sortedOffsets)-1].offset
-			if tagAndWireTypeStartOffset < lastOffset {
+			lastFieldNum := u.sortedTopLevelScalar[len(u.sortedTopLevelScalar)-1].fd.GetNumber()
+			if fieldNum < lastFieldNum {
 				isSorted = false
 			}
 		}
 
-		sortedOffset := sortedOffset{offset: valueStartOffset, fd: fd, wireType: wireType}
-		u.sortedOffsets = append(u.sortedOffsets, sortedOffset)
+		u.sortedTopLevelScalar = append(u.sortedTopLevelScalar, value)
 	}
 
 	u.decodeBuf.reset(u.decodeBuf.buf)
 
 	if !isSorted {
 		// Avoid resorting if possible.
-		sort.Sort(u.sortedOffsets)
-	}
-
-	return nil
-}
-
-func (u *sortedUnmarshalIter) swapFn(i, j int) bool {
-	return u.sortedOffsets[i].offset < u.sortedOffsets[j].offset
-}
-
-func (u *sortedUnmarshalIter) unmarshalField() error {
-	// Reposition the decodeBuf to the correct offset so that it decodes the next
-	// value according to correct sort order.
-	sortedOffset := u.sortedOffsets[u.sortedOffsetsIdx]
-	u.decodeBuf.index = sortedOffset.offset
-	u.sortedOffsetsIdx++
-
-	var err error
-	u.last, err = u.unmarshalKnownField(sortedOffset.fd, sortedOffset.wireType)
-	if err != nil {
-		return err
+		sort.Sort(u.sortedTopLevelScalar)
 	}
 
 	return nil
@@ -398,7 +361,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 }
 
 func (u *sortedUnmarshalIter) hasNext() bool {
-	return u.sortedOffsetsIdx < len(u.sortedOffsets) && u.e == nil
+	return u.sortedTopLevelScalarIdx < len(u.sortedTopLevelScalar) && u.e == nil
 }
 
 func (u *sortedUnmarshalIter) err() error {
@@ -415,24 +378,27 @@ func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) 
 	u.last = unmarshalValue{}
 	u.e = nil
 	u.skippedCount = 0
-	u.sortedOffsets = u.sortedOffsets[:0]
+	u.sortedTopLevelScalar = u.sortedTopLevelScalar[:0]
 	u.skippedOffsets = u.skippedOffsets[:0]
-	u.sortedOffsetsIdx = 0
+	u.sortedTopLevelScalarIdx = 0
 	// TODO: pools?
 	u.decodeBuf.reset(buf)
 
 	return u.findAllFieldOffsets()
 }
 
-func (s sortedOffsets) Len() int {
+type sortedTopLevelScalarValues []unmarshalValue
+
+func (s sortedTopLevelScalarValues) Len() int {
 	return len(s)
 }
 
-func (s sortedOffsets) Less(i, j int) bool {
-	return s[i].offset < s[j].offset
+func (s sortedTopLevelScalarValues) Less(i, j int) bool {
+	// TODO: Try and remove func calls here
+	return s[i].fd.GetNumber() < s[j].fd.GetNumber()
 }
 
-func (s sortedOffsets) Swap(i, j int) {
+func (s sortedTopLevelScalarValues) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
