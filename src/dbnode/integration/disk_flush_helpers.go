@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
+	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/ident/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -147,7 +148,7 @@ func verifyForTime(
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
-	namespace ident.ID,
+	nsCtx ns.Context,
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
 ) {
@@ -160,7 +161,7 @@ func verifyForTime(
 	for shard := range shards {
 		rOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  namespace,
+				Namespace:  nsCtx.Id,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
@@ -173,7 +174,7 @@ func verifyForTime(
 			// same blockStart, but increasing "indexes" which indicates which one is
 			// most recent (and thus has more cumulative data).
 			filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, namespace, shard)
+			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, nsCtx.Id, shard)
 			require.NoError(t, err)
 			latest, ok := snapshotFiles.LatestVolumeForBlock(timestamp)
 			require.True(t, ok)
@@ -191,7 +192,7 @@ func verifyForTime(
 
 			var datapoints []generate.TestValue
 			it := iteratorPool.Get()
-			it.Reset(bytes.NewBuffer(data.Bytes()))
+			it.Reset(bytes.NewBuffer(data.Bytes()), nsCtx.Schema)
 			for it.Next() {
 				dp, _, ann := it.Current()
 				datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: ann})
@@ -218,17 +219,18 @@ func verifyFlushedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	storageOpts storage.Options,
-	namespace ident.ID,
+	nsID ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
 	iteratorPool := storageOpts.ReaderIteratorPool()
+	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(
 			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
-			namespace, persist.FileSetFlushType, seriesList)
+			nsCtx, persist.FileSetFlushType, seriesList)
 	}
 }
 
@@ -236,18 +238,18 @@ func verifySnapshottedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	storageOpts storage.Options,
-	namespace ident.ID,
+	nsID ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
 	iteratorPool := storageOpts.ReaderIteratorPool()
+	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for blockStart, seriesList := range seriesMaps {
-
 		verifyForTime(
 			t, storageOpts, reader, shardSet, iteratorPool, blockStart.ToTime(),
-			namespace, persist.FileSetSnapshotType, seriesList)
+			nsCtx, persist.FileSetSnapshotType, seriesList)
 	}
 
 }

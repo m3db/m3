@@ -39,6 +39,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func TestWriteTaggedNormalQuorumOnlyOneUp(t *testing.T) {
@@ -288,18 +289,19 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
+	nsCtx := namespace.NewContextFor(testNamespaces[0], s.schemaReg)
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
 	now := s.getNowFn()
-	res, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{
+	res, err := s.db.QueryIDs(ctx, nsCtx.Id, index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-2 * time.Minute),
 		EndExclusive:   now.Add(2 * time.Minute),
 	})
 	require.NoError(t, err)
 	results := res.Results
-	require.Equal(t, testNamespaces[0].String(), results.Namespace().String())
+	require.Equal(t, nsCtx.Id.String(), results.Namespace().String())
 	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
 	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
 		"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
@@ -314,11 +316,11 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	id := ident.StringID("quorumTest")
 	start := s.getNowFn()
 	end := s.getNowFn().Add(5 * time.Minute)
-	readers, err := s.db.ReadEncoded(ctx, testNamespaces[0], id, start, end)
+	readers, err := s.db.ReadEncoded(ctx, nsCtx.Id, id, start, end)
 	require.NoError(t, err)
 
 	mIter := s.db.Options().MultiReaderIteratorPool().Get()
-	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers))
+	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers), nsCtx.Schema)
 	defer mIter.Close()
 	for mIter.Next() {
 		dp, _, _ := mIter.Current()
