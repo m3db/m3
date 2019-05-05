@@ -200,8 +200,7 @@ func testSetupToSeriesMaps(
 			reader, err := blk.Stream(ctx)
 			require.NoError(t, err)
 			readerIter := iterPool.Get()
-			readerIter.SetSchema(nsCtx.Schema)
-			readerIter.Reset(reader)
+			readerIter.Reset(reader, nsCtx.Schema)
 
 			var datapoints []generate.TestValue
 			for readerIter.Next() {

@@ -33,6 +33,7 @@ import (
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -284,7 +285,7 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader) encoding.ReaderIterator {
+	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})

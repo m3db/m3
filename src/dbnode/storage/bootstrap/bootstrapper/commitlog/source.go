@@ -751,8 +751,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		}
 		if !wroteExisting {
 			enc := encoderPool.Get()
-			enc.SetSchema(nsCtx.Schema)
-			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
+			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 
 			err = enc.Encode(dp, unit, annotation)
 			if err == nil {
@@ -1026,12 +1025,10 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		iter := multiReaderIteratorPool.Get()
-		iter.SetSchema(nsCtx.Schema)
-		iter.Reset(readers, time.Time{}, 0)
+		iter.Reset(readers, time.Time{}, 0, nsCtx.Schema)
 
 		enc := encoderPool.Get()
-		enc.SetSchema(nsCtx.Schema)
-		enc.Reset(start, blopts.DatabaseBlockAllocSize())
+		enc.Reset(start, blopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
 			encodeErr := enc.Encode(dp, unit, annotation)

@@ -350,17 +350,21 @@ func (enc *Encoder) encodeProto(m *dynamic.Message) error {
 func (enc *Encoder) Reset(
 	start time.Time,
 	capacity int,
+	descr namespace.SchemaDescr,
 ) {
+	enc.SetSchema(descr)
 	enc.reset(start, capacity)
 }
 
-// SetSchema sets the encoders schema.
-// TODO(rartoul): Add support for changing the schema (and updating the ordering
-// of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
 func (enc *Encoder) SetSchema(descr namespace.SchemaDescr) {
 	if descr == nil {
 		enc.schemaDesc = nil
-		enc.schema = nil
+		enc.resetSchema(nil)
+		return
+	}
+
+	// Noop if schema has not changed.
+	if enc.schemaDesc != nil && len(descr.DeployId()) != 0 && enc.schemaDesc.DeployId() == descr.DeployId() {
 		return
 	}
 
@@ -389,13 +393,17 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
+	if enc.schema == nil {
+		enc.protoFields = nil
+		enc.customFields = nil
+		enc.lastEncoded = nil
+		enc.unmarshaled = nil
+	} else {
+		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
-	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
-	// schemas to see if they have changed:
-	// https://github.com/m3db/m3/issues/1471
-	enc.lastEncoded = dynamic.NewMessage(schema)
-	enc.unmarshaled = dynamic.NewMessage(schema)
+		enc.lastEncoded = dynamic.NewMessage(schema)
+		enc.unmarshaled = dynamic.NewMessage(schema)
+	}
 	enc.hasEncodedSchema = false
 }
 
@@ -405,7 +413,7 @@ func (enc *Encoder) Close() {
 		return
 	}
 
-	enc.Reset(time.Time{}, 0)
+	enc.Reset(time.Time{}, 0, nil)
 	enc.stream.Reset(nil)
 	enc.closed = true
 
@@ -425,9 +433,9 @@ func (enc *Encoder) Discard() ts.Segment {
 
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
-func (enc *Encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+func (enc *Encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	segment := enc.discard()
-	enc.Reset(start, capacity)
+	enc.Reset(start, capacity, descr)
 	return segment
 }
 

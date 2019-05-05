@@ -99,7 +99,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
-	p.Init(func(r io.Reader) encoding.ReaderIterator {
+	p.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	})
 	return p
@@ -1629,8 +1629,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	for _, vals := range [][]testValue{vals0, vals1, vals2} {
 		nsCtx := namespace.NewContextFor(ident.StringID("default"), opts.SchemaRegistry())
 		encoder := encoderPool.Get()
-		encoder.SetSchema(nsCtx.Schema)
-		encoder.Reset(start, 0)
+		encoder.Reset(start, 0, nsCtx.Schema)
 		for _, val := range vals {
 			dp := ts.Datapoint{Timestamp: val.t, Value: val.value}
 			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
@@ -2316,7 +2315,7 @@ func (e *testEncoder) Seal() {
 	e.sealed = true
 }
 
-func (e *testEncoder) Reset(t time.Time, capacity int) {
+func (e *testEncoder) Reset(t time.Time, capacity int, descr namespace.SchemaDescr) {
 	e.start = t
 	e.data = ts.Segment{}
 }
@@ -2332,7 +2331,7 @@ func (e *testEncoder) Discard() ts.Segment {
 	return data
 }
 
-func (e *testEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
+func (e *testEncoder) DiscardReset(t time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	curr := e.data
 	e.start = t
 	e.data = ts.Segment{}

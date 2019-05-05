@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -61,12 +62,12 @@ func newPools() Pools {
 	encoderPool.Init(func() encoding.Encoder {
 		return proto.NewEncoder(timeZero, encodingOpts)
 	})
-	readerIterPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return proto.NewIterator(r, encodingOpts)
+	readerIterPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+		return proto.NewIterator(r, descr, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		i := readerIterPool.Get()
-		i.Reset(r)
+		i.Reset(r, descr)
 		return i
 	})
 

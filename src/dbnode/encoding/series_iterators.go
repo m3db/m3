@@ -20,8 +20,6 @@
 
 package encoding
 
-import "github.com/m3db/m3/src/dbnode/storage/namespace"
-
 type seriesIterators struct {
 	iters  []SeriesIterator
 	closed bool
@@ -83,4 +81,3 @@ type emptyIters struct{}
 func (e emptyIters) Iters() []SeriesIterator { return nil }
 func (e emptyIters) Len() int                { return 0 }
 func (e emptyIters) Close()                  {}
-func (e emptyIters) SetSchema(descr namespace.SchemaDescr) {}

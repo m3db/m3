@@ -376,15 +376,13 @@ func (b *dbBuffer) Snapshot(
 
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
-	encoder.SetSchema(nsCtx.Schema)
-	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
+	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 	iter := b.opts.MultiReaderIteratorPool().Get()
-	iter.SetSchema(nsCtx.Schema)
 	defer func() {
 		encoder.Close()
 		iter.Close()
 	}()
-	iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize())
+	iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
 
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
@@ -876,7 +874,7 @@ func (b *BufferBucket) resetTo(
 	b.start = start
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
-	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
+	encoder.Reset(start, bopts.DatabaseBlockAllocSize(), nil)
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder: encoder,
 	})
@@ -942,7 +940,7 @@ func (b *BufferBucket) write(
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
 
 	encoder := b.opts.EncoderPool().Get()
-	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
+	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize, schema)
 
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder:     encoder,
@@ -1116,14 +1114,12 @@ func mergeStreamsToEncoder(
 ) (encoding.Encoder, time.Time, error) {
 	bopts := opts.DatabaseBlockOptions()
 	encoder := opts.EncoderPool().Get()
-	encoder.SetSchema(nsCtx.Schema)
-	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
+	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 	iter := opts.MultiReaderIteratorPool().Get()
-	iter.SetSchema(nsCtx.Schema)
 	defer iter.Close()
 
 	var lastWriteAt time.Time
-	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize())
+	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize(), nsCtx.Schema)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {

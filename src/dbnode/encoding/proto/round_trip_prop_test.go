@@ -103,7 +103,7 @@ func TestRoundTripProp(t *testing.T) {
 	parameters.Rng.Seed(seed)
 
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
-	iter := NewIterator(nil, testEncodingOptions).(*iterator)
+	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		if debugLogs {
 			fmt.Println("---------------------------------------------------")
@@ -134,8 +134,7 @@ func TestRoundTripProp(t *testing.T) {
 			times = append(times, currTime)
 		}
 
-		enc.Reset(currTime, 0)
-		enc.SetSchema(namespace.GetTestSchemaDescr(input.schema))
+		enc.Reset(currTime, 0, namespace.GetTestSchemaDescr(input.schema))
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -161,8 +160,7 @@ func TestRoundTripProp(t *testing.T) {
 			return true, nil
 		}
 
-		iter.SetSchema(namespace.GetTestSchemaDescr(input.schema))
-		iter.Reset(stream)
+		iter.Reset(stream, namespace.GetTestSchemaDescr(input.schema))
 
 		i := 0
 		for iter.Next() {

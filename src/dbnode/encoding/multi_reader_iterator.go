@@ -54,12 +54,8 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
-	it.Reset(nil, time.Time{}, 0)
+	it.Reset(nil, time.Time{}, 0, nil)
 	return it
-}
-
-func (it *multiReaderIterator) SetSchema(descr namespace.SchemaDescr) {
-	it.schemaDesc = descr
 }
 
 func (it *multiReaderIterator) Next() bool {
@@ -116,9 +112,8 @@ func (it *multiReaderIterator) moveToNext() {
 	for i := 0; i < currentLen; i++ {
 		var (
 			reader = it.slicesIter.CurrentReaderAt(i)
-			iter   = it.iteratorAlloc(reader)
+			iter   = it.iteratorAlloc(reader, it.schemaDesc)
 		)
-		iter.SetSchema(it.schemaDesc)
 		if iter.Next() {
 			// Only insert it if it has values
 			it.iters.push(iter)
@@ -166,16 +161,17 @@ func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return it.slicesIter
 }
 
-func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration) {
+func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration, descr namespace.SchemaDescr) {
 	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
 	it.singleSlicesIter.start = start
 	it.singleSlicesIter.blockSize = blockSize
-	it.ResetSliceOfSlices(&it.singleSlicesIter)
+	it.ResetSliceOfSlices(&it.singleSlicesIter, descr)
 }
 
-func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSlicesIterator) {
+func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSlicesIterator, descr namespace.SchemaDescr) {
+	it.schemaDesc = descr
 	it.iters.reset()
 	it.slicesIter = slicesIter
 	it.err = nil

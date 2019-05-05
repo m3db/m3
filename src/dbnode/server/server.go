@@ -1177,16 +1177,16 @@ func withEncodingAndPoolingOptions(
 		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	iteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		if cfg.Proto != nil {
-			return proto.NewIterator(r, encodingOpts)
+			return proto.NewIterator(r, descr, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := iteratorPool.Get()
-		iter.Reset(r)
+		iter.Reset(r, descr)
 		return iter
 	})
 

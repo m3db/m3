@@ -147,8 +147,7 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, testEncodingOptions)
-	iter.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
+	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	i := 0
 	for iter.Next() {
@@ -206,8 +205,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	// Try reading the stream just using the vl1 schema.
 	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, testEncodingOptions)
-	iter.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
+	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	require.True(t, iter.Next())
 	dp, unit, annotation := iter.Current()
@@ -243,8 +241,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	// Try reading the stream just using the vl2 schema.
 	buff = bytes.NewBuffer(rawBytes)
-	iter = NewIterator(buff, testEncodingOptions)
-	iter.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
+	iter = NewIterator(buff, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
 
 	require.True(t, iter.Next())
 	dp, unit, annotation = iter.Current()
@@ -290,7 +287,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 func newTestEncoder(t time.Time) *Encoder {
 	e := NewEncoder(t, testEncodingOptions)
-	e.Reset(t, 0)
+	e.Reset(t, 0, nil)
 
 	return e
 }

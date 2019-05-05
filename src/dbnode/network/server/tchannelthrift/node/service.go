@@ -390,8 +390,7 @@ func (s *service) readDatapoints(
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
 	nsCtx := namespace.NewContextFor(nsID, s.db.Options().SchemaRegistry())
-	multiIt.SetSchema(nsCtx.Schema)
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded), nsCtx.Schema)
 	defer multiIt.Close()
 
 	for multiIt.Next() {

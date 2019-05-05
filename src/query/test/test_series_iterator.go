@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -53,7 +54,7 @@ var (
 	// End is the expected end time for the generated series
 	End time.Time
 
-	testIterAlloc func(r io.Reader) encoding.ReaderIterator
+	testIterAlloc func(r io.Reader, d namespace.SchemaDescr) encoding.ReaderIterator
 )
 
 func init() {
@@ -69,7 +70,7 @@ func init() {
 	Middle = Start.Add(BlockSize)
 	End = Middle.Add(BlockSize)
 
-	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
+	testIterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 }
@@ -139,7 +140,7 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 		unmergedReaders,
 	})
 
-	multiReader.ResetSliceOfSlices(sliceOfSlicesIter)
+	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 	return multiReader, nil
 }
 
@@ -240,7 +241,7 @@ func BuildCustomIterator(
 
 	multiReader := encoding.NewMultiReaderIterator(testIterAlloc, nil)
 	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
-	multiReader.ResetSliceOfSlices(sliceOfSlicesIter)
+	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 
 	tags := ident.Tags{}
 	for name, value := range testTags {

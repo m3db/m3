@@ -50,7 +50,7 @@ func newBufferTestOptions() Options {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
@@ -284,8 +284,7 @@ func newTestBufferBucketWithData(t *testing.T, opts Options, setAnn setAnnotatio
 
 		encoded := 0
 		encoder := opts.EncoderPool().Get()
-		encoder.SetSchema(nsCtx.Schema)
-		encoder.Reset(curr, 0)
+		encoder.Reset(curr, 0, nsCtx.Schema)
 		for _, v := range data[i] {
 			dp := ts.Datapoint{
 				Timestamp: v.timestamp,
@@ -344,12 +343,12 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	b := &BufferBucket{}
 	b.resetTo(curr, WarmWrite, opts)
 	emptyEncoder := opts.EncoderPool().Get()
-	emptyEncoder.Reset(curr, 0)
+	emptyEncoder.Reset(curr, 0, nil)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 	require.Nil(t, b.encoders[0].encoder.Stream())
 
 	encoder := opts.EncoderPool().Get()
-	encoder.Reset(curr, 0)
+	encoder.Reset(curr, 0, nil)
 
 	value := ts.Datapoint{Timestamp: curr, Value: 1.0}
 	err := encoder.Encode(value, xtime.Second, nil)
@@ -624,7 +623,7 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 		for _, d := range bucket {
 			encoded := 0
 			encoder := opts.EncoderPool().Get()
-			encoder.Reset(curr, 0)
+			encoder.Reset(curr, 0, nil)
 			for _, v := range d {
 				dp := ts.Datapoint{
 					Timestamp: v.timestamp,

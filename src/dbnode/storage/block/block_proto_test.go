@@ -85,14 +85,12 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	// Create the two blocks we plan to merge
 	encoder := blockOpts.EncoderPool().Get()
 
-	encoder.SetSchema(testSchemaDesc)
-	encoder.Reset(data[0].Timestamp, 10)
+	encoder.Reset(data[0].Timestamp, 10, testSchemaDesc)
 	encoder.Encode(data[0], xtime.Second, piter.Next())
 	seg := encoder.Discard()
 	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, testNamespaceCtx).(*dbBlock)
 
-	encoder.SetSchema(testSchemaDesc)
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, testSchemaDesc)
 	encoder.Encode(data[1], xtime.Second, piter.Next())
 	seg = encoder.Discard()
 	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, testNamespaceCtx).(*dbBlock)
@@ -111,8 +109,7 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	require.NoError(t, err)
 	reader := xio.NewSegmentReader(seg)
 	iter := blockOpts.ReaderIteratorPool().Get()
-	iter.SetSchema(testSchemaDesc)
-	iter.Reset(reader)
+	iter.Reset(reader, testSchemaDesc)
 
 	piter.Reset()
 	i := 0

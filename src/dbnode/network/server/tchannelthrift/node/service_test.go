@@ -145,7 +145,7 @@ func TestServiceQuery(t *testing.T) {
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
 	enc := testStorageOpts.EncoderPool().Get()
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	nsID := "metrics"
 
@@ -172,7 +172,7 @@ func TestServiceQuery(t *testing.T) {
 	}
 	for id, s := range series {
 		enc := testStorageOpts.EncoderPool().Get()
-		enc.Reset(start, 0)
+		enc.Reset(start, 0, nil)
 		for _, v := range s {
 			dp := ts.Datapoint{
 				Timestamp: v.t,
@@ -280,7 +280,7 @@ func TestServiceQueryOverloaded(t *testing.T) {
 
 	defer ctx.Close()
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	_, err := service.Query(tctx, &rpc.QueryRequest{
 		Query: &rpc.Query{
@@ -317,7 +317,7 @@ func TestServiceQueryUnknownErr(t *testing.T) {
 	end := start.Add(2 * time.Hour)
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 	enc := testStorageOpts.EncoderPool().Get()
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	nsID := "metrics"
 	unknownErr := fmt.Errorf("unknown-error")
@@ -374,7 +374,7 @@ func TestServiceFetch(t *testing.T) {
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
 	enc := testStorageOpts.EncoderPool().Get()
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	nsID := "metrics"
 
@@ -440,7 +440,7 @@ func TestServiceFetchIsOverloaded(t *testing.T) {
 
 	defer ctx.Close()
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	_, err := service.Fetch(tctx, &rpc.FetchRequest{
 		RangeStart:     start.Unix(),
@@ -525,7 +525,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 	}
 	for id, s := range series {
 		enc := testStorageOpts.EncoderPool().Get()
-		enc.Reset(start, 0)
+		enc.Reset(start, 0, nil)
 		for _, v := range s {
 			dp := ts.Datapoint{
 				Timestamp: v.t,
@@ -655,7 +655,7 @@ func TestServiceFetchBatchRawIsOverloaded(t *testing.T) {
 
 	defer ctx.Close()
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	_, err := service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
 		RangeStart:    start.Unix(),
@@ -705,7 +705,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	}
 	for id, s := range series {
 		enc := testStorageOpts.EncoderPool().Get()
-		enc.Reset(start, 0)
+		enc.Reset(start, 0, nil)
 		for _, v := range s {
 			dp := ts.Datapoint{
 				Timestamp: v.t,
@@ -807,7 +807,7 @@ func TestServiceFetchBlocksRawIsOverloaded(t *testing.T) {
 
 	defer ctx.Close()
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
-	enc.Reset(start, 0)
+	enc.Reset(start, 0, nil)
 
 	_, err := service.FetchBlocksRaw(tctx, &rpc.FetchBlocksRawRequest{
 		NameSpace: []byte(nsID),
@@ -1049,7 +1049,7 @@ func TestServiceFetchTagged(t *testing.T) {
 	}
 	for id, s := range series {
 		enc := testStorageOpts.EncoderPool().Get()
-		enc.Reset(start, 0)
+		enc.Reset(start, 0, nil)
 		for _, v := range s {
 			dp := ts.Datapoint{
 				Timestamp: v.t,

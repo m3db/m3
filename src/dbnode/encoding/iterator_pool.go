@@ -35,7 +35,7 @@ func NewReaderIteratorPool(opts pool.ObjectPoolOptions) ReaderIteratorPool {
 
 func (p *readerIteratorPool) Init(alloc ReaderIteratorAllocate) {
 	p.pool.Init(func() interface{} {
-		return alloc(nil)
+		return alloc(nil, nil)
 	})
 }
 
@@ -44,7 +44,6 @@ func (p *readerIteratorPool) Get() ReaderIterator {
 }
 
 func (p *readerIteratorPool) Put(iter ReaderIterator) {
-	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }
 
@@ -68,6 +67,5 @@ func (p *multiReaderIteratorPool) Get() MultiReaderIterator {
 }
 
 func (p *multiReaderIteratorPool) Put(iter MultiReaderIterator) {
-	iter.SetSchema(nil)
 	p.pool.Put(iter)
 }

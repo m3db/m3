@@ -60,8 +60,6 @@ func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Option
 	}
 }
 
-func (it *readerIterator) SetSchema(descr namespace.SchemaDescr) {}
-
 // Next moves to the next item
 func (it *readerIterator) Next() bool {
 	if !it.hasNext() {
@@ -218,7 +216,7 @@ func (it *readerIterator) hasNext() bool {
 }
 
 // Reset resets the ReadIterator for reuse.
-func (it *readerIterator) Reset(reader io.Reader) {
+func (it *readerIterator) Reset(reader io.Reader, schema namespace.SchemaDescr) {
 	it.is.Reset(reader)
 	it.tsIterator = NewTimestampIterator(it.opts, it.tsIterator.SkipMarkers)
 	it.err = nil

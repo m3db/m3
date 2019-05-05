@@ -44,6 +44,5 @@ func (p *encoderPool) Get() Encoder {
 }
 
 func (p *encoderPool) Put(encoder Encoder) {
-	encoder.SetSchema(nil)
 	p.pool.Put(encoder)
 }

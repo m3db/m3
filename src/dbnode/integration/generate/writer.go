@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
 )
@@ -124,7 +123,7 @@ func (w *writer) writeWithPredicate(
 	encoder.SetSchema(nsCtx.Schema)
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer, shardSet, encoder, start.ToTime(), nsCtx.Id, blockSize,
+			writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
 			data, pred, fileSetType, snapshotInterval)
 		if err != nil {
 			return err
@@ -136,7 +135,7 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer, shardSet, encoder, start.ToTime(), nsCtx.Id, blockSize,
+				writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
 				nil, pred, fileSetType, snapshotInterval)
 			if err != nil {
 				return err
@@ -152,7 +151,7 @@ func writeToDiskWithPredicate(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	namespace ident.ID,
+	nsCtx ns.Context,
 	blockSize time.Duration,
 	seriesList SeriesBlock,
 	pred WriteDatapointPredicate,
@@ -173,7 +172,7 @@ func writeToDiskWithPredicate(
 		writerOpts := fs.DataWriterOpenOptions{
 			BlockSize: blockSize,
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  namespace,
+				Namespace:  nsCtx.Id,
 				Shard:      shard,
 				BlockStart: start,
 			},
@@ -186,7 +185,7 @@ func writeToDiskWithPredicate(
 			return err
 		}
 		for _, series := range seriesList {
-			encoder.Reset(start, 0)
+			encoder.Reset(start, 0, nsCtx.Schema)
 			for _, dp := range series.Data {
 				if !pred(dp) {
 					continue

@@ -55,7 +55,7 @@ func newSeriesTestOptions() Options {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
@@ -804,7 +804,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
 
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded), nil)
 	it := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 		ID:             id,
 		Namespace:      nsID,

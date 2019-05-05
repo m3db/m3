@@ -101,13 +101,11 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	}
 
 	multiIter := r.opts.MultiReaderIteratorPool().Get()
-	multiIter.SetSchema(r.nsCtx.Schema)
-	multiIter.Reset(r.readers[:], r.blockStart, r.blockSize)
+	multiIter.Reset(r.readers[:], r.blockStart, r.blockSize, r.nsCtx.Schema)
 	defer multiIter.Close()
 
 	r.encoder = r.opts.EncoderPool().Get()
-	r.encoder.SetSchema(r.nsCtx.Schema)
-	r.encoder.Reset(r.blockStart, r.opts.DatabaseBlockAllocSize())
+	r.encoder.Reset(r.blockStart, r.opts.DatabaseBlockAllocSize(), r.nsCtx.Schema)
 
 	for multiIter.Next() {
 		dp, unit, annotation := multiIter.Current()

@@ -357,7 +357,7 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	return &opts
@@ -365,8 +365,8 @@ func (o *options) SetEncodingM3TSZ() Options {
 
 func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return proto.NewIterator(r, encodingOpts)
+	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+		return proto.NewIterator(r, descr, encodingOpts)
 	}
 	return &opts
 }

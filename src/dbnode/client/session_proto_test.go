@@ -91,8 +91,7 @@ func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 	schemaReg.SetSchemaHistory(testNamespace, testSchemaHistory)
 	nsCtx := namespace.NewContextFor(testNamespace, schemaReg)
 	encoder := prototest.ProtoPools.EncoderPool.Get()
-	encoder.SetSchema(nsCtx.Schema)
-	encoder.Reset(data[0].t, 0)
+	encoder.Reset(data[0].t, 0, nsCtx.Schema)
 	for _, value := range data {
 		dp := ts.Datapoint{
 			Timestamp: value.t,
@@ -111,8 +110,7 @@ func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 	slicesIter := sliceReaderPool.Get()
 	slicesIter.Reset(result)
 	multiIter := prototest.ProtoPools.MultiReaderIterPool.Get()
-	multiIter.SetSchema(nsCtx.Schema)
-	multiIter.ResetSliceOfSlices(slicesIter)
+	multiIter.ResetSliceOfSlices(slicesIter, nsCtx.Schema)
 
 	seriesIterPool := encoding.NewSeriesIteratorPool(nil)
 	seriesIterPool.Init()

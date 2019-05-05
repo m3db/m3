@@ -517,10 +517,9 @@ func fulfillFetchBatchOps(
 					encoder = m3tsz.NewEncoder(f.values[0].t, nil, true, nil)
 				} else {
 					encoder = testOpts.encoderPool.Get()
-					encoder.Reset(f.values[0].t, 0)
+					nsCtx := namespace.NewContextFor(testOpts.nsID, testOpts.opts.SchemaRegistry())
+					encoder.Reset(f.values[0].t, 0, nsCtx.Schema)
 				}
-				nsCtx := namespace.NewContextFor(testOpts.nsID, testOpts.opts.SchemaRegistry())
-				encoder.SetSchema(nsCtx.Schema)
 				for _, value := range f.values {
 					dp := ts.Datapoint{
 						Timestamp: value.t,

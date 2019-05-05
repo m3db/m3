@@ -396,8 +396,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	}
 
 	encoder := opts.ResultOptions().DatabaseBlockOptions().EncoderPool().Get()
-	encoder.SetSchema(nsCtx.Schema)
-	encoder.Reset(snapshotValues[0].t, 10)
+	encoder.Reset(snapshotValues[0].t, 10, nsCtx.Schema)
 	for _, value := range snapshotValues {
 		dp := ts.Datapoint{
 			Timestamp: value.t,
@@ -543,8 +542,7 @@ func createExpectedShardResult(
 		b, ok := r.blocks[xtime.ToUnixNano(blockStart)]
 		if !ok {
 			encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
-			encoder.SetSchema(nsCtx.Schema)
-			encoder.Reset(v.t, 0)
+			encoder.Reset(v.t, 0, nsCtx.Schema)
 			b = &seriesShardResultBlock{
 				encoder: encoder,
 			}
@@ -642,13 +640,11 @@ func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBloc
 		readerIteratorPool := blopts.ReaderIteratorPool()
 
 		expectedIter := readerIteratorPool.Get()
-		expectedIter.SetSchema(nsCtx.Schema)
-		expectedIter.Reset(expectedStream)
+		expectedIter.Reset(expectedStream, nsCtx.Schema)
 		defer expectedIter.Close()
 
 		actualIter := readerIteratorPool.Get()
-		actualIter.SetSchema(nsCtx.Schema)
-		actualIter.Reset(actualStream)
+		actualIter.Reset(actualStream, nsCtx.Schema)
 		defer actualIter.Close()
 
 		for {

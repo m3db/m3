@@ -52,11 +52,11 @@ func (e *nullEncoder) LastEncoded() (ts.Datapoint, error) {
 }
 func (e *nullEncoder) Len() int                                          { return 0 }
 func (e *nullEncoder) Seal()                                             { e.sealed = true }
-func (e *nullEncoder) Reset(t time.Time, capacity int)                   {}
+func (e *nullEncoder) Reset(t time.Time, capacity int, descr namespace.SchemaDescr)                   {}
 func (e *nullEncoder) Close()                                            {}
 func (e *nullEncoder) Discard() ts.Segment                               { return ts.Segment{} }
-func (e *nullEncoder) DiscardReset(t time.Time, capacity int) ts.Segment { return ts.Segment{} }
-func (e *nullEncoder) SetSchema(descr namespace.SchemaDescr)             {}
+func (e *nullEncoder) DiscardReset(t time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment { return ts.Segment{} }
+func (e *nullEncoder) SetSchema(_ namespace.SchemaDescr)                 {}
 
 type nullReaderIterator struct{}
 
@@ -71,5 +71,4 @@ func (r *nullReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 func (r *nullReaderIterator) Next() bool                            { return false }
 func (r *nullReaderIterator) Err() error                            { return fmt.Errorf("not implemented") }
 func (r *nullReaderIterator) Close()                                {}
-func (r *nullReaderIterator) Reset(reader io.Reader)                {}
-func (r *nullReaderIterator) SetSchema(descr namespace.SchemaDescr) {}
+func (r *nullReaderIterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {}

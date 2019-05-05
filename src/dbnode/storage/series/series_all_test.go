@@ -68,8 +68,7 @@ type requireAnnEqual func(*testing.T, []byte, []byte)
 func decodedReaderValues(results [][]xio.BlockReader, opts Options, nsCtx namespace.Context) ([]value, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
 	iter := opts.MultiReaderIteratorPool().Get()
-	iter.SetSchema(nsCtx.Schema)
-	iter.ResetSliceOfSlices(slicesIter)
+	iter.ResetSliceOfSlices(slicesIter, nsCtx.Schema)
 	defer iter.Close()
 
 	var all []value
@@ -109,8 +108,7 @@ func requireValuesEqual(t *testing.T, expected, actual []value, nsCtx namespace.
 
 func decodedSegmentValues(results []xio.SegmentReader, opts Options, nsCtx namespace.Context) ([]value, error) {
 	iter := opts.MultiReaderIteratorPool().Get()
-	iter.SetSchema(nsCtx.Schema)
-	iter.Reset(results, time.Time{}, time.Duration(0))
+	iter.Reset(results, time.Time{}, time.Duration(0), nsCtx.Schema)
 	defer iter.Close()
 
 	var all []value

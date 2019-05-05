@@ -158,7 +158,7 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	seg := encoder.Discard()
 	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
 	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
@@ -242,7 +242,7 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 			seg := encoder.Discard()
 			block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-			encoder.Reset(data[1].Timestamp, 10)
+			encoder.Reset(data[1].Timestamp, 10, nil)
 			encoder.Encode(data[1], xtime.Second, nil)
 			seg = encoder.Discard()
 			block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
@@ -346,12 +346,12 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	seg := encoder.Discard()
 	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
 	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[2].Timestamp, 10)
+	encoder.Reset(data[2].Timestamp, 10, nil)
 	encoder.Encode(data[2], xtime.Second, nil)
 	seg = encoder.Discard()
 	block3 := NewDatabaseBlock(data[2].Timestamp, durations[2], seg, blockOpts, namespace.Context{}).(*dbBlock)
@@ -452,7 +452,7 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	seg := encoder.Discard()
 	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
 	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
@@ -526,7 +526,7 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	seg := encoder.Discard()
 	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
 	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)

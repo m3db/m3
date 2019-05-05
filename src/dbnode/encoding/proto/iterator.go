@@ -79,18 +79,18 @@ type iterator struct {
 // NewIterator creates a new iterator.
 func NewIterator(
 	reader io.Reader,
+	descr namespace.SchemaDescr,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
 
-	var currCustomFields []customFieldState
-	return &iterator{
+	i := &iterator{
 		opts:         opts,
 		stream:       stream,
-		customFields: currCustomFields,
-
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),
 	}
+	i.resetSchema(descr)
+	return i
 }
 
 func (it *iterator) Next() bool {
@@ -237,7 +237,8 @@ func (it *iterator) Err() error {
 	return it.err
 }
 
-func (it *iterator) Reset(reader io.Reader) {
+func (it *iterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {
+	it.resetSchema(descr)
 	it.stream.Reset(reader)
 	it.tsIterator = m3tsz.NewTimestampIterator(it.opts, true)
 
@@ -249,11 +250,13 @@ func (it *iterator) Reset(reader io.Reader) {
 	it.byteFieldDictLRUSize = 0
 }
 
-// SetSchema sets the schema for the iterator.
-func (it *iterator) SetSchema(schemaDesc namespace.SchemaDescr) {
+// setSchema sets the schema for the iterator.
+func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 	if schemaDesc == nil {
 		it.schemaDesc = nil
 		it.schema = nil
+		it.lastIterated = nil
+		it.customFields = nil
 		return
 	}
 
@@ -269,7 +272,7 @@ func (it *iterator) Close() {
 	}
 
 	it.closed = true
-	it.Reset(nil)
+	it.Reset(nil, nil)
 	it.stream.Reset(nil)
 
 	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() > maxCapacityUnmarshalBufferRetain {

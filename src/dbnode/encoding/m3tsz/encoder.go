@@ -255,7 +255,7 @@ func (enc *encoder) newBuffer(capacity int) checked.Bytes {
 }
 
 // Reset resets the encoder for reuse.
-func (enc *encoder) Reset(start time.Time, capacity int) {
+func (enc *encoder) Reset(start time.Time, capacity int, schema namespace.SchemaDescr) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
 
@@ -347,9 +347,9 @@ func (enc *encoder) Discard() ts.Segment {
 
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
-func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	segment := enc.discard()
-	enc.Reset(start, capacity)
+	enc.Reset(start, capacity, descr)
 	return segment
 }
 

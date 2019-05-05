@@ -174,7 +174,7 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	matcher := newTestSerieses(1, 15).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools, nil)
 	require.NoError(t, err)
 	require.False(t, exhaust)
 	newTestSerieses(1, 15).assertMatchesEncodingIters(t, iters)
@@ -228,7 +228,7 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
 	require.NoError(t, err)
 	require.False(t, exhaust)
 	append(sg0, sg1...).assertMatchesEncodingIters(t, iters)
@@ -282,7 +282,7 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
 	require.NoError(t, err)
 	require.True(t, exhaust)
 	// ensure iters are valid after the lifecycle of the accumulator
@@ -579,7 +579,7 @@ func (td testDatapoints) assertMatchesEncodingIter(t *testing.T, iter encoding.S
 
 func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time) []*rpc.Segments {
 	enc := th.encPool.Get()
-	enc.Reset(start, len(td))
+	enc.Reset(start, len(td), nil)
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
