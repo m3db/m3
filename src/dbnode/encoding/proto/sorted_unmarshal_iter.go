@@ -43,12 +43,10 @@ var (
 )
 
 type sortedUnmarshalIterator interface {
-	next() bool
-	current() unmarshalValue
-	numSkipped() int
-	skipped() *dynamic.Message
+	sortedTopLevelScalarValues() sortedTopLevelScalarValues
+	numOtherValues() int
+	otherValues() *dynamic.Message
 	reset(schema *desc.MessageDescriptor, buf []byte) error
-	err() error
 }
 
 type sortedUnmarshalIter struct {
@@ -56,25 +54,10 @@ type sortedUnmarshalIter struct {
 
 	decodeBuf *buffer
 
-	last unmarshalValue
+	sortedTopLevelScalar sortedTopLevelScalarValues
 
-	sortedTopLevelScalar    sortedTopLevelScalarValues
-	sortedTopLevelScalarIdx int
-
-	// The offsets of fields that the iterator will skip over, but will make
-	// available in the *dynamic.Message returned by Skipped().
-	skippedOffsets skippedOffsets
 	skippedMessage *dynamic.Message
 	skippedCount   int
-
-	e error
-}
-
-type skippedOffsets []skippedOffset
-
-type skippedOffset struct {
-	offset int
-	length int
 }
 
 func newUnmarshalIter() sortedUnmarshalIterator {
@@ -83,47 +66,23 @@ func newUnmarshalIter() sortedUnmarshalIterator {
 	}
 }
 
-func (u *sortedUnmarshalIter) next() bool {
-	if !u.hasNext() {
-		return false
-	}
-
-	u.last = u.sortedTopLevelScalar[u.sortedTopLevelScalarIdx]
-	u.sortedTopLevelScalarIdx++
-
-	return true
+func (u *sortedUnmarshalIter) sortedTopLevelScalarValues() sortedTopLevelScalarValues {
+	return u.sortedTopLevelScalar
 }
 
-func (u *sortedUnmarshalIter) current() unmarshalValue {
-	return u.last
-}
-
-func (u *sortedUnmarshalIter) numSkipped() int {
+func (u *sortedUnmarshalIter) numOtherValues() int {
 	return u.skippedCount
 }
 
-func (u *sortedUnmarshalIter) skipped() *dynamic.Message {
+func (u *sortedUnmarshalIter) otherValues() *dynamic.Message {
 	if u.skippedMessage == nil {
 		u.skippedMessage = dynamic.NewMessage(u.schema)
 	}
 	return u.skippedMessage
 }
 
-// TODO: This is out of date
-// findAllFieldOffsets iterates through the message (skipping over values) to
-// find the offset for every field and buckets them into two groups:
-//
-// 1) Those that will be exposed by the iterator directly.
-// 2) Those that will be skipped and subsequently unmarshaled into a
-//    *dynamic.Message.
-//
-// This pre-processing is required to ensure that the iterator provides values
-// in sorted order by field number.
-func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
+func (u *sortedUnmarshalIter) unmarshal() error {
 	u.sortedTopLevelScalar = u.sortedTopLevelScalar[:0]
-	u.sortedTopLevelScalarIdx = 0
-
-	u.skippedOffsets = u.skippedOffsets[:0]
 
 	if u.skippedMessage != nil {
 		u.skippedMessage.Reset()
@@ -365,14 +324,6 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	}
 }
 
-func (u *sortedUnmarshalIter) hasNext() bool {
-	return u.sortedTopLevelScalarIdx < len(u.sortedTopLevelScalar) && u.e == nil
-}
-
-func (u *sortedUnmarshalIter) err() error {
-	return u.e
-}
-
 func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) error {
 	if schema != u.schema {
 		u.skippedMessage = dynamic.NewMessage(schema)
@@ -380,16 +331,12 @@ func (u *sortedUnmarshalIter) reset(schema *desc.MessageDescriptor, buf []byte) 
 	}
 
 	u.schema = schema
-	u.last = unmarshalValue{}
-	u.e = nil
 	u.skippedCount = 0
 	u.sortedTopLevelScalar = u.sortedTopLevelScalar[:0]
-	u.skippedOffsets = u.skippedOffsets[:0]
-	u.sortedTopLevelScalarIdx = 0
 	// TODO: pools?
 	u.decodeBuf.reset(buf)
 
-	return u.findAllFieldOffsets()
+	return u.unmarshal()
 }
 
 type sortedTopLevelScalarValues []unmarshalValue

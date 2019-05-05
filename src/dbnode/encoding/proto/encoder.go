@@ -333,7 +333,11 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
+<<<<<<< HEAD
 		sortedTopLevelScalarValues    = enc.unmarshaler.sortedCustomFieldValues()
+=======
+		sortedTopLevelScalarValues    = enc.sortedUnmarshalIter.sortedTopLevelScalarValues()
+>>>>>>> refactor sortedUnmarshalIter interface to not be an interface
 		sortedTopLevelScalarValuesIdx = 0
 		lastMarshaledValue            unmarshalValue
 	)
@@ -350,7 +354,11 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
 		if hasNext {
+<<<<<<< HEAD
 			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fieldNumber)
+=======
+			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
+>>>>>>> refactor sortedUnmarshalIter interface to not be an interface
 		}
 
 		// Since both the customFields slice and the sortedTopLevelScalarValues slice
