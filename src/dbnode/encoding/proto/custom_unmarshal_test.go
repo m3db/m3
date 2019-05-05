@@ -52,13 +52,16 @@ func TestUnmarshalIter(t *testing.T) {
 
 			expectedIter: map[int32]unmarshalValue{
 				1: {
-					v: math.Float64bits(0.1),
+					fieldNumber: 1,
+					v:           math.Float64bits(0.1),
 				},
 				2: {
-					v: math.Float64bits(1.1),
+					fieldNumber: 2,
+					v:           math.Float64bits(1.1),
 				},
 				3: {
-					v: uint64(neg1),
+					fieldNumber: 3,
+					v:           uint64(neg1),
 				},
 			},
 		},
@@ -70,17 +73,20 @@ func TestUnmarshalIter(t *testing.T) {
 
 			expectedIter: map[int32]unmarshalValue{
 				1: {
-					v: math.Float64bits(0.1),
+					fieldNumber: 1,
+					v:           math.Float64bits(0.1),
 				},
 				2: {
-					v: math.Float64bits(1.1),
+					fieldNumber: 2,
+					v:           math.Float64bits(1.1),
 				},
 				// TODO: Leave a comment about this in the docs
 				// 3: {
 				// 	int64Val: 0,
 				// },
 				4: {
-					bytes: []byte("123123123123"),
+					fieldNumber: 4,
+					bytes:       []byte("123123123123"),
 				},
 			},
 		},
@@ -93,16 +99,20 @@ func TestUnmarshalIter(t *testing.T) {
 
 			expectedIter: map[int32]unmarshalValue{
 				1: {
-					v: math.Float64bits(0.2),
+					fieldNumber: 1,
+					v:           math.Float64bits(0.2),
 				},
 				2: {
-					v: math.Float64bits(2.2),
+					fieldNumber: 2,
+					v:           math.Float64bits(2.2),
 				},
 				3: {
-					v: (1),
+					fieldNumber: 3,
+					v:           (1),
 				},
 				4: {
-					bytes: []byte("789789789789"),
+					fieldNumber: 4,
+					bytes:       []byte("789789789789"),
 				},
 			},
 
@@ -125,13 +135,12 @@ func TestUnmarshalIter(t *testing.T) {
 		lastFieldNum := -1
 		for i, curr := range unmarshaler.sortedCustomFieldValues() {
 			var (
-				fieldNum = curr.fd.GetNumber()
+				fieldNum = curr.fieldNumber
 				expected = tc.expectedIter[fieldNum]
 			)
 			// Make sure iteration is sorted.
 			require.True(t, int(fieldNum) > lastFieldNum)
 
-			curr.fd = nil
 			require.Equal(t, expected, curr)
 
 			switch fieldNum {
