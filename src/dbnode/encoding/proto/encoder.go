@@ -141,7 +141,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
 	}
-	// TODO: Leave a comment here
+	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
+	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
 	if err := enc.sortedUnmarshalIter.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
@@ -333,11 +334,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
-<<<<<<< HEAD
 		sortedTopLevelScalarValues    = enc.unmarshaler.sortedCustomFieldValues()
-=======
-		sortedTopLevelScalarValues    = enc.sortedUnmarshalIter.sortedTopLevelScalarValues()
->>>>>>> refactor sortedUnmarshalIter interface to not be an interface
 		sortedTopLevelScalarValuesIdx = 0
 		lastMarshaledValue            unmarshalValue
 	)
@@ -354,11 +351,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
 		if hasNext {
-<<<<<<< HEAD
 			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fieldNumber)
-=======
-			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
->>>>>>> refactor sortedUnmarshalIter interface to not be an interface
 		}
 
 		// Since both the customFields slice and the sortedTopLevelScalarValues slice
