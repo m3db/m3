@@ -152,8 +152,7 @@ func TestUnmarshalIter(t *testing.T) {
 
 		if len(tc.attributes) > 0 {
 			require.Equal(t, len(tc.attributes), unmarshalIter.numSkipped())
-			m, err := unmarshalIter.skipped()
-			require.NoError(t, err)
+			m := unmarshalIter.skipped()
 			assertAttributesEqual(
 				t,
 				tc.attributes,

@@ -46,7 +46,7 @@ type sortedUnmarshalIterator interface {
 	next() bool
 	current() unmarshalValue
 	numSkipped() int
-	skipped() (*dynamic.Message, error)
+	skipped() *dynamic.Message
 	reset(schema *desc.MessageDescriptor, buf []byte) error
 	err() error
 }
@@ -102,20 +102,14 @@ func (u *sortedUnmarshalIter) numSkipped() int {
 	return u.skippedCount
 }
 
-func (u *sortedUnmarshalIter) skipped() (*dynamic.Message, error) {
+func (u *sortedUnmarshalIter) skipped() *dynamic.Message {
 	if u.skippedMessage == nil {
 		u.skippedMessage = dynamic.NewMessage(u.schema)
 	}
-	u.skippedMessage.Reset()
-	for _, o := range u.skippedOffsets {
-		err := u.skippedMessage.UnmarshalMerge(u.decodeBuf.buf[o.offset : o.offset+o.length])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return u.skippedMessage, nil
+	return u.skippedMessage
 }
 
+// TODO: This is out of date
 // findAllFieldOffsets iterates through the message (skipping over values) to
 // find the offset for every field and buckets them into two groups:
 //
@@ -130,6 +124,10 @@ func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
 	u.sortedTopLevelScalarIdx = 0
 
 	u.skippedOffsets = u.skippedOffsets[:0]
+
+	if u.skippedMessage != nil {
+		u.skippedMessage.Reset()
+	}
 
 	isSorted := true
 	for !u.decodeBuf.eof() {
@@ -146,14 +144,21 @@ func (u *sortedUnmarshalIter) findAllFieldOffsets() error {
 
 		shouldSkip := u.shouldSkip(fd)
 		if shouldSkip {
+			if u.skippedMessage == nil {
+				u.skippedMessage = dynamic.NewMessage(u.schema)
+			}
+
 			_, err = u.skip(wireType)
 			if err != nil {
 				return err
 			}
 
-			length := u.decodeBuf.index - tagAndWireTypeStartOffset
-			skippedOffset := skippedOffset{offset: tagAndWireTypeStartOffset, length: length}
-			u.skippedOffsets = append(u.skippedOffsets, skippedOffset)
+			var (
+				length   = u.decodeBuf.index - tagAndWireTypeStartOffset
+				startIdx = tagAndWireTypeStartOffset
+				endIdx   = startIdx + length
+			)
+			u.skippedMessage.UnmarshalMerge(u.decodeBuf.buf[tagAndWireTypeStartOffset:endIdx])
 			u.skippedCount++
 			continue
 		}
