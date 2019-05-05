@@ -76,7 +76,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	sortedUnmarshalIter topLevelScalarUnmarshaler
+	unmarshaler topLevelScalarUnmarshaler
 
 	hasEncodedSchema bool
 	closed           bool
@@ -131,27 +131,15 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// it doesn't cause LastEncoded() to produce invalid results.
 	dp.Value = float64(0)
 
-	if enc.sortedUnmarshalIter == nil {
+	if enc.unmarshaler == nil {
 		// Lazy init.
-		enc.sortedUnmarshalIter = newUnmarshalIter()
+		enc.unmarshaler = newUnmarshalIter()
 	}
 	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
 	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
-	if err := enc.sortedUnmarshalIter.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
+	if err := enc.unmarshaler.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
-	}
-
-	// Capture a rollback token that allows the OStream to be rolled back to the state it was in before any
-	// encoding of the current message began.
-	// The protobuf message is unmarshaled and encoded one field at a time which means that it is possible
-	// for the encoder to detect that the message is corrupt or invalid mid-way through the stream.
-	// Without the rollback mechanism this would leave the encoder in an unusable state since all protobuf
-	// messages must be written in their entirety and stopping mid-way through encoding a message leaves
-	// the stream in a corrupt state.
-	rollbackToken := enc.stream.RollbackToken()
-	if enc.numEncoded == 0 {
-		enc.encodeStreamHeader()
 	}
 
 	var (
@@ -167,13 +155,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	err := enc.timestampEncoder.WriteTime(enc.stream, dp.Timestamp, nil, timeUnit)
 	if err != nil {
-		enc.stream.Rollback(rollbackToken)
 		return fmt.Errorf(
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
 	if err := enc.encodeProto(protoBytes); err != nil {
-		enc.stream.Rollback(rollbackToken)
 		return fmt.Errorf(
 			"%s error encoding proto portion of message: %v", encErrPrefix, err)
 	}
@@ -337,7 +323,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
-		sortedTopLevelScalarValues    = enc.sortedUnmarshalIter.sortedTopLevelScalarValues()
+		sortedTopLevelScalarValues    = enc.unmarshaler.sortedTopLevelScalarValues()
 		sortedTopLevelScalarValuesIdx = 0
 		lastMarshaledValue            unmarshalValue
 	)
@@ -357,11 +343,10 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
 		}
 
-		// TODO(rartoul): Might be cleaner to just bake this logic into the iter itself.
-		// Since both the customFields slice and the sortedUnmarshalIter are sorted
-		// by field number, if the iterator contains no more values or it contains a
-		// next value, but the field number is not equal to the field number of the
-		// current customField, it is safe to conclude that the current customField's
+		// Since both the customFields slice and the sortedTopLevelScalarValues slice
+		// are sorted by field number, if the scalar slice contains no more values or
+		// it contains a next value, but the field number is not equal to the field number
+		// of the current customField, it is safe to conclude that the current customField's
 		// value was not encoded in this message which means that it should be interpreted
 		// as the default value for that field according to the proto3 specification.
 		noMarshaledValue := (!hasNext ||
@@ -404,7 +389,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		sortedTopLevelScalarValuesIdx++
 	}
 
-	otherValues := enc.sortedUnmarshalIter.otherValues()
+	otherValues := enc.unmarshaler.otherValues()
 	if err := enc.encodeProtoValues(otherValues); err != nil {
 		return err
 	}

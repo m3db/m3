@@ -87,9 +87,8 @@ func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 	require.Error(t, err)
 
 	bytesAfterBadWrite := getCurrEncoderBytes(t, enc)
-	// The encoder should have rolled back any partial data (the timestamp for
-	// example) it wrote as part of the previous write before detecting that the
-	// protobuf message was invalid.
+	// Ensure that the encoder detect that the protobuf message was invalid
+	// before writing any data.
 	require.Equal(t, bytesBeforeBadWrite, bytesAfterBadWrite)
 }
 

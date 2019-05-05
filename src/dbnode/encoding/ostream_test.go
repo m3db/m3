@@ -33,27 +33,21 @@ var (
 	testBytesPool = newTestCheckedBytesPool()
 )
 
-type writeBitsInput struct {
-	value         uint64
-	numBits       int
-	expectedBytes []byte
-	expectedPos   int
-}
-
 func TestWriteBits(t *testing.T) {
-	testWriteBits(t, NewOStream(nil, true, nil), false)
+	testWriteBits(t, NewOStream(nil, true, nil))
 }
 
 func TestWriteBitsWithPooling(t *testing.T) {
-	testWriteBits(t, NewOStream(nil, true, testBytesPool), false)
+	testWriteBits(t, NewOStream(nil, true, testBytesPool))
 }
 
-func TestWriteBitsWithRollback(t *testing.T) {
-	testWriteBits(t, NewOStream(nil, true, nil), true)
-}
-
-func testWriteBits(t *testing.T, o OStream, withRollback bool) {
-	inputs := []writeBitsInput{
+func testWriteBits(t *testing.T, o OStream) {
+	inputs := []struct {
+		value         uint64
+		numBits       int
+		expectedBytes []byte
+		expectedPos   int
+	}{
 		{0x1, 1, []byte{0x80}, 1},
 		{0x4, 3, []byte{0xc0}, 4},
 		{0xa, 4, []byte{0xca}, 8},
@@ -67,33 +61,14 @@ func testWriteBits(t *testing.T, o OStream, withRollback bool) {
 
 	os := o.(*ostream)
 	require.True(t, os.Empty())
-
-	assertStateCorrect := func(input writeBitsInput) {
+	for _, input := range inputs {
+		os.WriteBits(input.value, input.numBits)
 		require.Equal(t, input.expectedBytes, os.rawBuffer)
-
 		b, _ := os.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, os.pos)
-		require.False(t, os.Empty())
 	}
-
-	for i, input := range inputs {
-		os.WriteBits(input.value, input.numBits)
-		assertStateCorrect(input)
-
-		if i < len(inputs)-1 {
-			// Create a rollback token, write the next write, then attempt to roll it back
-			// to verify the behavior of the rollback tokens.
-			rollbackToken := os.RollbackToken()
-			nextInput := inputs[i+1]
-			os.WriteBits(nextInput.value, nextInput.numBits)
-			assertStateCorrect(nextInput)
-
-			// OStream should look like nextInput was never written.
-			os.Rollback(rollbackToken)
-			assertStateCorrect(input)
-		}
-	}
+	require.False(t, os.Empty())
 }
 
 func TestWriteBytes(t *testing.T) {
