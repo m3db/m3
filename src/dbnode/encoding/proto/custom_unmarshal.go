@@ -332,7 +332,6 @@ func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, bu
 	u.schema = schema
 	u.numNonCustom = 0
 	u.customValues = u.customValues[:0]
-	// TODO: pools?
 	u.decodeBuf.reset(buf)
 
 	return u.unmarshal()
