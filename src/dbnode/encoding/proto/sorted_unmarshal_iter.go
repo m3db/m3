@@ -42,7 +42,7 @@ var (
 	zeroValue unmarshalValue
 )
 
-type sortedUnmarshalIterator interface {
+type topLevelScalarUnmarshaler interface {
 	sortedTopLevelScalarValues() sortedTopLevelScalarValues
 	otherValues() *dynamic.Message
 	numOtherValues() int
@@ -60,7 +60,7 @@ type sortedUnmarshalIter struct {
 	skippedCount   int
 }
 
-func newUnmarshalIter() sortedUnmarshalIterator {
+func newUnmarshalIter() topLevelScalarUnmarshaler {
 	return &sortedUnmarshalIter{
 		decodeBuf: newCodedBuffer(nil),
 	}

@@ -76,7 +76,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	sortedUnmarshalIter sortedUnmarshalIterator
+	sortedUnmarshalIter topLevelScalarUnmarshaler
 
 	hasEncodedSchema bool
 	closed           bool
@@ -135,7 +135,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		// Lazy init.
 		enc.sortedUnmarshalIter = newUnmarshalIter()
 	}
-	// TODO: Leave a comment here
+	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
+	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
 	if err := enc.sortedUnmarshalIter.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
