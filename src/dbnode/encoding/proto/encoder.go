@@ -133,7 +133,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	if enc.unmarshaler == nil {
 		// Lazy init.
-		enc.unmarshaler = newUnmarshalIter()
+		enc.unmarshaler = newCustomFieldUnmarshaler()
 	}
 	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
 	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.

@@ -111,7 +111,7 @@ func TestUnmarshalIter(t *testing.T) {
 		},
 	}
 
-	unmarshaler := newUnmarshalIter()
+	unmarshaler := newCustomFieldUnmarshaler()
 	for _, tc := range testCases {
 		vl := newVL(
 			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
