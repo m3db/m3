@@ -336,19 +336,23 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
-		sortedIter = enc.sortedUnmarshalIter
-		// If there is no initial value (due to next returning false) then
-		// lastMarshaledValue should be considered unusable.
-		lastMarshaledValueConsumed = !sortedIter.next()
-		lastMarshaledValue         = sortedIter.current()
+		sortedTopLevelScalarValues    = enc.sortedUnmarshalIter.sortedTopLevelScalarValues()
+		sortedTopLevelScalarValuesIdx = 0
+		lastMarshaledValue            unmarshalValue
 	)
 
 	// Loop through the customFields slice and sortedUnmarshalIter (both
 	// of which are sorted by field number) at the same time and match each
 	// customField to its encoded value in the stream (if any).
 	for i, customField := range enc.customFields {
+		if sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues) {
+			lastMarshaledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
+		}
+
 		lastMarshaledValueFieldNumber := -1
-		if !lastMarshaledValueConsumed {
+
+		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
+		if hasNext {
 			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fd.GetNumber())
 		}
 
@@ -359,7 +363,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		// current customField, it is safe to conclude that the current customField's
 		// value was not encoded in this message which means that it should be interpreted
 		// as the default value for that field according to the proto3 specification.
-		noMarshaledValue := (lastMarshaledValueConsumed ||
+		noMarshaledValue := (!hasNext ||
 			customField.fieldNum != lastMarshaledValueFieldNumber)
 		if noMarshaledValue {
 			err := enc.encodeZeroValue(i)
@@ -396,19 +400,11 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 				encErrPrefix, customField.fieldNum)
 		}
 
-		lastMarshaledValueConsumed = !sortedIter.next()
-		lastMarshaledValue = sortedIter.current()
-
+		sortedTopLevelScalarValuesIdx++
 	}
 
-	// Safe to do this check at the very end because the encoder has a
-	// rollback mechanism for undoing partial writes.
-	if err := sortedIter.err(); err != nil {
-		return err
-	}
-
-	skipped := sortedIter.skipped()
-	if err := enc.encodeProtoValues(skipped); err != nil {
+	otherValues := enc.sortedUnmarshalIter.otherValues()
+	if err := enc.encodeProtoValues(otherValues); err != nil {
 		return err
 	}
 
