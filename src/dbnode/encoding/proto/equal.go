@@ -140,6 +140,13 @@ func mapsEqual(a, b reflect.Value) bool {
 	if a.Len() != b.Len() {
 		return false
 	}
+
+	if a.Len() == 0 && b.Len() == 0 {
+		// Optimize the case where maps are always empty because MapKeys()
+		// function allocates heavily.
+		return true
+	}
+
 	for _, k := range a.MapKeys() {
 		av := a.MapIndex(k)
 		bv := b.MapIndex(k)
