@@ -189,13 +189,13 @@ func main() {
 		return m3tsz.NewEncoder(time.Time{}, nil, true, encodingOpts)
 	})
 
-	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	iteratorPool.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, true, encodingOpts)
 	})
 
-	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := iteratorPool.Get()
-		iter.Reset(r)
+		iter.Reset(r, descr)
 		return iter
 	})
 	bytesPool.Init()
@@ -208,7 +208,7 @@ func main() {
 		SetRefillHighWatermark(0.002)
 	blockPool := block.NewDatabaseBlockPool(blockPoolOpts)
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 
 	blockOpts = blockOpts.
