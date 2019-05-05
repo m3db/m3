@@ -36,10 +36,7 @@ var (
 	// Groups in the Protobuf wire format are deprecated, so simplify the code significantly by
 	// not supporting them.
 	errGroupsAreNotSupported = errors.New("use of groups in proto wire format is not supported")
-
-	errMessagesShouldNotBeIterativelyUnmarshaled = errors.New("messages should not be iteratively unmarshaled")
-
-	zeroValue unmarshalValue
+	zeroValue                unmarshalValue
 )
 
 type customFieldUnmarshaler interface {
@@ -101,8 +98,8 @@ func (u *customUnmarshaler) unmarshal() error {
 			return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
 		}
 
-		shouldSkip := u.shouldSkip(fd)
-		if shouldSkip {
+		isCustomField := u.isCustomField(fd)
+		if !isCustomField {
 			if u.nonCustomValues == nil {
 				u.nonCustomValues = dynamic.NewMessage(u.schema)
 			}
@@ -149,18 +146,18 @@ func (u *customUnmarshaler) unmarshal() error {
 	return nil
 }
 
-func (u *customUnmarshaler) shouldSkip(fd *desc.FieldDescriptor) bool {
+func (u *customUnmarshaler) isCustomField(fd *desc.FieldDescriptor) bool {
 	if fd.IsRepeated() || fd.IsMap() {
 		// Map should always be repeated but include the guard just in case.
-		return true
+		return false
 	}
 
 	if fd.GetMessageType() != nil {
 		// Skip nested messages.
-		return true
+		return false
 	}
 
-	return false
+	return true
 }
 
 // skip will skip over the next value in the encoded stream (given that the tag and
