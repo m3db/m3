@@ -8,14 +8,12 @@ The Encoder in this package is responsible for accepting a stream of marshaled P
 
 In order to accomplish this, it needs to unmarshal the Protobuf messages so that it can re-encode their values.
 
-Since the schemas for the Protobuf messages are provided dynamical (and thus efficient unmarshaling code can not be generated before hand) the easiest way to accomplish the unmarshaling is to rely on a dynamic Protobuf like `jhump/protoreflect` to perform the heavy lfting.
+Since the schemas for the Protobuf messages are provided dynamically (and thus efficient unmarshaling code can not be generated ahead of time) the easiest way to accomplish the unmarshaling is to rely on a dynamic Protobuf package like `jhump/protoreflect` to perform the heavy lfting.
 
-This is inefficient for the purposes of this package for two reasons:
+This is inefficient primarily because unmarshaling into a `*dynamic.Message` is very expensive since it involves a lot of `interface{}` magic as well as allocating a large number of very short-lived objects that are difficult to reuse.
 
-1. The unmarshaled Protobuf message is not needed in its entirety because the encoder only needs to access fields one at a time to encoded a compressed version of the message.
-2. Unmarshaling into a `*dynamic.Message` is very expensive since it involves a lot of `interface{}` magic as well as allocating a large number of very short-lived objects that are difficult to reuse.
-
-As a result, this package implements a `SortedUnmarshalIterator` which accepts a `[]byte` which constitutes a marshaled Protobuf message and returns an iterator that can be used to iterate through the the fields of the marshaled Protobuf message one at a time ordered by field number.
+<!-- TODO: Rename this iterator? -->
+As a result, this package implements a `SortedUnmarshalIterator` that accepts a `[]byte` which constitutes a marshaled Protobuf message and returns an iterator that can be used to iterate through the the fields of the marshaled Protobuf message one at a time ordered by field number.
 
 This iterator is optimized such that top-level scalar fields can be iterated quickly and with zero allocations.
 
