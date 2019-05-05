@@ -35,7 +35,7 @@ The code in the `Buffer` is mostly self explanatory for anyone familiar with [pr
 
 ### SortedUnmarshalIterator
 
-The `SortedUnmarshalIterator` accomplishes three objectives:
+The `SortedUnmarshalIterator` has three primary responsibilities:
 
 1. Provide an interface for efficiently iterating over top-level scalar fields in a marshaled Protobuf message without allocating.
 2. Ensure that the iteration described in #1 occurs in sorted order based on field number.

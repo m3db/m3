@@ -18,12 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// This file is mostly copy-pasta from: https://github.com/jhump/protoreflect/blob/master/dynamic/codec.go
+// since the jhump/protoreflect library does not expose the `codedBuffer` type.
+
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
+)
+
+var (
+	// errOverflow is returned when an integer is too large to be represented.
+	errOverflow = errors.New("proto: integer overflow")
 )
 
 // A reader/writer type that assists with encoding and decoding protobuf's binary representation.
@@ -75,7 +84,7 @@ func (cb *buffer) decodeVarintSlow() (x uint64, err error) {
 	}
 
 	// The number is too large to represent in a 64-bit value.
-	err = ErrOverflow
+	err = errOverflow
 	return
 }
 
@@ -173,7 +182,7 @@ func (cb *buffer) decodeVarint() (uint64, error) {
 	}
 	// x -= 0x80 << 63 // Always zero.
 
-	return 0, ErrOverflow
+	return 0, errOverflow
 
 done:
 	cb.index = i
