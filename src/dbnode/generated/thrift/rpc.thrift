@@ -63,7 +63,10 @@ service Node {
 
 	// Management endpoints
 	NodeHealthResult health() throws (1: Error err)
+	// NB: bootstrapped is for use with cluster management tools like k8s.
 	NodeBootstrappedResult bootstrapped() throws (1: Error err)
+	// NB: bootstrappedInPlacementOrNoPlacement is for use with cluster management tools like k8s.
+	NodeBootstrappedInPlacementOrNoPlacementResult bootstrappedInPlacementOrNoPlacement() throws (1: Error err)
 	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
 	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
@@ -260,6 +263,8 @@ struct NodeHealthResult {
 }
 
 struct NodeBootstrappedResult {}
+
+struct NodeBootstrappedInPlacementOrNoPlacementResult {}
 
 struct NodePersistRateLimitResult {
 	1: required bool limitEnabled

@@ -225,6 +225,21 @@ func (mr *MockTChanNodeMockRecorder) Bootstrapped(ctx interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapped", reflect.TypeOf((*MockTChanNode)(nil).Bootstrapped), ctx)
 }
 
+// BootstrappedInPlacementOrNoPlacement mocks base method
+func (m *MockTChanNode) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrappedInPlacementOrNoPlacement", ctx)
+	ret0, _ := ret[0].(*NodeBootstrappedInPlacementOrNoPlacementResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BootstrappedInPlacementOrNoPlacement indicates an expected call of BootstrappedInPlacementOrNoPlacement
+func (mr *MockTChanNodeMockRecorder) BootstrappedInPlacementOrNoPlacement(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrappedInPlacementOrNoPlacement", reflect.TypeOf((*MockTChanNode)(nil).BootstrappedInPlacementOrNoPlacement), ctx)
+}
+
 // Fetch mocks base method
 func (m *MockTChanNode) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	m.ctrl.T.Helper()
