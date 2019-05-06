@@ -226,9 +226,11 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	// Series match endpoints
-	h.router.HandleFunc(remote.PromSeriesMatchURL,
-		wrapped(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
-	).Methods(remote.PromSeriesMatchHTTPMethod)
+	for _, method := range remote.PromSeriesMatchHTTPMethods {
+		h.router.HandleFunc(remote.PromSeriesMatchURL,
+			wrapped(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
+		).Methods(method)
+	}
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
