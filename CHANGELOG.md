@@ -5,6 +5,7 @@
 ## Features
 
 - **M3Coordinator**: Emit caller I.P address in error logs (#1583)
+- **M3Query**: Add a list tags endpoint that displays every unique tag name stored in M3DB to match the Prometheus [/labels endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#getting-label-names) (#1565)
 - **M3DB**: Add native support for running M3DB in "index-only" mode (#1596)
 - **M3DB**: Reduce M3DB log spam for normal operations like cleanup (#1592)
 
@@ -12,6 +13,7 @@
 
 - **M3DB**: Filter out commit log files that were not present on disk before the process started when determining if files are corrupt in the commitlog bootstrapper. This will prevent a race in which the commitlog bootstrapper would interpret the current commitlog file as corrupt (#1581)
 - **M3Query**: Fixed binary arithmetic to properly ignore names when checking for matching series (#1604)
+- **M3Query**: Add start and end time to tag values endpoint to fix an issue preventing Grafana tag completion (#1601)
 
 ## Performance
 
