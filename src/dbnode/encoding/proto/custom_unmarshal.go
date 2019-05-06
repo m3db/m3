@@ -245,7 +245,7 @@ func (u *customUnmarshaler) unmarshalKnownField(fd *desc.FieldDescriptor, wireTy
 		}
 
 		// Don't bother copying the bytes now because the encoder has exclusive ownership
-		// of them until the call to Encode() completes and  they will get "copied" anyways
+		// of them until the call to Encode() completes and they will get "copied" anyways
 		// once they're written into the OStream.
 		raw, err := u.decodeBuf.decodeRawBytes(false)
 		if err != nil {
