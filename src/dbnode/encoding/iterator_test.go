@@ -103,8 +103,8 @@ type testMultiIterator struct {
 	onReset func(r io.Reader)
 }
 
-func newTestMultiIterator(values []testValue) MultiReaderIterator {
-	return &testMultiIterator{values: values, idx: -1}
+func newTestMultiIterator(values []testValue, err error) MultiReaderIterator {
+	return &testMultiIterator{values: values, idx: -1, err: err}
 }
 
 func (it *testMultiIterator) Next() bool {

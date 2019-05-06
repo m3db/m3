@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -147,14 +148,11 @@ func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 }
 
 func TestSeriesIteratorDoesNotIgnoreReplicasWithErrors(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
-	end := start.Add(time.Minute)
-
-	values := []testValue{
-		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
-		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
-		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
-	}
+	var (
+		start = time.Now().Truncate(time.Minute)
+		end   = start.Add(time.Minute)
+		err   = errors.New("some-iteration-error")
+	)
 
 	test := testSeries{
 		id:    "foo",
@@ -162,11 +160,9 @@ func TestSeriesIteratorDoesNotIgnoreReplicasWithErrors(t *testing.T) {
 		start: start,
 		end:   end,
 		input: []inputReplica{
-			{values: values},
-			{values: []testValue{}},
-			{values: values},
+			{err: err},
 		},
-		expected: values,
+		expectedErr: &testSeriesErr{err: err},
 	}
 
 	assertTestSeriesIterator(t, test)
@@ -237,11 +233,11 @@ func newTestSeriesIterator(
 ) newTestSeriesIteratorResult {
 	var iters []MultiReaderIterator
 	for i := range series.input {
-		if series.input[i].values == nil {
-			iters = append(iters, nil)
-		} else {
-			iters = append(iters, newTestMultiIterator(series.input[i].values))
-		}
+		multiIter := newTestMultiIterator(
+			series.input[i].values,
+			series.input[i].err,
+		)
+		iters = append(iters, multiIter)
 	}
 
 	iter := NewSeriesIterator(SeriesIteratorOptions{

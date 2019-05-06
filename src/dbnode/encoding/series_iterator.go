@@ -145,12 +145,11 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
 
 	for _, replica := range opts.Replicas {
-		if replica.Err() != nil {
-			it.err = replica.Err()
-			return
-		}
-
 		if !replica.Next() || !it.iters.push(replica) {
+			if replica.Err() != nil {
+				it.err = replica.Err()
+			}
+
 			replica.Close()
 			continue
 		}
