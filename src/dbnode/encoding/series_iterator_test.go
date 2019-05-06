@@ -36,9 +36,14 @@ type testSeries struct {
 	nsID        string
 	start       time.Time
 	end         time.Time
-	input       [][]testValue
+	input       []inputReplica
 	expected    []testValue
 	expectedErr *testSeriesErr
+}
+
+type inputReplica struct {
+	values []testValue
+	err    error
 }
 
 type testSeriesErr struct {
@@ -50,21 +55,27 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
-	values := [][]testValue{
-		[]testValue{
-			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
-			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
-			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+	values := []inputReplica{
+		{
+			values: []testValue{
+				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+				{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+				{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+			},
 		},
-		[]testValue{
-			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
-			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
-			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+		{
+			values: []testValue{
+				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+				{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+				{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+			},
 		},
-		[]testValue{
-			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
-			{4.0, start.Add(4 * time.Second), xtime.Second, nil},
-			{5.0, start.Add(5 * time.Second), xtime.Second, nil},
+		{
+			values: []testValue{
+				{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+				{4.0, start.Add(4 * time.Second), xtime.Second, nil},
+				{5.0, start.Add(5 * time.Second), xtime.Second, nil},
+			},
 		},
 	}
 
@@ -74,7 +85,7 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 		start:    start,
 		end:      end,
 		input:    values,
-		expected: append(values[0], values[2][1:]...),
+		expected: append(values[0].values, values[2].values[1:]...),
 	}
 
 	assertTestSeriesIterator(t, test)
@@ -84,13 +95,17 @@ func TestMultiReaderFiltersToRange(t *testing.T) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
-	values := []testValue{
-		{0.0, start.Add(-2 * time.Second), xtime.Second, []byte{1, 2, 3}},
-		{1.0, start.Add(-1 * time.Second), xtime.Second, nil},
-		{2.0, start, xtime.Second, nil},
-		{3.0, start.Add(1 * time.Second), xtime.Second, nil},
-		{4.0, start.Add(60 * time.Second), xtime.Second, nil},
-		{5.0, start.Add(61 * time.Second), xtime.Second, nil},
+	input := []inputReplica{
+		{
+			values: []testValue{
+				{0.0, start.Add(-2 * time.Second), xtime.Second, []byte{1, 2, 3}},
+				{1.0, start.Add(-1 * time.Second), xtime.Second, nil},
+				{2.0, start, xtime.Second, nil},
+				{3.0, start.Add(1 * time.Second), xtime.Second, nil},
+				{4.0, start.Add(60 * time.Second), xtime.Second, nil},
+				{5.0, start.Add(61 * time.Second), xtime.Second, nil},
+			},
+		},
 	}
 
 	test := testSeries{
@@ -98,14 +113,36 @@ func TestMultiReaderFiltersToRange(t *testing.T) {
 		nsID:     "bar",
 		start:    start,
 		end:      end,
-		input:    [][]testValue{values, values, values},
-		expected: values[2:4],
+		input:    input,
+		expected: input[0].values[2:4],
 	}
 
 	assertTestSeriesIterator(t, test)
 }
 
 func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
+
+	values := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+	}
+
+	test := testSeries{
+		id:       "foo",
+		nsID:     "bar",
+		start:    start,
+		end:      end,
+		input:    [][]testValue{values, []testValue{}, values},
+		expected: values,
+	}
+
+	assertTestSeriesIterator(t, test)
+}
+
+func TestSeriesIteratorDoesNotIgnoreReplicasWithErrors(t *testing.T) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
@@ -167,7 +204,7 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 
 	// Ensure value is propagated during a reset
 	iter.Reset(SeriesIteratorOptions{
-		ID: ident.StringID("baz"),
+		ID:                            ident.StringID("baz"),
 		IterateEqualTimestampStrategy: IterateHighestValue,
 	})
 	assert.Equal(t, iter.iters.equalTimesStrategy,
