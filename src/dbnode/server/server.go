@@ -511,7 +511,7 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
 
-	// Set tchannelthrift options
+	// Set tchannelthrift options.
 	ttopts := tchannelthrift.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -636,7 +636,7 @@ func Run(runOpts RunOptions) {
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
 
-	// Start the cluster services now that the M3DB client is available
+	// Start the cluster services now that the M3DB client is available.
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
 		cfg.ClusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
@@ -655,7 +655,7 @@ func Run(runOpts RunOptions) {
 	defer httpjsonClusterClose()
 	logger.Info("cluster httpjson: listening", zap.String("address", cfg.HTTPClusterListenAddress))
 
-	// Initialize clustered database
+	// Initialize clustered database.
 	clusterTopoWatch, err := topo.Watch()
 	if err != nil {
 		logger.Fatal("could not create cluster topology watch", zap.Error(err))

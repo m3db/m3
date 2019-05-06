@@ -55,10 +55,10 @@ type Initializer interface {
 	// Init will return a new topology
 	Init() (Topology, error)
 
-	// TopologySet returns whether the topology is able to be
+	// TopologyIsSet returns whether the topology is able to be
 	// initialized immediately or if instead it will blockingly
 	// wait to be set on initialization
-	TopologySet() (bool, error)
+	TopologyIsSet() (bool, error)
 }
 
 // Topology is a container of a topology map and disseminates topology map changes

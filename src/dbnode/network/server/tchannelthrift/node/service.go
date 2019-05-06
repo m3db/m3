@@ -93,6 +93,9 @@ var (
 
 	// errNotImplemented raised when attempting to execute an un-implemented method
 	errNotImplemented = errors.New("method is not implemented")
+
+	// errHealthNotSet is raised when server health data structure is not set.
+	errHealthNotSet = errors.New("server health not set")
 )
 
 type serviceMetrics struct {
@@ -147,18 +150,18 @@ type serviceState struct {
 	health *rpc.NodeHealthResult_
 }
 
-func (s *serviceState) DB() storage.Database {
+func (s *serviceState) DB() (storage.Database, bool) {
 	s.RLock()
 	v := s.db
 	s.RUnlock()
-	return v
+	return v, v != nil
 }
 
-func (s *serviceState) Health() *rpc.NodeHealthResult_ {
+func (s *serviceState) Health() (*rpc.NodeHealthResult_, bool) {
 	s.RLock()
 	v := s.health
 	s.RUnlock()
-	return v
+	return v, v != nil
 }
 
 type pools struct {
@@ -223,7 +226,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
-	s := &service{
+	return &service{
 		state: serviceState{
 			db: db,
 			health: &rpc.NodeHealthResult_{
@@ -247,36 +250,39 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
 	}
-	s.SetDatabase(db)
-
-	return s
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
-	db := s.state.DB()
-	health := s.state.Health()
+	health, ok := s.state.Health()
+	if !ok {
+		// Health should always be set
+		return nil, convert.ToRPCError(errHealthNotSet)
+	}
 
-	if db != nil {
-		// Update bootstrapped field if not up to date. Note that we use
-		// IsBootstrappedAndDurable instead of IsBootstrapped to make sure
-		// that in the scenario where a topology change has occurred, none of
-		// our automated tooling will assume a node is healthy until it has
-		// marked all its shards as available and is able to bootstrap all the
-		// shards it owns from its own local disk.
-		bootstrapped := db.IsBootstrappedAndDurable()
+	db, ok := s.state.DB()
+	if !ok {
+		// DB not yet set, just return existing health status
+		return health, nil
+	}
 
-		if health.Bootstrapped != bootstrapped {
-			newHealth := &rpc.NodeHealthResult_{}
-			*newHealth = *health
-			newHealth.Bootstrapped = bootstrapped
+	// Update bootstrapped field if not up to date. Note that we use
+	// IsBootstrappedAndDurable instead of IsBootstrapped to make sure
+	// that in the scenario where a topology change has occurred, none of
+	// our automated tooling will assume a node is healthy until it has
+	// marked all its shards as available and is able to bootstrap all the
+	// shards it owns from its own local disk.
+	bootstrapped := db.IsBootstrappedAndDurable()
+	if health.Bootstrapped != bootstrapped {
+		newHealth := &rpc.NodeHealthResult_{}
+		*newHealth = *health
+		newHealth.Bootstrapped = bootstrapped
 
-			s.state.Lock()
-			s.state.health = newHealth
-			s.state.Unlock()
+		s.state.Lock()
+		s.state.health = newHealth
+		s.state.Unlock()
 
-			// Update response
-			health = newHealth
-		}
+		// Update response
+		health = newHealth
 	}
 
 	return health, nil
@@ -289,8 +295,8 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 // not require parsing the response to determine if the node is bootstrapped or
 // not.
 func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
-	db := s.state.DB()
-	if db == nil {
+	db, ok := s.state.DB()
+	if !ok {
 		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
 	}
 
@@ -316,18 +322,18 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 // progress node addition/removal/modifications when no placement is set
 // at all and therefore the node has not been able to bootstrap yet.
 func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc.NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
-	hasPlacement, err := s.opts.TopologyInitializer().TopologySet()
+	hasPlacement, err := s.opts.TopologyInitializer().TopologyIsSet()
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
 
 	if !hasPlacement {
-		// No placement at all
+		// No placement at all.
 		return &rpc.NodeBootstrappedInPlacementOrNoPlacementResult_{}, nil
 	}
 
-	db := s.state.DB()
-	if db == nil {
+	db, ok := s.state.DB()
+	if !ok {
 		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
 	}
 
@@ -1435,8 +1441,8 @@ func (s *service) SetDatabase(db storage.Database) error {
 }
 
 func (s *service) startRPCWithDB() (storage.Database, error) {
-	db := s.state.DB()
-	if db == nil {
+	db, ok := s.state.DB()
+	if !ok {
 		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
 	}
 

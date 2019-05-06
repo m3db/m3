@@ -190,19 +190,19 @@ func (mr *MockInitializerMockRecorder) Init() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockInitializer)(nil).Init))
 }
 
-// TopologySet mocks base method
-func (m *MockInitializer) TopologySet() (bool, error) {
+// TopologyIsSet mocks base method
+func (m *MockInitializer) TopologyIsSet() (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TopologySet")
+	ret := m.ctrl.Call(m, "TopologyIsSet")
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// TopologySet indicates an expected call of TopologySet
-func (mr *MockInitializerMockRecorder) TopologySet() *gomock.Call {
+// TopologyIsSet indicates an expected call of TopologyIsSet
+func (mr *MockInitializerMockRecorder) TopologyIsSet() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologySet", reflect.TypeOf((*MockInitializer)(nil).TopologySet))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyIsSet", reflect.TypeOf((*MockInitializer)(nil).TopologyIsSet))
 }
 
 // MockTopology is a mock of Topology interface

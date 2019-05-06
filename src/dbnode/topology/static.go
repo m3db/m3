@@ -34,7 +34,7 @@ type staticInitializer struct {
 	opts StaticOptions
 }
 
-// NewStaticInitializer creates a static topology initializer
+// NewStaticInitializer creates a static topology initializer.
 func NewStaticInitializer(opts StaticOptions) Initializer {
 	return staticInitializer{opts}
 }
@@ -46,8 +46,8 @@ func (i staticInitializer) Init() (Topology, error) {
 	return NewStaticTopology(i.opts), nil
 }
 
-func (i staticInitializer) TopologySet() (bool, error) {
-	// Always has the specified static topology ready
+func (i staticInitializer) TopologyIsSet() (bool, error) {
+	// Always has the specified static topology ready.
 	return true, nil
 }
 
@@ -55,7 +55,7 @@ type staticTopology struct {
 	w xwatch.Watchable
 }
 
-// NewStaticTopology creates a static topology
+// NewStaticTopology creates a static topology.
 func NewStaticTopology(opts StaticOptions) Topology {
 	w := xwatch.NewWatchable()
 	w.Update(NewStaticMap(opts))
@@ -67,7 +67,7 @@ func (t *staticTopology) Get() Map {
 }
 
 func (t *staticTopology) Watch() (MapWatch, error) {
-	// Topology is static, the returned watch will not receive any updates
+	// Topology is static, the returned watch will not receive any updates.
 	_, w, err := t.w.Watch()
 	if err != nil {
 		return nil, err

@@ -129,7 +129,7 @@ func TestServiceBootstrapped(t *testing.T) {
 }
 
 func TestServiceBootstrappedInPlacementOrNoPlacement(t *testing.T) {
-	type topologySetResult struct {
+	type TopologyIsSetResult struct {
 		result bool
 		err    error
 	}
@@ -141,37 +141,37 @@ func TestServiceBootstrappedInPlacementOrNoPlacement(t *testing.T) {
 	tests := []struct {
 		name                   string
 		dbSet                  bool
-		topologySet            *topologySetResult
+		TopologyIsSet          *TopologyIsSetResult
 		bootstrappedAndDurable *bootstrappedAndDurableResult
 		expectErr              bool
 	}{
 		{
 			name:                   "bootstrapped in placement",
 			dbSet:                  true,
-			topologySet:            &topologySetResult{result: true, err: nil},
+			TopologyIsSet:          &TopologyIsSetResult{result: true, err: nil},
 			bootstrappedAndDurable: &bootstrappedAndDurableResult{result: true},
 		},
 		{
-			name:        "not in placement",
-			dbSet:       true,
-			topologySet: &topologySetResult{result: false, err: nil},
+			name:          "not in placement",
+			dbSet:         true,
+			TopologyIsSet: &TopologyIsSetResult{result: false, err: nil},
 		},
 		{
-			name:        "topology check error",
-			dbSet:       true,
-			topologySet: &topologySetResult{result: false, err: errors.New("an error")},
-			expectErr:   true,
+			name:          "topology check error",
+			dbSet:         true,
+			TopologyIsSet: &TopologyIsSetResult{result: false, err: errors.New("an error")},
+			expectErr:     true,
 		},
 		{
-			name:        "db not set in placement",
-			dbSet:       false,
-			topologySet: &topologySetResult{result: true, err: nil},
-			expectErr:   true,
+			name:          "db not set in placement",
+			dbSet:         false,
+			TopologyIsSet: &TopologyIsSetResult{result: true, err: nil},
+			expectErr:     true,
 		},
 		{
 			name:                   "not bootstrapped in placement",
 			dbSet:                  true,
-			topologySet:            &topologySetResult{result: true, err: nil},
+			TopologyIsSet:          &TopologyIsSetResult{result: true, err: nil},
 			bootstrappedAndDurable: &bootstrappedAndDurableResult{result: false},
 			expectErr:              true,
 		},
@@ -184,8 +184,8 @@ func TestServiceBootstrappedInPlacementOrNoPlacement(t *testing.T) {
 
 			// Simulate placement
 			mockTopoInit := topology.NewMockInitializer(ctrl)
-			if r := test.topologySet; r != nil {
-				mockTopoInit.EXPECT().TopologySet().Return(r.result, r.err)
+			if r := test.TopologyIsSet; r != nil {
+				mockTopoInit.EXPECT().TopologyIsSet().Return(r.result, r.err)
 			}
 
 			var db storage.Database

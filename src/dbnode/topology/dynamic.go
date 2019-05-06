@@ -74,7 +74,7 @@ func (i *dynamicInitializer) Init() (Topology, error) {
 	return i.topo, nil
 }
 
-func (i *dynamicInitializer) TopologySet() (bool, error) {
+func (i *dynamicInitializer) TopologyIsSet() (bool, error) {
 	services, err := i.opts.ConfigServiceClient().Services(i.opts.ServicesOverrideOptions())
 	if err != nil {
 		return false, err

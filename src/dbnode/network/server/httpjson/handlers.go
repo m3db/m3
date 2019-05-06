@@ -60,7 +60,7 @@ func NewError(err error, statusCode int) Error {
 	return e
 }
 
-// StatusCode implements the Error interface.
+// StatusCode returns the HTTP status code that matches the error.
 func (e errorType) StatusCode() int {
 	return e.statusCode
 }
