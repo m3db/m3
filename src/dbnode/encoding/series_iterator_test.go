@@ -131,11 +131,15 @@ func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 	}
 
 	test := testSeries{
-		id:       "foo",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    [][]testValue{values, []testValue{}, values},
+		id:    "foo",
+		nsID:  "bar",
+		start: start,
+		end:   end,
+		input: []inputReplica{
+			{values: values},
+			{values: []testValue{}},
+			{values: values},
+		},
 		expected: values,
 	}
 
@@ -153,11 +157,15 @@ func TestSeriesIteratorDoesNotIgnoreReplicasWithErrors(t *testing.T) {
 	}
 
 	test := testSeries{
-		id:       "foo",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    [][]testValue{values, []testValue{}, values},
+		id:    "foo",
+		nsID:  "bar",
+		start: start,
+		end:   end,
+		input: []inputReplica{
+			{values: values},
+			{values: []testValue{}},
+			{values: values},
+		},
 		expected: values,
 	}
 
@@ -179,7 +187,7 @@ func TestSeriesIteratorErrorOnOutOfOrder(t *testing.T) {
 		nsID:     "bar",
 		start:    start,
 		end:      end,
-		input:    [][]testValue{values},
+		input:    []inputReplica{{values: values}},
 		expected: values[:2],
 		expectedErr: &testSeriesErr{
 			err:   errOutOfOrderIterator,
@@ -229,10 +237,10 @@ func newTestSeriesIterator(
 ) newTestSeriesIteratorResult {
 	var iters []MultiReaderIterator
 	for i := range series.input {
-		if series.input[i] == nil {
+		if series.input[i].values == nil {
 			iters = append(iters, nil)
 		} else {
-			iters = append(iters, newTestMultiIterator(series.input[i]))
+			iters = append(iters, newTestMultiIterator(series.input[i].values))
 		}
 	}
 
