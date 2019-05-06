@@ -68,12 +68,10 @@ func (m *completeTagQueryMatcher) Matches(x interface{}) bool {
 	}
 
 	if !q.Start.Equal(from.t) {
-		fmt.Println("Not equal start", q.Start, from.t)
 		return false
 	}
 
 	if !q.End.Equal(until.t) {
-		fmt.Println("Not equal end", q.End, until.t)
 		return false
 	}
 

@@ -48,6 +48,7 @@ type TChanNode interface {
 	Aggregate(ctx thrift.Context, req *AggregateQueryRequest) (*AggregateQueryResult_, error)
 	AggregateRaw(ctx thrift.Context, req *AggregateQueryRawRequest) (*AggregateQueryRawResult_, error)
 	Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error)
+	BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error)
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error)
@@ -527,6 +528,22 @@ func (c *tchanNodeClient) Bootstrapped(ctx thrift.Context) (*NodeBootstrappedRes
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
+	var resp NodeBootstrappedInPlacementOrNoPlacementResult
+	args := NodeBootstrappedInPlacementOrNoPlacementArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "bootstrappedInPlacementOrNoPlacement", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for bootstrappedInPlacementOrNoPlacement")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	var resp NodeFetchResult
 	args := NodeFetchArgs{
@@ -914,6 +931,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"aggregate",
 		"aggregateRaw",
 		"bootstrapped",
+		"bootstrappedInPlacementOrNoPlacement",
 		"fetch",
 		"fetchBatchRaw",
 		"fetchBlocksMetadataRawV2",
@@ -946,6 +964,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleAggregateRaw(ctx, protocol)
 	case "bootstrapped":
 		return s.handleBootstrapped(ctx, protocol)
+	case "bootstrappedInPlacementOrNoPlacement":
+		return s.handleBootstrappedInPlacementOrNoPlacement(ctx, protocol)
 	case "fetch":
 		return s.handleFetch(ctx, protocol)
 	case "fetchBatchRaw":
@@ -1060,6 +1080,34 @@ func (s *tchanNodeServer) handleBootstrapped(ctx thrift.Context, protocol athrif
 
 	r, err :=
 		s.handler.Bootstrapped(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleBootstrappedInPlacementOrNoPlacement(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeBootstrappedInPlacementOrNoPlacementArgs
+	var res NodeBootstrappedInPlacementOrNoPlacementResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.BootstrappedInPlacementOrNoPlacement(ctx)
 
 	if err != nil {
 		switch v := err.(type) {

@@ -168,3 +168,16 @@ func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Bu
 
 	return iter.Err()
 }
+
+// NB: binary functions should remove the name tag from relevant series.
+func removeNameTags(
+	meta block.Metadata,
+	metas []block.SeriesMeta,
+) (block.Metadata, []block.SeriesMeta) {
+	meta.Tags = meta.Tags.WithoutName()
+	for i, sm := range metas {
+		metas[i].Tags = sm.Tags.WithoutName()
+	}
+
+	return meta, metas
+}
