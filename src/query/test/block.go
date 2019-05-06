@@ -118,7 +118,7 @@ func NewBlockFromValuesWithSeriesMeta(
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,
 ) block.Block {
-	blockMeta := block.Metadata{Bounds: bounds}
+	blockMeta := block.Metadata{Bounds: bounds, Tags: models.NewTags(0, models.NewTagOptions())}
 
 	return NewBlockFromValuesWithMetaAndSeriesMeta(blockMeta, seriesMeta, seriesValues)
 }

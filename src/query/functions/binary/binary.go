@@ -134,7 +134,9 @@ func processSingleBlock(
 		return nil, err
 	}
 
-	builder, err := controller.BlockBuilder(queryCtx, it.Meta(), it.SeriesMeta())
+	meta, metas := it.Meta(), it.SeriesMeta()
+	meta, metas = removeNameTags(meta, metas)
+	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err
 	}
@@ -171,13 +173,16 @@ func processBothSeries(
 		return nil, errMismatchedStepCounts
 	}
 
-	lMeta, rMeta := lIter.Meta(), rIter.Meta()
+	lMeta, lSeriesMeta := lIter.Meta(), lIter.SeriesMeta()
+	lMeta, lSeriesMeta = removeNameTags(lMeta, lSeriesMeta)
 
-	lSeriesMeta := utils.FlattenMetadata(lMeta, lIter.SeriesMeta())
-	rSeriesMeta := utils.FlattenMetadata(rMeta, rIter.SeriesMeta())
+	rMeta, rSeriesMeta := rIter.Meta(), rIter.SeriesMeta()
+	rMeta, rSeriesMeta = removeNameTags(rMeta, rSeriesMeta)
+
+	lSeriesMeta = utils.FlattenMetadata(lMeta, lSeriesMeta)
+	rSeriesMeta = utils.FlattenMetadata(rMeta, rSeriesMeta)
 
 	takeLeft, correspondingRight, lSeriesMeta := intersect(matching, lSeriesMeta, rSeriesMeta)
-
 	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta)
 
 	// Use metas from only taken left series
