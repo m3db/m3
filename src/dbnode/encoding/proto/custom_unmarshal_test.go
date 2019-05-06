@@ -26,11 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 )
 
-func TestUnmarshalIter(t *testing.T) {
+func TestCustomFieldUnmarshaler(t *testing.T) {
 	// Store in a var to prevent the compiler from complaining about overflow errors.
 	neg1 := -1
 
@@ -42,24 +41,23 @@ func TestUnmarshalIter(t *testing.T) {
 		deliveryID []byte
 		attributes map[string]string
 
-		expectedIter    map[int32]unmarshalValue
-		expectedSkipped *dynamic.Message
+		expectedSortedCustomFields []unmarshalValue
 	}{
 		{
 			latitude:  0.1,
 			longitude: 1.1,
 			epoch:     -1,
 
-			expectedIter: map[int32]unmarshalValue{
-				1: {
+			expectedSortedCustomFields: []unmarshalValue{
+				{
 					fieldNumber: 1,
 					v:           math.Float64bits(0.1),
 				},
-				2: {
+				{
 					fieldNumber: 2,
 					v:           math.Float64bits(1.1),
 				},
-				3: {
+				{
 					fieldNumber: 3,
 					v:           uint64(neg1),
 				},
@@ -71,16 +69,20 @@ func TestUnmarshalIter(t *testing.T) {
 			epoch:      0,
 			deliveryID: []byte("123123123123"),
 
-			expectedIter: map[int32]unmarshalValue{
-				1: {
+			expectedSortedCustomFields: []unmarshalValue{
+				{
 					fieldNumber: 1,
 					v:           math.Float64bits(0.1),
 				},
-				2: {
+				{
 					fieldNumber: 2,
 					v:           math.Float64bits(1.1),
 				},
-				4: {
+				// Note that epoch (field number 3) is not included here because default
+				// value are not included in a marshaled protobuf stream (their absence
+				// implies a default vlaue for a field) which means they're also not
+				// returned by the `sortedCustomFieldValues` method.
+				{
 					fieldNumber: 4,
 					bytes:       []byte("123123123123"),
 				},
@@ -93,27 +95,24 @@ func TestUnmarshalIter(t *testing.T) {
 			deliveryID: []byte("789789789789"),
 			attributes: map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"},
 
-			expectedIter: map[int32]unmarshalValue{
-				1: {
+			expectedSortedCustomFields: []unmarshalValue{
+				{
 					fieldNumber: 1,
 					v:           math.Float64bits(0.2),
 				},
-				2: {
+				{
 					fieldNumber: 2,
 					v:           math.Float64bits(2.2),
 				},
-				3: {
+				{
 					fieldNumber: 3,
 					v:           (1),
 				},
-				4: {
+				{
 					fieldNumber: 4,
 					bytes:       []byte("789789789789"),
 				},
 			},
-
-			expectedSkipped: newVL(
-				0, 0, 0, nil, map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"}),
 		},
 	}
 
@@ -125,20 +124,18 @@ func TestUnmarshalIter(t *testing.T) {
 		require.NoError(t, err)
 
 		unmarshaler.resetAndUnmarshal(testVLSchema, marshaledVL)
-		topLevelScalarValues := unmarshaler.sortedCustomFieldValues()
-		require.Equal(t, len(tc.expectedIter), len(topLevelScalarValues))
+		sortedCustomFieldValues := unmarshaler.sortedCustomFieldValues()
+		require.Equal(t, len(tc.expectedSortedCustomFields), len(sortedCustomFieldValues))
 
 		lastFieldNum := -1
-		for i, curr := range unmarshaler.sortedCustomFieldValues() {
+		for i, curr := range sortedCustomFieldValues {
 			var (
 				fieldNum = curr.fieldNumber
-				expected = tc.expectedIter[fieldNum]
+				expected = tc.expectedSortedCustomFields[i]
 			)
-			// Make sure iteration is sorted.
+			// Make sure iteration is sorted and values match.
 			require.True(t, int(fieldNum) > lastFieldNum)
-
 			require.Equal(t, expected, curr)
-
 			switch fieldNum {
 			case 1:
 				require.Equal(t, tc.latitude, curr.asFloat64())
