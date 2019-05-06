@@ -845,3 +845,77 @@ func TestBothSeries(t *testing.T) {
 		})
 	}
 }
+
+func TestBinaryFunctionWithDifferentNames(t *testing.T) {
+	now := time.Now()
+
+	meta := func(bounds models.Bounds, name string) block.Metadata {
+		return block.Metadata{
+			Bounds: bounds,
+			Tags:   models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
+		}
+	}
+
+	var (
+		bounds = models.Bounds{
+			Start:    now,
+			Duration: time.Minute * 3,
+			StepSize: time.Minute,
+		}
+
+		lhsMeta  = meta(bounds, "left")
+		lhsMetas = test.NewSeriesMeta("a", 2)
+		lhs      = [][]float64{{1, 2, 3}, {4, 5, 6}}
+		left     = test.NewBlockFromValuesWithMetaAndSeriesMeta(
+			lhsMeta, lhsMetas, lhs,
+		)
+
+		rhsMeta  = meta(bounds, "right")
+		rhsMetas = test.NewSeriesMeta("a", 3)[1:]
+		rhs      = [][]float64{{10, 20, 30}, {40, 50, 60}}
+		right    = test.NewBlockFromValuesWithMetaAndSeriesMeta(
+			rhsMeta, rhsMetas, rhs,
+		)
+
+		expected = [][]float64{{14, 25, 36}}
+	)
+
+	op, err := NewOp(
+		PlusType,
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			LIsScalar:      false,
+			RIsScalar:      false,
+			VectorMatching: &VectorMatching{},
+		},
+	)
+	require.NoError(t, err)
+
+	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	node := op.(baseOp).Node(c, transform.Options{})
+
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), left)
+	require.NoError(t, err)
+
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), right)
+	require.NoError(t, err)
+
+	test.EqualsWithNans(t, expected, sink.Values)
+
+	// Extract duped expected metas
+	expectedMeta := block.Metadata{
+		Bounds: bounds,
+		Tags:   models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
+	}
+
+	expectedMetas := []block.SeriesMeta{
+		block.SeriesMeta{
+			Name: []byte("a1"),
+			Tags: models.EmptyTags(),
+		},
+	}
+
+	assert.Equal(t, expectedMeta, sink.Meta)
+	assert.Equal(t, expectedMetas, sink.Metas)
+}
