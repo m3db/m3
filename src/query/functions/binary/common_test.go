@@ -248,3 +248,53 @@ func TestCombineMetaAndSeriesMetaError(t *testing.T) {
 	_, _, _, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)
 	assert.Error(t, err, errMismatchedBounds.Error())
 }
+
+func toTag(n, v string) models.Tag {
+	return models.Tag{Name: []byte(n), Value: []byte(v)}
+}
+
+func TestRemoveNameTags(t *testing.T) {
+	mTags := models.NewTags(2, models.NewTagOptions()).AddTags([]models.Tag{
+		toTag("foo", "bar"),
+	}).SetName([]byte("baz"))
+
+	meta := block.Metadata{
+		Tags: mTags,
+	}
+
+	firstTags := models.NewTags(2, models.NewTagOptions()).AddTags([]models.Tag{
+		toTag("qux", "qaz"),
+	}).SetName([]byte("quail"))
+
+	secondTags := models.NewTags(1, models.NewTagOptions()).AddTags([]models.Tag{
+		toTag("foobar", "baz"),
+	})
+
+	metas := []block.SeriesMeta{
+		{Tags: firstTags},
+		{Tags: secondTags},
+	}
+
+	// NB: ensure the name tags exist initially
+	ex := []models.Tag{toTag("__name__", "baz"), toTag("foo", "bar")}
+	assert.Equal(t, ex, meta.Tags.Tags)
+
+	ex = []models.Tag{toTag("__name__", "quail"), toTag("qux", "qaz")}
+	assert.Equal(t, ex, metas[0].Tags.Tags)
+
+	ex = []models.Tag{toTag("foobar", "baz")}
+	assert.Equal(t, ex, metas[1].Tags.Tags)
+
+	meta, metas = removeNameTags(meta, metas)
+
+	// NB: ensure name tags are removed
+	ex = []models.Tag{toTag("foo", "bar")}
+	assert.Equal(t, ex, meta.Tags.Tags)
+
+	ex = []models.Tag{toTag("qux", "qaz")}
+	assert.Equal(t, ex, metas[0].Tags.Tags)
+
+	ex = []models.Tag{toTag("foobar", "baz")}
+	assert.Equal(t, ex, metas[1].Tags.Tags)
+
+}

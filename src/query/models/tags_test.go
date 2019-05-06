@@ -480,7 +480,6 @@ func BenchmarkIDs(b *testing.B) {
 				}
 			})
 		}
-		fmt.Println()
 	}
 }
 
