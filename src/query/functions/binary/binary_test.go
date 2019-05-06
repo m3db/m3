@@ -837,9 +837,11 @@ func TestBothSeries(t *testing.T) {
 
 			// Extract duped expected metas
 			expectedMeta := block.Metadata{Bounds: bounds}
-			expectedMeta.Tags, tt.expectedMetas = utils.DedupeMetadata(tt.expectedMetas)
+			var expectedMetas []block.SeriesMeta
+			expectedMeta.Tags, expectedMetas = utils.DedupeMetadata(tt.expectedMetas)
+			expectedMeta, expectedMetas = removeNameTags(expectedMeta, expectedMetas)
 			assert.Equal(t, expectedMeta, sink.Meta)
-			assert.Equal(t, tt.expectedMetas, sink.Metas)
+			assert.Equal(t, expectedMetas, sink.Metas)
 		})
 	}
 }
