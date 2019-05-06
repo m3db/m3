@@ -95,6 +95,7 @@ func NewIterator(
 
 func (it *iterator) Next() bool {
 	if it.schema == nil {
+		// It is a programmatic error that schema is not set at all prior to iterating, panic to fix it asap.
 		panic(errIteratorSchemaIsRequired.Error())
 	}
 

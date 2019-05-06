@@ -523,7 +523,7 @@ func Run(runOpts RunOptions) {
 			return opts.SetOrigin(origin)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			if cfg.Proto != nil {
+			if cfg.Proto != nil && cfg.Proto.Enabled {
 				return opts.SetEncodingProto(
 					encoding.NewOptions(),
 				).(client.AdminOptions)
@@ -1169,7 +1169,7 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		if cfg.Proto != nil {
+		if cfg.Proto != nil && cfg.Proto.Enabled {
 			enc := proto.NewEncoder(time.Time{}, encodingOpts)
 			return enc
 		}
@@ -1178,7 +1178,7 @@ func withEncodingAndPoolingOptions(
 	})
 
 	iteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		if cfg.Proto != nil {
+		if cfg.Proto != nil && cfg.Proto.Enabled {
 			return proto.NewIterator(r, descr, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)

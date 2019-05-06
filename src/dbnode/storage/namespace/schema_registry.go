@@ -49,6 +49,7 @@ func (sr *schemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) e
 	sr.Lock()
 	defer sr.Unlock()
 
+	// TODO [haijun] use generated map for optimized map lookup.
 	current, ok := sr.registry[id.String()]
 	if ok {
 		if !history.Extends(current.Get().(SchemaHistory)) {

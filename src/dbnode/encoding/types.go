@@ -38,11 +38,12 @@ import (
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
 	// SetSchema sets up the schema needed by schema-aware encoder to encode the stream.
-	// Must be called before Encode
 	// SetSchema can be called multiple times between reset for mid-stream schema changes.
 	SetSchema(descr namespace.SchemaDescr)
 
 	// Encode encodes a datapoint and optionally an annotation.
+	// Schema must be set prior to Encode for schema-aware encoder. A schema can be set
+	// via Reset/DiscardReset/SetSchema.
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
@@ -60,6 +61,7 @@ type Encoder interface {
 	Len() int
 
 	// Reset resets the start time of the encoder and the internal state.
+	// Reset sets up the schema for schema-aware encoders such as proto encoders.
 	Reset(t time.Time, capacity int, schema namespace.SchemaDescr)
 
 	// Close closes the encoder and if pooled will return to the pool.
@@ -69,6 +71,7 @@ type Encoder interface {
 	Discard() ts.Segment
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
+	// DiscardReset sets up the schema for schema-aware encoders such as proto encoders.
 	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
 }
 
@@ -151,7 +154,7 @@ type Iterator interface {
 type ReaderIterator interface {
 	Iterator
 
-	// Reset resets the iterator to read from a new reader.
+	// Reset resets the iterator to read from a new reader with a new schema (for schema aware iterators).
 	Reset(reader io.Reader, schema namespace.SchemaDescr)
 }
 
@@ -160,10 +163,10 @@ type ReaderIterator interface {
 type MultiReaderIterator interface {
 	Iterator
 
-	// Reset resets the iterator to read from a slice of readers.
+	// Reset resets the iterator to read from a slice of readers with a new schema (for schema aware iterators).
 	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration, schema namespace.SchemaDescr)
 
-	// Reset resets the iterator to read from a slice of slice readers.
+	// Reset resets the iterator to read from a slice of slice readers with a new schema (for schema aware iterators).
 	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, schema namespace.SchemaDescr)
 
 	// Readers exposes the underlying ReaderSliceOfSlicesIterator for this MultiReaderIterator

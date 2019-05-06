@@ -125,6 +125,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	}
 
 	if enc.schema == nil {
+		// It is a programmatic error that schema is not set at all prior to encoding, panic to fix it asap.
 		panic(errEncoderSchemaIsRequired.Error())
 	}
 
