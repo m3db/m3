@@ -32,6 +32,7 @@ import (
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
@@ -69,6 +70,9 @@ func (c *Configuration) InitDefaultsAndValidate() error {
 type DBConfiguration struct {
 	// Index configuration.
 	Index IndexConfiguration `yaml:"index"`
+
+	// Transforms configuration.
+	Transforms TransformConfiguration `yaml:"transforms"`
 
 	// Logging configuration.
 	Logging xlog.Configuration `yaml:"logging"`
@@ -165,6 +169,10 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 		return err
 	}
 
+	if err := c.Transforms.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -173,8 +181,42 @@ type IndexConfiguration struct {
 	// MaxQueryIDsConcurrency controls the maximum number of outstanding QueryID
 	// requests that can be serviced concurrently. Limiting the concurrency is
 	// important to prevent index queries from overloading the database entirely
-	// as they are very CPU-intensive (regex and FST matching.)
+	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
+
+	// ForwardIndexProbability determines the likelihood that an incoming write is
+	// written to the next block, when arriving close to the block boundary.
+	//
+	// NB: this is an optimization which lessens pressure on the index around
+	// block boundaries by eagerly writing the series to the next block
+	// preemptively.
+	ForwardIndexProbability float64 `yaml:"forwardIndexProbability" validate:"min=0.0,max=1.0"`
+
+	// ForwardIndexThreshold determines the threshold for forward writes, as a
+	// fraction of the given namespace's bufferFuture.
+	//
+	// NB: this is an optimization which lessens pressure on the index around
+	// block boundaries by eagerly writing the series to the next block
+	// preemptively.
+	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+}
+
+// TransformConfiguration contains configuration options that can transform
+// incoming writes.
+type TransformConfiguration struct {
+	// TruncateBy determines what type of truncatation is applied to incoming
+	// writes.
+	TruncateBy series.TruncateType `yaml:"truncateBy"`
+	// ForcedValue determines what to set all incoming write values to.
+	ForcedValue *float64 `yaml:"forceValue"`
+}
+
+func (c *TransformConfiguration) Validate() error {
+	if c == nil {
+		return nil
+	}
+
+	return c.TruncateBy.Validate()
 }
 
 // TickConfiguration is the tick configuration for background processing of
@@ -282,6 +324,7 @@ type HashingConfiguration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	SchemaFilePath string `yaml:"schemaFilePath"`
+	MessageName    string `yaml:"messageName"`
 }
 
 // Validate validates the ProtoConfiguration.
@@ -292,6 +335,10 @@ func (c *ProtoConfiguration) Validate() error {
 
 	if c.SchemaFilePath == "" {
 		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	if c.MessageName == "" {
+		return errors.New("messageName is required for Proto data mode")
 	}
 
 	return nil

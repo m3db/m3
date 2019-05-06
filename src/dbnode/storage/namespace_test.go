@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -97,11 +98,43 @@ func newTestNamespaceWithIDOpts(
 	return ns.(*dbNamespace), closer
 }
 
-func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closerFn) {
+func newTestNamespaceWithOpts(
+	t *testing.T,
+	dopts Options,
+) (*dbNamespace, closerFn) {
+	nsID, opts := defaultTestNs1ID, defaultTestNs1Opts
+	metadata := newTestNamespaceMetadataWithIDOpts(t, nsID, opts)
+	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
+	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
+	require.NoError(t, err)
+	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	require.NoError(t, err)
+	closer := dopts.RuntimeOptionsManager().Close
+	return ns.(*dbNamespace), closer
+}
+
+func newTestNamespaceWithIndex(
+	t *testing.T,
+	index namespaceIndex,
+) (*dbNamespace, closerFn) {
 	ns, closer := newTestNamespace(t)
 	if index != nil {
 		ns.reverseIndex = index
 	}
+	return ns, closer
+}
+
+func newTestNamespaceWithTruncateType(
+	t *testing.T,
+	index namespaceIndex,
+	truncateType series.TruncateType,
+) (*dbNamespace, closerFn) {
+	opts := testDatabaseOptions().
+		SetRuntimeOptionsManager(runtime.NewOptionsManager()).
+		SetTruncateType(truncateType)
+
+	ns, closer := newTestNamespaceWithOpts(t, opts)
+	ns.reverseIndex = index
 	return ns, closer
 }
 
@@ -180,23 +213,29 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	unit := xtime.Second
 	ant := []byte(nil)
 
-	ns, closer := newTestNamespace(t)
-	defer closer()
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
-		Return(ts.Series{}, true, nil).Times(1)
-	shard.EXPECT().Write(ctx, id, now, val, unit, ant, gomock.Any()).
-		Return(ts.Series{}, false, nil).Times(1)
+	truncateTypes := []series.TruncateType{series.TypeBlock, series.TypeNone}
+	for _, truncateType := range truncateTypes {
+		ns, closer := newTestNamespaceWithTruncateType(t, nil, truncateType)
+		defer closer()
+		shard := NewMockdatabaseShard(ctrl)
+		opts := series.WriteOptions{
+			TruncateType: truncateType,
+		}
+		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
+			Return(ts.Series{}, true, nil).Times(1)
+		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
+			Return(ts.Series{}, false, nil).Times(1)
 
-	ns.shards[testShardIDs[0].ID()] = shard
+		ns.shards[testShardIDs[0].ID()] = shard
 
-	_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
-	require.NoError(t, err)
-	require.True(t, wasWritten)
+		_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
+		require.NoError(t, err)
+		require.True(t, wasWritten)
 
-	_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
-	require.NoError(t, err)
-	require.False(t, wasWritten)
+		_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
+		require.NoError(t, err)
+		require.False(t, wasWritten)
+	}
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
@@ -1064,34 +1103,43 @@ func TestNamespaceIndexInsert(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	idx := NewMocknamespaceIndex(ctrl)
-	ns, closer := newTestNamespaceWithIndex(t, idx)
-	defer closer()
+	truncateTypes := []series.TruncateType{series.TypeBlock, series.TypeNone}
+	for _, truncateType := range truncateTypes {
+		idx := NewMocknamespaceIndex(ctrl)
 
-	ctx := context.NewContext()
-	now := time.Now()
+		ns, closer := newTestNamespaceWithTruncateType(t, idx, truncateType)
+		ns.reverseIndex = idx
+		defer closer()
 
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, true, nil)
-	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, 1.0, xtime.Second, nil, gomock.Any()).Return(ts.Series{}, false, nil)
+		ctx := context.NewContext()
+		now := time.Now()
 
-	ns.shards[testShardIDs[0].ID()] = shard
+		shard := NewMockdatabaseShard(ctrl)
 
-	_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
-	require.NoError(t, err)
-	require.True(t, wasWritten)
+		opts := series.WriteOptions{
+			TruncateType: truncateType,
+		}
+		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, true, nil)
+		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, false, nil)
 
-	_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
-	require.NoError(t, err)
-	require.False(t, wasWritten)
+		ns.shards[testShardIDs[0].ID()] = shard
 
-	shard.EXPECT().Close()
-	idx.EXPECT().Close().Return(nil)
-	require.NoError(t, ns.Close())
+		_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
+			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+		require.NoError(t, err)
+		require.True(t, wasWritten)
+
+		_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
+			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+		require.NoError(t, err)
+		require.False(t, wasWritten)
+
+		shard.EXPECT().Close()
+		idx.EXPECT().Close().Return(nil)
+		require.NoError(t, ns.Close())
+	}
 }
 
 func TestNamespaceIndexQuery(t *testing.T) {

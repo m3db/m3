@@ -80,7 +80,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/coreos/etcd/embed"
-	"github.com/coreos/pkg/capnslog"
 	"github.com/jhump/protoreflect/desc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -178,7 +177,8 @@ func Run(runOpts RunOptions) {
 	var schema *desc.MessageDescriptor
 	if cfg.Proto != nil {
 		logger.Info("Probuf data mode enabled")
-		schema, err = proto.ParseProtoSchema(cfg.Proto.SchemaFilePath)
+		schema, err = proto.ParseProtoSchema(
+			cfg.Proto.SchemaFilePath, cfg.Proto.MessageName)
 		if err != nil {
 			logger.Fatal("error parsing protobuffer schema", zap.Error(err))
 		}
@@ -221,8 +221,6 @@ func Run(runOpts RunOptions) {
 			logger.Info("tracing enabled", zap.String("service", serviceName))
 		}
 	}
-
-	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 
 	// Presence of KV server config indicates embedded etcd cluster
 	if cfg.EnvironmentConfig.SeedNodes == nil {
@@ -439,6 +437,7 @@ func Run(runOpts RunOptions) {
 
 	// Apply pooling options.
 	opts = withEncodingAndPoolingOptions(cfg, logger, schema, opts, cfg.PoolingPolicy)
+
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -512,6 +511,51 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
 
+	// Set tchannelthrift options.
+	ttopts := tchannelthrift.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetTopologyInitializer(envCfg.TopologyInitializer).
+		SetIdentifierPool(opts.IdentifierPool()).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
+
+	// Start servers before constructing the DB so orchestration tools can check health endpoints
+	// before topology is set.
+	var (
+		contextPool  = opts.ContextPool()
+		tchannelOpts = xtchannel.NewDefaultChannelOptions()
+		// Pass nil for the database argument because we haven't constructed it yet. We'll call
+		// SetDatabase() once we've initialized it.
+		service = ttnode.NewService(nil, ttopts)
+	)
+	tchannelthriftNodeClose, err := ttnode.NewServer(service,
+		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
+	if err != nil {
+		logger.Fatal("could not open tchannelthrift interface",
+			zap.String("address", cfg.ListenAddress), zap.Error(err))
+	}
+	defer tchannelthriftNodeClose()
+	logger.Info("node tchannelthrift: listening", zap.String("address", cfg.ListenAddress))
+
+	httpjsonNodeClose, err := hjnode.NewServer(service,
+		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
+	if err != nil {
+		logger.Fatal("could not open httpjson interface",
+			zap.String("address", cfg.HTTPNodeListenAddress), zap.Error(err))
+	}
+	defer httpjsonNodeClose()
+	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
+
+	if cfg.DebugListenAddress != "" {
+		go func() {
+			if err := http.ListenAndServe(cfg.DebugListenAddress, nil); err != nil {
+				logger.Error("debug server could not listen",
+					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
+			}
+		}()
+	}
+
 	topo, err := envCfg.TopologyInitializer.Init()
 	if err != nil {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
@@ -535,10 +579,9 @@ func Run(runOpts RunOptions) {
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			if cfg.Proto != nil {
-				return opts.SetEncodingProto(
-					schema,
-					encoding.NewOptions(),
-				).(client.AdminOptions)
+				adminOpts := opts.SetEncodingProto(schema,
+					encoding.NewOptions())
+				return adminOpts.(client.AdminOptions)
 			}
 			return opts
 		},
@@ -559,12 +602,6 @@ func Run(runOpts RunOptions) {
 	opts = opts.
 		// Feature currently not working.
 		SetRepairEnabled(false)
-
-	// Set tchannelthrift options
-	ttopts := tchannelthrift.NewOptions().
-		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool)
 
 	// Set bootstrap options - We need to create a topology map provider from the
 	// same topology that will be passed to the cluster so that when we make
@@ -599,34 +636,7 @@ func Run(runOpts RunOptions) {
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
 
-	// Initialize clustered database
-	clusterTopoWatch, err := topo.Watch()
-	if err != nil {
-		logger.Fatal("could not create cluster topology watch", zap.Error(err))
-	}
-	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
-	if err != nil {
-		logger.Fatal("could not construct database", zap.Error(err))
-	}
-
-	if err := db.Open(); err != nil {
-		logger.Fatal("could not open database", zap.Error(err))
-	}
-
-	contextPool := opts.ContextPool()
-
-	tchannelOpts := xtchannel.NewDefaultChannelOptions()
-	service := ttnode.NewService(db, ttopts)
-
-	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
-	if err != nil {
-		logger.Fatal("could not open tchannelthrift interface",
-			zap.String("address", cfg.ListenAddress), zap.Error(err))
-	}
-	defer tchannelthriftNodeClose()
-	logger.Info("node tchannelthrift: listening", zap.String("address", cfg.ListenAddress))
-
+	// Start the cluster services now that the M3DB client is available.
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
 		cfg.ClusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
@@ -635,15 +645,6 @@ func Run(runOpts RunOptions) {
 	}
 	defer tchannelthriftClusterClose()
 	logger.Info("cluster tchannelthrift: listening", zap.String("address", cfg.ClusterListenAddress))
-
-	httpjsonNodeClose, err := hjnode.NewServer(service,
-		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
-	if err != nil {
-		logger.Fatal("could not open httpjson interface",
-			zap.String("address", cfg.HTTPNodeListenAddress), zap.Error(err))
-	}
-	defer httpjsonNodeClose()
-	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
 
 	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient,
 		cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
@@ -654,14 +655,23 @@ func Run(runOpts RunOptions) {
 	defer httpjsonClusterClose()
 	logger.Info("cluster httpjson: listening", zap.String("address", cfg.HTTPClusterListenAddress))
 
-	if cfg.DebugListenAddress != "" {
-		go func() {
-			if err := http.ListenAndServe(cfg.DebugListenAddress, nil); err != nil {
-				logger.Error("debug server could not listen",
-					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
-			}
-		}()
+	// Initialize clustered database.
+	clusterTopoWatch, err := topo.Watch()
+	if err != nil {
+		logger.Fatal("could not create cluster topology watch", zap.Error(err))
 	}
+
+	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
+	if err != nil {
+		logger.Fatal("could not construct database", zap.Error(err))
+	}
+
+	if err := db.Open(); err != nil {
+		logger.Fatal("could not open database", zap.Error(err))
+	}
+
+	// Now that we've initialized the database we can set it on the service.
+	service.SetDatabase(db)
 
 	go func() {
 		if runOpts.BootstrapCh != nil {
@@ -1062,8 +1072,17 @@ func withEncodingAndPoolingOptions(
 		logger.Fatal("unrecognized pooling type", zap.Any("type", policy.Type))
 	}
 
-	logger.Sugar().Infof("bytes pool %s init", policy.Type)
-	bytesPool.Init()
+	{
+		// Avoid polluting the rest of the function with `l` var
+		l := logger
+		if t := policy.Type; t != nil {
+			l = l.With(zap.String("policy", string(*t)))
+		}
+
+		l.Info("bytes pool init")
+		bytesPool.Init()
+		l.Info("bytes pool init done")
+	}
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
 		poolOptions(
@@ -1225,6 +1244,7 @@ func withEncodingAndPoolingOptions(
 		SetContextPool(contextPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
+		SetMultiReaderIteratorPool(multiIteratorPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
 
@@ -1279,6 +1299,17 @@ func withEncodingAndPoolingOptions(
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 
+	// Set value transformation options.
+	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
+	forcedValue := cfg.Transforms.ForcedValue
+	if forcedValue != nil {
+		opts = opts.SetWriteTransformOptions(series.WriteTransformOptions{
+			ForceValueEnabled: true,
+			ForceValue:        *forcedValue,
+		})
+	}
+
+	// Set index options.
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
@@ -1295,7 +1326,9 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
-		SetAggregateResultsPool(aggregateQueryResultsPool)
+		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so

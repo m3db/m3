@@ -59,7 +59,7 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	query, rErr := h.parseBody(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
@@ -67,7 +67,7 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	results, err := h.search(r.Context(), query, opts)
 	if err != nil {
-		logger.Error("unable to fetch data", zap.Any("error", err))
+		logger.Error("unable to fetch data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}

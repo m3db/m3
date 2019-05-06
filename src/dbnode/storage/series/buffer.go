@@ -254,6 +254,15 @@ func (b *dbBuffer) Write(
 	blockStart := timestamp.Truncate(b.blockSize)
 	buckets := b.bucketVersionsAtCreate(blockStart)
 	b.putBucketVersionsInCache(buckets)
+
+	if wOpts.TruncateType == TypeBlock {
+		timestamp = blockStart
+	}
+
+	if wOpts.TransformOptions.ForceValueEnabled {
+		value = wOpts.TransformOptions.ForceValue
+	}
+
 	return buckets.write(timestamp, value, unit, annotation, writeType)
 }
 

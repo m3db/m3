@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/ctl/service/r2"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/etcd"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -53,6 +54,9 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	// Set globals for etcd related packages.
+	etcd.SetGlobals()
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {

@@ -31,7 +31,7 @@ import (
 )
 
 type server struct {
-	service     rpc.TChanNode
+	service     Service
 	address     string
 	contextPool context.Pool
 	opts        *tchannel.ChannelOptions
@@ -39,7 +39,7 @@ type server struct {
 
 // NewServer creates a new node TChannel Thrift network service
 func NewServer(
-	service rpc.TChanNode,
+	service Service,
 	address string,
 	contextPool context.Pool,
 	opts *tchannel.ChannelOptions,

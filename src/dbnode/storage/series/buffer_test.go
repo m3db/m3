@@ -475,6 +475,54 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
+func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(opts)
+
+	data := []value{
+		{curr.Add(secs(1)), 1, xtime.Second, nil},
+		{curr.Add(secs(2)), 2, xtime.Second, nil},
+		{curr.Add(secs(3)), 3, xtime.Second, nil},
+	}
+
+	forceValue := 1.0
+	for i, v := range data {
+		ctx := context.NewContext()
+		writeOpts := WriteOptions{
+			TruncateType: TypeBlock,
+			TransformOptions: WriteTransformOptions{
+				ForceValueEnabled: true,
+				ForceValue:        forceValue,
+			},
+		}
+		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit,
+			v.annotation, writeOpts)
+		require.NoError(t, err)
+		expectedWrite := i == 0
+		require.Equal(t, expectedWrite, wasWritten)
+		ctx.Close()
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+
+	ex := []value{
+		{curr, forceValue, xtime.Second, nil},
+	}
+
+	assertValuesEqual(t, ex, results, opts)
+}
+
 func TestBufferFetchBlocks(t *testing.T) {
 	b, opts, expected := newTestBufferBucketsWithData(t)
 	ctx := opts.ContextPool().Get()

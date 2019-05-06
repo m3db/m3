@@ -58,14 +58,14 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 	rErr := parseRequest(r, &req)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	service, err := h.serviceFn(h.client)
 	if err != nil {
-		logger.Error("unable to get service", zap.Any("error", err))
+		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -75,14 +75,14 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		SetNumberOfShards(req.NumberOfShards)
 	t, err = service.CheckAndSet(t, 0)
 	if err != nil {
-		logger.Error("unable to init topic", zap.Any("error", err))
+		logger.Error("unable to init topic", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	topicProto, err := topic.ToProto(t)
 	if err != nil {
-		logger.Error("unable to get topic protobuf", zap.Any("error", err))
+		logger.Error("unable to get topic protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

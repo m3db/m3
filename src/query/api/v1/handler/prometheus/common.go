@@ -37,13 +37,10 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 )
 
 const (
-	// NameReplace is the parameter that gets replaced.
-	NameReplace         = "name"
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
@@ -52,8 +49,7 @@ const (
 )
 
 var (
-	matchValues = []byte(".*")
-	roleName    = []byte("role")
+	roleName = []byte("role")
 )
 
 // TimeoutOpts stores options related to various timeout configurations.
@@ -229,30 +225,6 @@ func ParseSeriesMatchQuery(
 	return queries, nil
 }
 
-// ParseTagValuesToQuery parses a tag values request to a complete tags query.
-func ParseTagValuesToQuery(
-	r *http.Request,
-) (*storage.CompleteTagsQuery, error) {
-	vars := mux.Vars(r)
-	name, ok := vars[NameReplace]
-	if !ok || len(name) == 0 {
-		return nil, errors.ErrNoName
-	}
-
-	nameBytes := []byte(name)
-	return &storage.CompleteTagsQuery{
-		CompleteNameOnly: false,
-		FilterNameTags:   [][]byte{nameBytes},
-		TagMatchers: models.Matchers{
-			models.Matcher{
-				Type:  models.MatchRegexp,
-				Name:  nameBytes,
-				Value: matchValues,
-			},
-		},
-	}, nil
-}
-
 func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
@@ -297,6 +269,35 @@ func renderDefaultTagCompletionResultsJSON(
 
 		jw.EndObject()
 	}
+	jw.EndArray()
+
+	jw.EndObject()
+
+	return jw.Close()
+}
+
+// RenderListTagResultsJSON renders list tag results to json format.
+func RenderListTagResultsJSON(
+	w io.Writer,
+	result *storage.CompleteTagsResult,
+) error {
+	if !result.CompleteNameOnly {
+		return errors.ErrWithNames
+	}
+
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginArray()
+
+	for _, t := range result.CompletedTags {
+		jw.WriteString(string(t.Name))
+	}
+
 	jw.EndArray()
 
 	jw.EndObject()

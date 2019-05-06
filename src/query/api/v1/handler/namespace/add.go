@@ -68,7 +68,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
@@ -82,7 +82,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.Error("unable to get namespace", zap.Any("error", err))
+		logger.Error("unable to get namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
