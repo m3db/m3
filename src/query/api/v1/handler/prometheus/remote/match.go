@@ -38,8 +38,8 @@ const (
 	// PromSeriesMatchURL is the url for remote prom series matcher handler.
 	PromSeriesMatchURL = handler.RoutePrefixV1 + "/series"
 
-	// PromSeriesMatchHTTPMethod is the HTTP method used with this resource.
-	PromSeriesMatchHTTPMethod = http.MethodGet
+	// PromSeriesMatchHTTPMethods are the HTTP methods used with this resource.
+	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 // PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
