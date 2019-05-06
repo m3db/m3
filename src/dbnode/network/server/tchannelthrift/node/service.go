@@ -282,6 +282,39 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	return health, nil
 }
 
+// Bootstrapped is designed to be used with cluster management tools like k8s
+// that expect an endpoint that will return success if the node is
+// healthy/bootstrapped and an error if not. We added this endpoint because
+// while the Health endpoint provides the same information, this endpoint does
+// not require parsing the response to determine if the node is bootstrapped or
+// not.
+func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
+	db := s.state.DB()
+	if db == nil {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+
+	// Note that we use IsBootstrappedAndDurable instead of IsBootstrapped to
+	// make sure that in the scenario where a topology change has occurred, none
+	// of our automated tooling will assume a node is healthy until it has
+	// marked all its shards as available and is able to bootstrap all the
+	// shards it owns from its own local disk.
+	if bootstrapped := db.IsBootstrappedAndDurable(); !bootstrapped {
+		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
+	}
+
+	return &rpc.NodeBootstrappedResult_{}, nil
+}
+
+// BootstrappedInPlacementOrNoPlacement is designed to be used with cluster
+// management tools like k8s that expected an endpoint that will return
+// success if the node either:
+// 1) Has no cluster placement set yet.
+// 2) Is bootstrapped and durable, meaning it is bootstrapped and is able
+//    to bootstrap the shards it owns from it's own local disk.
+// This is useful in addition to the Bootstrapped RPC method as it helps
+// progress node addition/removal/modifications when no placement is set
+// at all and therefore the node has not been able to bootstrap yet.
 func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc.NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
 	hasPlacement, err := s.opts.TopologyInitializer().TopologySet()
 	if err != nil {
@@ -303,27 +336,6 @@ func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc
 	}
 
 	return &rpc.NodeBootstrappedInPlacementOrNoPlacementResult_{}, nil
-}
-
-// Bootstrapped is design to be used with cluster management tools like k8 that expect an endpoint
-// that will return success if the node is healthy/bootstrapped and an error if not. We added this
-// endpoint because while the Health endpoint provides the same information, this endpoint does not
-// require parsing the response to determine if the node is bootstrapped or not.
-func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
-	db := s.state.DB()
-	if db == nil {
-		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
-	}
-
-	// Note that we use IsBootstrappedAndDurable instead of IsBootstrapped to make sure
-	// that in the scenario where a topology change has occurred, none of our automated
-	// tooling will assume a node is healthy until it has marked all its shards as available
-	// and is able to bootstrap all the shards it owns from its own local disk.
-	if bootstrapped := db.IsBootstrappedAndDurable(); !bootstrapped {
-		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
-	}
-
-	return &rpc.NodeBootstrappedResult_{}, nil
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {

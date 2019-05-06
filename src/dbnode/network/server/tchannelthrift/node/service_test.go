@@ -23,10 +23,13 @@ package node
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/topology"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -123,6 +126,93 @@ func TestServiceBootstrapped(t *testing.T) {
 	tctx, _ = thrift.NewContext(time.Minute)
 	_, err = service.Health(tctx)
 	require.NoError(t, err)
+}
+
+func TestServiceBootstrappedInPlacementOrNoPlacement(t *testing.T) {
+	type topologySetResult struct {
+		result bool
+		err    error
+	}
+
+	type bootstrappedAndDurableResult struct {
+		result bool
+	}
+
+	tests := []struct {
+		name                   string
+		dbSet                  bool
+		topologySet            *topologySetResult
+		bootstrappedAndDurable *bootstrappedAndDurableResult
+		expectErr              bool
+	}{
+		{
+			name:                   "bootstrapped in placement",
+			dbSet:                  true,
+			topologySet:            &topologySetResult{result: true, err: nil},
+			bootstrappedAndDurable: &bootstrappedAndDurableResult{result: true},
+		},
+		{
+			name:        "not in placement",
+			dbSet:       true,
+			topologySet: &topologySetResult{result: false, err: nil},
+		},
+		{
+			name:        "topology check error",
+			dbSet:       true,
+			topologySet: &topologySetResult{result: false, err: errors.New("an error")},
+			expectErr:   true,
+		},
+		{
+			name:        "db not set in placement",
+			dbSet:       false,
+			topologySet: &topologySetResult{result: true, err: nil},
+			expectErr:   true,
+		},
+		{
+			name:                   "not bootstrapped in placement",
+			dbSet:                  true,
+			topologySet:            &topologySetResult{result: true, err: nil},
+			bootstrappedAndDurable: &bootstrappedAndDurableResult{result: false},
+			expectErr:              true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// Simulate placement
+			mockTopoInit := topology.NewMockInitializer(ctrl)
+			if r := test.topologySet; r != nil {
+				mockTopoInit.EXPECT().TopologySet().Return(r.result, r.err)
+			}
+
+			var db storage.Database
+			if test.dbSet {
+				mockDB := storage.NewMockDatabase(ctrl)
+				mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+				// Simulate bootstrapped and durable
+				if r := test.bootstrappedAndDurable; r != nil {
+					mockDB.EXPECT().IsBootstrappedAndDurable().Return(r.result)
+				}
+				db = mockDB
+			}
+
+			testOpts := testTChannelThriftOptions.
+				SetTopologyInitializer(mockTopoInit)
+			service := NewService(db, testOpts).(*service)
+
+			// Call BootstrappedInPlacementOrNoPlacement
+			tctx, _ := thrift.NewContext(time.Minute)
+			_, err := service.BootstrappedInPlacementOrNoPlacement(tctx)
+			if test.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestServiceQuery(t *testing.T) {
