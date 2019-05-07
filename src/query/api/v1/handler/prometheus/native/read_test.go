@@ -129,19 +129,25 @@ type testSetupHandlers struct {
 
 func newTestSetup() *testSetup {
 	mockStorage := mock.NewMockStorage()
+
 	scope := tally.NoopScope
 	engine := executor.NewEngine(mockStorage, scope,
 		time.Minute, nil)
 	tagOpts := models.NewTagOptions()
 	limitsConfig := &config.LimitsConfiguration{}
 	keepNans := false
+
+	read := NewPromReadHandler(engine, tagOpts, limitsConfig,
+		scope, timeoutOpts, keepNans)
+
+	instantRead := NewPromReadInstantHandler(engine, tagOpts,
+		timeoutOpts)
+
 	return &testSetup{
 		Storage: mockStorage,
 		Handlers: testSetupHandlers{
-			Read: NewPromReadHandler(engine, tagOpts, limitsConfig,
-				scope, timeoutOpts, keepNans),
-			InstantRead: NewPromReadInstantHandler(engine, tagOpts,
-				timeoutOpts),
+			Read:        read,
+			InstantRead: instantRead,
 		},
 		TimeoutOpts: timeoutOpts,
 	}
