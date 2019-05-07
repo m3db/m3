@@ -37,6 +37,7 @@ var (
 )
 
 type Pools struct {
+	EncodingOpt encoding.Options
 	EncoderPool encoding.EncoderPool
 	ReaderIterPool encoding.ReaderIteratorPool
 	MultiReaderIterPool encoding.MultiReaderIteratorPool
@@ -72,6 +73,7 @@ func newPools() Pools {
 	})
 
 	return Pools {
+		EncodingOpt: testEncodingOptions,
 		BytesPool: bytesPool,
 		EncoderPool: encoderPool,
 		ReaderIterPool: readerIterPool,

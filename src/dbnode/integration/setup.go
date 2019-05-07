@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -746,8 +745,8 @@ func newClients(
 	)
 
 	if opts.ProtoEncoding() {
-		adminOpts.SetEncodingProto(encoding.NewOptions())
-		verificationAdminOpts.SetEncodingProto(encoding.NewOptions())
+		adminOpts = adminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
+		verificationAdminOpts = verificationAdminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
 	}
 
 	// Set up m3db client

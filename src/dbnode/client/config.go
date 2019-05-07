@@ -87,22 +87,14 @@ type Configuration struct {
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
-	SchemaFilePath string `yaml:"schemaFilePath"`
-	MessageName    string `yaml:"messageName"`
+	// Whether proto is enabled.
+	Enabled bool `yaml:"enabled"`
 }
 
 // Validate validates the ProtoConfiguration.
 func (c *ProtoConfiguration) Validate() error {
 	if c == nil {
 		return nil
-	}
-
-	if c.SchemaFilePath == "" {
-		return errors.New("schemaFilePath is required for Proto data mode")
-	}
-
-	if c.MessageName == "" {
-		return errors.New("messageName is required for Proto data mode")
 	}
 
 	return nil
@@ -290,7 +282,7 @@ func (c Configuration) NewAdminClient(
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})
 
-	if c.Proto != nil {
+	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
 	}
 
