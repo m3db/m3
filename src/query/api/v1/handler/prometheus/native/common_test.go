@@ -145,7 +145,7 @@ func TestParseDurationError(t *testing.T) {
 }
 
 func TestParseDurationOverflowError(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/foo?step=%v", float64(math.MaxInt64)), nil)
+	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/foo?step=%f", float64(math.MaxInt64)), nil)
 	require.NoError(t, err)
 	_, err = parseDuration(r, stepParam)
 	assert.Error(t, err)
