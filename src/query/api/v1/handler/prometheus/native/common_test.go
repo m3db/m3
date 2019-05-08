@@ -23,6 +23,7 @@ package native
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"net/url"
@@ -138,6 +139,13 @@ func TestParseDurationParsesFloatAsSeconds(t *testing.T) {
 
 func TestParseDurationError(t *testing.T) {
 	r, err := http.NewRequest(http.MethodGet, "/foo?step=bar10", nil)
+	require.NoError(t, err)
+	_, err = parseDuration(r, stepParam)
+	assert.Error(t, err)
+}
+
+func TestParseDurationOverflowError(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/foo?step=%v", float64(math.MaxInt64)), nil)
 	require.NoError(t, err)
 	_, err = parseDuration(r, stepParam)
 	assert.Error(t, err)
