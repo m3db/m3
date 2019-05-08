@@ -440,19 +440,24 @@ func TestForwardWrites(t *testing.T) {
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
-	res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
-		StartInclusive: now.Add(-1 * time.Minute),
-		EndExclusive:   now.Add(1 * time.Minute),
-	})
-	require.NoError(t, err)
 
-	assert.True(t, res.Exhaustive)
-	results := res.Results
-	assert.Equal(t, "testns1", results.Namespace().String())
+	// NB: query both the current and the next index block to ensure that the
+	// write was correctly indexed to both.
+	for _, start := range []time.Time{now, now.Add(blockSize)} {
+		res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
+			StartInclusive: start.Add(-1 * time.Minute),
+			EndExclusive:   start.Add(1 * time.Minute),
+		})
+		require.NoError(t, err)
 
-	tags, ok := results.Map().Get(ident.StringID("foo"))
-	assert.True(t, ok)
-	assert.True(t, ident.NewTagIterMatcher(
-		ident.MustNewTagStringsIterator("name", "value")).Matches(
-		ident.NewTagsIterator(tags)))
+		assert.True(t, res.Exhaustive)
+		results := res.Results
+		assert.Equal(t, "testns1", results.Namespace().String())
+
+		tags, ok := results.Map().Get(ident.StringID("foo"))
+		assert.True(t, ok)
+		assert.True(t, ident.NewTagIterMatcher(
+			ident.MustNewTagStringsIterator("name", "value")).Matches(
+			ident.NewTagsIterator(tags)))
+	}
 }
