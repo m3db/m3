@@ -76,8 +76,13 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	}
 
 	// Try parsing as an integer value specifying seconds, the Prometheus default
-	if seconds, intErr := strconv.ParseInt(str, 10, 64); intErr == nil {
-		return time.Duration(seconds) * time.Second, nil
+	if seconds, intErr := strconv.ParseFloat(str, 64); intErr == nil {
+		ts := seconds * float64(time.Second)
+		if ts > float64(math.MaxInt64) || ts < float64(math.MinInt64) {
+			return 0, fmt.Errorf("cannot parse %q to a valid duration. It overflows int64", str)
+		}
+
+		return time.Duration(ts), nil
 	}
 
 	return 0, err

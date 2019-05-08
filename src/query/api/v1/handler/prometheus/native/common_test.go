@@ -112,8 +112,24 @@ func TestParseDuration(t *testing.T) {
 	assert.Equal(t, 10*time.Second, v)
 }
 
+func TestParseFloatDuration(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=10.00m", nil)
+	require.NoError(t, err)
+	v, err := parseDuration(r, stepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 10*time.Minute, v)
+}
+
 func TestParseDurationParsesIntAsSeconds(t *testing.T) {
 	r, err := http.NewRequest(http.MethodGet, "/foo?step=30", nil)
+	require.NoError(t, err)
+	v, err := parseDuration(r, stepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Second, v)
+}
+
+func TestParseDurationParsesFloatAsSeconds(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=30.00", nil)
 	require.NoError(t, err)
 	v, err := parseDuration(r, stepParam)
 	require.NoError(t, err)
