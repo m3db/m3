@@ -435,6 +435,11 @@ func (b *WriteBatch) Append(
 	b.appendWithResult(entry, doc, &entry.resultVal)
 }
 
+// Options returns the WriteBatchOptions for this batch.
+func (b *WriteBatch) Options() WriteBatchOptions {
+	return b.opts
+}
+
 // AppendAll appends all entries from another batch to this batch
 // and ensures they share the same result struct.
 func (b *WriteBatch) AppendAll(from *WriteBatch) {

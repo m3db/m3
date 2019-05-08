@@ -373,3 +373,86 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	require.Equal(t, 1, vMap.Len())
 	assert.True(t, vMap.Contains(ident.StringID("value")))
 }
+
+func TestForwardWrites(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	ctx := context.NewContext()
+
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
+		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
+		return q
+	}
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+
+	idxOpts := testNamespaceIndexOptions().
+		SetInsertMode(index.InsertSync).
+		SetForwardIndexProbability(1).
+		SetForwardIndexThreshold(1)
+
+	opts := testDatabaseOptions().
+		SetIndexOptions(idxOpts)
+
+	var (
+		retOpts        = opts.SeriesOptions().RetentionOptions()
+		blockSize      = retOpts.BlockSize()
+		bufferFuture   = retOpts.BufferFuture()
+		bufferFragment = blockSize - time.Duration(float64(bufferFuture)*0.5)
+		now            = time.Now().Truncate(blockSize).Add(bufferFragment)
+
+		clockOptions = opts.ClockOptions()
+	)
+
+	clockOptions = clockOptions.SetNowFn(func() time.Time { return now })
+	opts = opts.SetClockOptions(clockOptions)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	assert.NoError(t, err)
+
+	var (
+		ts   = idx.(*nsIndex).state.latestBlock.StartTime()
+		id   = ident.StringID("foo")
+		tags = ident.NewTags(
+			ident.StringTag("name", "value"),
+		)
+		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
+	)
+
+	lifecycleFns.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts))
+	lifecycleFns.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts))
+
+	lifecycleFns.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts.Add(blockSize)))
+	lifecycleFns.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts.Add(blockSize)))
+
+	entry, doc := testWriteBatchEntry(id, tags, now, lifecycleFns)
+	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
+	assert.NoError(t, idx.WriteBatch(batch))
+
+	defer idx.Close()
+
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
+	res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
+		StartInclusive: now.Add(-1 * time.Minute),
+		EndExclusive:   now.Add(1 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	assert.True(t, res.Exhaustive)
+	results := res.Results
+	assert.Equal(t, "testns1", results.Namespace().String())
+
+	tags, ok := results.Map().Get(ident.StringID("foo"))
+	assert.True(t, ok)
+	assert.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("name", "value")).Matches(
+		ident.NewTagsIterator(tags)))
+}

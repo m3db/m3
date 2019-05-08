@@ -18,64 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package series
+package dice
 
 import (
 	"fmt"
+	"math/rand"
+	"time"
 )
 
-// TruncateType determines the scheme for truncating transforms.
-type TruncateType uint8
+// Dice is an interface that allows for random sampling.
+type Dice interface {
+	// Rate returns the sampling rate of this Dice: a number in (0.0, 1.0].
+	Rate() float64
 
-const (
-	TypeNone TruncateType = iota
-	TypeBlock
-)
-
-var validTruncationTypes = []TruncateType{
-	// TypeNone indicates that no truncation occurs.
-	TypeNone,
-	// TypeBlock truncates incoming writes to the block boundary immediately
-	// preceding this point's timestamp.
-	TypeBlock,
+	// Roll returns whether the dice roll succeeded.
+	Roll() bool
 }
 
-// Validate validates that the scheme type is valid.
-func (t TruncateType) Validate() error {
-	if t >= TypeNone && t <= TypeBlock {
-		return nil
+// NewEpochDice constructs a new Dice based on UNIX epoch time.
+func NewEpochDice(rate float64) (Dice, error) {
+	if rate <= 0.0 || rate > 1.0 {
+		return nil, fmt.Errorf("invalid sample rate %f", rate)
 	}
 
-	return fmt.Errorf("invalid truncation type: '%v' valid types are: %v",
-		t, validTruncationTypes)
+	return &epoch{
+		r:      int64(1.0 / rate),
+		jitter: rand.Int63n(10e9),
+	}, nil
 }
 
-func (t TruncateType) String() string {
-	switch t {
-	case TypeNone:
-		return "none"
-	case TypeBlock:
-		return "block"
-	default:
-		// Should never get here.
-		return "unknown"
-	}
+type epoch struct {
+	r      int64
+	jitter int64
 }
 
-// UnmarshalYAML unmarshals a stored truncation type.
-func (t *TruncateType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
+func (d *epoch) Rate() float64 {
+	return 1 / float64(d.r)
+}
 
-	for _, valid := range validTruncationTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-	}
-
-	*t = TypeNone
-	return nil
+func (d *epoch) Roll() bool {
+	return (time.Now().UnixNano()+d.jitter)%d.r == 0
 }

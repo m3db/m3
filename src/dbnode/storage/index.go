@@ -113,6 +113,10 @@ type nsIndex struct {
 	queriesWg sync.WaitGroup
 
 	metrics nsIndexMetrics
+
+	// forwardIndexDice determines if an incoming index write should be dual
+	// written to the next block.
+	forwardIndexDice forwardIndexDice
 }
 
 type nsIndexState struct {
@@ -292,6 +296,14 @@ func newNamespaceIndexWithOptions(
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
 	}
 
+	// set up forward index dice.
+	dice, err := newForwardIndexDice(newIndexOpts.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	idx.forwardIndexDice = dice
+
 	// allocate indexing queue and start it up.
 	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
 	if err := queue.Start(); err != nil {
@@ -302,7 +314,7 @@ func newNamespaceIndexWithOptions(
 	// allocate the current block to ensure we're able to index as soon as we return
 	currentBlock := nowFn().Truncate(idx.blockSize)
 	idx.state.RLock()
-	_, err := idx.ensureBlockPresentWithRLock(currentBlock)
+	_, err = idx.ensureBlockPresentWithRLock(currentBlock)
 	idx.state.RUnlock()
 	if err != nil {
 		return nil, err
@@ -502,16 +514,19 @@ func (i *nsIndex) writeBatches(
 		return
 	}
 	now := i.nowFn()
+	blockSize := i.blockSize
 	futureLimit := now.Add(1 * i.bufferFuture)
 	pastLimit := now.Add(-1 * i.bufferPast)
+	batchOptions := batch.Options()
 	// NB(r): Release lock early to avoid writing batches impacting ticking
 	// speed, etc.
 	// Sometimes foreground compaction can take a long time during heavy inserts.
 	// Each lookup to ensureBlockPresent checks that index is still open, etc.
 	i.state.RUnlock()
 
+	forwardWriteBatch := index.NewWriteBatch(batchOptions)
 	// Ensure timestamp is not too old/new based on retention policies and that
-	// doc is valid.
+	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
@@ -524,8 +539,15 @@ func (i *nsIndex) writeBatches(
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
 				return
 			}
+
+			if i.forwardIndexDice.forwardIndexing(entry.Timestamp) {
+				forwardWriteEntry := entry
+				forwardWriteEntry.Timestamp = entry.Timestamp.Add(blockSize)
+				forwardWriteBatch.Append(forwardWriteEntry, d)
+			}
 		})
 
+	batch.AppendAll(forwardWriteBatch)
 	// Sort the inserts by which block they're applicable for, and do the inserts
 	// for each block, making sure to not try to insert any entries already marked
 	// with a result.
