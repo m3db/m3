@@ -1131,6 +1131,10 @@ going to <code>localhost:7201/api/v1/openapi</code> in your browser.</p>
   <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;foo&quot;</span><span class="p">,</span>
   <span class="nt">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span>
     <span class="p">{</span>
+      <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;__name__&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;user_login&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
       <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
       <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;new_york&quot;</span>
     <span class="p">},</span>
@@ -1146,7 +1150,14 @@ going to <code>localhost:7201/api/v1/openapi</code> in your browser.</p>
 <span class="p">}</span>
 <span class="err">&#39;</span>
 </pre></div></p>
-<p>And reading the metrics you've written:
+<p><strong>Note:</strong> In the above example we include the tag <code>__name__</code>. This is because <code>__name__</code> is a
+reserved tag in Prometheus and will make querying the metric much easier. For example, if you have
+<a href="../query/">M3Query</a> setup as a Prometheus datasource in Grafana, you can then query for the metric
+using the following PromQL query:</p>
+<div class="highlight"><pre><span></span>user_login{city=&quot;new_york&quot;,endpoint=&quot;/request&quot;}
+</pre></div>
+
+<p>And reading the metrics you've written using the M3DB <code>/query</code> endpoint:
 <div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-sS</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">http://localhost:</span><span class="mi">9003</span><span class="err">/query</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
   <span class="nt">&quot;namespace&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span>
   <span class="nt">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -1164,6 +1175,10 @@ going to <code>localhost:7201/api/v1/openapi</code> in your browser.</p>
     <span class="p">{</span>
       <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;foo&quot;</span><span class="p">,</span>
       <span class="nt">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+          <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;__name__&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;user_login&quot;</span>
+        <span class="p">},</span>
         <span class="p">{</span>
           <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;city&quot;</span><span class="p">,</span>
           <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;new_york&quot;</span>
