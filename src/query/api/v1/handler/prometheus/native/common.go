@@ -79,7 +79,7 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	if seconds, floatErr := strconv.ParseFloat(str, 64); floatErr == nil {
 		ts := seconds * float64(time.Second)
 		if ts > float64(math.MaxInt64) || ts < float64(math.MinInt64) {
-			return 0, fmt.Errorf("cannot parse %q to a valid duration. It overflows int64", str)
+			return 0, fmt.Errorf("cannot parse %s to a valid duration: int64 overflow", str)
 		}
 
 		return time.Duration(ts), nil
