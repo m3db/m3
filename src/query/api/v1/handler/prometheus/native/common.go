@@ -53,6 +53,9 @@ const (
 	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
+
+	maxInt64 = float64(math.MaxInt64)
+	minInt64 = float64(math.MinInt64)
 )
 
 func parseTime(r *http.Request, key string) (time.Time, error) {
@@ -78,7 +81,7 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	// Try parsing as a float value specifying seconds, the Prometheus default
 	if seconds, floatErr := strconv.ParseFloat(str, 64); floatErr == nil {
 		ts := seconds * float64(time.Second)
-		if ts > float64(math.MaxInt64) || ts < float64(math.MinInt64) {
+		if ts > maxInt64 || ts < minInt64 {
 			return 0, fmt.Errorf("cannot parse %s to a valid duration: int64 overflow", str)
 		}
 
