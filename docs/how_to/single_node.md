@@ -59,7 +59,7 @@ curl -sS -X POST http://localhost:9003/writetagged -d '{
   "tags": [
     {
       "name": "__name__",
-      "value": "user_sign_up"
+      "value": "user_login"
     },
     {
       "name": "city",
@@ -84,7 +84,7 @@ reserved tag in Prometheus and will make querying the metric much easier. For ex
 using the following PromQL query:
 
 ```
-user_sign_up{city="new_york,endpoint="/request"}
+user_login{city="new_york",endpoint="/request"}
 ```
 
 And reading the metrics you've written using the M3DB `/query` endpoint:
@@ -108,7 +108,7 @@ curl -sS -X POST http://localhost:9003/query -d '{
       "tags": [
         {
           "name": "__name__",
-          "value": "user_sign_up"
+          "value": "user_login"
         },
         {
           "name": "city",
