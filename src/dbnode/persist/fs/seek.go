@@ -51,9 +51,6 @@ var (
 
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
-
-	// errDecodedIndexEntryHadNoID is returned when the decoded index entry has no idea.
-	errDecodedIndexEntryHadNoID = instrument.InvariantErrorf("decoded index entry had no ID")
 )
 
 const (
@@ -417,7 +414,8 @@ func (s *seeker) SeekIndexEntry(
 		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return IndexEntry{}, errDecodedIndexEntryHadNoID
+			return IndexEntry{},
+				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
 		}
 
 		comparison := bytes.Compare(entry.ID, idBytes)
