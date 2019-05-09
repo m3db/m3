@@ -119,6 +119,10 @@ func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.R
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
 	}
+	if step <= 0 {
+		err := fmt.Errorf("expected postive step, instead got: %d", step)
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
+	}
 	params.Step = step
 
 	query, err := parseQuery(r)

@@ -105,6 +105,17 @@ func TestInvalidTarget(t *testing.T) {
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
+func TestInvalidStep(t *testing.T) {
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	vals := defaultParams()
+	vals.Del(stepParam)
+	vals.Add(stepParam, "-10.50s")
+	req.URL.RawQuery = vals.Encode()
+	_, err := parseParams(req, timeoutOpts)
+	require.NotNil(t, err, "unable to parse request")
+	require.Equal(t, err.Code(), http.StatusBadRequest)
+}
+
 func TestParseDuration(t *testing.T) {
 	r, err := http.NewRequest(http.MethodGet, "/foo?step=10s", nil)
 	require.NoError(t, err)
@@ -114,11 +125,11 @@ func TestParseDuration(t *testing.T) {
 }
 
 func TestParseFloatDuration(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, "/foo?step=10.85m", nil)
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=10.50m", nil)
 	require.NoError(t, err)
 	v, err := parseDuration(r, stepParam)
 	require.NoError(t, err)
-	assert.Equal(t, 10*time.Minute+51*time.Second, v)
+	assert.Equal(t, 10*time.Minute+30*time.Second, v)
 
 	r, err = http.NewRequest(http.MethodGet, "/foo?step=10.00m", nil)
 	require.NoError(t, err)
