@@ -878,18 +878,6 @@ func (mr *MockdatabaseMockRecorder) UpdateOwnedNamespaces(namespaces interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).UpdateOwnedNamespaces), namespaces)
 }
 
-// UpdateSchemaRegistry mocks base method
-func (m *Mockdatabase) UpdateSchemaRegistry(namespaces namespace.Map) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateSchemaRegistry", namespaces)
-}
-
-// UpdateSchemaRegistry indicates an expected call of UpdateSchemaRegistry
-func (mr *MockdatabaseMockRecorder) UpdateSchemaRegistry(namespaces interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSchemaRegistry", reflect.TypeOf((*Mockdatabase)(nil).UpdateSchemaRegistry), namespaces)
-}
-
 // MockNamespace is a mock of Namespace interface
 type MockNamespace struct {
 	ctrl     *gomock.Controller

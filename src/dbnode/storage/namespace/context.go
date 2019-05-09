@@ -39,7 +39,7 @@ func NewContextFrom(nsMetadata Metadata) Context {
 
 func NewContextFor(id ident.ID, registry SchemaRegistry) Context {
 	ctx := Context{ID: id}
-	if schema, ok := registry.GetLatestSchema(id); ok {
+	if schema, err := registry.GetLatestSchema(id); err == nil {
 		ctx.Schema = schema
 	}
 	return ctx

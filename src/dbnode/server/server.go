@@ -550,7 +550,17 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 
-	schemaRegistry := namespace.NewSchemaRegistry()
+	schemaRegistry := namespace.NewSchemaRegistry(cfg.Proto.Enabled, logger)
+	// TODO [haijun] remove after PR to set schema in etcd is done (plan layed out in issue #1614).
+	// To unblock #1578, we will load user schema from db node configuration into schema registry
+	// at dbnode startup/initialization time, there will be no dynamic schema update.
+	if cfg.Proto.Enabled {
+		err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(cfg.Proto.NamespaceID),
+			cfg.Proto.SchemaFilePath, cfg.Proto.MessageName)
+		if err != nil {
+			logger.Fatal("could not load schema from configuration", zap.Error(err))
+		}
+	}
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := cfg.Client.NewAdminClient(

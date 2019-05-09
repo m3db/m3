@@ -325,12 +325,30 @@ type HashingConfiguration struct {
 type ProtoConfiguration struct {
 	// Enabled or disabled.
 	Enabled bool `yaml:"enabled"`
+	// TODO [haijun] remove after PR to set schema in etcd is done (plan layed out in issue #1614).
+	// To unblock #1578, we will load user schema from db node configuration into schema registry
+	// at dbnode startup/initialization time, there will be no dynamic schema update.
+	NamespaceID    string `yaml:"namespaceID"`
+	SchemaFilePath string `yaml:"schemaFilePath"`
+	MessageName    string `yaml:"messageName"`
 }
 
 // Validate validates the ProtoConfiguration.
 func (c *ProtoConfiguration) Validate() error {
-	if c == nil {
+	if c == nil || !c.Enabled {
 		return nil
+	}
+
+	if c.NamespaceID == "" {
+		return errors.New("namespaceID is required for Proto data mode")
+	}
+
+	if c.SchemaFilePath == "" {
+		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	if c.MessageName == "" {
+		return errors.New("messageName is required for Proto data mode")
 	}
 
 	return nil

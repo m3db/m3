@@ -202,7 +202,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		writeBatchPool:                 writeBatchPool,
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
-		schemaReg:                      namespace.NewSchemaRegistry(),
+		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
 	}
 	return o.SetEncodingM3TSZPooled()
 }

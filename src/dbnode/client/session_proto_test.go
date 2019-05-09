@@ -68,7 +68,9 @@ func setWriteProtoAnnotation(w *writeStub) {
 func TestProtoSessionFetchIDs(t *testing.T) {
 	_, ok := testSchemaHistory.GetLatest()
 	require.True(t, ok)
+	schemaReg := namespace.NewSchemaRegistry(true, nil)
 	opts := newSessionTestOptions().
+		SetSchemaRegistry(schemaReg).
 		SetEncodingProto(encoding.NewOptions().SetBytesPool(prototest.ProtoPools.BytesPool))
 	require.NoError(t, opts.SchemaRegistry().SetSchemaHistory(testNamespace, testSchemaHistory))
 	testOpts := testOptions{nsID: testNamespace,
@@ -87,8 +89,8 @@ func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 		{0, start.Add(3 * time.Second), xtime.Second, protoIter.Next()},
 	}
 
-	schemaReg := namespace.NewSchemaRegistry()
-	schemaReg.SetSchemaHistory(testNamespace, testSchemaHistory)
+	schemaReg := namespace.NewSchemaRegistry(true, nil)
+	require.NoError(t, schemaReg.SetSchemaHistory(testNamespace, testSchemaHistory))
 	nsCtx := namespace.NewContextFor(testNamespace, schemaReg)
 	encoder := prototest.ProtoPools.EncoderPool.Get()
 	encoder.Reset(data[0].t, 0, nsCtx.Schema)

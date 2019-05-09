@@ -220,9 +220,6 @@ type database interface {
 
 	// UpdateOwnedNamespaces updates the namespaces this database owns.
 	UpdateOwnedNamespaces(namespaces namespace.Map) error
-
-	// UpdateSchemaRegistry updates the schema registry this database uses.
-	UpdateSchemaRegistry(namespaces namespace.Map)
 }
 
 // Namespace is a time series database namespace

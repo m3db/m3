@@ -21,13 +21,15 @@
 package namespace
 
 import (
-	"testing"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/assert"
-	"time"
 	"sync"
+	"testing"
+	"time"
+
 	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockListener struct {
@@ -51,17 +53,17 @@ func TestSchemaRegistryUpdate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	sr := NewSchemaRegistry()
+	sr := NewSchemaRegistry(true, nil)
 	sh1 := NewMockSchemaHistory(ctrl)
 	nsID1 := ident.StringID("ns1")
-	sh1.EXPECT().Extends(gomock.Any()).Return(true).AnyTimes()
 	inputSchema1 := NewMockSchemaDescr(ctrl)
 	inputSchema1.EXPECT().DeployId().Return("version1").AnyTimes()
 	sh1.EXPECT().GetLatest().Return(inputSchema1, true).AnyTimes()
+	sh1.EXPECT().Extends(gomock.Any()).Return(true).AnyTimes()
 	require.NoError(t, sr.SetSchemaHistory(nsID1, sh1))
 
-	schema1, ok := sr.GetLatestSchema(nsID1)
-	require.True(t, ok)
+	schema1, err := sr.GetLatestSchema(nsID1)
+	require.NoError(t, err)
 	require.NotNil(t, schema1)
 	require.Equal(t, "version1", schema1.DeployId())
 
@@ -69,16 +71,16 @@ func TestSchemaRegistryUpdate(t *testing.T) {
 	assert.Nil(t, l.value)
 
 	// Ensure immediately sets the value
-	closer, success := sr.RegisterListener(nsID1, l)
-	require.True(t, success)
+	closer, err := sr.RegisterListener(nsID1, l)
+	require.NoError(t, err)
 	require.Equal(t, "version1", l.Schema().DeployId())
 
 	// Update and verify
 	sh2 := NewMockSchemaHistory(ctrl)
-	sh2.EXPECT().Extends(gomock.Any()).Return(true)
 	inputSchema2 := NewMockSchemaDescr(ctrl)
 	inputSchema2.EXPECT().DeployId().Return("version2").AnyTimes()
 	sh2.EXPECT().GetLatest().Return(inputSchema2, true).AnyTimes()
+	sh2.EXPECT().Extends(gomock.Any()).Return(true)
 	require.NoError(t, sr.SetSchemaHistory(nsID1, sh2))
 
 	// Verify listener receives update
@@ -94,16 +96,92 @@ func TestSchemaRegistryUpdate(t *testing.T) {
 
 	// Update and verify
 	sh3 := NewMockSchemaHistory(ctrl)
-	sh3.EXPECT().Extends(gomock.Any()).Return(true)
 	inputSchema3 := NewMockSchemaDescr(ctrl)
 	inputSchema3.EXPECT().DeployId().Return("version3").AnyTimes()
 	sh3.EXPECT().GetLatest().Return(inputSchema3, true).AnyTimes()
+	sh3.EXPECT().Extends(gomock.Any()).Return(true)
 	require.NoError(t, sr.SetSchemaHistory(nsID1, sh3))
 
 	// Verify closed listener does not receive the update.
-	time.Sleep(10*time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	assert.Equal(t, "version2", l.Schema().DeployId())
 
 	sr.Close()
 }
 
+func TestSchemaRegistryLoad(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sr := NewSchemaRegistry(true, nil)
+	nsID := ident.StringID("ns1")
+	require.NoError(t, LoadSchemaRegistryFromFile(sr, nsID, "testdata/prototest/test.proto", "mainpkg.TestMessage", "../.."))
+
+	schema1, err := sr.GetLatestSchema(nsID)
+	require.NoError(t, err)
+	require.NotNil(t, schema1)
+	require.Equal(t, "first", schema1.DeployId())
+}
+
+func TestSchemaRegistryProtoDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sr := NewSchemaRegistry(false, nil)
+	nsID := ident.StringID("ns1")
+
+	schema1, err := sr.GetLatestSchema(nsID)
+	require.NoError(t, err)
+	require.Nil(t, schema1)
+
+	require.NoError(t, sr.SetSchemaHistory(nsID, nil))
+	sl := NewMockSchemaListener(ctrl)
+	closer, err := sr.RegisterListener(nsID, sl)
+	require.NoError(t, err)
+	require.Nil(t, closer)
+}
+
+func TestSchemaRegistrySchemaNotSet(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sr := NewSchemaRegistry(true, nil)
+	nsID := ident.StringID("ns1")
+
+	sl := &mockListener{}
+	closer, err := sr.RegisterListener(nsID, sl)
+	require.Error(t, err)
+	require.Nil(t, closer)
+
+	sh1 := NewMockSchemaHistory(ctrl)
+	sh1.EXPECT().GetLatest().Return(nil, false)
+	require.Error(t, sr.SetSchemaHistory(nsID, sh1))
+
+	closer, err = sr.RegisterListener(nsID, sl)
+	require.Error(t, err)
+	require.Nil(t, closer)
+	require.Nil(t, sl.Schema())
+
+	sh2 := NewMockSchemaHistory(ctrl)
+	inputSchema1 := NewMockSchemaDescr(ctrl)
+	inputSchema1.EXPECT().DeployId().Return("version1")
+	sh2.EXPECT().GetLatest().Return(inputSchema1, true)
+	require.NoError(t, sr.SetSchemaHistory(nsID, sh2))
+
+	sh2.EXPECT().GetLatest().Return(inputSchema1, true)
+	closer, err = sr.RegisterListener(nsID, sl)
+	require.NoError(t, err)
+	require.NotNil(t, closer)
+	require.NotNil(t, sl.Schema())
+	require.Equal(t, "version1", sl.Schema().DeployId())
+
+	sh3 := NewMockSchemaHistory(ctrl)
+	inputSchema2 := NewMockSchemaDescr(ctrl)
+	inputSchema2.EXPECT().DeployId().Return("version2")
+	sh3.EXPECT().GetLatest().Return(inputSchema2, true).Times(2)
+	sh3.EXPECT().Extends(gomock.Any()).Return(true)
+	require.NoError(t, sr.SetSchemaHistory(nsID, sh3))
+	time.Sleep(10*time.Millisecond)
+	require.NotNil(t, sl.Schema())
+	require.Equal(t, "version2", sl.Schema().DeployId())
+}

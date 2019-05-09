@@ -157,10 +157,23 @@ type SchemaListener interface {
 // It is where dynamic schema updates are delivered into,
 // and where schema is retrieved from at series read and write path.
 type SchemaRegistry interface {
-	GetLatestSchema(id ident.ID) (SchemaDescr, bool)
-	GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool)
+	// GetLatestSchema gets the latest schema for the namespace.
+	// If proto is not enabled, nil, nil is returned
+	GetLatestSchema(id ident.ID) (SchemaDescr, error)
+
+	// GetSchema gets the latest schema for the namespace.
+	// If proto is not enabled, nil, nil is returned
+	GetSchema(id ident.ID, schemaId string) (SchemaDescr, error)
+
+	// SetSchemaHistory sets the schema history for the namespace.
+	// If proto is not enabled, nil is returned
 	SetSchemaHistory(id ident.ID, history SchemaHistory) error
-	RegisterListener(id ident.ID, listener SchemaListener) (xclose.SimpleCloser, bool)
+
+	// RegisterListener registers a schema listener for the namespace.
+	// If proto is not enabled, nil, nil is returned
+	RegisterListener(id ident.ID, listener SchemaListener) (xclose.SimpleCloser, error)
+
+	// Close closes all the listeners.
 	Close()
 }
 

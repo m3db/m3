@@ -302,8 +302,8 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
-			"namespace": id.String(),
-		})
+		"namespace": id.String(),
+	})
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
@@ -350,10 +350,13 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
-	sl, ok := opts.SchemaRegistry().RegisterListener(id, n)
-	if !ok {
-		n.log.Warn("unable to registry schema listener",
-		zap.Stringer("namespace", n.id))
+	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
+	// Fail to create namespace is schema listener can not be registered successfully.
+	// If proto is disabled, err will always be nil.
+	if err != nil {
+		return nil, fmt.Errorf(
+		"unable to register schema listener for namespace %v, error: %v",
+		metadata.ID().String(), err)
 	}
 	n.schemaListener = sl
 	n.initShards(nopts.BootstrapEnabled())

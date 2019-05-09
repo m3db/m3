@@ -159,7 +159,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	// Schema registry is shared between database and admin client.
-	schemaReg := namespace.NewSchemaRegistry()
+	schemaReg := namespace.NewSchemaRegistry(opts.ProtoEncoding(), nil)
 
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(nsInit).

@@ -27,25 +27,42 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xclose "github.com/m3db/m3/src/x/close"
 	xwatch "github.com/m3db/m3/src/x/watch"
+	"go.uber.org/zap"
 )
 
 type schemaRegistry struct {
 	sync.RWMutex
 
+	protoEnabled bool
+	logger *zap.Logger
 	registry map[string]xwatch.Watchable
 }
 
-func NewSchemaRegistry() SchemaRegistry {
-	return newSchemaRegistry()
+func NewSchemaRegistry(protoEnabled bool, logger *zap.Logger) SchemaRegistry {
+	return newSchemaRegistry(protoEnabled, logger)
 }
 
-func newSchemaRegistry() SchemaRegistry {
+func newSchemaRegistry(protoEnabled bool, logger *zap.Logger) SchemaRegistry {
 	return &schemaRegistry{
+		protoEnabled: protoEnabled,
+		logger: logger,
 		registry: make(map[string]xwatch.Watchable),
 	}
 }
 
 func (sr *schemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) error {
+	if !sr.protoEnabled {
+		if sr.logger != nil {
+			sr.logger.Warn("proto is not enabled, can not update schema registry",
+				zap.Stringer("namespace", id))
+		}
+		return nil
+	}
+
+	if _, ok := history.GetLatest(); !ok {
+		return fmt.Errorf("can not set empty schema history for %v", id.String())
+	}
+
 	sr.Lock()
 	defer sr.Unlock()
 
@@ -63,44 +80,64 @@ func (sr *schemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) e
 	return nil
 }
 
-func (sr *schemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, bool) {
-	history, ok := sr.getSchemaHistory(id)
-	if !ok {
-		return nil, false
+func (sr *schemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, error) {
+	if !sr.protoEnabled {
+		return nil, nil
 	}
-	return history.GetLatest()
+
+	history, err := sr.getSchemaHistory(id)
+	if err != nil {
+		return nil, err
+	}
+	schema, ok := history.GetLatest()
+	if !ok {
+		return nil, fmt.Errorf("schema history is empty for namespace %v", id.String())
+	}
+	return schema, nil
 }
 
-func (sr *schemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, bool) {
-	history, ok := sr.getSchemaHistory(id)
-	if !ok {
-		return nil, false
+func (sr *schemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, error) {
+	if !sr.protoEnabled {
+		return nil, nil
 	}
-	return history.Get(schemaId)
+
+	history, err := sr.getSchemaHistory(id)
+	if err != nil {
+		return nil, err
+	}
+	schema, ok := history.Get(schemaId)
+	if !ok {
+		return nil, fmt.Errorf("schema of version %v is not found for namespace %v", schemaId, id.String())
+	}
+	return schema, nil
 }
 
-func (sr *schemaRegistry) getSchemaHistory(id ident.ID) (SchemaHistory, bool) {
+func (sr *schemaRegistry) getSchemaHistory(id ident.ID) (SchemaHistory, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 
 	history, ok := sr.registry[id.String()]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("schema history is not found for %v", id.String())
 	}
-	return history.Get().(SchemaHistory), true
+	return history.Get().(SchemaHistory), nil
 }
 
 
 func (sr *schemaRegistry) RegisterListener(
 	nsID ident.ID,
 	listener SchemaListener,
-) (xclose.SimpleCloser, bool) {
+) (xclose.SimpleCloser, error) {
+	if !sr.protoEnabled {
+		return nil, nil
+	}
+
 	sr.RLock()
 	defer sr.RUnlock()
 
 	watchable, ok := sr.registry[nsID.String()]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("schema not found for namespace: %v", nsID.String())
 	}
 
 	_, watch, _ := watchable.Watch()
@@ -112,6 +149,8 @@ func (sr *schemaRegistry) RegisterListener(
 	// Deliver the current schema
 	if schema, ok := watchable.Get().(SchemaHistory).GetLatest(); ok {
 		listener.SetSchema(schema)
+	} else if sr.logger != nil {
+		sr.logger.Error("can not update schema listener with empty schema history")
 	}
 
 	// Spawn a new goroutine that will terminate when the
@@ -120,11 +159,13 @@ func (sr *schemaRegistry) RegisterListener(
 		for range watch.C() {
 			if schema, ok := watchable.Get().(SchemaHistory).GetLatest(); ok {
 				listener.SetSchema(schema)
+			} else if sr.logger != nil {
+				sr.logger.Error("can not update schema listener with empty schema history")
 			}
 		}
 	}()
 
-	return watch, true
+	return watch, nil
 }
 
 func (sr *schemaRegistry) Close() {

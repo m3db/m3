@@ -29,6 +29,7 @@ import (
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 var (
@@ -275,6 +276,30 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 		dlist = append(dlist, fdbytes)
 	}
 	return dlist, nil
+}
+
+func LoadSchemaRegistryFromFile(schemaReg SchemaRegistry, nsID ident.ID, protoFile string, msgName string, importPathPrefix ...string) error {
+	out, _ := parseProto(protoFile, importPathPrefix...)
+
+	dlist, _ := marshalFileDescriptors(out)
+
+	schemaOpts := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{
+				{DeployId: "first", Descriptors: dlist},
+			},
+		},
+		DefaultMessageName: msgName,
+	}
+	schemaHis, err := LoadSchemaHistory(schemaOpts)
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to load schema history from file: %v", protoFile)
+	}
+	err = schemaReg.SetSchemaHistory(nsID, schemaHis)
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to load schema registry for %v", nsID.String())
+	}
+	return nil
 }
 
 func GenTestSchemaOptions(protoFile string, importPathPrefix ...string) *nsproto.SchemaOptions {

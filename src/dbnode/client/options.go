@@ -323,7 +323,7 @@ func newOptions() *options {
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
-		schemaRegistry:                          namespace.NewSchemaRegistry(),
+		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
