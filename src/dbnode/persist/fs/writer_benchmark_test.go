@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -34,59 +33,27 @@ import (
 )
 
 func BenchmarkCreateEmptyFilesets(b *testing.B) {
-	testCases := []struct {
+	type benchEmptyFileset struct {
 		parallelism int
 		numShards   int
-	}{
-		{
-			parallelism: 1,
-			numShards:   1,
-		},
-		{
-			parallelism: 1,
-			numShards:   256,
-		},
-		{
-			parallelism: 1,
-			numShards:   100000,
-		},
-		{
-			parallelism: runtime.NumCPU(),
-			numShards:   1,
-		},
-		{
-			parallelism: runtime.NumCPU(),
-			numShards:   256,
-		},
-		{
-			parallelism: runtime.NumCPU(),
-			numShards:   100000,
-		},
-		{
-			parallelism: 1000,
-			numShards:   1,
-		},
-		{
-			parallelism: 1000,
-			numShards:   128,
-		},
-		{
-			parallelism: 1000,
-			numShards:   100000,
-		},
-		{
-			parallelism: 10000,
-			numShards:   1,
-		},
-		{
-			parallelism: 10000,
-			numShards:   128,
-		},
-		{
-			parallelism: 10000,
-			numShards:   100000,
-		},
 	}
+
+	testCases := []benchEmptyFileset{}
+	for i := 2; i <= 4096; i *= 2 {
+		testCases = append(testCases, benchEmptyFileset{
+			parallelism: i,
+			numShards:   1,
+		})
+		testCases = append(testCases, benchEmptyFileset{
+			parallelism: i,
+			numShards:   256,
+		})
+		testCases = append(testCases, benchEmptyFileset{
+			parallelism: i,
+			numShards:   1024,
+		})
+	}
+
 	for _, tc := range testCases {
 		title := fmt.Sprintf(
 			"parallelism: %d, numShards: %d",
