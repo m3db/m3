@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -47,6 +48,18 @@ func BenchmarkCreateEmptyFilesets(b *testing.B) {
 		},
 		{
 			parallelism: 1,
+			numShards:   100000,
+		},
+		{
+			parallelism: runtime.NumCPU(),
+			numShards:   1,
+		},
+		{
+			parallelism: runtime.NumCPU(),
+			numShards:   256,
+		},
+		{
+			parallelism: runtime.NumCPU(),
 			numShards:   100000,
 		},
 		{
