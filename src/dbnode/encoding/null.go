@@ -43,7 +43,7 @@ func (e *nullEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 	return nil
 }
 func (e *nullEncoder) Stream() (xio.SegmentReader, bool) {
-	return xio.NewSegmentReader(ts.Segment{}), false
+	return nil, false
 }
 func (e *nullEncoder) NumEncoded() int { return 0 }
 func (e *nullEncoder) LastEncoded() (ts.Datapoint, error) {
