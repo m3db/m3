@@ -297,8 +297,9 @@ func TestBufferBucketMerge(t *testing.T) {
 
 	ctx := context.NewContext()
 	defer ctx.Close()
-	sr, err := b.mergeToStream(ctx)
+	sr, ok, err := b.mergeToStream(ctx)
 	require.NoError(t, err)
+	require.True(t, ok)
 
 	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{
 		xio.BlockReader{
@@ -403,8 +404,9 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	assertValuesEqual(t, expected, results, opts)
 
 	// Now assert that mergeToStream() returns same expected result.
-	stream, err := b.mergeToStream(ctx)
+	stream, ok, err := b.mergeToStream(ctx)
 	require.NoError(t, err)
+	require.True(t, ok)
 	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
@@ -891,7 +893,7 @@ func TestBufferSnapshot(t *testing.T) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := b.encoders[0].encoder.Stream()
+		_, ok := encoder.Stream()
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
