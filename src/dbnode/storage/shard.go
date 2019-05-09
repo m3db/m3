@@ -30,6 +30,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -155,7 +157,6 @@ type dbShard struct {
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
-	snapshotState            shardSnapshotState
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
@@ -229,12 +230,6 @@ func newShardFlushState() shardFlushState {
 	return shardFlushState{
 		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
-}
-
-type shardSnapshotState struct {
-	sync.RWMutex
-	isSnapshotting         bool
-	lastSuccessfulSnapshot time.Time
 }
 
 func newDatabaseShard(
@@ -347,7 +342,7 @@ func (s *dbShard) Stream(
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.Status)
+	return statusIsRetrievable(flushState.WarmStatus) || flushState.ColdVersion > 0
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -364,7 +359,7 @@ func statusIsRetrievable(status fileOpStatus) bool {
 // RetrievableBlockVersion implements series.QueryableBlockRetriever
 func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
-	return flushState.Version
+	return flushState.ColdVersion
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -376,8 +371,8 @@ func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
-			Retrievable: statusIsRetrievable(state.Status),
-			Version:     state.Version,
+			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
+			ColdVersion:     state.ColdVersion,
 		}
 	}
 
@@ -1838,11 +1833,11 @@ func (s *dbShard) Bootstrap(
 		info := result.Info
 		at := xtime.FromNanoseconds(info.BlockStart)
 		fs := s.FlushState(at)
-		if fs.Status != fileOpNotStarted {
+		if fs.WarmStatus != fileOpNotStarted {
 			continue // Already recorded progress
 		}
 
-		s.markFlushStateSuccess(at, 0)
+		s.markWarmFlushStateSuccess(at)
 	}
 
 	s.Lock()
@@ -1852,7 +1847,7 @@ func (s *dbShard) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Flush(
+func (s *dbShard) WarmFlush(
 	blockStart time.Time,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
@@ -1877,20 +1872,19 @@ func (s *dbShard) Flush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markFlushStateSuccessOrError(blockStart, 0, err)
+		return s.markWarmFlushStateSuccessOrError(blockStart, err)
 	}
 
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
 	flushResult := dbShardFlushResult{}
-	version := s.RetrievableBlockVersion(blockStart) + 1
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version, nsCtx)
+		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist, nsCtx)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1911,7 +1905,258 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markFlushStateSuccessOrError(blockStart, version, multiErr.FinalError())
+	return s.markWarmFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+}
+
+func (s *dbShard) ColdFlush(
+	flushPreparer persist.FlushPreparer,
+	resources coldFlushReuseableResources,
+	nsCtx namespace.Context,
+) error {
+	// We don't flush data when the shard is still bootstrapping.
+	s.RLock()
+	if s.bootstrapState != Bootstrapped {
+		s.RUnlock()
+		return errShardNotBootstrappedToFlush
+	}
+	s.RUnlock()
+
+	dirtySeriesToWrite := resources.dirtySeriesToWrite
+	dirtySeries := resources.dirtySeries
+	idElementPool := resources.idElementPool
+	fsReader := resources.fsReader
+	// Reset resources.
+	for _, series := range dirtySeriesToWrite {
+		if series != nil {
+			series.Reset()
+		}
+		// Don't delete the empty list from the map so that other shards don't
+		// need to reinitialize the list for these blocks.
+	}
+	dirtySeries.Reset()
+	if fsReader.Status().Open {
+		if err := fsReader.Close(); err != nil {
+			return err
+		}
+	}
+
+	var multiErr xerrors.MultiError
+	// First, loop through all series to capture data on which blocks have dirty
+	// series and add them to the resources for further processing.
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		curr := entry.Series
+		seriesID := curr.ID()
+		blockStarts := curr.NeedsColdFlushBlockStarts()
+		blockStarts.ForEach(func(t xtime.UnixNano) {
+			seriesList := dirtySeriesToWrite[t]
+			if seriesList == nil {
+				seriesList = newIDList(idElementPool)
+				dirtySeriesToWrite[t] = seriesList
+			}
+			element := seriesList.PushBack(seriesID)
+
+			dirtySeries.Set(idAndBlockStart{blockStart: t, id: seriesID}, element)
+		})
+
+		return true
+	})
+
+	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
+	srPool := s.opts.SegmentReaderPool()
+	multiIterPool := s.opts.MultiReaderIteratorPool()
+	encoderPool := s.opts.EncoderPool()
+	tmpCtx := context.NewContext()
+
+	// Loop through each block that we know has ColdWrites. Since each block
+	// has its own fileset, if we encounter an error while trying to persist
+	// a block, we continue to try persisting other blocks.
+BlockLoop:
+	for blockStart, seriesList := range dirtySeriesToWrite {
+		startTime := blockStart.ToTime()
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:  s.namespace.ID(),
+				Shard:      s.ID(),
+				BlockStart: startTime,
+			},
+		}
+		if err := fsReader.Open(openOpts); err != nil {
+			multiErr = multiErr.Add(err)
+			continue BlockLoop
+		}
+		defer fsReader.Close()
+
+		s.flushState.RLock()
+		nextVersion := s.flushState.statesByTime[blockStart].ColdVersion + 1
+		s.flushState.RUnlock()
+
+		prepareOpts := persist.DataPrepareOptions{
+			NamespaceMetadata: s.namespace,
+			Shard:             s.ID(),
+			BlockStart:        startTime,
+			DeleteIfExists:    false,
+		}
+		prepared, err := flushPreparer.PrepareData(prepareOpts)
+		if err != nil {
+			s.incrementFlushStateFailures(startTime)
+			multiErr = multiErr.Add(err)
+			continue BlockLoop
+		}
+
+		// Persistence is done in two stages. The first stage is to loop through
+		// series on disk and merge it with what's in memory. The second stage
+		// is to persist the rest of the series in memory that was not
+		// persisted in the first stage.
+
+		// First stage: loop through series on disk.
+		for id, tagsIter, data, _, err := fsReader.Read(); err != io.EOF; id, _, data, _, err = fsReader.Read() {
+			if err != nil {
+				s.incrementFlushStateFailures(startTime)
+				multiErr = multiErr.Add(err)
+				continue BlockLoop
+			}
+
+			// There will be at most two BlockReader slices: one for disk data
+			// and one for in memory data.
+			brs := make([][]xio.BlockReader, 0, 2)
+
+			// Create BlockReader slice out of disk data.
+			seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+			sr := srPool.Get()
+			sr.Reset(seg)
+			br := xio.BlockReader{
+				SegmentReader: sr,
+				Start:         startTime,
+				BlockSize:     blockSize,
+			}
+			brs = append(brs, []xio.BlockReader{br})
+
+			// Check if this series is in memory (and thus requires merging).
+			if element, ok := dirtySeries.Get(idAndBlockStart{blockStart: blockStart, id: id}); ok {
+				// Series is in memory, so it will get merged with disk and
+				// written in this loop. Therefore, we need to remove it from
+				// the "to write" list so that the later loop does not rewrite
+				// it.
+				dirtySeriesToWrite[blockStart].Remove(element)
+
+				s.RLock()
+				entry, _, err := s.lookupEntryWithLock(element.Value)
+				s.RUnlock()
+
+				tmpCtx.Reset()
+				encoded, err := entry.Series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion, nsCtx)
+				tmpCtx.BlockingClose()
+				if err != nil {
+					s.incrementFlushStateFailures(startTime)
+					multiErr = multiErr.Add(err)
+					continue BlockLoop
+				}
+
+				if len(encoded) > 0 {
+					brs = append(brs, encoded)
+				}
+			}
+
+			mergedIter := multiIterPool.Get()
+			mergedIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(brs), nsCtx.Schema)
+			defer mergedIter.Close()
+
+			tags, err := convert.TagsFromTagsIter(id, tagsIter, s.opts.IdentifierPool())
+			if err != nil {
+				s.incrementFlushStateFailures(startTime)
+				multiErr = multiErr.Add(err)
+				continue BlockLoop
+			}
+			if err := persistIter(prepared.Persist, id, tags, mergedIter, encoderPool); err != nil {
+				s.incrementFlushStateFailures(startTime)
+				multiErr = multiErr.Add(err)
+				continue BlockLoop
+			}
+		}
+
+		// Second stage: loop through rest of series in memory that was not on
+		// disk.
+		for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
+			s.RLock()
+			entry, _, err := s.lookupEntryWithLock(seriesElement.Value)
+			s.RUnlock()
+			if err != nil {
+				s.incrementFlushStateFailures(startTime)
+				multiErr = multiErr.Add(err)
+				continue BlockLoop
+			}
+			series := entry.Series
+			tmpCtx.Reset()
+			encoded, err := series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion, nsCtx)
+			tmpCtx.BlockingClose()
+			if err != nil {
+				s.incrementFlushStateFailures(startTime)
+				multiErr = multiErr.Add(err)
+				continue BlockLoop
+			}
+
+			if len(encoded) > 0 {
+				iter := multiIterPool.Get()
+				iter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize, nsCtx.Schema)
+				defer iter.Close()
+				if err := persistIter(prepared.Persist, series.ID(), series.Tags(), iter, encoderPool); err != nil {
+					s.incrementFlushStateFailures(startTime)
+					multiErr = multiErr.Add(err)
+					continue BlockLoop
+				}
+			}
+		}
+
+		// Close the flush preparer, which writes the rest of the filesets.
+		if err := prepared.Close(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+
+		// After writing the full block successfully, update the cold version
+		// in the flush state.
+		s.setFlushStateColdVersion(startTime, nextVersion)
+	}
+
+	return multiErr.FinalError()
+}
+
+func persistIter(
+	persistFn persist.DataFn,
+	id ident.ID,
+	tags ident.Tags,
+	it encoding.Iterator,
+	encoderPool encoding.EncoderPool,
+) error {
+	encoder := encoderPool.Get()
+	for it.Next() {
+		if err := encoder.Encode(it.Current()); err != nil {
+			encoder.Close()
+			return err
+		}
+	}
+	if err := it.Err(); err != nil {
+		return err
+	}
+
+	stream, ok := encoder.Stream(encoding.StreamOptions{})
+	encoder.Close()
+	if !ok {
+		return nil
+	}
+
+	segment, err := stream.Segment()
+	if err != nil {
+		return err
+	}
+
+	checksum := digest.SegmentChecksum(segment)
+
+	err = persistFn(id, tags, segment, checksum)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *dbShard) Snapshot(
@@ -1929,11 +2174,6 @@ func (s *dbShard) Snapshot(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-
-	s.markIsSnapshotting()
-	defer func() {
-		s.markDoneSnapshotting(multiErr.Empty(), snapshotTime)
-	}()
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
@@ -1988,36 +2228,51 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return fileOpState{Status: fileOpNotStarted}
+		return fileOpState{WarmStatus: fileOpNotStarted}
 	}
 	return state
 }
 
-func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, version int, err error) error {
+func (s *dbShard) markWarmFlushStateSuccessOrError(blockStart time.Time, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markFlushStateSuccess(blockStart, version)
+		s.markWarmFlushStateSuccess(blockStart)
 	} else {
-		s.markFlushStateFail(blockStart)
+		s.markWarmFlushStateFail(blockStart)
 	}
 	return err
 }
 
-func (s *dbShard) markFlushStateSuccess(blockStart time.Time, version int) {
+func (s *dbShard) markWarmFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
 		fileOpState{
-			Status:  fileOpSuccess,
-			Version: version,
+			WarmStatus: fileOpSuccess,
 		}
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) markFlushStateFail(blockStart time.Time) {
+func (s *dbShard) markWarmFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.Status = fileOpFailed
+	state.WarmStatus = fileOpFailed
 	state.NumFailures++
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.NumFailures++
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.ColdVersion = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
@@ -2031,27 +2286,6 @@ func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
 		}
 	}
 	s.flushState.Unlock()
-}
-
-func (s *dbShard) SnapshotState() (bool, time.Time) {
-	s.snapshotState.RLock()
-	defer s.snapshotState.RUnlock()
-	return s.snapshotState.isSnapshotting, s.snapshotState.lastSuccessfulSnapshot
-}
-
-func (s *dbShard) markIsSnapshotting() {
-	s.snapshotState.Lock()
-	s.snapshotState.isSnapshotting = true
-	s.snapshotState.Unlock()
-}
-
-func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
-	s.snapshotState.Lock()
-	s.snapshotState.isSnapshotting = false
-	if success {
-		s.snapshotState.lastSuccessfulSnapshot = completionTime
-	}
-	s.snapshotState.Unlock()
 }
 
 func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {

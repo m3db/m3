@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -140,6 +141,15 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 		// Allow the flush to finish.
 		doneCh <- struct{}{}
 
+		// Wait until we start the compaction process.
+		<-startCh
+
+		// Ensure it doesn't allow a parallel flush.
+		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now, DatabaseBootstrapState{}))
+
+		// Allow the compaction to finish.
+		doneCh <- struct{}{}
+
 		// Allow the snapshot to begin and finish.
 		<-startCh
 		doneCh <- struct{}{}
@@ -161,8 +171,8 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 		mockSnapshotPersist = persist.NewMockSnapshotPreparer(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(fakeErr)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
+	mockFlushPersist.EXPECT().DoneFlush().Return(fakeErr).Times(2)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -183,7 +193,10 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
+	multiErr := xerrors.NewMultiError()
+	multiErr = multiErr.Add(fakeErr)
+	multiErr = multiErr.Add(fakeErr)
+	require.EqualError(t, multiErr.FinalError(), fm.Flush(now, DatabaseBootstrapState{}).Error())
 }
 
 // TestFlushManagerFlushDoneSnapshotError makes sure that snapshot errors do not
@@ -193,14 +206,14 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		fakeErr             = errors.New("fake error while marking flush done")
+		fakeErr             = errors.New("fake error while marking snapshot done")
 		mockPersistManager  = persist.NewMockManager(ctrl)
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)
 		mockSnapshotPersist = persist.NewMockSnapshotPreparer(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(fakeErr)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -234,8 +247,8 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 		mockPersistManager  = persist.NewMockManager(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -269,7 +282,8 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
-	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	var (
@@ -278,8 +292,8 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 		mockPersistManager  = persist.NewMockManager(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -317,7 +331,8 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
-	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil)
 
@@ -327,8 +342,8 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 		mockPersistManager  = persist.NewMockManager(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -482,6 +497,8 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 			st := start.Add(time.Duration(i) * blockSize)
 			ns.EXPECT().NeedsFlush(st, st).Return(false)
 		}
+
+		ns.EXPECT().ColdFlush(gomock.Any())
 
 		snapshotEnd := now.Add(bufferFuture).Truncate(blockSize)
 		num = numIntervals(start, snapshotEnd, blockSize)

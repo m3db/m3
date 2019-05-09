@@ -149,7 +149,7 @@ func TestFieldsTermsIteratorTermsOnly(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	seg := newMockSegment(ctrl, map[string][]string{
@@ -162,7 +162,7 @@ func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	seg := newMockSegment(ctrl, map[string][]string{

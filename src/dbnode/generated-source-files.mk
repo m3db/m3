@@ -64,7 +64,8 @@ genny-map-storage-bootstrap-result:
 .PHONY: genny-map-storage
 genny-map-storage:                      \
 	genny-map-storage-database-namespaces \
-	genny-map-storage-shard
+	genny-map-storage-shard               \
+	genny-map-storage-dirty-series
 
 # Map generation rule for storage/databaseNamespacesMap
 .PHONY: genny-map-storage-database-namespaces
@@ -170,7 +171,22 @@ genny-map-storage-index-aggregation-results: genny-map-storage-index-aggregate-v
 	# This map has a custom constructor; delete the genny generated one
 	rm -f $(m3db_package_path)/src/dbnode/storage/index/new_map_gen.go
 
-# generation rule for all generated arraypools
+# Map generation rule for storage/DirtySeriesMap
+.PHONY: genny-map-storage-dirty-series
+genny-map-storage-dirty-series:
+	cd $(m3x_package_path) && make hashmap-gen            \
+		pkg=storage                                       \
+		key_type=idAndBlockStart                          \
+		value_type=*idElement                             \
+		value_type_alias=idElement                        \
+		target_package=$(m3db_package)/src/dbnode/storage \
+		rename_type_prefix=dirtySeries
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/src/dbnode/storage/map_gen.go $(m3db_package_path)/src/dbnode/storage/dirty_series_map_gen.go
+	# This map has a custom constructor; delete the genny generated one
+	rm -f $(m3db_package_path)/src/dbnode/storage/new_map_gen.go
+
+# Generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
 genny-arraypool-all:                      \
 	genny-arraypool-node-segments           \

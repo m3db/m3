@@ -29,12 +29,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -388,6 +388,34 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
+	}
+	return nil
+}
+
+func (d *db) updateNamespaceSchemasWithLock(schemaUpdates []namespace.Metadata) error {
+	for _, n := range schemaUpdates {
+		// Ensure namespace exists.
+		curNamepsace, ok := d.namespaces.Get(n.ID())
+		if !ok {
+			// Should never happen.
+			return fmt.Errorf("non-existent namespace marked for schema update: %v", n.ID().String())
+		}
+		curSchemaID := "none"
+		curSchema, found := curNamepsace.SchemaRegistry().GetLatest()
+		if found {
+			curSchemaID = curSchema.DeployId()
+		}
+		// Log schema update.
+		latestSchema, found := n.Options().SchemaRegistry().GetLatest()
+		if !found {
+			return fmt.Errorf("can not update namespace (%s) schema from %s to empty", n.ID().String(), curSchemaID)
+		}
+		d.log.Info("updating database namespace schema", zap.Stringer("namespace", n.ID()),
+			zap.String("current schema", curSchemaID), zap.String("latest schema", latestSchema.DeployId()))
+		err := curNamepsace.SetSchemaRegistry(n.Options().SchemaRegistry())
+		if err != nil {
+			return xerrors.Wrapf(err, "failed to update latest schema for namespace %s", n.ID().String())
+		}
 	}
 	return nil
 }

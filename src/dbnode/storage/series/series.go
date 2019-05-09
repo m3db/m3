@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"go.uber.org/zap"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"go.uber.org/zap"
 )
 
 type bootstrapState int
@@ -124,7 +124,7 @@ func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespa
 
 	bufferResult := s.buffer.Tick(blockStates, nsCtx)
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
-	r.EvictedBuckets = bufferResult.evictedBucketTimes.len()
+	r.EvictedBuckets = bufferResult.evictedBucketTimes.Len()
 	update, err := s.updateBlocksWithLock(blockStates, bufferResult.evictedBucketTimes)
 	if err != nil {
 		s.Unlock()
@@ -150,7 +150,7 @@ type updateBlocksResult struct {
 
 func (s *dbSeries) updateBlocksWithLock(
 	blockStates map[xtime.UnixNano]BlockState,
-	evictedBucketTimes evictedTimes,
+	evictedBucketTimes OptimizedTimes,
 ) (updateBlocksResult, error) {
 	var (
 		result       updateBlocksResult
@@ -162,7 +162,7 @@ func (s *dbSeries) updateBlocksWithLock(
 	)
 	for startNano, currBlock := range s.cachedBlocks.AllBlocks() {
 		start := startNano.ToTime()
-		if start.Before(expireCutoff) || evictedBucketTimes.contains(xtime.ToUnixNano(start)) {
+		if start.Before(expireCutoff) || evictedBucketTimes.Contains(xtime.ToUnixNano(start)) {
 			s.cachedBlocks.RemoveBlockAt(start)
 			// If we're using the LRU policy and the block was retrieved from disk,
 			// then don't close the block because that is the WiredList's
@@ -207,7 +207,7 @@ func (s *dbSeries) updateBlocksWithLock(
 		// Makes sure that the block has been flushed, which
 		// prevents us from unwiring blocks that haven't been flushed yet which
 		// would cause data loss.
-		if blockState := blockStates[startNano]; blockState.Retrievable {
+		if blockState := blockStates[startNano]; blockState.WarmRetrievable {
 			switch cachePolicy {
 			case CacheNone:
 				shouldUnwire = true
@@ -299,6 +299,18 @@ func (s *dbSeries) ReadEncoded(
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
+}
+
+func (s *dbSeries) FetchBlocksForColdFlush(
+	ctx context.Context,
+	start time.Time,
+	version int,
+	nsCtx namespace.Context,
+) ([]xio.BlockReader, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
 }
 
 func (s *dbSeries) FetchBlocks(
@@ -517,11 +529,10 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	}
 }
 
-func (s *dbSeries) Flush(
+func (s *dbSeries) WarmFlush(
 	ctx context.Context,
 	blockStart time.Time,
 	persistFn persist.DataFn,
-	version int,
 	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
 	s.Lock()
@@ -531,7 +542,7 @@ func (s *dbSeries) Flush(
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
-	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn, version, nsCtx)
+	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
 
 func (s *dbSeries) Snapshot(
@@ -550,6 +561,13 @@ func (s *dbSeries) Snapshot(
 	}
 
 	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+}
+
+func (s *dbSeries) NeedsColdFlushBlockStarts() OptimizedTimes {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.buffer.NeedsColdFlushBlockStarts()
 }
 
 func (s *dbSeries) Close() {

@@ -37,9 +37,9 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func newBufferTestOptions() Options {
@@ -65,12 +65,12 @@ func newBufferTestOptions() Options {
 		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
 	opts = opts.
 		SetRetentionOptions(opts.RetentionOptions().
-		SetBlockSize(2 * time.Minute).
-		SetBufferFuture(10 * time.Second).
-		SetBufferPast(10 * time.Second)).
+			SetBlockSize(2 * time.Minute).
+			SetBufferFuture(10 * time.Second).
+			SetBufferPast(10 * time.Second)).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
-		SetContextPool(opts.ContextPool()).
-		SetEncoderPool(opts.EncoderPool()))
+			SetContextPool(opts.ContextPool()).
+			SetEncoderPool(opts.EncoderPool()))
 	return opts
 }
 
@@ -769,8 +769,8 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	// Perform a tick and ensure merged out of order blocks.
 	r := buffer.Tick(blockStates, namespace.Context{})
@@ -845,8 +845,8 @@ func TestBufferRemoveBucket(t *testing.T) {
 	// get removed from the bucket.
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	bucket.version = 1
 
@@ -951,8 +951,8 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	} else {
 		ctx = context.NewContext()
 		defer ctx.Close()
-		_, err = buffer.Flush(
-			ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, 1, namespace.Context{})
+		_, err = buffer.WarmFlush(
+			ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, namespace.Context{})
 		require.NoError(t, err)
 	}
 }
@@ -1110,30 +1110,45 @@ func assertTimeSlicesEqual(t *testing.T, t1, t2 []time.Time) {
 	}
 }
 
-func TestEvictedTimes(t *testing.T) {
-	var times evictedTimes
+func TestOptimizedTimes(t *testing.T) {
+	var times OptimizedTimes
 	assert.Equal(t, 0, cap(times.slice))
-	assert.Equal(t, 0, times.len())
-	assert.False(t, times.contains(xtime.UnixNano(0)))
+	assert.Equal(t, 0, times.Len())
+	assert.False(t, times.Contains(xtime.UnixNano(0)))
+
+	var expectedTimes []xtime.UnixNano
 
 	// These adds should only go in the array.
-	for i := 0; i < evictedTimesArraySize; i++ {
+	for i := 0; i < optimizedTimesArraySize; i++ {
 		tNano := xtime.UnixNano(i)
-		times.add(tNano)
+		times.Add(tNano)
+		expectedTimes = append(expectedTimes, tNano)
 
 		assert.Equal(t, 0, cap(times.slice))
 		assert.Equal(t, i+1, times.arrIdx)
-		assert.Equal(t, i+1, times.len())
-		assert.True(t, times.contains(tNano))
+		assert.Equal(t, i+1, times.Len())
+		assert.True(t, times.Contains(tNano))
 	}
 
+	numExtra := 5
 	// These adds don't fit in the array any more, will go to the slice.
-	for i := evictedTimesArraySize; i < evictedTimesArraySize+5; i++ {
+	for i := optimizedTimesArraySize; i < optimizedTimesArraySize+numExtra; i++ {
 		tNano := xtime.UnixNano(i)
-		times.add(tNano)
+		times.Add(tNano)
+		expectedTimes = append(expectedTimes, tNano)
 
-		assert.Equal(t, evictedTimesArraySize, times.arrIdx)
-		assert.Equal(t, i+1, times.len())
-		assert.True(t, times.contains(tNano))
+		assert.Equal(t, optimizedTimesArraySize, times.arrIdx)
+		assert.Equal(t, i+1, times.Len())
+		assert.True(t, times.Contains(tNano))
+	}
+
+	var forEachTimes []xtime.UnixNano
+	times.ForEach(func(tNano xtime.UnixNano) {
+		forEachTimes = append(forEachTimes, tNano)
+	})
+
+	require.Equal(t, len(expectedTimes), len(forEachTimes))
+	for i := range expectedTimes {
+		assert.Equal(t, expectedTimes[i], forEachTimes[i])
 	}
 }

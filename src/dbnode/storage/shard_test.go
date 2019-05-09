@@ -134,7 +134,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	notStarted := fileOpState{Status: fileOpNotStarted}
+	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
 		assert.Equal(t, notStarted, s.FlushState(earliest))
 	}
@@ -184,7 +184,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
 	s.bootstrapState = Bootstrapping
-	err := s.Flush(time.Now(), nil, namespace.Context{})
+	err := s.WarmFlush(time.Now(), nil, namespace.Context{})
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
@@ -198,7 +198,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
 	}
 
@@ -226,15 +226,15 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any(), 1, gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, int, namespace.Context) {
+			WarmFlush(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
+			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
 		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
-	err := s.Flush(blockStart, flush, namespace.Context{})
+	err := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -248,7 +248,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 2,
 	}, flushState)
 }
@@ -268,7 +268,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
 	}
 
@@ -293,15 +293,15 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any(), 1, gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, int, namespace.Context) {
+			WarmFlush(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
+			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
 		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
-	err := s.Flush(blockStart, flush, namespace.Context{})
+	err := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -314,8 +314,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
-		Status:      fileOpSuccess,
-		Version:     1,
+		WarmStatus:  fileOpSuccess,
+		ColdVersion: 0,
 		NumFailures: 0,
 	}, flushState)
 }
@@ -478,10 +478,10 @@ func TestShardTick(t *testing.T) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -639,10 +639,10 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -1065,8 +1065,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markFlushStateSuccess(start, 1)
-	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()), 1)
+	shard.markWarmFlushStateSuccess(start)
+	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)

@@ -47,6 +47,7 @@ const (
 	// when we haven't begun either a flush or snapshot.
 	flushManagerNotIdle
 	flushManagerFlushInProgress
+	flushManagerColdFlushInProgress
 	flushManagerSnapshotInProgress
 	flushManagerIndexFlushInProgress
 )
@@ -63,6 +64,7 @@ type flushManager struct {
 	// are used for emitting granular gauges.
 	state           flushManagerState
 	isFlushing      tally.Gauge
+	isColdFlushing  tally.Gauge
 	isSnapshotting  tally.Gauge
 	isIndexFlushing tally.Gauge
 	// This is a "debug" metric for making sure that the snapshotting process
@@ -81,6 +83,7 @@ func newFlushManager(
 		opts:                            opts,
 		pm:                              opts.PersistManager(),
 		isFlushing:                      scope.Gauge("flush"),
+		isColdFlushing:                  scope.Gauge("cold-flush"),
 		isSnapshotting:                  scope.Gauge("snapshot"),
 		isIndexFlushing:                 scope.Gauge("index-flush"),
 		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
@@ -102,28 +105,58 @@ func (m *flushManager) Flush(
 
 	defer m.setState(flushManagerIdle)
 
-	// create flush-er
-	flushPersist, err := m.pm.StartFlushPersist()
-	if err != nil {
-		return err
-	}
-
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
 	}
 
-	// Perform two separate loops through all the namespaces so that we can emit better
-	// gauges I.E all the flushing for all the namespaces happens at once and then all
-	// the snapshotting for all the namespaces happens at once. This is also slightly
-	// better semantically because flushing should take priority over snapshotting.
+	// Perform three separate loops through all the namespaces so that we can
+	// emit better gauges, i.e. all the flushing for all the namespaces happens
+	// at once, then all the cold flushes, then all the snapshotting. This is
+	// also slightly better semantically because flushing should take priority
+	// over cold flushes and snapshotting.
 	//
-	// In addition, we need to make sure that for any given shard/blockStart combination,
-	// we attempt a flush before a snapshot as the snapshotting process will attempt to
-	// snapshot any unflushed blocks which would be wasteful if the block is already
-	// flushable.
+	// In addition, we need to make sure that for any given shard/blockStart
+	// combination, we attempt a flush before a snapshot as the snapshotting
+	// process will attempt to snapshot any unflushed blocks which would be
+	// wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
+	if err = m.dataWarmFlush(namespaces, tickStart, dbBootstrapStateAtTickStart); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	rotatedCommitlogID, err := m.commitlog.RotateLogs()
+	if err == nil {
+		if err = m.dataColdFlush(namespaces); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+
+		if err = m.dataSnapshot(namespaces, tickStart, rotatedCommitlogID); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	} else {
+		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
+	}
+
+	if err = m.indexFlush(namespaces); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *flushManager) dataWarmFlush(
+	namespaces []databaseNamespace,
+	tickStart time.Time,
+	dbBootstrapStateAtTickStart DatabaseBootstrapState,
+) error {
+	flushPersist, err := m.pm.StartFlushPersist()
+	if err != nil {
+		return err
+	}
+
 	m.setState(flushManagerFlushInProgress)
+	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes
 		flushTimes := m.namespaceFlushTimes(ns, tickStart)
@@ -147,42 +180,38 @@ func (m *flushManager) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	err = m.rotateCommitlogAndSnapshot(namespaces, tickStart)
+	return multiErr.FinalError()
+}
+
+func (m *flushManager) dataColdFlush(
+	namespaces []databaseNamespace,
+) error {
+	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
-		multiErr = multiErr.Add(err)
+		return err
 	}
 
-	indexFlush, err := m.pm.StartIndexPersist()
-	if err != nil {
-		multiErr = multiErr.Add(err)
-		return multiErr.FinalError()
-	}
-
-	m.setState(flushManagerIndexFlushInProgress)
+	m.setState(flushManagerColdFlushInProgress)
+	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
-		var (
-			indexOpts    = ns.Options().IndexOptions()
-			indexEnabled = indexOpts.Enabled()
-		)
-		if !indexEnabled {
-			continue
+		if err = ns.ColdFlush(flushPersist); err != nil {
+			multiErr = multiErr.Add(err)
 		}
-		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
 	}
-	multiErr = multiErr.Add(indexFlush.DoneIndex())
+
+	err = flushPersist.DoneFlush()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
 
 	return multiErr.FinalError()
 }
 
-func (m *flushManager) rotateCommitlogAndSnapshot(
+func (m *flushManager) dataSnapshot(
 	namespaces []databaseNamespace,
 	tickStart time.Time,
+	rotatedCommitlogID persist.CommitLogFile,
 ) error {
-	rotatedCommitlogID, err := m.commitlog.RotateLogs()
-	if err != nil {
-		return fmt.Errorf("error rotating commitlog in mediator tick: %v", err)
-	}
-
 	snapshotID := uuid.NewUUID()
 
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
@@ -224,6 +253,31 @@ func (m *flushManager) rotateCommitlogAndSnapshot(
 	return finalErr
 }
 
+func (m *flushManager) indexFlush(
+	namespaces []databaseNamespace,
+) error {
+	indexFlush, err := m.pm.StartIndexPersist()
+	if err != nil {
+		return err
+	}
+
+	m.setState(flushManagerIndexFlushInProgress)
+	multiErr := xerrors.NewMultiError()
+	for _, ns := range namespaces {
+		var (
+			indexOpts    = ns.Options().IndexOptions()
+			indexEnabled = indexOpts.Enabled()
+		)
+		if !indexEnabled {
+			continue
+		}
+		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
+	}
+	multiErr = multiErr.Add(indexFlush.DoneIndex())
+
+	return multiErr.FinalError()
+}
+
 func (m *flushManager) Report() {
 	m.RLock()
 	state := m.state
@@ -233,6 +287,12 @@ func (m *flushManager) Report() {
 		m.isFlushing.Update(1)
 	} else {
 		m.isFlushing.Update(0)
+	}
+
+	if state == flushManagerColdFlushInProgress {
+		m.isColdFlushing.Update(1)
+	} else {
+		m.isColdFlushing.Update(0)
 	}
 
 	if state == flushManagerSnapshotInProgress {
@@ -305,7 +365,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := ns.Flush(t, ShardBootstrapStates, flushPreparer); err != nil {
+		if err := ns.WarmFlush(t, ShardBootstrapStates, flushPreparer); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)

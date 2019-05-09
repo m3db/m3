@@ -751,7 +751,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
 
-	q := index.Query{query}
+	q := index.Query{Query: query}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
@@ -862,7 +862,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
-	q := index.Query{query}
+	q := index.Query{Query: query}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
@@ -948,6 +948,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
 
+	q := index.Query{Query: query}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),

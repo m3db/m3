@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package retention
+package xio
 
-import "time"
+// NewSegmentReaderSliceFromBlockReaderSlice creates a new SegmentReader slice
+// from a BlockReader slice.
+func NewSegmentReaderSliceFromBlockReaderSlice(
+	brs []BlockReader,
+) []SegmentReader {
+	srs := make([]SegmentReader, 0, len(brs))
 
-// FlushTimeStart is the earliest flushable time
-func FlushTimeStart(opts Options, t time.Time) time.Time {
-	return FlushTimeStartForRetentionPeriod(opts.RetentionPeriod(), opts.BlockSize(), t)
-}
+	for _, br := range brs {
+		srs = append(srs, br.SegmentReader)
+	}
 
-// FlushTimeStartForRetentionPeriod is the earliest flushable time
-func FlushTimeStartForRetentionPeriod(retentionPeriod time.Duration, blockSize time.Duration, t time.Time) time.Time {
-	return t.Add(-retentionPeriod).Truncate(blockSize)
-}
-
-// FlushTimeEnd is the latest flushable time
-func FlushTimeEnd(opts Options, t time.Time) time.Time {
-	return FlushTimeEndForBlockSize(opts.BlockSize(), t.Add(-opts.BufferPast()))
-}
-
-// FlushTimeEndForBlockSize is the latest flushable time
-func FlushTimeEndForBlockSize(blockSize time.Duration, t time.Time) time.Time {
-	return t.Add(-blockSize).Truncate(blockSize)
+	return srs
 }
