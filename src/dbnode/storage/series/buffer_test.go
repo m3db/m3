@@ -474,8 +474,9 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	assertValuesEqual(t, expected, results, opts)
 
 	// Now assert that mergeToStream() returns same expected result.
-	stream, err := b.mergeToStream(ctx)
+	stream, ok, err := b.mergeToStream(ctx)
 	require.NoError(t, err)
+	require.True(t, ok)
 	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
@@ -695,7 +696,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		for j := range bucket.encoders {
 			encoder := bucket.encoders[j].encoder
 
-			_, ok := b.encoders[0].encoder.Stream()
+			_, ok := encoder.Stream()
 			require.True(t, ok)
 
 			encoders = append(encoders, encoder)
@@ -734,7 +735,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := b.encoders[0].encoder.Stream()
+		_, ok := encoder.Stream()
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -857,7 +858,7 @@ func TestBufferSnapshot(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := b.encoders[0].encoder.Stream()
+		_, ok := encoder.Stream()
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -868,8 +869,9 @@ func TestBufferSnapshot(t *testing.T) {
 	// Perform a snapshot.
 	ctx := context.NewContext()
 	defer ctx.Close()
-	result, err := buffer.Snapshot(ctx, start)
+	result, ok, err := buffer.Snapshot(ctx, start)
 	assert.NoError(t, err)
+	require.True(t, ok)
 
 	// Check we got the right results.
 	expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
