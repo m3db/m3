@@ -117,7 +117,7 @@ type dbNamespace struct {
 	bootstrapState     BootstrapState
 
 	// schemaDescr caches the latest schema for the namespace.
-	// schemaDescr is updated whenver schema registry is updated.
+	// schemaDescr is updated whenever schema registry is updated.
 	schemaListener xclose.SimpleCloser
 	schemaDescr    namespace.SchemaDescr
 
@@ -509,7 +509,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	}
 
 	n.RLock()
-	nsCtx := namespace.Context{Schema: n.schemaDescr}
+	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
 	n.RUnlock()
 
 	// Tick through the shards at a capped level of concurrency

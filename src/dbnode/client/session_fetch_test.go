@@ -529,7 +529,7 @@ func fulfillFetchBatchOps(
 				}
 				seg := encoder.Discard()
 				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
-					Merged: &rpc.Segment{Head: bytesRef(seg.Head), Tail: bytesRef(seg.Tail)},
+					Merged: &rpc.Segment{Head: bytesIfNotNil(seg.Head), Tail: bytesIfNotNil(seg.Tail)},
 				}}, nil)
 				calledCompletionFn = true
 				break
@@ -539,7 +539,7 @@ func fulfillFetchBatchOps(
 	}
 }
 
-func bytesRef(data checked.Bytes) []byte {
+func bytesIfNotNil(data checked.Bytes) []byte {
 	if data != nil {
 		return data.Bytes()
 	}
