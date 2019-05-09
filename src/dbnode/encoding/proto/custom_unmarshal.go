@@ -110,11 +110,17 @@ func (u *customUnmarshaler) unmarshal() error {
 			}
 
 			var (
-				length   = u.decodeBuf.index - tagAndWireTypeStartOffset
-				startIdx = tagAndWireTypeStartOffset
-				endIdx   = startIdx + length
+				startIdx       = tagAndWireTypeStartOffset
+				endIdx         = u.decodeBuf.index
+				marshaledField = u.decodeBuf.buf[startIdx:endIdx]
 			)
-			u.nonCustomValues.UnmarshalMerge(u.decodeBuf.buf[tagAndWireTypeStartOffset:endIdx])
+			// A marshaled Protobuf message consists of a stream of <fieldNumber, wireType, value>
+			// tuples, all of which are optional, with no additional header or footer information.
+			// This means that each tuple within the stream can be thought of as its own complete
+			// marshaled message and as a result we can build up the nonCustomValues *dynamic.Message
+			// one field at a time by calling UnmarshalMerge() on sub-slices that contain a complete
+			// tuple.
+			u.nonCustomValues.UnmarshalMerge(marshaledField)
 			u.numNonCustom++
 			continue
 		}
