@@ -46,8 +46,8 @@ func ParseProtoSchema(filePath string, messageName string) (*desc.MessageDescrip
 	schema := fds[0].FindMessage(messageName)
 	if schema == nil {
 		return nil, fmt.Errorf(
-			"expected to find message with name 'Schema' in %s, but did not",
-			filePath,
+			"expected to find message with name '%s' in %s, but did not",
+			messageName, filePath,
 		)
 	}
 

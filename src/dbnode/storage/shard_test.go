@@ -404,8 +404,14 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
+	return addTestSeriesWithCountAndBootstrap(shard, id, count, true)
+}
+
+func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
 	series := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
-	series.Bootstrap(nil)
+	if bootstrap {
+		series.Bootstrap(nil)
+	}
 	shard.Lock()
 	entry := lookup.NewEntry(series, 0)
 	for i := int32(0); i < count; i++ {

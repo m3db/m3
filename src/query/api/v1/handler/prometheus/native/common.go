@@ -53,6 +53,9 @@ const (
 	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
+
+	maxInt64 = float64(math.MaxInt64)
+	minInt64 = float64(math.MinInt64)
 )
 
 func parseTime(r *http.Request, key string) (time.Time, error) {
@@ -75,9 +78,14 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 		return value, nil
 	}
 
-	// Try parsing as an integer value specifying seconds, the Prometheus default
-	if seconds, intErr := strconv.ParseInt(str, 10, 64); intErr == nil {
-		return time.Duration(seconds) * time.Second, nil
+	// Try parsing as a float value specifying seconds, the Prometheus default
+	if seconds, floatErr := strconv.ParseFloat(str, 64); floatErr == nil {
+		ts := seconds * float64(time.Second)
+		if ts > maxInt64 || ts < minInt64 {
+			return 0, fmt.Errorf("cannot parse %s to a valid duration: int64 overflow", str)
+		}
+
+		return time.Duration(ts), nil
 	}
 
 	return 0, err
@@ -109,6 +117,10 @@ func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.R
 
 	step, err := parseDuration(r, stepParam)
 	if err != nil {
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
+	}
+	if step <= 0 {
+		err := fmt.Errorf("expected postive step size, instead got: %d", step)
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
 	}
 	params.Step = step
