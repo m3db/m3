@@ -129,8 +129,9 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 		r.readers[i] = nil
 	}
 
+	stream, _ := r.encoder.Stream()
 	r.merged = xio.BlockReader{
-		SegmentReader: r.encoder.Stream(),
+		SegmentReader: stream,
 		Start:         r.blockStart,
 		BlockSize:     r.blockSize,
 	}

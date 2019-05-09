@@ -77,12 +77,13 @@ func (mr *MockdatabaseBufferMockRecorder) Write(ctx, timestamp, value, unit, ann
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, error) {
+func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart)
 	ret0, _ := ret[0].(xio.SegmentReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Snapshot indicates an expected call of Snapshot

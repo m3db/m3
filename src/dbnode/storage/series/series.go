@@ -546,15 +546,15 @@ func (s *dbSeries) Snapshot(
 
 	var (
 		stream xio.SegmentReader
+		ok     bool
 		err    error
 	)
 
-	stream, err = s.buffer.Snapshot(ctx, blockStart)
-
+	stream, ok, err = s.buffer.Snapshot(ctx, blockStart)
 	if err != nil {
 		return err
 	}
-	if stream == nil {
+	if !ok {
 		return nil
 	}
 

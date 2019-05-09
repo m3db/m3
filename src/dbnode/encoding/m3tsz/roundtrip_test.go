@@ -118,7 +118,8 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		}
 	}
 	decoder := NewDecoder(intOpt, nil)
-	it := decoder.Decode(encoder.Stream())
+	it, ok := decoder.Decode(encoder.Stream())
+	require.True(t, ok)
 	defer it.Close()
 	var decompressed []ts.Datapoint
 	j := 0

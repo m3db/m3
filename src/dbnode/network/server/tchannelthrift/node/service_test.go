@@ -271,12 +271,13 @@ func TestServiceQuery(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
+		stream, _ := enc.Stream()
+		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{{
 				xio.BlockReader{
-					SegmentReader: enc.Stream(),
+					SegmentReader: stream,
 				},
 			}}, nil)
 	}
@@ -519,12 +520,13 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
+	stream, _ := enc.Stream()
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
 		Return([][]xio.BlockReader{
 			[]xio.BlockReader{
 				xio.BlockReader{
-					SegmentReader: enc.Stream(),
+					SegmentReader: stream,
 				},
 			},
 		}, nil)
@@ -689,14 +691,14 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
-
+		stream, _ := enc.Stream()
+		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{
 				[]xio.BlockReader{
 					xio.BlockReader{
-						SegmentReader: enc.Stream(),
+						SegmentReader: stream,
 					},
 				},
 			}, nil)
@@ -898,7 +900,8 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
+		stream, _ := enc.Stream()
+		streams[id] = stream
 
 		seg, err := streams[id].Segment()
 		require.NoError(t, err)
@@ -908,7 +911,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 
 		expectedBlockReader := []xio.BlockReader{
 			xio.BlockReader{
-				SegmentReader: enc.Stream(),
+				SegmentReader: stream,
 				Start:         start,
 			},
 		}
@@ -1314,12 +1317,13 @@ func TestServiceFetchTagged(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
+		stream, _ := enc.Stream()
+		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{{
 				xio.BlockReader{
-					SegmentReader: enc.Stream(),
+					SegmentReader: stream,
 				},
 			}}, nil)
 	}

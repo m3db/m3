@@ -317,7 +317,9 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	emptyEncoder := opts.EncoderPool().Get()
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
-	require.Nil(t, b.encoders[0].encoder.Stream())
+
+	_, ok := b.encoders[0].encoder.Stream()
+	require.False(t, ok)
 
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(curr, 0)
@@ -690,7 +692,9 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		// Current bucket encoders should all have data in them.
 		for j := range bucket.encoders {
 			encoder := bucket.encoders[j].encoder
-			assert.NotNil(t, encoder.Stream())
+
+			_, ok := b.encoders[0].encoder.Stream()
+			require.True(t, ok)
 
 			encoders = append(encoders, encoder)
 		}
@@ -727,7 +731,9 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	// Current bucket encoders should all have data in them.
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
-		assert.NotNil(t, encoder.Stream())
+
+		_, ok := b.encoders[0].encoder.Stream()
+		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
 	}
@@ -848,7 +854,9 @@ func TestBufferSnapshot(t *testing.T) {
 	// Current bucket encoders should all have data in them.
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
-		assert.NotNil(t, encoder.Stream())
+
+		_, ok := b.encoders[0].encoder.Stream()
+		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
 	}
@@ -882,7 +890,9 @@ func TestBufferSnapshot(t *testing.T) {
 	// Current bucket encoders should all have data in them.
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
-		assert.NotNil(t, encoder.Stream())
+
+		_, ok := b.encoders[0].encoder.Stream()
+		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
 	}
