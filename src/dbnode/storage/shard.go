@@ -187,9 +187,10 @@ type dbShardMetrics struct {
 	insertAsyncWriteErrors        tally.Counter
 	seriesBootstrapBlocksToBuffer tally.Counter
 	seriesBootstrapBlocksMerged   tally.Counter
+	seriesTicked                  tally.Gauge
 }
 
-func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
+func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 	seriesBootstrapScope := scope.SubScope("series-bootstrap")
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
@@ -207,6 +208,9 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 		}).Counter("insert-async.errors"),
 		seriesBootstrapBlocksToBuffer: seriesBootstrapScope.Counter("blocks-to-buffer"),
 		seriesBootstrapBlocksMerged:   seriesBootstrapScope.Counter("blocks-merged"),
+		seriesTicked: scope.Tagged(map[string]string{
+			"shard": fmt.Sprintf("%d", shardID),
+		}).Gauge("series-ticked"),
 	}
 }
 
@@ -269,7 +273,7 @@ func newDatabaseShard(
 		flushState:         newShardFlushState(),
 		tickWg:             &sync.WaitGroup{},
 		logger:             opts.InstrumentOptions().Logger(),
-		metrics:            newDatabaseShardMetrics(scope),
+		metrics:            newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope)
@@ -632,6 +636,7 @@ func (s *dbShard) tickAndExpire(
 		s.ticking = false
 		s.tickWg.Done()
 		s.Unlock()
+		s.metrics.seriesTicked.Update(0.0) // reset external visibility
 	}()
 
 	var (
@@ -670,6 +675,8 @@ func (s *dbShard) tickAndExpire(
 					terminatedTickingDueToClosing = true
 					return false
 				}
+				// Expose shard level Tick() progress externally.
+				s.metrics.seriesTicked.Update(float64(i))
 				// Throttle the tick
 				sleepFor := time.Duration(tickSleepBatch) * tickSleepPerSeries
 				s.sleepFn(sleepFor)
