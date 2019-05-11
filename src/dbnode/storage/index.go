@@ -541,9 +541,17 @@ func (i *nsIndex) writeBatches(
 			}
 
 			if i.forwardIndexDice.forwardIndexing(entry.Timestamp) {
-				forwardWriteEntry := entry
-				forwardWriteEntry.Timestamp = entry.Timestamp.Add(blockSize)
-				forwardWriteBatch.Append(forwardWriteEntry, d)
+				forwardEntryTimestamp := entry.Timestamp.Truncate(blockSize).Add(blockSize)
+				fmt.Println("Got timestamp", forwardEntryTimestamp.Format("3:04:05PM"))
+				xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
+				if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
+					fmt.Println("Timestamp needs an index update")
+					forwardWriteEntry := entry
+					forwardWriteEntry.Timestamp = forwardEntryTimestamp
+					forwardWriteEntry.OnIndexSeries.OnIndexPrepare()
+					fmt.Println("Adding forward index")
+					forwardWriteBatch.Append(forwardWriteEntry, d)
+				}
 			}
 		})
 

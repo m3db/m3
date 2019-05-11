@@ -23,7 +23,6 @@ package dice
 import (
 	"fmt"
 	"math/rand"
-	"time"
 )
 
 // Dice is an interface that allows for random sampling.
@@ -35,15 +34,14 @@ type Dice interface {
 	Roll() bool
 }
 
-// NewEpochDice constructs a new Dice based on UNIX epoch time.
-func NewEpochDice(rate float64) (Dice, error) {
+// NewDice constructs a new Dice based on a given success rate.
+func NewDice(rate float64) (Dice, error) {
 	if rate <= 0.0 || rate > 1.0 {
 		return nil, fmt.Errorf("invalid sample rate %f", rate)
 	}
 
 	return &epoch{
-		r:      int64(1.0 / rate),
-		jitter: rand.Int63n(10e9),
+		r: int64(1.0 / rate),
 	}, nil
 }
 
@@ -57,5 +55,5 @@ func (d *epoch) Rate() float64 {
 }
 
 func (d *epoch) Roll() bool {
-	return (time.Now().UnixNano()+d.jitter)%d.r == 0
+	return rand.Int63()%d.r == 0
 }

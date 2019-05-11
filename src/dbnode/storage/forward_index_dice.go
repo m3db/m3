@@ -29,7 +29,8 @@ import (
 
 // forwardIndexDice is a die roll that adds a chance for incoming index writes
 // arriving near a block boundary to be duplicated and written to the next block
-// index, adding jitter and smoothing index load.
+// index, adding jitter and smoothing index load so that block boundaries do not
+// cause a huge influx of new documents that all need to be indexed at once.
 type forwardIndexDice struct {
 	enabled   bool
 	blockSize time.Duration
@@ -63,7 +64,7 @@ func newForwardIndexDice(
 		forwardIndexThreshold time.Duration
 	)
 
-	if threshold > 1 {
+	if threshold < 0 || threshold > 1 {
 		return forwardIndexDice{},
 			fmt.Errorf("invalid forward write threshold %f", threshold)
 	}
@@ -71,7 +72,7 @@ func newForwardIndexDice(
 	bufferFragment := float64(bufferFuture) * threshold
 	forwardIndexThreshold = blockSize - time.Duration(bufferFragment)
 
-	dice, err := dice.NewEpochDice(probability)
+	dice, err := dice.NewDice(probability)
 	if err != nil {
 		return forwardIndexDice{},
 			fmt.Errorf("cannot create forward write dice: %s", err)

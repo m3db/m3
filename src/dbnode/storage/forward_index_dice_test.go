@@ -68,13 +68,21 @@ func TestDisabledForwardIndexDice(t *testing.T) {
 }
 
 func TestInvalidForwardIndexDice(t *testing.T) {
-	opts := optionsWithIndexValues(20, 0, nil)
-	_, err := newForwardIndexDice(opts)
-	require.Error(t, err)
+	// Index probability < 0 and > 1 cases.
+	invalidIndexProbabilities := []float64{-10, 10}
+	for _, prob := range invalidIndexProbabilities {
+		opts := optionsWithIndexValues(prob, 0, nil)
+		_, err := newForwardIndexDice(opts)
+		require.Error(t, err)
+	}
 
-	opts = optionsWithIndexValues(0.5, 2, nil)
-	_, err = newForwardIndexDice(opts)
-	require.Error(t, err)
+	// Index threshold < 0 and > 1 cases.
+	invalidIndexThresholds := []float64{-10, 10}
+	for _, threshold := range invalidIndexThresholds {
+		opts := optionsWithIndexValues(0.5, threshold, nil)
+		_, err := newForwardIndexDice(opts)
+		require.Error(t, err)
+	}
 }
 
 func TestAlwaysOnForwardIndexDice(t *testing.T) {
