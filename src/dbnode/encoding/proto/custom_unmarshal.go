@@ -125,13 +125,13 @@ func (u *customUnmarshaler) unmarshal() error {
 			continue
 		}
 
-		value, err := u.unmarshalKnownField(fd, wireType)
+		value, err := u.unmarshalCustomField(fd, wireType)
 		if err != nil {
 			return err
 		}
 
 		if isSorted && len(u.customValues) > 1 {
-			// Check if the slice is sorted as its built to avoid resorting
+			// Check if the slice is sorted as it's built to avoid resorting
 			// unnecessarily at the end.
 			lastFieldNum := u.customValues[len(u.customValues)-1].fieldNumber
 			if fieldNum < lastFieldNum {
@@ -167,9 +167,7 @@ func (u *customUnmarshaler) isCustomField(fd *desc.FieldDescriptor) bool {
 }
 
 // skip will skip over the next value in the encoded stream (given that the tag and
-// wiretype have already been decoded). Additionally, it can optionally re-encode
-// the skipped <tag,wireType,value> tuple into the skippedBuf stream so that it can
-// be handled later.
+// wiretype have already been decoded).
 func (u *customUnmarshaler) skip(wireType int8) (int, error) {
 	switch wireType {
 	case proto.WireFixed32:
@@ -217,7 +215,7 @@ func (u *customUnmarshaler) skip(wireType int8) (int, error) {
 	}
 }
 
-func (u *customUnmarshaler) unmarshalKnownField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
+func (u *customUnmarshaler) unmarshalCustomField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		num, err := u.decodeBuf.decodeFixed32()

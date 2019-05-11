@@ -177,10 +177,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 func (enc *Encoder) encodeSchemaAndOrTimeUnit(
 	needToEncodeSchema bool,
 	needToEncodeTimeUnit bool,
-	timeUnit xtime.Unit) {
+	timeUnit xtime.Unit,
+) {
 	// First bit means either there is no more data OR the time unit and/or schema has changed.
 	enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
-	// Next bit means there is more data, but the time unit and/or schema has changed has changed.
+	// Next bit means there is more data, but the time unit and/or schema has changed.
 	enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
 
 	// Next bit is a boolean indicating whether the time unit has changed.
