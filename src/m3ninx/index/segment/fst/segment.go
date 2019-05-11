@@ -210,6 +210,15 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 	return exists, closeErr
 }
 
+func (r *fsSegment) ContainsField(field []byte) (bool, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return false, errReaderClosed
+	}
+	return r.fieldsFST.Contains(field)
+}
+
 func (r *fsSegment) Reader() (index.Reader, error) {
 	r.RLock()
 	defer r.RUnlock()

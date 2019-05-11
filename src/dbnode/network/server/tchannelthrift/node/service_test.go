@@ -1661,7 +1661,7 @@ func TestServiceAggregate(t *testing.T) {
 				EndExclusive:   end,
 				Limit:          10,
 			},
-			TermFilter: index.AggregateTermFilter{
+			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
 			},
 			Type: index.AggregateTagNamesAndValues,

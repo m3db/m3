@@ -229,6 +229,27 @@ func TestFieldsEquals(t *testing.T) {
 	}
 }
 
+func TestContainsField(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			for _, tc := range newTestCases(t, test.docs) {
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expFieldsIter, err := expSeg.FieldsIterable().Fields()
+					require.NoError(t, err)
+					expFields := toSlice(t, expFieldsIter)
+
+					for _, f := range expFields {
+						ok, err := obsSeg.ContainsField(f)
+						require.NoError(t, err)
+						require.True(t, ok)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestTermEquals(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {

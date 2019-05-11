@@ -88,8 +88,8 @@ func (o QueryOptions) LimitExceeded(size int) bool {
 // AggregationOptions enables users to specify constraints on aggregations.
 type AggregationOptions struct {
 	QueryOptions
-	TermFilter AggregateTermFilter
-	Type       AggregationType
+	FieldFilter AggregateFieldFilter
+	Type        AggregationType
 }
 
 // QueryResult is the collection of results for a query.
@@ -201,10 +201,10 @@ type AggregateResults interface {
 	Map() *AggregateResultsMap
 }
 
-// AggregateTermFilter dictates which fields will appear in the aggregated
-// result; if filter values exist, only those whose term matches a value in the
+// AggregateFieldFilter dictates which fields will appear in the aggregated
+// result; if filter values exist, only those whose fields matches a value in the
 // filter are returned.
-type AggregateTermFilter [][]byte
+type AggregateFieldFilter [][]byte
 
 // AggregateResultsOptions is a set of options to use for results.
 type AggregateResultsOptions struct {
@@ -212,11 +212,11 @@ type AggregateResultsOptions struct {
 	// overflown will return early successfully.
 	SizeLimit int
 
-	// Optional param to filter aggregate values.
-	TermFilter AggregateTermFilter
-
 	// Type determines what result is required.
 	Type AggregationType
+
+	// FieldFilter is an optional param to filter aggregate values.
+	FieldFilter AggregateFieldFilter
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.

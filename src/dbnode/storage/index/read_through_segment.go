@@ -134,6 +134,12 @@ func (r *ReadThroughSegment) ContainsID(id []byte) (bool, error) {
 	return r.segment.ContainsID(id)
 }
 
+// ContainsField is a pass through call to the segment, since there's no
+// postings lists to cache for queries.
+func (r *ReadThroughSegment) ContainsField(field []byte) (bool, error) {
+	return r.segment.ContainsField(field)
+}
+
 // Size is a pass through call to the segment, since there's no
 // postings lists to cache for queries.
 func (r *ReadThroughSegment) Size() int64 {

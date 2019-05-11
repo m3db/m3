@@ -33,6 +33,10 @@ type termsDictionary interface {
 	// Insert inserts the field with the given ID into the terms dictionary.
 	Insert(field doc.Field, id postings.ID) error
 
+	// ContainsField returns a bool indicating whether the terms dictionary contains
+	// the given field.
+	ContainsField(field []byte) bool
+
 	// ContainsTerm returns a bool indicating whether the terms dictionary contains
 	// the given term.
 	ContainsTerm(field, term []byte) bool

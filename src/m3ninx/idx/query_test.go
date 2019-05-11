@@ -18,22 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package idx
 
-import "bytes"
+import (
+	"testing"
 
-// Allow returns true if the given term satisfies the filter.
-func (f AggregateFieldFilter) Allow(term []byte) bool {
-	if len(f) == 0 {
-		// NB: if filter is empty, all values are valid.
-		return true
+	"github.com/stretchr/testify/require"
+)
+
+func TestFieldQuery(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         Query
+		expectedField []byte
+		expectedOK    bool
+	}{
+		{
+			name:          "field query should be convertible",
+			query:         NewFieldQuery([]byte("fruit")),
+			expectedField: []byte("fruit"),
+			expectedOK:    true,
+		},
+		{
+			name:       "all query should not be convertible",
+			query:      NewAllQuery(),
+			expectedOK: false,
+		},
+		{
+			name:       "term query should not be convertible",
+			query:      NewTermQuery([]byte("a"), []byte("b")),
+			expectedOK: false,
+		},
 	}
 
-	for _, allowed := range f {
-		if bytes.Equal(term, allowed) {
-			return true
-		}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			field, ok := FieldQuery(test.query)
+			require.Equal(t, test.expectedOK, ok)
+			if !ok {
+				return
+			}
+			require.Equal(t, test.expectedField, field)
+		})
 	}
-
-	return false
 }

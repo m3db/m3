@@ -55,6 +55,16 @@ func NewFieldQuery(field []byte) Query {
 	}
 }
 
+// FieldQuery returns a bool indicating whether the Query is a FieldQuery,
+// and the backing bytes of the Field.
+func FieldQuery(q Query) (field []byte, ok bool) {
+	fieldQuery, ok := q.query.(*query.FieldQuery)
+	if !ok {
+		return nil, false
+	}
+	return fieldQuery.Field(), true
+}
+
 // NewTermQuery returns a new query for finding documents which match a term exactly.
 func NewTermQuery(field, term []byte) Query {
 	return Query{
