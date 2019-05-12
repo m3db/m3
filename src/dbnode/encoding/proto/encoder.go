@@ -223,7 +223,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *Encoder) Stream(opts StreamOpts) (xio.SegmentReader, bool) {
+func (enc *Encoder) Stream(opts encoding.StreamOpts) (xio.SegmentReader, bool) {
 	seg := enc.segment(true)
 	if seg.Len() == 0 {
 		return xio.NewSegmentReader(ts.Segment{}), false
