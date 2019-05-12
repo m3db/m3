@@ -226,7 +226,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 func (enc *Encoder) Stream(opts StreamOpts) (xio.SegmentReader, bool) {
 	seg := enc.segment(true)
 	if seg.Len() == 0 {
-		return nil, false
+		return xio.NewSegmentReader(ts.Segment{}), false
 	}
 
 	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
