@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -895,10 +894,6 @@ func (b *block) Aggregate(
 	}
 
 	aggOpts := results.AggregateResultsOptions()
-	// ensure we iterate the provided filter fields in order.
-	sort.Slice(aggOpts.FieldFilter, func(i, j int) bool {
-		return bytes.Compare(aggOpts.FieldFilter[i], aggOpts.FieldFilter[j]) < 0
-	})
 	iterateTerms := aggOpts.Type == AggregateTagNamesAndValues
 	iterateOpts := fieldsAndTermsIteratorOpts{
 		iterateTerms: iterateTerms,

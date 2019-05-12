@@ -925,8 +925,9 @@ func (i *nsIndex) AggregateQuery(
 	field, isField := idx.FieldQuery(query.Query)
 	if isField {
 		fn = i.execBlockAggregateQueryFn
-		aopts.FieldFilter = append(index.AggregateFieldFilter{field}, aopts.FieldFilter...)
+		aopts.FieldFilter = aopts.FieldFilter.AddIfMissing(field)
 	}
+	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(i.nsMetadata.ID(), aopts)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn)
 	if err != nil {
