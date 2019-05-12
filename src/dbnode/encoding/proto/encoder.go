@@ -225,16 +225,14 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 // Stream returns a copy of the underlying data stream.
 func (enc *Encoder) Stream(opts encoding.StreamOpts) (xio.SegmentReader, bool) {
 	seg := enc.segment(true)
-	if seg.Len() == 0 {
-		return xio.NewSegmentReader(ts.Segment{}), false
-	}
+	hasData := seg.Len() != 0
 
 	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
 		reader := readerPool.Get()
 		reader.Reset(seg)
-		return reader, true
+		return reader, hasData
 	}
-	return xio.NewSegmentReader(seg), true
+	return xio.NewSegmentReader(seg), hasData
 }
 
 func (enc *Encoder) segment(copy bool) ts.Segment {
