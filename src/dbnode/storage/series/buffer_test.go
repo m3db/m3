@@ -812,6 +812,62 @@ func TestBuffertoStream(t *testing.T) {
 	assertSegmentValuesEqual(t, expected, stream, opts)
 }
 
+// TestBufferSnapshotEmptyEncoder ensures that snapshot behaves correctly even if an
+// encoder is present but it has no data which can occur in some situations such as when
+// an initial write fails leaving behind an empty encoder.
+func TestBufferSnapshotEmptyEncoder(t *testing.T) {
+	// Setup.
+	var (
+		opts      = newBufferTestOptions()
+		rops      = opts.RetentionOptions()
+		blockSize = rops.BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		start     = curr
+		buffer    = newDatabaseBuffer().(*dbBuffer)
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	// Perform one valid write to setup the state of the buffer.
+	ctx := context.NewContext()
+	wasWritten, err := buffer.Write(ctx, curr, 1, xtime.Second, nil, WriteOptions{})
+	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	// Verify internal state.
+	var encoders []encoding.Encoder
+	buckets, ok := buffer.bucketVersionsAt(start)
+	require.True(t, ok)
+	bucket, ok := buckets.writableBucket(WarmWrite)
+	require.True(t, ok)
+	for j := range bucket.encoders {
+		encoder := bucket.encoders[j].encoder
+
+		_, ok := encoder.Stream(encoding.StreamOpts{})
+		require.True(t, ok)
+
+		// Reset the encoder to simulate the situation in which an encoder is present but
+		// it is empty.
+		encoder.Reset(curr, 0)
+
+		encoders = append(encoders, encoder)
+	}
+	require.Equal(t, 1, len(encoders))
+
+	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
+		t.Fatal("persist fn should not have been called")
+		return nil
+	}
+
+	// Perform a snapshot.
+	ctx = context.NewContext()
+	defer ctx.Close()
+	err = buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
+	assert.NoError(t, err)
+}
+
 func TestBufferSnapshot(t *testing.T) {
 	// Setup.
 	var (
