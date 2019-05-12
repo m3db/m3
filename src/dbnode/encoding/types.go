@@ -48,6 +48,9 @@ type Encoder interface {
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
+	// A boolean is returned indicating whether the returned xio.SegmentReader contains
+	// any data (true) or is empty (false) to encourage callers to remember to handle
+	// the special case where there is an empty stream.
 	Stream(opts StreamOpts) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
