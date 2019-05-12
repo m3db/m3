@@ -155,7 +155,7 @@ func TestRoundTripProp(t *testing.T) {
 			}
 		}
 
-		stream := enc.Stream()
+		stream, ok := enc.Stream()
 		if !ok {
 			return true, nil
 		}
