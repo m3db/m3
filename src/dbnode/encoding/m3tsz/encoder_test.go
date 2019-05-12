@@ -365,7 +365,7 @@ func TestEncoderResets(t *testing.T) {
 	defer enc.Close()
 
 	require.Equal(t, 0, enc.os.Len())
-	_, ok := encoder.Stream(encoding.StreamOpts{})
+	_, ok := enc.Stream(encoding.StreamOpts{})
 	require.False(t, ok)
 
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
@@ -374,7 +374,7 @@ func TestEncoderResets(t *testing.T) {
 	now := time.Now()
 	enc.Reset(now, 0)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok := encoder.Stream(encoding.StreamOpts{})
+	_, ok = enc.Stream(encoding.StreamOpts{})
 	require.False(t, ok)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
@@ -384,7 +384,7 @@ func TestEncoderResets(t *testing.T) {
 
 	enc.DiscardReset(now, 0)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok := encoder.Stream(encoding.StreamOpts{})
+	_, ok = enc.Stream(encoding.StreamOpts{})
 	require.False(t, ok)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
