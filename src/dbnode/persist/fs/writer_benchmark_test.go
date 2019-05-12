@@ -89,18 +89,18 @@ func benchmarkCreateEmptyFilesets(b *testing.B, parallelism, numShards int) {
 	for i := 0; i < b.N; i++ {
 		wg.Add(1)
 
-		workerPool.Go(func() {
-			writerOpts := DataWriterOpenOptions{
-				Identifier: FileSetFileIdentifier{
-					Namespace:   testNs1ID,
-					Shard:       uint32(i % numShards),
-					BlockStart:  start,
-					VolumeIndex: i,
-				},
-				BlockSize:   testBlockSize,
-				FileSetType: persist.FileSetFlushType,
-			}
+		writerOpts := DataWriterOpenOptions{
+			Identifier: FileSetFileIdentifier{
+				Namespace:   testNs1ID,
+				Shard:       uint32(i % numShards),
+				BlockStart:  start,
+				VolumeIndex: i,
+			},
+			BlockSize:   testBlockSize,
+			FileSetType: persist.FileSetFlushType,
+		}
 
+		workerPool.Go(func() {
 			writer, err := NewWriter(testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix).
 				SetWriterBufferSize(testWriterBufferSize))
