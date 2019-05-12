@@ -836,6 +836,17 @@ func TestBuffertoStream(t *testing.T) {
 // encoder is present but it has no data which can occur in some situations such as when
 // an initial write fails leaving behind an empty encoder.
 func TestBufferSnapshotEmptyEncoder(t *testing.T) {
+	testBufferWithEmptyEncoder(t, true)
+}
+
+// TestBufferFlushEmptyEncoder ensures that flush behaves correctly even if an encoder
+// is present but it has no data which can occur in some situations such as when an
+// initial write fails leaving behind an empty encoder.
+func TestBufferFlushEmptyEncoder(t *testing.T) {
+	testBufferWithEmptyEncoder(t, false)
+}
+
+func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	// Setup.
 	var (
 		opts      = newBufferTestOptions()
@@ -881,11 +892,18 @@ func TestBufferSnapshotEmptyEncoder(t *testing.T) {
 		return nil
 	}
 
-	// Perform a snapshot.
-	ctx = context.NewContext()
-	defer ctx.Close()
-	err = buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
-	assert.NoError(t, err)
+	if testSnapshot {
+		ctx = context.NewContext()
+		defer ctx.Close()
+		err = buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
+		assert.NoError(t, err)
+	} else {
+		ctx = context.NewContext()
+		defer ctx.Close()
+		_, err = buffer.Flush(
+			ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, 1)
+		require.NoError(t, err)
+	}
 }
 
 func TestBufferSnapshot(t *testing.T) {
