@@ -37,6 +37,8 @@ import (
 // StreamOpts is an options struct that can be passed to Encoder.Stream()
 // to modify its behavior.
 type StreamOpts struct {
+	// Optional bytes into which the stream should be copied. If left
+	// nil then the checked bytes pool on the encoder will be used instead.
 	Bytes checked.Bytes
 }
 
