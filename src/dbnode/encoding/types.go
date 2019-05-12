@@ -39,6 +39,8 @@ import (
 type StreamOpts struct {
 	// Optional bytes into which the stream should be copied. If left
 	// nil then the checked bytes pool on the encoder will be used instead.
+	// TODO(rartoul): Actually use this field in the Stream API() in a subsequent
+	// P.R.
 	Bytes checked.Bytes
 }
 
