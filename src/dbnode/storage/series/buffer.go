@@ -75,7 +75,10 @@ type databaseBuffer interface {
 	Snapshot(
 		ctx context.Context,
 		blockStart time.Time,
-	) (xio.SegmentReader, bool, error)
+		id ident.ID,
+		tags ident.Tags,
+		persistFn persist.DataFn,
+	) error
 
 	Flush(
 		ctx context.Context,
@@ -342,54 +345,77 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
 func (b *dbBuffer) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
-) (xio.SegmentReader, bool, error) {
+	id ident.ID,
+	tags ident.Tags,
+	persistFn persist.DataFn,
+) error {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
-		return nil, false, nil
+		return nil
 	}
 
 	// We only snapshot warm writes since cold writes get force merged every
 	// tick anyway.
 	_, err := buckets.merge(WarmWrite)
 	if err != nil {
-		return nil, false, err
+		return err
 	}
 
-	streams := buckets.streams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
-	// We may need to merge again here because the regular merge method does
-	// not merge buckets that have different versions.
-	numStreams := len(streams)
+	var (
+		stream     xio.SegmentReader
+		streams    = buckets.streams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
+		numStreams = len(streams)
+	)
 	if numStreams == 1 {
-		return streams[0], true, nil
-	}
+		stream = streams[0]
+	} else {
+		// We may need to merge again here because the regular merge method does
+		// not merge buckets that have different versions.
+		sr := make([]xio.SegmentReader, 0, numStreams)
+		for _, stream := range streams {
+			sr = append(sr, stream)
+		}
 
-	sr := make([]xio.SegmentReader, 0, numStreams)
-	for _, stream := range streams {
-		sr = append(sr, stream)
-	}
+		bopts := b.opts.DatabaseBlockOptions()
+		encoder := bopts.EncoderPool().Get()
+		encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
+		iter := b.opts.MultiReaderIteratorPool().Get()
+		defer func() {
+			encoder.Close()
+			iter.Close()
+		}()
+		iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize())
 
-	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
-	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
-	iter := b.opts.MultiReaderIteratorPool().Get()
-	defer func() {
-		encoder.Close()
-		iter.Close()
-	}()
-	iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize())
+		for iter.Next() {
+			dp, unit, annotation := iter.Current()
+			if err := encoder.Encode(dp, unit, annotation); err != nil {
+				return err
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return err
+		}
 
-	for iter.Next() {
-		dp, unit, annotation := iter.Current()
-		if err := encoder.Encode(dp, unit, annotation); err != nil {
-			return nil, false, err
+		var ok bool
+		stream, ok = encoder.Stream(encoding.StreamOpts{})
+		if !ok {
+			// Don't write out series with no data.
+			return nil
 		}
 	}
-	if err := iter.Err(); err != nil {
-		return nil, false, err
+
+	segment, err := stream.Segment()
+	if err != nil {
+		return err
 	}
 
-	stream, ok := encoder.Stream(encoding.StreamOpts{})
-	return stream, ok, nil
+	if segment.Len() == 0 {
+		// Don't write out series with no data.
+		return nil
+	}
+
+	checksum := digest.SegmentChecksum(segment)
+	return persistFn(id, tags, segment, checksum)
 }
 
 func (b *dbBuffer) Flush(
@@ -435,6 +461,7 @@ func (b *dbBuffer) Flush(
 	}
 
 	if !ok {
+		// Don't write out series with no data.
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
@@ -443,8 +470,12 @@ func (b *dbBuffer) Flush(
 		return FlushOutcomeErr, err
 	}
 
-	checksum := digest.SegmentChecksum(segment)
+	if segment.Len() == 0 {
+		// Empty segment is equivalent to no stream, i.e data does not exist.
+		return FlushOutcomeBlockDoesNotExist, nil
+	}
 
+	checksum := digest.SegmentChecksum(segment)
 	err = persistFn(id, tags, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err

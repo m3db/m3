@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -866,24 +867,27 @@ func TestBufferSnapshot(t *testing.T) {
 
 	assert.Equal(t, 2, len(encoders))
 
+	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
+		// Check we got the right results.
+		expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
+		expectedCopy := make([]value, len(expectedData))
+		copy(expectedCopy, expectedData)
+		sort.Sort(valuesByTime(expectedCopy))
+		actual := [][]xio.BlockReader{{
+			xio.BlockReader{
+				SegmentReader: xio.NewSegmentReader(segment),
+			},
+		}}
+		assertValuesEqual(t, expectedCopy, actual, opts)
+
+		return nil
+	}
+
 	// Perform a snapshot.
 	ctx := context.NewContext()
 	defer ctx.Close()
-	result, ok, err := buffer.Snapshot(ctx, start)
+	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
 	assert.NoError(t, err)
-	require.True(t, ok)
-
-	// Check we got the right results.
-	expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
-	expectedCopy := make([]value, len(expectedData))
-	copy(expectedCopy, expectedData)
-	sort.Sort(valuesByTime(expectedCopy))
-	actual := [][]xio.BlockReader{{
-		xio.BlockReader{
-			SegmentReader: result,
-		},
-	}}
-	assertValuesEqual(t, expectedCopy, actual, opts)
 
 	// Check internal state to make sure the merge happened and was persisted.
 	encoders = encoders[:0]
