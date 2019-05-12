@@ -119,6 +119,26 @@ func TestBufferWriteTooPast(t *testing.T) {
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
+func TestBufferWriteError(t *testing.T) {
+	var (
+		opts   = newBufferTestOptions()
+		rops   = opts.RetentionOptions()
+		curr   = time.Now().Truncate(rops.BlockSize())
+		ctx    = context.NewContext()
+		buffer = newDatabaseBuffer().(*dbBuffer)
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+	defer ctx.Close()
+
+	timeUnitNotExist := xtime.Unit(127)
+	wasWritten, err := buffer.Write(ctx, curr, 1, timeUnitNotExist, nil, WriteOptions{})
+	require.False(t, wasWritten)
+	require.Error(t, err)
+}
+
 func TestBufferWriteRead(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()

@@ -962,7 +962,8 @@ func (b *BufferBucket) write(
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-		return true, b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+		err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+		return err == nil, err
 	}
 
 	// Need a new encoder, we didn't find an encoder to write to
