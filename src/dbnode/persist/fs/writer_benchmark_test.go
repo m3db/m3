@@ -32,6 +32,46 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
+// Benchmarks run on a production machine with 32 cores and non server-grade, non NVME SSD drives.
+// goos: linux
+// goarch: amd64
+// pkg: github.com/m3db/m3/src/dbnode/persist/fs
+// BenchmarkCreateEmptyFilesets/parallelism:_2,_numShards:_1-32         	   10000	    135045 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_2,_numShards:_256-32       	   10000	    124712 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_2,_numShards:_1024-32      	   10000	    149700 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_4,_numShards:_1-32         	   20000	     86291 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_4,_numShards:_256-32       	   20000	     94382 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_4,_numShards:_1024-32      	   20000	    102477 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_8,_numShards:_1-32         	   20000	     62403 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_8,_numShards:_256-32       	   20000	     68515 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_8,_numShards:_1024-32      	   20000	     72531 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_16,_numShards:_1-32        	   30000	     51230 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_16,_numShards:_256-32      	   50000	     41634 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_16,_numShards:_1024-32     	   30000	     48799 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_32,_numShards:_1-32        	   30000	     46718 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_32,_numShards:_256-32      	   50000	     38207 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_32,_numShards:_1024-32     	   30000	     40722 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_64,_numShards:_1-32        	   30000	     42638 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_64,_numShards:_256-32      	   50000	     34545 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_64,_numShards:_1024-32     	   30000	     37479 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_128,_numShards:_1-32       	   30000	     40628 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_128,_numShards:_256-32     	   50000	     34262 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_128,_numShards:_1024-32    	   30000	     37234 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_256,_numShards:_1-32       	   50000	     39045 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_256,_numShards:_256-32     	   50000	     33717 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_256,_numShards:_1024-32    	   30000	     37385 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_512,_numShards:_1-32       	   50000	     38813 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_512,_numShards:_256-32     	   50000	     33760 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_512,_numShards:_1024-32    	   30000	     36175 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_1024,_numShards:_1-32      	   50000	     46628 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_1024,_numShards:_256-32    	   50000	     33590 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_1024,_numShards:_1024-32   	   30000	     34465 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_2048,_numShards:_1-32      	   50000	     40628 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_2048,_numShards:_256-32    	   50000	     31257 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_2048,_numShards:_1024-32   	   30000	     34975 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_4096,_numShards:_1-32      	   30000	     40306 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_4096,_numShards:_256-32    	   50000	     34649 ns/op
+// BenchmarkCreateEmptyFilesets/parallelism:_4096,_numShards:_1024-32   	   30000	     38800 ns/op
 func BenchmarkCreateEmptyFilesets(b *testing.B) {
 	type benchEmptyFileset struct {
 		parallelism int
