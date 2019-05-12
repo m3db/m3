@@ -34,13 +34,19 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+// StreamOpts is an options struct that can be passed to Encoder.Stream()
+// to modify its behavior.
+type StreamOpts struct {
+	Bytes checked.Bytes
+}
+
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
 	// Encode encodes a datapoint and optionally an annotation.
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
-	Stream() (xio.SegmentReader, bool)
+	Stream(opts StreamOpts) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
 	NumEncoded() int

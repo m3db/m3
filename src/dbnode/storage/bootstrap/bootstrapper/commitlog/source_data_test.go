@@ -357,7 +357,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	reader, ok := encoder.Stream()
+	reader, ok := encoder.Stream(encoding.StreamOpts{})
 	require.True(t, ok)
 
 	seg, err := reader.Segment()

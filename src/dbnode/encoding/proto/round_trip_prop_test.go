@@ -155,7 +155,7 @@ func TestRoundTripProp(t *testing.T) {
 			}
 		}
 
-		stream, ok := enc.Stream()
+		stream, ok := enc.Stream(encoding.StreamOpts{})
 		if !ok {
 			return true, nil
 		}

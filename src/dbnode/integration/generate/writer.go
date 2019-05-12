@@ -196,7 +196,7 @@ func writeToDiskWithPredicate(
 				}
 			}
 
-			stream, ok := encoder.Stream()
+			stream, ok := encoder.Stream(encoding.StreamOpts{})
 			if !ok {
 				// None of the datapoints passed the predicate.
 				continue

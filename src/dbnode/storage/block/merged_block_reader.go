@@ -129,7 +129,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 		r.readers[i] = nil
 	}
 
-	stream, _ := r.encoder.Stream()
+	stream, _ := r.encoder.Stream(encoding.StreamOpts{})
 	r.merged = xio.BlockReader{
 		SegmentReader: stream,
 		Start:         r.blockStart,

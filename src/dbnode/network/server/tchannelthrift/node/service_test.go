@@ -271,7 +271,7 @@ func TestServiceQuery(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOpts{})
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -520,7 +520,7 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
-	stream, _ := enc.Stream()
+	stream, _ := enc.Stream(encoding.StreamOpts{})
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
 		Return([][]xio.BlockReader{
@@ -691,7 +691,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOpts{})
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -900,7 +900,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOpts{})
 		streams[id] = stream
 
 		seg, err := streams[id].Segment()
@@ -1317,7 +1317,7 @@ func TestServiceFetchTagged(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOpts{})
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
