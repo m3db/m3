@@ -306,9 +306,9 @@ func FromRPCAggregateQueryRequest(
 		return nil, index.Query{}, index.AggregationOptions{}, err
 	}
 
-	opts.TermFilter = make(index.AggregateTermFilter, 0, len(req.TagNameFilter))
+	opts.FieldFilter = make(index.AggregateFieldFilter, 0, len(req.TagNameFilter))
 	for _, f := range req.TagNameFilter {
-		opts.TermFilter = append(opts.TermFilter, []byte(f))
+		opts.FieldFilter = append(opts.FieldFilter, []byte(f))
 	}
 
 	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
@@ -351,7 +351,7 @@ func FromRPCAggregateQueryRawRequest(
 		return nil, index.Query{}, index.AggregationOptions{}, err
 	}
 
-	opts.TermFilter = index.AggregateTermFilter(req.TagNameFilter)
+	opts.FieldFilter = index.AggregateFieldFilter(req.TagNameFilter)
 	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
 		opts.Type = index.AggregateTagNamesAndValues
 	} else {
@@ -407,9 +407,9 @@ func ToRPCAggregateQueryRawRequest(
 		request.AggregateQueryType = rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME
 	}
 
-	// TODO(prateek): pool the []byte underlying opts.TermFilter
-	filters := make([][]byte, 0, len(opts.TermFilter))
-	for _, f := range opts.TermFilter {
+	// TODO(prateek): pool the []byte underlying opts.FieldFilter
+	filters := make([][]byte, 0, len(opts.FieldFilter))
+	for _, f := range opts.FieldFilter {
 		copied := append([]byte(nil), f...)
 		filters = append(filters, copied)
 	}

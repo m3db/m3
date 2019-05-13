@@ -1728,15 +1728,35 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		SizeLimit: 10,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
-
 	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
-
 	assertAggregateResultsMapEquals(t, map[string][]string{
 		"bar":  []string{"baz", "qux"},
 		"some": []string{"more", "other"},
 	}, results)
+
+	results = NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit:   10,
+		Type:        AggregateTagNamesAndValues,
+		FieldFilter: AggregateFieldFilter{[]byte("bar")},
+	}, testOpts)
+	exhaustive, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+	assertAggregateResultsMapEquals(t, map[string][]string{
+		"bar": []string{"baz", "qux"},
+	}, results)
+
+	results = NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit:   10,
+		Type:        AggregateTagNamesAndValues,
+		FieldFilter: AggregateFieldFilter{[]byte("random")},
+	}, testOpts)
+	exhaustive, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+	assertAggregateResultsMapEquals(t, map[string][]string{}, results)
 }
 
 func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {

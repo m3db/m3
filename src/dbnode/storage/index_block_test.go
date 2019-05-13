@@ -686,7 +686,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	query := idx.NewFieldQuery([]byte("a"))
+	query := idx.NewTermQuery([]byte("a"), []byte("b"))
 	retention := 2 * time.Hour
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
@@ -805,7 +805,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
-	query := idx.NewFieldQuery([]byte("a"))
+	query := idx.NewTermQuery([]byte("a"), []byte("b"))
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil)
@@ -879,11 +879,11 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestNamespaceIndexBlockAggregateQueryWithAllQuery(t *testing.T) {
+func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	query := idx.NewAllQuery()
+	queries := []idx.Query{idx.NewAllQuery(), idx.NewFieldQuery([]byte("field"))}
 	retention := 2 * time.Hour
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
@@ -948,35 +948,37 @@ func TestNamespaceIndexBlockAggregateQueryWithAllQuery(t *testing.T) {
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
 
-	q := index.Query{query}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
-	b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
+	for _, query := range queries {
+		q := index.Query{query}
+		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
+		_, err = idx.AggregateQuery(ctx, q, aggOpts)
+		require.NoError(t, err)
 
-	// queries multiple blocks if needed
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t2.Add(time.Minute),
-	}
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
-	b1.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
+		// queries multiple blocks if needed
+		qOpts = index.QueryOptions{
+			StartInclusive: t0,
+			EndExclusive:   t2.Add(time.Minute),
+		}
+		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
+		b1.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
+		_, err = idx.AggregateQuery(ctx, q, aggOpts)
+		require.NoError(t, err)
 
-	// stops querying once a block returns non-exhaustive
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t0.Add(time.Minute),
+		// stops querying once a block returns non-exhaustive
+		qOpts = index.QueryOptions{
+			StartInclusive: t0,
+			EndExclusive:   t0.Add(time.Minute),
+		}
+		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(false, nil)
+		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+		_, err = idx.AggregateQuery(ctx, q, aggOpts)
+		require.NoError(t, err)
 	}
-	b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(false, nil)
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
 }

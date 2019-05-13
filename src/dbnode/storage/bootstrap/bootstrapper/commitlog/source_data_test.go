@@ -404,12 +404,17 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 		}
 		encoder.Encode(dp, value.u, value.a)
 	}
-	reader := encoder.Stream()
+
+	reader, ok := encoder.Stream(encoding.StreamOptions{})
+	require.True(t, ok)
+
 	seg, err := reader.Segment()
 	require.NoError(t, err)
+
 	bytes := make([]byte, seg.Len())
 	_, err = reader.Read(bytes)
 	require.NoError(t, err)
+
 	mockReader.EXPECT().Read().Return(
 		foo.ID,
 		ident.EmptyTagIterator,

@@ -76,8 +76,11 @@ type databaseBuffer interface {
 	Snapshot(
 		ctx context.Context,
 		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (xio.SegmentReader, error)
+		id ident.ID,
+		tags ident.Tags,
+		persistFn persist.DataFn,
+                nsCtx namespace.Context,
+	) error
 
 	Flush(
 		ctx context.Context,
@@ -347,54 +350,78 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
 func (b *dbBuffer) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
+	id ident.ID,
+	tags ident.Tags,
+	persistFn persist.DataFn,
 	nsCtx namespace.Context,
-) (xio.SegmentReader, error) {
+) error {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
-		return nil, nil
+		return nil
 	}
 
 	// We only snapshot warm writes since cold writes get force merged every
 	// tick anyway.
 	_, err := buckets.merge(WarmWrite, nsCtx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	streams := buckets.streams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
-	// We may need to merge again here because the regular merge method does
-	// not merge buckets that have different versions.
-	numStreams := len(streams)
+	var (
+		stream     xio.SegmentReader
+		streams    = buckets.streams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
+		numStreams = len(streams)
+	)
 	if numStreams == 1 {
-		return streams[0], nil
-	}
+		stream = streams[0]
+	} else {
+		// We may need to merge again here because the regular merge method does
+		// not merge buckets that have different versions.
+		sr := make([]xio.SegmentReader, 0, numStreams)
+		for _, stream := range streams {
+			sr = append(sr, stream)
+		}
 
-	sr := make([]xio.SegmentReader, 0, numStreams)
-	for _, stream := range streams {
-		sr = append(sr, stream)
-	}
+		bopts := b.opts.DatabaseBlockOptions()
+		encoder := bopts.EncoderPool().Get()
+		encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
+		iter := b.opts.MultiReaderIteratorPool().Get()
+		defer func() {
+			encoder.Close()
+			iter.Close()
+		}()
+		iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
 
-	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
-	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
-	iter := b.opts.MultiReaderIteratorPool().Get()
-	defer func() {
-		encoder.Close()
-		iter.Close()
-	}()
-	iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
+		for iter.Next() {
+			dp, unit, annotation := iter.Current()
+			if err := encoder.Encode(dp, unit, annotation); err != nil {
+				return err
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return err
+		}
 
-	for iter.Next() {
-		dp, unit, annotation := iter.Current()
-		if err := encoder.Encode(dp, unit, annotation); err != nil {
-			return nil, err
+		var ok bool
+		stream, ok = encoder.Stream(encoding.StreamOptions{})
+		if !ok {
+			// Don't write out series with no data.
+			return nil
 		}
 	}
-	if err := iter.Err(); err != nil {
-		return nil, err
+
+	segment, err := stream.Segment()
+	if err != nil {
+		return err
 	}
 
-	return encoder.Stream(), nil
+	if segment.Len() == 0 {
+		// Don't write out series with no data.
+		return nil
+	}
+
+	checksum := digest.SegmentChecksum(segment)
+	return persistFn(id, tags, segment, checksum)
 }
 
 func (b *dbBuffer) Flush(
@@ -418,9 +445,13 @@ func (b *dbBuffer) Flush(
 		return FlushOutcomeErr, err
 	}
 
-	var stream xio.SegmentReader
+	var (
+		stream xio.SegmentReader
+		ok     bool
+	)
 	if numStreams := len(streams); numStreams == 1 {
 		stream = streams[0]
+		ok = true
 	} else {
 		// In the majority of cases, there will only be one stream to persist
 		// here. Only when a previous flush fails midway through a shard will
@@ -432,8 +463,13 @@ func (b *dbBuffer) Flush(
 			return FlushOutcomeErr, err
 		}
 
-		stream = encoder.Stream()
+		stream, ok = encoder.Stream(encoding.StreamOptions{})
 		encoder.Close()
+	}
+
+	if !ok {
+		// Don't write out series with no data.
+		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
 	segment, err := stream.Segment()
@@ -441,8 +477,12 @@ func (b *dbBuffer) Flush(
 		return FlushOutcomeErr, err
 	}
 
-	checksum := digest.SegmentChecksum(segment)
+	if segment.Len() == 0 {
+		// Empty segment is equivalent to no stream, i.e data does not exist.
+		return FlushOutcomeBlockDoesNotExist, nil
+	}
 
+	checksum := digest.SegmentChecksum(segment)
 	err = persistFn(id, tags, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
@@ -829,9 +869,12 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 
 	for _, bucket := range buckets {
 		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			stream, err := bucket.mergeToStream(ctx, opts.nsCtx)
+			stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx)
 			if err != nil {
 				return nil, err
+			}
+			if !ok {
+				continue
 			}
 			res = append(res, stream)
 		}
@@ -930,7 +973,12 @@ func (b *BufferBucket) write(
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
+<<<<<<< HEAD
 		return true, b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
+=======
+		err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+		return err == nil, err
+>>>>>>> master
 	}
 
 	// Need a new encoder, we didn't find an encoder to write to
@@ -988,7 +1036,7 @@ func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	}
 	for i := range b.encoders {
 		start := b.start
-		if s := b.encoders[i].encoder.Stream(); s != nil {
+		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOptions{}); ok {
 			br := xio.BlockReader{
 				SegmentReader: s,
 				Start:         start,
@@ -1080,7 +1128,7 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 	}
 
 	for i := range b.encoders {
-		if s := b.encoders[i].encoder.Stream(); s != nil {
+		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOptions{}); ok {
 			merges++
 			readers = append(readers, s)
 			streams = append(streams, s)
@@ -1138,39 +1186,53 @@ func mergeStreamsToEncoder(
 
 // mergeToStream merges all streams in this BufferBucket into one stream and
 // returns it.
+<<<<<<< HEAD
 func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Context) (xio.SegmentReader, error) {
+=======
+func (b *BufferBucket) mergeToStream(ctx context.Context) (xio.SegmentReader, bool, error) {
+>>>>>>> master
 	if b.hasJustSingleEncoder() {
 		b.resetBootstrapped()
 		// Already merged as a single encoder.
-		stream := b.encoders[0].encoder.Stream()
+		stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+		if !ok {
+			return nil, false, nil
+		}
 		ctx.RegisterFinalizer(stream)
-		return stream, nil
+		return stream, true, nil
 	}
 
 	if b.hasJustSingleBootstrappedBlock() {
 		// Need to reset encoders but do not want to finalize the block as we
 		// are passing ownership of it to the caller.
 		b.resetEncoders()
-		return b.bootstrapped[0].Stream(ctx)
+		stream, err := b.bootstrapped[0].Stream(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+		return stream, true, nil
 	}
 
 	_, err := b.merge(nsCtx)
 	if err != nil {
 		b.resetEncoders()
 		b.resetBootstrapped()
-		return nil, err
+		return nil, false, err
 	}
 
 	// After a successful merge, encoders and bootstrapped blocks will be
 	// reset, and the merged encoder appended as the only encoder in the
 	// bucket.
 	if !b.hasJustSingleEncoder() {
-		return nil, errIncompleteMerge
+		return nil, false, errIncompleteMerge
 	}
 
-	stream := b.encoders[0].encoder.Stream()
+	stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+	if !ok {
+		return nil, false, nil
+	}
 	ctx.RegisterFinalizer(stream)
-	return stream, nil
+	return stream, true, nil
 }
 
 // BufferBucketVersionsPool provides a pool for BufferBucketVersions.

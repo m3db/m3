@@ -29,9 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/topology"
-
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
@@ -41,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -271,12 +271,13 @@ func TestServiceQuery(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOptions{})
+		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{{
 				xio.BlockReader{
-					SegmentReader: enc.Stream(),
+					SegmentReader: stream,
 				},
 			}}, nil)
 	}
@@ -519,12 +520,13 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
+	stream, _ := enc.Stream(encoding.StreamOptions{})
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
 		Return([][]xio.BlockReader{
 			[]xio.BlockReader{
 				xio.BlockReader{
-					SegmentReader: enc.Stream(),
+					SegmentReader: stream,
 				},
 			},
 		}, nil)
@@ -689,14 +691,14 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
-
+		stream, _ := enc.Stream(encoding.StreamOptions{})
+		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{
 				[]xio.BlockReader{
 					xio.BlockReader{
-						SegmentReader: enc.Stream(),
+						SegmentReader: stream,
 					},
 				},
 			}, nil)
@@ -896,7 +898,8 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOptions{})
+		streams[id] = stream
 
 		seg, err := streams[id].Segment()
 		require.NoError(t, err)
@@ -906,7 +909,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 
 		expectedBlockReader := []xio.BlockReader{
 			xio.BlockReader{
-				SegmentReader: enc.Stream(),
+				SegmentReader: stream,
 				Start:         start,
 			},
 		}
@@ -1312,12 +1315,13 @@ func TestServiceFetchTagged(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		streams[id] = enc.Stream()
+		stream, _ := enc.Stream(encoding.StreamOptions{})
+		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.BlockReader{{
 				xio.BlockReader{
-					SegmentReader: enc.Stream(),
+					SegmentReader: stream,
 				},
 			}}, nil)
 	}
@@ -1659,7 +1663,7 @@ func TestServiceAggregate(t *testing.T) {
 				EndExclusive:   end,
 				Limit:          10,
 			},
-			TermFilter: index.AggregateTermFilter{
+			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
 			},
 			Type: index.AggregateTagNamesAndValues,
