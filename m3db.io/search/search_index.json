@@ -111,6 +111,16 @@
             "title": "Deleting a Cluster"
         },
         {
+            "location": "/getting_started/monitoring/",
+            "text": "Monitoring\n\n\nM3DB exposes metrics via a Prometheus endpoint. If using the \nPrometheus Operator\n, you can apply a\n\nServiceMonitor\n to have your M3DB pods automatically scraped by Prometheus:\n\n\nkubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/prometheus-servicemonitor.yaml\n\n\n\n\nYou can visit the \"targets\" page of the Prometheus UI to verify the pods are being scraped. To view these metrics using\nGrafana, follow the \nM3 docs\n to install the M3DB Grafana dashboard.",
+            "title": "Monitoring"
+        },
+        {
+            "location": "/getting_started/monitoring/#monitoring",
+            "text": "M3DB exposes metrics via a Prometheus endpoint. If using the  Prometheus Operator , you can apply a ServiceMonitor  to have your M3DB pods automatically scraped by Prometheus:  kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/prometheus-servicemonitor.yaml  You can visit the \"targets\" page of the Prometheus UI to verify the pods are being scraped. To view these metrics using\nGrafana, follow the  M3 docs  to install the M3DB Grafana dashboard.",
+            "title": "Monitoring"
+        },
+        {
             "location": "/configuration/configuring_m3db/",
             "text": "Configuring M3DB\n\n\nBy default the operator will apply a configmap with basic M3DB options and settings for the coordinator to direct\nPrometheus reads/writes to the cluster. This template can be found\n\nhere\n.\n\n\nTo apply custom a configuration for the M3DB cluster, one can set the \nconfigMapName\n parameter of the cluster \nspec\n to\nan existing configmap.\n\n\nEnvironment Warning\n\n\nIf providing a custom config map, the \nenv\n you specify in your \nconfig\n \nmust\n be \n$NAMESPACE/$NAME\n, where\n\n$NAMESPACE\n is the Kubernetes namespace your cluster is in and \n$NAME\n is the name of the cluster. For example, with\nthe following cluster:\n\n\napiVersion\n:\n \noperator.m3db.io/v1alpha1\n\n\nkind\n:\n \nM3DBCluster\n\n\nmetadata\n:\n\n  \nname\n:\n \ncluster-a\n\n  \nnamespace\n:\n \nproduction\n\n\n...\n\n\n\n\n\nThe value of \nenv\n in your config \nMUST\n be \nproduction/cluster-a\n. This restriction allows multiple M3DB clusters to\nsafely share the same etcd cluster.",
             "title": "Configuring M3DB"
