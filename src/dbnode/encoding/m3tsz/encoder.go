@@ -273,17 +273,18 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *encoder) Stream() xio.SegmentReader {
+func (enc *encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
 	segment := enc.segment(byCopyResultType)
 	if segment.Len() == 0 {
-		return nil
+		return nil, false
 	}
+
 	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
 		reader := readerPool.Get()
 		reader.Reset(segment)
-		return reader
+		return reader, true
 	}
-	return xio.NewSegmentReader(segment)
+	return xio.NewSegmentReader(segment), true
 }
 
 // NumEncoded returns the number of encoded datapoints.

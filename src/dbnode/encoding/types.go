@@ -27,12 +27,22 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+// StreamOptions is an options struct that can be passed to Encoder.Stream()
+// to modify its behavior.
+type StreamOptions struct {
+	// Optional bytes into which the stream should be copied. If left
+	// nil then the checked bytes pool on the encoder will be used instead.
+	// TODO(rartoul): Actually use this field in the Stream API() in a subsequent
+	// P.R.
+	Bytes checked.Bytes
+}
 
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
@@ -40,7 +50,10 @@ type Encoder interface {
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
-	Stream() xio.SegmentReader
+	// A boolean is returned indicating whether the returned xio.SegmentReader contains
+	// any data (true) or is empty (false) to encourage callers to remember to handle
+	// the special case where there is an empty stream.
+	Stream(opts StreamOptions) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
 	NumEncoded() int

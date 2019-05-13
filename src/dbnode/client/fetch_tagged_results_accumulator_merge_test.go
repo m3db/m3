@@ -583,8 +583,8 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
-	reader := enc.Stream()
-	if reader == nil {
+	reader, ok := enc.Stream(encoding.StreamOptions{})
+	if !ok {
 		return nil
 	}
 	res, err := convert.ToSegments([]xio.BlockReader{

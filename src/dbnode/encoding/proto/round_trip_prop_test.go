@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -155,8 +156,8 @@ func TestRoundTripProp(t *testing.T) {
 			}
 		}
 
-		stream := enc.Stream()
-		if stream == nil {
+		stream, ok := enc.Stream(encoding.StreamOptions{})
+		if !ok {
 			return true, nil
 		}
 

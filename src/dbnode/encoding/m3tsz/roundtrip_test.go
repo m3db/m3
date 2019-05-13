@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/testgen"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -118,7 +119,11 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		}
 	}
 	decoder := NewDecoder(intOpt, nil)
-	it := decoder.Decode(encoder.Stream())
+	stream, ok := encoder.Stream(encoding.StreamOptions{})
+	require.True(t, ok)
+
+	it := decoder.Decode(stream)
+	require.True(t, ok)
 	defer it.Close()
 	var decompressed []ts.Datapoint
 	j := 0

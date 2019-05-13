@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -116,6 +117,26 @@ func TestBufferWriteTooPast(t *testing.T) {
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestBufferWriteError(t *testing.T) {
+	var (
+		opts   = newBufferTestOptions()
+		rops   = opts.RetentionOptions()
+		curr   = time.Now().Truncate(rops.BlockSize())
+		ctx    = context.NewContext()
+		buffer = newDatabaseBuffer().(*dbBuffer)
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+	defer ctx.Close()
+
+	timeUnitNotExist := xtime.Unit(127)
+	wasWritten, err := buffer.Write(ctx, curr, 1, timeUnitNotExist, nil, WriteOptions{})
+	require.False(t, wasWritten)
+	require.Error(t, err)
 }
 
 func TestBufferWriteRead(t *testing.T) {
@@ -297,8 +318,9 @@ func TestBufferBucketMerge(t *testing.T) {
 
 	ctx := context.NewContext()
 	defer ctx.Close()
-	sr, err := b.mergeToStream(ctx)
+	sr, ok, err := b.mergeToStream(ctx)
 	require.NoError(t, err)
+	require.True(t, ok)
 
 	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{
 		xio.BlockReader{
@@ -317,7 +339,9 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	emptyEncoder := opts.EncoderPool().Get()
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
-	require.Nil(t, b.encoders[0].encoder.Stream())
+
+	_, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(curr, 0)
@@ -401,8 +425,9 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	assertValuesEqual(t, expected, results, opts)
 
 	// Now assert that mergeToStream() returns same expected result.
-	stream, err := b.mergeToStream(ctx)
+	stream, ok, err := b.mergeToStream(ctx)
 	require.NoError(t, err)
+	require.True(t, ok)
 	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
@@ -470,8 +495,9 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	assertValuesEqual(t, expected, results, opts)
 
 	// Now assert that mergeToStream() returns same expected result.
-	stream, err := b.mergeToStream(ctx)
+	stream, ok, err := b.mergeToStream(ctx)
 	require.NoError(t, err)
+	require.True(t, ok)
 	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts)
 }
 
@@ -690,7 +716,9 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		// Current bucket encoders should all have data in them.
 		for j := range bucket.encoders {
 			encoder := bucket.encoders[j].encoder
-			assert.NotNil(t, encoder.Stream())
+
+			_, ok := encoder.Stream(encoding.StreamOptions{})
+			require.True(t, ok)
 
 			encoders = append(encoders, encoder)
 		}
@@ -727,7 +755,9 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	// Current bucket encoders should all have data in them.
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
-		assert.NotNil(t, encoder.Stream())
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
 	}
@@ -802,6 +832,80 @@ func TestBuffertoStream(t *testing.T) {
 	assertSegmentValuesEqual(t, expected, stream, opts)
 }
 
+// TestBufferSnapshotEmptyEncoder ensures that snapshot behaves correctly even if an
+// encoder is present but it has no data which can occur in some situations such as when
+// an initial write fails leaving behind an empty encoder.
+func TestBufferSnapshotEmptyEncoder(t *testing.T) {
+	testBufferWithEmptyEncoder(t, true)
+}
+
+// TestBufferFlushEmptyEncoder ensures that flush behaves correctly even if an encoder
+// is present but it has no data which can occur in some situations such as when an
+// initial write fails leaving behind an empty encoder.
+func TestBufferFlushEmptyEncoder(t *testing.T) {
+	testBufferWithEmptyEncoder(t, false)
+}
+
+func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
+	// Setup.
+	var (
+		opts      = newBufferTestOptions()
+		rops      = opts.RetentionOptions()
+		blockSize = rops.BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		start     = curr
+		buffer    = newDatabaseBuffer().(*dbBuffer)
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	// Perform one valid write to setup the state of the buffer.
+	ctx := context.NewContext()
+	wasWritten, err := buffer.Write(ctx, curr, 1, xtime.Second, nil, WriteOptions{})
+	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	// Verify internal state.
+	var encoders []encoding.Encoder
+	buckets, ok := buffer.bucketVersionsAt(start)
+	require.True(t, ok)
+	bucket, ok := buckets.writableBucket(WarmWrite)
+	require.True(t, ok)
+	for j := range bucket.encoders {
+		encoder := bucket.encoders[j].encoder
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
+
+		// Reset the encoder to simulate the situation in which an encoder is present but
+		// it is empty.
+		encoder.Reset(curr, 0)
+
+		encoders = append(encoders, encoder)
+	}
+	require.Equal(t, 1, len(encoders))
+
+	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
+		t.Fatal("persist fn should not have been called")
+		return nil
+	}
+
+	if testSnapshot {
+		ctx = context.NewContext()
+		defer ctx.Close()
+		err = buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
+		assert.NoError(t, err)
+	} else {
+		ctx = context.NewContext()
+		defer ctx.Close()
+		_, err = buffer.Flush(
+			ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, 1)
+		require.NoError(t, err)
+	}
+}
+
 func TestBufferSnapshot(t *testing.T) {
 	// Setup.
 	var (
@@ -848,30 +952,36 @@ func TestBufferSnapshot(t *testing.T) {
 	// Current bucket encoders should all have data in them.
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
-		assert.NotNil(t, encoder.Stream())
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
 	}
 
 	assert.Equal(t, 2, len(encoders))
 
+	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
+		// Check we got the right results.
+		expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
+		expectedCopy := make([]value, len(expectedData))
+		copy(expectedCopy, expectedData)
+		sort.Sort(valuesByTime(expectedCopy))
+		actual := [][]xio.BlockReader{{
+			xio.BlockReader{
+				SegmentReader: xio.NewSegmentReader(segment),
+			},
+		}}
+		assertValuesEqual(t, expectedCopy, actual, opts)
+
+		return nil
+	}
+
 	// Perform a snapshot.
 	ctx := context.NewContext()
 	defer ctx.Close()
-	result, err := buffer.Snapshot(ctx, start)
+	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
 	assert.NoError(t, err)
-
-	// Check we got the right results.
-	expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
-	expectedCopy := make([]value, len(expectedData))
-	copy(expectedCopy, expectedData)
-	sort.Sort(valuesByTime(expectedCopy))
-	actual := [][]xio.BlockReader{{
-		xio.BlockReader{
-			SegmentReader: result,
-		},
-	}}
-	assertValuesEqual(t, expectedCopy, actual, opts)
 
 	// Check internal state to make sure the merge happened and was persisted.
 	encoders = encoders[:0]
@@ -882,7 +992,9 @@ func TestBufferSnapshot(t *testing.T) {
 	// Current bucket encoders should all have data in them.
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
-		assert.NotNil(t, encoder.Stream())
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
 	}

@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -544,26 +543,7 @@ func (s *dbSeries) Snapshot(
 		return errSeriesNotBootstrapped
 	}
 
-	var (
-		stream xio.SegmentReader
-		err    error
-	)
-
-	stream, err = s.buffer.Snapshot(ctx, blockStart)
-
-	if err != nil {
-		return err
-	}
-	if stream == nil {
-		return nil
-	}
-
-	segment, err := stream.Segment()
-	if err != nil {
-		return err
-	}
-
-	return persistFn(s.id, s.tags, segment, digest.SegmentChecksum(segment))
+	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn)
 }
 
 func (s *dbSeries) Close() {

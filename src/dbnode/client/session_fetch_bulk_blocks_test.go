@@ -43,12 +43,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1269,8 +1269,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader := enc.Stream()
-	require.NotNil(t, reader)
+	reader, ok := enc.Stream(encoding.StreamOptions{})
+	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
 	rawBlockData := make([]byte, segment.Len())
@@ -1414,8 +1414,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader := enc.Stream()
-	require.NotNil(t, reader)
+	reader, ok := enc.Stream(encoding.StreamOptions{})
+	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
 	rawBlockData := make([]byte, segment.Len())
@@ -2292,8 +2292,8 @@ func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 	return fmt.Errorf("not implemented")
 }
 
-func (e *testEncoder) Stream() xio.SegmentReader {
-	return xio.NewSegmentReader(e.data)
+func (e *testEncoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
+	return xio.NewSegmentReader(e.data), true
 }
 
 func (e *testEncoder) NumEncoded() int {

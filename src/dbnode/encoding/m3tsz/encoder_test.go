@@ -150,8 +150,8 @@ func TestWriteAnnotation(t *testing.T) {
 }
 
 func getBytes(t *testing.T, e encoding.Encoder) []byte {
-	r := e.Stream()
-	if r == nil {
+	r, ok := e.Stream(encoding.StreamOptions{})
+	if !ok {
 		return nil
 	}
 	var b [1000]byte
@@ -197,7 +197,8 @@ func TestWriteTimeUnit(t *testing.T) {
 
 func TestEncodeNoAnnotation(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []ts.Datapoint{
@@ -233,7 +234,8 @@ func TestEncodeNoAnnotation(t *testing.T) {
 
 func TestEncodeWithAnnotation(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -273,7 +275,8 @@ func TestEncodeWithAnnotation(t *testing.T) {
 
 func TestEncodeWithTimeUnit(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -307,7 +310,8 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 
 func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -361,7 +365,8 @@ func TestEncoderResets(t *testing.T) {
 	defer enc.Close()
 
 	require.Equal(t, 0, enc.os.Len())
-	require.Equal(t, nil, enc.Stream())
+	_, ok := enc.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
@@ -369,7 +374,8 @@ func TestEncoderResets(t *testing.T) {
 	now := time.Now()
 	enc.Reset(now, 0)
 	require.Equal(t, 0, enc.os.Len())
-	require.Equal(t, nil, enc.Stream())
+	_, ok = enc.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
 
@@ -378,7 +384,8 @@ func TestEncoderResets(t *testing.T) {
 
 	enc.DiscardReset(now, 0)
 	require.Equal(t, 0, enc.os.Len())
-	require.Equal(t, nil, enc.Stream())
+	_, ok = enc.Stream(encoding.StreamOptions{})
+	require.False(t, ok)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
 }
