@@ -397,7 +397,7 @@ func (b *dbBuffer) Snapshot(
 		}
 
 		var ok bool
-		stream, ok = encoder.Stream(encoding.StreamOpts{})
+		stream, ok = encoder.Stream(encoding.StreamOptions{})
 		if !ok {
 			// Don't write out series with no data.
 			return nil
@@ -456,7 +456,7 @@ func (b *dbBuffer) Flush(
 			return FlushOutcomeErr, err
 		}
 
-		stream, ok = encoder.Stream(encoding.StreamOpts{})
+		stream, ok = encoder.Stream(encoding.StreamOptions{})
 		encoder.Close()
 	}
 
@@ -1019,7 +1019,7 @@ func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	}
 	for i := range b.encoders {
 		start := b.start
-		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOpts{}); ok {
+		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOptions{}); ok {
 			br := xio.BlockReader{
 				SegmentReader: s,
 				Start:         start,
@@ -1111,7 +1111,7 @@ func (b *BufferBucket) merge() (int, error) {
 	}
 
 	for i := range b.encoders {
-		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOpts{}); ok {
+		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOptions{}); ok {
 			merges++
 			readers = append(readers, s)
 			streams = append(streams, s)
@@ -1172,7 +1172,7 @@ func (b *BufferBucket) mergeToStream(ctx context.Context) (xio.SegmentReader, bo
 	if b.hasJustSingleEncoder() {
 		b.resetBootstrapped()
 		// Already merged as a single encoder.
-		stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOpts{})
+		stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
 		if !ok {
 			return nil, false, nil
 		}
@@ -1205,7 +1205,7 @@ func (b *BufferBucket) mergeToStream(ctx context.Context) (xio.SegmentReader, bo
 		return nil, false, errIncompleteMerge
 	}
 
-	stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOpts{})
+	stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
 	if !ok {
 		return nil, false, nil
 	}

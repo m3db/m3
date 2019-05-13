@@ -1269,7 +1269,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader, ok := enc.Stream(encoding.StreamOpts{})
+	reader, ok := enc.Stream(encoding.StreamOptions{})
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
@@ -1414,7 +1414,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader, ok := enc.Stream(encoding.StreamOpts{})
+	reader, ok := enc.Stream(encoding.StreamOptions{})
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)

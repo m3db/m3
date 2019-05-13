@@ -340,7 +340,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 
-	_, ok := b.encoders[0].encoder.Stream(encoding.StreamOpts{})
+	_, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
 	require.False(t, ok)
 
 	encoder := opts.EncoderPool().Get()
@@ -717,7 +717,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		for j := range bucket.encoders {
 			encoder := bucket.encoders[j].encoder
 
-			_, ok := encoder.Stream(encoding.StreamOpts{})
+			_, ok := encoder.Stream(encoding.StreamOptions{})
 			require.True(t, ok)
 
 			encoders = append(encoders, encoder)
@@ -756,7 +756,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOpts{})
+		_, ok := encoder.Stream(encoding.StreamOptions{})
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -876,7 +876,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOpts{})
+		_, ok := encoder.Stream(encoding.StreamOptions{})
 		require.True(t, ok)
 
 		// Reset the encoder to simulate the situation in which an encoder is present but
@@ -953,7 +953,7 @@ func TestBufferSnapshot(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOpts{})
+		_, ok := encoder.Stream(encoding.StreamOptions{})
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -993,7 +993,7 @@ func TestBufferSnapshot(t *testing.T) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOpts{})
+		_, ok := encoder.Stream(encoding.StreamOptions{})
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)

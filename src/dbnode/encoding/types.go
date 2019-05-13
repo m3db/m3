@@ -34,9 +34,9 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// StreamOpts is an options struct that can be passed to Encoder.Stream()
+// StreamOptions is an options struct that can be passed to Encoder.Stream()
 // to modify its behavior.
-type StreamOpts struct {
+type StreamOptions struct {
 	// Optional bytes into which the stream should be copied. If left
 	// nil then the checked bytes pool on the encoder will be used instead.
 	// TODO(rartoul): Actually use this field in the Stream API() in a subsequent
@@ -53,7 +53,7 @@ type Encoder interface {
 	// A boolean is returned indicating whether the returned xio.SegmentReader contains
 	// any data (true) or is empty (false) to encourage callers to remember to handle
 	// the special case where there is an empty stream.
-	Stream(opts StreamOpts) (xio.SegmentReader, bool)
+	Stream(opts StreamOptions) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
 	NumEncoded() int

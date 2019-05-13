@@ -186,7 +186,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 					}
 
-					reader, ok := encoder.Stream(encoding.StreamOpts{})
+					reader, ok := encoder.Stream(encoding.StreamOptions{})
 					if ok {
 						seg, err := reader.Segment()
 						if err != nil {

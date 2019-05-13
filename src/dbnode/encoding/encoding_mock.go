@@ -79,7 +79,7 @@ func (mr *MockEncoderMockRecorder) Encode(dp, unit, annotation interface{}) *gom
 }
 
 // Stream mocks base method
-func (m *MockEncoder) Stream(opts StreamOpts) (xio.SegmentReader, bool) {
+func (m *MockEncoder) Stream(opts StreamOptions) (xio.SegmentReader, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stream", opts)
 	ret0, _ := ret[0].(xio.SegmentReader)
