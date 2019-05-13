@@ -2292,8 +2292,8 @@ func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 	return fmt.Errorf("not implemented")
 }
 
-func (e *testEncoder) Stream() xio.SegmentReader {
-	return xio.NewSegmentReader(e.data)
+func (e *testEncoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
+	return xio.NewSegmentReader(e.data), true
 }
 
 func (e *testEncoder) NumEncoded() int {
