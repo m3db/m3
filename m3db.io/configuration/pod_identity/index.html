@@ -447,6 +447,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../node_affinity/" title="Node Affinity & Cluster Topology" class="md-nav__link">
+      Node Affinity & Cluster Topology
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -589,12 +601,11 @@ volume.</p>
 <p>This section will be filled out as a number of pending PRs land.</p>
 <h2 id="recommendations">Recommendations</h2>
 <h3 id="no-persistent-storage">No Persistent Storage</h3>
-<p>If not using PVs, you should set <code>sources</code> to <code>PodUID</code>:</p>
-<pre><code>podIdentityConfig:
+<p>If not using PVs, you should set <code>sources</code> to <code>PodUID</code>:
+<div class="highlight"><pre><span></span>podIdentityConfig:
   sources:
   - PodUID
-</code></pre>
-
+</pre></div></p>
 <p>This way whenever a container is rescheduled, the operator will initiate a replace and it will stream data from its
 peers before serving reads. Note that not having persistent storage is not a recommended way to run M3DB.</p>
 <h3 id="remote-persistent-storage">Remote Persistent Storage</h3>

@@ -333,9 +333,38 @@
       
     
     
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Configuring M3DB
+      </label>
+    
     <a href="./" title="Configuring M3DB" class="md-nav__link md-nav__link--active">
       Configuring M3DB
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#environment-warning" title="Environment Warning" class="md-nav__link">
+    Environment Warning
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
     
   </li>
 
@@ -360,6 +389,18 @@
   <li class="md-nav__item">
     <a href="../namespaces/" title="Namespaces" class="md-nav__link">
       Namespaces
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../node_affinity/" title="Node Affinity & Cluster Topology" class="md-nav__link">
+      Node Affinity & Cluster Topology
     </a>
   </li>
 
@@ -398,6 +439,22 @@
     
   
   
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#environment-warning" title="Environment Warning" class="md-nav__link">
+    Environment Warning
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -417,6 +474,20 @@ Prometheus reads/writes to the cluster. This template can be found
 <a href="https://github.com/m3db/m3db-operator/blob/master/assets/default-config.tmpl">here</a>.</p>
 <p>To apply custom a configuration for the M3DB cluster, one can set the <code>configMapName</code> parameter of the cluster <a href="../../api">spec</a> to
 an existing configmap.</p>
+<h2 id="environment-warning">Environment Warning</h2>
+<p>If providing a custom config map, the <code>env</code> you specify in your <a href="https://github.com/m3db/m3db-operator/blob/795973f3329437ced3ac942da440810cd0865235/assets/default-config.yaml#L77">config</a> <strong>must</strong> be <code>$NAMESPACE/$NAME</code>, where
+<code>$NAMESPACE</code> is the Kubernetes namespace your cluster is in and <code>$NAME</code> is the name of the cluster. For example, with
+the following cluster:</p>
+<div class="highlight"><pre><span></span><span class="nt">apiVersion</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">operator.m3db.io/v1alpha1</span>
+<span class="nt">kind</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">M3DBCluster</span>
+<span class="nt">metadata</span><span class="p">:</span>
+  <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">cluster-a</span>
+  <span class="nt">namespace</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">production</span>
+<span class="nn">...</span>
+</pre></div>
+
+<p>The value of <code>env</code> in your config <strong>MUST</strong> be <code>production/cluster-a</code>. This restriction allows multiple M3DB clusters to
+safely share the same etcd cluster.</p>
                 
                   
                 

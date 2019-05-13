@@ -400,6 +400,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/node_affinity/" title="Node Affinity & Cluster Topology" class="md-nav__link">
+      Node Affinity & Cluster Topology
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -476,21 +488,21 @@
 <ol>
 <li>Add the <code>m3db-operator</code> repo:</li>
 </ol>
-<pre><code>helm repo add m3db https://s3.amazonaws.com/m3-helm-charts-repository/stable
-</code></pre>
+<div class="highlight"><pre><span></span>helm repo add m3db https://s3.amazonaws.com/m3-helm-charts-repository/stable
+</pre></div>
 
 <ol>
 <li>Install the <code>m3db-operator</code> chart:</li>
 </ol>
-<pre><code>helm install m3db/m3db-operator --namespace m3db-operator
-</code></pre>
+<div class="highlight"><pre><span></span>helm install m3db/m3db-operator --namespace m3db-operator
+</pre></div>
 
 <p><strong>Note</strong>: If uninstalling an instance of the operator that was installed with Helm, some resources such as the
 ClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.</p>
 <h2 id="manually">Manually</h2>
 <p>Install the bundled operator manifests in the current namespace:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml
-</code></pre>
+<div class="highlight"><pre><span></span>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml
+</pre></div>
                 
                   
                 

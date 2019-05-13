@@ -51,6 +51,12 @@
      <changefreq>daily</changefreq>
     </url>
         
+    <url>
+     <loc>/configuration/node_affinity/</loc>
+     <lastmod>2019-05-13</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
     
 
     
