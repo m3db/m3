@@ -314,7 +314,7 @@ func (b *dbBuffer) NeedsColdFlushBlockStarts() OptimizedTimes {
 
 	for t, bucketVersions := range b.bucketsMap {
 		for _, bucket := range bucketVersions.buckets {
-			if bucket.writeType == ColdWrite {
+			if bucket.version == writableBucketVer && bucket.writeType == ColdWrite {
 				times.Add(t)
 				break
 			}
@@ -596,14 +596,13 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 ) ([]xio.BlockReader, error) {
 	res := b.fetchBlocks(ctx, []time.Time{start},
 		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx})
-	if len(res) == 0 {
-		return nil, nil
+	if len(res) != 1 {
+		// The lifecycle of calling this function is preceded by first checking
+		// which blocks have cold data that have not yet been flushed, so
+		// something is wrong if we don't get any data here.
+		return nil, fmt.Errorf("fetchBlocks did not return just one block for block start %s", start)
 	}
-	// We should have at most one BlockReader slice since we are only looking
-	// at one block.
-	if len(res) > 1 {
-		return nil, errors.New("fetchBlocks returned more than one result for one block")
-	}
+
 	blocks := res[0].Blocks
 
 	buckets, exists := b.bucketVersionsAt(start)
