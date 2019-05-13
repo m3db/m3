@@ -1,5 +1,16 @@
 # Changelog
 
+# 0.9.1
+
+## Performance
+
+- **M3DB**: Use index aggregate query to speed up the [/label/<label_name>/values endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-label-values) (#1628)
+
+## Bug Fixes
+
+- **M3Query**: Fixed an issue causing untyped step sizes to fail parsing, now defaults to using seconds as the time unit (#1617)
+- **M3Query**: Accept both GET and POST for series match endpoint (#1606)
+
 # 0.9.0
 
 ## Features
