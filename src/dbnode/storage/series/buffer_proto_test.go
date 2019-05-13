@@ -32,8 +32,7 @@ import (
 
 var (
 	testNamespace     = ident.StringID("buffer_test_ns")
-	// Relative to $pwd to testdata/prototest, $pwd is currnet directory.
-	testSchemaHistory = prototest.NewSchemaHistory("../../")
+	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)

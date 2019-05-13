@@ -38,8 +38,7 @@ import (
 
 var (
 	testNamespace     = ident.StringID("session_prototest_ns")
-	// Relative path to $pwd to reach testdata/prototest, $pwd is current directory.
-	testSchemaHistory = prototest.NewSchemaHistory("../")
+	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
 	testProtoEqual    = func(t *testing.T, expect, actual []byte) {

@@ -323,7 +323,7 @@ type HashingConfiguration struct {
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
-	// Enabled or disabled.
+	// Enabled specifies whether proto is enabled.
 	Enabled bool `yaml:"enabled"`
 	// TODO [haijun] remove after PR to set schema in etcd is done (plan layed out in issue #1614).
 	// To unblock #1578, we will load user schema from db node configuration into schema registry

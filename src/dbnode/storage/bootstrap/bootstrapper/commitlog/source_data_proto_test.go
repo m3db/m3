@@ -31,8 +31,7 @@ import (
 
 var (
 	testNamespace     = ident.StringID("commitlog_prototest_ns")
-	// Relative to $pwd to testdata/prototest, $pwd is currnet directory.
-	testSchemaHistory = prototest.NewSchemaHistory("../../../../")
+	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)

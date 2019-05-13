@@ -24,9 +24,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3/src/x/ident"
 	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/ident"
 	xwatch "github.com/m3db/m3/src/x/watch"
+
 	"go.uber.org/zap"
 )
 
@@ -34,8 +35,8 @@ type schemaRegistry struct {
 	sync.RWMutex
 
 	protoEnabled bool
-	logger *zap.Logger
-	registry map[string]xwatch.Watchable
+	logger       *zap.Logger
+	registry     map[string]xwatch.Watchable
 }
 
 func NewSchemaRegistry(protoEnabled bool, logger *zap.Logger) SchemaRegistry {
@@ -45,8 +46,8 @@ func NewSchemaRegistry(protoEnabled bool, logger *zap.Logger) SchemaRegistry {
 func newSchemaRegistry(protoEnabled bool, logger *zap.Logger) SchemaRegistry {
 	return &schemaRegistry{
 		protoEnabled: protoEnabled,
-		logger: logger,
-		registry: make(map[string]xwatch.Watchable),
+		logger:       logger,
+		registry:     make(map[string]xwatch.Watchable),
 	}
 }
 
@@ -123,7 +124,6 @@ func (sr *schemaRegistry) getSchemaHistory(id ident.ID) (SchemaHistory, error) {
 	return history.Get().(SchemaHistory), nil
 }
 
-
 func (sr *schemaRegistry) RegisterListener(
 	nsID ident.ID,
 	listener SchemaListener,
@@ -169,8 +169,8 @@ func (sr *schemaRegistry) RegisterListener(
 }
 
 func (sr *schemaRegistry) Close() {
-	sr.RLock()
-	defer sr.RUnlock()
+	sr.Lock()
+	defer sr.Unlock()
 	for _, w := range sr.registry {
 		w.Close()
 	}

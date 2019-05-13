@@ -22,16 +22,30 @@ package prototest
 
 import (
 	"bytes"
-	"time"
-	"testing"
-
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-
-	"github.com/jhump/protoreflect/dynamic"
-	"github.com/stretchr/testify/require"
-	"github.com/jhump/protoreflect/desc"
+	"io/ioutil"
 	"os"
-	"fmt"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/dynamic"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	protoStr = `syntax = "proto3";
+package mainpkg;
+
+message TestMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+  map<string, string> attributes = 5;
+}
+`
 )
 
 type TestMessage struct {
@@ -43,15 +57,22 @@ type TestMessage struct {
 	attributes map[string]string
 }
 
-func NewSchemaHistory(importPath string) namespace.SchemaHistory {
-	srcRoot := os.Getenv("SRC_ROOT")
-	curDir := os.Getenv("PWD")
-	fmt.Printf("SRC_ROOT=%s, PWD=%s, importPath=%s\n", srcRoot, curDir, importPath)
-
-	schemaHis, err := namespace.LoadSchemaHistory(
-		namespace.GenTestSchemaOptions("testdata/prototest/test.proto", importPath, srcRoot))
+func NewSchemaHistory() namespace.SchemaHistory {
+	tempDir, err := ioutil.TempDir("", "m3dbnode-prototest")
 	if err != nil {
-		panic(err.Error())
+		panic(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testProtoFile := filepath.Join(tempDir, "test.proto")
+	err = ioutil.WriteFile(testProtoFile, []byte(protoStr), 0666)
+	if err != nil {
+		panic(err)
+	}
+
+	schemaHis, err := namespace.LoadSchemaHistory(namespace.GenTestSchemaOptions(testProtoFile))
+	if err != nil {
+		panic(err)
 	}
 	return schemaHis
 }
@@ -139,9 +160,6 @@ func RequireEqual(t *testing.T, md *desc.MessageDescriptor, expected, actual []b
 	actualMsg := dynamic.NewMessage(md)
 	require.NoError(t, actualMsg.Unmarshal(actual))
 
-	//fmt.Printf("expected: %s\n", expectedMsg.String())
-	//fmt.Printf("actual: %s\n", actualMsg.String())
-
 	require.Equal(t, expectedMsg.GetFieldByName("latitude"),
 		actualMsg.GetFieldByName("latitude"))
 	require.Equal(t, expectedMsg.GetFieldByName("longitude"),
@@ -170,24 +188,22 @@ func ProtoEqual(md *desc.MessageDescriptor, expected, actual []byte) bool {
 	if actualMsg.Unmarshal(actual) != nil {
 		return false
 	}
-	//fmt.Printf("expected: %s\n", expectedMsg.String())
-	//fmt.Printf("actual: %s\n", actualMsg.String())
 
 	if expectedMsg.GetFieldByName("latitude") !=
 		actualMsg.GetFieldByName("latitude") {
-			return false
+		return false
 	}
 	if expectedMsg.GetFieldByName("longitude") !=
 		actualMsg.GetFieldByName("longitude") {
-			return false
+		return false
 	}
 	if !bytes.Equal(expectedMsg.GetFieldByName("deliveryID").([]byte),
 		actualMsg.GetFieldByName("deliveryID").([]byte)) {
-			return false
+		return false
 	}
 	if expectedMsg.GetFieldByName("epoch") !=
 		actualMsg.GetFieldByName("epoch") {
-			return false
+		return false
 	}
 	return attributesEqual(expectedMsg.GetFieldByName("attributes").(map[interface{}]interface{}),
 		actualMsg.GetFieldByName("attributes").(map[interface{}]interface{}))
@@ -217,7 +233,6 @@ func NewProtoMessageIterator(messages []*dynamic.Message) *ProtoMessageIterator 
 func (pmi *ProtoMessageIterator) Next() []byte {
 	n := pmi.messages[pmi.i%len(pmi.messages)]
 	pmi.i++
-	//fmt.Printf("next message is: %d, %s\n", pmi.i, n.String())
 	mbytes, err := n.Marshal()
 	if err != nil {
 		panic(err.Error())

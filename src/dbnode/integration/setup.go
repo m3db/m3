@@ -75,8 +75,7 @@ var (
 
 	created = uint64(0)
 
-	// Relative to $pwd to testdata/prototest, $pwd is integration directory.
-	testSchemaHistory = prototest.NewSchemaHistory("../")
+	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
 	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
