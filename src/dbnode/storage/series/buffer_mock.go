@@ -78,18 +78,17 @@ func (mr *MockdatabaseBufferMockRecorder) Write(ctx, timestamp, value, unit, ann
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, nsCtx namespace.Context) (xio.SegmentReader, error) {
+func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, nsCtx)
-	ret0, _ := ret[0].(xio.SegmentReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, id, tags, persistFn, nsCtx)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart, nsCtx interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart, id, tags, persistFn, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart, id, tags, persistFn, nsCtx)
 }
 
 // Flush mocks base method

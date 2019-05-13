@@ -86,13 +86,14 @@ func (sr *schemaRegistry) GetLatestSchema(id ident.ID) (SchemaDescr, error) {
 		return nil, nil
 	}
 
-	history, err := sr.getSchemaHistory(id)
+	nsIDStr := id.String()
+	history, err := sr.getSchemaHistory(nsIDStr)
 	if err != nil {
 		return nil, err
 	}
 	schema, ok := history.GetLatest()
 	if !ok {
-		return nil, fmt.Errorf("schema history is empty for namespace %v", id.String())
+		return nil, fmt.Errorf("schema history is empty for namespace %v", nsIDStr)
 	}
 	return schema, nil
 }
@@ -102,24 +103,25 @@ func (sr *schemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, 
 		return nil, nil
 	}
 
-	history, err := sr.getSchemaHistory(id)
+	nsIDStr := id.String()
+	history, err := sr.getSchemaHistory(nsIDStr)
 	if err != nil {
 		return nil, err
 	}
 	schema, ok := history.Get(schemaId)
 	if !ok {
-		return nil, fmt.Errorf("schema of version %v is not found for namespace %v", schemaId, id.String())
+		return nil, fmt.Errorf("schema of version %v is not found for namespace %v", schemaId, nsIDStr)
 	}
 	return schema, nil
 }
 
-func (sr *schemaRegistry) getSchemaHistory(id ident.ID) (SchemaHistory, error) {
+func (sr *schemaRegistry) getSchemaHistory(nsIDStr string) (SchemaHistory, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 
-	history, ok := sr.registry[id.String()]
+	history, ok := sr.registry[nsIDStr]
 	if !ok {
-		return nil, fmt.Errorf("schema history is not found for %v", id.String())
+		return nil, fmt.Errorf("schema history is not found for %v", nsIDStr)
 	}
 	return history.Get().(SchemaHistory), nil
 }
@@ -132,12 +134,13 @@ func (sr *schemaRegistry) RegisterListener(
 		return nil, nil
 	}
 
+	nsIDStr := nsID.String()
 	sr.RLock()
 	defer sr.RUnlock()
 
-	watchable, ok := sr.registry[nsID.String()]
+	watchable, ok := sr.registry[nsIDStr]
 	if !ok {
-		return nil, fmt.Errorf("schema not found for namespace: %v", nsID.String())
+		return nil, fmt.Errorf("schema not found for namespace: %v", nsIDStr)
 	}
 
 	_, watch, _ := watchable.Watch()

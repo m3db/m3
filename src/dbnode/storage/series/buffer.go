@@ -973,12 +973,8 @@ func (b *BufferBucket) write(
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-<<<<<<< HEAD
-		return true, b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
-=======
-		err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+		err := b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 		return err == nil, err
->>>>>>> master
 	}
 
 	// Need a new encoder, we didn't find an encoder to write to
@@ -1186,11 +1182,7 @@ func mergeStreamsToEncoder(
 
 // mergeToStream merges all streams in this BufferBucket into one stream and
 // returns it.
-<<<<<<< HEAD
-func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Context) (xio.SegmentReader, error) {
-=======
-func (b *BufferBucket) mergeToStream(ctx context.Context) (xio.SegmentReader, bool, error) {
->>>>>>> master
+func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Context) (xio.SegmentReader, bool, error) {
 	if b.hasJustSingleEncoder() {
 		b.resetBootstrapped()
 		// Already merged as a single encoder.

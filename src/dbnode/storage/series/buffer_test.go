@@ -458,7 +458,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	stream, ok, err := b.mergeToStream(ctx, namespace.Context{})
 	require.NoError(t, err)
 	require.True(t, ok)
-	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
+	requireSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
 }
 
 func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
@@ -528,7 +528,7 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	stream, ok, err := b.mergeToStream(ctx, namespace.Context{})
 	require.NoError(t, err)
 	require.True(t, ok)
-	assertSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
+	requireSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
 }
 
 func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
@@ -932,7 +932,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 
 		// Reset the encoder to simulate the situation in which an encoder is present but
 		// it is empty.
-		encoder.Reset(curr, 0)
+		encoder.Reset(curr, 0, nil)
 
 		encoders = append(encoders, encoder)
 	}
@@ -946,13 +946,13 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	if testSnapshot {
 		ctx = context.NewContext()
 		defer ctx.Close()
-		err = buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn)
+		err = buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, namespace.Context{})
 		assert.NoError(t, err)
 	} else {
 		ctx = context.NewContext()
 		defer ctx.Close()
 		_, err = buffer.Flush(
-			ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, 1)
+			ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, 1, namespace.Context{})
 		require.NoError(t, err)
 	}
 }
@@ -1032,7 +1032,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 				SegmentReader: xio.NewSegmentReader(segment),
 			},
 		}}
-		assertValuesEqual(t, expectedCopy, actual, opts)
+		requireReaderValuesEqual(t, expectedCopy, actual, opts, nsCtx)
 
 		return nil
 	}
