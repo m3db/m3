@@ -129,16 +129,9 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 		r.readers[i] = nil
 	}
 
-	var (
-		stream xio.SegmentReader
-		ok     bool
-	)
-	stream, ok = r.encoder.Stream(encoding.StreamOpts{})
-	if !ok {
-		// xio.BlockReader expects SegmentReader to be nil if there
-		// is no data.
-		stream = nil
-	}
+	// Can ignore OK here because BlockReader will handle nil streams
+	// properly.
+	stream, _ := r.encoder.Stream(encoding.StreamOpts{})
 	r.merged = xio.BlockReader{
 		SegmentReader: stream,
 		Start:         r.blockStart,
