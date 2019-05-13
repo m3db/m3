@@ -8,7 +8,8 @@
 
 ## Bug Fixes
 
-- **M3Query**: Fix step parsing, previously if you included a float step size with no units the query would fail (#1617)
+- **M3Query**: Fixed an issue causing untyped step sizes to fail parsing, now defaults to using seconds as the time unit (#1617)
+- **M3Query**: Accept both GET and POST for series match endpoint (#1606)
 
 # 0.9.0
 
