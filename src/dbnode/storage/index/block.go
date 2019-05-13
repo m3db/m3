@@ -902,7 +902,23 @@ func (b *block) Aggregate(
 			if bytes.Equal(field, doc.IDReservedFieldName) {
 				return false
 			}
-			return aggOpts.TermFilter.Allow(field)
+			return aggOpts.FieldFilter.Allow(field)
+		},
+		fieldIterFn: func(s segment.Segment) (segment.FieldsIterator, error) {
+			// NB(prateek): we default to using the regular (FST) fields iterator
+			// unless we have a predefined list of fields we know we need to restrict
+			// our search to, in which case we iterate that list and check if known values
+			// in the FST to restrict our search. This is going to be significantly faster
+			// while len(FieldsFilter) < 5-10 elements;
+			// but there will exist a ratio between the len(FieldFilter) v size(FST) after which
+			// iterating the entire FST is faster.
+			// Here, we chose to avoid factoring that in to our choice because almost all input
+			// to this function is expected to have (FieldsFilter) pretty small. If that changes
+			// in the future, we can revisit this.
+			if len(aggOpts.FieldFilter) == 0 {
+				return s.FieldsIterable().Fields()
+			}
+			return newFilterFieldsIterator(s, aggOpts.FieldFilter)
 		},
 	}
 
