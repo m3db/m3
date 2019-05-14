@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -79,7 +78,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	appendSeries := func(target map[xtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
 		startNano := xtime.ToUnixNano(start)
 		if shouldMissData {
-			var dataWithMissing []ts.Datapoint
+			var dataWithMissing []generate.TestValue
 			for i := range s.Data {
 				if i%2 != 0 {
 					continue

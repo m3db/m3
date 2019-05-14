@@ -24,6 +24,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
@@ -43,7 +44,7 @@ type testIterator struct {
 	closed  bool
 	err     error
 	onNext  func(oldIdx, newIdx int)
-	onReset func(r io.Reader)
+	onReset func(r io.Reader, descr namespace.SchemaDescr)
 }
 
 func newTestIterator(values []testValue) ReaderIterator {
@@ -82,15 +83,15 @@ func (it *testIterator) Close() {
 	it.closed = true
 }
 
-func (it *testIterator) Reset(r io.Reader) {
-	it.onReset(r)
+func (it *testIterator) Reset(r io.Reader, descr namespace.SchemaDescr) {
+	it.onReset(r, descr)
 }
 
-func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
+func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, descr namespace.SchemaDescr) {
 	l, _, _ := readers.CurrentReaders()
 	for i := 0; i < l; i++ {
 		r := readers.CurrentReaderAt(i)
-		it.onReset(r)
+		it.onReset(r, descr)
 	}
 }
 
@@ -139,13 +140,13 @@ func (it *testMultiIterator) Close() {
 	it.closed = true
 }
 
-func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ time.Time, _ time.Duration) {
+func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ time.Time, _ time.Duration, _ namespace.SchemaDescr) {
 	for _, reader := range r {
 		it.onReset(reader)
 	}
 }
 
-func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
+func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, _ namespace.SchemaDescr) {
 	l, _, _ := readers.CurrentReaders()
 	for i := 0; i < l; i++ {
 		r := readers.CurrentReaderAt(i)

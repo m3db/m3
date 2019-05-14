@@ -28,9 +28,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/cespare/xxhash"
@@ -59,8 +61,9 @@ var (
 type Encoder struct {
 	opts encoding.Options
 
-	stream encoding.OStream
-	schema *desc.MessageDescriptor
+	stream     encoding.OStream
+	schemaDesc namespace.SchemaDescr
+	schema     *desc.MessageDescriptor
 
 	numEncoded    int
 	lastEncodedDP ts.Datapoint
@@ -123,7 +126,8 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	}
 
 	if enc.schema == nil {
-		return errEncoderSchemaIsRequired
+		// It is a programmatic error that schema is not set at all prior to encoding, panic to fix it asap.
+		return instrument.InvariantErrorf(errEncoderSchemaIsRequired.Error())
 	}
 
 	// Proto encoder value is meaningless, but make sure its always zero just to be safe so that
@@ -348,15 +352,26 @@ func (enc *Encoder) encodeProto(m *dynamic.Message) error {
 func (enc *Encoder) Reset(
 	start time.Time,
 	capacity int,
+	descr namespace.SchemaDescr,
 ) {
+	enc.SetSchema(descr)
 	enc.reset(start, capacity)
 }
 
-// SetSchema sets the encoders schema.
-// TODO(rartoul): Add support for changing the schema (and updating the ordering
-// of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
-func (enc *Encoder) SetSchema(schema *desc.MessageDescriptor) {
-	enc.resetSchema(schema)
+func (enc *Encoder) SetSchema(descr namespace.SchemaDescr) {
+	if descr == nil {
+		enc.schemaDesc = nil
+		enc.resetSchema(nil)
+		return
+	}
+
+	// Noop if schema has not changed.
+	if enc.schemaDesc != nil && len(descr.DeployId()) != 0 && enc.schemaDesc.DeployId() == descr.DeployId() {
+		return
+	}
+
+	enc.schemaDesc = descr
+	enc.resetSchema(descr.Get().MessageDescriptor)
 }
 
 func (enc *Encoder) reset(start time.Time, capacity int) {
@@ -380,13 +395,17 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
-	enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
+	if enc.schema == nil {
+		enc.protoFields = nil
+		enc.customFields = nil
+		enc.lastEncoded = nil
+		enc.unmarshaled = nil
+	} else {
+		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
-	// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
-	// schemas to see if they have changed:
-	// https://github.com/m3db/m3/issues/1471
-	enc.lastEncoded = dynamic.NewMessage(schema)
-	enc.unmarshaled = dynamic.NewMessage(schema)
+		enc.lastEncoded = dynamic.NewMessage(schema)
+		enc.unmarshaled = dynamic.NewMessage(schema)
+	}
 	enc.hasEncodedSchema = false
 }
 
@@ -396,7 +415,7 @@ func (enc *Encoder) Close() {
 		return
 	}
 
-	enc.Reset(time.Time{}, 0)
+	enc.Reset(time.Time{}, 0, nil)
 	enc.stream.Reset(nil)
 	enc.closed = true
 
@@ -416,9 +435,9 @@ func (enc *Encoder) Discard() ts.Segment {
 
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
-func (enc *Encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+func (enc *Encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	segment := enc.discard()
-	enc.Reset(start, capacity)
+	enc.Reset(start, capacity, descr)
 	return segment
 }
 

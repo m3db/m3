@@ -28,10 +28,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 type writer struct {
@@ -39,7 +38,7 @@ type writer struct {
 }
 
 // WriteAllPredicate writes all datapoints
-func WriteAllPredicate(_ ts.Datapoint) bool {
+func WriteAllPredicate(_ TestValue) bool {
 	return true
 }
 
@@ -51,46 +50,46 @@ func NewWriter(opts Options) Writer {
 }
 
 func (w *writer) WriteData(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 ) error {
-	return w.WriteDataWithPredicate(namespace, shardSet, seriesMaps, WriteAllPredicate)
+	return w.WriteDataWithPredicate(nsCtx, shardSet, seriesMaps, WriteAllPredicate)
 }
 
 func (w *writer) WriteSnapshot(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	snapshotInterval time.Duration,
 ) error {
 	return w.WriteSnapshotWithPredicate(
-		namespace, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
+		nsCtx, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
 }
 
 func (w *writer) WriteSnapshotWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
 }
 
 func (w *writer) writeWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
@@ -121,9 +120,10 @@ func (w *writer) writeWithPredicate(
 		return err
 	}
 	encoder := gOpts.EncoderPool().Get()
+	encoder.SetSchema(nsCtx.Schema)
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
+			writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
 			data, pred, fileSetType, snapshotInterval)
 		if err != nil {
 			return err
@@ -135,7 +135,7 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
+				writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
 				nil, pred, fileSetType, snapshotInterval)
 			if err != nil {
 				return err
@@ -151,7 +151,7 @@ func writeToDiskWithPredicate(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	namespace ident.ID,
+	nsCtx ns.Context,
 	blockSize time.Duration,
 	seriesList SeriesBlock,
 	pred WriteDatapointPredicate,
@@ -172,7 +172,7 @@ func writeToDiskWithPredicate(
 		writerOpts := fs.DataWriterOpenOptions{
 			BlockSize: blockSize,
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  namespace,
+				Namespace:  nsCtx.ID,
 				Shard:      shard,
 				BlockStart: start,
 			},
@@ -185,13 +185,13 @@ func writeToDiskWithPredicate(
 			return err
 		}
 		for _, series := range seriesList {
-			encoder.Reset(start, 0)
+			encoder.Reset(start, 0, nsCtx.Schema)
 			for _, dp := range series.Data {
 				if !pred(dp) {
 					continue
 				}
 
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
+				if err := encoder.Encode(dp.Datapoint, xtime.Second, dp.Annotation); err != nil {
 					return err
 				}
 			}

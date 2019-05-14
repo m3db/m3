@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -37,6 +36,14 @@ import (
 )
 
 func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
+	testPeersBootstrapMergePeerBlocks(t, nil, nil)
+}
+
+func TestProtoPeersBootstrapMergePeerBlocks(t *testing.T) {
+	testPeersBootstrapMergePeerBlocks(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -54,6 +61,10 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		namesp = opts.Namespaces()[0]
+	}
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
@@ -67,18 +78,22 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
-	})
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	left := make(map[xtime.UnixNano]generate.SeriesBlock)
 	right := make(map[xtime.UnixNano]generate.SeriesBlock)
 	remainder := 0
 	appendSeries := func(target map[xtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
-		var dataWithMissing []ts.Datapoint
+		var dataWithMissing []generate.TestValue
 		for i := range s.Data {
 			if i%2 != remainder {
 				continue

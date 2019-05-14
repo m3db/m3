@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -115,12 +116,14 @@ type dbNamespace struct {
 	log                *zap.Logger
 	bootstrapState     BootstrapState
 
+	// schemaDescr caches the latest schema for the namespace.
+	// schemaDescr is updated whenever schema registry is updated.
+	schemaListener xclose.SimpleCloser
+	schemaDescr    namespace.SchemaDescr
+
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
-
-	// Contains the schema registry for the database namespace.
-	schemaRegistry namespace.SchemaRegistry
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
@@ -299,8 +302,8 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
-			"namespace": id.String(),
-		})
+		"namespace": id.String(),
+	})
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
@@ -335,7 +338,6 @@ func newDatabaseNamespace(
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
-		schemaRegistry:         metadata.Options().SchemaRegistry(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		snapshotFilesFn:        fs.SnapshotFiles,
@@ -348,10 +350,26 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
+	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
+	// Fail to create namespace is schema listener can not be registered successfully.
+	// If proto is disabled, err will always be nil.
+	if err != nil {
+		return nil, fmt.Errorf(
+		"unable to register schema listener for namespace %v, error: %v",
+		metadata.ID().String(), err)
+	}
+	n.schemaListener = sl
 	n.initShards(nopts.BootstrapEnabled())
 	go n.reportStatusLoop()
 
 	return n, nil
+}
+
+// SetSchema implements namespace.SchemaListener.
+func (n *dbNamespace) SetSchema(value namespace.SchemaDescr) {
+	n.Lock()
+	n.schemaDescr = value
+	n.Unlock()
 }
 
 func (n *dbNamespace) reportStatusLoop() {
@@ -382,6 +400,13 @@ func (n *dbNamespace) ID() ident.ID {
 	return n.id
 }
 
+func (n *dbNamespace) Schema() namespace.SchemaDescr {
+	n.RLock()
+	schema := n.schemaDescr
+	n.RUnlock()
+	return schema
+}
+
 func (n *dbNamespace) NumSeries() int64 {
 	var count int64
 	for _, shard := range n.GetOwnedShards() {
@@ -399,24 +424,6 @@ func (n *dbNamespace) Shards() []Shard {
 	}
 	n.RUnlock()
 	return databaseShards
-}
-
-func (n *dbNamespace) SchemaRegistry() namespace.SchemaRegistry {
-	n.RLock()
-	sr := n.schemaRegistry
-	n.RUnlock()
-	return sr
-}
-
-func (n *dbNamespace) SetSchemaRegistry(v namespace.SchemaRegistry) error {
-	if !v.Extends(n.SchemaRegistry()) {
-		return fmt.Errorf("can not update schema registry to one that does not extends the existing one")
-	}
-
-	n.Lock()
-	n.schemaRegistry = v
-	n.Unlock()
-	return nil
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
@@ -501,6 +508,10 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 		return nil
 	}
 
+	n.RLock()
+	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
+	n.RUnlock()
+
 	// Tick through the shards at a capped level of concurrency
 	var (
 		r        tickResult
@@ -518,7 +529,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 				return
 			}
 
-			shardResult, err := shard.Tick(c, tickStart)
+			shardResult, err := shard.Tick(c, tickStart, nsCtx)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -586,13 +597,14 @@ func (n *dbNamespace) Write(
 	annotation []byte,
 ) (ts.Series, bool, error) {
 	callStart := n.nowFn()
-	shard, err := n.shardFor(id)
+	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
+		SchemaDesc:   nsCtx.Schema,
 	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
@@ -614,13 +626,14 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, errNamespaceIndexingDisabled
 	}
-	shard, err := n.shardFor(id)
+	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
+		SchemaDesc:   nsCtx.Schema,
 	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
 		value, unit, annotation, opts)
@@ -698,12 +711,12 @@ func (n *dbNamespace) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.BlockReader, error) {
 	callStart := n.nowFn()
-	shard, err := n.readableShardFor(id)
+	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	res, err := shard.ReadEncoded(ctx, id, start, end)
+	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -715,13 +728,13 @@ func (n *dbNamespace) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
-	shard, err := n.readableShardAt(shardID)
+	shard, nsCtx, err := n.readableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
 
-	res, err := shard.FetchBlocks(ctx, id, starts)
+	res, err := shard.FetchBlocks(ctx, id, starts, nsCtx)
 	n.metrics.fetchBlocks.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -735,7 +748,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
 	callStart := n.nowFn()
-	shard, err := n.readableShardAt(shardID)
+	shard, _, err := n.readableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
 		return nil, nil, err
@@ -889,6 +902,7 @@ func (n *dbNamespace) Flush(
 		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
+	nsCtx := namespace.Context{Schema: n.schemaDescr}
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() {
@@ -929,7 +943,7 @@ func (n *dbNamespace) Flush(
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flushPersist); err != nil {
+		if err := shard.Flush(blockStart, flushPersist, nsCtx); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -958,7 +972,8 @@ func (n *dbNamespace) FlushIndex(
 		return nil
 	}
 
-	err := n.reverseIndex.Flush(flush, n.GetOwnedShards())
+	shards := n.GetOwnedShards()
+	err := n.reverseIndex.Flush(flush, shards)
 	n.metrics.flush.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
@@ -972,12 +987,14 @@ func (n *dbNamespace) Snapshot(
 	// for business logic.
 	callStart := n.nowFn()
 
+	var nsCtx namespace.Context
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
+	nsCtx = namespace.Context{Schema: n.schemaDescr}
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
@@ -1001,7 +1018,7 @@ func (n *dbNamespace) Snapshot(
 			continue
 		}
 
-		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
+		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -1217,27 +1234,30 @@ func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
 	return n.reverseIndex, nil
 }
 
-func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, error) {
+func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
+	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, error) {
+func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
+	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, error) {
+func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	n.RLock()
+	nsCtx := namespace.Context{Schema: n.schemaDescr}
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, nsCtx, err
 }
 
 func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
@@ -1295,6 +1315,9 @@ func (n *dbNamespace) Close() error {
 	close(n.shutdownCh)
 	if n.reverseIndex != nil {
 		return n.reverseIndex.Close()
+	}
+	if n.schemaListener != nil {
+		n.schemaListener.Close()
 	}
 	return nil
 }

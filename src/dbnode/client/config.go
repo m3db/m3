@@ -28,12 +28,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -87,22 +87,14 @@ type Configuration struct {
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
-	SchemaFilePath string `yaml:"schemaFilePath"`
-	MessageName    string `yaml:"messageName"`
+	// Whether proto is enabled.
+	Enabled bool `yaml:"enabled"`
 }
 
 // Validate validates the ProtoConfiguration.
 func (c *ProtoConfiguration) Validate() error {
 	if c == nil {
 		return nil
-	}
-
-	if c.SchemaFilePath == "" {
-		return errors.New("schemaFilePath is required for Proto data mode")
-	}
-
-	if c.MessageName == "" {
-		return errors.New("messageName is required for Proto data mode")
 	}
 
 	return nil
@@ -285,20 +277,13 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader) encoding.ReaderIterator {
+	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})
 
-	if c.Proto != nil {
-		schema, err := proto.ParseProtoSchema(c.Proto.SchemaFilePath, c.Proto.MessageName)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"unable to parse protobuf schema: %s, err: %v",
-				c.Proto.SchemaFilePath, err)
-		}
-
-		v = v.SetEncodingProto(schema, encodingOpts)
+	if c.Proto != nil && c.Proto.Enabled {
+		v = v.SetEncodingProto(encodingOpts)
 	}
 
 	// Apply programtic custom options last

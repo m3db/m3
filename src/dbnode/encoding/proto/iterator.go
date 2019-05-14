@@ -28,8 +28,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -48,9 +51,11 @@ var (
 )
 
 type iterator struct {
+	nsID                   ident.ID
 	opts                   encoding.Options
 	err                    error
 	schema                 *desc.MessageDescriptor
+	schemaDesc             namespace.SchemaDescr
 	stream                 encoding.IStream
 	lastIterated           *dynamic.Message
 	lastIteratedProtoBytes []byte
@@ -75,29 +80,25 @@ type iterator struct {
 // NewIterator creates a new iterator.
 func NewIterator(
 	reader io.Reader,
-	schema *desc.MessageDescriptor,
+	descr namespace.SchemaDescr,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
 
-	var currCustomFields []customFieldState
-	if schema != nil {
-		currCustomFields, _ = customAndProtoFields(nil, nil, schema)
-	}
-	return &iterator{
-		opts:         opts,
-		schema:       schema,
-		stream:       stream,
-		lastIterated: dynamic.NewMessage(schema),
-		customFields: currCustomFields,
-
+	i := &iterator{
+		opts:       opts,
+		stream:     stream,
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),
 	}
+	i.resetSchema(descr)
+	return i
 }
 
 func (it *iterator) Next() bool {
 	if it.schema == nil {
-		it.err = errIteratorSchemaIsRequired
+		// It is a programmatic error that schema is not set at all prior to iterating, panic to fix it asap.
+		it.err = instrument.InvariantErrorf(errIteratorSchemaIsRequired.Error())
+		return false
 	}
 
 	if !it.hasNext() {
@@ -239,23 +240,32 @@ func (it *iterator) Err() error {
 	return it.err
 }
 
-func (it *iterator) Reset(reader io.Reader) {
+func (it *iterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {
+	it.resetSchema(descr)
 	it.stream.Reset(reader)
 	it.tsIterator = m3tsz.NewTimestampIterator(it.opts, true)
 
 	it.err = nil
 	it.consumedFirstMessage = false
-	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.lastIteratedProtoBytes = nil
-	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
 }
 
-// SetSchema sets the encoders schema.
-func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
-	it.schema = schema
+// setSchema sets the schema for the iterator.
+func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
+	if schemaDesc == nil {
+		it.schemaDesc = nil
+		it.schema = nil
+		it.lastIterated = nil
+		it.customFields = nil
+		return
+	}
+
+	it.schemaDesc = schemaDesc
+	it.schema = schemaDesc.Get().MessageDescriptor
+	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 }
 
@@ -265,7 +275,7 @@ func (it *iterator) Close() {
 	}
 
 	it.closed = true
-	it.Reset(nil)
+	it.Reset(nil, nil)
 	it.stream.Reset(nil)
 
 	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() > maxCapacityUnmarshalBufferRetain {

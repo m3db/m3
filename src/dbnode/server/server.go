@@ -64,7 +64,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
+	"github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -80,7 +80,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/coreos/etcd/embed"
-	"github.com/jhump/protoreflect/desc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -173,16 +172,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	defer fslock.Release()
-
-	var schema *desc.MessageDescriptor
-	if cfg.Proto != nil {
-		logger.Info("Probuf data mode enabled")
-		schema, err = proto.ParseProtoSchema(
-			cfg.Proto.SchemaFilePath, cfg.Proto.MessageName)
-		if err != nil {
-			logger.Fatal("error parsing protobuffer schema", zap.Error(err))
-		}
-	}
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -303,9 +292,9 @@ func Run(runOpts RunOptions) {
 
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
-			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
+		SetLimitEnabled(true).
+		SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
+		SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
@@ -336,9 +325,9 @@ func Run(runOpts RunOptions) {
 	indexOpts = indexOpts.SetInsertMode(insertMode).
 		SetPostingsListCache(postingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-		})
+		CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+		CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+	})
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -387,7 +376,7 @@ func Run(runOpts RunOptions) {
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
-			SetMetricsScope(scope.SubScope("database.fs"))).
+		SetMetricsScope(scope.SubScope("database.fs"))).
 		SetFilePathPrefix(cfg.Filesystem.FilePathPrefixOrDefault()).
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
@@ -436,7 +425,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, schema, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -561,6 +550,23 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 
+	var protoEnabled bool
+	if cfg.Proto != nil && cfg.Proto.Enabled {
+		protoEnabled = true
+	}
+	schemaRegistry := namespace.NewSchemaRegistry(protoEnabled, logger)
+	// TODO [haijun] remove after PR to set schema in etcd is done (plan layed out in issue #1614).
+	// To unblock #1578, we will load user schema from db node configuration into schema registry
+	// at dbnode startup/initialization time, there will be no dynamic schema update.
+	if protoEnabled {
+		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
+			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
+				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
+				logger.Fatal("could not load schema from configuration", zap.Error(err))
+			}
+		}
+	}
+
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := cfg.Client.NewAdminClient(
 		client.ConfigurationParameters{
@@ -578,12 +584,15 @@ func Run(runOpts RunOptions) {
 			return opts.SetOrigin(origin)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			if cfg.Proto != nil {
-				adminOpts := opts.SetEncodingProto(schema,
-					encoding.NewOptions())
-				return adminOpts.(client.AdminOptions)
+			if cfg.Proto != nil && cfg.Proto.Enabled {
+				return opts.SetEncodingProto(
+					encoding.NewOptions(),
+				).(client.AdminOptions)
 			}
 			return opts
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetSchemaRegistry(schemaRegistry)
 		},
 	)
 	if err != nil {
@@ -600,7 +609,7 @@ func Run(runOpts RunOptions) {
 		clientAdminOpts, runtimeOptsMgr)
 
 	opts = opts.
-		// Feature currently not working.
+	// Feature currently not working.
 		SetRepairEnabled(false)
 
 	// Set bootstrap options - We need to create a topology map provider from the
@@ -661,6 +670,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create cluster topology watch", zap.Error(err))
 	}
 
+	opts = opts.SetSchemaRegistry(schemaRegistry)
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatal("could not construct database", zap.Error(err))
@@ -1033,7 +1043,6 @@ func kvWatchBootstrappers(
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
 	logger *zap.Logger,
-	schema *desc.MessageDescriptor,
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
@@ -1150,14 +1159,14 @@ func withEncodingAndPoolingOptions(
 	writeBatchPoolOpts := pool.NewObjectPoolOptions()
 	writeBatchPoolOpts = writeBatchPoolOpts.
 		SetSize(writeBatchPoolSize).
-		// Set watermarks to zero because this pool is sized to be as large as we
-		// ever need it to be, so background allocations are usually wasteful.
+	// Set watermarks to zero because this pool is sized to be as large as we
+	// ever need it to be, so background allocations are usually wasteful.
 		SetRefillLowWatermark(0.0).
 		SetRefillHighWatermark(0.0).
 		SetInstrumentOptions(
-			writeBatchPoolOpts.
-				InstrumentOptions().
-				SetMetricsScope(scope.SubScope("write-batch-pool")))
+		writeBatchPoolOpts.
+			InstrumentOptions().
+			SetMetricsScope(scope.SubScope("write-batch-pool")))
 
 	writeBatchPool := ts.NewWriteBatchPool(
 		writeBatchPoolOpts,
@@ -1197,25 +1206,24 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		if schema != nil {
+		if cfg.Proto != nil && cfg.Proto.Enabled {
 			enc := proto.NewEncoder(time.Time{}, encodingOpts)
-			enc.SetSchema(schema)
 			return enc
 		}
 
 		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		if schema != nil {
-			return proto.NewIterator(r, schema, encodingOpts)
+	iteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+		if cfg.Proto != nil && cfg.Proto.Enabled {
+			return proto.NewIterator(r, descr, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := iteratorPool.Get()
-		iter.Reset(r)
+		iter.Reset(r, descr)
 		return iter
 	})
 
@@ -1270,7 +1278,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)
@@ -1313,16 +1321,16 @@ func withEncodingAndPoolingOptions(
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
-			opts.IndexOptions().MemSegmentOptions().
-				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+		opts.IndexOptions().MemSegmentOptions().
+			SetPostingsListPool(postingsList).
+			SetInstrumentOptions(iopts)).
 		SetFSTSegmentOptions(
-			opts.IndexOptions().FSTSegmentOptions().
-				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+		opts.IndexOptions().FSTSegmentOptions().
+			SetPostingsListPool(postingsList).
+			SetInstrumentOptions(iopts)).
 		SetSegmentBuilderOptions(
-			opts.IndexOptions().SegmentBuilderOptions().
-				SetPostingsListPool(postingsList)).
+		opts.IndexOptions().SegmentBuilderOptions().
+			SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).

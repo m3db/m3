@@ -148,7 +148,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		require.Equal(t, input[i].Timestamp, decompressed[i].Timestamp)
 		require.Equal(t, input[i].Value, decompressed[i].Value)
 	}
-	it.Reset(nil)
+	it.Reset(nil, nil)
 	it.Close()
 }
 

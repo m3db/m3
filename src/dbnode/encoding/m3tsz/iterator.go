@@ -25,6 +25,7 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -215,7 +216,7 @@ func (it *readerIterator) hasNext() bool {
 }
 
 // Reset resets the ReadIterator for reuse.
-func (it *readerIterator) Reset(reader io.Reader) {
+func (it *readerIterator) Reset(reader io.Reader, schema namespace.SchemaDescr) {
 	it.is.Reset(reader)
 	it.tsIterator = NewTimestampIterator(it.opts, it.tsIterator.SkipMarkers)
 	it.err = nil

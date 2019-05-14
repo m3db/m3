@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 var (
@@ -80,6 +81,8 @@ func NewEncoder(
 		intOptimized:   intOptimized,
 	}
 }
+
+func (enc *encoder) SetSchema(descr namespace.SchemaDescr) {}
 
 // Encode encodes the timestamp and the value of a datapoint.
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
@@ -252,7 +255,7 @@ func (enc *encoder) newBuffer(capacity int) checked.Bytes {
 }
 
 // Reset resets the encoder for reuse.
-func (enc *encoder) Reset(start time.Time, capacity int) {
+func (enc *encoder) Reset(start time.Time, capacity int, schema namespace.SchemaDescr) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
 
@@ -345,9 +348,9 @@ func (enc *encoder) Discard() ts.Segment {
 
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
-func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	segment := enc.discard()
-	enc.Reset(start, capacity)
+	enc.Reset(start, capacity, descr)
 	return segment
 }
 

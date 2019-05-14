@@ -55,7 +55,9 @@ var (
 	errIndexingNotEnableForNamespace = errors.New("indexing not enabled for namespace")
 )
 
-const encoderChanBufSize = 1000
+const (
+	encoderChanBufSize = 1000
+)
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (
 	iter commitlog.Iterator, corruptFiles []commitlog.ErrorWithPath, err error)
@@ -431,7 +433,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 }
 
 func (s *commitLogSource) bootstrapShardSnapshots(
-	nsID ident.ID,
+	ns namespace.Metadata,
 	shard uint32,
 	metadataOnly bool,
 	shardTimeRanges xtime.Ranges,
@@ -484,7 +486,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 			}
 
 			shardResult, err = s.bootstrapShardBlockSnapshot(
-				nsID, shard, blockStart, metadataOnly, shardResult, allSeriesSoFar, blockSize,
+				ns, shard, blockStart, metadataOnly, shardResult, allSeriesSoFar, blockSize,
 				snapshotFiles, mostRecentCompleteSnapshotForShardBlock)
 			if err != nil {
 				return shardResult, err
@@ -499,7 +501,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 }
 
 func (s *commitLogSource) bootstrapShardBlockSnapshot(
-	nsID ident.ID,
+	ns namespace.Metadata,
 	shard uint32,
 	blockStart time.Time,
 	metadataOnly bool,
@@ -516,6 +518,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 		idPool     = s.opts.CommitLogOptions().IdentifierPool()
+		nsCtx       = namespace.NewContextFrom(ns)
 	)
 
 	// Bootstrap the snapshot file
@@ -526,7 +529,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 	err = reader.Open(fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   nsID,
+			Namespace:   ns.ID(),
 			BlockStart:  blockStart,
 			Shard:       shard,
 			VolumeIndex: mostRecentCompleteSnapshot.ID.VolumeIndex,
@@ -572,7 +575,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		dbBlock := blocksPool.Get()
-		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
+		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead), nsCtx)
 
 		if !metadataOnly {
 			// Resetting the block will trigger a checksum calculation, so use that instead
@@ -700,6 +703,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	blopts block.Options,
 	wg *sync.WaitGroup,
 ) {
+	nsCtx := namespace.NewContextFrom(ns)
 	for arg := range ec {
 		var (
 			series     = arg.series
@@ -747,7 +751,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		}
 		if !wroteExisting {
 			enc := encoderPool.Get()
-			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
+			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 
 			err = enc.Encode(dp, unit, annotation)
 			if err == nil {
@@ -852,8 +856,10 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 			continue
 		}
 
+		nsCtx := namespace.NewContextFrom(ns)
+
 		snapshotData, err := s.bootstrapShardSnapshots(
-			ns.ID(),
+			ns,
 			uint32(shard),
 			false,
 			shardsTimeRanges[uint32(shard)],
@@ -879,7 +885,7 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 		shard, unmergedShard := shard, unmergedShard
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
-			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShardCommitLogEncodersAndSnapshots(
+			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShardCommitLogEncodersAndSnapshots(nsCtx,
 				shard, snapshotData, unmergedShard, blockSize)
 
 			if shardResult != nil && shardResult.NumSeries() > 0 {
@@ -906,6 +912,7 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 }
 
 func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
+	nsCtx namespace.Context,
 	shard int,
 	snapshotData result.ShardResult,
 	unmergedShard shardData,
@@ -938,6 +945,7 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 			val := unmergedBlocks.Value()
 			snapshotSeriesData, _ := allSnapshotSeries.Get(val.id)
 			seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
+				nsCtx,
 				snapshotSeriesData,
 				val,
 				blocksPool,
@@ -978,6 +986,7 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 }
 
 func (s *commitLogSource) mergeSeries(
+	nsCtx namespace.Context,
 	snapshotData result.DatabaseSeriesBlocks,
 	unmergedCommitlogBlocks metadataAndEncodersByTime,
 	blocksPool block.DatabaseBlockPool,
@@ -1016,10 +1025,10 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		iter := multiReaderIteratorPool.Get()
-		iter.Reset(readers, time.Time{}, 0)
+		iter.Reset(readers, time.Time{}, 0, nsCtx.Schema)
 
 		enc := encoderPool.Get()
-		enc.Reset(start, blopts.DatabaseBlockAllocSize())
+		enc.Reset(start, blopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
 			encodeErr := enc.Encode(dp, unit, annotation)
@@ -1051,7 +1060,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		pooledBlock := blocksPool.Get()
-		pooledBlock.Reset(start, blockSize, enc.Discard())
+		pooledBlock.Reset(start, blockSize, enc.Discard(), nsCtx)
 		if seriesBlocks == nil {
 			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedCommitlogBlocks.encoders))
 		}
@@ -1202,7 +1211,7 @@ func (s *commitLogSource) ReadIndex(
 	// Start by reading any available snapshot files.
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
-			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
+			ns, shard, true, tr, blockSize, snapshotFilesByShard[shard],
 			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
 			return nil, err

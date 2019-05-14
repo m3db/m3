@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -80,7 +81,7 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
@@ -175,7 +176,7 @@ func TestShardTickWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now())
+		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		assert.NoError(t, err)
 	}()
 
@@ -269,7 +270,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now())
+		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		assert.NoError(t, err)
 	}()
 

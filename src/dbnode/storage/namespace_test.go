@@ -152,7 +152,7 @@ func TestNamespaceTick(t *testing.T) {
 	defer closer()
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, nil)
+		shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any(), gomock.Any()).Return(tickResult{}, nil)
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
@@ -171,9 +171,9 @@ func TestNamespaceTickError(t *testing.T) {
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		if i == 0 {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, fakeErr)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any(), gomock.Any()).Return(tickResult{}, fakeErr)
 		} else {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, nil)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any(), gomock.Any()).Return(tickResult{}, nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -267,7 +267,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	defer closer()
 
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
+	shard.EXPECT().ReadEncoded(ctx, id, start, end, gomock.Any()).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
@@ -306,7 +306,7 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil).Return(nil, nil)
+	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil, gomock.Any()).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
@@ -448,7 +448,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		shard.EXPECT().FlushState(blockStart).Return(s)
 		if s.Status != fileOpSuccess {
-			shard.EXPECT().Flush(blockStart, nil).Return(nil)
+			shard.EXPECT().Flush(blockStart, gomock.Any(), gomock.Any()).Return(nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -597,7 +597,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
-			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.shardSnapshotErr)
+			shard.EXPECT().Snapshot(blockStart, now, gomock.Any(), gomock.Any()).Return(tc.shardSnapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
@@ -674,13 +674,13 @@ func TestNamespaceShardAt(t *testing.T) {
 	s1.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[1] = s1
 
-	_, err := ns.readableShardAt(0)
+	_, _, err := ns.readableShardAt(0)
 	require.NoError(t, err)
-	_, err = ns.readableShardAt(1)
+	_, _, err = ns.readableShardAt(1)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead.Error(), err.Error())
-	_, err = ns.readableShardAt(2)
+	_, _, err = ns.readableShardAt(2)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 2", err.Error())

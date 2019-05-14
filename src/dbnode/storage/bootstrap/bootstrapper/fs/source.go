@@ -494,6 +494,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		timesWithErrors   []time.Time
 		shardResult       result.ShardResult
 		shardRetriever    block.DatabaseShardBlockRetriever
+		nsCtx             = namespace.NewContextFrom(ns)
 	)
 
 	requestedRanges := timeWindowReaders.ranges
@@ -532,7 +533,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			for i := 0; err == nil && i < numEntries; i++ {
 				switch run {
 				case bootstrapDataRunType:
-					err = s.readNextEntryAndRecordBlock(r, runResult, start, blockSize, shardResult,
+					err = s.readNextEntryAndRecordBlock(nsCtx, r, runResult, start, blockSize, shardResult,
 						shardRetriever, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
@@ -617,6 +618,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 }
 
 func (s *fileSystemSource) readNextEntryAndRecordBlock(
+	nsCtx namespace.Context,
 	r fs.DataFileSetReader,
 	runResult *runResult,
 	blockStart time.Time,
@@ -633,6 +635,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		data        checked.Bytes
 		err         error
 	)
+
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		id, tagsIter, data, _, err = r.Read()
@@ -670,7 +673,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-		seriesBlock.Reset(blockStart, blockSize, seg)
+		seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
 	default:
 		return fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 	}

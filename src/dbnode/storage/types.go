@@ -230,14 +230,14 @@ type Namespace interface {
 	// ID returns the ID of the namespace
 	ID() ident.ID
 
+	// Schema returns the schema of the namespace.
+	Schema() namespace.SchemaDescr
+
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
 
 	// Shards returns the shard description
 	Shards() []Shard
-
-	// Schema returns the schema registry.
-	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -370,9 +370,6 @@ type databaseNamespace interface {
 	// BootstrapState captures and returns a snapshot of the namespaces'
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
-
-	// SetSchemaRegistry sets the schema registry for the namespace.
-	SetSchemaRegistry(v namespace.SchemaRegistry) error
 }
 
 // Shard is a time series database shard.
@@ -402,7 +399,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -430,6 +427,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
+		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -438,6 +436,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		starts []time.Time,
+		nsCtx namespace.Context,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
@@ -458,10 +457,11 @@ type databaseShard interface {
 	Flush(
 		blockStart time.Time,
 		flush persist.FlushPreparer,
+		nsCtx namespace.Context,
 	) error
 
 	// Snapshot snapshot's the unflushed series' in this shard.
-	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer) error
+	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) error
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
@@ -932,6 +932,12 @@ type Options interface {
 
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
+
+	// SetSchemaRegistry sets the schema registry the database uses.
+	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
+
+	// SchemaRegistry returns the schema registry the database uses.
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

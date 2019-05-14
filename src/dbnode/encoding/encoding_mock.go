@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -62,6 +63,18 @@ func NewMockEncoder(ctrl *gomock.Controller) *MockEncoder {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockEncoder) EXPECT() *MockEncoderMockRecorder {
 	return m.recorder
+}
+
+// SetSchema mocks base method
+func (m *MockEncoder) SetSchema(descr namespace.SchemaDescr) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSchema", descr)
+}
+
+// SetSchema indicates an expected call of SetSchema
+func (mr *MockEncoderMockRecorder) SetSchema(descr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockEncoder)(nil).SetSchema), descr)
 }
 
 // Encode mocks base method
@@ -137,15 +150,15 @@ func (mr *MockEncoderMockRecorder) Len() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockEncoder) Reset(t time.Time, capacity int) {
+func (m *MockEncoder) Reset(t time.Time, capacity int, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", t, capacity)
+	m.ctrl.Call(m, "Reset", t, capacity, schema)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockEncoderMockRecorder) Reset(t, capacity interface{}) *gomock.Call {
+func (mr *MockEncoderMockRecorder) Reset(t, capacity, schema interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockEncoder)(nil).Reset), t, capacity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockEncoder)(nil).Reset), t, capacity, schema)
 }
 
 // Close mocks base method
@@ -175,17 +188,17 @@ func (mr *MockEncoderMockRecorder) Discard() *gomock.Call {
 }
 
 // DiscardReset mocks base method
-func (m *MockEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
+func (m *MockEncoder) DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DiscardReset", t, capacity)
+	ret := m.ctrl.Call(m, "DiscardReset", t, capacity, schema)
 	ret0, _ := ret[0].(ts.Segment)
 	return ret0
 }
 
 // DiscardReset indicates an expected call of DiscardReset
-func (mr *MockEncoderMockRecorder) DiscardReset(t, capacity interface{}) *gomock.Call {
+func (mr *MockEncoderMockRecorder) DiscardReset(t, capacity, schema interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardReset", reflect.TypeOf((*MockEncoder)(nil).DiscardReset), t, capacity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardReset", reflect.TypeOf((*MockEncoder)(nil).DiscardReset), t, capacity, schema)
 }
 
 // MockOptions is a mock of Options interface
@@ -594,15 +607,15 @@ func (mr *MockReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockReaderIterator) Reset(reader io.Reader) {
+func (m *MockReaderIterator) Reset(reader io.Reader, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", reader)
+	m.ctrl.Call(m, "Reset", reader, schema)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockReaderIteratorMockRecorder) Reset(reader interface{}) *gomock.Call {
+func (mr *MockReaderIteratorMockRecorder) Reset(reader, schema interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockReaderIterator)(nil).Reset), reader)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockReaderIterator)(nil).Reset), reader, schema)
 }
 
 // MockMultiReaderIterator is a mock of MultiReaderIterator interface
@@ -685,27 +698,27 @@ func (mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration) {
+func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", readers, start, blockSize)
+	m.ctrl.Call(m, "Reset", readers, start, blockSize, schema)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, blockSize interface{}) *gomock.Call {
+func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, blockSize, schema interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, blockSize)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, blockSize, schema)
 }
 
 // ResetSliceOfSlices mocks base method
-func (m *MockMultiReaderIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
+func (m *MockMultiReaderIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ResetSliceOfSlices", readers)
+	m.ctrl.Call(m, "ResetSliceOfSlices", readers, schema)
 }
 
 // ResetSliceOfSlices indicates an expected call of ResetSliceOfSlices
-func (mr *MockMultiReaderIteratorMockRecorder) ResetSliceOfSlices(readers interface{}) *gomock.Call {
+func (mr *MockMultiReaderIteratorMockRecorder) ResetSliceOfSlices(readers, schema interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetSliceOfSlices", reflect.TypeOf((*MockMultiReaderIterator)(nil).ResetSliceOfSlices), readers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetSliceOfSlices", reflect.TypeOf((*MockMultiReaderIterator)(nil).ResetSliceOfSlices), readers, schema)
 }
 
 // Readers mocks base method

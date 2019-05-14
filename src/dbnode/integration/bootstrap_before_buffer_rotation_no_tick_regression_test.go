@@ -109,7 +109,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		xtime.ToUnixNano(startTime): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
-				Data: []ts.Datapoint{commitlogWrite},
+				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
 			},
 		},
 	}
@@ -209,7 +209,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
-				Data: []ts.Datapoint{commitlogWrite},
+				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
 			},
 		},
 	}

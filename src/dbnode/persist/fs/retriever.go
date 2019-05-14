@@ -347,7 +347,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		// Complete request.
-		req.onRetrieved(seg)
+		req.onRetrieved(seg, req.nsCtx)
 
 		if !callOnRetrieve {
 			// No need to call the onRetrieve callback.
@@ -357,7 +357,7 @@ func (r *blockRetriever) fetchBatch(
 
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize.
-			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg)
+			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
 			r.onCallerOrRetrieverDone()
 		}(req)
 	}
@@ -378,6 +378,7 @@ func (r *blockRetriever) Stream(
 	id ident.ID,
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
+	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
@@ -412,7 +413,7 @@ func (r *blockRetriever) Stream(
 	// disk and we can return immediately.
 	if !bloomFilter.Test(id.Bytes()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
-		req.onRetrieved(ts.Segment{})
+		req.onRetrieved(ts.Segment{}, namespace.Context{})
 		return req.toBlock(), nil
 	}
 	reqs, err := r.shardRequests(shard)
@@ -539,6 +540,7 @@ type retrieveRequest struct {
 	start      time.Time
 	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
+	nsCtx      namespace.Context
 
 	indexEntry IndexEntry
 	reader     xio.SegmentReader
@@ -561,8 +563,9 @@ func (req *retrieveRequest) onError(err error) {
 	}
 }
 
-func (req *retrieveRequest) onRetrieved(segment ts.Segment) {
+func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Context) {
 	req.Reset(segment)
+	req.nsCtx = nsCtx
 }
 
 func (req *retrieveRequest) onCallerOrRetrieverDone() {

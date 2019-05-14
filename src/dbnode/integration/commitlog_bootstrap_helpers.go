@@ -78,7 +78,7 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
-func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
+func generateSeriesMaps(numBlocks int, updateConfig generate.UpdateBlockConfig, starts ...time.Time) generate.SeriesBlocksByStart {
 	blockConfig := []generate.BlockConfig{}
 	for i := 0; i < numBlocks; i++ {
 		name := []string{}
@@ -92,6 +92,9 @@ func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlock
 			NumPoints: rand.Intn(100) + 1,
 			Start:     start,
 		})
+	}
+	if updateConfig != nil {
+		updateConfig(blockConfig)
 	}
 	return generate.BlocksByStart(blockConfig)
 }
@@ -187,8 +190,8 @@ func writeCommitLogDataBase(
 				Tags:        series.tags,
 				UniqueIndex: series.uniqueIndex,
 			}
-			if pred(point.Datapoint) {
-				require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
+			if pred(point.Value) {
+				require.NoError(t, commitLog.Write(ctx, cId, point.Value.Datapoint, xtime.Second, point.Value.Annotation))
 			}
 		}
 

@@ -141,7 +141,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 				var (
 					ids        = &idGen{longTestID}
-					datapoints = generateDatapoints(fakeStart, numPoints, ids)
+					datapoints = generateDatapoints(fakeStart, numPoints, ids, nil)
 					// Used to keep track of which datapoints have been written already.
 					lastDatapointsIdx = 0
 					earliestToCheck   = datapoints[0].time.Truncate(ns1BlockSize)
@@ -181,7 +181,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 						setup.setNowFn(ts)
 
-						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
+						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann)
 						if err != nil {
 							log.Warn("error writing series datapoint", zap.Error(err))
 							return false, err

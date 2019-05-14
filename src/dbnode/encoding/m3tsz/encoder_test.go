@@ -108,7 +108,7 @@ func TestWriteValue(t *testing.T) {
 		{0x0120000000000000, 0x4028000000000000, []byte{0xc1, 0x2e, 0x1, 0x40}, 2},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime, 0)
+		encoder.Reset(testStartTime, 0, nil)
 		eit := FloatEncoderAndIterator{PrevXOR: input.previousXOR}
 		eit.writeXOR(encoder.os, input.currentXOR)
 		b, p := encoder.os.Rawbytes()
@@ -372,7 +372,7 @@ func TestEncoderResets(t *testing.T) {
 	require.True(t, enc.os.Len() > 0)
 
 	now := time.Now()
-	enc.Reset(now, 0)
+	enc.Reset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
 	_, ok = enc.Stream(encoding.StreamOptions{})
 	require.False(t, ok)
@@ -382,7 +382,7 @@ func TestEncoderResets(t *testing.T) {
 	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
-	enc.DiscardReset(now, 0)
+	enc.DiscardReset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
 	_, ok = enc.Stream(encoding.StreamOptions{})
 	require.False(t, ok)

@@ -35,6 +35,14 @@ import (
 )
 
 func TestPeersBootstrapSimple(t *testing.T) {
+	testPeersBootstrapSimple(t, nil, nil)
+}
+
+func TestProtoPeersBootstrapSimple(t *testing.T) {
+	testPeersBootstrapSimple(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -50,6 +58,10 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		namesp = opts.Namespaces()[0]
+	}
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
@@ -63,13 +75,17 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
-	})
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
 
 	// Start the first server with filesystem bootstrapper

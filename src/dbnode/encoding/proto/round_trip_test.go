@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -117,8 +118,9 @@ func TestRoundTrip(t *testing.T) {
 		},
 	}
 
-	enc := newTestEncoder(time.Now().Truncate(time.Second))
-	enc.SetSchema(testVLSchema)
+	curr := time.Now().Truncate(2 * time.Minute)
+	enc := newTestEncoder(curr)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	for i, tc := range testCases {
 		vl := newVL(
@@ -126,7 +128,7 @@ func TestRoundTrip(t *testing.T) {
 		marshaledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		currTime := time.Now().Truncate(time.Second).Add(time.Duration(i) * time.Second)
+		currTime := curr.Add(time.Duration(i) * time.Second)
 		testCases[i].timestamp = currTime
 		// Encoder should ignore value so we set it to make sure it gets ignored.
 		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, xtime.Second, marshaledVL)
@@ -145,7 +147,7 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
+	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	i := 0
 	for iter.Next() {
@@ -175,7 +177,7 @@ func TestRoundTrip(t *testing.T) {
 
 func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	enc := newTestEncoder(time.Now().Truncate(time.Second))
-	enc.SetSchema(testVLSchema)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	attrs := map[string]string{"key1": "val1"}
 	vl1Write := newVL(26.0, 27.0, 10, []byte("some_delivery_id"), attrs)
@@ -194,7 +196,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
 	require.Equal(t, errEncoderMessageHasUnknownFields, err)
 
-	enc.SetSchema(testVL2Schema)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
 	require.NoError(t, err)
 
@@ -203,7 +205,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	// Try reading the stream just using the vl1 schema.
 	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, testVLSchema, testEncodingOptions)
+	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	require.True(t, iter.Next())
 	dp, unit, annotation := iter.Current()
@@ -239,7 +241,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	// Try reading the stream just using the vl2 schema.
 	buff = bytes.NewBuffer(rawBytes)
-	iter = NewIterator(buff, testVL2Schema, testEncodingOptions)
+	iter = NewIterator(buff, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
 
 	require.True(t, iter.Next())
 	dp, unit, annotation = iter.Current()
@@ -285,7 +287,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 func newTestEncoder(t time.Time) *Encoder {
 	e := NewEncoder(t, testEncodingOptions)
-	e.Reset(t, 0)
+	e.Reset(t, 0, nil)
 
 	return e
 }
@@ -324,11 +326,11 @@ func newVL2(
 }
 
 func newVLMessageDescriptor() *desc.MessageDescriptor {
-	return newVLMessageDescriptorFromFile("./vehicle_location.proto")
+	return newVLMessageDescriptorFromFile("./testdata/vehicle_location.proto")
 }
 
 func newVL2MessageDescriptor() *desc.MessageDescriptor {
-	return newVLMessageDescriptorFromFile("./vehicle_location_schema_change.proto")
+	return newVLMessageDescriptorFromFile("./testdata/vehicle_location_schema_change.proto")
 }
 
 func newVLMessageDescriptorFromFile(protoSchemaPath string) *desc.MessageDescriptor {

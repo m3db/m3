@@ -850,3 +850,65 @@ func TestNewJaegerTracer(t *testing.T) {
 	// Verify tracer gets created
 	require.NotNil(t, tracer)
 }
+
+func TestProtoConfig(t *testing.T) {
+	testProtoConf := `
+db:
+  metrics:
+      samplingRate: 1.0
+
+  listenAddress: 0.0.0.0:9000
+  clusterListenAddress: 0.0.0.0:9001
+  httpNodeListenAddress: 0.0.0.0:9002
+  httpClusterListenAddress: 0.0.0.0:9003
+
+  bootstrap:
+      bootstrappers:
+          - noop-all
+
+  commitlog:
+      flushMaxBytes: 524288
+      flushEvery: 1s
+      queue:
+          size: 2097152
+
+  proto:
+      enabled: false
+      schema_registry:
+         "ns1:2d":
+            schemaFilePath: "file/path/to/ns1/schema"
+            messageName: "ns1_msg_name"
+         ns2:
+            schemaFilePath: "file/path/to/ns2/schema"
+            messageName: "ns2_msg_name"
+`
+	fd, err := ioutil.TempFile("", "config_proto.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testProtoConf))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.DB.Proto)
+	require.False(t, cfg.DB.Proto.Enabled)
+
+	require.Len(t, cfg.DB.Proto.SchemaRegistry, 2)
+	require.EqualValues(t, map[string]NamespaceProtoSchema{
+		"ns1:2d":
+		{
+			SchemaFilePath: "file/path/to/ns1/schema",
+			MessageName:    "ns1_msg_name",
+		},
+		"ns2": {
+			SchemaFilePath: "file/path/to/ns2/schema",
+			MessageName:    "ns2_msg_name",
+		}}, cfg.DB.Proto.SchemaRegistry)
+}

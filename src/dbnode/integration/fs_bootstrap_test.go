@@ -39,6 +39,14 @@ import (
 )
 
 func TestFilesystemBootstrap(t *testing.T) {
+	testFilesystemBootstrap(t, nil, nil)
+}
+
+func TestProtoFilesystemBootstrap(t *testing.T) {
+	testFilesystemBootstrap(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -54,6 +62,11 @@ func TestFilesystemBootstrap(t *testing.T) {
 
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+		ns2 = opts.Namespaces()[1]
+	}
 
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
@@ -86,10 +99,14 @@ func TestFilesystemBootstrap(t *testing.T) {
 
 	// Write test data
 	now := setup.getNowFn()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
-	})
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))
 

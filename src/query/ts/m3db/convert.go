@@ -181,7 +181,8 @@ func blockReplicasFromSeriesIterator(
 			}
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, pool)
-			iter.Reset(readers, start, bs)
+			// TODO [haijun] query assumes schemaless iterators.
+			iter.Reset(readers, start, bs, nil)
 			inserted := false
 			for _, bl := range blocks {
 				if bl.blockStart.Equal(start) {
