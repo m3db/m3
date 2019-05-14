@@ -22,7 +22,6 @@ package instrument
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -177,10 +176,10 @@ func (r *runtimeMetrics) report(metricsType ExtendedMetricsType) {
 
 type extendedMetricsReporter struct {
 	baseReporter
+	processReporter Reporter
 
 	metricsType ExtendedMetricsType
 	runtime     runtimeMetrics
-	process     processMetrics
 }
 
 // NewExtendedMetricsReporter creates a new extended metrics reporter
@@ -194,21 +193,20 @@ func NewExtendedMetricsReporter(
 	r.metricsType = metricsType
 	r.init(reportInterval, func() {
 		r.runtime.report(r.metricsType)
-		if r.metricsType >= ModerateExtendedMetrics {
-			r.process.report()
-		}
 	})
+	if r.metricsType >= ModerateExtendedMetrics {
+		// ProcessReporter can be quite slow in some situations (specifically
+		// counting FDs for processes that have many of them) so it runs on
+		// its own report loop.
+		r.processReporter = NewProcessReporter(scope, reportInterval)
+	}
 	if r.metricsType == NoExtendedMetrics {
 		return r
 	}
 
 	runtimeScope := scope.SubScope("runtime")
-	processScope := scope.SubScope("process")
 	r.runtime.NumGoRoutines = runtimeScope.Gauge("num-goroutines")
 	r.runtime.GoMaxProcs = runtimeScope.Gauge("gomaxprocs")
-	r.process.NumFDs = processScope.Gauge("num-fds")
-	r.process.NumFDErrors = processScope.Counter("num-fd-errors")
-	r.process.pid = os.Getpid()
 	if r.metricsType < DetailedExtendedMetrics {
 		return r
 	}

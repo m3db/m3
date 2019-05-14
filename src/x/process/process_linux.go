@@ -24,12 +24,26 @@ package process
 import (
 	"fmt"
 	"os"
+	"syscall"
+	"time"
 )
 
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
+const (
+	// syscallBatchSize controls the number of syscalls to perform before
+	// triggering a sleep.
+	syscallBatchSize = 10
+	defaultSyscallBatchDurationSleepMultiplier = 10
+)
+
+var (
+	dotBytes       = []byte(".")
+	doubleDotBytes = []byte("..")
+)
+
+// NumFDsReference returns the number of file descriptors for a given process.
+// This is a reference implementation that can be used to compare against for
+// correctness.
+func NumFDsReference(pid int) (int, error) {
 	statPath := fmt.Sprintf("/proc/%d/fd", pid)
 	d, err := os.Open(statPath)
 	if err != nil {
@@ -38,4 +52,72 @@ func NumFDs(pid int) (int, error) {
 	fnames, err := d.Readdirnames(-1)
 	d.Close()
 	return len(fnames), err
+}
+
+// NumFDs returns the number of file descriptors for a given process.
+// This is an optimized implementation that avoids allocations as much as
+// possible. In terms of wall-clock time it is not much faster than
+// NumFDsReference due to the fact that the syscall overhead dominates,
+// however, it produces significantly less garbage.
+func NumFDs(pid int) (int, error) {
+	// Multiplier of zero means no throttling.
+	return NumFDsWithBatchSleep(pid, 0)
+}
+
+// NumFDsWithBatchSleep is the same as NumFDs but it throttles itself to prevent excessive
+// CPU usages for processes with a lot of file descriptors.
+//
+// batchDurationSleepMultiplier is the multiplier by which the amount of time spent performing
+// a single batch of syscalls will be multiplied by to determine the amount of time that the
+// function will spend sleeping.
+//
+// For example, if performing syscallBatchSize syscalls takes 500 nanoseconds and
+// batchDurationSleepMultiplier is 10 then the function will sleep for ~500 * 10 nanoseconds
+// inbetween batches.
+//
+// In other words, a batchDurationSleepMultiplier will cause the function to take approximately
+// 10x longer but require 10x less CPU utilization at any given moment in time.
+func NumFDsWithBatchSleep(pid int, batchDurationSleepMultiplier float64) {
+	statPath := fmt.Sprintf("/proc/%d/fd", pid)
+	d, err := os.Open(statPath)
+	if err != nil {
+		return 0, err
+	}
+	defer d.Close()
+
+	var (
+		b         = make([]byte, 4096)
+		count     = 0
+		lastSleep = time.Now()
+	)
+	for i := 0; ; i++ {
+		if i%syscallBatchSize == 0 && i != 0 {
+			// Throttle loop to prevent execssive CPU usage.
+			syscallBatchCompletionDuration := time.Now().Sub(lastSleep)
+			timeToSleep := time.Duration(float64(syscallBatchCompletionDuration) * batchDurationSleepMultiplier)
+			if timeToSleep > 0 {
+				time.Sleep(timeToSleep)
+			}
+			lastSleep = time.Now()
+		}
+
+		n, err := syscall.ReadDirent(int(d.Fd()), b)
+		if err != nil {
+			return 0, err
+		}
+		if n <= 0 {
+			break
+		}
+
+		_, numDirs := countDirent(b[:n])
+		count += numDirs
+	}
+
+	return count, nil
+}
+
+// NumFDsWithDefaultBatchSleep is the same as NumFDsWithBatchSleep except it uses the default value
+// for the batchSleepDurationMultiplier.
+func NumFDsWithDefaultBatchSleep(pid int) (int, error) {
+	return NumFDsWithBatchSleep(pid, defaultSyscallBatchDurationSleepMultiplier)
 }
