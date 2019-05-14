@@ -128,6 +128,15 @@ db:
       throttle: 2m
       checkInterval: 1m
 
+  proto:
+      enabled: false
+      schema_registry:
+         ns1:
+            schemaFilePath: "file/path/to/ns1/schema"
+            messageName: "ns1_msg_name"
+         ns2:
+            schemaFilePath: "file/path/to/ns2/schema"
+            messageName: "ns2_msg_name"
   pooling:
       blockAllocSize: 16
       type: simple
@@ -849,4 +858,36 @@ func TestNewJaegerTracer(t *testing.T) {
 
 	// Verify tracer gets created
 	require.NotNil(t, tracer)
+}
+
+func TestProtoConfig(t *testing.T) {
+	fd, err := ioutil.TempFile("", "config_proto.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testBaseConfig))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.DB.Proto)
+	require.False(t, cfg.DB.Proto.Enabled)
+
+	require.Len(t, cfg.DB.Proto.SchemaRegistry, 2)
+	require.EqualValues(t, map[string]NamespaceProtoSchema{
+		"ns1":
+		{
+			SchemaFilePath: "file/path/to/ns1/schema",
+			MessageName:    "ns1_msg_name",
+		},
+		"ns2": {
+			SchemaFilePath: "file/path/to/ns2/schema",
+			MessageName:    "ns2_msg_name",
+		}}, cfg.DB.Proto.SchemaRegistry)
 }

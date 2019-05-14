@@ -292,9 +292,9 @@ func Run(runOpts RunOptions) {
 
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
-			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
+		SetLimitEnabled(true).
+		SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
+		SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
@@ -325,9 +325,9 @@ func Run(runOpts RunOptions) {
 	indexOpts = indexOpts.SetInsertMode(insertMode).
 		SetPostingsListCache(postingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-		})
+		CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+		CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+	})
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -376,7 +376,7 @@ func Run(runOpts RunOptions) {
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
-			SetMetricsScope(scope.SubScope("database.fs"))).
+		SetMetricsScope(scope.SubScope("database.fs"))).
 		SetFilePathPrefix(cfg.Filesystem.FilePathPrefixOrDefault()).
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
@@ -559,10 +559,11 @@ func Run(runOpts RunOptions) {
 	// To unblock #1578, we will load user schema from db node configuration into schema registry
 	// at dbnode startup/initialization time, there will be no dynamic schema update.
 	if protoEnabled {
-		err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(cfg.Proto.NamespaceID),
-			cfg.Proto.SchemaFilePath, cfg.Proto.MessageName)
-		if err != nil {
-			logger.Fatal("could not load schema from configuration", zap.Error(err))
+		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
+			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
+				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
+				logger.Fatal("could not load schema from configuration", zap.Error(err))
+			}
 		}
 	}
 
@@ -608,7 +609,7 @@ func Run(runOpts RunOptions) {
 		clientAdminOpts, runtimeOptsMgr)
 
 	opts = opts.
-		// Feature currently not working.
+	// Feature currently not working.
 		SetRepairEnabled(false)
 
 	// Set bootstrap options - We need to create a topology map provider from the
@@ -1158,14 +1159,14 @@ func withEncodingAndPoolingOptions(
 	writeBatchPoolOpts := pool.NewObjectPoolOptions()
 	writeBatchPoolOpts = writeBatchPoolOpts.
 		SetSize(writeBatchPoolSize).
-		// Set watermarks to zero because this pool is sized to be as large as we
-		// ever need it to be, so background allocations are usually wasteful.
+	// Set watermarks to zero because this pool is sized to be as large as we
+	// ever need it to be, so background allocations are usually wasteful.
 		SetRefillLowWatermark(0.0).
 		SetRefillHighWatermark(0.0).
 		SetInstrumentOptions(
-			writeBatchPoolOpts.
-				InstrumentOptions().
-				SetMetricsScope(scope.SubScope("write-batch-pool")))
+		writeBatchPoolOpts.
+			InstrumentOptions().
+			SetMetricsScope(scope.SubScope("write-batch-pool")))
 
 	writeBatchPool := ts.NewWriteBatchPool(
 		writeBatchPoolOpts,
@@ -1320,16 +1321,16 @@ func withEncodingAndPoolingOptions(
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
-			opts.IndexOptions().MemSegmentOptions().
-				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+		opts.IndexOptions().MemSegmentOptions().
+			SetPostingsListPool(postingsList).
+			SetInstrumentOptions(iopts)).
 		SetFSTSegmentOptions(
-			opts.IndexOptions().FSTSegmentOptions().
-				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+		opts.IndexOptions().FSTSegmentOptions().
+			SetPostingsListPool(postingsList).
+			SetInstrumentOptions(iopts)).
 		SetSegmentBuilderOptions(
-			opts.IndexOptions().SegmentBuilderOptions().
-				SetPostingsListPool(postingsList)).
+		opts.IndexOptions().SegmentBuilderOptions().
+			SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
