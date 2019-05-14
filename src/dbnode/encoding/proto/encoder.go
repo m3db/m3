@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/cespare/xxhash"
@@ -126,7 +127,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	if enc.schema == nil {
 		// It is a programmatic error that schema is not set at all prior to encoding, panic to fix it asap.
-		panic(errEncoderSchemaIsRequired.Error())
+		return instrument.InvariantErrorf(errEncoderSchemaIsRequired.Error())
 	}
 
 	// Proto encoder value is meaningless, but make sure its always zero just to be safe so that

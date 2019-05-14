@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -85,8 +86,8 @@ func NewIterator(
 	stream := encoding.NewIStream(reader)
 
 	i := &iterator{
-		opts:         opts,
-		stream:       stream,
+		opts:       opts,
+		stream:     stream,
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),
 	}
 	i.resetSchema(descr)
@@ -96,7 +97,8 @@ func NewIterator(
 func (it *iterator) Next() bool {
 	if it.schema == nil {
 		// It is a programmatic error that schema is not set at all prior to iterating, panic to fix it asap.
-		panic(errIteratorSchemaIsRequired.Error())
+		it.err = instrument.InvariantErrorf(errIteratorSchemaIsRequired.Error())
+		return false
 	}
 
 	if !it.hasNext() {
