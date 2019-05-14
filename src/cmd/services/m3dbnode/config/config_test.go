@@ -131,7 +131,7 @@ db:
   proto:
       enabled: false
       schema_registry:
-         ns1:
+         "ns1:2d":
             schemaFilePath: "file/path/to/ns1/schema"
             messageName: "ns1_msg_name"
          ns2:
@@ -881,7 +881,7 @@ func TestProtoConfig(t *testing.T) {
 
 	require.Len(t, cfg.DB.Proto.SchemaRegistry, 2)
 	require.EqualValues(t, map[string]NamespaceProtoSchema{
-		"ns1":
+		"ns1:2d":
 		{
 			SchemaFilePath: "file/path/to/ns1/schema",
 			MessageName:    "ns1_msg_name",
