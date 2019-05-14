@@ -60,8 +60,12 @@ func (sr *schemaRegistry) SetSchemaHistory(id ident.ID, history SchemaHistory) e
 		return nil
 	}
 
-	if _, ok := history.GetLatest(); !ok {
+	if newSchema, ok := history.GetLatest(); !ok {
 		return fmt.Errorf("can not set empty schema history for %v", id.String())
+	} else if sr.logger != nil {
+		sr.logger.Info("proto is enabled, setting schema",
+			zap.Stringer("namespace", id),
+			zap.String("version", newSchema.DeployId()))
 	}
 
 	sr.Lock()
