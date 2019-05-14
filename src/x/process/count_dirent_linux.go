@@ -19,7 +19,8 @@
 // THE SOFTWARE.
 
 // This package is mostly copy-pasted from the standard library, specifically
-// this file: https://golang.org/src/os/dir_unix.go
+// this file: https://golang.org/src/os/dir_unix.go with some changes to prevent
+// allocations.
 
 package process
 
