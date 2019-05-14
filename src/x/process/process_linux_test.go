@@ -82,7 +82,7 @@ func BenchmarkNumFDs(b *testing.B) {
 	defer cleanupFn()
 
 	selfPID := os.Getpid()
-	b.Run("NumFDs", func(b *testing.B) {
+	b.Run("NumFDsReference", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			numFDs, err := NumFDsReference(selfPID)
 			if err != nil {
@@ -94,9 +94,21 @@ func BenchmarkNumFDs(b *testing.B) {
 		}
 	})
 
-	b.Run("NumFDsFast", func(b *testing.B) {
+	b.Run("NumFDs", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			numFDs, err := NumFDs(selfPID)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if numFDs != numExpectedFds {
+				b.Fatalf("expected %d files but got %d", numExpectedFds, numFDs)
+			}
+		}
+	})
+
+	b.Run("NumFDsWithDefaultBatchSleep", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			numFDs, err := NumFDsWithDefaultBatchSleep(selfPID)
 			if err != nil {
 				b.Fatal(err)
 			}
