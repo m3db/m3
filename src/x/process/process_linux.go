@@ -31,7 +31,7 @@ import (
 const (
 	// syscallBatchSize controls the number of syscalls to perform before
 	// triggering a sleep.
-	syscallBatchSize = 10
+	syscallBatchSize                           = 10
 	defaultSyscallBatchDurationSleepMultiplier = 10
 )
 
@@ -77,7 +77,7 @@ func NumFDs(pid int) (int, error) {
 //
 // In other words, a batchDurationSleepMultiplier will cause the function to take approximately
 // 10x longer but require 10x less CPU utilization at any given moment in time.
-func NumFDsWithBatchSleep(pid int, batchDurationSleepMultiplier float64) {
+func NumFDsWithBatchSleep(pid int, batchDurationSleepMultiplier float64) (int, error) {
 	statPath := fmt.Sprintf("/proc/%d/fd", pid)
 	d, err := os.Open(statPath)
 	if err != nil {
