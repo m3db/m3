@@ -23,10 +23,8 @@ package instrument
 import (
 	"errors"
 	"io"
-	"os"
 	"time"
 
-	promFork "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/multi"
@@ -86,13 +84,6 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, err
-		}
-
-		// Turn off the default Prometheus process collector because it can be very
-		// slow if a lot of file descriptors are open.
-		toUnregister := promFork.NewProcessCollector(os.Getpid(), "")
-		if unregistered := promFork.Unregister(toUnregister); !unregistered {
-			return nil, nil, errors.New("unable to unregister prometheus process collector")
 		}
 
 		reporters = append(reporters, r)
