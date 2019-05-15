@@ -38,8 +38,7 @@ type processReporter struct {
 type processMetrics struct {
 	NumFDs      tally.Gauge
 	NumFDErrors tally.Counter
-
-	pid int
+	pid         int
 }
 
 func (r *processMetrics) report() {
