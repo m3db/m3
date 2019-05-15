@@ -23,28 +23,27 @@
 
 package proto
 
-func (cb *buffer) encodeTagAndWireType(tag int32, wireType int8) error {
+func (cb *buffer) encodeTagAndWireType(tag int32, wireType int8) {
 	v := uint64((int64(tag) << 3) | int64(wireType))
-	return cb.encodeVarint(v)
+	cb.encodeVarint(v)
 }
 
 // EncodeVarint writes a varint-encoded integer to the Buffer.
 // This is the format for the
 // int32, int64, uint32, uint64, bool, and enum
 // protocol buffer types.
-func (cb *buffer) encodeVarint(x uint64) error {
+func (cb *buffer) encodeVarint(x uint64) {
 	for x >= 1<<7 {
 		cb.buf = append(cb.buf, uint8(x&0x7f|0x80))
 		x >>= 7
 	}
 	cb.buf = append(cb.buf, uint8(x))
-	return nil
 }
 
 // EncodeFixed64 writes a 64-bit integer to the Buffer.
 // This is the format for the
 // fixed64, sfixed64, and double protocol buffer types.
-func (cb *buffer) encodeFixed64(x uint64) error {
+func (cb *buffer) encodeFixed64(x uint64) {
 	cb.buf = append(cb.buf,
 		uint8(x),
 		uint8(x>>8),
@@ -54,19 +53,17 @@ func (cb *buffer) encodeFixed64(x uint64) error {
 		uint8(x>>40),
 		uint8(x>>48),
 		uint8(x>>56))
-	return nil
 }
 
 // EncodeFixed32 writes a 32-bit integer to the Buffer.
 // This is the format for the
 // fixed32, sfixed32, and float protocol buffer types.
-func (cb *buffer) encodeFixed32(x uint64) error {
+func (cb *buffer) encodeFixed32(x uint32) {
 	cb.buf = append(cb.buf,
 		uint8(x),
 		uint8(x>>8),
 		uint8(x>>16),
 		uint8(x>>24))
-	return nil
 }
 
 func encodeZigZag64(v int64) uint64 {
@@ -80,8 +77,11 @@ func encodeZigZag32(v int32) uint64 {
 // EncodeRawBytes writes a count-delimited byte buffer to the Buffer.
 // This is the format used for the bytes protocol buffer
 // type and for embedded messages.
-func (cb *buffer) encodeRawBytes(b []byte) error {
+func (cb *buffer) encodeRawBytes(b []byte) {
 	cb.encodeVarint(uint64(len(b)))
 	cb.buf = append(cb.buf, b...)
-	return nil
+}
+
+func (cb *buffer) append(b []byte) {
+	cb.buf = append(cb.buf, b...)
 }
