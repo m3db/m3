@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/checked"
 	xtime "github.com/m3db/m3/src/x/time"
-	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type writer struct {
