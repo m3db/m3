@@ -188,9 +188,13 @@ func (e *extendedMetricsReporter) Start() error {
 	if err := e.baseReporter.Start(); err != nil {
 		return err
 	}
-	if err := e.processReporter.Start(); err != nil {
-		return err
+
+	if e.processReporter != nil {
+		if err := e.processReporter.Start(); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -200,8 +204,11 @@ func (e *extendedMetricsReporter) Stop() error {
 	if err := e.baseReporter.Stop(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
-	if err := e.processReporter.Stop(); err != nil {
-		multiErr = multiErr.Add(err)
+
+	if e.processReporter != nil {
+		if err := e.processReporter.Stop(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	return multiErr.FinalError()
