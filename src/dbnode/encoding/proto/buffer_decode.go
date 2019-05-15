@@ -207,6 +207,11 @@ func (cb *buffer) decodeTagAndWireType() (tag int32, wireType int8, err error) {
 	return
 }
 
+func (cb *codedBuffer) encodeTagAndWireType(tag int32, wireType int8) error {
+	v := uint64((int64(tag) << 3) | int64(wireType))
+	return cb.encodeVarint(v)
+}
+
 // DecodeFixed64 reads a 64-bit integer from the Buffer.
 // This is the format for the
 // fixed64, sfixed64, and double protocol buffer types.
