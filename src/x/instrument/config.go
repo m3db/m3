@@ -94,7 +94,6 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-
 		reporters = append(reporters, r)
 	}
 	if len(reporters) == 0 {
