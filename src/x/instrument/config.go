@@ -25,6 +25,7 @@ import (
 	"io"
 	"time"
 
+	promfork "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/multi"
@@ -80,7 +81,15 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 		reporters = append(reporters, r)
 	}
 	if mc.PrometheusReporter != nil {
-		var opts prometheus.ConfigurationOptions
+		opts := prometheus.ConfigurationOptions{
+			// Override the default registry with an empty one that does not have the default
+			// registered collectors (Go and Process) because the M3 reporters will emit those
+			// metrics anyways and some of the metrics can be expensive to collect. For example,
+			// collecting the number of F.Ds for a process that has many of them can take a long
+			// time and be very CPU intensive, especially the Prometheus implementation which is
+			// less optimized than the M3 implementation.
+			Registry: promfork.NewRegistry(),
+		}
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, err
