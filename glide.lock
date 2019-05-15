@@ -1,5 +1,5 @@
-hash: 933723e6eabebd9954e5823b2912f7ef87c7f46a53cc6ffad9ee2624ee5eb85c
-updated: 2019-04-18T12:06:00.343433-04:00
+hash: 00001b34be1109b31e1996a3f7f8ee5ba39b3521018f3bc74ea128bbfad42cbe
+updated: 2019-05-15T17:10:26.266783-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -124,14 +124,14 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-kit/kit
-  version: 22a2d43a4ffeb2460fdf0d332b4d4f0638253fb2
+  version: fbab14bd4c487151b206c2a41ecfbb015e32c1e0
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 07c9b44f60d7ffdfb7d8efe1ad539965737836dc
 - name: github.com/go-playground/locales
-  version: f63010822830b6fe52288ee52d5a1151088ce039
+  version: 630ebbb602847eba93e75ae38bbc7bb7abcf1ff3
   subpackages:
   - currency
 - name: github.com/go-playground/universal-translator
@@ -150,7 +150,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: 51421b967af1f557f93a59e0057aaf15ca02e29c
+  version: 9fa652df1129bef0e734c9cf9bf6dbae9ef3b9fa
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -172,11 +172,12 @@ imports:
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/google/go-cmp
-  version: 3af367b6b30c263d47e8895973edcca9a49cf029
+  version: 6f77996f0c42f7b84e5a2b252227263f93432e9b
   subpackages:
   - cmp
   - cmp/cmpopts
   - cmp/internal/diff
+  - cmp/internal/flags
   - cmp/internal/function
   - cmp/internal/value
 - name: github.com/google/uuid
@@ -192,7 +193,7 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/hashicorp/hcl
-  version: 65a6292f0157eff210d03ed1bf6c59b190b8b906
+  version: 99e2f22d1c94b272184d97dd9d252866409100ab
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -260,7 +261,7 @@ imports:
   subpackages:
   - regexp
 - name: github.com/magiconair/properties
-  version: 7757cc9fdb852f7579b24170bcacda2c7471bb6a
+  version: de8848e004dd33dc07a2947b3d76f618a7fc7ef1
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -276,7 +277,7 @@ imports:
 - name: github.com/nightlyone/lockfile
   version: 0ad87eef1443f64d3d8c50da647e2b1552851124
 - name: github.com/oklog/ulid
-  version: bacfb41fdd06edf5294635d18ec387dee671a964
+  version: be3bccf06dda9a40aa6800c4736ac77f2fef987f
 - name: github.com/opentracing-contrib/go-stdlib
   version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
   subpackages:
@@ -292,9 +293,9 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 65b27e6823c427415d156c92d7034dd57a154cf8
+  version: 728039f679cbcd4f6a54e080d2219a4c4928c546
 - name: github.com/pilosa/pilosa
-  version: 4cc1505b2f68ca3ea229028ddeb815bdc2161e28
+  version: 29e6bd29d7db38d17be01cea3a452e554089b108
   subpackages:
   - logger
   - stats
@@ -389,9 +390,9 @@ imports:
   - require
   - suite
 - name: github.com/uber-go/atomic
-  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
+  version: df976f2515e274675050de7b3f42545de80594fd
 - name: github.com/uber-go/tally
-  version: e9a67ec1839e1f6e5133dbcca2f57bec12fdeda2
+  version: f331b65108ed41d0a83a6ce650c1ea9c0fe2878f
   subpackages:
   - m3
   - m3/customtransports
@@ -444,7 +445,7 @@ imports:
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
-  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
+  version: df976f2515e274675050de7b3f42545de80594fd
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
@@ -478,7 +479,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 56d357773e8497dfd526f0727e187720d1093757
+  version: 112230192c580c3556b8cee6403af37a4fc5f28c
   subpackages:
   - errgroup
 - name: golang.org/x/sys
