@@ -39,7 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -61,6 +61,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 )
 
 var (
@@ -73,7 +74,7 @@ var (
 	defaultTestNs1Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	defaultTestDatabaseOptions Options
-	testSchemaOptions          = namespace.GenTestSchemaOptions("mainpkg/main.proto", "namespace/schematest")
+	testSchemaHistory          = prototest.NewSchemaHistory()
 )
 
 func init() {
@@ -672,11 +673,8 @@ func TestDatabaseCreateSchemaNotSet(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Start the database with two namespaces, one miss configured (missing schema).
-	sh, err := namespace.LoadSchemaHistory(testSchemaOptions)
-	require.NoError(t, err)
-
 	nsID1 := ident.StringID("testns1")
-	md1, err := namespace.NewMetadata(nsID1, defaultTestNs1Opts.SetSchemaHistory(sh))
+	md1, err := namespace.NewMetadata(nsID1, defaultTestNs1Opts.SetSchemaHistory(testSchemaHistory))
 	require.NoError(t, err)
 	nsID2 := ident.StringID("testns2")
 	md2, err := namespace.NewMetadata(nsID2, defaultTestNs1Opts)
@@ -742,9 +740,7 @@ func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
 	require.Len(t, nses, 0)
 
 	// Update nsID3 schema
-	sr, err := namespace.LoadSchemaHistory(testSchemaOptions)
-	require.NoError(t, err)
-	md3, err = namespace.NewMetadata(nsID3, defaultTestNs1Opts.SetSchemaHistory(sr))
+	md3, err = namespace.NewMetadata(nsID3, defaultTestNs1Opts.SetSchemaHistory(testSchemaHistory))
 	require.NoError(t, err)
 	nsMap, err = namespace.NewMap([]namespace.Metadata{md3})
 	require.NoError(t, err)

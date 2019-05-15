@@ -35,7 +35,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type bootstrapState int

@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	ns "github.com/m3db/m3/src/dbnode/storage/namespace"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 
 	"go.uber.org/zap"
