@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	xerrors "github.com/m3db/m3/src/x/errors"
+
 	"github.com/uber-go/tally"
 )
 
@@ -180,6 +182,29 @@ type extendedMetricsReporter struct {
 
 	metricsType ExtendedMetricsType
 	runtime     runtimeMetrics
+}
+
+func (e *extendedMetricsReporter) Start() error {
+	if err := e.baseReporter.Start(); err != nil {
+		return err
+	}
+	if err := e.processReporter.Start(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *extendedMetricsReporter) Stop() error {
+	multiErr := xerrors.NewMultiError()
+
+	if err := e.baseReporter.Stop(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := e.processReporter.Stop(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
 }
 
 // NewExtendedMetricsReporter creates a new extended metrics reporter
