@@ -356,8 +356,8 @@ func statusIsRetrievable(status fileOpStatus) bool {
 		status))
 }
 
-// RetrievableBlockVersion implements series.QueryableBlockRetriever
-func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
+// RetrievableBlockColdVersion implements series.QueryableBlockRetriever
+func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
 	return flushState.ColdVersion
 }
@@ -1921,24 +1921,11 @@ func (s *dbShard) ColdFlush(
 	}
 	s.RUnlock()
 
+	resources.reset()
 	dirtySeriesToWrite := resources.dirtySeriesToWrite
 	dirtySeries := resources.dirtySeries
 	idElementPool := resources.idElementPool
 	fsReader := resources.fsReader
-	// Reset resources.
-	for _, series := range dirtySeriesToWrite {
-		if series != nil {
-			series.Reset()
-		}
-		// Don't delete the empty list from the map so that other shards don't
-		// need to reinitialize the list for these blocks.
-	}
-	dirtySeries.Reset()
-	if fsReader.Status().Open {
-		if err := fsReader.Close(); err != nil {
-			return err
-		}
-	}
 
 	var multiErr xerrors.MultiError
 	// First, loop through all series to capture data on which blocks have dirty
@@ -1986,9 +1973,7 @@ BlockLoop:
 		}
 		defer fsReader.Close()
 
-		s.flushState.RLock()
-		nextVersion := s.flushState.statesByTime[blockStart].ColdVersion + 1
-		s.flushState.RUnlock()
+		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
 
 		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: s.namespace,
@@ -2003,13 +1988,13 @@ BlockLoop:
 			continue BlockLoop
 		}
 
-		// Persistence is done in two stages. The first stage is to loop through
-		// series on disk and merge it with what's in memory. The second stage
-		// is to persist the rest of the series in memory that was not
-		// persisted in the first stage.
+		// Writing data for a block is done in two stages. The first stage is
+		// to loop through series on disk and merge it with what's in memory.
+		// The second stage is to persist the rest of the series in memory that
+		// was not persisted in the first stage.
 
 		// First stage: loop through series on disk.
-		for id, tagsIter, data, _, err := fsReader.Read(); err != io.EOF; id, _, data, _, err = fsReader.Read() {
+		for id, tagsIter, data, _, err := fsReader.Read(); err != io.EOF; id, tagsIter, data, _, err = fsReader.Read() {
 			if err != nil {
 				s.incrementFlushStateFailures(startTime)
 				multiErr = multiErr.Add(err)
@@ -2062,12 +2047,13 @@ BlockLoop:
 			defer mergedIter.Close()
 
 			tags, err := convert.TagsFromTagsIter(id, tagsIter, s.opts.IdentifierPool())
+			tagsIter.Close()
 			if err != nil {
 				s.incrementFlushStateFailures(startTime)
 				multiErr = multiErr.Add(err)
 				continue BlockLoop
 			}
-			if err := persistIter(prepared.Persist, id, tags, mergedIter, encoderPool); err != nil {
+			if err := persistIter(prepared.Persist, mergedIter, id, tags, encoderPool); err != nil {
 				s.incrementFlushStateFailures(startTime)
 				multiErr = multiErr.Add(err)
 				continue BlockLoop
@@ -2099,7 +2085,7 @@ BlockLoop:
 				iter := multiIterPool.Get()
 				iter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize, nsCtx.Schema)
 				defer iter.Close()
-				if err := persistIter(prepared.Persist, series.ID(), series.Tags(), iter, encoderPool); err != nil {
+				if err := persistIter(prepared.Persist, iter, series.ID(), series.Tags(), encoderPool); err != nil {
 					s.incrementFlushStateFailures(startTime)
 					multiErr = multiErr.Add(err)
 					continue BlockLoop
@@ -2107,7 +2093,8 @@ BlockLoop:
 			}
 		}
 
-		// Close the flush preparer, which writes the rest of the filesets.
+		// Close the flush preparer, which writes the rest of the files in the
+		// fileset.
 		if err := prepared.Close(); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -2122,9 +2109,9 @@ BlockLoop:
 
 func persistIter(
 	persistFn persist.DataFn,
+	it encoding.Iterator,
 	id ident.ID,
 	tags ident.Tags,
-	it encoding.Iterator,
 	encoderPool encoding.EncoderPool,
 ) error {
 	encoder := encoderPool.Get()
@@ -2152,6 +2139,8 @@ func persistIter(
 	checksum := digest.SegmentChecksum(segment)
 
 	err = persistFn(id, tags, segment, checksum)
+	id.Finalize()
+	tags.Finalize()
 	if err != nil {
 		return err
 	}

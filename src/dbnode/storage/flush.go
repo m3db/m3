@@ -117,9 +117,9 @@ func (m *flushManager) Flush(
 	// over cold flushes and snapshotting.
 	//
 	// In addition, we need to make sure that for any given shard/blockStart
-	// combination, we attempt a flush before a snapshot as the snapshotting
-	// process will attempt to snapshot any unflushed blocks which would be
-	// wasteful if the block is already flushable.
+	// combination, we attempt a flush and then a cold flush before a snapshot
+	// as the snapshotting process will attempt to snapshot any unflushed blocks
+	// which would be wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
 	if err = m.dataWarmFlush(namespaces, tickStart, dbBootstrapStateAtTickStart); err != nil {
 		multiErr = multiErr.Add(err)

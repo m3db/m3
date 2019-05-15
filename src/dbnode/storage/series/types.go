@@ -158,8 +158,9 @@ type QueryableBlockRetriever interface {
 	// for a given block start time.
 	IsBlockRetrievable(blockStart time.Time) bool
 
-	// RetrievableBlockVersion returns the last time a block was marked success
-	RetrievableBlockVersion(blockStart time.Time) int
+	// RetrievableBlockColdVersion returns the cold version that was
+	// successfully persisted.
+	RetrievableBlockColdVersion(blockStart time.Time) int
 
 	// BlockStatesSnapshot returns a snapshot of the whether blocks are
 	// retrievable and their flush versions for each block start. This is used

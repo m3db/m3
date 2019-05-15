@@ -360,18 +360,18 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBlockRetrievable", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).IsBlockRetrievable), arg0)
 }
 
-// RetrievableBlockVersion mocks base method
-func (m *MockQueryableBlockRetriever) RetrievableBlockVersion(arg0 time.Time) int {
+// RetrievableBlockColdVersion mocks base method
+func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetrievableBlockVersion", arg0)
+	ret := m.ctrl.Call(m, "RetrievableBlockColdVersion", arg0)
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// RetrievableBlockVersion indicates an expected call of RetrievableBlockVersion
-func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockVersion(arg0 interface{}) *gomock.Call {
+// RetrievableBlockColdVersion indicates an expected call of RetrievableBlockColdVersion
+func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockColdVersion(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrievableBlockVersion", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).RetrievableBlockVersion), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrievableBlockColdVersion", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).RetrievableBlockColdVersion), arg0)
 }
 
 // Stream mocks base method
