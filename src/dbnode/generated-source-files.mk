@@ -77,8 +77,8 @@ genny-map-storage-database-namespaces:
 		rename_constructor=newDatabaseNamespacesMap             \
 		rename_constructor_options=databaseNamespacesMapOptions
 	# Rename both generated map and constructor files
-	mv -f $(m3db_package_path)/src/dbnode/storage/map_gen.go $(m3db_package_path)/src/dbnode/storage/namespace_map_gen.go
-	mv -f $(m3db_package_path)/src/dbnode/storage/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/namespace_new_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/storage/map_gen.go $(m3db_package_path)/src/dbnode/namespace_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/storage/new_map_gen.go $(m3db_package_path)/src/dbnode/namespace_new_map_gen.go
 
 # Map generation rule for storage/shardMap
 .PHONY: genny-map-storage-shard
@@ -100,13 +100,13 @@ genny-map-storage-namespace-metadata:
 	cd $(m3x_package_path) && make idhashmap-gen                  \
 		pkg=namespace                                               \
 		value_type=Metadata                                         \
-		target_package=$(m3db_package)/src/dbnode/storage/namespace \
+		target_package=$(m3db_package)/src/dbnode/namespace \
 		rename_type_prefix=metadata                                 \
 		rename_constructor=newMetadataMap                           \
 		rename_constructor_options=metadataMapOptions
 	# Rename both generated map and constructor files
-	mv -f $(m3db_package_path)/src/dbnode/storage/namespace/map_gen.go $(m3db_package_path)/src/dbnode/storage/namespace/metadata_map_gen.go
-	mv -f $(m3db_package_path)/src/dbnode/storage/namespace/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/namespace/metadata_new_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/namespace/map_gen.go $(m3db_package_path)/src/dbnode/namespace/metadata_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/namespace/new_map_gen.go $(m3db_package_path)/src/dbnode/namespace/metadata_new_map_gen.go
 
 # Map generation rule for storage/repair/Map
 .PHONY: genny-map-storage-repair
