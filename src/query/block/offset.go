@@ -26,27 +26,38 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-func updateMeta(meta Metadata, offset time.Duration) Metadata {
-	meta.Bounds.Start = meta.Bounds.Start.Add(offset)
-	return meta
-}
+// func updateMeta(meta Metadata, offset time.Duration) Metadata {
+// 	meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+// 	return meta
+// }
 
 type offsetBlock struct {
-	block  Block
-	offset time.Duration
+	block Block
+	// offset time.Duration
+	opts OffsetOpts
+}
+
+type TimeTransform func(time.Time) time.Time
+type MetaTranform func(meta Metadata) Metadata
+type ValueTransform func(float64) float64
+
+type OffsetOpts struct {
+	TimeTransform  TimeTransform
+	MetaTransform  MetaTranform
+	ValueTransform ValueTransform
 }
 
 // NewOffsetBlock creates an offset block wrapping another block with an offset.
-func NewOffsetBlock(block Block, offset time.Duration) Block {
+func NewOffsetBlock(block Block, opts OffsetOpts) Block {
 	// NB: this is an invalid case; however, if offset is invalid, it's safe to
 	// return the base block instead.
-	if offset <= 0 {
-		return block
-	}
+	// if offset <= 0 { // add this check earlier when creating OffsetOpts
+	// 	return block
+	// }
 
 	return &offsetBlock{
-		block:  block,
-		offset: offset,
+		block: block,
+		opts:  opts,
 	}
 }
 
@@ -73,14 +84,15 @@ func (b *offsetBlock) StepIter() (StepIter, error) {
 	}
 
 	return &offsetStepIter{
-		it:     iter,
-		offset: b.offset,
+		it:   iter,
+		opts: b.opts,
 	}, nil
 }
 
 type offsetStepIter struct {
-	it     StepIter
-	offset time.Duration
+	it StepIter
+	// offset time.Duration
+	opts OffsetOpts
 }
 
 func (it *offsetStepIter) Close()                   { it.it.Close() }
@@ -90,13 +102,16 @@ func (it *offsetStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() 
 func (it *offsetStepIter) Next() bool               { return it.it.Next() }
 
 func (it *offsetStepIter) Meta() Metadata {
-	return updateMeta(it.it.Meta(), it.offset)
+	return it.opts.MetaTransform(it.it.Meta())
+	// return updateMeta(it.it.Meta(), it.offset)
 }
 
 func (it *offsetStepIter) Current() Step {
 	c := it.it.Current()
 	return ColStep{
-		time:   c.Time().Add(it.offset),
+		// time:   c.Time().Add(it.offset),
+		time: it.opts.TimeTransform(c.Time()),
+		// values: c.Values(),
 		values: c.Values(),
 	}
 }
@@ -109,14 +124,15 @@ func (b *offsetBlock) SeriesIter() (SeriesIter, error) {
 	}
 
 	return &offsetSeriesIter{
-		it:     iter,
-		offset: b.offset,
+		it:   iter,
+		opts: b.opts,
 	}, nil
 }
 
 type offsetSeriesIter struct {
-	it     SeriesIter
-	offset time.Duration
+	it SeriesIter
+	// offset time.Duration
+	opts OffsetOpts
 }
 
 func (it *offsetSeriesIter) Close()                   { it.it.Close() }
@@ -126,7 +142,8 @@ func (it *offsetSeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta(
 func (it *offsetSeriesIter) Next() bool               { return it.it.Next() }
 func (it *offsetSeriesIter) Current() Series          { return it.it.Current() }
 func (it *offsetSeriesIter) Meta() Metadata {
-	return updateMeta(it.it.Meta(), it.offset)
+	return it.opts.MetaTransform(it.it.Meta())
+	// return updateMeta(it.it.Meta(), it.offset)
 }
 
 // Unconsolidated returns the unconsolidated version for the block
@@ -137,14 +154,15 @@ func (b *offsetBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	}
 
 	return &ucOffsetBlock{
-		block:  unconsolidated,
-		offset: b.offset,
+		block: unconsolidated,
+		opts:  b.opts,
 	}, nil
 }
 
 type ucOffsetBlock struct {
-	block  UnconsolidatedBlock
-	offset time.Duration
+	block UnconsolidatedBlock
+	// offset time.Duration
+	opts OffsetOpts
 }
 
 func (b *ucOffsetBlock) Close() error { return b.block.Close() }
@@ -169,8 +187,8 @@ func (b *ucOffsetBlock) Consolidate() (Block, error) {
 	}
 
 	return &offsetBlock{
-		block:  block,
-		offset: b.offset,
+		block: block,
+		opts:  b.opts,
 	}, nil
 }
 
@@ -181,14 +199,15 @@ func (b *ucOffsetBlock) StepIter() (UnconsolidatedStepIter, error) {
 	}
 
 	return &ucOffsetStepIter{
-		it:     iter,
-		offset: b.offset,
+		it:   iter,
+		opts: b.opts,
 	}, nil
 }
 
 type ucOffsetStepIter struct {
-	it     UnconsolidatedStepIter
-	offset time.Duration
+	it UnconsolidatedStepIter
+	// offset time.Duration
+	opts OffsetOpts
 }
 
 func (it *ucOffsetStepIter) Close()                   { it.it.Close() }
@@ -198,7 +217,8 @@ func (it *ucOffsetStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta(
 func (it *ucOffsetStepIter) Next() bool               { return it.it.Next() }
 
 func (it *ucOffsetStepIter) Meta() Metadata {
-	return updateMeta(it.it.Meta(), it.offset)
+	return it.opts.MetaTransform(it.it.Meta())
+	// return updateMeta(it.it.Meta(), it.offset)
 }
 
 type unconsolidatedStep struct {
@@ -220,12 +240,16 @@ func (it *ucOffsetStepIter) Current() UnconsolidatedStep {
 	c := it.it.Current()
 	for _, val := range c.Values() {
 		for i, dp := range val.Datapoints() {
-			val[i].Timestamp = dp.Timestamp.Add(it.offset)
+			val[i].Timestamp = it.opts.TimeTransform(dp.Timestamp)
+			val[i].Value = it.opts.ValueTransform(dp.Value)
+			// val[i].Timestamp = dp.Timestamp.Add(it.offset)
 		}
 	}
 
 	return unconsolidatedStep{
-		time:   c.Time().Add(it.offset),
+		// time:   c.Time().Add(it.offset),
+		time: it.opts.TimeTransform(c.Time()),
+		// values: c.Values(),
 		values: c.Values(),
 	}
 }
@@ -237,14 +261,15 @@ func (b *ucOffsetBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 	}
 
 	return &ucOffsetSeriesIter{
-		it:     seriesIter,
-		offset: b.offset,
+		it:   seriesIter,
+		opts: b.opts,
 	}, nil
 }
 
 type ucOffsetSeriesIter struct {
-	it     UnconsolidatedSeriesIter
-	offset time.Duration
+	it UnconsolidatedSeriesIter
+	// offset time.Duration
+	opts OffsetOpts
 }
 
 func (it *ucOffsetSeriesIter) Close()                   { it.it.Close() }
@@ -256,7 +281,9 @@ func (it *ucOffsetSeriesIter) Current() UnconsolidatedSeries {
 	c := it.it.Current()
 	for _, val := range c.datapoints {
 		for i, dp := range val.Datapoints() {
-			val[i].Timestamp = dp.Timestamp.Add(it.offset)
+			val[i].Timestamp = it.opts.TimeTransform(dp.Timestamp)
+			val[i].Value = it.opts.ValueTransform(dp.Value)
+			// val[i].Timestamp = dp.Timestamp.Add(it.offset)
 		}
 	}
 
@@ -264,5 +291,6 @@ func (it *ucOffsetSeriesIter) Current() UnconsolidatedSeries {
 }
 
 func (it *ucOffsetSeriesIter) Meta() Metadata {
-	return updateMeta(it.it.Meta(), it.offset)
+	return it.opts.MetaTransform(it.it.Meta())
+	// return updateMeta(it.it.Meta(), it.offset)
 }

@@ -70,6 +70,14 @@ func TestDAGWithOffset(t *testing.T) {
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "offset should be the child")
 }
 
+// func TestDAGWithUnary(t *testing.T) {
+// 	q := "-rate(coordinator_write_success{source=\"remote\"}[1m])"
+// 	p, err := Parse(q, models.NewTagOptions())
+// 	require.NoError(t, err)
+// 	_, _, err = p.DAG()
+// 	require.NoError(t, err)
+// }
+
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
 	_, err := Parse(q, models.NewTagOptions())

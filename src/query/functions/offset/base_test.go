@@ -44,16 +44,27 @@ func buildMeta(start time.Time) block.Metadata {
 	}
 }
 
+func buildOffsetOpts(off time.Duration) block.OffsetOpts {
+	return block.OffsetOpts{
+		TimeTransform: func(t time.Time) time.Time { return t.Add(off) },
+		MetaTransform: func(meta block.Metadata) block.Metadata {
+			meta.Bounds.Start = meta.Bounds.Start.Add(off)
+			return meta
+		},
+		ValueTransform: func(val float64) float64 { return val },
+	}
+}
+
 func TestInvalidOffsetOp(t *testing.T) {
-	_, err := NewOffsetOp(-1)
+	_, err := NewOffsetOp(OffsetType, buildOffsetOpts(-1))
 	assert.Error(t, err)
-	_, err = NewOffsetOp(0)
+	_, err = NewOffsetOp(OffsetType, buildOffsetOpts(0))
 	assert.Error(t, err)
 }
 
 func TestOffsetOp(t *testing.T) {
 	offset := time.Minute
-	op, err := NewOffsetOp(offset)
+	op, err := NewOffsetOp(OffsetType, buildOffsetOpts(offset))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "offset", op.OpType())

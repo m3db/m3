@@ -22,7 +22,6 @@ package offset
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -30,33 +29,41 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-// OffsetType offsets incoming data points and metadata by the given offset.
-const OffsetType = "offset"
+const (
+	// OffsetType offsets incoming data point timestamps and metadata by the given offset.
+	OffsetType = "offset"
+
+	// UnaryType offsets incoming data point values.
+	UnaryType = "unary"
+)
 
 // NewOffsetOp creates a new offset operation
 func NewOffsetOp(
-	offset time.Duration,
+	opType string,
+	offSetOpts block.OffsetOpts,
 ) (parser.Params, error) {
-	if offset <= 0 {
-		return baseOp{}, fmt.Errorf("offset must be positive, received: %v", offset)
-	}
+	// if offset <= 0 {
+	// 	return baseOp{}, fmt.Errorf("offset must be positive, received: %v", offset)
+	// }
 
 	return baseOp{
-		offset: offset,
+		opType:     opType,
+		offsetOpts: offSetOpts,
 	}, nil
 }
 
 // baseOp stores required properties for the baseOp
 type baseOp struct {
-	offset time.Duration
+	opType     string
+	offsetOpts block.OffsetOpts
 }
 
 func (o baseOp) OpType() string {
-	return OffsetType
+	return o.opType
 }
 
 func (o baseOp) String() string {
-	return fmt.Sprintf("type: %s", o.OpType())
+	return fmt.Sprintf("type: %s", o.opType)
 }
 
 func (o baseOp) Node(
@@ -79,7 +86,7 @@ func (n *baseNode) Params() parser.Params {
 }
 
 func (n *baseNode) processBlock(b block.Block) block.Block {
-	return block.NewOffsetBlock(b, n.op.offset)
+	return block.NewOffsetBlock(b, n.op.offsetOpts)
 }
 
 func (n *baseNode) Process(
