@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/leanovate/gopter"
@@ -90,7 +90,7 @@ func genMetadata() gopter.Gen {
 			bools     = values[1].([]bool)
 			retention = values[2].(retention.Options)
 		)
-		testSchemaReg, _ := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions("schematest"))
+		testSchemaReg, _ := namespace.LoadSchemaHistory(testSchemaOptions)
 		md, err := namespace.NewMetadata(ident.StringID(id), namespace.NewOptions().
 			SetBootstrapEnabled(bools[0]).
 			SetCleanupEnabled(bools[1]).
@@ -98,7 +98,7 @@ func genMetadata() gopter.Gen {
 			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
 			SetSnapshotEnabled(bools[5]).
-			SetSchemaRegistry(testSchemaReg).
+			SetSchemaHistory(testSchemaReg).
 			SetRetentionOptions(retention).
 			SetIndexOptions(namespace.NewIndexOptions().
 				SetEnabled(bools[6]).

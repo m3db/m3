@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -75,7 +76,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		)
 	)
 	blPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts, namespace.Context{})
 	})
 
 	var (
@@ -129,9 +130,9 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			blTime := getAndIncStart()
-			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
+			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{}, namespace.Context{})
 			// Simulate concurrent reads
-			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize))
+			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize), namespace.Context{})
 			require.NoError(t, err)
 			wg.Done()
 		}()

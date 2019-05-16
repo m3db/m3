@@ -58,6 +58,10 @@ curl -sS -X POST http://localhost:9003/writetagged -d '{
   "id": "foo",
   "tags": [
     {
+      "name": "__name__",
+      "value": "user_login"
+    },
+    {
       "name": "city",
       "value": "new_york"
     },
@@ -74,7 +78,16 @@ curl -sS -X POST http://localhost:9003/writetagged -d '{
 '
 ```
 
-And reading the metrics you've written:
+**Note:** In the above example we include the tag `__name__`. This is because `__name__` is a
+reserved tag in Prometheus and will make querying the metric much easier. For example, if you have
+[M3Query](query.md) setup as a Prometheus datasource in Grafana, you can then query for the metric
+using the following PromQL query:
+
+```
+user_login{city="new_york",endpoint="/request"}
+```
+
+And reading the metrics you've written using the M3DB `/query` endpoint:
 ```json
 curl -sS -X POST http://localhost:9003/query -d '{
   "namespace": "default",
@@ -93,6 +106,10 @@ curl -sS -X POST http://localhost:9003/query -d '{
     {
       "id": "foo",
       "tags": [
+        {
+          "name": "__name__",
+          "value": "user_login"
+        },
         {
           "name": "city",
           "value": "new_york"

@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // Options controls namespace behavior
@@ -91,11 +92,11 @@ type Options interface {
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
 
-	// SetSchemaRegistry sets the schema registry for this namespace.
-	SetSchemaRegistry(value SchemaRegistry) Options
+	// SetSchemaHistory sets the schema registry for this namespace.
+	SetSchemaHistory(value SchemaHistory) Options
 
-	// SchemaRegistry returns the schema registry for this namespace.
-	SchemaRegistry() SchemaRegistry
+	// SchemaHistory returns the schema registry for this namespace.
+	SchemaHistory() SchemaHistory
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -130,19 +131,50 @@ type SchemaDescr interface {
 	Equal(SchemaDescr) bool
 }
 
-// SchemaRegistry represents namespace schema registry.
-type SchemaRegistry interface {
+// SchemaHistory represents schema history for a namespace.
+type SchemaHistory interface {
 	// Equal returns true if the provided value is equal to this one.
-	Equal(SchemaRegistry) bool
+	Equal(SchemaHistory) bool
 
 	// Extends returns true iif the provided value has a lineage to this one.
-	Extends(SchemaRegistry) bool
+	Extends(SchemaHistory) bool
 
 	// Get gets the schema descriptor for the specified deploy id.
 	Get(id string) (SchemaDescr, bool)
 
 	// GetLatest gets the latest version of schema descriptor.
 	GetLatest() (SchemaDescr, bool)
+}
+
+// SchemaListener listens for updates to schema registry for a namespace.
+type SchemaListener interface {
+	// SetSchema is called when the listener is registered
+	// and when any updates occurred passing the new schema history.
+	SetSchema(value SchemaDescr)
+}
+
+// SchemaRegistry represents the schema registry for a database.
+// It is where dynamic schema updates are delivered into,
+// and where schema is retrieved from at series read and write path.
+type SchemaRegistry interface {
+	// GetLatestSchema gets the latest schema for the namespace.
+	// If proto is not enabled, nil, nil is returned
+	GetLatestSchema(id ident.ID) (SchemaDescr, error)
+
+	// GetSchema gets the latest schema for the namespace.
+	// If proto is not enabled, nil, nil is returned
+	GetSchema(id ident.ID, schemaId string) (SchemaDescr, error)
+
+	// SetSchemaHistory sets the schema history for the namespace.
+	// If proto is not enabled, nil is returned
+	SetSchemaHistory(id ident.ID, history SchemaHistory) error
+
+	// RegisterListener registers a schema listener for the namespace.
+	// If proto is not enabled, nil, nil is returned
+	RegisterListener(id ident.ID, listener SchemaListener) (xclose.SimpleCloser, error)
+
+	// Close closes all the listeners.
+	Close()
 }
 
 // Metadata represents namespace metadata information

@@ -27,7 +27,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/gorilla/mux"

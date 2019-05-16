@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"

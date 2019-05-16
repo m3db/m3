@@ -115,7 +115,7 @@ func FetchOptionsToAggregateOptions(
 			StartInclusive: tagQuery.Start,
 			EndExclusive:   tagQuery.End,
 		},
-		TermFilter: tagQuery.FilterNameTags,
+		FieldFilter: tagQuery.FilterNameTags,
 		Type:       convertAggregateQueryType(tagQuery.CompleteNameOnly),
 	}
 }

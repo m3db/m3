@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -109,7 +109,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		xtime.ToUnixNano(startTime): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
-				Data: []ts.Datapoint{commitlogWrite},
+				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
 			},
 		},
 	}
@@ -209,7 +209,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
-				Data: []ts.Datapoint{commitlogWrite},
+				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
 			},
 		},
 	}

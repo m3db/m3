@@ -58,7 +58,7 @@ fi
 
 rm -rf m3db.io/*
 cp -r m3db-operator/site/* m3db.io
-git clean -dffx
+git clean -dffx -e m3db.io
 git add m3db.io
 git commit -m "Operator docs update $(date)"
 git push

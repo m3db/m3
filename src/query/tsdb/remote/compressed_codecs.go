@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func initializeVars() {
@@ -45,14 +46,14 @@ func initializeVars() {
 			b.Reset(nil)
 		}))
 
-	iterAlloc = func(r io.Reader) encoding.ReaderIterator {
+	iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 }
 
 var (
 	opts       checked.BytesOptions
-	iterAlloc  func(r io.Reader) encoding.ReaderIterator
+	iterAlloc  func(r io.Reader, d namespace.SchemaDescr) encoding.ReaderIterator
 	initialize sync.Once
 )
 
@@ -355,7 +356,7 @@ func seriesIteratorFromCompressedSeries(
 		// TODO arnikola investigate pooling these?
 		sliceOfSlicesIterator := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(blockReaders)
 		perReplicaIterator := encoding.NewMultiReaderIterator(iterAlloc, multiReaderPool)
-		perReplicaIterator.ResetSliceOfSlices(sliceOfSlicesIterator)
+		perReplicaIterator.ResetSliceOfSlices(sliceOfSlicesIterator, nil)
 
 		allReplicaIterators = append(allReplicaIterators, perReplicaIterator)
 	}

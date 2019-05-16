@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -192,7 +192,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Now test term filtering, match all new_*r*, filtering on `foo`
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	queryOpts.TermFilter = index.AggregateTermFilter([][]byte{[]byte("foo")})
+	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("foo")})
 	iter, exhaustive, err = session.Aggregate(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)
 	require.NoError(t, err)
@@ -212,7 +212,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Now test term filter and tag name filtering, match all new_*r*, names only, filtering on `city`
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	queryOpts.TermFilter = index.AggregateTermFilter([][]byte{[]byte("city")})
+	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("city")})
 	queryOpts.Type = index.AggregateTagNames
 	iter, exhaustive, err = session.Aggregate(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)

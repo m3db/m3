@@ -114,6 +114,21 @@ func (mr *MockSegmentMockRecorder) ContainsID(docID interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), docID)
 }
 
+// ContainsField mocks base method
+func (m *MockSegment) ContainsField(field []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsField", field)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsField indicates an expected call of ContainsField
+func (mr *MockSegmentMockRecorder) ContainsField(field interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsField", reflect.TypeOf((*MockSegment)(nil).ContainsField), field)
+}
+
 // Reader mocks base method
 func (m *MockSegment) Reader() (index.Reader, error) {
 	m.ctrl.T.Helper()
@@ -535,6 +550,21 @@ func (m *MockMutableSegment) ContainsID(docID []byte) (bool, error) {
 func (mr *MockMutableSegmentMockRecorder) ContainsID(docID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockMutableSegment)(nil).ContainsID), docID)
+}
+
+// ContainsField mocks base method
+func (m *MockMutableSegment) ContainsField(field []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsField", field)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsField indicates an expected call of ContainsField
+func (mr *MockMutableSegmentMockRecorder) ContainsField(field interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsField", reflect.TypeOf((*MockMutableSegment)(nil).ContainsField), field)
 }
 
 // Reader mocks base method

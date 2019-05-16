@@ -23,6 +23,7 @@ package pools
 import (
 	"io"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -139,7 +140,7 @@ func BuildIteratorPools() encoding.IteratorPools {
 		SetSize(size)
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(poolOpts)
 	encodingOpts := encoding.NewOptions()
-	readerIterAlloc := func(r io.Reader) encoding.ReaderIterator {
+	readerIterAlloc := func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	}

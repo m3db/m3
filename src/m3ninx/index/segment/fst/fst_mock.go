@@ -237,6 +237,21 @@ func (mr *MockSegmentMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSegment)(nil).Close))
 }
 
+// ContainsField mocks base method
+func (m *MockSegment) ContainsField(arg0 []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsField", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsField indicates an expected call of ContainsField
+func (mr *MockSegmentMockRecorder) ContainsField(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsField", reflect.TypeOf((*MockSegment)(nil).ContainsField), arg0)
+}
+
 // ContainsID mocks base method
 func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
 	m.ctrl.T.Helper()

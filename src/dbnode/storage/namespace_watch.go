@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
@@ -142,7 +142,10 @@ func (w *dbNamespaceWatch) startWatch() {
 			w.metrics.updates.Inc(1)
 			newMap := w.watch.Get()
 			w.log.Info("received update from kv namespace watch")
-			w.db.UpdateOwnedNamespaces(newMap)
+			if err := w.db.UpdateOwnedNamespaces(newMap); err != nil {
+				w.log.Error("failed to update owned namespaces",
+					zap.Error(err))
+			}
 		}
 	}
 }

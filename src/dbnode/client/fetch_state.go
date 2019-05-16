@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type fetchStateType byte
@@ -196,7 +197,7 @@ func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsItera
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
-func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding.SeriesIterators, bool, error) {
+func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools, descr namespace.SchemaDescr) (encoding.SeriesIterators, bool, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -215,7 +216,7 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 	}
 
 	limit := f.fetchTaggedOp.requestLimit(maxInt)
-	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools)
+	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr)
 }
 
 func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, bool, error) {

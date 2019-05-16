@@ -72,7 +72,7 @@ import:
     vcs: git
 
   - package: github.com/uber-go/tally
-    version: ^3.3.6
+    version: ^3.3.9
 
   - package: golang.org/x/net
     version: ab5485076ff3407ad2d02db054635913f017b0ed

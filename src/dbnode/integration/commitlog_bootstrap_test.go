@@ -28,12 +28,20 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestCommitLogBootstrap(t *testing.T) {
+	testCommitLogBootstrap(t, nil, nil)
+}
+
+func TestProtoCommitLogBootstrap(t *testing.T) {
+	testCommitLogBootstrap(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testCommitLogBootstrap(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -49,6 +57,11 @@ func TestCommitLogBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+		ns2 = opts.Namespaces()[1]
+	}
 
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
@@ -64,7 +77,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	// Write test data
 	log.Info("generating data")
 	now := setup.getNowFn()
-	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+	seriesMaps := generateSeriesMaps(30, updateInputConfig, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
 	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
 	log.Info("finished writing data")

@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -133,8 +135,7 @@ func TestRoundTripProp(t *testing.T) {
 			times = append(times, currTime)
 		}
 
-		enc.Reset(currTime, 0)
-		enc.SetSchema(input.schema)
+		enc.Reset(currTime, 0, namespace.GetTestSchemaDescr(input.schema))
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -155,13 +156,12 @@ func TestRoundTripProp(t *testing.T) {
 			}
 		}
 
-		stream := enc.Stream()
-		if stream == nil {
+		stream, ok := enc.Stream(encoding.StreamOptions{})
+		if !ok {
 			return true, nil
 		}
 
-		iter.SetSchema(input.schema)
-		iter.Reset(stream)
+		iter.Reset(stream, namespace.GetTestSchemaDescr(input.schema))
 
 		i := 0
 		for iter.Next() {

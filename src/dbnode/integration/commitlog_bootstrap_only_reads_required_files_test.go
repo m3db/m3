@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	// Write test data
 	log.Info("generating data")
 	now := setup.getNowFn()
-	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+	seriesMaps := generateSeriesMaps(30, nil, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
 	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
 	log.Info("finished writing data")
@@ -75,7 +75,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	// allows us to verify the commitlog bootstrapping logic will not waste time
 	// reading commitlog files that are outside of the retention period.
 	log.Info("generating data")
-	seriesMapsExpiredCommitlog := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+	seriesMapsExpiredCommitlog := generateSeriesMaps(30, nil, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data to commitlog file with out of range timestamp")
 	writeCommitLogDataSpecifiedTS(
 		t,

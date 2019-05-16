@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -95,7 +95,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		xtime.ToUnixNano(startTime): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
-				Data: []ts.Datapoint{commitlogWrite},
+				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
 			},
 		},
 	}
@@ -162,7 +162,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		err := setup.writeBatch(ns1.ID(), generate.SeriesBlock{
 			generate.Series{
 				ID:   ident.StringID("foo"),
-				Data: []ts.Datapoint{memoryWrite},
+				Data: []generate.TestValue{{Datapoint: memoryWrite}},
 			}})
 		if err != nil {
 			panic(err)
@@ -191,7 +191,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
-				Data: []ts.Datapoint{commitlogWrite, memoryWrite},
+				Data: []generate.TestValue{{Datapoint: commitlogWrite}, {Datapoint: memoryWrite}},
 			},
 		},
 	}

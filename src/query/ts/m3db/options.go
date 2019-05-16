@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -39,7 +40,7 @@ var (
 	defaultCount            = 10
 	defaultLookbackDuration = time.Duration(0)
 	defaultConsolidationFn  = consolidators.TakeLast
-	defaultIterAlloc        = func(r io.Reader) encoding.ReaderIterator {
+	defaultIterAlloc        = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 )

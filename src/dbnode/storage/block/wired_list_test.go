@@ -36,6 +36,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 // The tests in this file use Start and Stop a lot to ensure
@@ -73,7 +74,7 @@ func newTestUnwireableBlock(
 	}
 	segment.Head.IncRef()
 
-	bl := NewDatabaseBlock(time.Time{}, 0, segment, opts).(*dbBlock)
+	bl := NewDatabaseBlock(time.Time{}, 0, segment, opts, namespace.Context{}).(*dbBlock)
 	bl.Lock()
 	bl.seriesID = ident.StringID(name)
 	bl.wasRetrievedFromDisk = true

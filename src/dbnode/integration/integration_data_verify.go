@@ -45,7 +45,7 @@ import (
 type readableSeries struct {
 	ID   string
 	Tags []readableSeriesTag
-	Data []ts.Datapoint
+	Data []generate.TestValue
 }
 
 type readableSeriesTag struct {
@@ -55,12 +55,15 @@ type readableSeriesTag struct {
 
 type readableSeriesList []readableSeries
 
-func toDatapoints(fetched *rpc.FetchResult_) []ts.Datapoint {
-	converted := make([]ts.Datapoint, len(fetched.Datapoints))
+func toDatapoints(fetched *rpc.FetchResult_) ([]generate.TestValue) {
+	converted := make([]generate.TestValue, len(fetched.Datapoints))
 	for i, dp := range fetched.Datapoints {
-		converted[i] = ts.Datapoint{
-			Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
-			Value:     dp.Value,
+		converted[i] = generate.TestValue{
+			Datapoint: ts.Datapoint{
+				Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
+				Value:     dp.Value,
+			},
+			Annotation: dp.Annotation,
 		}
 	}
 	return converted
@@ -119,13 +122,20 @@ func verifySeriesMapForRange(
 		}
 	}
 
-	for i, series := range actual {
-		if !assert.Equal(t, expected[i], series) {
-			return false
-		}
-	}
-	if !assert.Equal(t, expected, actual) {
+	if !assert.Equal(t, len(expected), len(actual)) {
 		return false
+	}
+	for i, series := range actual {
+		if ts.assertEqual == nil {
+			if !assert.Equal(t, expected[i], series) {
+				return false
+			}
+		} else {
+			assert.Equal(t, expected[i].ID, series.ID)
+			if !ts.assertEqual(t, expected[i].Data, series.Data) {
+				return false
+			}
+		}
 	}
 
 	// Now check the metadata of all the series match

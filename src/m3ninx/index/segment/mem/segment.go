@@ -148,6 +148,18 @@ func (s *segment) containsIDWithStateLock(id []byte) bool {
 	return s.termsDict.ContainsTerm(doc.IDReservedFieldName, id)
 }
 
+func (s *segment) ContainsField(f []byte) (bool, error) {
+	s.state.RLock()
+	if s.state.closed {
+		s.state.RUnlock()
+		return false, sgmt.ErrClosed
+	}
+
+	contains := s.termsDict.ContainsField(f)
+	s.state.RUnlock()
+	return contains, nil
+}
+
 func (s *segment) Insert(d doc.Document) ([]byte, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()

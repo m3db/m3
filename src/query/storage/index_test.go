@@ -211,6 +211,6 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 	assert.Equal(t, end, aggOpts.EndExclusive)
 	assert.Equal(t, start, aggOpts.StartInclusive)
 	assert.Equal(t, index.AggregateTagNames, aggOpts.Type)
-	require.Equal(t, 1, len(aggOpts.TermFilter))
-	require.Equal(t, "filter", string(aggOpts.TermFilter[0]))
+	require.Equal(t, 1, len(aggOpts.FieldFilter))
+	require.Equal(t, "filter", string(aggOpts.FieldFilter[0]))
 }

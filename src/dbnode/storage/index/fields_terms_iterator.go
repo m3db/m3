@@ -29,6 +29,7 @@ import (
 type fieldsAndTermsIteratorOpts struct {
 	iterateTerms bool
 	allowFn      allowFn
+	fieldIterFn  newFieldIterFn
 }
 
 func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
@@ -38,7 +39,16 @@ func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	return o.allowFn(f)
 }
 
+func (o fieldsAndTermsIteratorOpts) newFieldIter(s segment.Segment) (segment.FieldsIterator, error) {
+	if o.fieldIterFn == nil {
+		return s.FieldsIterable().Fields()
+	}
+	return o.fieldIterFn(s)
+}
+
 type allowFn func(field []byte) bool
+
+type newFieldIterFn func(s segment.Segment) (segment.FieldsIterator, error)
 
 type fieldsAndTermsIter struct {
 	seg  segment.Segment
@@ -81,7 +91,7 @@ func (fti *fieldsAndTermsIter) Reset(s segment.Segment, opts fieldsAndTermsItera
 	if s == nil {
 		return nil
 	}
-	fiter, err := s.FieldsIterable().Fields()
+	fiter, err := fti.opts.newFieldIter(s)
 	if err != nil {
 		return err
 	}
