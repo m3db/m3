@@ -29,9 +29,13 @@ import (
 )
 
 const (
-	defaultEncodingConcurrency                       = 4
-	defaultMergeShardConcurrency                     = 4
-	defaultReturnUnfulfilledForCorruptCommitLogFiles = true
+	// DefaultReturnUnfulfilledForCorruptCommitLogFiles is the default
+	// value for whether to return unfulfilled when encountering corrupt
+	// commit log files.
+	DefaultReturnUnfulfilledForCorruptCommitLogFiles = true
+
+	defaultEncodingConcurrency   = 4
+	defaultMergeShardConcurrency = 4
 )
 
 var (
@@ -52,11 +56,11 @@ type options struct {
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:                                result.NewOptions(),
-		commitLogOpts:                             commitlog.NewOptions(),
-		encodingConcurrency:                       defaultEncodingConcurrency,
-		mergeShardConcurrency:                     defaultMergeShardConcurrency,
-		returnUnfulfilledForCorruptCommitLogFiles: defaultReturnUnfulfilledForCorruptCommitLogFiles,
+		resultOpts:            result.NewOptions(),
+		commitLogOpts:         commitlog.NewOptions(),
+		encodingConcurrency:   defaultEncodingConcurrency,
+		mergeShardConcurrency: defaultMergeShardConcurrency,
+		returnUnfulfilledForCorruptCommitLogFiles: DefaultReturnUnfulfilledForCorruptCommitLogFiles,
 	}
 }
 

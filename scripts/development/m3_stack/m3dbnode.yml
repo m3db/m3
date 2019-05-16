@@ -44,8 +44,6 @@ db:
         - peers
         - commitlog
         - uninitialized_topology
-    fs:
-      numProcessorsPerCPU: 0.125
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
 
