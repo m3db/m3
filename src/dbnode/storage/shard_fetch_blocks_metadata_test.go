@@ -46,7 +46,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheAll)
+	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheAll)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -130,7 +130,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
+	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 

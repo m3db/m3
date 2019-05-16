@@ -37,7 +37,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	now := time.Now()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return now
@@ -66,7 +66,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	now := time.Now()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return now
