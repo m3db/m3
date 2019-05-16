@@ -118,6 +118,7 @@ type queue struct {
 	bufCh         chan protobuf.Buffer
 	doneCh        chan struct{}
 	closed        bool
+	buf           []byte
 	maxBatchSize  int
 	writeInterval time.Duration
 	wg            sync.WaitGroup
@@ -147,6 +148,7 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		doneCh:        make(chan struct{}),
 		maxBatchSize:  maxBatchSize,
 		writeInterval: writeInterval,
+		buf:           make([]byte, 0, maxBatchSize),
 	}
 	q.writeFn = q.conn.Write
 
@@ -207,8 +209,11 @@ func (q *queue) Close() error {
 	return nil
 }
 
-func (q *queue) write(buf []byte) {
-	if err := q.writeFn(buf); err != nil {
+func (q *queue) writeAndReset() {
+	if len(q.buf) == 0 {
+		return
+	}
+	if err := q.writeFn(q.buf); err != nil {
 		q.log.Error("error writing data on timed flush",
 			zap.String("instance", q.instance.Endpoint()),
 			zap.Error(err),
@@ -217,41 +222,43 @@ func (q *queue) write(buf []byte) {
 	} else {
 		q.metrics.connWriteSuccesses.Inc(1)
 	}
+	q.buf = q.buf[:0]
 }
 
 func (q *queue) drain() {
 	defer q.wg.Done()
 	defer q.conn.Close()
-	ticker := time.NewTicker(q.writeInterval)
-	defer ticker.Stop()
-	buf := make([]byte, 0, q.maxBatchSize)
+	timer := time.NewTimer(q.writeInterval)
 	lastDrain := time.Now()
 
 	for {
 		select {
 		case qitem := <-q.bufCh:
+			drained := false
 			msg := qitem.Bytes()
-			if len(buf)+len(msg) > q.maxBatchSize {
-				q.write(buf)
-				buf = buf[:0]
+			if len(q.buf)+len(msg) > q.maxBatchSize {
+				q.writeAndReset()
+				lastDrain = time.Now()
+				drained = true
 			}
-			buf = append(buf, msg...)
+			q.buf = append(q.buf, msg...)
 			qitem.Close()
 
-			if len(buf) < q.maxBatchSize && time.Since(lastDrain) < q.writeInterval {
+			if drained || (len(q.buf) < q.maxBatchSize && time.Since(lastDrain) < q.writeInterval) {
 				continue
 			}
-			q.write(buf)
-			buf = buf[:0]
+
+			q.writeAndReset()
 			lastDrain = time.Now()
-		case ts := <-ticker.C:
+		case ts := <-timer.C:
 			delta := ts.Sub(lastDrain)
-			lastDrain = ts
-			if delta < q.writeInterval || len(buf) == 0 {
+			if delta < q.writeInterval {
+				timer.Reset(q.writeInterval - delta)
 				continue
 			}
-			q.write(buf)
-			buf = buf[:0]
+			q.writeAndReset()
+			lastDrain = time.Now()
+			timer.Reset(q.writeInterval)
 		case <-q.doneCh:
 			return
 		}
