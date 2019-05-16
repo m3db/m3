@@ -33,6 +33,13 @@ import (
 
 type cleanupFn func()
 
+// Stdin
+// stdout
+// stderr
+// /proc/<PID>/fd
+// One more (not sure what it is, probably something related to the Go test runner.)
+const numStdProcessFiles = 5
+
 func TestNumFDs(t *testing.T) {
 	for i := 0; i <= 8; i++ {
 		var numFiles int
@@ -43,14 +50,14 @@ func TestNumFDs(t *testing.T) {
 		}
 
 		func() {
-			numExpectedFds := numFiles + 5
+			numExpectedFds := numFiles + numStdProcessFiles
 			cleanupFn := createTempFiles(numFiles)
 			defer cleanupFn()
 
 			selfPID := os.Getpid()
 
-			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "NumFDsReference", numFiles), func(t *testing.T) {
-				numFDs, err := NumFDsReference(selfPID)
+			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "numFDsSlow", numFiles), func(t *testing.T) {
+				numFDs, err := numFDsSlow(selfPID)
 				require.NoError(t, err)
 				require.Equal(t, numExpectedFds, numFDs)
 			})
@@ -76,15 +83,15 @@ func BenchmarkNumFDs(b *testing.B) {
 		// when performing actual benchmarking.
 		numFiles = 16000
 		// +5 to account for standard F.Ds that each process gets.
-		numExpectedFds = numFiles + 5
+		numExpectedFds = numFiles + numStdProcessFiles
 	)
 	cleanupFn := createTempFiles(numFiles)
 	defer cleanupFn()
 
 	selfPID := os.Getpid()
-	b.Run("NumFDsReference", func(b *testing.B) {
+	b.Run("numFDsSlow", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			numFDs, err := NumFDsReference(selfPID)
+			numFDs, err := numFDsSlow(selfPID)
 			if err != nil {
 				b.Fatal(err)
 			}

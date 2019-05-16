@@ -25,7 +25,7 @@ import (
 	"io"
 	"time"
 
-	promfork "github.com/m3db/prometheus_client_golang/prometheus"
+	prom "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/multi"
@@ -88,7 +88,7 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 			// collecting the number of F.Ds for a process that has many of them can take a long
 			// time and be very CPU intensive, especially the Prometheus implementation which is
 			// less optimized than the M3 implementation.
-			Registry: promfork.NewRegistry(),
+			Registry: prom.NewRegistry(),
 		}
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {

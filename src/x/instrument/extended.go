@@ -184,36 +184,6 @@ type extendedMetricsReporter struct {
 	runtime     runtimeMetrics
 }
 
-func (e *extendedMetricsReporter) Start() error {
-	if err := e.baseReporter.Start(); err != nil {
-		return err
-	}
-
-	if e.processReporter != nil {
-		if err := e.processReporter.Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (e *extendedMetricsReporter) Stop() error {
-	multiErr := xerrors.NewMultiError()
-
-	if err := e.baseReporter.Stop(); err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
-	if e.processReporter != nil {
-		if err := e.processReporter.Stop(); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-
-	return multiErr.FinalError()
-}
-
 // NewExtendedMetricsReporter creates a new extended metrics reporter
 // that reports runtime and process metrics.
 func NewExtendedMetricsReporter(
@@ -257,4 +227,34 @@ func NewExtendedMetricsReporter(
 	r.runtime.lastNumGC = memstats.NumGC
 
 	return r
+}
+
+func (e *extendedMetricsReporter) Start() error {
+	if err := e.baseReporter.Start(); err != nil {
+		return err
+	}
+
+	if e.processReporter != nil {
+		if err := e.processReporter.Start(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (e *extendedMetricsReporter) Stop() error {
+	multiErr := xerrors.NewMultiError()
+
+	if err := e.baseReporter.Stop(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	if e.processReporter != nil {
+		if err := e.processReporter.Stop(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }

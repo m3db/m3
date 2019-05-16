@@ -40,10 +40,10 @@ var (
 	doubleDotBytes = []byte("..")
 )
 
-// NumFDsReference returns the number of file descriptors for a given process.
+// numFDsSlow returns the number of file descriptors for a given process.
 // This is a reference implementation that can be used to compare against for
 // correctness.
-func NumFDsReference(pid int) (int, error) {
+func numFDsSlow(pid int) (int, error) {
 	statPath := fmt.Sprintf("/proc/%d/fd", pid)
 	d, err := os.Open(statPath)
 	if err != nil {
