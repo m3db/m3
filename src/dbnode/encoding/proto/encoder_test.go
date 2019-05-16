@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -70,7 +72,7 @@ func TestClosedEncoderIsNotUsable(t *testing.T) {
 func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 	start := time.Now().Truncate(time.Second)
 	enc := newTestEncoder(start)
-	enc.SetSchema(testVLSchema)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	vl := newVL(1.0, 2.0, 3, []byte("some-delivery-id"), nil)
 	vlBytes, err := vl.Marshal()
@@ -93,8 +95,12 @@ func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 }
 
 func getCurrEncoderBytes(t *testing.T, enc *Encoder) []byte {
-	currSeg, err := enc.Stream().Segment()
+	stream, ok := enc.Stream(encoding.StreamOptions{})
+	require.True(t, ok)
+
+	currSeg, err := stream.Segment()
 	require.NoError(t, err)
+
 	if currSeg.Tail != nil {
 		require.Equal(t, 0, currSeg.Tail.Len())
 	}

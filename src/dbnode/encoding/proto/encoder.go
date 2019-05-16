@@ -486,7 +486,6 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 		enc.protoFields = nil
 		enc.customFields = nil
 		enc.lastEncoded = nil
-		enc.unmarshaled = nil
 	} else {
 		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
