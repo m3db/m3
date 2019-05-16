@@ -620,7 +620,8 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 }
 
 func TestDatabaseCreateSchemaNotSet(t *testing.T) {
-	protoTestDatabaseOptions := defaultTestDatabaseOptions.SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
+	protoTestDatabaseOptions := DefaultTestOptions().
+		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -654,7 +655,8 @@ func TestDatabaseCreateSchemaNotSet(t *testing.T) {
 }
 
 func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
-	protoTestDatabaseOptions := defaultTestDatabaseOptions.SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
+	protoTestDatabaseOptions := DefaultTestOptions().
+		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
