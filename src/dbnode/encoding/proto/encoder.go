@@ -56,8 +56,6 @@ var (
 )
 
 // Encoder compresses arbitrary ProtoBuf streams given a schema.
-// TODO(rartoul): Add support for changing the schema (and updating the ordering
-// of the custom encoded fields) on demand: https://github.com/m3db/m3/issues/1471
 type Encoder struct {
 	opts encoding.Options
 
@@ -78,9 +76,8 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	unmarshaled *dynamic.Message
+	unmarshaler customFieldUnmarshaler
 
-	hardErr          error
 	hasEncodedSchema bool
 	closed           bool
 
@@ -134,30 +131,16 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// it doesn't cause LastEncoded() to produce invalid results.
 	dp.Value = float64(0)
 
-	if enc.unmarshaled == nil {
+	if enc.unmarshaler == nil {
 		// Lazy init.
-		enc.unmarshaled = dynamic.NewMessage(enc.schema)
+		enc.unmarshaler = newCustomFieldUnmarshaler()
 	}
-
-	// Unmarshal the ProtoBuf message first to ensure we have a valid message before
-	// we do anything else to reduce the change that we'll end up with a partially
-	// encoded message.
-	// TODO(rartoul): No need to allocate and unmarshal here, could do this in a streaming
-	// fashion if we write our own decoder or expose the one in the underlying library.
-	if err := enc.unmarshaled.Unmarshal(protoBytes); err != nil {
+	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
+	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
+	if err := enc.unmarshaler.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
-			"%s error unmarshaling annotation into proto message: %v", encErrPrefix, err)
+			"%s error unmarshaling message: %v", encErrPrefix, err)
 	}
-
-	if len(enc.unmarshaled.GetUnknownFields()) > 0 {
-		// TODO(rartoul): Make this behavior configurable / this may change once we implement
-		// mid-stream schema changes to make schema upgrades easier for clients.
-		// https://github.com/m3db/m3/issues/1471
-		return errEncoderMessageHasUnknownFields
-	}
-
-	// From this point onwards all errors are "hard errors" meaning that they should render
-	// the encoder unusable since we may have encoded partial data.
 
 	if enc.numEncoded == 0 {
 		enc.encodeStreamHeader()
@@ -168,40 +151,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		needToEncodeTimeUnit = timeUnit != enc.timestampEncoder.TimeUnit
 	)
 	if needToEncodeSchema || needToEncodeTimeUnit {
-		// First bit means either there is no more data OR the time unit and/or schema has changed.
-		enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
-		// Next bit means there is more data, but the time unit and/or schema has changed has changed.
-		enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
-
-		// Next bit is a boolean indicating whether the time unit has changed.
-		if needToEncodeTimeUnit {
-			enc.stream.WriteBit(opCodeTimeUnitChange)
-		} else {
-			enc.stream.WriteBit(opCodeTimeUnitUnchanged)
-		}
-
-		// Next bit is a boolean indicating whether the schema has changed.
-		if needToEncodeSchema {
-			enc.stream.WriteBit(opCodeSchemaChange)
-		} else {
-			enc.stream.WriteBit(opCodeSchemaUnchanged)
-		}
-
-		if needToEncodeTimeUnit {
-			// The encoder manages encoding time unit changes manually (instead of deferring to
-			// the timestamp encoder) because by default the WriteTime() API will use a marker
-			// encoding scheme that relies on looking ahead into the stream for bit combinations that
-			// could not possibly exist in the M3TSZ encoding scheme.
-			// The protobuf encoder can't rely on this behavior because its possible for the protobuf
-			// encoder to encode a legitimate bit combination that matches the "impossible" M3TSZ
-			// markers exactly.
-			enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
-		}
-
-		if needToEncodeSchema {
-			enc.encodeCustomSchemaTypes()
-			enc.hasEncodedSchema = true
-		}
+		enc.encodeSchemaAndOrTimeUnit(needToEncodeSchema, needToEncodeTimeUnit, timeUnit)
 	} else {
 		// Control bit that indicates the stream has more data but no time unit or schema changes.
 		enc.stream.WriteBit(opCodeMoreData)
@@ -209,13 +159,11 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	err := enc.timestampEncoder.WriteTime(enc.stream, dp.Timestamp, nil, timeUnit)
 	if err != nil {
-		enc.hardErr = err
 		return fmt.Errorf(
 			"%s error encoding timestamp: %v", encErrPrefix, err)
 	}
 
-	if err := enc.encodeProto(enc.unmarshaled); err != nil {
-		enc.hardErr = err
+	if err := enc.encodeProto(protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error encoding proto portion of message: %v", encErrPrefix, err)
 	}
@@ -224,6 +172,47 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	enc.lastEncodedDP = dp
 	enc.stats.IncUncompressedBytes(len(protoBytes))
 	return nil
+}
+
+func (enc *Encoder) encodeSchemaAndOrTimeUnit(
+	needToEncodeSchema bool,
+	needToEncodeTimeUnit bool,
+	timeUnit xtime.Unit,
+) {
+	// First bit means either there is no more data OR the time unit and/or schema has changed.
+	enc.stream.WriteBit(opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange)
+	// Next bit means there is more data, but the time unit and/or schema has changed.
+	enc.stream.WriteBit(opCodeTimeUnitChangeAndOrSchemaChange)
+
+	// Next bit is a boolean indicating whether the time unit has changed.
+	if needToEncodeTimeUnit {
+		enc.stream.WriteBit(opCodeTimeUnitChange)
+	} else {
+		enc.stream.WriteBit(opCodeTimeUnitUnchanged)
+	}
+
+	// Next bit is a boolean indicating whether the schema has changed.
+	if needToEncodeSchema {
+		enc.stream.WriteBit(opCodeSchemaChange)
+	} else {
+		enc.stream.WriteBit(opCodeSchemaUnchanged)
+	}
+
+	if needToEncodeTimeUnit {
+		// The encoder manages encoding time unit changes manually (instead of deferring to
+		// the timestamp encoder) because by default the WriteTime() API will use a marker
+		// encoding scheme that relies on looking ahead into the stream for bit combinations that
+		// could not possibly exist in the M3TSZ encoding scheme.
+		// The protobuf encoder can't rely on this behavior because its possible for the protobuf
+		// encoder to encode a legitimate bit combination that matches the "impossible" M3TSZ
+		// markers exactly.
+		enc.timestampEncoder.WriteTimeUnit(enc.stream, timeUnit)
+	}
+
+	if needToEncodeSchema {
+		enc.encodeCustomSchemaTypes()
+		enc.hasEncodedSchema = true
+	}
 }
 
 // Stream returns a copy of the underlying data stream.
@@ -337,15 +326,114 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 	}
 }
 
-func (enc *Encoder) encodeProto(m *dynamic.Message) error {
-	if err := enc.encodeCustomValues(m); err != nil {
-		return err
+func (enc *Encoder) encodeProto(buf []byte) error {
+	var (
+		sortedTopLevelScalarValues    = enc.unmarshaler.sortedCustomFieldValues()
+		sortedTopLevelScalarValuesIdx = 0
+		lastMarshaledValue            unmarshalValue
+	)
+
+	// Loop through the customFields slice and sortedTopLevelScalarValues slice (both
+	// of which are sorted by field number) at the same time and match each customField
+	// to its encoded value in the stream (if any).
+	for i, customField := range enc.customFields {
+		if sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues) {
+			lastMarshaledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
+		}
+
+		lastMarshaledValueFieldNumber := -1
+
+		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
+		if hasNext {
+			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fieldNumber)
+		}
+
+		// Since both the customFields slice and the sortedTopLevelScalarValues slice
+		// are sorted by field number, if the scalar slice contains no more values or
+		// it contains a next value, but the field number is not equal to the field number
+		// of the current customField, it is safe to conclude that the current customField's
+		// value was not encoded in this message which means that it should be interpreted
+		// as the default value for that field according to the proto3 specification.
+		noMarshaledValue := (!hasNext ||
+			customField.fieldNum != lastMarshaledValueFieldNumber)
+		if noMarshaledValue {
+			err := enc.encodeZeroValue(i)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch {
+		case isCustomFloatEncodedField(customField.fieldType):
+			enc.encodeTSZValue(i, lastMarshaledValue.asFloat64())
+
+		case isCustomIntEncodedField(customField.fieldType):
+			if isUnsignedInt(customField.fieldType) {
+				enc.encodeUnsignedIntValue(i, lastMarshaledValue.asUint64())
+			} else {
+				enc.encodeSignedIntValue(i, lastMarshaledValue.asInt64())
+			}
+
+		case customField.fieldType == bytesField:
+			err := enc.encodeBytesValue(i, lastMarshaledValue.asBytes())
+			if err != nil {
+				return err
+			}
+
+		case customField.fieldType == boolField:
+			enc.encodeBoolValue(i, lastMarshaledValue.asBool())
+
+		default:
+			// This should never happen.
+			return fmt.Errorf(
+				"%s error no logic for custom encoding field number: %d",
+				encErrPrefix, customField.fieldNum)
+		}
+
+		sortedTopLevelScalarValuesIdx++
 	}
-	if err := enc.encodeProtoValues(m); err != nil {
+
+	otherValues := enc.unmarshaler.nonCustomFieldValues()
+	if err := enc.encodeProtoValues(otherValues); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (enc *Encoder) encodeZeroValue(i int) error {
+	customField := enc.customFields[i]
+	switch {
+	case isCustomFloatEncodedField(customField.fieldType):
+		var zeroFloat64 float64
+		enc.encodeTSZValue(i, zeroFloat64)
+		return nil
+
+	case isCustomIntEncodedField(customField.fieldType):
+		if isUnsignedInt(customField.fieldType) {
+			var zeroUInt64 uint64
+			enc.encodeUnsignedIntValue(i, zeroUInt64)
+		} else {
+			var zeroInt64 int64
+			enc.encodeSignedIntValue(i, zeroInt64)
+		}
+		return nil
+
+	case customField.fieldType == bytesField:
+		var zeroBytes []byte
+		return enc.encodeBytesValue(i, zeroBytes)
+
+	case customField.fieldType == boolField:
+		enc.encodeBoolValue(i, false)
+		return nil
+
+	default:
+		// This should never happen.
+		return fmt.Errorf(
+			"%s error no logic for custom encoding field number: %d",
+			encErrPrefix, customField.fieldNum)
+	}
 }
 
 // Reset resets the encoder for reuse.
@@ -380,7 +468,6 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 		start, enc.opts.DefaultTimeUnit(), enc.opts)
 	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
-	enc.unmarshaled = nil
 
 	// Prevent this from growing too large and remaining in the pools.
 	enc.marshalBuf = nil
@@ -399,14 +486,15 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 		enc.protoFields = nil
 		enc.customFields = nil
 		enc.lastEncoded = nil
-		enc.unmarshaled = nil
 	} else {
 		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
 
+		// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
+		// schemas to see if they have changed:
+		// https://github.com/m3db/m3/issues/1471
 		enc.lastEncoded = dynamic.NewMessage(schema)
-		enc.unmarshaled = dynamic.NewMessage(schema)
+		enc.hasEncodedSchema = false
 	}
-	enc.hasEncodedSchema = false
 }
 
 // Close closes the encoder.
@@ -456,104 +544,22 @@ func (enc *Encoder) Bytes() ([]byte, error) {
 	return bytes, nil
 }
 
-func (enc *Encoder) encodeCustomValues(m *dynamic.Message) error {
-	for i, customField := range enc.customFields {
-		iVal, err := m.TryGetFieldByNumber(customField.fieldNum)
-		if err != nil {
-			return fmt.Errorf(
-				"%s error trying to get field number: %d",
-				encErrPrefix, customField.fieldNum)
-		}
-
-		switch {
-		case isCustomFloatEncodedField(customField.fieldType):
-			if err := enc.encodeTSZValue(i, iVal); err != nil {
-				return err
-			}
-		case isCustomIntEncodedField(customField.fieldType):
-			if err := enc.encodeIntValue(i, iVal); err != nil {
-				return err
-			}
-		case customField.fieldType == bytesField:
-			if err := enc.encodeBytesValue(i, iVal); err != nil {
-				return err
-			}
-		case customField.fieldType == boolField:
-			if err := enc.encodeBoolValue(i, iVal); err != nil {
-				return err
-			}
-		default:
-			// This should never happen.
-			return fmt.Errorf(
-				"%s error no logic for custom encoding field number: %d",
-				encErrPrefix, customField.fieldNum)
-		}
-	}
-
-	return nil
-}
-
-func (enc *Encoder) encodeTSZValue(i int, iVal interface{}) error {
-	var (
-		val         float64
-		customField = enc.customFields[i]
-	)
-	switch typedVal := iVal.(type) {
-	case float64:
-		val = typedVal
-	case float32:
-		val = float64(typedVal)
-	default:
-		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
-	}
-
+func (enc *Encoder) encodeTSZValue(i int, val float64) {
 	enc.customFields[i].floatEncAndIter.WriteFloat(enc.stream, val)
-	return nil
 }
 
-func (enc *Encoder) encodeIntValue(i int, iVal interface{}) error {
-	var (
-		signedVal   int64
-		unsignedVal uint64
-	)
-	switch typedVal := iVal.(type) {
-	case uint64:
-		unsignedVal = typedVal
-	case uint32:
-		unsignedVal = uint64(typedVal)
-	case int64:
-		signedVal = typedVal
-	case int32:
-		signedVal = int64(typedVal)
-	default:
-		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, enc.customFields[i].fieldNum)
-	}
-
-	if isUnsignedInt(enc.customFields[i].fieldType) {
-		enc.customFields[i].intEncAndIter.encodeUnsignedIntValue(enc.stream, unsignedVal)
-	} else {
-		enc.customFields[i].intEncAndIter.encodeSignedIntValue(enc.stream, signedVal)
-	}
-
-	return nil
+func (enc *Encoder) encodeSignedIntValue(i int, val int64) {
+	enc.customFields[i].intEncAndIter.encodeSignedIntValue(enc.stream, val)
 }
 
-func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
-	customField := enc.customFields[i]
-	currBytes, ok := iVal.([]byte)
-	if !ok {
-		currString, ok := iVal.(string)
-		if !ok {
-			return fmt.Errorf(
-				"%s found unknown type in fieldNum %d", encErrPrefix, customField.fieldNum)
-		}
-		currBytes = []byte(currString)
-	}
+func (enc *Encoder) encodeUnsignedIntValue(i int, val uint64) {
+	enc.customFields[i].intEncAndIter.encodeUnsignedIntValue(enc.stream, val)
+}
 
+func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	var (
-		hash             = xxhash.Sum64(currBytes)
+		customField      = enc.customFields[i]
+		hash             = xxhash.Sum64(val)
 		numPreviousBytes = len(customField.bytesFieldDict)
 		lastStateIdx     = numPreviousBytes - 1
 		lastState        encoderBytesFieldDictState
@@ -565,7 +571,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	if numPreviousBytes > 0 && hash == lastState.hash {
 		streamBytes, _ := enc.stream.Rawbytes()
 		match, err := enc.bytesMatchEncodedDictionaryValue(
-			streamBytes, lastState, currBytes)
+			streamBytes, lastState, val)
 		if err != nil {
 			return fmt.Errorf(
 				"%s error checking if bytes match last encoded dictionary bytes: %v",
@@ -588,7 +594,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 		}
 
 		match, err := enc.bytesMatchEncodedDictionaryValue(
-			streamBytes, state, currBytes)
+			streamBytes, state, val)
 		if err != nil {
 			return fmt.Errorf(
 				"%s error checking if bytes match encoded dictionary bytes: %v",
@@ -614,7 +620,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	// []byte we haven't seen before.
 	enc.stream.WriteBit(opCodeInterpretSubsequentBitsAsBytesLengthVarInt)
 
-	length := len(currBytes)
+	length := len(val)
 	enc.encodeVarInt(uint64(length))
 
 	// Add padding bits until we reach the next byte. This ensures that the startPos
@@ -633,7 +639,7 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	bytePos := len(streamBytes)
 
 	// Write the actual bytes.
-	enc.stream.WriteBytes(currBytes)
+	enc.stream.WriteBytes(val)
 
 	enc.addToBytesDict(i, encoderBytesFieldDictState{
 		hash:     hash,
@@ -643,20 +649,12 @@ func (enc *Encoder) encodeBytesValue(i int, iVal interface{}) error {
 	return nil
 }
 
-func (enc *Encoder) encodeBoolValue(i int, val interface{}) error {
-	boolVal, ok := val.(bool)
-	if !ok {
-		return fmt.Errorf(
-			"%s found unknown type in fieldNum %d", encErrPrefix, enc.customFields[i].fieldNum)
-	}
-
-	if boolVal {
+func (enc *Encoder) encodeBoolValue(i int, val bool) {
+	if val {
 		enc.stream.WriteBit(opCodeBoolTrue)
 	} else {
 		enc.stream.WriteBit(opCodeBoolFalse)
 	}
-
-	return nil
 }
 
 func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
@@ -750,12 +748,6 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 func (enc *Encoder) isUsable() error {
 	if enc.closed {
 		return errEncoderClosed
-	}
-
-	if enc.hardErr != nil {
-		return fmt.Errorf(
-			"%s err encoder unusable due to hard err: %v",
-			encErrPrefix, enc.hardErr)
 	}
 
 	return nil
