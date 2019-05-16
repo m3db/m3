@@ -110,25 +110,23 @@ type writeFn func([]byte) error
 type queue struct {
 	sync.RWMutex
 
-	log           *zap.Logger
-	metrics       queueMetrics
-	dropType      DropType
-	instance      placement.Instance
-	conn          *connection
-	bufCh         chan protobuf.Buffer
-	doneCh        chan struct{}
-	closed        bool
-	buf           []byte
-	maxBatchSize  int
-	writeInterval time.Duration
-	wg            sync.WaitGroup
+	log                *zap.Logger
+	metrics            queueMetrics
+	dropType           DropType
+	instance           placement.Instance
+	conn               *connection
+	bufCh              chan protobuf.Buffer
+	doneCh             chan struct{}
+	closed             bool
+	buf                []byte
+	maxBatchSize       int
+	batchFlushDeadline time.Duration
+	wg                 sync.WaitGroup
 
 	writeFn writeFn
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
-	const maxBatchSize = 2 << 16
-	const writeInterval = 100 * time.Millisecond
 	var (
 		instrumentOpts     = opts.InstrumentOptions()
 		scope              = instrumentOpts.MetricsScope()
@@ -137,18 +135,20 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		conn               = newConnection(instance.Endpoint(), connOpts)
 		iOpts              = opts.InstrumentOptions()
 		queueSize          = opts.InstanceQueueSize()
+		maxBatchSize       = opts.MaxBatchSize()
+		writeInterval      = opts.BatchFlushDeadline()
 	)
 	q := &queue{
-		dropType:      opts.QueueDropType(),
-		log:           iOpts.Logger(),
-		metrics:       newQueueMetrics(iOpts.MetricsScope(), queueSize),
-		instance:      instance,
-		conn:          conn,
-		bufCh:         make(chan protobuf.Buffer, queueSize),
-		doneCh:        make(chan struct{}),
-		maxBatchSize:  maxBatchSize,
-		writeInterval: writeInterval,
-		buf:           make([]byte, 0, maxBatchSize),
+		dropType:           opts.QueueDropType(),
+		log:                iOpts.Logger(),
+		metrics:            newQueueMetrics(iOpts.MetricsScope(), queueSize),
+		instance:           instance,
+		conn:               conn,
+		bufCh:              make(chan protobuf.Buffer, queueSize),
+		doneCh:             make(chan struct{}),
+		maxBatchSize:       maxBatchSize,
+		batchFlushDeadline: writeInterval,
+		buf:                make([]byte, 0, maxBatchSize),
 	}
 	q.writeFn = q.conn.Write
 
@@ -228,7 +228,7 @@ func (q *queue) writeAndReset() {
 func (q *queue) drain() {
 	defer q.wg.Done()
 	defer q.conn.Close()
-	timer := time.NewTimer(q.writeInterval)
+	timer := time.NewTimer(q.batchFlushDeadline)
 	lastDrain := time.Now()
 
 	for {
@@ -244,7 +244,8 @@ func (q *queue) drain() {
 			q.buf = append(q.buf, msg...)
 			qitem.Close()
 
-			if drained || (len(q.buf) < q.maxBatchSize && time.Since(lastDrain) < q.writeInterval) {
+			if drained || (len(q.buf) < q.maxBatchSize &&
+				time.Since(lastDrain) < q.batchFlushDeadline) {
 				continue
 			}
 
@@ -252,13 +253,13 @@ func (q *queue) drain() {
 			lastDrain = time.Now()
 		case ts := <-timer.C:
 			delta := ts.Sub(lastDrain)
-			if delta < q.writeInterval {
-				timer.Reset(q.writeInterval - delta)
+			if delta < q.batchFlushDeadline {
+				timer.Reset(q.batchFlushDeadline - delta)
 				continue
 			}
 			q.writeAndReset()
 			lastDrain = time.Now()
-			timer.Reset(q.writeInterval)
+			timer.Reset(q.batchFlushDeadline)
 		case <-q.doneCh:
 			return
 		}

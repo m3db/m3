@@ -43,17 +43,19 @@ func TestInstanceQueueEnqueueClosed(t *testing.T) {
 }
 
 func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
-	opts := testOptions().SetInstanceQueueSize(1)
+	opts := testOptions().
+		SetInstanceQueueSize(1).
+		SetQueueDropType(DropCurrent).
+		SetMaxBatchSize(0)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-	queue.dropType = DropCurrent
 
 	// Fill up the queue and park the draining goroutine so the queue remains full.
 	queue.writeFn = func([]byte) error {
 		select {}
 	}
-	queue.bufCh <- testNewBuffer(nil)
-	queue.bufCh <- testNewBuffer(nil)
-	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer(nil)))
+
+	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
+	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
 }
 
 func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
@@ -110,10 +112,10 @@ func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 		return errTestWrite
 	}
 
-	require.NoError(t, queue.Enqueue(testNewBuffer(nil)))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
 
 	// Wait for the queue to be drained.
-	for {
+	for i := 0; i < 20; i++ {
 		if atomic.LoadInt32(&drained) == 1 {
 			break
 		}
