@@ -116,7 +116,9 @@ func (u *customUnmarshaler) unmarshal() error {
 			// marshaled message and as a result we can build up the nonCustomValues *dynamic.Message
 			// one field at a time by calling UnmarshalMerge() on sub-slices that contain a complete
 			// tuple.
-			u.nonCustomValues.UnmarshalMerge(marshaledField)
+			if err := u.nonCustomValues.UnmarshalMerge(marshaledField); err != nil {
+				return err
+			}
 			u.numNonCustom++
 			continue
 		}
