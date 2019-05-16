@@ -390,3 +390,22 @@ func TestFailedTemporalParse(t *testing.T) {
 	_, err := Parse(q, models.NewTagOptions())
 	require.Error(t, err)
 }
+
+// func TestOffsetOpts(t *testing.T) {
+// 	off := time.Minute
+// 	offsetOpts, err := offsetOpts(off)
+// 	require.NoError(t, err)
+
+// 	now := time.Now()
+// 	equalTimes := offsetOpts.TimeTransform(now).Equal(now.Add(off))
+// 	assert.True(t, equalTimes)
+
+// }
+
+// func TestUpdateMeta(t *testing.T) {
+// 	now := time.Now()
+// 	meta := buildMeta(now)
+// 	updated := updateMeta(meta, time.Hour)
+// 	expected := buildMeta(now.Add(time.Hour))
+// 	require.Equal(t, expected, updated)
+// }

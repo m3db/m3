@@ -40,7 +40,7 @@ const (
 // NewOffsetOp creates a new offset operation
 func NewOffsetOp(
 	opType string,
-	offSetOpts block.OffsetOpts,
+	offSetOpts *block.OffsetOpts,
 ) (parser.Params, error) {
 	// if offset <= 0 {
 	// 	return baseOp{}, fmt.Errorf("offset must be positive, received: %v", offset)
@@ -55,7 +55,7 @@ func NewOffsetOp(
 // baseOp stores required properties for the baseOp
 type baseOp struct {
 	opType     string
-	offsetOpts block.OffsetOpts
+	offsetOpts *block.OffsetOpts
 }
 
 func (o baseOp) OpType() string {

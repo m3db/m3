@@ -33,17 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func buildOffsetOpts(off time.Duration) OffsetOpts {
-	return OffsetOpts{
-		TimeTransform: func(t time.Time) time.Time { return t.Add(off) },
-		MetaTransform: func(meta Metadata) Metadata {
-			meta.Bounds.Start = meta.Bounds.Start.Add(off)
-			return meta
-		},
-		ValueTransform: func(val float64) float64 { return val },
-	}
-}
-
 func buildMeta(start time.Time) Metadata {
 	return Metadata{
 		Bounds: models.Bounds{
@@ -55,30 +44,38 @@ func buildMeta(start time.Time) Metadata {
 	}
 }
 
-// func TestUpdateMeta(t *testing.T) {
-// 	now := time.Now()
-// 	meta := buildMeta(now)
-// 	updated := updateMeta(meta, time.Hour)
-// 	expected := buildMeta(now.Add(time.Hour))
-// 	require.Equal(t, expected, updated)
-// }
+func TestOffsetOpts(t *testing.T) {
+	off := time.Minute
+	offsetOpts := BuildOffsetOpts(off)
 
-// func TestInvalidOffset(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	b := NewMockBlock(ctrl)
-// 	off := NewOffsetBlock(b, buildOffsetOpts(0))
-// 	assert.Equal(t, b, off)
-// 	off = NewOffsetBlock(b, buildOffsetOpts(-1))
-// 	assert.Equal(t, b, off)
-// }
+	now := time.Now()
+	equalTimes := offsetOpts.TimeTransform(now).Equal(now.Add(off))
+	assert.True(t, equalTimes)
+
+	meta := buildMeta(now)
+	updated := offsetOpts.MetaTransform(meta)
+	expected := buildMeta(now.Add(off))
+	require.Equal(t, expected, updated)
+
+	require.Equal(t, 1.0, offsetOpts.ValueTransform(1.0))
+}
+
+func TestInvalidOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	b := NewMockBlock(ctrl)
+	off := NewOffsetBlock(b, BuildOffsetOpts(0))
+	assert.Equal(t, b, off)
+	off = NewOffsetBlock(b, BuildOffsetOpts(-1))
+	assert.Equal(t, b, off)
+}
 
 func TestValidOffset(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewOffsetBlock(b, buildOffsetOpts(offset))
+	off := NewOffsetBlock(b, BuildOffsetOpts(offset))
 
 	// ensure functions are marshalled to the underlying block.
 	b.EXPECT().Close().Return(nil)
@@ -129,7 +126,7 @@ func TestStepIter(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewOffsetBlock(b, buildOffsetOpts(offset))
+	off := NewOffsetBlock(b, BuildOffsetOpts(offset))
 	msg := "err"
 	e := errors.New(msg)
 	now := time.Now()
@@ -176,7 +173,7 @@ func TestSeriesIter(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewOffsetBlock(b, buildOffsetOpts(offset))
+	off := NewOffsetBlock(b, BuildOffsetOpts(offset))
 	msg := "err"
 	e := errors.New(msg)
 	now := time.Now()
@@ -222,7 +219,7 @@ func TestUnconsolidated(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewOffsetBlock(bb, buildOffsetOpts(offset))
+	offblock := NewOffsetBlock(bb, BuildOffsetOpts(offset))
 
 	// ensure functions are marshalled to the underlying unconsolidated block.
 	b := NewMockUnconsolidatedBlock(ctrl)
@@ -286,7 +283,7 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewOffsetBlock(bb, buildOffsetOpts(offset))
+	offblock := NewOffsetBlock(bb, BuildOffsetOpts(offset))
 	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)
@@ -357,7 +354,7 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewOffsetBlock(bb, buildOffsetOpts(offset))
+	offblock := NewOffsetBlock(bb, BuildOffsetOpts(offset))
 	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)

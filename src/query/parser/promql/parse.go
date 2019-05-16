@@ -22,7 +22,6 @@ package promql
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/offset"
@@ -83,27 +82,12 @@ func (p *parseState) transformLen() int {
 	return len(p.transforms)
 }
 
-func offsetOpts(off time.Duration) (block.OffsetOpts, error) {
-	if off <= 0 {
-		return block.OffsetOpts{}, fmt.Errorf("offset must be positive, received: %v", offset)
-	}
-
-	return block.OffsetOpts{
-		TimeTransform: func(t time.Time) time.Time { return t.Add(off) },
-		MetaTransform: func(meta block.Metadata) block.Metadata {
-			meta.Bounds.Start = meta.Bounds.Start.Add(off)
-			return meta
-		},
-		ValueTransform: func(val float64) float64 { return val },
-	}, nil
-}
-
 func (p *parseState) addOffsetTransform(offsetOpts block.OffsetOpts) error {
 	// if off <= 0 {
 	// 	return nil
 	// }
 
-	op, err := offset.NewOffsetOp(offsetOpts)
+	op, err := offset.NewOffsetOp(offset.OffsetType, offsetOpts)
 	if err != nil {
 		return err
 	}
@@ -151,7 +135,11 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		offsetOpts := offsetOpts(n.Offset)
+		offsetOpts, err := block.BuildOffsetOpts(n.Offset)
+		if err != nil {
+			return err
+		}
+
 		return p.addOffsetTransform(offsetOpts)
 
 	case *pql.VectorSelector:
@@ -161,7 +149,11 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		offsetOpts := offsetOpts(n.Offset)
+		offsetOpts, err := block.BuildOffsetOpts(n.Offset)
+		if err != nil {
+			return err
+		}
+
 		return p.addOffsetTransform(offsetOpts)
 
 	case *pql.Call:
@@ -262,15 +254,6 @@ func (p *parseState) walk(node pql.Node) error {
 	case *pql.ParenExpr:
 		// Evaluate inside of paren expressions
 		return p.walk(n.Expr)
-
-	// case *pql.UnaryExpr:
-	// 	err := p.walk(n.Expr)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	fmt.Printf("%+v\n", n.Expr)
-	// 	return nil
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)

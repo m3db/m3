@@ -21,20 +21,15 @@
 package block
 
 import (
+	"log"
 	"time"
 
 	"github.com/m3db/m3/src/query/ts"
 )
 
-// func updateMeta(meta Metadata, offset time.Duration) Metadata {
-// 	meta.Bounds.Start = meta.Bounds.Start.Add(offset)
-// 	return meta
-// }
-
 type offsetBlock struct {
 	block Block
-	// offset time.Duration
-	opts OffsetOpts
+	opts  *OffsetOpts
 }
 
 type TimeTransform func(time.Time) time.Time
@@ -47,13 +42,30 @@ type OffsetOpts struct {
 	ValueTransform ValueTransform
 }
 
+func BuildOffsetOpts(off time.Duration) *OffsetOpts {
+	if off <= 0 {
+		// todo(braskin): add zap logger here
+		log.Printf("offset must be positive, received: %v. not applying offset", off)
+		return nil
+	}
+
+	return &OffsetOpts{
+		TimeTransform: func(t time.Time) time.Time { return t.Add(off) },
+		MetaTransform: func(meta Metadata) Metadata {
+			meta.Bounds.Start = meta.Bounds.Start.Add(off)
+			return meta
+		},
+		ValueTransform: func(val float64) float64 { return val },
+	}
+}
+
 // NewOffsetBlock creates an offset block wrapping another block with an offset.
-func NewOffsetBlock(block Block, opts OffsetOpts) Block {
+func NewOffsetBlock(block Block, opts *OffsetOpts) Block {
 	// NB: this is an invalid case; however, if offset is invalid, it's safe to
 	// return the base block instead.
-	// if offset <= 0 { // add this check earlier when creating OffsetOpts
-	// 	return block
-	// }
+	if opts == nil {
+		return block
+	}
 
 	return &offsetBlock{
 		block: block,
@@ -92,7 +104,7 @@ func (b *offsetBlock) StepIter() (StepIter, error) {
 type offsetStepIter struct {
 	it StepIter
 	// offset time.Duration
-	opts OffsetOpts
+	opts *OffsetOpts
 }
 
 func (it *offsetStepIter) Close()                   { it.it.Close() }
@@ -132,7 +144,7 @@ func (b *offsetBlock) SeriesIter() (SeriesIter, error) {
 type offsetSeriesIter struct {
 	it SeriesIter
 	// offset time.Duration
-	opts OffsetOpts
+	opts *OffsetOpts
 }
 
 func (it *offsetSeriesIter) Close()                   { it.it.Close() }
@@ -162,7 +174,7 @@ func (b *offsetBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 type ucOffsetBlock struct {
 	block UnconsolidatedBlock
 	// offset time.Duration
-	opts OffsetOpts
+	opts *OffsetOpts
 }
 
 func (b *ucOffsetBlock) Close() error { return b.block.Close() }
@@ -207,7 +219,7 @@ func (b *ucOffsetBlock) StepIter() (UnconsolidatedStepIter, error) {
 type ucOffsetStepIter struct {
 	it UnconsolidatedStepIter
 	// offset time.Duration
-	opts OffsetOpts
+	opts *OffsetOpts
 }
 
 func (it *ucOffsetStepIter) Close()                   { it.it.Close() }
@@ -269,7 +281,7 @@ func (b *ucOffsetBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 type ucOffsetSeriesIter struct {
 	it UnconsolidatedSeriesIter
 	// offset time.Duration
-	opts OffsetOpts
+	opts *OffsetOpts
 }
 
 func (it *ucOffsetSeriesIter) Close()                   { it.it.Close() }
