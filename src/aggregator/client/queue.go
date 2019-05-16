@@ -118,8 +118,7 @@ type queue struct {
 	bufCh         chan protobuf.Buffer
 	doneCh        chan struct{}
 	closed        bool
-	batchSize     int
-	buf           []byte
+	maxBatchSize  int
 	writeInterval time.Duration
 	wg            sync.WaitGroup
 
@@ -127,8 +126,8 @@ type queue struct {
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
-	const batchSize = 16384
-	const minWriteInterval = 250 * time.Millisecond
+	const maxBatchSize = 2 << 16
+	const writeInterval = 100 * time.Millisecond
 	var (
 		instrumentOpts     = opts.InstrumentOptions()
 		scope              = instrumentOpts.MetricsScope()
@@ -139,35 +138,20 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		queueSize          = opts.InstanceQueueSize()
 	)
 	q := &queue{
-		dropType: opts.QueueDropType(),
-		log:      iOpts.Logger(),
-		metrics:  newQueueMetrics(iOpts.MetricsScope(), queueSize),
-		instance: instance,
-		conn:     conn,
-		bufCh:    make(chan protobuf.Buffer, queueSize),
-		doneCh:   make(chan struct{}),
-	}
-
-	var (
-		ticker *time.Ticker
-		tC     <-chan (time.Time)
-	)
-	if batchSize > 0 && minWriteInterval != 0 {
-		q.buf = make([]byte, 0, batchSize)
-		q.writeInterval = minWriteInterval
-		q.batchSize = batchSize
-		ticker = time.NewTicker(minWriteInterval)
-		tC = ticker.C
+		dropType:      opts.QueueDropType(),
+		log:           iOpts.Logger(),
+		metrics:       newQueueMetrics(iOpts.MetricsScope(), queueSize),
+		instance:      instance,
+		conn:          conn,
+		bufCh:         make(chan protobuf.Buffer, queueSize),
+		doneCh:        make(chan struct{}),
+		maxBatchSize:  maxBatchSize,
+		writeInterval: writeInterval,
 	}
 	q.writeFn = q.conn.Write
 
 	q.wg.Add(2)
-	go func() {
-		q.drain(tC)
-		if ticker != nil {
-			ticker.Stop()
-		}
-	}()
+	go q.drain()
 	go q.reportQueueSize(iOpts.ReportInterval())
 
 	return q
@@ -223,57 +207,51 @@ func (q *queue) Close() error {
 	return nil
 }
 
-func (q *queue) drain(tC <-chan (time.Time)) {
+func (q *queue) write(buf []byte) {
+	if err := q.writeFn(buf); err != nil {
+		q.log.Error("error writing data on timed flush",
+			zap.String("instance", q.instance.Endpoint()),
+			zap.Error(err),
+		)
+		q.metrics.connWriteErrors.Inc(1)
+	} else {
+		q.metrics.connWriteSuccesses.Inc(1)
+	}
+}
+
+func (q *queue) drain() {
 	defer q.wg.Done()
 	defer q.conn.Close()
+	ticker := time.NewTicker(q.writeInterval)
+	defer ticker.Stop()
+	buf := make([]byte, 0, q.maxBatchSize)
 	lastDrain := time.Now()
 
 	for {
 		select {
 		case qitem := <-q.bufCh:
-			var needFlush bool
 			msg := qitem.Bytes()
-			q.buf = append(q.buf, msg...)
+			if len(buf)+len(msg) > q.maxBatchSize {
+				q.write(buf)
+				buf = buf[:0]
+			}
+			buf = append(buf, msg...)
 			qitem.Close()
 
-			if len(q.buf) > q.batchSize {
-				needFlush = true
-			} else {
-				needFlush = time.Since(lastDrain) >= q.writeInterval
-			}
-
-			if !needFlush {
+			if len(buf) < q.maxBatchSize && time.Since(lastDrain) < q.writeInterval {
 				continue
 			}
-
-			if err := q.writeFn(q.buf); err != nil {
-				q.log.Error("error writing data", zap.String("instance", q.instance.Endpoint()), zap.Error(err))
-				q.metrics.connWriteErrors.Inc(1)
-			} else {
-				q.metrics.connWriteSuccesses.Inc(1)
-			}
-			qitem.Close()
-
-			q.buf = q.buf[:0]
+			q.write(buf)
+			buf = buf[:0]
 			lastDrain = time.Now()
-		case ts := <-tC:
+		case ts := <-ticker.C:
 			delta := ts.Sub(lastDrain)
 			lastDrain = ts
-			if delta < q.writeInterval || len(q.buf) == 0 {
+			if delta < q.writeInterval || len(buf) == 0 {
 				continue
 			}
-
-			// duplicating write logic here as moving it to a func might prevent inlining
-			if err := q.writeFn(q.buf); err != nil {
-				q.log.Error("error writing data on timed flush",
-					zap.String("instance", q.instance.Endpoint()),
-					zap.Error(err),
-				)
-				q.metrics.connWriteErrors.Inc(1)
-			} else {
-				q.metrics.connWriteSuccesses.Inc(1)
-			}
-			q.buf = q.buf[:0]
+			q.write(buf)
+			buf = buf[:0]
 		case <-q.doneCh:
 			return
 		}
