@@ -95,7 +95,7 @@ func (u *customUnmarshaler) unmarshal() error {
 			return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
 		}
 
-		if u.isCustomField(fd) {
+		if !u.isCustomField(fd) {
 			if u.nonCustomValues == nil {
 				u.nonCustomValues = dynamic.NewMessage(u.schema)
 			}
