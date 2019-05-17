@@ -34,6 +34,7 @@ type customFieldMarshaler interface {
 	encInt64(tag int32, x int64)
 	encUInt64(tag int32, x uint64)
 	encBool(tag int32, x bool)
+	encBytes(tag int32, x []byte)
 	encPartialProto(tag int32, x []byte)
 	bytes() []byte
 	reset()
@@ -41,6 +42,12 @@ type customFieldMarshaler interface {
 
 type customMarshaler struct {
 	buf *buffer
+}
+
+func newCustomMarshaler() customFieldMarshaler {
+	return &customMarshaler{
+		buf: newCodedBuffer(nil),
+	}
 }
 
 func (m *customMarshaler) encFloat64(tag int32, x float64) {
@@ -53,11 +60,19 @@ func (m *customMarshaler) encFloat32(tag int32, x float32) {
 	m.buf.encodeFixed32(math.Float32bits(x))
 }
 
+func (m *customMarshaler) encBool(tag int32, x bool) {
+	var val uint64
+	if x {
+		val = 1
+	}
+	m.encUInt64(tag, val)
+}
+
 func (m *customMarshaler) encInt32(tag int32, x int32) {
 	m.encUInt64(tag, uint64(x))
 }
 
-func (m *customMarshaler) encUInt32(tag int32, x int64) {
+func (m *customMarshaler) encUInt32(tag int32, x uint32) {
 	m.encUInt64(tag, uint64(x))
 }
 
@@ -70,12 +85,9 @@ func (m *customMarshaler) encUInt64(tag int32, x uint64) {
 	m.buf.encodeVarint(x)
 }
 
-func (m *customMarshaler) encBool(tag int32, x bool) {
-	var val uint64
-	if x {
-		val = 1
-	}
-	m.encUInt64(tag, val)
+func (m *customMarshaler) encBytes(tag int32, x []byte) {
+	m.buf.encodeTagAndWireType(tag, proto.WireBytes)
+	m.buf.encodeRawBytes(x)
 }
 
 func (m *customMarshaler) encPartialProto(tag int32, x []byte) {
@@ -84,4 +96,8 @@ func (m *customMarshaler) encPartialProto(tag int32, x []byte) {
 
 func (m *customMarshaler) bytes() []byte {
 	return m.buf.buf
+}
+
+func (m *customMarshaler) reset() {
+	m.buf.reset(m.buf.buf)
 }

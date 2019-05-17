@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/jhump/protoreflect/dynamic"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCustomMarshal(t *testing.T) {
@@ -34,15 +35,49 @@ func TestCustomMarshal(t *testing.T) {
 			message: newVL(0, 0, 0, nil, nil),
 		},
 		{
-			message: newVL(1, 1, 1, []byte("some-delivery-id", nil)),
+			message: newVL(1, 1, 1, []byte("some-delivery-id"), nil),
 		},
 		{
-			message: newVL(2, 2, 2, []byte("some-delivery-id-2", map[string]string{"key": "val"})),
+			message: newVL(2, 2, 2, []byte("some-delivery-id-2"), map[string]string{"key": "val"}),
 		},
 	}
 
-	b := []byte{}
+	marshaler := newCustomMarshaler()
 	for _, tc := range testCases {
+		marshaler.reset()
+		customMarshalVL(t, marshaler, tc.message)
 
+		unmarshalM := dynamic.NewMessage(testVLSchema)
+		require.NoError(t, unmarshalM.Unmarshal(marshaler.bytes()))
+
+		require.True(t, dynamic.Equal(tc.message, unmarshalM))
 	}
+}
+
+func customMarshalVL(t *testing.T, marshaler customFieldMarshaler, m *dynamic.Message) {
+	marshaler.encFloat64(1, m.GetFieldByNumber(1).(float64))
+	marshaler.encFloat64(2, m.GetFieldByNumber(2).(float64))
+	marshaler.encInt64(3, m.GetFieldByNumber(3).(int64))
+	marshaler.encBytes(4, m.GetFieldByNumber(4).([]byte))
+
+	// Fields set to their default value are not marshaled in the Protobuf3 format so to generate
+	// the bytes that represent the attributes map we create a new VL message where every field is
+	// set to its default value except for the attributes map and then Marshal() it into a byte stream
+	// which will create a stream that only includes the attributes field.
+	var (
+		attributeMapIface      = m.GetFieldByNumber(5).(map[interface{}]interface{})
+		attributeMap           = mapInterfaceToMapString(attributeMapIface)
+		attributesM            = newVL(0, 0, 0, nil, attributeMap)
+		attributeMapBytes, err = attributesM.Marshal()
+	)
+	require.NoError(t, err)
+	marshaler.encPartialProto(5, attributeMapBytes)
+}
+
+func mapInterfaceToMapString(ifaceMap map[interface{}]interface{}) map[string]string {
+	stringMap := make(map[string]string, len(ifaceMap))
+	for key, val := range ifaceMap {
+		stringMap[key.(string)] = val.(string)
+	}
+	return stringMap
 }
