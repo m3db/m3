@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -36,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -518,7 +518,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 		idPool     = s.opts.CommitLogOptions().IdentifierPool()
-		nsCtx       = namespace.NewContextFrom(ns)
+		nsCtx      = namespace.NewContextFrom(ns)
 	)
 
 	// Bootstrap the snapshot file
@@ -1310,15 +1310,20 @@ func (s commitLogSource) shouldReturnUnfulfilled(
 	opts bootstrap.RunOptions,
 ) (bool, error) {
 	if !s.opts.ReturnUnfulfilledForCorruptCommitLogFiles() {
+		s.log.Info("returning not-unfulfilled: ReturnUnfulfilledForCorruptCommitLogFiles is false")
 		return false, nil
 	}
 
 	if !encounteredCorruptData {
+		s.log.Info("returning not-unfulfilled: no corrupt data encountered")
 		return false, nil
 	}
 
 	areShardsReplicated := s.areShardsReplicated(
 		ns, shardsTimeRanges, opts)
+	if !areShardsReplicated {
+		s.log.Info("returning not-unfulfilled: replication is not enabled")
+	}
 
 	return areShardsReplicated, nil
 }

@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -490,7 +490,7 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	ts := timeFor(36000)
 
 	db := NewMockdatabase(ctrl)
-	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	db.EXPECT().Open().Return(nil)
 	db.EXPECT().Terminate().Return(nil)
 	db.EXPECT().GetOwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()

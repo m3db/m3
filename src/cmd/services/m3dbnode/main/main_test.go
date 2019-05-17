@@ -489,8 +489,6 @@ db:
             - commitlog
             - peers
             - uninitialized_topology
-        fs:
-            numProcessorsPerCPU: 0.125
 
     commitlog:
         flushMaxBytes: 524288
