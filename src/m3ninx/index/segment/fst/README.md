@@ -1,6 +1,56 @@
 FS Segment
 ===========
 
+- Version 1.2: Adds support for (optional) documents data file compression.
+NB: stress on the *optional*: FS Segments do not have to enable compression, in which case,
+the documents data and index files stored on disk look the same as they do in version 1.1.
+
+```
+┌───────────────────────────────┐            ┌──────────────────────────────────────┐
+│ FST Fields File               │            │ FST Terms File                       │
+│-------------------------------│            │--------------------------------------│
+│- Vellum V1 Format             │            │`n` records, each:                    │
+│- []byte -> FST Terms Offset   ├─────┐      │  - metadata proto (`md-size` bytes)  │
+└───────────────────────────────┘     │      │  - md-size (int64)                   │
+                                      │      │  - fst payload (`fst size` bytes)    │
+                                      │      │  - fst size (int64)                  │
+                                      └─────▶│  - magic number (int64)              │
+                                             │                                      │
+                                             │Payload:                              │
+                                             │(1) Vellum V1 FST                     ├─┐
+                                             │[]byte -> Postings Offset             │ │
+                                             │                                      │ │
+                                             │(2) Metadata Proto Bytes              │ │
+                                             │Field Postings Offset                 │ │
+                                             └──────────────────────────────────────┘ │
+                                                   ┌───────────────────────────────┐  │
+                                                   │ Postings Data File            │  │
+                                                   │-------------------------------│  │
+                                                   │`n` records, each:             │  │
+                                                   │  - payload (`size` bytes)     │  │
+                                                   │  - size (int64)               │  │
+                                                   │  - magic number (int64)       │◀─┘
+                                                   │                               │
+                                                   │Payload:                       │
+                                                   │- Pilosa Bitset                ├──┐
+            ┌───────────────────────────┐          │- List of doc.ID               │  │
+            │ Documents Data File       │          └───────────────────────────────┘  │
+            │-------------------------  │                                             │
+            │'m' pages, each:           │         ┌────────────────────────────────┐  │
+            │  - Magic Number (int64)   │         │ Documents Index File           │  │
+            │  - Valid (1 byte)         │         │-------------------------       │  │
+            │  - Size (int64)           │         │- Magic Number (int64)          │  │
+            │  - Payload (`size` bytes) │         │- Num docs (int64)              │  │
+            └───────────────────────────┘         │- Base Doc.ID `b` (int64)       │  │
+                          ▲                  ┌────│- Doc `b` page offset (int64)   │◀─┘
+                          │                  │    │- Doc `b` doc offset (int64)    │
+                          └──────────────────┘    │...                             │
+                                                  │- Doc `b+n-1` page offset       │
+                                                  │- Doc `b+n-1` doc offset        │
+                                                  └────────────────────────────────┘
+```
+
+
 - Version 1.1: Adds support for a metadata proto object per Field. This is used to
 store an additional postings offset per Field to a PostingsList comprising the union
 of all known PostingsList across all known Terms per Field.

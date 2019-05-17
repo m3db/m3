@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 )
 
 const (
@@ -40,10 +41,17 @@ type Version struct {
 
 var (
 	// CurrentVersion describes the default current Version.
-	CurrentVersion Version = Version{Major: 1, Minor: 1}
+	CurrentVersion Version = Version{Major: 1, Minor: 2}
+
+	// DefaultCompression configures the documents data to be un-compressed by default.
+	DefaultCompression = docs.CompressionOptions{
+		Type: docs.NoneCompressionType,
+	}
 
 	// SupportedVersions lists all supported versions of the FST package.
 	SupportedVersions = []Version{
+		// 1.2 Adds support for document data compression.
+		Version{Major: 1, Minor: 2},
 		// 1.1 Adds support for field level metadata in a proto object,
 		// and an additional postings list per Field referencing all
 		// documents which have that Field.
@@ -106,4 +114,8 @@ func (v Version) Supported() error {
 
 func (v Version) supportsFieldPostingsList() bool {
 	return v.Major == 1 && v.Minor >= 1
+}
+
+func (v Version) supportsDocumentsCompresion() bool {
+	return v.Major == 1 && v.Minor >= 2
 }

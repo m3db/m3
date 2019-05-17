@@ -34,14 +34,14 @@ func ToTestSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segme
 	return newFSTSegment(t, s, opts)
 }
 
-func newFSTSegmentWithVersion(
+func newFSTSegmentWithOptionsAndVersion(
 	t *testing.T,
 	s sgmt.MutableSegment,
 	opts Options,
-	writerVersion, readerVersion Version,
+	writerOpts WriterOptions, writerVersion, readerVersion Version,
 ) sgmt.Segment {
 	s.Seal()
-	w, err := newWriterWithVersion(WriterOptions{}, &writerVersion)
+	w, err := newWriterWithVersion(writerOpts, &writerVersion)
 	require.NoError(t, err)
 	require.NoError(t, w.Reset(s))
 
@@ -72,6 +72,15 @@ func newFSTSegmentWithVersion(
 	require.NoError(t, err)
 
 	return reader
+}
+
+func newFSTSegmentWithVersion(
+	t *testing.T,
+	s sgmt.MutableSegment,
+	opts Options,
+	writerVersion, readerVersion Version,
+) sgmt.Segment {
+	return newFSTSegmentWithOptionsAndVersion(t, s, opts, WriterOptions{}, writerVersion, readerVersion)
 }
 
 func newFSTSegment(t *testing.T, s sgmt.MutableSegment, opts Options) sgmt.Segment {

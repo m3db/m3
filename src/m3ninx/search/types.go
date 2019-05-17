@@ -56,6 +56,9 @@ type Query interface {
 // of the documents it matches for the given segment.
 type Searcher interface {
 	// Search executes a configured query against the given Reader.
+	// TODO(prateek): change this return type to postings.Iterator and
+	// change the implementation to provide a conjunctive/disjunctive operator over
+	// postings.Iterator(s), instead of creating postings.List(s) for operations.
 	Search(index.Reader) (postings.List, error)
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -8,7 +8,7 @@
 // furnished to do so, subject to the following conditions:
 //
 // The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// all copies or substantial portions of the Softwarw.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -18,42 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package fswriter;
+package docs
 
-enum SegmentType {
-  FST_SEGMENT_TYPE = 0;
-}
+import (
+	"testing"
 
-enum FSTSegmentFileType {
-  DOCUMENTS_INDEX     = 0;
-  DOCUMENTS_DATA      = 1;
-  POSTINGS_DATA       = 2;
-  FST_TERMS           = 3;
-  FST_FIELDS          = 4;
-}
+	"github.com/stretchr/testify/require"
+)
 
-enum PostingsFormat {
-  PILOSAV1_POSTINGS_FORMAT = 0;
-}
+func TestCompressorDecompressor(t *testing.T) {
+	rawBytes := []byte("some long string that goes on")
+	for _, codec := range ValidCompressionTypes {
+		t.Run(codec.String(), func(t *testing.T) {
+			copts := CompressionOptions{
+				Type:     codec,
+				PageSize: 1 << 14,
+			}
+			c, err := copts.newCompressor()
+			require.NoError(t, err)
+			compressed, err := c.Compress(rawBytes)
+			require.NoError(t, err)
 
-enum CompressionType {
-  NONE_COMPRESSION_TYPE    = 0;
-  SNAPPY_COMPRESSION_TYPE  = 1;
-  DEFLATE_COMPRESSION_TYPE = 2;
-  LZ4_COMPRESSION_TYPE     = 3;
-}
+			d, err := copts.newDecompressor()
+			require.NoError(t, err)
+			decompressed, err := d.Decompress(compressed)
+			require.NoError(t, err)
 
-message Metadata {
-  PostingsFormat  postingsFormat      = 1;
-  int64           numDocs             = 2;
-  CompressionType compressionType     = 3;
-  int64           compressionPageSize = 4;
-}
-
-// additional metadata stored per Field in the corpus.
-message FieldData {
-  // postingsOffset for the pl corresponding to the union of all documents
-  // which have a given field.
-  uint64 fieldPostingsListOffset = 1;
+			require.Equal(t, string(rawBytes), string(decompressed))
+		})
+	}
 }

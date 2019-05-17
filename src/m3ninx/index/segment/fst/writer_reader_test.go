@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
@@ -101,8 +102,8 @@ type testSegmentCase struct {
 	expected, observed sgmt.Segment
 }
 
-func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
-	memSeg, fstSeg := newTestSegments(t, docs)
+func newTestCases(t *testing.T, testDocs []doc.Document) []testSegmentCase {
+	memSeg, fstSeg := newTestSegments(t, testDocs)
 
 	fstWriter10Reader10 := newFSTSegmentWithVersion(t, memSeg, testOptions,
 		Version{Major: 1, Minor: 0}, /* writer version */
@@ -115,6 +116,30 @@ func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
 	fstWriter11Reader11 := newFSTSegmentWithVersion(t, memSeg, testOptions,
 		Version{Major: 1, Minor: 1}, /* writer version */
 		Version{Major: 1, Minor: 1} /* reader version */)
+
+	fst12WriterDeflate := newFSTSegmentWithOptionsAndVersion(t, memSeg, testOptions,
+		WriterOptions{CompressionOptions: &docs.CompressionOptions{
+			Type:     docs.DeflateCompressionType,
+			PageSize: 1 << 14,
+		}},
+		Version{Major: 1, Minor: 2}, /* writer version */
+		Version{Major: 1, Minor: 2} /* reader version */)
+
+	fst12WriterSnappy := newFSTSegmentWithOptionsAndVersion(t, memSeg, testOptions,
+		WriterOptions{CompressionOptions: &docs.CompressionOptions{
+			Type:     docs.SnappyCompressionType,
+			PageSize: 1 << 14,
+		}},
+		Version{Major: 1, Minor: 2}, /* writer version */
+		Version{Major: 1, Minor: 2} /* reader version */)
+
+	fst12WriterLZ4 := newFSTSegmentWithOptionsAndVersion(t, memSeg, testOptions,
+		WriterOptions{CompressionOptions: &docs.CompressionOptions{
+			Type:     docs.LZ4CompressionType,
+			PageSize: 1 << 14,
+		}},
+		Version{Major: 1, Minor: 2}, /* writer version */
+		Version{Major: 1, Minor: 2} /* reader version */)
 
 	return []testSegmentCase{
 		testSegmentCase{ // mem sgmt v latest fst
@@ -136,6 +161,21 @@ func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
 			name:     "mem v fstWriter11Reader11",
 			expected: memSeg,
 			observed: fstWriter11Reader11,
+		},
+		testSegmentCase{ // mem sgmt v fst (v1.2, deflate)
+			name:     "mem v fst1.2 (deflate)",
+			expected: memSeg,
+			observed: fst12WriterDeflate,
+		},
+		testSegmentCase{ // mem sgmt v fst (v1.2, snappy)
+			name:     "mem v fst1.2 (snappy)",
+			expected: memSeg,
+			observed: fst12WriterSnappy,
+		},
+		testSegmentCase{ // mem sgmt v fst (v1.2, lz4)
+			name:     "mem v fst1.2 (lz4)",
+			expected: memSeg,
+			observed: fst12WriterLZ4,
 		},
 	}
 }
