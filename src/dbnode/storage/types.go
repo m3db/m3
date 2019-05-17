@@ -980,3 +980,18 @@ const (
 	// Bootstrapped indicates a bootstrap process has completed.
 	Bootstrapped
 )
+
+type forEachRemainingFn func(seriesID ident.ID, tags ident.Tags) bool
+
+// FsMergeWith is an interface that the fsMerger uses to merge data with.
+type FsMergeWith interface {
+	// Read returns the data for the given block start and series ID, whether
+	// any data was found, and the error encountered (if any).
+	Read(blockStart xtime.UnixNano, seriesID ident.ID) ([]xio.BlockReader, bool, error)
+
+	// ForEachRemaining is the loop for the second stage of merging. The
+	// fsMerger first loops through the fileset series, merging them with data
+	// in the merge target. The second stage is the go through the merge target
+	// data and write the remaining series that were not merged.
+	ForEachRemaining(blockStart xtime.UnixNano, fn forEachRemainingFn) error
+}

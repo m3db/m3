@@ -30,8 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -1922,12 +1920,15 @@ func (s *dbShard) ColdFlush(
 	s.RUnlock()
 
 	resources.reset()
-	dirtySeriesToWrite := resources.dirtySeriesToWrite
-	dirtySeries := resources.dirtySeries
-	idElementPool := resources.idElementPool
-	fsReader := resources.fsReader
 
-	var multiErr xerrors.MultiError
+	var (
+		multiErr           xerrors.MultiError
+		dirtySeries        = resources.dirtySeries
+		dirtySeriesToWrite = resources.dirtySeriesToWrite
+		idElementPool      = resources.idElementPool
+		blockSize          = s.namespace.Options().RetentionOptions().BlockSize()
+	)
+
 	// First, loop through all series to capture data on which blocks have dirty
 	// series and add them to the resources for further processing.
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
@@ -1948,204 +1949,37 @@ func (s *dbShard) ColdFlush(
 		return true
 	})
 
-	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
-	srPool := s.opts.SegmentReaderPool()
-	multiIterPool := s.opts.MultiReaderIteratorPool()
-	encoderPool := s.opts.EncoderPool()
-	tmpCtx := context.NewContext()
-
+	mergerResources := fsMergerReusableResources{
+		fsReader:      resources.fsReader,
+		srPool:        s.opts.SegmentReaderPool(),
+		multiIterPool: s.opts.MultiReaderIteratorPool(),
+		identPool:     s.opts.IdentifierPool(),
+		encoderPool:   s.opts.EncoderPool(),
+	}
+	merger := &fsMerger{res: mergerResources}
+	mergeWithMem := &fsMergeWithMem{
+		shard:              s,
+		dirtySeries:        dirtySeries,
+		dirtySeriesToWrite: dirtySeriesToWrite,
+	}
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
 	// a block, we continue to try persisting other blocks.
-BlockLoop:
-	for blockStart, seriesList := range dirtySeriesToWrite {
-		startTime := blockStart.ToTime()
-		openOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  s.namespace.ID(),
-				Shard:      s.ID(),
-				BlockStart: startTime,
-			},
-		}
-		if err := fsReader.Open(openOpts); err != nil {
-			multiErr = multiErr.Add(err)
-			continue BlockLoop
-		}
-		defer fsReader.Close()
-
-		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
-
-		prepareOpts := persist.DataPrepareOptions{
-			NamespaceMetadata: s.namespace,
-			Shard:             s.ID(),
-			BlockStart:        startTime,
-			DeleteIfExists:    false,
-		}
-		prepared, err := flushPreparer.PrepareData(prepareOpts)
+	for blockStart := range dirtySeriesToWrite {
+		err := merger.Merge(s.namespace, s.ID(), blockStart, blockSize, flushPreparer, mergeWithMem)
 		if err != nil {
-			s.incrementFlushStateFailures(startTime)
 			multiErr = multiErr.Add(err)
-			continue BlockLoop
-		}
-
-		// Writing data for a block is done in two stages. The first stage is
-		// to loop through series on disk and merge it with what's in memory.
-		// The second stage is to persist the rest of the series in memory that
-		// was not persisted in the first stage.
-
-		// First stage: loop through series on disk.
-		for id, tagsIter, data, _, err := fsReader.Read(); err != io.EOF; id, tagsIter, data, _, err = fsReader.Read() {
-			if err != nil {
-				s.incrementFlushStateFailures(startTime)
-				multiErr = multiErr.Add(err)
-				continue BlockLoop
-			}
-
-			// There will be at most two BlockReader slices: one for disk data
-			// and one for in memory data.
-			brs := make([][]xio.BlockReader, 0, 2)
-
-			// Create BlockReader slice out of disk data.
-			seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-			sr := srPool.Get()
-			sr.Reset(seg)
-			br := xio.BlockReader{
-				SegmentReader: sr,
-				Start:         startTime,
-				BlockSize:     blockSize,
-			}
-			brs = append(brs, []xio.BlockReader{br})
-
-			// Check if this series is in memory (and thus requires merging).
-			if element, ok := dirtySeries.Get(idAndBlockStart{blockStart: blockStart, id: id}); ok {
-				// Series is in memory, so it will get merged with disk and
-				// written in this loop. Therefore, we need to remove it from
-				// the "to write" list so that the later loop does not rewrite
-				// it.
-				dirtySeriesToWrite[blockStart].Remove(element)
-
-				s.RLock()
-				entry, _, err := s.lookupEntryWithLock(element.Value)
-				s.RUnlock()
-
-				tmpCtx.Reset()
-				encoded, err := entry.Series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion, nsCtx)
-				tmpCtx.BlockingClose()
-				if err != nil {
-					s.incrementFlushStateFailures(startTime)
-					multiErr = multiErr.Add(err)
-					continue BlockLoop
-				}
-
-				if len(encoded) > 0 {
-					brs = append(brs, encoded)
-				}
-			}
-
-			mergedIter := multiIterPool.Get()
-			mergedIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(brs), nsCtx.Schema)
-			defer mergedIter.Close()
-
-			tags, err := convert.TagsFromTagsIter(id, tagsIter, s.opts.IdentifierPool())
-			tagsIter.Close()
-			if err != nil {
-				s.incrementFlushStateFailures(startTime)
-				multiErr = multiErr.Add(err)
-				continue BlockLoop
-			}
-			if err := persistIter(prepared.Persist, mergedIter, id, tags, encoderPool); err != nil {
-				s.incrementFlushStateFailures(startTime)
-				multiErr = multiErr.Add(err)
-				continue BlockLoop
-			}
-		}
-
-		// Second stage: loop through rest of series in memory that was not on
-		// disk.
-		for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
-			s.RLock()
-			entry, _, err := s.lookupEntryWithLock(seriesElement.Value)
-			s.RUnlock()
-			if err != nil {
-				s.incrementFlushStateFailures(startTime)
-				multiErr = multiErr.Add(err)
-				continue BlockLoop
-			}
-			series := entry.Series
-			tmpCtx.Reset()
-			encoded, err := series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion, nsCtx)
-			tmpCtx.BlockingClose()
-			if err != nil {
-				s.incrementFlushStateFailures(startTime)
-				multiErr = multiErr.Add(err)
-				continue BlockLoop
-			}
-
-			if len(encoded) > 0 {
-				iter := multiIterPool.Get()
-				iter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize, nsCtx.Schema)
-				defer iter.Close()
-				if err := persistIter(prepared.Persist, iter, series.ID(), series.Tags(), encoderPool); err != nil {
-					s.incrementFlushStateFailures(startTime)
-					multiErr = multiErr.Add(err)
-					continue BlockLoop
-				}
-			}
-		}
-
-		// Close the flush preparer, which writes the rest of the files in the
-		// fileset.
-		if err := prepared.Close(); err != nil {
-			multiErr = multiErr.Add(err)
+			continue
 		}
 
 		// After writing the full block successfully, update the cold version
 		// in the flush state.
+		startTime := blockStart.ToTime()
+		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
 		s.setFlushStateColdVersion(startTime, nextVersion)
 	}
 
 	return multiErr.FinalError()
-}
-
-func persistIter(
-	persistFn persist.DataFn,
-	it encoding.Iterator,
-	id ident.ID,
-	tags ident.Tags,
-	encoderPool encoding.EncoderPool,
-) error {
-	encoder := encoderPool.Get()
-	for it.Next() {
-		if err := encoder.Encode(it.Current()); err != nil {
-			encoder.Close()
-			return err
-		}
-	}
-	if err := it.Err(); err != nil {
-		return err
-	}
-
-	stream, ok := encoder.Stream(encoding.StreamOptions{})
-	encoder.Close()
-	if !ok {
-		return nil
-	}
-
-	segment, err := stream.Segment()
-	if err != nil {
-		return err
-	}
-
-	checksum := digest.SegmentChecksum(segment)
-
-	err = persistFn(id, tags, segment, checksum)
-	id.Finalize()
-	tags.Finalize()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *dbShard) Snapshot(
