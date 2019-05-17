@@ -231,6 +231,10 @@ func (q *queue) drain() {
 	defer q.conn.Close()
 	timer := time.NewTimer(q.batchFlushDeadline)
 	lastDrain := time.Now()
+	write := func() {
+		q.writeAndReset()
+		lastDrain = time.Now()
+	}
 
 	for {
 		select {
@@ -238,8 +242,7 @@ func (q *queue) drain() {
 			drained := false
 			msg := qitem.Bytes()
 			if len(q.buf)+len(msg) > q.maxBatchSize {
-				q.writeAndReset()
-				lastDrain = time.Now()
+				write()
 				drained = true
 			}
 			q.buf = append(q.buf, msg...)
@@ -250,16 +253,14 @@ func (q *queue) drain() {
 				continue
 			}
 
-			q.writeAndReset()
-			lastDrain = time.Now()
+			write()
 		case ts := <-timer.C:
 			delta := ts.Sub(lastDrain)
 			if delta < q.batchFlushDeadline {
 				timer.Reset(q.batchFlushDeadline - delta)
 				continue
 			}
-			q.writeAndReset()
-			lastDrain = time.Now()
+			write()
 			timer.Reset(q.batchFlushDeadline)
 		case <-q.doneCh:
 			return
