@@ -52,7 +52,7 @@ const (
 	defaultDropType = DropOldest
 
 	// By default set maximum batch size to 32k
-	defaultMaxBatchSize = 2 << 15
+	defaultMaxBatchSize = 2 << 14
 
 	// By default write at least every 100ms
 	defaultBatchFlushDeadline = 100 * time.Millisecond
