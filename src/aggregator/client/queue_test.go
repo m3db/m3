@@ -54,7 +54,11 @@ func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
 		select {}
 	}
 
+	time.Sleep(5 * time.Millisecond)
 	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
+	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
+	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
+	time.Sleep(5 * time.Millisecond)
 	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
 }
 
@@ -67,8 +71,10 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 	queue.writeFn = func([]byte) error {
 		select {}
 	}
+	time.Sleep(5 * time.Millisecond)
 	queue.bufCh <- testNewBuffer(nil)
 	queue.bufCh <- testNewBuffer(nil)
+	time.Sleep(5 * time.Millisecond)
 	require.NoError(t, queue.Enqueue(testNewBuffer(nil)))
 }
 
