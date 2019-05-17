@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -44,30 +44,29 @@ func buildMeta(start time.Time) Metadata {
 	}
 }
 
+func testLazyOpts(offset time.Duration) LazyOpts {
+	tt := func(t time.Time) time.Time { return t.Add(offset) }
+	mt := func(meta Metadata) Metadata {
+		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+		return meta
+	}
+	return NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt)
+}
+
 func TestLazyOpts(t *testing.T) {
 	off := time.Minute
-	lazyOpts := BuildLazyOpts(off)
+	lazyOpts := testLazyOpts(off)
 
 	now := time.Now()
-	equalTimes := lazyOpts.TimeTransform(now).Equal(now.Add(off))
+	equalTimes := lazyOpts.TimeTransform()(now).Equal(now.Add(off))
 	assert.True(t, equalTimes)
 
 	meta := buildMeta(now)
-	updated := lazyOpts.MetaTransform(meta)
+	updated := lazyOpts.MetaTransform()(meta)
 	expected := buildMeta(now.Add(off))
 	require.Equal(t, expected, updated)
 
-	require.Equal(t, 1.0, lazyOpts.ValueTransform(1.0))
-}
-
-func TestInvalidOffset(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	b := NewMockBlock(ctrl)
-	off := NewLazyBlock(b, BuildLazyOpts(0))
-	assert.Equal(t, b, off)
-	off = NewLazyBlock(b, BuildLazyOpts(-1))
-	assert.Equal(t, b, off)
+	require.Equal(t, 1.0, lazyOpts.ValueTransform()(1.0))
 }
 
 func TestValidOffset(t *testing.T) {
@@ -75,7 +74,7 @@ func TestValidOffset(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewLazyBlock(b, BuildLazyOpts(offset))
+	off := NewLazyBlock(b, testLazyOpts(offset))
 
 	// ensure functions are marshalled to the underlying block.
 	b.EXPECT().Close().Return(nil)
@@ -126,7 +125,7 @@ func TestStepIter(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewLazyBlock(b, BuildLazyOpts(offset))
+	off := NewLazyBlock(b, testLazyOpts(offset))
 	msg := "err"
 	e := errors.New(msg)
 	now := time.Now()
@@ -173,7 +172,7 @@ func TestSeriesIter(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewLazyBlock(b, BuildLazyOpts(offset))
+	off := NewLazyBlock(b, testLazyOpts(offset))
 	msg := "err"
 	e := errors.New(msg)
 	now := time.Now()
@@ -219,7 +218,7 @@ func TestUnconsolidated(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewLazyBlock(bb, BuildLazyOpts(offset))
+	offblock := NewLazyBlock(bb, testLazyOpts(offset))
 
 	// ensure functions are marshalled to the underlying unconsolidated block.
 	b := NewMockUnconsolidatedBlock(ctrl)
@@ -283,7 +282,7 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewLazyBlock(bb, BuildLazyOpts(offset))
+	offblock := NewLazyBlock(bb, testLazyOpts(offset))
 	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)
@@ -354,7 +353,7 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewLazyBlock(bb, BuildLazyOpts(offset))
+	offblock := NewLazyBlock(bb, testLazyOpts(offset))
 	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)

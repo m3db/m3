@@ -22,6 +22,8 @@ package promql
 
 import (
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/lazy"
@@ -82,10 +84,28 @@ func (p *parseState) transformLen() int {
 	return len(p.transforms)
 }
 
-func (p *parseState) addLazyTransform(lazyOpts *block.LazyOpts) error {
-	if lazyOpts == nil {
+func (p *parseState) addLazyTransform(offset time.Duration) error {
+	// NB: if offset is <= 0, we do not apply any offsets.
+	switch {
+	case offset == 0:
+		return nil
+	case offset < 0:
+		// todo(braskin): add zap logger here.
+		log.Printf("offset must be positive, received: %v. not applying offset", offset)
 		return nil
 	}
+
+	var (
+		tt = func(t time.Time) time.Time { return t.Add(offset) }
+		mt = func(meta block.Metadata) block.Metadata {
+			meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+			return meta
+		}
+	)
+
+	lazyOpts := block.NewLazyOpts().
+		SetTimeTransform(tt).
+		SetMetaTransform(mt)
 
 	op, err := lazy.NewLazyOp(lazy.OffsetType, lazyOpts)
 	if err != nil {
@@ -135,9 +155,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		lazyOpts := block.BuildLazyOpts(n.Offset)
-
-		return p.addLazyTransform(lazyOpts)
+		return p.addLazyTransform(n.Offset)
 
 	case *pql.VectorSelector:
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
@@ -146,9 +164,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		lazyOpts := block.BuildLazyOpts(n.Offset)
-
-		return p.addLazyTransform(lazyOpts)
+		return p.addLazyTransform(n.Offset)
 
 	case *pql.Call:
 		expressions := n.Args

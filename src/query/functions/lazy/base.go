@@ -37,18 +37,18 @@ const (
 // NewLazyOp creates a new lazy operation
 func NewLazyOp(
 	opType string,
-	offSetOpts *block.LazyOpts,
+	lazyOpts block.LazyOpts,
 ) (parser.Params, error) {
 	return baseOp{
 		opType:   opType,
-		lazyOpts: offSetOpts,
+		lazyOpts: lazyOpts,
 	}, nil
 }
 
 // baseOp stores required properties for the baseOp
 type baseOp struct {
 	opType   string
-	lazyOpts *block.LazyOpts
+	lazyOpts block.LazyOpts
 }
 
 func (o baseOp) OpType() string {

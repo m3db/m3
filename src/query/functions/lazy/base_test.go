@@ -44,9 +44,18 @@ func buildMeta(start time.Time) block.Metadata {
 	}
 }
 
+func testLazyOpts(offset time.Duration) block.LazyOpts {
+	tt := func(t time.Time) time.Time { return t.Add(offset) }
+	mt := func(meta block.Metadata) block.Metadata {
+		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+		return meta
+	}
+	return block.NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt)
+}
+
 func TestOffsetOp(t *testing.T) {
 	offset := time.Minute
-	op, err := NewLazyOp(OffsetType, block.BuildLazyOpts(offset))
+	op, err := NewLazyOp(OffsetType, testLazyOpts(offset))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "offset", op.OpType())
