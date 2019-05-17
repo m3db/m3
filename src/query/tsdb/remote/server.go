@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/query/models"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
@@ -41,22 +43,25 @@ const poolTimeout = time.Second * 10
 
 // TODO: add metrics
 type grpcServer struct {
-	storage     m3.Storage
-	poolWrapper *pools.PoolWrapper
-	once        sync.Once
-	pools       encoding.IteratorPools
-	poolErr     error
+	storage          m3.Storage
+	queryContextOpts models.QueryContextOptions
+	poolWrapper      *pools.PoolWrapper
+	once             sync.Once
+	pools            encoding.IteratorPools
+	poolErr          error
 }
 
 // CreateNewGrpcServer builds a grpc server which must be started later
 func CreateNewGrpcServer(
 	store m3.Storage,
+	queryContextOpts models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
 ) *grpc.Server {
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
-		storage:     store,
-		poolWrapper: poolWrapper,
+		storage:          store,
+		queryContextOpts: queryContextOpts,
+		poolWrapper:      poolWrapper,
 	}
 
 	rpc.RegisterQueryServer(server, grpcServer)
@@ -74,7 +79,9 @@ func StartNewGrpcServer(
 		return err
 	}
 
-	waitForStart <- struct{}{}
+	if waitForStart != nil {
+		waitForStart <- struct{}{}
+	}
 	return server.Serve(lis)
 }
 
@@ -99,11 +106,11 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	result, cleanup, err := s.storage.FetchCompressed(
-		ctx,
-		storeQuery,
-		storage.NewFetchOptions(),
-	)
+	// TODO(r): Allow propagation of limit from RPC request
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+
+	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
@@ -144,11 +151,12 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	results, cleanup, err := s.storage.SearchCompressed(
-		ctx,
-		searchQuery,
-		storage.NewFetchOptions(),
-	)
+	// TODO(r): Allow propagation of limit from RPC request
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+
+	results, cleanup, err := s.storage.SearchCompressed(ctx, searchQuery,
+		fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to search tags", zap.Error(err))

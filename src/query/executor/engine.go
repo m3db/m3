@@ -42,18 +42,24 @@ type Engine struct {
 	lookbackDuration time.Duration
 }
 
-// EngineOptions can be used to pass custom flags to engine
+// EngineOptions can be used to pass custom flags to engine.
 type EngineOptions struct {
+	QueryContextOptions models.QueryContextOptions
 }
 
-// Query is the result after execution
+// Query is the result after execution.
 type Query struct {
 	Err    error
 	Result Result
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration, factory qcost.ChainedEnforcer) *Engine {
+func NewEngine(
+	store storage.Storage,
+	scope tally.Scope,
+	lookbackDuration time.Duration,
+	factory qcost.ChainedEnforcer,
+) *Engine {
 	if factory == nil {
 		factory = qcost.NoopChainedEnforcer()
 	}
@@ -120,8 +126,10 @@ func (e *Engine) Execute(
 	results chan *storage.QueryResult,
 ) {
 	defer close(results)
+
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = 0
+	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
+
 	result, err := e.store.Fetch(ctx, query, fetchOpts)
 	if err != nil {
 		results <- &storage.QueryResult{Err: err}
@@ -171,7 +179,9 @@ func (e *Engine) ExecuteExpr(
 	result := state.resultNode
 	results <- Query{Result: result}
 
-	if err := state.Execute(models.NewQueryContext(ctx, e.costScope, perQueryEnforcer)); err != nil {
+	queryCtx := models.NewQueryContext(ctx, e.costScope, perQueryEnforcer,
+		opts.QueryContextOptions)
+	if err := state.Execute(queryCtx); err != nil {
 		result.abort(err)
 	} else {
 		result.done()

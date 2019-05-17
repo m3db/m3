@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/m3db/m3/src/x/net/http"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -61,12 +63,13 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine          *executor.Engine
-	tagOpts         models.TagOptions
-	limitsCfg       *config.LimitsConfiguration
-	promReadMetrics promReadMetrics
-	timeoutOps      *prometheus.TimeoutOpts
-	keepNans        bool
+	engine              *executor.Engine
+	fetchOptionsBuilder handler.FetchOptionsBuilder
+	tagOpts             models.TagOptions
+	limitsCfg           *config.LimitsConfiguration
+	promReadMetrics     promReadMetrics
+	timeoutOps          *prometheus.TimeoutOpts
+	keepNans            bool
 }
 
 type promReadMetrics struct {
@@ -106,6 +109,7 @@ type RespError struct {
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
 	engine *executor.Engine,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
 	scope tally.Scope,
@@ -113,12 +117,13 @@ func NewPromReadHandler(
 	keepNans bool,
 ) *PromReadHandler {
 	h := &PromReadHandler{
-		engine:          engine,
-		tagOpts:         tagOpts,
-		limitsCfg:       limitsCfg,
-		promReadMetrics: newPromReadMetrics(scope),
-		timeoutOps:      timeoutOpts,
-		keepNans:        keepNans,
+		engine:              engine,
+		fetchOptionsBuilder: fetchOptionsBuilder,
+		tagOpts:             tagOpts,
+		limitsCfg:           limitsCfg,
+		promReadMetrics:     newPromReadMetrics(scope),
+		timeoutOps:          timeoutOpts,
+		keepNans:            keepNans,
 	}
 
 	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
@@ -128,7 +133,17 @@ func NewPromReadHandler(
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, &executor.EngineOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		},
+	})
 	if respErr != nil {
 		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
@@ -151,7 +166,9 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ServeHTTPWithEngine returns query results from the storage
 func (h *PromReadHandler) ServeHTTPWithEngine(
 	w http.ResponseWriter,
-	r *http.Request, engine *executor.Engine,
+	r *http.Request,
+	engine *executor.Engine,
+	opts *executor.EngineOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
@@ -171,7 +188,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, h.tagOpts, w, params)
+	result, err := read(ctx, engine, opts, h.tagOpts, w, params)
 	if err != nil {
 		sp := opentracingutil.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))

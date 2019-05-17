@@ -35,6 +35,15 @@ type QueryContext struct {
 	Ctx      context.Context
 	Scope    tally.Scope
 	Enforcer cost.ChainedEnforcer
+	Options  QueryContextOptions
+}
+
+// QueryContextOptions is a set of optionally set options for the query
+// context.
+type QueryContextOptions struct {
+	// LimitMaxTimeseries limits the number of time series returned by each
+	// storage node.
+	LimitMaxTimeseries int
 }
 
 // NewQueryContext constructs a QueryContext using the given Enforcer to
@@ -42,17 +51,21 @@ type QueryContext struct {
 func NewQueryContext(
 	ctx context.Context,
 	scope tally.Scope,
-	enforcer cost.ChainedEnforcer) *QueryContext {
+	enforcer cost.ChainedEnforcer,
+	options QueryContextOptions,
+) *QueryContext {
 	return &QueryContext{
 		Ctx:      ctx,
 		Scope:    scope,
 		Enforcer: enforcer,
+		Options:  options,
 	}
 }
 
 // NoopQueryContext returns a query context with no active components.
 func NoopQueryContext() *QueryContext {
-	return NewQueryContext(context.Background(), tally.NoopScope, cost.NoopChainedEnforcer())
+	return NewQueryContext(context.Background(), tally.NoopScope,
+		cost.NoopChainedEnforcer(), QueryContextOptions{})
 }
 
 // WithContext creates a shallow copy of this QueryContext using the new context.

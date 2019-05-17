@@ -47,15 +47,18 @@ var (
 )
 
 type grahiteFindHandler struct {
-	storage storage.Storage
+	storage             storage.Storage
+	fetchOptionsBuilder handler.FetchOptionsBuilder
 }
 
 // NewFindHandler returns a new instance of handler.
 func NewFindHandler(
 	storage storage.Storage,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 ) http.Handler {
 	return &grahiteFindHandler{
-		storage: storage,
+		storage:             storage,
+		fetchOptionsBuilder: fetchOptionsBuilder,
 	}
 }
 
@@ -110,16 +113,19 @@ func (h *grahiteFindHandler) ServeHTTP(
 		return
 	}
 
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
 	var (
 		terminatedResult *storage.CompleteTagsResult
 		tErr             error
 		childResult      *storage.CompleteTagsResult
 		cErr             error
-		opts             = storage.NewFetchOptions()
-
-		wg sync.WaitGroup
+		wg               sync.WaitGroup
 	)
-
 	wg.Add(2)
 	go func() {
 		terminatedResult, tErr = h.storage.CompleteTags(ctx, terminatedQuery, opts)

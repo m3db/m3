@@ -21,17 +21,21 @@
 package handler
 
 const (
-	// WarningsHeader is the M3 warnings header when to display a warning to a user
+	// WarningsHeader is the M3 warnings header when to display a warning to a user.
 	WarningsHeader = "M3-Warnings"
 
-	// RetryHeader is the M3 retry header to display when it is safe to retry
+	// RetryHeader is the M3 retry header to display when it is safe to retry.
 	RetryHeader = "M3-Retry"
 
-	// ServedByHeader is the M3 query storage execution breakdown
+	// ServedByHeader is the M3 query storage execution breakdown.
 	ServedByHeader = "M3-Storage-By"
 
-	// DeprecatedHeader is the M3 deprecated header
+	// DeprecatedHeader is the M3 deprecated header.
 	DeprecatedHeader = "M3-Deprecated"
+
+	// LimitMaxTimeseriesHeader is the M3 limit timeseries header that limits
+	// the number of time series returned by each storage node.
+	LimitMaxTimeseriesHeader = "M3-Limit-Max-Timeseries"
 
 	// DefaultServiceEnvironment is the default service ID environment.
 	DefaultServiceEnvironment = "default_env"

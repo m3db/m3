@@ -46,24 +46,32 @@ const (
 
 // SearchHandler represents a handler for the search endpoint
 type SearchHandler struct {
-	store storage.Storage
+	store               storage.Storage
+	fetchOptionsBuilder FetchOptionsBuilder
 }
 
 // NewSearchHandler returns a new instance of handler
-func NewSearchHandler(storage storage.Storage) http.Handler {
-	return &SearchHandler{store: storage}
+func NewSearchHandler(
+	storage storage.Storage,
+	fetchOptionsBuilder FetchOptionsBuilder,
+) http.Handler {
+	return &SearchHandler{
+		store:               storage,
+		fetchOptionsBuilder: fetchOptionsBuilder,
+	}
 }
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(r.Context())
 
-	query, rErr := h.parseBody(r)
-	if rErr != nil {
-		logger.Error("unable to parse request", zap.Error(rErr))
+	query, parseBodyErr := h.parseBody(r)
+	opts, parseURLParamsErr := h.parseURLParams(r)
+	// NB(r): Use a loop here to avoid two err handling code paths
+	for _, rErr := range []*xhttp.ParseError{parseBodyErr, parseURLParamsErr} {
+		logger.Error("unable to parse request", zap.Error(rErr.Inner()))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
-	opts := h.parseURLParams(r)
 
 	results, err := h.search(r.Context(), query, opts)
 	if err != nil {
@@ -90,24 +98,19 @@ func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, *xhttp.
 	return &fetchQuery, nil
 }
 
-func (h *SearchHandler) parseURLParams(r *http.Request) *storage.FetchOptions {
-	var (
-		limit int
-		err   error
-	)
-
-	limitRaw := r.URL.Query().Get("limit")
-	if limitRaw != "" {
-		limit, err = strconv.Atoi(limitRaw)
-		if err != nil {
-			limit = defaultLimit
-		}
-	} else {
-		limit = defaultLimit
+func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, *xhttp.ParseError) {
+	fetchOpts, err := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if err != nil {
+		return nil, err
 	}
 
-	fetchOptions := newFetchOptions(limit)
-	return &fetchOptions
+	if str := r.URL.Query().Get("limit"); str != "" {
+		if limit, err := strconv.Atoi(str); err == nil {
+			fetchOpts.Limit = limit
+		}
+	}
+
+	return fetchOpts, nil
 }
 
 func (h *SearchHandler) search(

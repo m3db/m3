@@ -48,13 +48,15 @@ var (
 
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
-	storage storage.Storage
-	nowFn   clock.NowFn
+	storage             storage.Storage
+	fetchOptionsBuilder handler.FetchOptionsBuilder
+	nowFn               clock.NowFn
 }
 
 // NewListTagsHandler returns a new instance of handler.
 func NewListTagsHandler(
 	storage storage.Storage,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	nowFn clock.NowFn,
 ) http.Handler {
 	return &ListTagsHandler{
@@ -77,7 +79,12 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		End:   h.nowFn(),
 	}
 
-	opts := storage.NewFetchOptions()
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
