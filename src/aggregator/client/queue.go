@@ -214,8 +214,9 @@ func (q *queue) writeAndReset() {
 		return
 	}
 	if err := q.writeFn(q.buf); err != nil {
-		q.log.Error("error writing data on timed flush",
-			zap.String("instance", q.instance.Endpoint()),
+		q.log.Error("error writing data",
+			zap.Int("buffer_size", len(q.buf)),
+			zap.String("target_instance", q.instance.Endpoint()),
 			zap.Error(err),
 		)
 		q.metrics.connWriteErrors.Inc(1)
