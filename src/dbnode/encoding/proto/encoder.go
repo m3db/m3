@@ -632,6 +632,10 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	// which is acceptable for now, but in the future we may want to make the code able
 	// to do the comparison even if the bytes aren't aligned on a byte boundary in order
 	// to improve the compression.
+	//
+	// Also this implementation had the side-effect of making decoding much faster because
+	// for long []byte the iterator can avoid bit manipulation and calling ReadByte() in a
+	// loop and can instead read the entire []byte in one go.
 	enc.padToNextByte()
 
 	// Track the byte position we're going to start at so we can store it in the LRU after.
