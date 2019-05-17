@@ -60,9 +60,8 @@ func BenchmarkIterator(b *testing.B) {
 	)
 	encoder.SetSchema(schema)
 
-	for i := 0; i < b.N; i++ {
+	for _, protoBytes := range messagesBytes {
 		start = start.Add(time.Second)
-		protoBytes := messagesBytes[i%len(messagesBytes)]
 		if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
 			panic(err)
 		}
