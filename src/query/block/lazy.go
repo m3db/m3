@@ -26,57 +26,6 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-var (
-	defaultTimeTransform  = func(t time.Time) time.Time { return t }
-	defaultMetaTransform  = func(meta Metadata) Metadata { return meta }
-	defaultValueTransform = func(val float64) float64 { return val }
-)
-
-type lazyOpts struct {
-	timeTransform  TimeTransform
-	metaTransform  MetaTransform
-	valueTransform ValueTransform
-}
-
-// NewLazyOpts creates LazyOpts with default values.
-func NewLazyOpts() LazyOpts {
-	return &lazyOpts{
-		timeTransform:  defaultTimeTransform,
-		metaTransform:  defaultMetaTransform,
-		valueTransform: defaultValueTransform,
-	}
-}
-
-func (o *lazyOpts) SetTimeTransform(tt TimeTransform) LazyOpts {
-	opts := *o
-	opts.timeTransform = tt
-	return &opts
-}
-
-func (o *lazyOpts) TimeTransform() TimeTransform {
-	return o.timeTransform
-}
-
-func (o *lazyOpts) SetMetaTransform(mt MetaTransform) LazyOpts {
-	opts := *o
-	opts.metaTransform = mt
-	return &opts
-}
-
-func (o *lazyOpts) MetaTransform() MetaTransform {
-	return o.metaTransform
-}
-
-func (o *lazyOpts) SetValueTransform(vt ValueTransform) LazyOpts {
-	opts := *o
-	opts.valueTransform = vt
-	return &opts
-}
-
-func (o *lazyOpts) ValueTransform() ValueTransform {
-	return o.valueTransform
-}
-
 type lazyBlock struct {
 	block Block
 	opts  LazyOpts
