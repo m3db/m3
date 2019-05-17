@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -110,7 +110,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	nowFn := func() time.Time { return now }
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
@@ -155,7 +155,7 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	nowFn := func() time.Time { return now }
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	newBlockFn := func(
@@ -178,7 +178,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	nowFn := func() time.Time { return now }
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
@@ -242,7 +242,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -321,7 +321,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -375,7 +375,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -423,7 +423,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -513,7 +513,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -609,7 +609,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -701,7 +701,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -802,7 +802,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	query := idx.NewTermQuery([]byte("a"), []byte("b"))
@@ -898,7 +898,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)

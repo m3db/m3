@@ -22,15 +22,21 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/query/util/logging"
 	xconfig "github.com/m3db/m3/src/x/config"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -88,7 +94,6 @@ db:
       hashing:
         seed: 42
 
-
   gcPercentage: 100
 
   writeNewSeriesLimitPerSecond: 1048576
@@ -100,7 +105,9 @@ db:
           - peers
           - noop-all
       fs:
-          numProcessorsPerCPU: 0.125
+          numProcessorsPerCPU: 0.42
+      commitlog:
+          returnUnfulfilledForCorruptCommitLogFiles: false
 
   commitlog:
       flushMaxBytes: 524288
@@ -400,8 +407,9 @@ func TestConfiguration(t *testing.T) {
     - peers
     - noop-all
     fs:
-      numProcessorsPerCPU: 0.125
-    commitlog: null
+      numProcessorsPerCPU: 0.42
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
     cacheSeriesMetadata: null
   blockRetrieve: null
   cache:
@@ -902,8 +910,7 @@ db:
 
 	require.Len(t, cfg.DB.Proto.SchemaRegistry, 2)
 	require.EqualValues(t, map[string]NamespaceProtoSchema{
-		"ns1:2d":
-		{
+		"ns1:2d": {
 			SchemaFilePath: "file/path/to/ns1/schema",
 			MessageName:    "ns1_msg_name",
 		},
@@ -911,4 +918,75 @@ db:
 			SchemaFilePath: "file/path/to/ns2/schema",
 			MessageName:    "ns2_msg_name",
 		}}, cfg.DB.Proto.SchemaRegistry)
+}
+
+func TestBootstrapCommitLogConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	notDefault := !commitlog.DefaultReturnUnfulfilledForCorruptCommitLogFiles
+	notDefaultStr := fmt.Sprintf("%v", notDefault)
+
+	testConf := `
+db:
+  metrics:
+      samplingRate: 1.0
+
+  listenAddress: 0.0.0.0:9000
+  clusterListenAddress: 0.0.0.0:9001
+  httpNodeListenAddress: 0.0.0.0:9002
+  httpClusterListenAddress: 0.0.0.0:9003
+
+  bootstrap:
+      bootstrappers:
+          - filesystem
+          - commitlog
+          - peers
+          - uninitialized_topology
+      commitlog:
+          returnUnfulfilledForCorruptCommitLogFiles: ` + notDefaultStr + `
+
+  commitlog:
+      flushMaxBytes: 524288
+      flushEvery: 1s
+      queue:
+          size: 2097152
+`
+	fd, err := ioutil.TempFile("", "config.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testConf))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, cfg.DB)
+
+	validator := NewMockBootstrapConfigurationValidator(ctrl)
+	validator.EXPECT().ValidateBootstrappersOrder(gomock.Any()).Return(nil).AnyTimes()
+	validator.EXPECT().ValidateFilesystemBootstrapperOptions(gomock.Any()).Return(nil)
+	validator.EXPECT().ValidatePeersBootstrapperOptions(gomock.Any()).Return(nil)
+	validator.EXPECT().ValidateUninitializedBootstrapperOptions(gomock.Any()).Return(nil)
+	validator.EXPECT().
+		ValidateCommitLogBootstrapperOptions(gomock.Any()).
+		DoAndReturn(func(opts commitlog.Options) error {
+			actual := opts.ReturnUnfulfilledForCorruptCommitLogFiles()
+			expected := notDefault
+			require.Equal(t, expected, actual)
+			return nil
+		})
+
+	mapProvider := topology.NewMockMapProvider(ctrl)
+	origin := topology.NewMockHost(ctrl)
+	adminClient := client.NewMockAdminClient(ctrl)
+
+	_, err = cfg.DB.Bootstrap.New(validator,
+		storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+	require.NoError(t, err)
 }
