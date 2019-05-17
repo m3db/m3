@@ -38,7 +38,7 @@ type lazyOpts struct {
 	valueTransform ValueTransform
 }
 
-// NewLazyOpts creates LazyOpts with default values
+// NewLazyOpts creates LazyOpts with default values.
 func NewLazyOpts() LazyOpts {
 	return &lazyOpts{
 		timeTransform:  defaultTimeTransform,

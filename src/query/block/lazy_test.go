@@ -50,6 +50,7 @@ func testLazyOpts(offset time.Duration) LazyOpts {
 		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
 		return meta
 	}
+
 	return NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt)
 }
 

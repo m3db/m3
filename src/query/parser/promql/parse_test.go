@@ -70,6 +70,12 @@ func TestDAGWithOffset(t *testing.T) {
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "offset should be the child")
 }
 
+func TestInvalidOffset(t *testing.T) {
+	q := "up offset -2m"
+	_, err := Parse(q, models.NewTagOptions())
+	require.Error(t, err)
+}
+
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
 	_, err := Parse(q, models.NewTagOptions())

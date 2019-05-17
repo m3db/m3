@@ -184,27 +184,27 @@ func TakeLast(values ts.Datapoints) float64 {
 	return math.NaN()
 }
 
-// TimeTransform transforms a timestamp
+// TimeTransform transforms a timestamp.
 type TimeTransform func(time.Time) time.Time
 
-// MetaTransform transforms meta data
+// MetaTransform transforms meta data.
 type MetaTransform func(meta Metadata) Metadata
 
-// ValueTransform transform a float64
+// ValueTransform transform a float64.
 type ValueTransform func(float64) float64
 
 // LazyOpts describes options for lazy blocks.
 type LazyOpts interface {
-	// SetTimeTransform sets the time transform function
+	// SetTimeTransform sets the time transform function.
 	SetTimeTransform(TimeTransform) LazyOpts
-	// TimeTransform returns the time transform func
+	// TimeTransform returns the time transform function.
 	TimeTransform() TimeTransform
-	// SetMetaTransform sets the meta transform function
+	// SetMetaTransform sets the meta transform function.
 	SetMetaTransform(MetaTransform) LazyOpts
-	// MetaTransform returns the meta transform func
+	// MetaTransform returns the meta transform function.
 	MetaTransform() MetaTransform
-	// SetValueTransform sets the value transform function
+	// SetValueTransform sets the value transform function.
 	SetValueTransform(ValueTransform) LazyOpts
-	// ValueTransform returns the value transform func
+	// ValueTransform returns the value transform function.
 	ValueTransform() ValueTransform
 }

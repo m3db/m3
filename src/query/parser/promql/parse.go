@@ -22,7 +22,6 @@ package promql
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -84,15 +83,17 @@ func (p *parseState) transformLen() int {
 	return len(p.transforms)
 }
 
+func validOffset(offset time.Duration) error {
+
+	return nil
+}
+
 func (p *parseState) addLazyTransform(offset time.Duration) error {
 	// NB: if offset is <= 0, we do not apply any offsets.
-	switch {
-	case offset == 0:
+	if offset == 0 {
 		return nil
-	case offset < 0:
-		// todo(braskin): add zap logger here.
-		log.Printf("offset must be positive, received: %v. not applying offset", offset)
-		return nil
+	} else if offset < 0 {
+		return fmt.Errorf("offset must be positive, received: %v", offset)
 	}
 
 	var (
