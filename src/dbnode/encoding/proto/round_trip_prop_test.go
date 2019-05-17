@@ -41,8 +41,8 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -198,6 +198,10 @@ func TestRoundTripProp(t *testing.T) {
 		if iter.Err() != nil {
 			return false, fmt.Errorf(
 				"iteration error: %v, schema: %s", iter.Err(), input.schema.String())
+		}
+
+		if i != len(input.messages) {
+			return false, fmt.Errorf("expected %d messages but got %d", len(input.messages), i)
 		}
 
 		return true, nil
