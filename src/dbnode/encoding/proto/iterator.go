@@ -628,8 +628,6 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
 		case signedInt64Field:
-			// val := int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
-			// return it.lastIterated.TrySetFieldByNumber(int(fieldNum), val)
 			var (
 				val   = int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
 				field = it.schema.FindFieldByNumber(fieldNum)
@@ -656,7 +654,6 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 			val := it.customFields[arg.i].intEncAndIter.prevIntBits
 			it.marshaler.encUInt64(fieldNum, val)
 			return nil
-			// return it.lastIterated.TrySetFieldByNumber(int(fieldNum), val)
 
 		case signedInt32Field:
 			var (
@@ -680,11 +677,9 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 				it.marshaler.encInt32(fieldNum, val)
 			}
 			return nil
-			// return it.lastIterated.TrySetFieldByNumber(int(fieldNum), val)
 
 		case unsignedInt32Field:
 			val := uint32(it.customFields[arg.i].intEncAndIter.prevIntBits)
-			// return it.lastIterated.TrySetFieldByNumber(int(fieldNum), val)
 			it.marshaler.encUInt32(fieldNum, val)
 			return nil
 
@@ -695,19 +690,12 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 		}
 
 	case fieldType == bytesField:
-		// schemaField := it.schema.FindFieldByNumber(int32(fieldNum))
-		// schemaFieldType := schemaField.GetType()
-		// if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-		// 	return it.lastIterated.TrySetFieldByNumber(int(fieldNum), string(arg.bytesFieldBuf))
-		// }
-		// return it.lastIterated.TrySetFieldByNumber(int(fieldNum), arg.bytesFieldBuf)
 		it.marshaler.encBytes(fieldNum, arg.bytesFieldBuf)
 		return nil
 
 	case fieldType == boolField:
 		it.marshaler.encBool(fieldNum, arg.boolVal)
 		return nil
-		// return it.lastIterated.TrySetFieldByNumber(int(fieldNum), arg.boolVal)
 
 	default:
 		return fmt.Errorf(
