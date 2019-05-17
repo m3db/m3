@@ -74,19 +74,15 @@ func BenchmarkIterator(b *testing.B) {
 	segment, err := stream.Segment()
 	handleErr(err)
 
-	fmt.Println("segment.Len()", segment.Len())
 	iterator := NewIterator(stream, schema, encodingOpts)
 	reader := xio.NewSegmentReader(segment)
 	for i := 0; i < b.N; i++ {
 		reader.Reset(segment)
 		iterator.Reset(reader, schema)
-		j := 0
 		for iterator.Next() {
 			iterator.Current()
-			j++
 		}
 		handleErr(iterator.Err())
-		panic(j)
 	}
 }
 
