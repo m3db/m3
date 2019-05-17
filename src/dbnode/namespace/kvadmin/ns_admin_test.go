@@ -13,8 +13,11 @@ import (
 )
 
 const (
-	protoStr = `syntax = "proto3";
+	mainProtoStr = `syntax = "proto3";
+
 package mainpkg;
+
+import "mainpkg/imported.proto";
 
 message TestMessage {
   double latitude = 1;
@@ -22,6 +25,19 @@ message TestMessage {
   int64 epoch = 3;
   bytes deliveryID = 4;
   map<string, string> attributes = 5;
+  ImportedMessage an_imported_message = 6;
+}
+`
+	importedProtoStr = `
+syntax = "proto3";
+
+package mainpkg;
+
+message ImportedMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
 }
 `
 )
@@ -41,8 +57,9 @@ func TestAdminService_DeploySchema(t *testing.T) {
 	require.NoError(t, err)
 	currentReg := namespace.ToProto(currentMap)
 
-	expectedSchemaOpt, err := namespace.AppendSchemaOptions(nil,
-		"test.proto", "mainpkg.TestMessage", map[string]string{"test.proto": protoStr}, "first")
+	protoFile := "mainpkg/test.proto"
+	protoMap := map[string]string{"mainpkg/test.proto": mainProtoStr, "mainpkg/imported.proto": importedProtoStr}
+	expectedSchemaOpt, err := namespace.AppendSchemaOptions(nil, protoFile, "mainpkg.TestMessage", protoMap, "first")
 	require.NoError(t, err)
 	expectedSh, err := namespace.LoadSchemaHistory(expectedSchemaOpt)
 	require.NoError(t, err)
@@ -65,7 +82,6 @@ func TestAdminService_DeploySchema(t *testing.T) {
 			require.NotEmpty(t, actualMap)
 			require.True(t, actualMap.Equal(expectedMap))
 		})
-	require.NoError(t, as.DeploySchema("ns1", "test.proto",
-		"mainpkg.TestMessage",
-		map[string]string{"test.proto": protoStr}, "first"))
+	require.NoError(t, as.DeploySchema("ns1", protoFile,
+		"mainpkg.TestMessage", protoMap, "first"))
 }
