@@ -37,7 +37,7 @@ type lazyOpts struct {
 }
 
 // NewLazyOpts creates LazyOpts with default values.
-func NewLazyOpts() LazyOpts {
+func NewLazyOpts() LazyOptions {
 	return &lazyOpts{
 		timeTransform:  defaultTimeTransform,
 		metaTransform:  defaultMetaTransform,
@@ -45,7 +45,7 @@ func NewLazyOpts() LazyOpts {
 	}
 }
 
-func (o *lazyOpts) SetTimeTransform(tt TimeTransform) LazyOpts {
+func (o *lazyOpts) SetTimeTransform(tt TimeTransform) LazyOptions {
 	opts := *o
 	opts.timeTransform = tt
 	return &opts
@@ -55,7 +55,7 @@ func (o *lazyOpts) TimeTransform() TimeTransform {
 	return o.timeTransform
 }
 
-func (o *lazyOpts) SetMetaTransform(mt MetaTransform) LazyOpts {
+func (o *lazyOpts) SetMetaTransform(mt MetaTransform) LazyOptions {
 	opts := *o
 	opts.metaTransform = mt
 	return &opts
@@ -65,7 +65,7 @@ func (o *lazyOpts) MetaTransform() MetaTransform {
 	return o.metaTransform
 }
 
-func (o *lazyOpts) SetValueTransform(vt ValueTransform) LazyOpts {
+func (o *lazyOpts) SetValueTransform(vt ValueTransform) LazyOptions {
 	opts := *o
 	opts.valueTransform = vt
 	return &opts

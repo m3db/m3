@@ -44,7 +44,7 @@ func buildMeta(start time.Time) block.Metadata {
 	}
 }
 
-func testLazyOpts(offset time.Duration) block.LazyOpts {
+func testLazyOpts(offset time.Duration) block.LazyOptions {
 	tt := func(t time.Time) time.Time { return t.Add(offset) }
 	mt := func(meta block.Metadata) block.Metadata {
 		meta.Bounds.Start = meta.Bounds.Start.Add(offset)

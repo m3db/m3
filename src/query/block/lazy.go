@@ -28,11 +28,11 @@ import (
 
 type lazyBlock struct {
 	block Block
-	opts  LazyOpts
+	opts  LazyOptions
 }
 
 // NewLazyBlock creates a lazy block wrapping another block with lazy options.
-func NewLazyBlock(block Block, opts LazyOpts) Block {
+func NewLazyBlock(block Block, opts LazyOptions) Block {
 	return &lazyBlock{
 		block: block,
 		opts:  opts,
@@ -50,8 +50,7 @@ func (b *lazyBlock) WithMetadata(
 		return nil, err
 	}
 
-	b.block = bl
-	return b, nil
+	return NewLazyBlock(bl, b.opts), nil
 }
 
 // StepIter returns a StepIterator
@@ -69,7 +68,7 @@ func (b *lazyBlock) StepIter() (StepIter, error) {
 
 type lazyStepIter struct {
 	it   StepIter
-	opts LazyOpts
+	opts LazyOptions
 }
 
 func (it *lazyStepIter) Close()                   { it.it.Close() }
@@ -79,13 +78,16 @@ func (it *lazyStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *lazyStepIter) Next() bool               { return it.it.Next() }
 
 func (it *lazyStepIter) Meta() Metadata {
-	return it.opts.MetaTransform()(it.it.Meta())
+	mt := it.opts.MetaTransform()
+	return mt(it.it.Meta())
 }
 
 func (it *lazyStepIter) Current() Step {
 	c := it.it.Current()
+	tt := it.opts.TimeTransform()
+
 	return ColStep{
-		time:   it.opts.TimeTransform()(c.Time()),
+		time:   tt(c.Time()),
 		values: c.Values(),
 	}
 }
@@ -105,7 +107,7 @@ func (b *lazyBlock) SeriesIter() (SeriesIter, error) {
 
 type lazySeriesIter struct {
 	it   SeriesIter
-	opts LazyOpts
+	opts LazyOptions
 }
 
 func (it *lazySeriesIter) Close()                   { it.it.Close() }
@@ -115,7 +117,8 @@ func (it *lazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() 
 func (it *lazySeriesIter) Next() bool               { return it.it.Next() }
 func (it *lazySeriesIter) Current() Series          { return it.it.Current() }
 func (it *lazySeriesIter) Meta() Metadata {
-	return it.opts.MetaTransform()(it.it.Meta())
+	mt := it.opts.MetaTransform()
+	return mt(it.it.Meta())
 }
 
 // Unconsolidated returns the unconsolidated version for the block
@@ -133,7 +136,7 @@ func (b *lazyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 
 type ucLazyBlock struct {
 	block UnconsolidatedBlock
-	opts  LazyOpts
+	opts  LazyOptions
 }
 
 func (b *ucLazyBlock) Close() error { return b.block.Close() }
@@ -147,8 +150,10 @@ func (b *ucLazyBlock) WithMetadata(
 		return nil, err
 	}
 
-	b.block = bl
-	return b, nil
+	return &ucLazyBlock{
+		block: bl,
+		opts:  b.opts,
+	}, nil
 }
 
 func (b *ucLazyBlock) Consolidate() (Block, error) {
@@ -177,7 +182,7 @@ func (b *ucLazyBlock) StepIter() (UnconsolidatedStepIter, error) {
 
 type ucLazyStepIter struct {
 	it   UnconsolidatedStepIter
-	opts LazyOpts
+	opts LazyOptions
 }
 
 func (it *ucLazyStepIter) Close()                   { it.it.Close() }
@@ -187,7 +192,8 @@ func (it *ucLazyStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() 
 func (it *ucLazyStepIter) Next() bool               { return it.it.Next() }
 
 func (it *ucLazyStepIter) Meta() Metadata {
-	return it.opts.MetaTransform()(it.it.Meta())
+	mt := it.opts.MetaTransform()
+	return mt(it.it.Meta())
 }
 
 type unconsolidatedStep struct {
@@ -209,13 +215,15 @@ func (it *ucLazyStepIter) Current() UnconsolidatedStep {
 	c := it.it.Current()
 	for _, val := range c.Values() {
 		for i, dp := range val.Datapoints() {
-			val[i].Timestamp = it.opts.TimeTransform()(dp.Timestamp)
-			val[i].Value = it.opts.ValueTransform()(dp.Value)
+			tt, vt := it.opts.TimeTransform(), it.opts.ValueTransform()
+			val[i].Timestamp = tt(dp.Timestamp)
+			val[i].Value = vt(dp.Value)
 		}
 	}
 
+	tt := it.opts.TimeTransform()
 	return unconsolidatedStep{
-		time:   it.opts.TimeTransform()(c.Time()),
+		time:   tt(c.Time()),
 		values: c.Values(),
 	}
 }
@@ -234,7 +242,7 @@ func (b *ucLazyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 
 type ucLazySeriesIter struct {
 	it   UnconsolidatedSeriesIter
-	opts LazyOpts
+	opts LazyOptions
 }
 
 func (it *ucLazySeriesIter) Close()                   { it.it.Close() }
@@ -246,8 +254,9 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 	c := it.it.Current()
 	for _, val := range c.datapoints {
 		for i, dp := range val.Datapoints() {
-			val[i].Timestamp = it.opts.TimeTransform()(dp.Timestamp)
-			val[i].Value = it.opts.ValueTransform()(dp.Value)
+			tt, vt := it.opts.TimeTransform(), it.opts.ValueTransform()
+			val[i].Timestamp = tt(dp.Timestamp)
+			val[i].Value = vt(dp.Value)
 		}
 	}
 
@@ -255,5 +264,6 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 }
 
 func (it *ucLazySeriesIter) Meta() Metadata {
-	return it.opts.MetaTransform()(it.it.Meta())
+	mt := it.opts.MetaTransform()
+	return mt(it.it.Meta())
 }

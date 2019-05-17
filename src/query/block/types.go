@@ -193,18 +193,18 @@ type MetaTransform func(meta Metadata) Metadata
 // ValueTransform transform a float64.
 type ValueTransform func(float64) float64
 
-// LazyOpts describes options for lazy blocks.
-type LazyOpts interface {
+// LazyOptions describes options for lazy blocks.
+type LazyOptions interface {
 	// SetTimeTransform sets the time transform function.
-	SetTimeTransform(TimeTransform) LazyOpts
+	SetTimeTransform(TimeTransform) LazyOptions
 	// TimeTransform returns the time transform function.
 	TimeTransform() TimeTransform
 	// SetMetaTransform sets the meta transform function.
-	SetMetaTransform(MetaTransform) LazyOpts
+	SetMetaTransform(MetaTransform) LazyOptions
 	// MetaTransform returns the meta transform function.
 	MetaTransform() MetaTransform
 	// SetValueTransform sets the value transform function.
-	SetValueTransform(ValueTransform) LazyOpts
+	SetValueTransform(ValueTransform) LazyOptions
 	// ValueTransform returns the value transform function.
 	ValueTransform() ValueTransform
 }

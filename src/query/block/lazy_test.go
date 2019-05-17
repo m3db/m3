@@ -44,7 +44,7 @@ func buildMeta(start time.Time) Metadata {
 	}
 }
 
-func testLazyOpts(offset time.Duration) LazyOpts {
+func testLazyOpts(offset time.Duration) LazyOptions {
 	tt := func(t time.Time) time.Time { return t.Add(offset) }
 	mt := func(meta Metadata) Metadata {
 		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
@@ -116,7 +116,7 @@ func TestValidOffset(t *testing.T) {
 	assert.NoError(t, err)
 
 	// ensure WithMetadata has updated the underlying block.
-	b2.EXPECT().Close().Return(nil)
+	b.EXPECT().Close().Return(nil)
 	err = off.Close()
 	assert.NoError(t, err)
 }
@@ -273,7 +273,7 @@ func TestUnconsolidated(t *testing.T) {
 	assert.NoError(t, err)
 
 	// ensure WithMetadata has updated the underlying block.
-	b2.EXPECT().Close().Return(nil)
+	b.EXPECT().Close().Return(nil)
 	err = off.Close()
 	assert.NoError(t, err)
 }
