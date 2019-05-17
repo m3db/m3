@@ -96,21 +96,17 @@ func NewIterator(
 
 func (it *iterator) Next() bool {
 	if it.schema == nil {
-		fmt.Println(1)
 		// It is a programmatic error that schema is not set at all prior to iterating, panic to fix it asap.
 		it.err = instrument.InvariantErrorf(errIteratorSchemaIsRequired.Error())
 		return false
 	}
 
 	if !it.hasNext() {
-		fmt.Println(2)
 		return false
 	}
 
 	if !it.consumedFirstMessage {
-		fmt.Println(3)
 		if err := it.readStreamHeader(); err != nil {
-			fmt.Println(4)
 			it.err = fmt.Errorf(
 				"%s error reading stream header: %v",
 				itErrPrefix, err)
@@ -120,12 +116,10 @@ func (it *iterator) Next() bool {
 
 	moreDataControlBit, err := it.stream.ReadBit()
 	if err == io.EOF {
-		fmt.Println(5)
 		it.done = true
 		return false
 	}
 	if err != nil {
-		fmt.Println(6)
 		it.err = fmt.Errorf(
 			"%s error reading more data control bit: %v",
 			itErrPrefix, err)
@@ -133,17 +127,14 @@ func (it *iterator) Next() bool {
 	}
 
 	if moreDataControlBit == opCodeNoMoreDataOrTimeUnitChangeAndOrSchemaChange {
-		fmt.Println(7)
 		// The next bit will tell us whether we've reached the end of the stream
 		// or that the time unit and/or schema has changed.
 		noMoreDataControlBit, err := it.stream.ReadBit()
 		if err == io.EOF {
-			fmt.Println(8)
 			it.done = true
 			return false
 		}
 		if err != nil {
-			fmt.Println(9)
 			it.err = fmt.Errorf(
 				"%s error reading no more data control bit: %v",
 				itErrPrefix, err)
@@ -151,7 +142,6 @@ func (it *iterator) Next() bool {
 		}
 
 		if noMoreDataControlBit == opCodeNoMoreData {
-			fmt.Println(10)
 			it.done = true
 			return false
 		}
@@ -159,7 +149,6 @@ func (it *iterator) Next() bool {
 		// The next bit will tell us whether the time unit has changed.
 		timeUnitHasChangedControlBit, err := it.stream.ReadBit()
 		if err != nil {
-			fmt.Println(11)
 			it.err = fmt.Errorf(
 				"%s error reading time unit change has changed control bit: %v",
 				itErrPrefix, err)
@@ -169,7 +158,6 @@ func (it *iterator) Next() bool {
 		// The next bit will tell us whether the schema has changed.
 		schemaHasChangedControlBit, err := it.stream.ReadBit()
 		if err != nil {
-			fmt.Println(12)
 			it.err = fmt.Errorf(
 				"%s error reading schema has changed control bit: %v",
 				itErrPrefix, err)
@@ -177,15 +165,12 @@ func (it *iterator) Next() bool {
 		}
 
 		if timeUnitHasChangedControlBit == opCodeTimeUnitChange {
-			fmt.Println(13)
 			if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
-				fmt.Println(14)
 				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
 				return false
 			}
 
 			if !it.consumedFirstMessage {
-				fmt.Println(15)
 				// Don't interpret the initial time unit as a "change" since the encoder special
 				// cases the first one.
 				it.tsIterator.TimeUnitChanged = false
@@ -193,9 +178,7 @@ func (it *iterator) Next() bool {
 		}
 
 		if schemaHasChangedControlBit == opCodeSchemaChange {
-			fmt.Println(16)
 			if err := it.readCustomFieldsSchema(); err != nil {
-				fmt.Println(17)
 				it.err = fmt.Errorf("%s error reading custom fields schema: %v", itErrPrefix, err)
 				return false
 			}
@@ -208,26 +191,22 @@ func (it *iterator) Next() bool {
 	}
 
 	_, done, err := it.tsIterator.ReadTimestamp(it.stream)
-	fmt.Println(18)
 	if err != nil {
 		it.err = fmt.Errorf("%s error reading timestamp: %v", itErrPrefix, err)
 		return false
 	}
 	if done {
-		fmt.Println(19)
 		// This should never happen since we never encode the EndOfStream marker.
 		it.err = fmt.Errorf("%s unexpected end of timestamp stream", itErrPrefix)
 		return false
 	}
 
 	if err := it.readCustomValues(); err != nil {
-		fmt.Println(20)
 		it.err = err
 		return false
 	}
 
 	if err := it.readProtoValues(); err != nil {
-		fmt.Println(21)
 		it.err = err
 		return false
 	}
@@ -237,9 +216,7 @@ func (it *iterator) Next() bool {
 	// have to marshal it in the Current() call where we can't handle errors.
 	it.lastIteratedProtoBytes, err = it.lastIterated.MarshalAppend(
 		it.lastIteratedProtoBytes[:0])
-	fmt.Println(22)
 	if err != nil {
-		fmt.Println(23)
 		it.err = fmt.Errorf(
 			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
 		return false

@@ -141,16 +141,6 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
 	}
-	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
-	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
-	if err := enc.unmarshaler.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
-		return fmt.Errorf(
-			"%s error unmarshaling message: %v", encErrPrefix, err)
-	}
-
-	if enc.numEncoded == 0 {
-		enc.encodeStreamHeader()
-	}
 
 	if enc.numEncoded == 0 {
 		enc.encodeStreamHeader()
