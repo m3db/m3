@@ -22,7 +22,6 @@ package client
 
 import (
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,66 +45,65 @@ func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
 	opts := testOptions().
 		SetInstanceQueueSize(1).
 		SetQueueDropType(DropCurrent).
-		SetMaxBatchSize(0)
+		SetBatchFlushDeadline(1 * time.Microsecond).
+		SetMaxBatchSize(1)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 
+	ready := make(chan struct{})
 	// Fill up the queue and park the draining goroutine so the queue remains full.
 	queue.writeFn = func([]byte) error {
+		ready <- struct{}{}
 		select {}
 	}
 
-	time.Sleep(5 * time.Millisecond)
 	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
 	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
 	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
-	time.Sleep(5 * time.Millisecond)
+	<-ready
 	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
 }
 
 func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
-	opts := testOptions().SetInstanceQueueSize(1)
+	opts := testOptions().
+		SetInstanceQueueSize(1).
+		SetBatchFlushDeadline(1 * time.Microsecond).
+		SetMaxBatchSize(1)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 
+	ready := make(chan struct{})
 	// Fill up the queue and park the draining goroutine so the queue remains full
 	// until the enqueueing goroutine pulls a buffer off the channel.
 	queue.writeFn = func([]byte) error {
+		ready <- struct{}{}
 		select {}
 	}
-	time.Sleep(5 * time.Millisecond)
-	queue.bufCh <- testNewBuffer(nil)
-	queue.bufCh <- testNewBuffer(nil)
-	time.Sleep(5 * time.Millisecond)
+
+	queue.bufCh <- testNewBuffer([]byte{42})
+	queue.bufCh <- testNewBuffer([]byte{42})
+	<-ready
 	require.NoError(t, queue.Enqueue(testNewBuffer(nil)))
 }
 
 func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
-	opts := testOptions()
+	opts := testOptions().SetMaxBatchSize(1)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 	var (
-		res     []byte
-		resLock sync.Mutex
+		res []byte
 	)
+
+	ready := make(chan struct{})
 	queue.writeFn = func(data []byte) error {
-		resLock.Lock()
+		defer func() {
+			ready <- struct{}{}
+		}()
 		res = data
-		resLock.Unlock()
 		return nil
 	}
 
 	data := []byte("foobar")
 	require.NoError(t, queue.Enqueue(testNewBuffer(data)))
 
-	// Wait for the queue to be drained.
-	for {
-		resLock.Lock()
-		if res != nil {
-			resLock.Unlock()
-			break
-		}
-		resLock.Unlock()
-		time.Sleep(100 * time.Millisecond)
-	}
-
+	<-ready
 	require.Equal(t, data, res)
 }
 
@@ -175,42 +173,34 @@ func TestInstanceQueueDrainBatching(t *testing.T) {
 func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-	var drained int32
+	drained := make(chan struct{})
 	queue.writeFn = func(data []byte) error {
-		atomic.StoreInt32(&drained, 1)
+		defer func() {
+			drained <- struct{}{}
+		}()
 		return errTestWrite
 	}
 
 	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
 
 	// Wait for the queue to be drained.
-	for i := 0; i < 20; i++ {
-		if atomic.LoadInt32(&drained) == 1 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	<-drained
 }
 
 func TestInstanceQueueEnqueueSuccessWriteError(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-	var done int32
+	done := make(chan struct{})
 	queue.writeFn = func(data []byte) error {
 		err := queue.conn.Write(data)
-		atomic.StoreInt32(&done, 1)
+		done <- struct{}{}
 		return err
 	}
 
 	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{0x1, 0x2})))
 
 	// Wait for the queue to be drained.
-	for {
-		if atomic.LoadInt32(&done) == 1 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	<-done
 }
 
 func TestInstanceQueueCloseAlreadyClosed(t *testing.T) {
