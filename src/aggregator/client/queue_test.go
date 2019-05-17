@@ -103,6 +103,69 @@ func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
 	require.Equal(t, data, res)
 }
 
+func TestInstanceQueueDrainBatching(t *testing.T) {
+	var (
+		res     []byte
+		resLock sync.Mutex
+	)
+
+	newBatchedTestQueue := func(flushDeadline time.Duration, batchSize int) *queue {
+		res = []byte{}
+		opts := testOptions().
+			SetBatchFlushDeadline(flushDeadline).
+			SetMaxBatchSize(batchSize)
+
+		queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
+
+		queue.writeFn = func(data []byte) error {
+			resLock.Lock()
+			res = append(res, data...)
+			resLock.Unlock()
+			return nil
+		}
+		return queue
+	}
+
+	// Test batching by size
+	data := []byte("foobar")
+	expected := []byte("foobarfoobarfoobar")
+	queue := newBatchedTestQueue(500*time.Millisecond, 3*len(data))
+	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
+	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
+	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
+
+	// Wait for the queue to be drained.
+	for i := 0; i <= 5; i++ {
+		resLock.Lock()
+		if len(res) == len(expected) {
+			resLock.Unlock()
+			break
+		}
+		resLock.Unlock()
+		// Total sleep must be less than flush deadline
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	assert.Equal(t, expected, res)
+
+	// Test batching by time
+	queue = newBatchedTestQueue(40*time.Millisecond, 10000)
+
+	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
+	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
+
+	time.Sleep(20 * time.Millisecond)
+	resLock.Lock()
+	assert.Equal(t, []byte{}, res)
+	resLock.Unlock()
+
+	time.Sleep(25 * time.Millisecond)
+
+	resLock.Lock()
+	assert.Equal(t, []byte("foobarfoobar"), res)
+	resLock.Unlock()
+}
+
 func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
