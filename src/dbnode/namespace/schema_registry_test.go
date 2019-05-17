@@ -115,7 +115,7 @@ func TestSchemaRegistryLoad(t *testing.T) {
 
 	sr := NewSchemaRegistry(true, nil)
 	nsID := ident.StringID("ns1")
-	require.NoError(t, LoadSchemaRegistryFromFile(sr, nsID, "testdata/prototest/test.proto", "mainpkg.TestMessage", "../"))
+	require.NoError(t, LoadSchemaRegistryFromFile(sr, nsID, "mainpkg/main.proto", "mainpkg.TestMessage", "testdata"))
 
 	schema1, err := sr.GetLatestSchema(nsID)
 	require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestSchemaRegistrySchemaNotSet(t *testing.T) {
 	sh3.EXPECT().GetLatest().Return(inputSchema2, true).Times(2)
 	sh3.EXPECT().Extends(gomock.Any()).Return(true)
 	require.NoError(t, sr.SetSchemaHistory(nsID, sh3))
-	time.Sleep(10*time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	require.NotNil(t, sl.Schema())
 	require.Equal(t, "version2", sl.Schema().DeployId())
 }

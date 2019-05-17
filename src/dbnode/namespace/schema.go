@@ -22,14 +22,19 @@ package namespace
 
 import (
 	"errors"
+	"io"
+	"io/ioutil"
+	"os"
+	"strings"
+
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/m3db/m3/src/x/ident"
 )
 
 var (
@@ -251,8 +256,22 @@ func genDependencyDescriptors(infd *desc.FileDescriptor) []*desc.FileDescriptor 
 	return depfds
 }
 
-func parseProto(protoFile string, importPaths ...string) ([]*desc.FileDescriptor, error) {
-	p := protoparse.Parser{ImportPaths: importPaths, IncludeSourceCodeInfo: true}
+// protoStringProvider provides proto contents from strings.
+func protoStringProvider(source map[string]string) protoparse.FileAccessor {
+	if len(source) == 0 {
+		return nil
+	}
+	return func(filename string) (io.ReadCloser, error) {
+		if contents, ok := source[filename]; ok {
+			return ioutil.NopCloser(strings.NewReader(contents)), nil
+		} else {
+			return nil, os.ErrNotExist
+		}
+	}
+}
+
+func parseProto(protoFile string, accessor protoparse.FileAccessor, importPaths ...string) ([]*desc.FileDescriptor, error) {
+	p := protoparse.Parser{ImportPaths: importPaths, Accessor: accessor, IncludeSourceCodeInfo: true}
 	fds, err := p.ParseFiles(protoFile)
 	if err != nil {
 		return nil, xerrors.Wrapf(err, "failed to parse proto file: %s", protoFile)
@@ -278,20 +297,43 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 	return dlist, nil
 }
 
-func LoadSchemaRegistryFromFile(schemaReg SchemaRegistry, nsID ident.ID, protoFile string, msgName string, importPathPrefix ...string) error {
-	out, _ := parseProto(protoFile, importPathPrefix...)
-
-	dlist, _ := marshalFileDescriptors(out)
-
-	schemaOpts := &nsproto.SchemaOptions{
-		History: &nsproto.SchemaHistory{
-			Versions: []*nsproto.FileDescriptorSet{
-				{DeployId: "first", Descriptors: dlist},
-			},
-		},
-		DefaultMessageName: msgName,
+func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName string, contents map[string]string, deployID string, importPath ...string) (*nsproto.SchemaOptions, error) {
+	sh, err := LoadSchemaHistory(schemaOpt)
+	var prevID string
+	if descr, ok := sh.GetLatest(); ok {
+		prevID = descr.DeployId()
 	}
-	schemaHis, err := LoadSchemaHistory(schemaOpts)
+
+	if err != nil {
+		return schemaOpt, xerrors.Wrap(err, "can not append to invalid schema history")
+	}
+	out, err := parseProto(protoFile, protoStringProvider(contents), importPath...)
+	if err != nil {
+		return nil, err
+	}
+
+	dlist, err := marshalFileDescriptors(out)
+	if err != nil {
+		return nil, err
+	}
+
+	if schemaOpt == nil {
+		schemaOpt = &nsproto.SchemaOptions{
+			History:            &nsproto.SchemaHistory{},
+			DefaultMessageName: msgName,
+		}
+	}
+	schemaOpt.History.Versions = append(schemaOpt.History.Versions, &nsproto.FileDescriptorSet{DeployId: deployID, PrevId: prevID, Descriptors: dlist})
+
+	return schemaOpt, nil
+}
+
+func LoadSchemaRegistryFromFile(schemaReg SchemaRegistry, nsID ident.ID, protoFile string, msgName string, importPath ...string) error {
+	schemaOpt, err := AppendSchemaOptions(nil, protoFile, msgName, nil, "first", importPath...)
+	if err != nil {
+		return err
+	}
+	schemaHis, err := LoadSchemaHistory(schemaOpt)
 	if err != nil {
 		return xerrors.Wrapf(err, "failed to load schema history from file: %v", protoFile)
 	}
@@ -302,8 +344,8 @@ func LoadSchemaRegistryFromFile(schemaReg SchemaRegistry, nsID ident.ID, protoFi
 	return nil
 }
 
-func GenTestSchemaOptions(protoFile string, importPathPrefix ...string) *nsproto.SchemaOptions {
-	out, _ := parseProto(protoFile, importPathPrefix...)
+func GenTestSchemaOptions(protoFile string, importPath ...string) *nsproto.SchemaOptions {
+	out, _ := parseProto(protoFile, nil, importPath...)
 
 	dlist, _ := marshalFileDescriptors(out)
 
