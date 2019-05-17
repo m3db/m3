@@ -66,14 +66,6 @@ func (cb *buffer) encodeFixed32(x uint32) {
 		uint8(x>>24))
 }
 
-func encodeZigZag64(v int64) uint64 {
-	return (uint64(v) << 1) ^ uint64(v>>63)
-}
-
-func encodeZigZag32(v int32) uint64 {
-	return uint64((uint32(v) << 1) ^ uint32((v >> 31)))
-}
-
 // EncodeRawBytes writes a count-delimited byte buffer to the Buffer.
 // This is the format used for the bytes protocol buffer
 // type and for embedded messages.
@@ -84,4 +76,12 @@ func (cb *buffer) encodeRawBytes(b []byte) {
 
 func (cb *buffer) append(b []byte) {
 	cb.buf = append(cb.buf, b...)
+}
+
+func encodeZigZag32(v int32) uint64 {
+	return uint64((uint32(v) << 1) ^ uint32((v >> 31)))
+}
+
+func encodeZigZag64(v int64) uint64 {
+	return (uint64(v) << 1) ^ uint64(v>>63)
 }

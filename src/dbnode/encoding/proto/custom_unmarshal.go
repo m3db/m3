@@ -275,7 +275,8 @@ func (u *customUnmarshaler) unmarshalCustomField(fd *desc.FieldDescriptor, wireT
 }
 
 func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, error) {
-	val := unmarshalValue{fieldNumber: fd.GetNumber(), v: v}
+	fieldNum := fd.GetNumber()
+	val := unmarshalValue{fieldNumber: fieldNum, v: v}
 	switch fd.GetType() {
 	case dpb.FieldDescriptorProto_TYPE_BOOL,
 		dpb.FieldDescriptorProto_TYPE_UINT64,
@@ -288,27 +289,30 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	case dpb.FieldDescriptorProto_TYPE_UINT32,
 		dpb.FieldDescriptorProto_TYPE_FIXED32:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows uint32", v, fieldNum)
 		}
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_INT32,
 		dpb.FieldDescriptorProto_TYPE_ENUM:
 		s := int64(v)
-		if s > math.MaxInt32 || s < math.MinInt32 {
-			return zeroValue, dynamic.NumericOverflowError
+		if s > math.MaxInt32 {
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows int32", v, fieldNum)
+		}
+		if s < math.MinInt32 {
+			return zeroValue, fmt.Errorf("%d (field num %d) underflows int32", v, fieldNum)
 		}
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SFIXED32:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows int32", v, fieldNum)
 		}
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT32:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows int32", v, fieldNum)
 		}
 		val.v = uint64(decodeZigZag32(v))
 		return val, nil
@@ -319,7 +323,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 
 	case dpb.FieldDescriptorProto_TYPE_FLOAT:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows uint32", v, fieldNum)
 		}
 		float32Val := math.Float32frombits(uint32(v))
 		float64Bits := math.Float64bits(float64(float32Val))
