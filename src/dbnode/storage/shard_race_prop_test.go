@@ -28,10 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -108,7 +108,7 @@ var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 }
 
 func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) {
-	opts := testDatabaseOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
+	opts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	shard := testDatabaseShard(t, opts)
 	shard.currRuntimeOptions.tickSleepPerSeries = time.Microsecond
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = tickBatchSize

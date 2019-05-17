@@ -35,7 +35,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (

@@ -31,17 +31,14 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -50,12 +47,12 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
@@ -70,45 +67,10 @@ var (
 					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
 					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestNs1Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	defaultTestNs2Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-	defaultTestDatabaseOptions Options
-	testSchemaOptions          = namespace.GenTestSchemaOptions("mainpkg/main.proto", "namespace/schematest")
+	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	testSchemaHistory  = prototest.NewSchemaHistory()
 )
-
-func init() {
-	opts := newOptions(pool.NewObjectPoolOptions().
-		SetSize(16))
-
-	// Use a no-op options manager to avoid spinning up a goroutine to listen
-	// for updates, which causes problems with leaktest in individual test
-	// executions
-	runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
-		runtime.NewOptions())
-
-	pm, err := fs.NewPersistManager(fs.NewOptions().
-		SetRuntimeOptionsManager(runtimeOptionsMgr))
-	if err != nil {
-		panic(err)
-	}
-
-	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
-		InstrumentOptions: opts.InstrumentOptions(),
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer stopReporting()
-
-	indexOpts := opts.IndexOptions().
-		SetPostingsListCache(plCache)
-	defaultTestDatabaseOptions = opts.
-		SetIndexOptions(indexOpts).
-		SetSeriesCachePolicy(series.CacheAll).
-		SetPersistManager(pm).
-		SetRepairEnabled(false).
-		SetCommitLogOptions(opts.CommitLogOptions())
-}
 
 type nsMapCh chan namespace.Map
 
@@ -163,14 +125,6 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 	return nsMap
 }
 
-func testDatabaseOptions() Options {
-	// NB(r): We don't need to recreate the options multiple
-	// times as they are immutable - we save considerable
-	// memory by doing this avoiding creating default pools
-	// several times.
-	return defaultTestDatabaseOptions
-}
-
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
@@ -182,7 +136,7 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 
 func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdatabase {
 	db := NewMockdatabase(ctrl)
-	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	if len(ns) != 0 {
 		db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
 	}
@@ -190,13 +144,13 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 }
 
 type newTestDatabaseOpt struct {
-	bs BootstrapState
+	bs    BootstrapState
 	nsMap namespace.Map
 	dbOpt Options
 }
 
 func defaultTestDatabase(t *testing.T, ctrl *gomock.Controller, bs BootstrapState) (*db, nsMapCh, xmetrics.TestStatsReporter) {
-	return newTestDatabase(t, ctrl, newTestDatabaseOpt{bs: bs, nsMap: testNamespaceMap(t), dbOpt: testDatabaseOptions()})
+	return newTestDatabase(t, ctrl, newTestDatabaseOpt{bs: bs, nsMap: testNamespaceMap(t), dbOpt: DefaultTestOptions()})
 }
 
 func newTestDatabase(
@@ -666,17 +620,15 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 }
 
 func TestDatabaseCreateSchemaNotSet(t *testing.T) {
-	protoTestDatabaseOptions := defaultTestDatabaseOptions.SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
+	protoTestDatabaseOptions := DefaultTestOptions().
+		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// Start the database with two namespaces, one miss configured (missing schema).
-	sh, err := namespace.LoadSchemaHistory(testSchemaOptions)
-	require.NoError(t, err)
-
 	nsID1 := ident.StringID("testns1")
-	md1, err := namespace.NewMetadata(nsID1, defaultTestNs1Opts.SetSchemaHistory(sh))
+	md1, err := namespace.NewMetadata(nsID1, defaultTestNs1Opts.SetSchemaHistory(testSchemaHistory))
 	require.NoError(t, err)
 	nsID2 := ident.StringID("testns2")
 	md2, err := namespace.NewMetadata(nsID2, defaultTestNs1Opts)
@@ -703,7 +655,8 @@ func TestDatabaseCreateSchemaNotSet(t *testing.T) {
 }
 
 func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
-	protoTestDatabaseOptions := defaultTestDatabaseOptions.SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
+	protoTestDatabaseOptions := DefaultTestOptions().
+		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -742,9 +695,7 @@ func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
 	require.Len(t, nses, 0)
 
 	// Update nsID3 schema
-	sr, err := namespace.LoadSchemaHistory(testSchemaOptions)
-	require.NoError(t, err)
-	md3, err = namespace.NewMetadata(nsID3, defaultTestNs1Opts.SetSchemaHistory(sr))
+	md3, err = namespace.NewMetadata(nsID3, defaultTestNs1Opts.SetSchemaHistory(testSchemaHistory))
 	require.NoError(t, err)
 	nsMap, err = namespace.NewMap([]namespace.Metadata{md3})
 	require.NoError(t, err)

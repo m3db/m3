@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3/src/dbnode/network/server/httpjson/node"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
@@ -60,7 +61,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -292,9 +292,9 @@ func Run(runOpts RunOptions) {
 
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
-		SetLimitEnabled(true).
-		SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
-		SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
+			SetLimitEnabled(true).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
@@ -325,9 +325,9 @@ func Run(runOpts RunOptions) {
 	indexOpts = indexOpts.SetInsertMode(insertMode).
 		SetPostingsListCache(postingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-		CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-		CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-	})
+			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+		})
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -376,7 +376,7 @@ func Run(runOpts RunOptions) {
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
-		SetMetricsScope(scope.SubScope("database.fs"))).
+			SetMetricsScope(scope.SubScope("database.fs"))).
 		SetFilePathPrefix(cfg.Filesystem.FilePathPrefixOrDefault()).
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
@@ -609,7 +609,7 @@ func Run(runOpts RunOptions) {
 		clientAdminOpts, runtimeOptsMgr)
 
 	opts = opts.
-	// Feature currently not working.
+		// Feature currently not working.
 		SetRepairEnabled(false)
 
 	// Set bootstrap options - We need to create a topology map provider from the
@@ -621,7 +621,8 @@ func Run(runOpts RunOptions) {
 	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := newTopoMapProvider(topo)
-	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+	bs, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
+		opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
 		logger.Fatal("could not create bootstrap process", zap.Error(err))
 	}
@@ -636,7 +637,8 @@ func Run(runOpts RunOptions) {
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+			updated, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
+				opts, topoMapProvider, origin, m3dbClient)
 			if err != nil {
 				logger.Error("updated bootstrapper list failed", zap.Error(err))
 				return
@@ -1159,14 +1161,14 @@ func withEncodingAndPoolingOptions(
 	writeBatchPoolOpts := pool.NewObjectPoolOptions()
 	writeBatchPoolOpts = writeBatchPoolOpts.
 		SetSize(writeBatchPoolSize).
-	// Set watermarks to zero because this pool is sized to be as large as we
-	// ever need it to be, so background allocations are usually wasteful.
+		// Set watermarks to zero because this pool is sized to be as large as we
+		// ever need it to be, so background allocations are usually wasteful.
 		SetRefillLowWatermark(0.0).
 		SetRefillHighWatermark(0.0).
 		SetInstrumentOptions(
-		writeBatchPoolOpts.
-			InstrumentOptions().
-			SetMetricsScope(scope.SubScope("write-batch-pool")))
+			writeBatchPoolOpts.
+				InstrumentOptions().
+				SetMetricsScope(scope.SubScope("write-batch-pool")))
 
 	writeBatchPool := ts.NewWriteBatchPool(
 		writeBatchPoolOpts,
@@ -1321,16 +1323,16 @@ func withEncodingAndPoolingOptions(
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
-		opts.IndexOptions().MemSegmentOptions().
-			SetPostingsListPool(postingsList).
-			SetInstrumentOptions(iopts)).
+			opts.IndexOptions().MemSegmentOptions().
+				SetPostingsListPool(postingsList).
+				SetInstrumentOptions(iopts)).
 		SetFSTSegmentOptions(
-		opts.IndexOptions().FSTSegmentOptions().
-			SetPostingsListPool(postingsList).
-			SetInstrumentOptions(iopts)).
+			opts.IndexOptions().FSTSegmentOptions().
+				SetPostingsListPool(postingsList).
+				SetInstrumentOptions(iopts)).
 		SetSegmentBuilderOptions(
-		opts.IndexOptions().SegmentBuilderOptions().
-			SetPostingsListPool(postingsList)).
+			opts.IndexOptions().SegmentBuilderOptions().
+				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).

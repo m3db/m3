@@ -99,7 +99,8 @@ func (h *configSetBootstrappersHandler) parseRequest(
 		return nil, xhttp.NewParseError(fmt.Errorf("no values"), http.StatusBadRequest)
 	}
 
-	if err := dbconfig.ValidateBootstrappersOrder(array.Values); err != nil {
+	validator := dbconfig.NewBootstrapConfigurationValidator()
+	if err := validator.ValidateBootstrappersOrder(array.Values); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 

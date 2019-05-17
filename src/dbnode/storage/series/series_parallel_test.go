@@ -32,7 +32,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 // TestSeriesWriteReadParallel is a regression test that was added to capture panics that might

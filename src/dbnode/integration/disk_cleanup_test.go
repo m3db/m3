@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"

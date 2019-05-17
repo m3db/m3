@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -140,11 +140,15 @@ func TestRoundTrip(t *testing.T) {
 		require.True(t, currTime.Equal(lastEncoded.Timestamp))
 		require.Equal(t, float64(0), lastEncoded.Value)
 	}
-	// Add some sanity to make sure that the string compression is working.
-	require.Equal(t, 369, enc.Stats().CompressedBytes)
+
+	// Add some sanity to make sure that the compression (especially string compression)
+	// is working properly.
+	numExpectedBytes := 231
+	require.Equal(t, numExpectedBytes, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
+	require.Equal(t, numExpectedBytes, len(rawBytes))
 
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
@@ -194,7 +198,9 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	vl2WriteTime := vl1WriteTime.Add(time.Second)
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
-	require.Equal(t, errEncoderMessageHasUnknownFields, err)
+	require.Equal(t,
+		"proto encoder: error unmarshaling message: encountered unknown field with field number: 6",
+		err.Error())
 
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)

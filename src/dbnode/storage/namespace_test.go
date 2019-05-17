@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -36,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -91,7 +91,7 @@ func newTestNamespaceWithIDOpts(
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
-	dopts := testDatabaseOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
+	dopts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
@@ -129,7 +129,7 @@ func newTestNamespaceWithTruncateType(
 	index namespaceIndex,
 	truncateType series.TruncateType,
 ) (*dbNamespace, closerFn) {
-	opts := testDatabaseOptions().
+	opts := DefaultTestOptions().
 		SetRuntimeOptionsManager(runtime.NewOptionsManager()).
 		SetTruncateType(truncateType)
 
@@ -702,7 +702,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
-	dopts := testDatabaseOptions()
+	dopts := DefaultTestOptions()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
@@ -767,7 +767,7 @@ type needsFlushTestCase struct {
 
 func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	shards := sharding.NewShards(shardNumbers, shard.Available)
-	dopts := testDatabaseOptions()
+	dopts := DefaultTestOptions()
 
 	var (
 		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
@@ -908,7 +908,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = DefaultTestOptions()
 	)
 
 	var (
@@ -949,7 +949,7 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = DefaultTestOptions()
 	)
 	testNs, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -1001,7 +1001,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = DefaultTestOptions()
 	)
 	testNs, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)

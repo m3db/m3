@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"

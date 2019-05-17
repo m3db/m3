@@ -44,7 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/m3em/convert"
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 	"github.com/m3db/m3/src/m3em/build"

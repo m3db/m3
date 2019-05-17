@@ -35,7 +35,7 @@ import (
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	dbnamespace "github.com/m3db/m3/src/dbnode/storage/namespace"
+	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"

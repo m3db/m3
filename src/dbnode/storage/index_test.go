@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/context"
@@ -44,7 +44,7 @@ import (
 
 func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testDatabaseOptions())
+	nsIdx, err := newNamespaceIndex(md, DefaultTestOptions())
 	require.NoError(t, err)
 
 	now := time.Now().Truncate(time.Hour)
@@ -69,7 +69,7 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testDatabaseOptions())
+	nsIdx, err := newNamespaceIndex(md, DefaultTestOptions())
 	require.NoError(t, err)
 
 	defer func() {
@@ -341,7 +341,7 @@ func newTestIndex(t *testing.T, ctrl *gomock.Controller) testIndex {
 		SetIndexOptions(namespace.NewIndexOptions().SetBlockSize(indexBlockSize))
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	require.NoError(t, err)
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	index, err := newNamespaceIndex(md, opts)
 	require.NoError(t, err)
 

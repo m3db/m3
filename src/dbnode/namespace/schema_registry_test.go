@@ -115,7 +115,7 @@ func TestSchemaRegistryLoad(t *testing.T) {
 
 	sr := NewSchemaRegistry(true, nil)
 	nsID := ident.StringID("ns1")
-	require.NoError(t, LoadSchemaRegistryFromFile(sr, nsID, "testdata/prototest/test.proto", "mainpkg.TestMessage", "../.."))
+	require.NoError(t, LoadSchemaRegistryFromFile(sr, nsID, "testdata/prototest/test.proto", "mainpkg.TestMessage", "../"))
 
 	schema1, err := sr.GetLatestSchema(nsID)
 	require.NoError(t, err)
