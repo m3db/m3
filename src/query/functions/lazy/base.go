@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package offset
+package lazy
 
 import (
 	"fmt"
@@ -32,30 +32,23 @@ import (
 const (
 	// OffsetType offsets incoming data point timestamps and metadata by the given offset.
 	OffsetType = "offset"
-
-	// UnaryType offsets incoming data point values.
-	UnaryType = "unary"
 )
 
-// NewOffsetOp creates a new offset operation
-func NewOffsetOp(
+// NewLazyOp creates a new lazy operation
+func NewLazyOp(
 	opType string,
-	offSetOpts *block.OffsetOpts,
+	offSetOpts *block.LazyOpts,
 ) (parser.Params, error) {
-	// if offset <= 0 {
-	// 	return baseOp{}, fmt.Errorf("offset must be positive, received: %v", offset)
-	// }
-
 	return baseOp{
-		opType:     opType,
-		offsetOpts: offSetOpts,
+		opType:   opType,
+		lazyOpts: offSetOpts,
 	}, nil
 }
 
 // baseOp stores required properties for the baseOp
 type baseOp struct {
-	opType     string
-	offsetOpts *block.OffsetOpts
+	opType   string
+	lazyOpts *block.LazyOpts
 }
 
 func (o baseOp) OpType() string {
@@ -86,7 +79,7 @@ func (n *baseNode) Params() parser.Params {
 }
 
 func (n *baseNode) processBlock(b block.Block) block.Block {
-	return block.NewOffsetBlock(b, n.op.offsetOpts)
+	return block.NewLazyBlock(b, n.op.lazyOpts)
 }
 
 func (n *baseNode) Process(

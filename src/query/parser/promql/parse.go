@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/functions/offset"
+	"github.com/m3db/m3/src/query/functions/lazy"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -82,12 +82,12 @@ func (p *parseState) transformLen() int {
 	return len(p.transforms)
 }
 
-func (p *parseState) addOffsetTransform(offsetOpts block.OffsetOpts) error {
-	// if off <= 0 {
-	// 	return nil
-	// }
+func (p *parseState) addLazyTransform(lazyOpts *block.LazyOpts) error {
+	if lazyOpts == nil {
+		return nil
+	}
 
-	op, err := offset.NewOffsetOp(offset.OffsetType, offsetOpts)
+	op, err := lazy.NewLazyOp(lazy.OffsetType, lazyOpts)
 	if err != nil {
 		return err
 	}
@@ -135,12 +135,9 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		offsetOpts, err := block.BuildOffsetOpts(n.Offset)
-		if err != nil {
-			return err
-		}
+		lazyOpts := block.BuildLazyOpts(n.Offset)
 
-		return p.addOffsetTransform(offsetOpts)
+		return p.addLazyTransform(lazyOpts)
 
 	case *pql.VectorSelector:
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
@@ -149,12 +146,9 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		offsetOpts, err := block.BuildOffsetOpts(n.Offset)
-		if err != nil {
-			return err
-		}
+		lazyOpts := block.BuildLazyOpts(n.Offset)
 
-		return p.addOffsetTransform(offsetOpts)
+		return p.addLazyTransform(lazyOpts)
 
 	case *pql.Call:
 		expressions := n.Args
