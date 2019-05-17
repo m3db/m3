@@ -544,15 +544,16 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			itErrPrefix, err)
 	}
 
-	buf := make([]byte, 0, bytesLen)
-	for j := 0; j < int(bytesLen); j++ {
-		b, err := it.stream.ReadByte()
-		if err != nil {
-			return fmt.Errorf(
-				"%s error trying to read byte in readBytes: %v",
-				itErrPrefix, err)
-		}
-		buf = append(buf, b)
+	buf := make([]byte, bytesLen)
+	n, err := it.stream.Read(buf)
+	if err != nil {
+		return fmt.Errorf(
+			"%s error trying to read byte in readBytes: %v",
+			itErrPrefix, err)
+	}
+	if bytesLen != uint64(n) {
+		return fmt.Errorf(
+			"%s tried to read %d bytes but only read: %d", itErrPrefix, bytesLen, n)
 	}
 
 	it.addToBytesDict(i, buf)
