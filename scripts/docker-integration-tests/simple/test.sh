@@ -98,8 +98,8 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/placement/init -d '{
             "isolation_group": "rack-a",
             "zone": "embedded",
             "weight": 1024,
-            "endpoint": "127.0.0.1::9000",
-            "hostname": "127.0.0.1:",
+            "endpoint": "127.0.0.1:9000",
+            "hostname": "127.0.0.1",
             "port": 9000
         }
     ]
