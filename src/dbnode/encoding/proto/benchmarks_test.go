@@ -35,7 +35,7 @@ import (
 
 func BenchmarkEncoder(b *testing.B) {
 	var (
-		_, messagesBytes = testMessages(100)
+		_, messagesBytes = testMessages(100, false)
 		start            = time.Now()
 		encoder          = NewEncoder(start, encoding.NewOptions())
 	)
@@ -53,7 +53,7 @@ func BenchmarkEncoder(b *testing.B) {
 
 func BenchmarkIterator(b *testing.B) {
 	var (
-		_, messagesBytes = testMessages(100)
+		_, messagesBytes = testMessages(100, false)
 		start            = time.Now()
 		encodingOpts     = encoding.NewOptions()
 		encoder          = NewEncoder(start, encodingOpts)
@@ -87,7 +87,7 @@ func BenchmarkIterator(b *testing.B) {
 	}
 }
 
-func testMessages(numMessages int) ([]*dynamic.Message, [][]byte) {
+func testMessages(numMessages int, includeAttributes bool) ([]*dynamic.Message, [][]byte) {
 	var (
 		messages      = make([]*dynamic.Message, 0, numMessages)
 		messagesBytes = make([][]byte, 0, numMessages)
@@ -97,11 +97,13 @@ func testMessages(numMessages int) ([]*dynamic.Message, [][]byte) {
 		m.SetFieldByName("latitude", float64(i))
 		m.SetFieldByName("longitude", float64(i))
 		m.SetFieldByName("deliveryID", []byte(fmt.Sprintf("some-really-really-really-really-long-id-%d", i)))
-		m.SetFieldByName("attributes", map[string]string{
-			fmt.Sprintf("key1_%d", i): fmt.Sprintf("val1_%d", i),
-			fmt.Sprintf("key2_%d", i): fmt.Sprintf("val2_%d", i),
-			fmt.Sprintf("key3_%d", i): fmt.Sprintf("val3_%d", i),
-		})
+		if includeAttributes {
+			m.SetFieldByName("attributes", map[string]string{
+				fmt.Sprintf("key1_%d", i): fmt.Sprintf("val1_%d", i),
+				fmt.Sprintf("key2_%d", i): fmt.Sprintf("val2_%d", i),
+				fmt.Sprintf("key3_%d", i): fmt.Sprintf("val3_%d", i),
+			})
+		}
 
 		bytes, err := m.Marshal()
 		handleErr(err)
