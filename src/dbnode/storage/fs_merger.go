@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -50,12 +50,13 @@ type fsMerger struct {
 }
 
 func (m *fsMerger) Merge(
+	mergeWith FsMergeWith,
 	ns namespace.Metadata,
 	shard uint32,
 	blockStart xtime.UnixNano,
 	blockSize time.Duration,
 	flushPreparer persist.FlushPreparer,
-	mergeWith FsMergeWith,
+	nsCtx namespace.Context,
 ) error {
 	var multiErr xerrors.MultiError
 
@@ -119,7 +120,7 @@ func (m *fsMerger) Merge(
 		brs = append(brs, []xio.BlockReader{br})
 
 		// Check if this series is in memory (and thus requires merging).
-		encoded, hasData, err := mergeWith.Read(blockStart, id)
+		encoded, hasData, err := mergeWith.Read(blockStart, id, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			return multiErr.FinalError()
@@ -130,7 +131,7 @@ func (m *fsMerger) Merge(
 		}
 
 		mergedIter := multiIterPool.Get()
-		mergedIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(brs))
+		mergedIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(brs), nsCtx.Schema)
 		defer mergedIter.Close()
 
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
@@ -148,7 +149,7 @@ func (m *fsMerger) Merge(
 	// Second stage: loop through rest of the merge target that was not captured
 	// in the first stage.
 	err = mergeWith.ForEachRemaining(blockStart, func(seriesID ident.ID, tags ident.Tags) bool {
-		encoded, hasData, err := mergeWith.Read(blockStart, seriesID)
+		encoded, hasData, err := mergeWith.Read(blockStart, seriesID, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			return false
@@ -156,7 +157,7 @@ func (m *fsMerger) Merge(
 
 		if hasData {
 			iter := multiIterPool.Get()
-			iter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize)
+			iter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize, nsCtx.Schema)
 			defer iter.Close()
 			if err := persistIter(prepared.Persist, iter, seriesID, tags, encoderPool); err != nil {
 				multiErr = multiErr.Add(err)
@@ -199,8 +200,12 @@ func persistIter(
 		return err
 	}
 
-	stream := encoder.Stream()
+	stream, ok := encoder.Stream(encoding.StreamOptions{})
 	encoder.Close()
+	if !ok {
+		// Don't write out series with no data.
+		return nil
+	}
 
 	segment, err := stream.Segment()
 	if err != nil {

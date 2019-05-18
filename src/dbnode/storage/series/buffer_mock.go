@@ -91,19 +91,19 @@ func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart, id, tags, pe
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart, id, tags, persistFn, nsCtx)
 }
 
-// Flush mocks base method
-func (m *MockdatabaseBuffer) Flush(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, version int, nsCtx namespace.Context) (FlushOutcome, error) {
+// WarmFlush mocks base method
+func (m *MockdatabaseBuffer) WarmFlush(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, nsCtx namespace.Context) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", ctx, blockStart, id, tags, persistFn, version, nsCtx)
+	ret := m.ctrl.Call(m, "WarmFlush", ctx, blockStart, id, tags, persistFn, nsCtx)
 	ret0, _ := ret[0].(FlushOutcome)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Flush indicates an expected call of Flush
-func (mr *MockdatabaseBufferMockRecorder) Flush(ctx, blockStart, id, tags, persistFn, version, nsCtx interface{}) *gomock.Call {
+// WarmFlush indicates an expected call of WarmFlush
+func (mr *MockdatabaseBufferMockRecorder) WarmFlush(ctx, blockStart, id, tags, persistFn, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseBuffer)(nil).Flush), ctx, blockStart, id, tags, persistFn, version, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseBuffer)(nil).WarmFlush), ctx, blockStart, id, tags, persistFn, nsCtx)
 }
 
 // ReadEncoded mocks base method
@@ -119,6 +119,21 @@ func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Ti
 func (mr *MockdatabaseBufferMockRecorder) ReadEncoded(ctx, start, end, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseBuffer)(nil).ReadEncoded), ctx, start, end, nsCtx)
+}
+
+// FetchBlocksForColdFlush mocks base method
+func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.Time, version int, nsCtx namespace.Context) ([]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, start, version, nsCtx)
+	ret0, _ := ret[0].([]xio.BlockReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksForColdFlush indicates an expected call of FetchBlocksForColdFlush
+func (mr *MockdatabaseBufferMockRecorder) FetchBlocksForColdFlush(ctx, start, version, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksForColdFlush", reflect.TypeOf((*MockdatabaseBuffer)(nil).FetchBlocksForColdFlush), ctx, start, version, nsCtx)
 }
 
 // FetchBlocks mocks base method
@@ -162,6 +177,20 @@ func (m *MockdatabaseBuffer) IsEmpty() bool {
 func (mr *MockdatabaseBufferMockRecorder) IsEmpty() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockdatabaseBuffer)(nil).IsEmpty))
+}
+
+// NeedsColdFlushBlockStarts mocks base method
+func (m *MockdatabaseBuffer) NeedsColdFlushBlockStarts() OptimizedTimes {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsColdFlushBlockStarts")
+	ret0, _ := ret[0].(OptimizedTimes)
+	return ret0
+}
+
+// NeedsColdFlushBlockStarts indicates an expected call of NeedsColdFlushBlockStarts
+func (mr *MockdatabaseBufferMockRecorder) NeedsColdFlushBlockStarts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsColdFlushBlockStarts", reflect.TypeOf((*MockdatabaseBuffer)(nil).NeedsColdFlushBlockStarts))
 }
 
 // Stats mocks base method

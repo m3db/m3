@@ -1966,7 +1966,7 @@ func (s *dbShard) ColdFlush(
 	// has its own fileset, if we encounter an error while trying to persist
 	// a block, we continue to try persisting other blocks.
 	for blockStart := range dirtySeriesToWrite {
-		err := merger.Merge(s.namespace, s.ID(), blockStart, blockSize, flushPreparer, mergeWithMem)
+		err := merger.Merge(mergeWithMem, s.namespace, s.ID(), blockStart, blockSize, flushPreparer, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue

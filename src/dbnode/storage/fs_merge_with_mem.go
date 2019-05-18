@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -39,6 +40,7 @@ type fsMergeWithMem struct {
 func (m *fsMergeWithMem) Read(
 	blockStart xtime.UnixNano,
 	seriesID ident.ID,
+	nsCtx namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	// Check if this series is in memory (and thus requires merging).
 	element, exists := m.dirtySeries.Get(idAndBlockStart{blockStart: blockStart, id: seriesID})
@@ -61,7 +63,7 @@ func (m *fsMergeWithMem) Read(
 	nextVersion := m.shard.RetrievableBlockColdVersion(startTime) + 1
 
 	tmpCtx := context.NewContext()
-	blocks, err := entry.Series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion)
+	blocks, err := entry.Series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion, nsCtx)
 	tmpCtx.BlockingClose()
 	if err != nil {
 		return nil, false, err

@@ -987,7 +987,11 @@ type forEachRemainingFn func(seriesID ident.ID, tags ident.Tags) bool
 type FsMergeWith interface {
 	// Read returns the data for the given block start and series ID, whether
 	// any data was found, and the error encountered (if any).
-	Read(blockStart xtime.UnixNano, seriesID ident.ID) ([]xio.BlockReader, bool, error)
+	Read(
+		blockStart xtime.UnixNano,
+		seriesID ident.ID,
+		nsCtx namespace.Context,
+	) ([]xio.BlockReader, bool, error)
 
 	// ForEachRemaining is the loop for the second stage of merging. The
 	// fsMerger first loops through the fileset series, merging them with data
