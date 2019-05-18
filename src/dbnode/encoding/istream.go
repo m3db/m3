@@ -121,9 +121,16 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 				return 0, err
 			}
 		}
-		bitRead := Bit(is.consumeBuffer(1))
-		res = (res << 1) | uint64(bitRead)
-		numBits--
+
+		numToRead := numBits
+		if is.remaining < numToRead {
+			numToRead = is.remaining
+		}
+		bits := is.current >> uint(8-numToRead)
+		is.current <<= uint(numToRead)
+		is.remaining -= numToRead
+		res = (res << uint64(numToRead)) | uint64(bits)
+		numBits -= numToRead
 	}
 	return res, nil
 }
