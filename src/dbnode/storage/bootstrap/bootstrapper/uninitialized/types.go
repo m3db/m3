@@ -27,6 +27,9 @@ import (
 
 // Options is the options interface for the uninitialized source.
 type Options interface {
+	// Validate the values of the options.
+	Validate() error
+
 	// SetResultOptions sets the result options
 	SetResultOptions(value result.Options) Options
 
