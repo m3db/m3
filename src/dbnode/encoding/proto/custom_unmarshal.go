@@ -29,7 +29,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 var (
@@ -41,8 +40,7 @@ var (
 
 type customFieldUnmarshaler interface {
 	sortedCustomFieldValues() sortedCustomFieldValues
-	nonCustomFieldValues() *dynamic.Message
-	nonCustomFieldValues2() []marshaledField
+	nonCustomFieldValues() []marshaledField
 	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
@@ -52,9 +50,8 @@ type customUnmarshaler struct {
 	decodeBuf    *buffer
 	customValues sortedCustomFieldValues
 
-	nonCustomValues  *dynamic.Message
-	nonCustomValues2 []marshaledField
-	numNonCustom     int
+	nonCustomValues []marshaledField
+	numNonCustom    int
 }
 
 func newCustomFieldUnmarshaler() customFieldUnmarshaler {
@@ -71,25 +68,15 @@ func (u *customUnmarshaler) numNonCustomValues() int {
 	return u.numNonCustom
 }
 
-func (u *customUnmarshaler) nonCustomFieldValues() *dynamic.Message {
-	if u.nonCustomValues == nil {
-		u.nonCustomValues = dynamic.NewMessage(u.schema)
-	}
+func (u *customUnmarshaler) nonCustomFieldValues() []marshaledField {
 	return u.nonCustomValues
-}
-
-func (u *customUnmarshaler) nonCustomFieldValues2() []marshaledField {
-	return u.nonCustomValues2
 }
 
 func (u *customUnmarshaler) unmarshal() error {
 	u.customValues = u.customValues[:0]
 
 	if u.nonCustomValues != nil {
-		u.nonCustomValues.Reset()
-	}
-	if u.nonCustomValues2 != nil {
-		u.nonCustomValues2 = u.nonCustomValues2[:0]
+		u.nonCustomValues = u.nonCustomValues[:0]
 	}
 
 	isSorted := true
@@ -106,10 +93,6 @@ func (u *customUnmarshaler) unmarshal() error {
 		}
 
 		if !u.isCustomField(fd) {
-			if u.nonCustomValues == nil {
-				u.nonCustomValues = dynamic.NewMessage(u.schema)
-			}
-
 			_, err = u.skip(wireType)
 			if err != nil {
 				return err
@@ -123,32 +106,25 @@ func (u *customUnmarshaler) unmarshal() error {
 			// A marshaled Protobuf message consists of a stream of <fieldNumber, wireType, value>
 			// tuples, all of which are optional, with no additional header or footer information.
 			// This means that each tuple within the stream can be thought of as its own complete
-			// marshaled message and as a result we can build up the nonCustomValues *dynamic.Message
-			// one field at a time by calling UnmarshalMerge() on sub-slices that contain a complete
-			// tuple.
-			if err := u.nonCustomValues.UnmarshalMerge(marshaled); err != nil {
-				return err
-			}
-
-			// fmt.Printf("%d unmarshaled into %s\n", fieldNum, u.nonCustomValues.String())
+			// marshaled message and as a result we can build up the []marshaledField one field at
+			// a time.
 			found := false
 			if fd.IsRepeated() {
-				for i := range u.nonCustomValues2 {
-					val := u.nonCustomValues2[i]
+				// TODO: Leave comment
+				for i := range u.nonCustomValues {
+					val := u.nonCustomValues[i]
 					if fieldNum == val.fieldNum {
-						u.nonCustomValues2[i].marshaled = append(u.nonCustomValues2[i].marshaled, marshaled...)
-						// fmt.Printf("(found) %d marshaled %v\n", fieldNum, u.nonCustomValues2[i].marshaled)
+						u.nonCustomValues[i].marshaled = append(u.nonCustomValues[i].marshaled, marshaled...)
 						found = true
 						break
 					}
 				}
 			}
 			if !found {
-				u.nonCustomValues2 = append(u.nonCustomValues2, marshaledField{
+				u.nonCustomValues = append(u.nonCustomValues, marshaledField{
 					fieldNum:  fieldNum,
 					marshaled: marshaled,
 				})
-				// fmt.Printf("(not found) %d marshaled %v\n", fieldNum, marshaled)
 			}
 
 			u.numNonCustom++
@@ -368,15 +344,15 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 }
 
 func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
-	if schema != u.schema {
-		u.nonCustomValues = dynamic.NewMessage(schema)
-		u.nonCustomValues.Reset()
-	}
-
 	u.schema = schema
 	u.numNonCustom = 0
 	u.customValues = u.customValues[:0]
-	u.nonCustomValues2 = u.nonCustomValues2[:0]
+
+	for i := range u.nonCustomValues {
+		u.nonCustomValues[i] = marshaledField{}
+	}
+	u.nonCustomValues = u.nonCustomValues[:0]
+
 	u.decodeBuf.reset(buf)
 
 	return u.unmarshal()

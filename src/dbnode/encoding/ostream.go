@@ -155,10 +155,6 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
-	// Make sure we only have to grow the underlying buffer at most
-	// one time before we write one byte at a time in a loop.
-	os.ensureCapacityFor(len(bytes))
-
 	if !os.hasUnusedBits() {
 		// If the stream is aligned on a byte boundary then all of the WriteByte()
 		// function calls and bit-twiddling can be skipped in favor of a single
@@ -167,6 +163,9 @@ func (os *ostream) WriteBytes(bytes []byte) {
 		return
 	}
 
+	// Make sure we only have to grow the underlying buffer at most
+	// one time before we write one byte at a time in a loop.
+	os.ensureCapacityFor(len(bytes))
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}

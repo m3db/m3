@@ -35,7 +35,7 @@ import (
 
 func BenchmarkEncoder(b *testing.B) {
 	var (
-		_, messagesBytes = testMessages(100, false)
+		_, messagesBytes = testMessages(100, true)
 		start            = time.Now()
 		encoder          = NewEncoder(start, encoding.NewOptions())
 	)
@@ -53,7 +53,7 @@ func BenchmarkEncoder(b *testing.B) {
 
 func BenchmarkIterator(b *testing.B) {
 	var (
-		_, messagesBytes = testMessages(100, false)
+		_, messagesBytes = testMessages(100, true)
 		start            = time.Now()
 		encodingOpts     = encoding.NewOptions()
 		encoder          = NewEncoder(start, encodingOpts)

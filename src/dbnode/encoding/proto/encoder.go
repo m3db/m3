@@ -37,7 +37,6 @@ import (
 
 	"github.com/cespare/xxhash"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 // Make sure encoder implements encoding.Encoder.
@@ -65,7 +64,6 @@ type Encoder struct {
 
 	numEncoded    int
 	lastEncodedDP ts.Datapoint
-	lastEncoded   *dynamic.Message
 	customFields  []customFieldState
 	protoFields   []marshaledField
 
@@ -394,8 +392,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		sortedTopLevelScalarValuesIdx++
 	}
 
-	otherValues := enc.unmarshaler.nonCustomFieldValues()
-	if err := enc.encodeProtoValues(otherValues); err != nil {
+	if err := enc.encodeProtoValues(); err != nil {
 		return err
 	}
 
@@ -466,7 +463,6 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.stream.Reset(enc.newBuffer(capacity))
 	enc.timestampEncoder = m3tsz.NewTimestampEncoder(
 		start, enc.opts.DefaultTimeUnit(), enc.opts)
-	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
 
 	// Prevent this from growing too large and remaining in the pools.
@@ -485,14 +481,8 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	if enc.schema == nil {
 		enc.protoFields = nil
 		enc.customFields = nil
-		enc.lastEncoded = nil
 	} else {
 		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
-
-		// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
-		// schemas to see if they have changed:
-		// https://github.com/m3db/m3/issues/1471
-		enc.lastEncoded = dynamic.NewMessage(schema)
 		enc.hasEncodedSchema = false
 	}
 }
@@ -633,9 +623,10 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	// to do the comparison even if the bytes aren't aligned on a byte boundary in order
 	// to improve the compression.
 	//
-	// Also this implementation had the side-effect of making decoding much faster because
-	// for long []byte the iterator can avoid bit manipulation and calling ReadByte() in a
-	// loop and can instead read the entire []byte in one go.
+	// Also this implementation had the side-effect of making encoding and decoding of
+	// []byte values much faster because for long []byte the encoder and iterator can avoid
+	// bit manipulation and calling WriteByte() / ReadByte() in a loop and can instead read the
+	// entire []byte in one go.
 	enc.padToNextByte()
 
 	// Track the byte position we're going to start at so we can store it in the LRU after.
@@ -661,7 +652,8 @@ func (enc *Encoder) encodeBoolValue(i int, val bool) {
 	}
 }
 
-func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
+// TODO: Rename encodeNonCustomValues
+func (enc *Encoder) encodeProtoValues() error {
 	if len(enc.protoFields) == 0 {
 		// Fast path, skip all the encoding logic entirely because there are
 		// no fields that require proto encoding.
@@ -674,16 +666,9 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 
 	// Reset for re-use.
 	enc.changedValues = enc.changedValues[:0]
-	changedFields := enc.changedValues
-
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
-	fieldsChangedToDefault := enc.fieldsChangedToDefault
 
-	if enc.lastEncoded == nil {
-		enc.lastEncoded = dynamic.NewMessage(enc.schema)
-	}
-
-	currProtoFields := enc.unmarshaler.nonCustomFieldValues2()
+	currProtoFields := enc.unmarshaler.nonCustomFieldValues()
 	for i, protoField := range enc.protoFields {
 		var curVal []byte
 		for _, val := range currProtoFields {
@@ -692,62 +677,24 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 			}
 		}
 
-		// fmt.Println("curVal", curVal)
 		prevVal := protoField.marshaled
 		if bytes.Equal(prevVal, curVal) {
-			// fmt.Println(protoField.fieldNum, "same as previous, skipping")
 			// No change, nothing to encode.
 			continue
 		}
 
 		if curVal == nil {
-			// fmt.Println(protoField.fieldNum, "changed to default")
 			// Interpret as default value.
-			fieldsChangedToDefault = append(fieldsChangedToDefault, protoField.fieldNum)
+			enc.fieldsChangedToDefault = append(enc.fieldsChangedToDefault, protoField.fieldNum)
 		}
 
-		// fmt.Println(protoField.fieldNum, "changed")
-		changedFields = append(changedFields, protoField.fieldNum)
+		enc.changedValues = append(enc.changedValues, protoField.fieldNum)
 		// Need to copy since the encoder no longer owns the original source of the bytes once
 		// this function returns.
-		enc.protoFields[i].marshaled = append([]byte(nil), curVal...)
+		enc.protoFields[i].marshaled = append(enc.protoFields[i].marshaled[:0], curVal...)
 	}
 
-	// for _, protoField := range enc.protoFields {
-	// 	var (
-	// 		fieldNum    = protoField.fieldNum
-	// 		field       = enc.schema.FindFieldByNumber(fieldNum)
-	// 		fieldNumInt = int(fieldNum)
-	// 		prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
-	// 		curVal      = m.GetFieldByNumber(fieldNumInt)
-	// 	)
-
-	// 	if fieldsEqual(curVal, prevVal) {
-	// 		// Clear fields that haven't changed.
-	// 		if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
-	// 			return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
-	// 		}
-	// 	} else {
-	// 		isDefaultValue, err := isDefaultValue(field, curVal)
-	// 		if err != nil {
-	// 			return fmt.Errorf(
-	// 				"error: %v, checking if %v is default value for field %s",
-	// 				err, curVal, field.String())
-	// 		}
-	// 		if isDefaultValue {
-	// 			fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-	// 		}
-
-	// 		changedFields = append(changedFields, fieldNum)
-	// 		if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
-	// 			return fmt.Errorf(
-	// 				"error: %v setting field %d with value %v on lastEncoded",
-	// 				err, fieldNumInt, curVal)
-	// 		}
-	// 	}
-	// }
-
-	if len(changedFields) == 0 {
+	if len(enc.changedValues) == 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
@@ -755,33 +702,33 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	marshalBuf := enc.marshalBuf[:0]
-	for _, fieldNum := range changedFields {
+	for _, fieldNum := range enc.changedValues {
 		for _, field := range currProtoFields {
 			if field.fieldNum == fieldNum {
 				marshalBuf = append(marshalBuf, field.marshaled...)
 			}
 		}
 	}
-	// marshaled, err := m.MarshalAppend(enc.marshalBuf[:0])
-	// if err != nil {
-	// 	return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
-	// }
+
+	// TODO: Fix comment
 	// Make sure we update the marshalBuf with the returned slice in case a new one was
 	// allocated as part of the MarshalAppend call.
 	enc.marshalBuf = marshalBuf
 
 	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(opCodeChange)
-	if len(fieldsChangedToDefault) > 0 {
+	if len(enc.fieldsChangedToDefault) > 0 {
 		// Control bit indicating that some fields have been set to default values
 		// and that a bitset will follow specifying which fields have changed.
 		enc.stream.WriteBit(opCodeFieldsSetToDefaultProtoMarshal)
-		enc.encodeBitset(fieldsChangedToDefault)
+		enc.encodeBitset(enc.fieldsChangedToDefault)
 	} else {
 		// Control bit indicating that none of the changed fields have been set to
 		// their default values so we can do a clean merge on read.
 		enc.stream.WriteBit(opCodeNoFieldsSetToDefaultProtoMarshal)
 	}
+	// TODO: comment explaining
+	enc.padToNextByte()
 	enc.encodeVarInt(uint64(len(marshalBuf)))
 	enc.stream.WriteBytes(marshalBuf)
 

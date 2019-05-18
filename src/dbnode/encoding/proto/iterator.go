@@ -411,6 +411,7 @@ func (it *iterator) readProtoValues() error {
 		}
 	}
 
+	it.skipToNextByte()
 	marshalLen, err := it.readVarInt()
 	if err != nil {
 		return fmt.Errorf("%s err reading proto length varint: %v", itErrPrefix, err)
