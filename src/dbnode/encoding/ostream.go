@@ -159,6 +159,14 @@ func (os *ostream) WriteBytes(bytes []byte) {
 	// one time before we write one byte at a time in a loop.
 	os.ensureCapacityFor(len(bytes))
 
+	if !os.hasUnusedBits() {
+		// If the stream is aligned on a byte boundary then all of the WriteByte()
+		// function calls and bit-twiddling can be skipped in favor of a single
+		// memcopy.
+		os.rawBuffer = append(os.rawBuffer, bytes...)
+		return
+	}
+
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}
