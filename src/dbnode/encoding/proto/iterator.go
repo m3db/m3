@@ -542,7 +542,14 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			itErrPrefix, err)
 	}
 
-	buf := make([]byte, bytesLen)
+	// Reuse the byte slices that about to be evicted (if any) to read into instead of
+	// allocating if possible.
+	buf := it.nextToBeEvicted(i)
+	if cap(buf) < int(bytesLen) {
+		buf = make([]byte, bytesLen)
+	}
+	buf = buf[:bytesLen]
+
 	n, err := it.stream.Read(buf)
 	if err != nil {
 		return fmt.Errorf(
@@ -604,6 +611,7 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 	)
 
 	// TODO: Can delete this?
+	// Cant delete but might be able to optimize away.
 	if field := it.schema.FindFieldByNumber(fieldNum); field == nil {
 		// This can happen when the field being decoded does not exist (or is reserved)
 		// in the current schema, but the message was encoded with a schema in which the
@@ -812,6 +820,20 @@ func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 func (it *iterator) lastValueBytesDict(fieldIdx int) []byte {
 	dict := it.customFields[fieldIdx].iteratorBytesFieldDict
 	return dict[len(dict)-1]
+}
+
+func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
+	dict := it.customFields[fieldIdx].iteratorBytesFieldDict
+	if len(dict) == 0 {
+		return nil
+	}
+
+	if len(dict) < it.byteFieldDictLRUSize {
+		// Next add won't trigger an eviction.
+		return nil
+	}
+
+	return dict[0]
 }
 
 func (it *iterator) readBits(numBits int) (uint64, error) {

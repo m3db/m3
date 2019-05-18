@@ -173,8 +173,6 @@ func TestRoundTripProp(t *testing.T) {
 				m                    = input.messages[i].message
 				dp, unit, annotation = iter.Current()
 			)
-			fmt.Println("m:", m.String())
-			fmt.Println("schema:", input.schema.String())
 			decodedM := dynamic.NewMessage(input.schema)
 			require.NoError(t, decodedM.Unmarshal(annotation))
 			if debugLogs {
