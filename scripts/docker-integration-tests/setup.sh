@@ -7,7 +7,9 @@ cd $GOPATH/src/github.com/m3db/m3
 
 SERVICES=(m3dbnode m3coordinator m3aggregator)
 REVISION=$(git rev-parse HEAD)
-make clean
+if [[ $SKIP_CLEAN != "true" ]]; then
+  make clean
+fi
 mkdir -p ./bin
 
 # by keeping all the required files in ./bin, it makes the build context
