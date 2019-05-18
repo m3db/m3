@@ -10,7 +10,7 @@
 function retry_with_backoff {
   local max_attempts=${ATTEMPTS-5}
   local timeout=${TIMEOUT-1}
-  local max_timeout=${MAX_TIMEOUT:-8}
+  local max_timeout=${MAX_TIMEOUT}
   local attempt=1
   local exitCode=0
 
@@ -28,9 +28,10 @@ function retry_with_backoff {
     sleep $timeout
     attempt=$(( attempt + 1 ))
     timeout=$(( timeout * 2 ))
-    if [[ $timeout -gt $max_timeout ]]
-    then
-      timeout=$max_timeout
+    if [[ $max_timeout != "" ]]; then
+      if [[ $timeout -gt $max_timeout ]]; then
+        timeout=$max_timeout
+      fi
     fi
   done
 
