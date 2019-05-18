@@ -35,7 +35,7 @@ import (
 
 func BenchmarkEncode(b *testing.B) {
 	var (
-		_, messagesBytes = testMessages(4)
+		_, messagesBytes = testMessages(100)
 		start            = time.Now()
 		encoder          = NewEncoder(start, encoding.NewOptions())
 	)
@@ -43,9 +43,10 @@ func BenchmarkEncode(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		start = start.Add(time.Second)
-		protoBytes := messagesBytes[i%len(messagesBytes)]
-		if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
-			panic(err)
+		for _, protoBytes := range messagesBytes {
+			if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
+				panic(err)
+			}
 		}
 	}
 }
