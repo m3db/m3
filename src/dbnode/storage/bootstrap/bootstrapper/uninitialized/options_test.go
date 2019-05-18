@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package uninitialized
 
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
-
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestOptionsValidateDefaults(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestOptionsValidate(t *testing.T) {
+	tests := []struct {
+		name        string
+		modifier    func(opts Options) Options
+		expectedErr error
+	}{
+		{
+			name: "default valid",
+			modifier: func(opts Options) Options {
+				return opts
+			},
+		},
+		{
+			name: "no result options",
+			modifier: func(opts Options) Options {
+				return opts.SetResultOptions(nil)
+			},
+			expectedErr: errNoResultOptions,
+		},
+		{
+			name: "no instrument options",
+			modifier: func(opts Options) Options {
+				return opts.SetInstrumentOptions(nil)
+			},
+			expectedErr: errNoInstrumentOptions,
+		},
+	}
 
-	mockInit := namespace.NewMockInitializer(ctrl)
-	dbOpts := DefaultTestOptions().
-		SetNamespaceInitializer(mockInit)
-	require.NoError(t, dbOpts.Validate())
-}
-
-func TestOptionsValidateNilRegistry(t *testing.T) {
-	dbOpts := DefaultTestOptions().
-		SetNamespaceInitializer(nil)
-	require.Error(t, dbOpts.Validate())
-}
-
-func TestOptionsValidateIndexOptions(t *testing.T) {
-	opts := DefaultTestOptions().SetIndexOptions(nil)
-	require.Error(t, opts.Validate())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := test.modifier(NewOptions())
+			err := opts.Validate()
+			if test.expectedErr != nil {
+				require.Error(t, err)
+				require.Equal(t, test.expectedErr, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

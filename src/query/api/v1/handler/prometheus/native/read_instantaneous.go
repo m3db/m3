@@ -78,7 +78,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	if params.Debug {
-		logger.Info("Request params", zap.Any("params", params))
+		logger.Info("request params", zap.Any("params", params))
 	}
 
 	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
@@ -96,7 +96,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	result, err := read(ctx, h.engine, engineOpts, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		httperrors.ErrorWithReqInfo(w, r, http.StatusBadRequest, rErr)
+		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)
 		return
 	}
 
