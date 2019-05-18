@@ -25,8 +25,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3/src/x/net/http"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -37,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
 	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	opentracingext "github.com/opentracing/opentracing-go/ext"
 	opentracinglog "github.com/opentracing/opentracing-go/log"

@@ -38,8 +38,7 @@ type QueryContext struct {
 	Options  QueryContextOptions
 }
 
-// QueryContextOptions is a set of optionally set options for the query
-// context.
+// QueryContextOptions contains optional configuration for the query context.
 type QueryContextOptions struct {
 	// LimitMaxTimeseries limits the number of time series returned by each
 	// storage node.

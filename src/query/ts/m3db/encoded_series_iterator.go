@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -73,6 +74,7 @@ func (it *encodedSeriesIter) Current() block.Series {
 }
 
 func (it *encodedSeriesIter) Next() bool {
+	fmt.Printf("THIS iter1 next\n")
 	if it.err != nil {
 		return false
 	}

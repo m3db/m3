@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
 )
@@ -109,6 +110,7 @@ type consolidatedSeriesIter struct {
 }
 
 func (c *consolidatedSeriesIter) Next() bool {
+	fmt.Printf("THIS iter2 next\n")
 	return c.unconsolidated.Next()
 }
 

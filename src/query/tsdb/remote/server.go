@@ -21,15 +21,13 @@
 package remote
 
 import (
-	"net"
 	"sync"
 	"time"
-
-	"github.com/m3db/m3/src/query/models"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -51,8 +49,8 @@ type grpcServer struct {
 	poolErr          error
 }
 
-// CreateNewGrpcServer builds a grpc server which must be started later
-func CreateNewGrpcServer(
+// NewGRPCServer builds a grpc server which must be started later.
+func NewGRPCServer(
 	store m3.Storage,
 	queryContextOpts models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
@@ -68,23 +66,6 @@ func CreateNewGrpcServer(
 	return server
 }
 
-// StartNewGrpcServer starts server on given address, then notifies channel
-func StartNewGrpcServer(
-	server *grpc.Server,
-	address string,
-	waitForStart chan<- struct{},
-) error {
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		return err
-	}
-
-	if waitForStart != nil {
-		waitForStart <- struct{}{}
-	}
-	return server.Serve(lis)
-}
-
 func (s *grpcServer) waitForPools() (encoding.IteratorPools, error) {
 	s.once.Do(func() {
 		s.pools, s.poolErr = s.poolWrapper.WaitForIteratorPools(poolTimeout)
@@ -93,7 +74,7 @@ func (s *grpcServer) waitForPools() (encoding.IteratorPools, error) {
 	return s.pools, s.poolErr
 }
 
-// Fetch reads decompressed series from m3 storage
+// Fetch reads decompressed series from M3 storage.
 func (s *grpcServer) Fetch(
 	message *rpc.FetchRequest,
 	stream rpc.Query_FetchServer,

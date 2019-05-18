@@ -296,7 +296,6 @@ func iteratorToTsSeries(
 
 // Fall back to sequential decompression if unable to decompress concurrently
 func decompressSequentially(
-	iterLength int,
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
@@ -316,14 +315,12 @@ func decompressSequentially(
 }
 
 func decompressConcurrently(
-	iterLength int,
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, iterLength)
-	var wg sync.WaitGroup
+	seriesList := make([]*ts.Series, len(iters))
 	errorCh := make(chan error, 1)
 	done := make(chan struct{})
 	stopped := func() bool {
@@ -335,11 +332,10 @@ func decompressConcurrently(
 		}
 	}
 
-	wg.Add(iterLength)
-
+	var wg sync.WaitGroup
 	for i, iter := range iters {
-		i := i
-		iter := iter
+		i, iter := i, iter
+		wg.Add(1)
 		readWorkerPool.Go(func() {
 			defer wg.Done()
 			if stopped() {
@@ -384,11 +380,10 @@ func SeriesIteratorsToFetchResult(
 	}
 
 	iters := seriesIterators.Iters()
-	iterLength := seriesIterators.Len()
 	if readWorkerPool == nil {
-		return decompressSequentially(iterLength, iters, enforcer, tagOptions)
+		return decompressSequentially(iters, enforcer, tagOptions)
 	}
 
-	return decompressConcurrently(iterLength, iters, readWorkerPool,
+	return decompressConcurrently(iters, readWorkerPool,
 		enforcer, tagOptions)
 }

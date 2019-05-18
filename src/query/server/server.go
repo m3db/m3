@@ -24,12 +24,12 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"sort"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -69,7 +69,6 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -632,7 +631,7 @@ func newStorages(
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
-		server, err := startGrpcServer(localStorage, queryContextOptions,
+		server, err := startGRPCServer(localStorage, queryContextOptions,
 			poolWrapper, cfg.RPC, logger)
 		if err != nil {
 			return nil, nil, err
@@ -735,7 +734,7 @@ func remoteClient(
 	return nil, false, nil
 }
 
-func startGrpcServer(
+func startGRPCServer(
 	storage m3.Storage,
 	queryContextOptions models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
@@ -743,33 +742,19 @@ func startGrpcServer(
 	logger *zap.Logger,
 ) (*grpc.Server, error) {
 	logger.Info("creating gRPC server")
-	server := tsdbRemote.CreateNewGrpcServer(storage,
+	server := tsdbRemote.NewGRPCServer(storage,
 		queryContextOptions, poolWrapper)
-
-	var (
-		waitForStart = make(chan struct{}, 1)
-		startErr     atomic.Value
-		wg           sync.WaitGroup
-	)
-	startErr.Store(nil)
-	wg.Add(1)
+	listener, err := net.Listen("tcp", cfg.ListenAddress)
+	if err != nil {
+		return nil, err
+	}
 	go func() {
-		defer wg.Done()
-
-		logger.Info("starting gRPC server on port",
-			zap.String("rpc", cfg.ListenAddress))
-		err := tsdbRemote.StartNewGrpcServer(server,
-			cfg.ListenAddress, waitForStart)
-		// TODO: consider removing logger.Fatal here and pass back error through a channel
-		if err != nil {
-			startErr.Store(errors.Wrap(err, "unable to start gRPC server"))
-			// NB(r): So gross, but if StartNewGrpcServer returns an error
-			// then it never sends on the waitForStart channel
-			waitForStart <- struct{}{}
+		if err := server.Serve(listener); err != nil {
+			logger.Error("error from serving gRPC server", zap.Error(err))
 		}
 	}()
-	<-waitForStart
-	return server, startErr.Load().(error)
+
+	return server, nil
 }
 
 func startCarbonIngestion(

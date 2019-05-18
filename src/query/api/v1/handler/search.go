@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -66,10 +66,9 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	query, parseBodyErr := h.parseBody(r)
 	opts, parseURLParamsErr := h.parseURLParams(r)
-	// NB(r): Use a loop here to avoid two err handling code paths
-	for _, rErr := range []*xhttp.ParseError{parseBodyErr, parseURLParamsErr} {
-		logger.Error("unable to parse request", zap.Error(rErr.Inner()))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+	if err := firstParseError(parseBodyErr, parseURLParamsErr); err != nil {
+		logger.Error("unable to parse request", zap.Error(err.Inner()))
+		xhttp.Error(w, err.Inner(), err.Code())
 		return
 	}
 
@@ -99,14 +98,16 @@ func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, *xhttp.
 }
 
 func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, *xhttp.ParseError) {
-	fetchOpts, err := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if err != nil {
-		return nil, err
+	fetchOpts, parseErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if parseErr != nil {
+		return nil, parseErr
 	}
 
 	if str := r.URL.Query().Get("limit"); str != "" {
-		if limit, err := strconv.Atoi(str); err == nil {
-			fetchOpts.Limit = limit
+		var err error
+		fetchOpts.Limit, err = strconv.Atoi(str)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 	}
 
@@ -121,8 +122,11 @@ func (h *SearchHandler) search(
 	return h.store.SearchSeries(ctx, query, opts)
 }
 
-func newFetchOptions(limit int) storage.FetchOptions {
-	return storage.FetchOptions{
-		Limit: limit,
+func firstParseError(errs ...*xhttp.ParseError) *xhttp.ParseError {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
