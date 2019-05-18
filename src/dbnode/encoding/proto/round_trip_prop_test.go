@@ -1,3 +1,4 @@
+// +build big
 //
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
@@ -67,12 +68,6 @@ var (
 
 func init() {
 	for key := range mapProtoTypeToCustomFieldType {
-		// if key == dpb.FieldDescriptorProto_TYPE_SINT32 {
-		// 	continue
-		// }
-		// if key == dpb.FieldDescriptorProto_TYPE_SFIXED32 {
-		// 	continue
-		// }
 		allowedProtoTypesSliceIface = append(allowedProtoTypesSliceIface, key)
 	}
 }
@@ -98,16 +93,15 @@ const (
 func TestRoundTripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
-		// seed       = time.Now().UnixNano0()
-		seed     = int64(1558117541928586000)
-		props    = gopter.NewProperties(parameters)
-		reporter = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		seed       = time.Now().UnixNano0()
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
 	parameters.MinSuccessfulTests = 300
 	parameters.Rng.Seed(seed)
 
 	enc := NewEncoder(time.Time{}, testEncodingOptions)
-	// iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
+	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		if debugLogs {
 			fmt.Println("---------------------------------------------------")
@@ -164,7 +158,6 @@ func TestRoundTripProp(t *testing.T) {
 			return true, nil
 		}
 
-		iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 		iter.Reset(stream, namespace.GetTestSchemaDescr(input.schema))
 
 		i := 0
