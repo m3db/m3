@@ -130,14 +130,14 @@ func (u *customUnmarshaler) unmarshal() error {
 				return err
 			}
 
-			fmt.Printf("%d unmarshaled into %s\n", fieldNum, u.nonCustomValues.String())
+			// fmt.Printf("%d unmarshaled into %s\n", fieldNum, u.nonCustomValues.String())
 			found := false
 			if fd.IsRepeated() {
 				for i := range u.nonCustomValues2 {
 					val := u.nonCustomValues2[i]
 					if fieldNum == val.fieldNum {
 						u.nonCustomValues2[i].marshaled = append(u.nonCustomValues2[i].marshaled, marshaled...)
-						fmt.Printf("(found) %d marshaled %v\n", fieldNum, u.nonCustomValues2[i].marshaled)
+						// fmt.Printf("(found) %d marshaled %v\n", fieldNum, u.nonCustomValues2[i].marshaled)
 						found = true
 						break
 					}
@@ -148,7 +148,7 @@ func (u *customUnmarshaler) unmarshal() error {
 					fieldNum:  fieldNum,
 					marshaled: marshaled,
 				})
-				fmt.Printf("(not found) %d marshaled %v\n", fieldNum, marshaled)
+				// fmt.Printf("(not found) %d marshaled %v\n", fieldNum, marshaled)
 			}
 
 			u.numNonCustom++

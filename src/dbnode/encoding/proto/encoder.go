@@ -692,21 +692,21 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 			}
 		}
 
-		fmt.Println("curVal", curVal)
+		// fmt.Println("curVal", curVal)
 		prevVal := protoField.marshaled
 		if bytes.Equal(prevVal, curVal) {
-			fmt.Println(protoField.fieldNum, "same as previous, skipping")
+			// fmt.Println(protoField.fieldNum, "same as previous, skipping")
 			// No change, nothing to encode.
 			continue
 		}
 
 		if curVal == nil {
-			fmt.Println(protoField.fieldNum, "changed to default")
+			// fmt.Println(protoField.fieldNum, "changed to default")
 			// Interpret as default value.
 			fieldsChangedToDefault = append(fieldsChangedToDefault, protoField.fieldNum)
 		}
 
-		fmt.Println(protoField.fieldNum, "changed")
+		// fmt.Println(protoField.fieldNum, "changed")
 		changedFields = append(changedFields, protoField.fieldNum)
 		// Need to copy since the encoder no longer owns the original source of the bytes once
 		// this function returns.
