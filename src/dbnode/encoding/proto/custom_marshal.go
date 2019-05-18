@@ -41,6 +41,7 @@ type customFieldMarshaler interface {
 	encBytes(tag int32, x []byte)
 	encPartialProto(tag int32, x []byte)
 	bytes() []byte
+	setBytes(b []byte)
 	reset()
 }
 
@@ -139,6 +140,10 @@ func (m *customMarshaler) encPartialProto(tag int32, x []byte) {
 
 func (m *customMarshaler) bytes() []byte {
 	return m.buf.buf
+}
+
+func (m *customMarshaler) setBytes(b []byte) {
+	m.buf.buf = b
 }
 
 func (m *customMarshaler) reset() {

@@ -51,19 +51,19 @@ var (
 )
 
 type iterator struct {
-	nsID                   ident.ID
-	opts                   encoding.Options
-	err                    error
-	schema                 *desc.MessageDescriptor
-	schemaDesc             namespace.SchemaDescr
-	stream                 encoding.IStream
-	marshaler              customFieldMarshaler
-	lastIterated           *dynamic.Message
-	lastIteratedProtoBytes []byte
-	byteFieldDictLRUSize   int
+	nsID                 ident.ID
+	opts                 encoding.Options
+	err                  error
+	schema               *desc.MessageDescriptor
+	schemaDesc           namespace.SchemaDescr
+	stream               encoding.IStream
+	marshaler            customFieldMarshaler
+	lastIterated         *dynamic.Message
+	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
 	customFields []customFieldState
+	protoFields  []int32
 
 	tsIterator m3tsz.TimestampIterator
 
@@ -107,9 +107,6 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	if it.lastIteratedProtoBytes != nil {
-		it.lastIteratedProtoBytes = it.lastIteratedProtoBytes[:0]
-	}
 	it.marshaler.reset()
 
 	if !it.consumedFirstMessage {
@@ -218,16 +215,17 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
+	// TODO: Fix comment
 	// Keep the annotation version of the last iterated protobuf message up to
 	// date so we can return it in subsequent calls to Current(), otherwise we'd
 	// have to marshal it in the Current() call where we can't handle errors.
-	it.lastIteratedProtoBytes, err = it.lastIterated.MarshalAppend(
-		it.lastIteratedProtoBytes[:0])
+	b, err := it.lastIterated.MarshalAppend(it.marshaler.bytes())
 	if err != nil {
 		it.err = fmt.Errorf(
 			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
 		return false
 	}
+	it.marshaler.setBytes(b)
 
 	it.consumedFirstMessage = true
 	return it.hasNext()
@@ -240,7 +238,7 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		}
 		unit = it.tsIterator.TimeUnit
 	)
-	return dp, unit, append(it.lastIteratedProtoBytes, it.marshaler.bytes()...)
+	return dp, unit, it.marshaler.bytes()
 }
 
 func (it *iterator) Err() error {
@@ -257,7 +255,6 @@ func (it *iterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {
 
 	it.err = nil
 	it.consumedFirstMessage = false
-	it.lastIteratedProtoBytes = nil
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
@@ -276,7 +273,7 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
 	it.lastIterated = dynamic.NewMessage(it.schema)
-	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
+	it.customFields, it.protoFields = customAndProtoFields(it.customFields, nil, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -428,15 +425,16 @@ func (it *iterator) readProtoValues() error {
 			itErrPrefix, int(marshalLen), n)
 	}
 
+	// TODO: Reset
 	m := dynamic.NewMessage(it.schema)
 	err = m.Unmarshal(unmarshalBytes)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
 
-	// TODO: Iterate through proto fields directly.
-	for _, field := range m.GetKnownFields() {
+	for _, fieldNum := range it.protoFields {
 		var (
+			field       = it.schema.FindFieldByNumber(fieldNum)
 			messageType = field.GetMessageType()
 			fieldNumInt = int(field.GetNumber())
 		)
