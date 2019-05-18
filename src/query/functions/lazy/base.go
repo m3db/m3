@@ -18,11 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package offset
+package lazy
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -30,33 +29,34 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-// OffsetType offsets incoming data points and metadata by the given offset.
-const OffsetType = "offset"
+const (
+	// OffsetType offsets incoming data point timestamps and metadata by the given offset.
+	OffsetType = "offset"
+)
 
-// NewOffsetOp creates a new offset operation
-func NewOffsetOp(
-	offset time.Duration,
+// NewLazyOp creates a new lazy operation
+func NewLazyOp(
+	opType string,
+	lazyOpts block.LazyOptions,
 ) (parser.Params, error) {
-	if offset <= 0 {
-		return baseOp{}, fmt.Errorf("offset must be positive, received: %v", offset)
-	}
-
 	return baseOp{
-		offset: offset,
+		opType:   opType,
+		lazyOpts: lazyOpts,
 	}, nil
 }
 
 // baseOp stores required properties for the baseOp
 type baseOp struct {
-	offset time.Duration
+	opType   string
+	lazyOpts block.LazyOptions
 }
 
 func (o baseOp) OpType() string {
-	return OffsetType
+	return o.opType
 }
 
 func (o baseOp) String() string {
-	return fmt.Sprintf("type: %s", o.OpType())
+	return fmt.Sprintf("type: %s", o.opType)
 }
 
 func (o baseOp) Node(
@@ -79,7 +79,7 @@ func (n *baseNode) Params() parser.Params {
 }
 
 func (n *baseNode) processBlock(b block.Block) block.Block {
-	return block.NewOffsetBlock(b, n.op.offset)
+	return block.NewLazyBlock(b, n.op.lazyOpts)
 }
 
 func (n *baseNode) Process(

@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
+	"github.com/m3db/m3/src/query/functions/lazy"
 	"github.com/m3db/m3/src/query/functions/linear"
-	"github.com/m3db/m3/src/query/functions/offset"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/tag"
 	"github.com/m3db/m3/src/query/functions/temporal"
@@ -64,10 +64,16 @@ func TestDAGWithOffset(t *testing.T) {
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Equal(t, transforms[1].Op.OpType(), offset.OffsetType)
+	assert.Equal(t, transforms[1].Op.OpType(), lazy.OffsetType)
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "offset should be the child")
+}
+
+func TestInvalidOffset(t *testing.T) {
+	q := "up offset -2m"
+	_, err := Parse(q, models.NewTagOptions())
+	require.Error(t, err)
 }
 
 func TestDAGWithEmptyExpression(t *testing.T) {

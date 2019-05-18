@@ -42,7 +42,7 @@ type processMetrics struct {
 }
 
 func (r *processMetrics) report() {
-	numFDs, err := process.NumFDs(r.pid)
+	numFDs, err := process.NumFDsWithDefaultBatchSleep(r.pid)
 	if err == nil {
 		r.NumFDs.Update(float64(numFDs))
 	} else {

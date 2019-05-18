@@ -40,7 +40,7 @@ var (
 	noOpNoneBs  = bootstrapper.NoOpNoneBootstrapperName
 )
 
-func TestValidateBootstrappersOrder(t *testing.T) {
+func TestValidatorValidateBootstrappersOrder(t *testing.T) {
 	tests := []struct {
 		valid         bool
 		bootstrappers []string
@@ -69,7 +69,8 @@ func TestValidateBootstrappersOrder(t *testing.T) {
 	for _, tt := range tests {
 		name := fmt.Sprintf("%v", tt.bootstrappers)
 		t.Run(name, func(t *testing.T) {
-			err := ValidateBootstrappersOrder(tt.bootstrappers)
+			validator := NewBootstrapConfigurationValidator()
+			err := validator.ValidateBootstrappersOrder(tt.bootstrappers)
 			if tt.valid {
 				require.NoError(t, err)
 			} else {

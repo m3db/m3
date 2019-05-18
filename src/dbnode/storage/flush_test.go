@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -106,7 +106,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil).AnyTimes()
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil).AnyTimes()
 
-	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
@@ -171,7 +171,7 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
-	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
@@ -209,7 +209,7 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
-	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
@@ -245,7 +245,7 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(fakeErr)
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
-	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
@@ -288,7 +288,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
-	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)
@@ -337,7 +337,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
-	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)

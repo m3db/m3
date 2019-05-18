@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,59 +18,59 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package uninitialized
+package block
 
 import (
-	"errors"
-
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/x/instrument"
+	"time"
 )
 
 var (
-	errNoResultOptions     = errors.New("result options not set")
-	errNoInstrumentOptions = errors.New("instrument options not set")
+	defaultTimeTransform  = func(t time.Time) time.Time { return t }
+	defaultMetaTransform  = func(meta Metadata) Metadata { return meta }
+	defaultValueTransform = func(val float64) float64 { return val }
 )
 
-type options struct {
-	resultOpts result.Options
-	iOpts      instrument.Options
+type lazyOpts struct {
+	timeTransform  TimeTransform
+	metaTransform  MetaTransform
+	valueTransform ValueTransform
 }
 
-// NewOptions creates a new Options.
-func NewOptions() Options {
-	return &options{
-		resultOpts: result.NewOptions(),
-		iOpts:      instrument.NewOptions(),
+// NewLazyOpts creates LazyOpts with default values.
+func NewLazyOpts() LazyOptions {
+	return &lazyOpts{
+		timeTransform:  defaultTimeTransform,
+		metaTransform:  defaultMetaTransform,
+		valueTransform: defaultValueTransform,
 	}
 }
 
-func (o *options) Validate() error {
-	if o.resultOpts == nil {
-		return errNoResultOptions
-	}
-	if o.iOpts == nil {
-		return errNoInstrumentOptions
-	}
-	return nil
-}
-
-func (o *options) SetResultOptions(value result.Options) Options {
+func (o *lazyOpts) SetTimeTransform(tt TimeTransform) LazyOptions {
 	opts := *o
-	opts.resultOpts = value
+	opts.timeTransform = tt
 	return &opts
 }
 
-func (o *options) ResultOptions() result.Options {
-	return o.resultOpts
+func (o *lazyOpts) TimeTransform() TimeTransform {
+	return o.timeTransform
 }
 
-func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+func (o *lazyOpts) SetMetaTransform(mt MetaTransform) LazyOptions {
 	opts := *o
-	opts.iOpts = value
+	opts.metaTransform = mt
 	return &opts
 }
 
-func (o *options) InstrumentOptions() instrument.Options {
-	return o.iOpts
+func (o *lazyOpts) MetaTransform() MetaTransform {
+	return o.metaTransform
+}
+
+func (o *lazyOpts) SetValueTransform(vt ValueTransform) LazyOptions {
+	opts := *o
+	opts.valueTransform = vt
+	return &opts
+}
+
+func (o *lazyOpts) ValueTransform() ValueTransform {
+	return o.valueTransform
 }

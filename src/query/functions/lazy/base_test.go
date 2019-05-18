@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package offset
+package lazy
 
 import (
 	"testing"
@@ -44,16 +44,19 @@ func buildMeta(start time.Time) block.Metadata {
 	}
 }
 
-func TestInvalidOffsetOp(t *testing.T) {
-	_, err := NewOffsetOp(-1)
-	assert.Error(t, err)
-	_, err = NewOffsetOp(0)
-	assert.Error(t, err)
+func testLazyOpts(offset time.Duration) block.LazyOptions {
+	tt := func(t time.Time) time.Time { return t.Add(offset) }
+	mt := func(meta block.Metadata) block.Metadata {
+		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+		return meta
+	}
+
+	return block.NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt)
 }
 
 func TestOffsetOp(t *testing.T) {
 	offset := time.Minute
-	op, err := NewOffsetOp(offset)
+	op, err := NewLazyOp(OffsetType, testLazyOpts(offset))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "offset", op.OpType())
