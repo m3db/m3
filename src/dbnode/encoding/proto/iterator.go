@@ -343,7 +343,16 @@ func (it *iterator) readCustomFieldsSchema() error {
 			continue
 		}
 
-		it.customFields = append(it.customFields, newCustomFieldState(i, fieldType))
+		var (
+			fieldDesc      = it.schema.FindFieldByNumber(int32(i))
+			protoFieldType = protoFieldTypeNotFound
+		)
+		if fieldDesc != nil {
+			protoFieldType = fieldDesc.GetType()
+		}
+
+		customFieldState := newCustomFieldState(i, protoFieldType, fieldType)
+		it.customFields = append(it.customFields, customFieldState)
 	}
 
 	return nil
@@ -438,6 +447,7 @@ func (it *iterator) readProtoValues() error {
 			messageType = field.GetMessageType()
 			fieldNumInt = int(field.GetNumber())
 		)
+		// TODO: Do I need this?
 		if messageType == nil && !field.IsRepeated() {
 			continue
 		}
@@ -606,14 +616,12 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 	}
 
 	var (
-		fieldNum  = int32(it.customFields[arg.i].fieldNum)
-		fieldType = it.customFields[arg.i].fieldType
+		fieldNum       = int32(it.customFields[arg.i].fieldNum)
+		fieldType      = it.customFields[arg.i].fieldType
+		protoFieldType = it.customFields[arg.i].protoFieldType
 	)
 
-	// TODO: Can delete this?
-	// Cant delete but might be able to optimize away.
-	field := it.schema.FindFieldByNumber(fieldNum)
-	if field == nil {
+	if protoFieldType == protoFieldTypeNotFound {
 		// This can happen when the field being decoded does not exist (or is reserved)
 		// in the current schema, but the message was encoded with a schema in which the
 		// field number did exist.
@@ -636,16 +644,13 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 	case isCustomIntEncodedField(fieldType):
 		switch fieldType {
 		case signedInt64Field:
-			var (
-				val       = int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
-				fieldType = field.GetType()
-			)
-			if fieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
+			val := int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
+			if protoFieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
 				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
 				// however, Protobuf unmarshalers assume that fields of type sint are zigzag. As a result, the
 				// iterator needs to check the fields protobuf type so that it can perform the correct encoding.
 				it.marshaler.encSInt64(fieldNum, val)
-			} else if fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 {
+			} else if protoFieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 {
 				it.marshaler.encSFixedInt64(fieldNum, val)
 			} else {
 				it.marshaler.encInt64(fieldNum, val)

@@ -42,9 +42,11 @@ const (
 
 	// maxCustomFieldNum is included for the same rationale as maxMarshaledProtoMessageSize.
 	maxCustomFieldNum = 10000
+
+	protoFieldTypeNotFound dpb.FieldDescriptorProto_Type = -1
 )
 
-type customFieldType int
+type customFieldType int8
 
 const (
 	// All the protobuf field types that we can perform custom encoding /
@@ -144,8 +146,9 @@ var (
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
 type customFieldState struct {
-	fieldNum  int
-	fieldType customFieldType
+	fieldNum       int
+	fieldType      customFieldType
+	protoFieldType dpb.FieldDescriptorProto_Type
 
 	// Float state. Works as both an encoder and iterator (I.E the encoder calls
 	// the encode methods and the iterator calls the read methods).
@@ -167,13 +170,20 @@ type encoderBytesFieldDictState struct {
 	// by comparing the bytes against those we already wrote into the
 	// stream.
 	hash     uint64
-	startPos int
-	length   int
+	startPos uint32
+	length   uint32
 }
 
-func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldState {
-	s := customFieldState{fieldNum: fieldNum, fieldType: fieldType}
-	if isUnsignedInt(fieldType) {
+func newCustomFieldState(
+	fieldNum int,
+	protoFieldType dpb.FieldDescriptorProto_Type,
+	customFieldType customFieldType,
+) customFieldState {
+	s := customFieldState{
+		fieldNum:       fieldNum,
+		fieldType:      customFieldType,
+		protoFieldType: protoFieldType}
+	if isUnsignedInt(customFieldType) {
 		s.intEncAndIter.unsigned = true
 	}
 	return s
@@ -201,21 +211,34 @@ func customAndProtoFields(s []customFieldState, protoFields []int32, schema *des
 		protoFields = make([]int32, 0, numProtoFields)
 	}
 
+	var (
+		prevFieldNum int32 = -1
+		isSorted           = true
+	)
 	for _, field := range fields {
-		customFieldType, ok := isCustomField(field.GetType(), field.IsRepeated())
+		var (
+			fieldType = field.GetType()
+			fieldNum  = field.GetNumber()
+		)
+		if fieldNum < prevFieldNum {
+			isSorted = false
+		}
+
+		customFieldType, ok := isCustomField(fieldType, field.IsRepeated())
 		if !ok {
-			protoFields = append(protoFields, field.GetNumber())
+			protoFields = append(protoFields, fieldNum)
 			continue
 		}
 
-		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
+		fieldState := newCustomFieldState(int(fieldNum), fieldType, customFieldType)
 		s = append(s, fieldState)
 	}
 
-	// Should already be sorted by fieldNum, but do it again just to be sure.
-	sort.Slice(s, func(a, b int) bool {
-		return s[a].fieldNum < s[b].fieldNum
-	})
+	if !isSorted {
+		sort.Slice(s, func(a, b int) bool {
+			return s[a].fieldNum < s[b].fieldNum
+		})
+	}
 
 	return s, protoFields
 }

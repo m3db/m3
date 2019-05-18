@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
@@ -93,7 +92,7 @@ const (
 func TestRoundTripProp(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
-		seed       = time.Now().UnixNano0()
+		seed       = time.Now().UnixNano()
 		props      = gopter.NewProperties(parameters)
 		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)

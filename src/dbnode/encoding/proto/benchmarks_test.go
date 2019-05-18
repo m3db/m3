@@ -33,7 +33,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func BenchmarkEncode(b *testing.B) {
+func BenchmarkEncoder(b *testing.B) {
 	var (
 		_, messagesBytes = testMessages(100)
 		start            = time.Now()
@@ -97,6 +97,11 @@ func testMessages(numMessages int) ([]*dynamic.Message, [][]byte) {
 		m.SetFieldByName("latitude", float64(i))
 		m.SetFieldByName("longitude", float64(i))
 		m.SetFieldByName("deliveryID", []byte(fmt.Sprintf("some-really-really-really-really-long-id-%d", i)))
+		m.SetFieldByName("attributes", map[string]string{
+			fmt.Sprintf("key1_%d", i): fmt.Sprintf("val1_%d", i),
+			fmt.Sprintf("key2_%d", i): fmt.Sprintf("val2_%d", i),
+			fmt.Sprintf("key3_%d", i): fmt.Sprintf("val3_%d", i),
+		})
 
 		bytes, err := m.Marshal()
 		handleErr(err)

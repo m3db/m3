@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -42,10 +43,30 @@ func TestCustomAndProtoFields(t *testing.T) {
 		{
 			schema: newVLMessageDescriptor(),
 			expectedCustomFields: []customFieldState{
-				{fieldNum: 1, fieldType: float64Field},     // latitude
-				{fieldNum: 2, fieldType: float64Field},     // longitude
-				{fieldNum: 3, fieldType: signedInt64Field}, // numTrips
-				{fieldNum: 4, fieldType: bytesField},       // deliveryID
+				// latitude
+				{
+					fieldNum:       1,
+					fieldType:      float64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				},
+				// longitude
+				{
+					fieldNum:       2,
+					fieldType:      float64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				},
+				// numTrips
+				{
+					fieldNum:       3,
+					fieldType:      signedInt64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_INT64,
+				},
+				// deliveryID
+				{
+					fieldNum:       4,
+					fieldType:      bytesField,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
+				},
 			},
 			expectedProtoFields: []int32{5},
 		},

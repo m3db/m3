@@ -647,8 +647,8 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 
 	enc.addToBytesDict(i, encoderBytesFieldDictState{
 		hash:     hash,
-		startPos: bytePos,
-		length:   length,
+		startPos: uint32(bytePos),
+		length:   uint32(length),
 	})
 	return nil
 }
@@ -767,7 +767,7 @@ func (enc *Encoder) bytesMatchEncodedDictionaryValue(
 		prevEncodedBytesEnd   = prevEncodedBytesStart + dictState.length
 	)
 
-	if prevEncodedBytesEnd > len(streamBytes) {
+	if prevEncodedBytesEnd > uint32(len(streamBytes)) {
 		// Should never happen.
 		return false, fmt.Errorf(
 			"bytes position in LRU is outside of stream bounds, streamSize: %d, startPos: %d, length: %d",
