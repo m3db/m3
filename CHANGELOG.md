@@ -1,5 +1,17 @@
 # Changelog
 
+# 0.9.2
+
+## Performance
+
+- **M3Query**: Add default and config to limit the number of unique time series fetch from a single DB node to fulfill a query (default 10,000) (#1644)
+- **M3Query**: Fix and throttle file descriptor stat emission excessive allocation, also disable Prometheus process collector which had the same issue (#1633)
+
+## Bug Fixes
+
+- **M3DB**: Fix ReturnUnfulfilledForCorruptCommitLogFiles not propagating to bootstrapper options, causing peer bootstrapper to begin when it should not (#1639)
+- **M3Query**: Fix PromReadInstantHandler not correctly responding with error message when query encounters error (#1611)
+
 # 0.9.1
 
 ## Performance
