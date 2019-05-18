@@ -143,6 +143,11 @@ var (
 	}
 )
 
+type marshaledField struct {
+	fieldNum  int32
+	marshaled []byte
+}
+
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
 type customFieldState struct {
@@ -191,7 +196,7 @@ func newCustomFieldState(
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customAndProtoFields(s []customFieldState, protoFields []int32, schema *desc.MessageDescriptor) ([]customFieldState, []int32) {
+func customAndProtoFields(s []customFieldState, protoFields []marshaledField, schema *desc.MessageDescriptor) ([]customFieldState, []marshaledField) {
 	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
 	numProtoFields := len(fields) - numCustomFields
@@ -206,9 +211,12 @@ func customAndProtoFields(s []customFieldState, protoFields []int32, schema *des
 	}
 
 	if cap(protoFields) >= numProtoFields {
+		for i := range protoFields {
+			protoFields[i] = marshaledField{}
+		}
 		protoFields = protoFields[:0]
 	} else {
-		protoFields = make([]int32, 0, numProtoFields)
+		protoFields = make([]marshaledField, 0, numProtoFields)
 	}
 
 	var (
@@ -226,7 +234,7 @@ func customAndProtoFields(s []customFieldState, protoFields []int32, schema *des
 
 		customFieldType, ok := isCustomField(fieldType, field.IsRepeated())
 		if !ok {
-			protoFields = append(protoFields, fieldNum)
+			protoFields = append(protoFields, marshaledField{fieldNum: fieldNum})
 			continue
 		}
 

@@ -63,7 +63,7 @@ type iterator struct {
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
 	customFields []customFieldState
-	protoFields  []int32
+	protoFields  []marshaledField
 
 	tsIterator m3tsz.TimestampIterator
 
@@ -441,9 +441,9 @@ func (it *iterator) readProtoValues() error {
 		return fmt.Errorf("error unmarshaling protobuf: %v", err)
 	}
 
-	for _, fieldNum := range it.protoFields {
+	for _, marshaledField := range it.protoFields {
 		var (
-			field       = it.schema.FindFieldByNumber(fieldNum)
+			field       = it.schema.FindFieldByNumber(marshaledField.fieldNum)
 			messageType = field.GetMessageType()
 			fieldNumInt = int(field.GetNumber())
 		)

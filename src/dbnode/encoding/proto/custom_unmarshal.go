@@ -42,6 +42,7 @@ var (
 type customFieldUnmarshaler interface {
 	sortedCustomFieldValues() sortedCustomFieldValues
 	nonCustomFieldValues() *dynamic.Message
+	nonCustomFieldValues2() []marshaledField
 	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
@@ -51,8 +52,9 @@ type customUnmarshaler struct {
 	decodeBuf    *buffer
 	customValues sortedCustomFieldValues
 
-	nonCustomValues *dynamic.Message
-	numNonCustom    int
+	nonCustomValues  *dynamic.Message
+	nonCustomValues2 []marshaledField
+	numNonCustom     int
 }
 
 func newCustomFieldUnmarshaler() customFieldUnmarshaler {
@@ -76,11 +78,18 @@ func (u *customUnmarshaler) nonCustomFieldValues() *dynamic.Message {
 	return u.nonCustomValues
 }
 
+func (u *customUnmarshaler) nonCustomFieldValues2() []marshaledField {
+	return u.nonCustomValues2
+}
+
 func (u *customUnmarshaler) unmarshal() error {
 	u.customValues = u.customValues[:0]
 
 	if u.nonCustomValues != nil {
 		u.nonCustomValues.Reset()
+	}
+	if u.nonCustomValues2 != nil {
+		u.nonCustomValues2 = u.nonCustomValues2[:0]
 	}
 
 	isSorted := true
@@ -107,9 +116,9 @@ func (u *customUnmarshaler) unmarshal() error {
 			}
 
 			var (
-				startIdx       = tagAndWireTypeStartOffset
-				endIdx         = u.decodeBuf.index
-				marshaledField = u.decodeBuf.buf[startIdx:endIdx]
+				startIdx  = tagAndWireTypeStartOffset
+				endIdx    = u.decodeBuf.index
+				marshaled = u.decodeBuf.buf[startIdx:endIdx]
 			)
 			// A marshaled Protobuf message consists of a stream of <fieldNumber, wireType, value>
 			// tuples, all of which are optional, with no additional header or footer information.
@@ -117,9 +126,13 @@ func (u *customUnmarshaler) unmarshal() error {
 			// marshaled message and as a result we can build up the nonCustomValues *dynamic.Message
 			// one field at a time by calling UnmarshalMerge() on sub-slices that contain a complete
 			// tuple.
-			if err := u.nonCustomValues.UnmarshalMerge(marshaledField); err != nil {
+			if err := u.nonCustomValues.UnmarshalMerge(marshaled); err != nil {
 				return err
 			}
+			u.nonCustomValues2 = append(u.nonCustomValues2, marshaledField{
+				fieldNum:  fieldNum,
+				marshaled: marshaled,
+			})
 			u.numNonCustom++
 			continue
 		}
@@ -345,6 +358,7 @@ func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, bu
 	u.schema = schema
 	u.numNonCustom = 0
 	u.customValues = u.customValues[:0]
+	u.nonCustomValues2 = u.nonCustomValues2[:0]
 	u.decodeBuf.reset(buf)
 
 	return u.unmarshal()

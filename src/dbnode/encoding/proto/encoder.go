@@ -67,7 +67,7 @@ type Encoder struct {
 	lastEncodedDP ts.Datapoint
 	lastEncoded   *dynamic.Message
 	customFields  []customFieldState
-	protoFields   []int32
+	protoFields   []marshaledField
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -683,8 +683,26 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		enc.lastEncoded = dynamic.NewMessage(enc.schema)
 	}
 
-	for _, fieldNum := range enc.protoFields {
+	// currProtoFields := enc.unmarshaler.nonCustomFieldValues2()
+	// for _, fieldNum := range enc.protoFields {
+	// 	var curVal []byte
+	// 	for _, val := range currProtoFields {
+	// 		if fielNum == val.fieldNum {
+	// 			curVal = val.marshaled
+	// 		}
+	// 	}
+
+	// 	prevVal :=
+
+	// 	if curVal == nil {
+	// 		// Interpret as default value.
+	// 		fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+	// 	}
+
+	// }
+	for _, marshaledField := range enc.protoFields {
 		var (
+			fieldNum    = marshaledField.fieldNum
 			field       = enc.schema.FindFieldByNumber(fieldNum)
 			fieldNumInt = int(fieldNum)
 			prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
