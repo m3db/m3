@@ -74,13 +74,13 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	if params.Debug {
-		logger.Info("Request params", zap.Any("params", params))
+		logger.Info("request params", zap.Any("params", params))
 	}
 
 	result, err := read(ctx, h.engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		httperrors.ErrorWithReqInfo(w, r, http.StatusBadRequest, rErr)
+		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)
 		return
 	}
 
