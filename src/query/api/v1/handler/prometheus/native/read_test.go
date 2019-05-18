@@ -30,6 +30,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/block"
@@ -61,7 +63,8 @@ func TestPromReadHandler_Read(t *testing.T) {
 	r, parseErr := parseParams(req, timeoutOpts)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, err := read(context.TODO(), promRead.engine, promRead.tagOpts, httptest.NewRecorder(), r)
+	seriesList, err := read(context.TODO(), promRead.engine, setup.EngineOpts,
+		promRead.tagOpts, httptest.NewRecorder(), r)
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
@@ -119,6 +122,7 @@ func newReadRequest(t *testing.T, params url.Values) *http.Request {
 type testSetup struct {
 	Storage     mock.Storage
 	Handlers    testSetupHandlers
+	EngineOpts  *executor.EngineOptions
 	TimeoutOpts *prometheus.TimeoutOpts
 }
 
@@ -133,15 +137,17 @@ func newTestSetup() *testSetup {
 	scope := tally.NoopScope
 	engine := executor.NewEngine(mockStorage, scope,
 		time.Minute, nil)
+	fetchOptsBuilderCfg := handler.FetchOptionsBuilderOptions{}
+	fetchOptsBuilder := handler.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 	tagOpts := models.NewTagOptions()
 	limitsConfig := &config.LimitsConfiguration{}
 	keepNans := false
 
-	read := NewPromReadHandler(engine, tagOpts, limitsConfig,
-		scope, timeoutOpts, keepNans)
+	read := NewPromReadHandler(engine, fetchOptsBuilder, tagOpts,
+		limitsConfig, scope, timeoutOpts, keepNans)
 
-	instantRead := NewPromReadInstantHandler(engine, tagOpts,
-		timeoutOpts)
+	instantRead := NewPromReadInstantHandler(engine, fetchOptsBuilder,
+		tagOpts, timeoutOpts)
 
 	return &testSetup{
 		Storage: mockStorage,
@@ -149,6 +155,7 @@ func newTestSetup() *testSetup {
 			Read:        read,
 			InstantRead: instantRead,
 		},
+		EngineOpts:  &executor.EngineOptions{},
 		TimeoutOpts: timeoutOpts,
 	}
 }

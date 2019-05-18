@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -60,8 +60,9 @@ func NewListTagsHandler(
 	nowFn clock.NowFn,
 ) http.Handler {
 	return &ListTagsHandler{
-		storage: storage,
-		nowFn:   nowFn,
+		storage:             storage,
+		fetchOptionsBuilder: fetchOptionsBuilder,
+		nowFn:               nowFn,
 	}
 }
 
