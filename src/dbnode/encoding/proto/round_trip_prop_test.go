@@ -76,7 +76,7 @@ const (
 	maxNumMessages   = 100
 	maxNumEnumValues = 10
 
-	debugLogs = false
+	debugLogs = true
 )
 
 type fieldModifierProp int
@@ -143,7 +143,7 @@ func TestRoundTripProp(t *testing.T) {
 			}
 
 			if debugLogs {
-				printMessage("encoding", m.message)
+				printMessage(fmt.Sprintf("encoding %d", i), m.message)
 			}
 			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
@@ -168,7 +168,7 @@ func TestRoundTripProp(t *testing.T) {
 			decodedM := dynamic.NewMessage(input.schema)
 			require.NoError(t, decodedM.Unmarshal(annotation))
 			if debugLogs {
-				printMessage("decoding", decodedM)
+				printMessage(fmt.Sprintf("decoding %d", i), decodedM)
 			}
 
 			require.Equal(t, unit, xtime.Nanosecond)

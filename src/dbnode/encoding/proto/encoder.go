@@ -683,56 +683,69 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		enc.lastEncoded = dynamic.NewMessage(enc.schema)
 	}
 
-	// currProtoFields := enc.unmarshaler.nonCustomFieldValues2()
-	// for _, fieldNum := range enc.protoFields {
-	// 	var curVal []byte
-	// 	for _, val := range currProtoFields {
-	// 		if fielNum == val.fieldNum {
-	// 			curVal = val.marshaled
-	// 		}
-	// 	}
-
-	// 	prevVal :=
-
-	// 	if curVal == nil {
-	// 		// Interpret as default value.
-	// 		fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-	// 	}
-
-	// }
-	for _, marshaledField := range enc.protoFields {
-		var (
-			fieldNum    = marshaledField.fieldNum
-			field       = enc.schema.FindFieldByNumber(fieldNum)
-			fieldNumInt = int(fieldNum)
-			prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
-			curVal      = m.GetFieldByNumber(fieldNumInt)
-		)
-
-		if fieldsEqual(curVal, prevVal) {
-			// Clear fields that haven't changed.
-			if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
-				return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
-			}
-		} else {
-			isDefaultValue, err := isDefaultValue(field, curVal)
-			if err != nil {
-				return fmt.Errorf(
-					"error: %v, checking if %v is default value for field %s",
-					err, curVal, field.String())
-			}
-			if isDefaultValue {
-				fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-			}
-
-			changedFields = append(changedFields, fieldNum)
-			if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
-				return fmt.Errorf(
-					"error: %v setting field %d with value %v on lastEncoded",
-					err, fieldNumInt, curVal)
+	currProtoFields := enc.unmarshaler.nonCustomFieldValues2()
+	for i, protoField := range enc.protoFields {
+		var curVal []byte
+		for _, val := range currProtoFields {
+			if protoField.fieldNum == val.fieldNum {
+				curVal = val.marshaled
 			}
 		}
+
+		fmt.Println("curVal", curVal)
+		prevVal := protoField.marshaled
+		if bytes.Equal(prevVal, curVal) {
+			fmt.Println(protoField.fieldNum, "same as previous, skipping")
+			// No change, nothing to encode.
+			continue
+		}
+
+		if curVal == nil {
+			fmt.Println(protoField.fieldNum, "changed to default")
+			// Interpret as default value.
+			fieldsChangedToDefault = append(fieldsChangedToDefault, protoField.fieldNum)
+		}
+
+		fmt.Println(protoField.fieldNum, "changed")
+		changedFields = append(changedFields, protoField.fieldNum)
+		// Need to copy since the encoder no longer owns the original source of the bytes once
+		// this function returns.
+		enc.protoFields[i].marshaled = append([]byte(nil), curVal...)
 	}
+
+	// for _, protoField := range enc.protoFields {
+	// 	var (
+	// 		fieldNum    = protoField.fieldNum
+	// 		field       = enc.schema.FindFieldByNumber(fieldNum)
+	// 		fieldNumInt = int(fieldNum)
+	// 		prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
+	// 		curVal      = m.GetFieldByNumber(fieldNumInt)
+	// 	)
+
+	// 	if fieldsEqual(curVal, prevVal) {
+	// 		// Clear fields that haven't changed.
+	// 		if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
+	// 			return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
+	// 		}
+	// 	} else {
+	// 		isDefaultValue, err := isDefaultValue(field, curVal)
+	// 		if err != nil {
+	// 			return fmt.Errorf(
+	// 				"error: %v, checking if %v is default value for field %s",
+	// 				err, curVal, field.String())
+	// 		}
+	// 		if isDefaultValue {
+	// 			fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
+	// 		}
+
+	// 		changedFields = append(changedFields, fieldNum)
+	// 		if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
+	// 			return fmt.Errorf(
+	// 				"error: %v setting field %d with value %v on lastEncoded",
+	// 				err, fieldNumInt, curVal)
+	// 		}
+	// 	}
+	// }
 
 	if len(changedFields) == 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
@@ -741,13 +754,21 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		return nil
 	}
 
-	marshaled, err := m.MarshalAppend(enc.marshalBuf[:0])
-	if err != nil {
-		return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
+	marshalBuf := enc.marshalBuf[:0]
+	for _, fieldNum := range changedFields {
+		for _, field := range currProtoFields {
+			if field.fieldNum == fieldNum {
+				marshalBuf = append(marshalBuf, field.marshaled...)
+			}
+		}
 	}
+	// marshaled, err := m.MarshalAppend(enc.marshalBuf[:0])
+	// if err != nil {
+	// 	return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
+	// }
 	// Make sure we update the marshalBuf with the returned slice in case a new one was
 	// allocated as part of the MarshalAppend call.
-	enc.marshalBuf = marshaled
+	enc.marshalBuf = marshalBuf
 
 	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(opCodeChange)
@@ -761,8 +782,8 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 		// their default values so we can do a clean merge on read.
 		enc.stream.WriteBit(opCodeNoFieldsSetToDefaultProtoMarshal)
 	}
-	enc.encodeVarInt(uint64(len(marshaled)))
-	enc.stream.WriteBytes(marshaled)
+	enc.encodeVarInt(uint64(len(marshalBuf)))
+	enc.stream.WriteBytes(marshalBuf)
 
 	return nil
 }
