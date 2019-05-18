@@ -140,16 +140,13 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 		return nil
 	}
 
-	numLeadingZeros, err := stream.ReadBits(6)
+	numLeadingZeroesAndNumMeaningfulBits, err := stream.ReadBits(12)
 	if err != nil {
 		return err
 	}
 
-	numMeaningfulBits, err := stream.ReadBits(6)
-	if err != nil {
-		return err
-	}
-	numMeaningfulBits = numMeaningfulBits + 1
+	numLeadingZeros := (numLeadingZeroesAndNumMeaningfulBits & 4032) >> 6
+	numMeaningfulBits := (numLeadingZeroesAndNumMeaningfulBits & 63) + 1
 
 	meaningfulBits, err := stream.ReadBits(int(numMeaningfulBits))
 	if err != nil {
