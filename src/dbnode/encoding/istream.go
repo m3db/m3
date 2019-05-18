@@ -102,6 +102,7 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
+
 	var res uint64
 	for numBits >= 8 {
 		byteRead, err := is.ReadByte()
@@ -111,11 +112,14 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		res = (res << 8) | uint64(byteRead)
 		numBits -= 8
 	}
+
 	for numBits > 0 {
-		bitRead, err := is.ReadBit()
-		if err != nil {
-			return 0, err
+		if is.remaining == 0 {
+			if err := is.readByteFromStream(); err != nil {
+				return 0, err
+			}
 		}
+		bitRead := Bit(is.consumeBuffer(1))
 		res = (res << 1) | uint64(bitRead)
 		numBits--
 	}
