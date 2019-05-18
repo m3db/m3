@@ -114,6 +114,8 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 	}
 
 	for numBits > 0 {
+		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
+		// has been performed to optimize this loop as its heavily used in the hot path.
 		if is.remaining == 0 {
 			if err := is.readByteFromStream(); err != nil {
 				return 0, err
