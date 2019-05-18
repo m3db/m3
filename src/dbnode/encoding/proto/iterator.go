@@ -612,7 +612,8 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 
 	// TODO: Can delete this?
 	// Cant delete but might be able to optimize away.
-	if field := it.schema.FindFieldByNumber(fieldNum); field == nil {
+	field := it.schema.FindFieldByNumber(fieldNum)
+	if field == nil {
 		// This can happen when the field being decoded does not exist (or is reserved)
 		// in the current schema, but the message was encoded with a schema in which the
 		// field number did exist.
@@ -636,15 +637,9 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 		switch fieldType {
 		case signedInt64Field:
 			var (
-				val   = int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
-				field = it.schema.FindFieldByNumber(fieldNum)
+				val       = int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
+				fieldType = field.GetType()
 			)
-			if field == nil {
-				return fmt.Errorf(
-					"updating last iterated with value, could not find field number %d in schema", fieldNum)
-			}
-
-			fieldType := field.GetType()
 			if fieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
 				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
 				// however, Protobuf unmarshalers assume that fields of type sint are zigzag. As a result, the
