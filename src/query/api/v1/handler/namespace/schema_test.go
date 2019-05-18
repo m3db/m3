@@ -29,44 +29,34 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const testAddJSON = `
+const (
+	testSchemaJSON = `
 {
 		"name": "testNamespace",
-		"options": {
-			"bootstrapEnabled": true,
-			"flushEnabled": true,
-			"writesToCommitLog": true,
-			"cleanupEnabled": true,
-			"repairEnabled": true,
-			"retentionOptions": {
-				"retentionPeriodNanos": 172800000000000,
-				"blockSizeNanos": 7200000000000,
-				"bufferFutureNanos": 600000000000,
-				"bufferPastNanos": 600000000000,
-				"blockDataExpiry": true,
-				"blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
-			},
-			"snapshotEnabled": true,
-			"indexOptions": {
-				"enabled": true,
-				"blockSizeNanos": 7200000000000
-			}
-		}
+        "msgName": "mainpkg.TestMessage",
+        "protoName": "mainpkg/test.proto",
+        "protoMap":
+        {
+            "mainpkg/test.proto": "syntax = \"proto3\";package mainpkg;message TestMessage {double latitude = 1;double longitude = 2;int64 epoch = 3;bytes deliveryID = 4;map<string, string> attributes = 5;}" 
+        }
 }
 `
+)
 
-func TestNamespaceAddHandler(t *testing.T) {
+func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient)
+	addHandler := NewSchemaHandler(mockClient)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -74,49 +64,78 @@ func TestNamespaceAddHandler(t *testing.T) {
 
 	jsonInput := `
         {
-            "name": "testNamespace",
-            "options": {}
+            "name": "testNamespace"
         }
     `
 
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
+	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
 	addHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to get metadata: retention options must be set\"}\n", string(body))
-
-	// Test good case. Note: there is no way to tell the difference between a boolean
-	// being false and it not being set by a user.
-	w = httptest.NewRecorder()
-
-	req = httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
-	require.NotNil(t, req)
-
-	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
-	addHandler.ServeHTTP(w, req)
-
-	resp = w.Result()
-	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":true,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, "{\"error\":\"namespace is not found\"}\n", string(body))
 }
 
-func TestNamespaceAddHandler_Conflict(t *testing.T) {
+func TestSchemaDeploy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient)
+	schemaHandler := NewSchemaHandler(mockClient)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	// Ensure adding an existing namespace returns 409
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
+	mockAdminSvc := kvadmin.NewMockNamespaceMetadataAdminService(ctrl)
+	newAdminService = func(kv.Store, string, func() string) kvadmin.NamespaceMetadataAdminService { return mockAdminSvc }
+	defer func() { newAdminService = kvadmin.NewAdminService }()
+
+	mockAdminSvc.EXPECT().DeploySchema("testNamespace", "mainpkg/test.proto",
+		"mainpkg.TestMessage", gomock.Any()).Do(
+		func(name, file, msg string, protos map[string]string) {
+			schemaOpt, err := namespace.AppendSchemaOptions(nil, file, msg, protos, "first")
+			require.NoError(t, err)
+			require.Equal(t, "mainpkg.TestMessage", schemaOpt.DefaultMessageName)
+			sh, err := namespace.LoadSchemaHistory(schemaOpt)
+			require.NoError(t, err)
+			descr, ok := sh.GetLatest()
+			require.True(t, ok)
+			require.NotNil(t, descr)
+			require.Equal(t, "first", descr.DeployId())
+		}).Return("first", nil)
+
+	w := httptest.NewRecorder()
+
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJSON))
+	require.NotNil(t, req)
+
+	schemaHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{\"deployID\":\"first\"}", string(body))
+}
+
+func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	schemaHandler := NewSchemaHandler(mockClient)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+
+	jsonInput := `
+        {
+            "name": "ns-not-found"
+        }
+    `
+
+	// Ensure adding to an non-existing namespace returns 404
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
@@ -146,7 +165,9 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 
 	w := httptest.NewRecorder()
-	addHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(w, req)
 	resp := w.Result()
-	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, "{\"error\":\"namespace is not found\"}\n", string(body))
 }

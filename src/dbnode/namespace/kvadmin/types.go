@@ -30,5 +30,5 @@ type NamespaceMetadataAdminService interface {
 	Add(name string, options *nsproto.NamespaceOptions) error
 	Set(name string, options *nsproto.NamespaceOptions) error
 	Delete(name string) error
-	DeploySchema(name string, protoFileName, msgName string, protos map[string]string, deployID string) error
+	DeploySchema(name string, protoFileName, msgName string, protos map[string]string) (string, error)
 }

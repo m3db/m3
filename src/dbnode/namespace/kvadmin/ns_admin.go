@@ -28,49 +28,62 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/satori/go.uuid"
 )
 
 var (
-	errNotImplemented = errors.New("api not implemented")
+	ErrNotImplemented = errors.New("api not implemented")
+	ErrNamespaceNotFound = errors.New("namespace is not found")
 )
 
 type adminService struct {
 	store kv.Store
 	key   string
+	idGen func() string
 }
 
-func NewAdminService(store kv.Store, key string) NamespaceMetadataAdminService {
+func NewAdminService(store kv.Store, key string, idGen func() string) NamespaceMetadataAdminService {
+	if idGen == nil {
+		idGen = func() string {
+			return uuid.NewV4().String()
+		}
+	}
 	return &adminService{
 		store: store,
 		key:   key,
+		idGen: idGen,
 	}
 }
 
 func (as *adminService) GetAll() ([]*nsproto.NamespaceOptions, error) {
-	return nil, errNotImplemented
+	return nil, ErrNotImplemented
 }
 
 func (as *adminService) Get(name string) (*nsproto.NamespaceOptions, error) {
-	return nil, errNotImplemented
+	return nil, ErrNotImplemented
 }
 
 func (as *adminService) Add(name string, options *nsproto.NamespaceOptions) error {
-	return errNotImplemented
+	return ErrNotImplemented
 
 }
 
 func (as *adminService) Set(name string, options *nsproto.NamespaceOptions) error {
-	return errNotImplemented
+	return ErrNotImplemented
 }
 
 func (as *adminService) Delete(name string) error {
-	return errNotImplemented
+	return ErrNotImplemented
 }
 
-func (as *adminService) DeploySchema(name string, protoFileName, msgName string, protos map[string]string, deployID string) error {
+func (as *adminService) DeploySchema(name string, protoFileName, msgName string, protos map[string]string) (string, error) {
 	currentRegistry, currentVersion, err := as.currentRegistry()
+	if err == kv.ErrNotFound {
+		return "", ErrNamespaceNotFound
+	}
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to load current namespace metadatas for %s", as.key)
+		return "", xerrors.Wrapf(err, "failed to load current namespace metadatas for %s", as.key)
 	}
 	var targetMeta *nsproto.NamespaceOptions
 	for nsID, nsOpts := range currentRegistry.GetNamespaces() {
@@ -80,13 +93,15 @@ func (as *adminService) DeploySchema(name string, protoFileName, msgName string,
 		}
 	}
 	if targetMeta == nil {
-		return fmt.Errorf("namespace(%s) is not found", name)
+		return "", ErrNamespaceNotFound
 	}
+
+	deployID := as.idGen()
 
 	schemaOpt, err := namespace.AppendSchemaOptions(targetMeta.SchemaOptions,
 		protoFileName, msgName, protos, deployID)
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to append schema history from %s for message %s", protoFileName, msgName)
+		return "", xerrors.Wrapf(err, "failed to append schema history from %s for message %s", protoFileName, msgName)
 	}
 
 	// Update schema options in place.
@@ -94,16 +109,13 @@ func (as *adminService) DeploySchema(name string, protoFileName, msgName string,
 
 	_, err = as.store.CheckAndSet(as.key, currentVersion, currentRegistry)
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to deploy schema from %s with version %s to namespace %s", protoFileName, deployID, name)
+		return "", xerrors.Wrapf(err, "failed to deploy schema from %s with version %s to namespace %s", protoFileName, deployID, name)
 	}
-	return nil
+	return deployID, nil
 }
 
 func (as *adminService) currentRegistry() (*nsproto.Registry, int, error) {
 	value, err := as.store.Get(as.key)
-	if err == kv.ErrNotFound {
-		return nil, -1, nil
-	}
 	if err != nil {
 		return nil, -1, err
 	}

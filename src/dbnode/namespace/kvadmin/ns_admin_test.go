@@ -68,7 +68,7 @@ func TestAdminService_DeploySchema(t *testing.T) {
 
 	storeMock := kv.NewMockStore(ctrl)
 	var nsRegKey = "nsRegKey"
-	as := NewAdminService(storeMock, nsRegKey)
+	as := NewAdminService(storeMock, nsRegKey, func() string {return "first"})
 	require.NotNil(t, as)
 
 	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
@@ -78,8 +78,10 @@ func TestAdminService_DeploySchema(t *testing.T) {
 	currentReg := namespace.ToProto(currentMap)
 
 	protoFile := "mainpkg/test.proto"
-	protoMap := map[string]string{"mainpkg/test.proto": mainProtoStr, "mainpkg/imported.proto": importedProtoStr}
-	expectedSchemaOpt, err := namespace.AppendSchemaOptions(nil, protoFile, "mainpkg.TestMessage", protoMap, "first")
+	protoMsg := "mainpkg.TestMessage"
+	protoMap := map[string]string{protoFile: mainProtoStr, "mainpkg/imported.proto": importedProtoStr}
+
+	expectedSchemaOpt, err := namespace.AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, "first")
 	require.NoError(t, err)
 	expectedSh, err := namespace.LoadSchemaHistory(expectedSchemaOpt)
 	require.NoError(t, err)
@@ -102,6 +104,6 @@ func TestAdminService_DeploySchema(t *testing.T) {
 			require.NotEmpty(t, actualMap)
 			require.True(t, actualMap.Equal(expectedMap))
 		})
-	require.NoError(t, as.DeploySchema("ns1", protoFile,
-		"mainpkg.TestMessage", protoMap, "first"))
+	_, err = as.DeploySchema("ns1", protoFile, protoMsg, protoMap)
+	require.NoError(t, err)
 }

@@ -12,3 +12,14 @@ message NamespaceAddRequest {
   string                        name = 1;
   namespace.NamespaceOptions options = 2;
 }
+
+message NamespaceSchemaAddRequest {
+  string name = 1;
+  string msgName = 2;
+  string protoName = 3;
+  map<string, string> protoMap = 4;
+}
+
+message NamespaceSchemaAddResponse {
+  string deployID = 1;
+}
