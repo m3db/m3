@@ -25,10 +25,24 @@ import (
 )
 
 type NamespaceMetadataAdminService interface {
+	// GetAll gets namespace options for all namespaces.
 	GetAll() ([]*nsproto.NamespaceOptions, error)
+
+	// Get gets option for the specified namespace.
 	Get(name string) (*nsproto.NamespaceOptions, error)
+
+	// Add adds a new namespace and set its options.
 	Add(name string, options *nsproto.NamespaceOptions) error
+
+	// Set sets the options for the specified namespace.
 	Set(name string, options *nsproto.NamespaceOptions) error
+
+	// Delete deletes the specified namespace.
 	Delete(name string) error
+
+	// DeploySchema deploys a new version schema to the specified namespace.
+	// An opaque string (deployID) is returned if successful.
+	// Application developer is to include the deployID in their m3db client configuration
+	// when they upgrade their application to use the new schema version.
 	DeploySchema(name string, protoFileName, msgName string, protos map[string]string) (string, error)
 }

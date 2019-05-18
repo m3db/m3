@@ -57,23 +57,28 @@ func NewAdminService(store kv.Store, key string, idGen func() string) NamespaceM
 }
 
 func (as *adminService) GetAll() ([]*nsproto.NamespaceOptions, error) {
+	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
 	return nil, ErrNotImplemented
 }
 
 func (as *adminService) Get(name string) (*nsproto.NamespaceOptions, error) {
+	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
 	return nil, ErrNotImplemented
 }
 
 func (as *adminService) Add(name string, options *nsproto.NamespaceOptions) error {
+	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
 	return ErrNotImplemented
 
 }
 
 func (as *adminService) Set(name string, options *nsproto.NamespaceOptions) error {
+	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
 	return ErrNotImplemented
 }
 
 func (as *adminService) Delete(name string) error {
+	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
 	return ErrNotImplemented
 }
 
