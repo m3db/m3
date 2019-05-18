@@ -37,3 +37,14 @@ echo "Wait until data begins being written to remote storage for the aggregated 
 ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
   '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace=\"agg\"\\} | jq -r .data.result[0].value[1]) -gt 0 ]]'
 
+# Test the default series limit applied when directly querying 
+# coordinator (limit set to 10 in m3coordinator.yml)
+echo "Test query limit with coordinator defaults"
+ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+  '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{name!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
+
+# Test the default series limit applied when directly querying 
+# coordinator (limit set to 10 in m3coordinator.yml)
+echo "Test query limit with coordinator limit header"
+ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+  '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{name!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
