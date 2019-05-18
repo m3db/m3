@@ -542,7 +542,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			itErrPrefix, err)
 	}
 
-	// Reuse the byte slices that about to be evicted (if any) to read into instead of
+	// Reuse the byte slice that is about to be evicted (if any) to read into instead of
 	// allocating if possible.
 	buf := it.nextToBeEvicted(i)
 	if cap(buf) < int(bytesLen) {
