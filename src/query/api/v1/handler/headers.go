@@ -33,9 +33,9 @@ const (
 	// DeprecatedHeader is the M3 deprecated header.
 	DeprecatedHeader = "M3-Deprecated"
 
-	// LimitMaxTimeseriesHeader is the M3 limit timeseries header that limits
+	// LimitMaxSeriesHeader is the M3 limit timeseries header that limits
 	// the number of time series returned by each storage node.
-	LimitMaxTimeseriesHeader = "M3-Limit-Max-Timeseries"
+	LimitMaxSeriesHeader = "M3-Limit-Max-Series"
 
 	// DefaultServiceEnvironment is the default service ID environment.
 	DefaultServiceEnvironment = "default_env"

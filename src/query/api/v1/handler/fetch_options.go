@@ -25,7 +25,7 @@ import (
 	"strconv"
 
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
@@ -56,12 +56,13 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 ) (*storage.FetchOptions, *xhttp.ParseError) {
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = b.opts.Limit
-	if str := req.Header.Get(LimitMaxTimeseriesHeader); str != "" {
+	if str := req.Header.Get(LimitMaxSeriesHeader); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 		fetchOpts.Limit = n
 	}
+
 	return fetchOpts, nil
 }
