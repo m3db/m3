@@ -451,7 +451,7 @@ func (it *iterator) readProtoValues() error {
 		}
 	}
 
-	if fieldsSetToDefaultControlBit == 1 {
+	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
 		for _, fieldNum := range it.bitsetValues {
 			for i, protoField := range it.protoFields {
 				if fieldNum == int(protoField.fieldNum) {
