@@ -37,7 +37,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 const (
@@ -58,7 +57,6 @@ type iterator struct {
 	schemaDesc           namespace.SchemaDescr
 	stream               encoding.IStream
 	marshaler            customFieldMarshaler
-	lastIterated         *dynamic.Message
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
@@ -187,11 +185,6 @@ func (it *iterator) Next() bool {
 				it.err = fmt.Errorf("%s error reading custom fields schema: %v", itErrPrefix, err)
 				return false
 			}
-
-			// A schema change invalidates all of the existing state. This means that
-			// lastIterated needs to be reset otherwise previous values for fields that
-			// no longer exist would still be returned.
-			it.lastIterated = dynamic.NewMessage(it.schema)
 		}
 	}
 
@@ -215,18 +208,6 @@ func (it *iterator) Next() bool {
 		it.err = err
 		return false
 	}
-
-	// TODO: Fix comment
-	// Keep the annotation version of the last iterated protobuf message up to
-	// date so we can return it in subsequent calls to Current(), otherwise we'd
-	// have to marshal it in the Current() call where we can't handle errors.
-	b, err := it.lastIterated.MarshalAppend(it.marshaler.bytes())
-	if err != nil {
-		it.err = fmt.Errorf(
-			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
-		return false
-	}
-	it.marshaler.setBytes(b)
 
 	it.consumedFirstMessage = true
 	return it.hasNext()
@@ -262,9 +243,6 @@ func (it *iterator) Err() error {
 func (it *iterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {
 	it.resetSchema(descr)
 	it.stream.Reset(reader)
-	if it.lastIterated != nil {
-		it.lastIterated.Reset()
-	}
 	it.tsIterator = m3tsz.NewTimestampIterator(it.opts, true)
 
 	it.err = nil
@@ -279,14 +257,12 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 	if schemaDesc == nil {
 		it.schemaDesc = nil
 		it.schema = nil
-		it.lastIterated = nil
 		it.customFields = nil
 		return
 	}
 
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
-	it.lastIterated = dynamic.NewMessage(it.schema)
 	it.customFields, it.protoFields = customAndProtoFields(it.customFields, nil, it.schema)
 }
 
@@ -484,44 +460,6 @@ func (it *iterator) readProtoValues() error {
 		}
 	}
 
-	// // TODO: Reset
-	// m := dynamic.NewMessage(it.schema)
-	// err = m.Unmarshal(unmarshalBytes)
-	// if err != nil {
-	// 	return fmt.Errorf("error unmarshaling protobuf: %v", err)
-	// }
-
-	// for _, marshaledField := range it.protoFields {
-	// var (
-	// 	field       = it.schema.FindFieldByNumber(marshaledField.fieldNum)
-	// 	messageType = field.GetMessageType()
-	// 	fieldNumInt = int(field.GetNumber())
-	// )
-	// // TODO: Do I need this?
-	// if messageType == nil && !field.IsRepeated() {
-	// 	continue
-	// }
-
-	// 	curVal := m.GetFieldByNumber(fieldNumInt)
-	// 	isDefaultValue, err := isDefaultValue(field, curVal)
-	// 	if err != nil {
-	// 		return fmt.Errorf(
-	// 			"%s error: %v checking if %v is default value for field %s",
-	// 			itErrPrefix, err, curVal, field.String())
-	// 	}
-
-	// 	if isDefaultValue {
-	// 		// The value may appear as a default value simply because it hasn't changed
-	// 		// since the last message. Ignore for now and if it truly changed to become
-	// 		// a default value it will get handled when we loop through the bitset later.
-	// 		continue
-	// 	}
-
-	// 	// If the unmarshaled value is not the default value for the field then
-	// 	// we know it has changed and needs to be updated.
-	// 	it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
-	// }
-
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
 			for i, protoField := range it.protoFields {
@@ -655,16 +593,12 @@ type updateLastIterArg struct {
 	boolVal       bool
 }
 
+// TODO: Rename this method and fix comment.
 // updateLastIteratedWithCustomValues updates lastIterated with the current
 // value of the custom field in it.customFields at index i. This ensures that
 // when we return it.lastIterated in the call to Current() that all the
 // most recent values are present.
 func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) error {
-	// TODO: Can delete this?
-	if it.lastIterated == nil {
-		it.lastIterated = dynamic.NewMessage(it.schema)
-	}
-
 	var (
 		fieldNum       = int32(it.customFields[arg.i].fieldNum)
 		fieldType      = it.customFields[arg.i].fieldType
