@@ -72,6 +72,7 @@ type iterator struct {
 	varIntBuf         [8]byte
 	bitsetValues      []int
 	unmarshalProtoBuf checked.Bytes
+	unmarshaler       customFieldUnmarshaler
 
 	consumedFirstMessage bool
 	done                 bool
@@ -238,7 +239,20 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		}
 		unit = it.tsIterator.TimeUnit
 	)
-	return dp, unit, it.marshaler.bytes()
+
+	marshalerBytes := it.marshaler.bytes()
+	numBytes := len(marshalerBytes)
+	for _, protoField := range it.protoFields {
+		numBytes += len(protoField.marshaled)
+	}
+
+	it.resetUnmarshalProtoBuffer(numBytes)
+	buf := it.unmarshalProtoBuf.Bytes()[:0]
+	buf = append(buf, it.marshaler.bytes()...)
+	for _, protoField := range it.protoFields {
+		buf = append(buf, protoField.marshaled...)
+	}
+	return dp, unit, buf
 }
 
 func (it *iterator) Err() error {
@@ -435,50 +449,85 @@ func (it *iterator) readProtoValues() error {
 			itErrPrefix, int(marshalLen), n)
 	}
 
-	// TODO: Reset
-	m := dynamic.NewMessage(it.schema)
-	err = m.Unmarshal(unmarshalBytes)
-	if err != nil {
-		return fmt.Errorf("error unmarshaling protobuf: %v", err)
+	if it.unmarshaler == nil {
+		// Lazy init.
+		it.unmarshaler = newCustomFieldUnmarshaler()
+	}
+	if err := it.unmarshaler.resetAndUnmarshal(it.schema, unmarshalBytes); err != nil {
+		return fmt.Errorf(
+			"%s error unmarshaling message: %v", itErrPrefix, err)
+	}
+	customFieldValues := it.unmarshaler.sortedCustomFieldValues()
+	if len(customFieldValues) > 0 {
+		// If the proto portion of the message has any fields that could  have been custom
+		// encoded then something went wrong on the encoding side.
+		return fmt.Errorf(
+			"%s encoded protobuf portion of message had custom fields", itErrPrefix)
 	}
 
-	for _, marshaledField := range it.protoFields {
+	unmarshaledProtoFields := it.unmarshaler.nonCustomFieldValues()
+	for _, unmarshaledProtoField := range unmarshaledProtoFields {
 		var (
-			field       = it.schema.FindFieldByNumber(marshaledField.fieldNum)
+			field       = it.schema.FindFieldByNumber(unmarshaledProtoField.fieldNum)
 			messageType = field.GetMessageType()
-			fieldNumInt = int(field.GetNumber())
 		)
 		// TODO: Do I need this?
 		if messageType == nil && !field.IsRepeated() {
 			continue
 		}
 
-		curVal := m.GetFieldByNumber(fieldNumInt)
-		isDefaultValue, err := isDefaultValue(field, curVal)
-		if err != nil {
-			return fmt.Errorf(
-				"%s error: %v checking if %v is default value for field %s",
-				itErrPrefix, err, curVal, field.String())
+		for i, existingProtoField := range it.protoFields {
+			if unmarshaledProtoField.fieldNum == existingProtoField.fieldNum {
+				// Copy because the underlying bytes get reused between reads.
+				it.protoFields[i].marshaled = append(it.protoFields[i].marshaled[:0], unmarshaledProtoField.marshaled...)
+			}
 		}
-
-		if isDefaultValue {
-			// The value may appear as a default value simply because it hasn't changed
-			// since the last message. Ignore for now and if it truly changed to become
-			// a default value it will get handled when we loop through the bitset later.
-			continue
-		}
-
-		// If the unmarshaled value is not the default value for the field then
-		// we know it has changed and needs to be updated.
-		it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
 	}
+
+	// // TODO: Reset
+	// m := dynamic.NewMessage(it.schema)
+	// err = m.Unmarshal(unmarshalBytes)
+	// if err != nil {
+	// 	return fmt.Errorf("error unmarshaling protobuf: %v", err)
+	// }
+
+	// for _, marshaledField := range it.protoFields {
+	// var (
+	// 	field       = it.schema.FindFieldByNumber(marshaledField.fieldNum)
+	// 	messageType = field.GetMessageType()
+	// 	fieldNumInt = int(field.GetNumber())
+	// )
+	// // TODO: Do I need this?
+	// if messageType == nil && !field.IsRepeated() {
+	// 	continue
+	// }
+
+	// 	curVal := m.GetFieldByNumber(fieldNumInt)
+	// 	isDefaultValue, err := isDefaultValue(field, curVal)
+	// 	if err != nil {
+	// 		return fmt.Errorf(
+	// 			"%s error: %v checking if %v is default value for field %s",
+	// 			itErrPrefix, err, curVal, field.String())
+	// 	}
+
+	// 	if isDefaultValue {
+	// 		// The value may appear as a default value simply because it hasn't changed
+	// 		// since the last message. Ignore for now and if it truly changed to become
+	// 		// a default value it will get handled when we loop through the bitset later.
+	// 		continue
+	// 	}
+
+	// 	// If the unmarshaled value is not the default value for the field then
+	// 	// we know it has changed and needs to be updated.
+	// 	it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
+	// }
 
 	if fieldsSetToDefaultControlBit == 1 {
 		for _, fieldNum := range it.bitsetValues {
-			if err := it.lastIterated.TryClearFieldByNumber(fieldNum); err != nil {
-				return fmt.Errorf(
-					"%s: error clearing field number: %d, err: %v",
-					itErrPrefix, fieldNum, err)
+			for i, protoField := range it.protoFields {
+				if fieldNum == int(protoField.fieldNum) {
+					it.protoFields[i].marshaled = it.protoFields[i].marshaled[:0]
+				}
 			}
 		}
 	}
