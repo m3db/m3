@@ -443,15 +443,6 @@ func (it *iterator) readProtoValues() error {
 
 	unmarshaledProtoFields := it.unmarshaler.nonCustomFieldValues()
 	for _, unmarshaledProtoField := range unmarshaledProtoFields {
-		var (
-			field       = it.schema.FindFieldByNumber(unmarshaledProtoField.fieldNum)
-			messageType = field.GetMessageType()
-		)
-		// TODO: Do I need this?
-		if messageType == nil && !field.IsRepeated() {
-			continue
-		}
-
 		for i, existingProtoField := range it.protoFields {
 			if unmarshaledProtoField.fieldNum == existingProtoField.fieldNum {
 				// Copy because the underlying bytes get reused between reads.
