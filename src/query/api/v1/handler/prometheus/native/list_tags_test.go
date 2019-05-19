@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -97,7 +99,9 @@ func TestListTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store, nowFn)
+	handler := NewListTagsHandler(store,
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		nowFn)
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{now: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
@@ -131,7 +135,9 @@ func TestListErrorTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store, nowFn)
+	handler := NewListTagsHandler(store,
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		nowFn)
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{now: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).

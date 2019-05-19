@@ -41,6 +41,7 @@ import (
 func read(
 	reqCtx context.Context,
 	engine *executor.Engine,
+	opts *executor.EngineOptions,
 	tagOpts models.TagOptions,
 	w http.ResponseWriter,
 	params models.RequestParams,
@@ -57,7 +58,6 @@ func read(
 		opentracingutil.Duration("params.step", params.Step),
 	)
 
-	opts := &executor.EngineOptions{}
 	// Detect clients closing connections
 	handler.CloseWatcher(ctx, cancel, w)
 

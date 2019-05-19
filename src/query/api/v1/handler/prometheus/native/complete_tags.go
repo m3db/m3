@@ -43,15 +43,18 @@ const (
 
 // CompleteTagsHandler represents a handler for search tags endpoint.
 type CompleteTagsHandler struct {
-	storage storage.Storage
+	storage             storage.Storage
+	fetchOptionsBuilder handler.FetchOptionsBuilder
 }
 
 // NewCompleteTagsHandler returns a new instance of handler.
 func NewCompleteTagsHandler(
 	storage storage.Storage,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 ) http.Handler {
 	return &CompleteTagsHandler{
-		storage: storage,
+		storage:             storage,
+		fetchOptionsBuilder: fetchOptionsBuilder,
 	}
 }
 
@@ -66,7 +69,12 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	opts := storage.NewFetchOptions()
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))

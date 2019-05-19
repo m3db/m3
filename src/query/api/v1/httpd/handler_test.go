@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -72,6 +74,8 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
 		nil,
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		models.QueryContextOptions{},
 		tally.NewTestScope("", nil))
 }
 
@@ -87,7 +91,8 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	engine := executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
-		cfg, dbconfig, nil, tally.NewTestScope("", nil))
+		cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		models.QueryContextOptions{}, tally.NewTestScope("", nil))
 
 	require.Error(t, err)
 }
@@ -104,7 +109,8 @@ func TestHandlerFetchTimeout(t *testing.T) {
 	engine := executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
-		nil, nil, cfg, dbconfig, nil, tally.NewTestScope("", nil))
+		nil, nil, cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		models.QueryContextOptions{}, tally.NewTestScope("", nil))
 	require.NoError(t, err)
 	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }

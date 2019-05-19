@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -46,21 +47,24 @@ const (
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
 type PromReadInstantHandler struct {
-	engine      *executor.Engine
-	tagOpts     models.TagOptions
-	timeoutOpts *prometheus.TimeoutOpts
+	engine              *executor.Engine
+	fetchOptionsBuilder handler.FetchOptionsBuilder
+	tagOpts             models.TagOptions
+	timeoutOpts         *prometheus.TimeoutOpts
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
 func NewPromReadInstantHandler(
 	engine *executor.Engine,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
 ) *PromReadInstantHandler {
 	return &PromReadInstantHandler{
-		engine:      engine,
-		tagOpts:     tagOpts,
-		timeoutOpts: timeoutOpts,
+		engine:              engine,
+		fetchOptionsBuilder: fetchOptionsBuilder,
+		tagOpts:             tagOpts,
+		timeoutOpts:         timeoutOpts,
 	}
 }
 
@@ -77,7 +81,19 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		logger.Info("request params", zap.Any("params", params))
 	}
 
-	result, err := read(ctx, h.engine, h.tagOpts, w, params)
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	engineOpts := &executor.EngineOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		},
+	}
+
+	result, err := read(ctx, h.engine, engineOpts, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
 		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)

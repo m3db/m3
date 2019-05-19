@@ -46,18 +46,21 @@ var (
 
 // PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
 type PromSeriesMatchHandler struct {
-	tagOptions models.TagOptions
-	storage    storage.Storage
+	storage             storage.Storage
+	tagOptions          models.TagOptions
+	fetchOptionsBuilder handler.FetchOptionsBuilder
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
 func NewPromSeriesMatchHandler(
 	storage storage.Storage,
 	tagOptions models.TagOptions,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 ) http.Handler {
 	return &PromSeriesMatchHandler{
-		tagOptions: tagOptions,
-		storage:    storage,
+		tagOptions:          tagOptions,
+		storage:             storage,
+		fetchOptionsBuilder: fetchOptionsBuilder,
 	}
 }
 
@@ -74,7 +77,12 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	opts := storage.NewFetchOptions()
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
 	results := make([]models.Metrics, len(queries))
 	for i, query := range queries {
 		result, err := h.storage.SearchSeries(ctx, query, opts)

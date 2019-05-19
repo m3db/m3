@@ -60,7 +60,7 @@ type grpcClient struct {
 
 const initResultSize = 10
 
-// NewGRPCClient creates grpc client
+// NewGRPCClient creates grpc client.
 func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
@@ -93,7 +93,7 @@ func NewGRPCClient(
 	}, nil
 }
 
-// Fetch reads from remote client storage
+// Fetch reads from remote client storage.
 func (c *grpcClient) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
