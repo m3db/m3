@@ -45,6 +45,10 @@ type customFieldUnmarshaler interface {
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
 
+type customUnmarshalerOptions struct {
+	skipUnknownFields bool
+}
+
 type customUnmarshaler struct {
 	schema       *desc.MessageDescriptor
 	decodeBuf    *buffer
@@ -52,11 +56,14 @@ type customUnmarshaler struct {
 
 	nonCustomValues []marshaledField
 	numNonCustom    int
+
+	opts customUnmarshalerOptions
 }
 
-func newCustomFieldUnmarshaler() customFieldUnmarshaler {
+func newCustomFieldUnmarshaler(opts customUnmarshalerOptions) customFieldUnmarshaler {
 	return &customUnmarshaler{
 		decodeBuf: newCodedBuffer(nil),
+		opts:      opts,
 	}
 }
 
@@ -89,7 +96,14 @@ func (u *customUnmarshaler) unmarshal() error {
 
 		fd := u.schema.FindFieldByNumber(fieldNum)
 		if fd == nil {
-			return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
+			if !u.opts.skipUnknownFields {
+				return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
+			}
+
+			if _, err := u.skip(wireType); err != nil {
+				return err
+			}
+			continue
 		}
 
 		if !u.isCustomField(fd) {
