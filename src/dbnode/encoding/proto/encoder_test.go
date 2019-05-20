@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
-	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
