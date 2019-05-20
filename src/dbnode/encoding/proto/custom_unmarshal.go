@@ -54,7 +54,7 @@ type customUnmarshaler struct {
 	decodeBuf    *buffer
 	customValues sortedCustomFieldValues
 
-	nonCustomValues []marshaledField
+	nonCustomValues marshaledFields
 	numNonCustom    int
 
 	opts customUnmarshalerOptions
@@ -86,7 +86,8 @@ func (u *customUnmarshaler) unmarshal() error {
 		u.nonCustomValues = u.nonCustomValues[:0]
 	}
 
-	isSorted := true
+	areCustomValuesSorted := true
+	areNonCustomValuesSorted := true
 	for !u.decodeBuf.eof() {
 		tagAndWireTypeStartOffset := u.decodeBuf.index
 		fieldNum, wireType, err := u.decodeBuf.decodeTagAndWireType()
@@ -122,23 +123,42 @@ func (u *customUnmarshaler) unmarshal() error {
 			// This means that each tuple within the stream can be thought of as its own complete
 			// marshaled message and as a result we can build up the []marshaledField one field at
 			// a time.
-			found := false
+			updatedExisting := false
 			if fd.IsRepeated() {
-				// TODO: Leave comment
+				// If the fd is a repeated type and not using `packed` encoding then their could be multiple
+				// entries in the stream with the same field number so their marshaled bytes needs to be all
+				// concatenated together.
+				//
+				// NB(rartoul): This will have an adverse impact on the compression of map types because the
+				// key/val pairs can be encoded in any order. This means that its possible for two equivalent
+				// maps to have different byte streams which will force the encoder to re-encode the field into
+				// the stream even though it hasn't changed. This naive solution should be good enough for now,
+				// but if it proves problematic in the future the issue could be resolved by accumulating the
+				// marshaled tuples into a slice and then sorting by field number to produce a deterministic
+				// result such that equivalent maps always result in equivalent marshaled bytes slices.
 				for i := range u.nonCustomValues {
 					val := u.nonCustomValues[i]
 					if fieldNum == val.fieldNum {
 						u.nonCustomValues[i].marshaled = append(u.nonCustomValues[i].marshaled, marshaled...)
-						found = true
+						updatedExisting = true
 						break
 					}
 				}
 			}
-			if !found {
+			if !updatedExisting {
 				u.nonCustomValues = append(u.nonCustomValues, marshaledField{
 					fieldNum:  fieldNum,
 					marshaled: marshaled,
 				})
+			}
+
+			if areNonCustomValuesSorted && len(u.nonCustomValues) > 1 {
+				// Check if the slice is sorted as it's built to avoid resorting
+				// unnecessarily at the end.
+				lastFieldNum := u.nonCustomValues[len(u.nonCustomValues)-1].fieldNum
+				if fieldNum < lastFieldNum {
+					areNonCustomValuesSorted = false
+				}
 			}
 
 			u.numNonCustom++
@@ -150,12 +170,12 @@ func (u *customUnmarshaler) unmarshal() error {
 			return err
 		}
 
-		if isSorted && len(u.customValues) > 1 {
+		if areCustomValuesSorted && len(u.customValues) > 1 {
 			// Check if the slice is sorted as it's built to avoid resorting
 			// unnecessarily at the end.
 			lastFieldNum := u.customValues[len(u.customValues)-1].fieldNumber
 			if fieldNum < lastFieldNum {
-				isSorted = false
+				areCustomValuesSorted = false
 			}
 		}
 
@@ -165,8 +185,11 @@ func (u *customUnmarshaler) unmarshal() error {
 	u.decodeBuf.reset(u.decodeBuf.buf)
 
 	// Avoid resorting if possible.
-	if !isSorted {
+	if !areCustomValuesSorted {
 		sort.Sort(u.customValues)
+	}
+	if !areNonCustomValuesSorted {
+		sort.Sort(u.nonCustomValues)
 	}
 
 	return nil
