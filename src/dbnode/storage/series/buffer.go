@@ -246,12 +246,10 @@ func (b *dbBuffer) Write(
 	writeType := b.ResolveWriteType(timestamp, now)
 
 	if writeType == ColdWrite {
-		/*
-			Disable until cold writes is ready as this is confusing to users.
-			if !b.coldWritesEnabled {
-				return false, m3dberrors.ErrColdWritesNotEnabled
-			}
-		*/
+
+		if !b.coldWritesEnabled {
+			return false, m3dberrors.ErrColdWritesNotEnabled
+		}
 
 		if now.Add(-b.retentionPeriod).After(timestamp) {
 			return false, m3dberrors.ErrTooPast
