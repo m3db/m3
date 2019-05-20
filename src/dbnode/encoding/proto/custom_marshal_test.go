@@ -21,6 +21,7 @@
 package proto
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/jhump/protoreflect/dynamic"
@@ -43,14 +44,16 @@ func TestCustomMarshal(t *testing.T) {
 	}
 
 	marshaler := newCustomMarshaler()
-	for _, tc := range testCases {
-		marshaler.reset()
-		customMarshalVL(t, marshaler, tc.message)
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test_case_%d", i), func(t *testing.T) {
+			marshaler.reset()
+			customMarshalVL(t, marshaler, tc.message)
 
-		unmarshalM := dynamic.NewMessage(testVLSchema)
-		require.NoError(t, unmarshalM.Unmarshal(marshaler.bytes()))
+			unmarshalM := dynamic.NewMessage(testVLSchema)
+			require.NoError(t, unmarshalM.Unmarshal(marshaler.bytes()))
 
-		require.True(t, dynamic.Equal(tc.message, unmarshalM))
+			require.True(t, dynamic.Equal(tc.message, unmarshalM))
+		})
 	}
 }
 

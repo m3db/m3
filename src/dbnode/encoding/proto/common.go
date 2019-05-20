@@ -198,27 +198,27 @@ func newCustomFieldState(
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customAndProtoFields(s []customFieldState, protoFields []marshaledField, schema *desc.MessageDescriptor) ([]customFieldState, []marshaledField) {
+func customAndNonCustomFields(customFields []customFieldState, nonCustomFields []marshaledField, schema *desc.MessageDescriptor) ([]customFieldState, []marshaledField) {
 	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
-	numProtoFields := len(fields) - numCustomFields
+	numNonCustomFields := len(fields) - numCustomFields
 
-	if cap(s) >= numCustomFields {
-		for i := range s {
-			s[i] = customFieldState{}
+	if cap(customFields) >= numCustomFields {
+		for i := range customFields {
+			customFields[i] = customFieldState{}
 		}
-		s = s[:0]
+		customFields = customFields[:0]
 	} else {
-		s = make([]customFieldState, 0, numCustomFields)
+		customFields = make([]customFieldState, 0, numCustomFields)
 	}
 
-	if cap(protoFields) >= numProtoFields {
-		for i := range protoFields {
-			protoFields[i] = marshaledField{}
+	if cap(nonCustomFields) >= numNonCustomFields {
+		for i := range nonCustomFields {
+			nonCustomFields[i] = marshaledField{}
 		}
-		protoFields = protoFields[:0]
+		nonCustomFields = nonCustomFields[:0]
 	} else {
-		protoFields = make([]marshaledField, 0, numProtoFields)
+		nonCustomFields = make([]marshaledField, 0, numNonCustomFields)
 	}
 
 	var (
@@ -236,21 +236,24 @@ func customAndProtoFields(s []customFieldState, protoFields []marshaledField, sc
 
 		customFieldType, ok := isCustomField(fieldType, field.IsRepeated())
 		if !ok {
-			protoFields = append(protoFields, marshaledField{fieldNum: fieldNum})
+			nonCustomFields = append(nonCustomFields, marshaledField{fieldNum: fieldNum})
 			continue
 		}
 
 		fieldState := newCustomFieldState(int(fieldNum), fieldType, customFieldType)
-		s = append(s, fieldState)
+		customFields = append(customFields, fieldState)
 	}
 
 	if !isSorted {
-		sort.Slice(s, func(a, b int) bool {
-			return s[a].fieldNum < s[b].fieldNum
+		sort.Slice(customFields, func(a, b int) bool {
+			return customFields[a].fieldNum < customFields[b].fieldNum
+		})
+		sort.Slice(nonCustomFields, func(a, b int) bool {
+			return nonCustomFields[a].fieldNum < nonCustomFields[b].fieldNum
 		})
 	}
 
-	return s, protoFields
+	return customFields, nonCustomFields
 }
 
 func isCustomFloatEncodedField(t customFieldType) bool {

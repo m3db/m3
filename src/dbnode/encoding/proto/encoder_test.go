@@ -36,9 +36,9 @@ import (
 
 func TestCustomAndProtoFields(t *testing.T) {
 	testCases := []struct {
-		schema               *desc.MessageDescriptor
-		expectedCustomFields []customFieldState
-		expectedProtoFields  []int32
+		schema                  *desc.MessageDescriptor
+		expectedCustomFields    []customFieldState
+		expectedNonCustomFields []marshaledField
 	}{
 		{
 			schema: newVLMessageDescriptor(),
@@ -68,14 +68,14 @@ func TestCustomAndProtoFields(t *testing.T) {
 					protoFieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
 				},
 			},
-			expectedProtoFields: []int32{5},
+			expectedNonCustomFields: []marshaledField{{fieldNum: 5}},
 		},
 	}
 
 	for _, tc := range testCases {
-		tszFields, protoFields := customAndProtoFields(nil, nil, tc.schema)
+		tszFields, nonCustomFields := customAndNonCustomFields(nil, nil, tc.schema)
 		require.Equal(t, tc.expectedCustomFields, tszFields)
-		require.Equal(t, tc.expectedProtoFields, protoFields)
+		require.Equal(t, tc.expectedNonCustomFields, nonCustomFields)
 	}
 }
 

@@ -469,7 +469,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.marshalBuf = nil
 
 	if enc.schema != nil {
-		enc.customFields, enc.nonCustomFields = customAndProtoFields(enc.customFields, enc.nonCustomFields, enc.schema)
+		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
 	}
 
 	enc.closed = false
@@ -482,7 +482,7 @@ func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 		enc.nonCustomFields = nil
 		enc.customFields = nil
 	} else {
-		enc.customFields, enc.nonCustomFields = customAndProtoFields(enc.customFields, enc.nonCustomFields, enc.schema)
+		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
 		enc.hasEncodedSchema = false
 	}
 }

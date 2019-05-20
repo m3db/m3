@@ -60,8 +60,8 @@ type iterator struct {
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
-	customFields []customFieldState
-	protoFields  []marshaledField
+	customFields    []customFieldState
+	nonCustomFields []marshaledField
 
 	tsIterator m3tsz.TimestampIterator
 
@@ -223,14 +223,14 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 
 	marshalerBytes := it.marshaler.bytes()
 	numBytes := len(marshalerBytes)
-	for _, protoField := range it.protoFields {
+	for _, protoField := range it.nonCustomFields {
 		numBytes += len(protoField.marshaled)
 	}
 
 	it.resetUnmarshalProtoBuffer(numBytes)
 	buf := it.unmarshalProtoBuf.Bytes()[:0]
 	buf = append(buf, it.marshaler.bytes()...)
-	for _, protoField := range it.protoFields {
+	for _, protoField := range it.nonCustomFields {
 		buf = append(buf, protoField.marshaled...)
 	}
 	return dp, unit, buf
@@ -263,7 +263,7 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
-	it.customFields, it.protoFields = customAndProtoFields(it.customFields, nil, it.schema)
+	it.customFields, it.nonCustomFields = customAndNonCustomFields(it.customFields, nil, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -448,19 +448,19 @@ func (it *iterator) readProtoValues() error {
 
 	unmarshaledProtoFields := it.unmarshaler.nonCustomFieldValues()
 	for _, unmarshaledProtoField := range unmarshaledProtoFields {
-		for i, existingProtoField := range it.protoFields {
+		for i, existingProtoField := range it.nonCustomFields {
 			if unmarshaledProtoField.fieldNum == existingProtoField.fieldNum {
 				// Copy because the underlying bytes get reused between reads.
-				it.protoFields[i].marshaled = append(it.protoFields[i].marshaled[:0], unmarshaledProtoField.marshaled...)
+				it.nonCustomFields[i].marshaled = append(it.nonCustomFields[i].marshaled[:0], unmarshaledProtoField.marshaled...)
 			}
 		}
 	}
 
 	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
 		for _, fieldNum := range it.bitsetValues {
-			for i, protoField := range it.protoFields {
+			for i, protoField := range it.nonCustomFields {
 				if fieldNum == int(protoField.fieldNum) {
-					it.protoFields[i].marshaled = it.protoFields[i].marshaled[:0]
+					it.nonCustomFields[i].marshaled = it.nonCustomFields[i].marshaled[:0]
 				}
 			}
 		}
