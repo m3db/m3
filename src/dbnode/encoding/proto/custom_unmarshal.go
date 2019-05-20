@@ -387,7 +387,7 @@ func (u *customUnmarshaller) resetAndUnmarshal(schema *desc.MessageDescriptor, b
 
 func (u *customUnmarshaller) resetCustomAndNonCustomValues() {
 	for i := range u.customValues {
-		u.customValues[i] = marshalValue{}
+		u.customValues[i] = unmarshalValue{}
 	}
 	u.customValues = u.customValues[:0]
 
