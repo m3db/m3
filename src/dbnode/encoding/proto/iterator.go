@@ -428,7 +428,7 @@ func (it *iterator) readProtoValues() error {
 	if it.unmarshaller == nil {
 		// Lazy init.
 		it.unmarshaller = newCustomFieldUnmarshaller(customUnmarshallerOptions{
-			// Skip over unknown fields when unmarshaling because its possible that the stream was
+			// Skip over unknown fields when unmarshalling because its possible that the stream was
 			// encoded with a newer schema.
 			skipUnknownFields: true,
 		})
@@ -436,7 +436,7 @@ func (it *iterator) readProtoValues() error {
 
 	if err := it.unmarshaller.resetAndUnmarshal(it.schema, unmarshalBytes); err != nil {
 		return fmt.Errorf(
-			"%s error unmarshaling message: %v", itErrPrefix, err)
+			"%s error unmarshalling message: %v", itErrPrefix, err)
 	}
 	customFieldValues := it.unmarshaller.sortedCustomFieldValues()
 	if len(customFieldValues) > 0 {

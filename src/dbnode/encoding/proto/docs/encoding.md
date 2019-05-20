@@ -201,7 +201,7 @@ Compressing the Protobuf fields is broken into two stages:
 
 In the first phase, any eligible custom fields are compressed as described in the "Compression Techniques" section.
 
-In the second phase, the Protobuf marshaling format is used to encode and decode the data, with the caveat that fields are compared at the top level and re-encoding is avoided if they have not changed.
+In the second phase, the Protobuf marshalling format is used to encode and decode the data, with the caveat that fields are compared at the top level and re-encoding is avoided if they have not changed.
 
 #### Custom Compressed Protobuf Fields
 
@@ -226,14 +226,14 @@ Next, 6 bits would be used to encode the number of significant digits in the del
 
 Note that the values encoded for both fields are "self contained" in that they encode all the information required to determine when the end has been reached.
 
-#### Protobuf Marshalled Fields
+#### Protobuf Marshalled Fields (non custom encoded / compressed)
 
 We recommend reading the [Protocol Buffers Encoding](https://developers.google.com/protocol-buffers/docs/encoding) section of the official documentation before reading this section.
 Specifically, understanding how Protobuf messages are (basically) encoded as a stream of tuples in the form of `<field number, wire type, value>` will make understanding this section much easier.
 
 The Protobuf marshalled fields section of the encoding scheme contains all the values that don't currently support performing custom compression.
 For the most part, the output of this section is similar to the result of calling `Marshal()` on a message in which all the custom compressed fields have already been removed, and the only remaining fields are ones for which Protobuf will encode directly.
-This is possible because, as described in the Protobuf encoding section linked above, the Protobuf wire format does not encode **any** data for fields which are not set or are set to a default value, so by "clearing" the fields that have already been encoded, they can be omitted when marshaling the remainder of the Protobuf message.
+This is possible because, as described in the Protobuf encoding section linked above, the Protobuf wire format does not encode **any** data for fields which are not set or are set to a default value, so by "clearing" the fields that have already been encoded, they can be omitted when marshalling the remainder of the Protobuf message.
 
 While Protobuf's wire format is leaned upon heavily, there is specific attention given to re-encoding fields that haven't changed since the previous value, where "haven't changed" is defined at the top most level of the message.
 
@@ -259,7 +259,7 @@ However, if any of the fields have changed, like `nested.deeper.booly` for examp
 
 This top-level "only if it has changed" delta encoding can be used because, when the stream is decoded later, the original message can be reconstructed by merging the previously-decoded message with the current delta message, which contains only fields that have changed since the previous message.
 
-Only marshaling the fields that have changed since the previous message works for the most part, but there is one important edge case: because the Protobuf wire format does not encode **any** data for fields that are set to a default value (zero for `integers` and `floats`, empty array for `bytes` and `strings`, etc), using the standard Protobuf marshaling format with delta encoding works in every scenario *except* for the case where a field is changed from a non-default value to a default value because (because it is not possible to express explicitly setting a field to its default value).
+Only marshalling the fields that have changed since the previous message works for the most part, but there is one important edge case: because the Protobuf wire format does not encode **any** data for fields that are set to a default value (zero for `integers` and `floats`, empty array for `bytes` and `strings`, etc), using the standard Protobuf marshalling format with delta encoding works in every scenario *except* for the case where a field is changed from a non-default value to a default value because (because it is not possible to express explicitly setting a field to its default value).
 
 This issue is mitigated by encoding an additional optional (as in it is only encoded when necessary) bitset which indicates any field numbers that were set to the default value of the field's type.
 
@@ -274,4 +274,6 @@ If the previous control bit was set to `1`, indicating that there have been chan
 If so, then its value will be `1` and the subsequent bits should be interpreted as a `varint` encoding the length of the bitset followed by the actual bitset bits as discussed above.
 If the value is `0`, then there is no bitset to decode.
 
-Finally, this portion of the encoding will end with a final `varint` that encodes the length of the bytes that resulted from calling `Marshal()` on the message (where any custom-encoded or unchanged fields were cleared) followed by the actual marshalled bytes themselves.
+At this point, if the stream is not byte-aligned, it is passed with zeros up to the next byte boundary. This reduces compression slightly (a maximum of 7 bits per message that contains non-custom encoded fields), but significantly improves the speed at which large marshalled protobuf fields can be encoded and decoded.
+
+Finally, this portion of the encoding will end with a `varint` that encodes the length of the bytes that would be generated by calling `Marshal()` on the message (where any custom-encoded or unchanged fields were cleared) followed by the actual marshalled bytes themselves.

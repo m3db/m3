@@ -8,3 +8,4 @@ All compression is performed in an unbuffered manner such that the encoded strea
 
 Read [encoding.md](./encoding.md) for details on the encoding scheme.
 Read [unmarshal.md](./unmarshal.md) for details on the custom dynamic Protobuf unmarshaller.
+Read [marshal.md](./marshal.md) for details on the custom dynamic Protobuf marshaller.

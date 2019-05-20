@@ -139,7 +139,7 @@ func TestRoundTripProp(t *testing.T) {
 			clone.MergeFrom(m.message)
 			cloneBytes, err := clone.Marshal()
 			if err != nil {
-				return false, fmt.Errorf("error marshaling proto message: %v", err)
+				return false, fmt.Errorf("error marshalling proto message: %v", err)
 			}
 
 			if debugLogs {
