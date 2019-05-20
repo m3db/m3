@@ -76,6 +76,22 @@ func TestInvalidOffset(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestUnary(t *testing.T) {
+	q := "-up"
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), lazy.UnaryType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+}
+
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
 	_, err := Parse(q, models.NewTagOptions())

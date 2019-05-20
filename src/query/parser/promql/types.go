@@ -293,6 +293,17 @@ func getBinaryOpType(opType promql.ItemType) string {
 	}
 }
 
+func GetUnaryOpType(opType promql.ItemType) (string, bool) {
+	switch opType {
+	case promql.ItemType(itemADD):
+		return binary.PlusType, true
+	case promql.ItemType(itemSUB):
+		return binary.MinusType, true
+	default:
+		return common.UnknownOpType, false
+	}
+}
+
 const promDefaultName = "__name__"
 
 // LabelMatchersToModelMatcher parses promql matchers to model matchers

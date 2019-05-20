@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
@@ -88,12 +89,17 @@ func validOffset(offset time.Duration) error {
 	return nil
 }
 
-func (p *parseState) addLazyTransform(offset time.Duration) error {
-	// NB: if offset is <= 0, we do not apply any offsets.
-	if offset == 0 {
+func (p *parseState) addLazyTransform(offset time.Duration, opType, unaryOp string) error {
+	// NB: if offset is <= 0 && unary type is "+", we do not apply any offsets.
+	if offset == 0 && unaryOp == binary.PlusType {
 		return nil
 	} else if offset < 0 {
 		return fmt.Errorf("offset must be positive, received: %v", offset)
+	}
+
+	unaryMultiplier := 1.0
+	if unaryOp == binary.MinusType {
+		unaryMultiplier = -1.0
 	}
 
 	var (
@@ -102,13 +108,15 @@ func (p *parseState) addLazyTransform(offset time.Duration) error {
 			meta.Bounds.Start = meta.Bounds.Start.Add(offset)
 			return meta
 		}
+		vt = func(val float64) float64 { return val * unaryMultiplier }
 	)
 
 	lazyOpts := block.NewLazyOpts().
 		SetTimeTransform(tt).
-		SetMetaTransform(mt)
+		SetMetaTransform(mt).
+		SetValueTransform(vt)
 
-	op, err := lazy.NewLazyOp(lazy.OffsetType, lazyOpts)
+	op, err := lazy.NewLazyOp(opType, lazyOpts)
 	if err != nil {
 		return err
 	}
@@ -156,7 +164,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		return p.addLazyTransform(n.Offset)
+		return p.addLazyTransform(n.Offset, lazy.OffsetType, binary.PlusType)
 
 	case *pql.VectorSelector:
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
@@ -165,7 +173,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		return p.addLazyTransform(n.Offset)
+		return p.addLazyTransform(n.Offset, lazy.OffsetType, binary.PlusType)
 
 	case *pql.Call:
 		expressions := n.Args
@@ -265,6 +273,21 @@ func (p *parseState) walk(node pql.Node) error {
 	case *pql.ParenExpr:
 		// Evaluate inside of paren expressions
 		return p.walk(n.Expr)
+
+	case *pql.UnaryExpr:
+		err := p.walk(n.Expr)
+		if err != nil {
+			return err
+		}
+
+		unaryType, ok := GetUnaryOpType(n.Op)
+		if !ok {
+			return fmt.Errorf("only + and - operators allowed for unary expressions, received: %s", n.Op.String())
+		}
+
+		fmt.Println(unaryType)
+
+		return p.addLazyTransform(0, lazy.UnaryType, unaryType)
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
