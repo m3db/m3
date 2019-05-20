@@ -646,8 +646,8 @@ func (it *iterator) updateMarshallerWithCustomValues(arg updateLastIterArg) erro
 			val := int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
 			if protoFieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
 				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
-				// however, Protobuf unmarshallers assume that fields of type sint are zigzag. As a result, the
-				// iterator needs to check the fields protobuf type so that it can perform the correct encoding.
+				// however, Protobuf unmarshallers assume that fields of type sint are zigzag encoded. As a result,
+				// the iterator needs to check the fields protobuf type so that it can perform the correct encoding.
 				it.marshaller.encSInt64(fieldNum, val)
 			} else if protoFieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 {
 				it.marshaller.encSFixedInt64(fieldNum, val)
@@ -674,8 +674,8 @@ func (it *iterator) updateMarshallerWithCustomValues(arg updateLastIterArg) erro
 			fieldType := field.GetType()
 			if fieldType == dpb.FieldDescriptorProto_TYPE_SINT32 {
 				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
-				// however, Protobuf unmarshallers assume that fields of type sint are zigzag. As a result, the
-				// iterator needs to check the fields protobuf type so that it can perform the correct encoding.
+				// however, Protobuf unmarshallers assume that fields of type sint are zigzag encoded. As a result,
+				// the iterator needs to check the fields protobuf type so that it can perform the correct encoding.
 				it.marshaller.encSInt32(fieldNum, val)
 			} else if fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED32 {
 				it.marshaller.encSFixedInt32(fieldNum, val)
