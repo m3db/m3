@@ -34,8 +34,17 @@ import (
 )
 
 func BenchmarkEncoder(b *testing.B) {
+	b.Run("with non custom encoded fields enabled", func(b *testing.B) {
+		benchmarkEncoder(b, true)
+	})
+	b.Run("with non custom encoded fields disabled", func(b *testing.B) {
+		benchmarkEncoder(b, false)
+	})
+}
+
+func benchmarkEncoder(b *testing.B, nonCustomFieldsEnabled bool) {
 	var (
-		_, messagesBytes = testMessages(100, true)
+		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
 		start            = time.Now()
 		encoder          = NewEncoder(start, encoding.NewOptions())
 	)
@@ -52,8 +61,17 @@ func BenchmarkEncoder(b *testing.B) {
 }
 
 func BenchmarkIterator(b *testing.B) {
+	b.Run("with non custom encoded fields enabled", func(b *testing.B) {
+		benchmarkIterator(b, true)
+	})
+	b.Run("with non custom encoded fields disabled", func(b *testing.B) {
+		benchmarkIterator(b, false)
+	})
+}
+
+func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
 	var (
-		_, messagesBytes = testMessages(100, true)
+		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
 		start            = time.Now()
 		encodingOpts     = encoding.NewOptions()
 		encoder          = NewEncoder(start, encodingOpts)
