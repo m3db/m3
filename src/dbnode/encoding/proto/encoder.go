@@ -62,10 +62,10 @@ type Encoder struct {
 	schemaDesc namespace.SchemaDescr
 	schema     *desc.MessageDescriptor
 
-	numEncoded    int
-	lastEncodedDP ts.Datapoint
-	customFields  []customFieldState
-	protoFields   []marshaledField
+	numEncoded      int
+	lastEncodedDP   ts.Datapoint
+	customFields    []customFieldState
+	nonCustomFields []marshaledField
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -392,7 +392,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		sortedTopLevelScalarValuesIdx++
 	}
 
-	if err := enc.encodeProtoValues(); err != nil {
+	if err := enc.encodeNonCustomValues(); err != nil {
 		return err
 	}
 
@@ -469,7 +469,7 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.marshalBuf = nil
 
 	if enc.schema != nil {
-		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
+		enc.customFields, enc.nonCustomFields = customAndProtoFields(enc.customFields, enc.nonCustomFields, enc.schema)
 	}
 
 	enc.closed = false
@@ -479,10 +479,10 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
 	if enc.schema == nil {
-		enc.protoFields = nil
+		enc.nonCustomFields = nil
 		enc.customFields = nil
 	} else {
-		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
+		enc.customFields, enc.nonCustomFields = customAndProtoFields(enc.customFields, enc.nonCustomFields, enc.schema)
 		enc.hasEncodedSchema = false
 	}
 }
@@ -652,9 +652,8 @@ func (enc *Encoder) encodeBoolValue(i int, val bool) {
 	}
 }
 
-// TODO: Rename encodeNonCustomValues
-func (enc *Encoder) encodeProtoValues() error {
-	if len(enc.protoFields) == 0 {
+func (enc *Encoder) encodeNonCustomValues() error {
+	if len(enc.nonCustomFields) == 0 {
 		// Fast path, skip all the encoding logic entirely because there are
 		// no fields that require proto encoding.
 		// TODO(rartoul): Note that the encoding scheme could be further optimized
@@ -669,7 +668,7 @@ func (enc *Encoder) encodeProtoValues() error {
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 
 	currProtoFields := enc.unmarshaler.nonCustomFieldValues()
-	for i, protoField := range enc.protoFields {
+	for i, protoField := range enc.nonCustomFields {
 		var curVal []byte
 		for _, val := range currProtoFields {
 			if protoField.fieldNum == val.fieldNum {
@@ -691,7 +690,7 @@ func (enc *Encoder) encodeProtoValues() error {
 		enc.changedValues = append(enc.changedValues, protoField.fieldNum)
 		// Need to copy since the encoder no longer owns the original source of the bytes once
 		// this function returns.
-		enc.protoFields[i].marshaled = append(enc.protoFields[i].marshaled[:0], curVal...)
+		enc.nonCustomFields[i].marshaled = append(enc.nonCustomFields[i].marshaled[:0], curVal...)
 	}
 
 	if len(enc.changedValues) == 0 {
@@ -701,19 +700,14 @@ func (enc *Encoder) encodeProtoValues() error {
 		return nil
 	}
 
-	marshalBuf := enc.marshalBuf[:0]
+	enc.marshalBuf = enc.marshalBuf[:0]
 	for _, fieldNum := range enc.changedValues {
 		for _, field := range currProtoFields {
 			if field.fieldNum == fieldNum {
-				marshalBuf = append(marshalBuf, field.marshaled...)
+				enc.marshalBuf = append(enc.marshalBuf, field.marshaled...)
 			}
 		}
 	}
-
-	// TODO: Fix comment
-	// Make sure we update the marshalBuf with the returned slice in case a new one was
-	// allocated as part of the MarshalAppend call.
-	enc.marshalBuf = marshalBuf
 
 	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(opCodeChange)
@@ -727,10 +721,14 @@ func (enc *Encoder) encodeProtoValues() error {
 		// their default values so we can do a clean merge on read.
 		enc.stream.WriteBit(opCodeNoFieldsSetToDefaultProtoMarshal)
 	}
-	// TODO: comment explaining
+
+	// This wastes up to 7 bits of space per encoded message but significantly improves encoding and
+	// decoding speed due to the fact that the OStream and IStream can write and read the data with
+	// the equivalent of one memcpy as opposed to having to decode one byte at a time due to lack
+	// of alignment.
 	enc.padToNextByte()
-	enc.encodeVarInt(uint64(len(marshalBuf)))
-	enc.stream.WriteBytes(marshalBuf)
+	enc.encodeVarInt(uint64(len(enc.marshalBuf)))
+	enc.stream.WriteBytes(enc.marshalBuf)
 
 	return nil
 }

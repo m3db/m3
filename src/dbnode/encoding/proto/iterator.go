@@ -475,7 +475,7 @@ func (it *iterator) readFloatValue(i int) error {
 	}
 
 	updateArg := updateLastIterArg{i: i}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshalerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
@@ -489,7 +489,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	if bytesChangedControlBit == opCodeNoChange {
 		// No changes to the bytes value.
 		updateArg := updateLastIterArg{i: i, bytesFieldBuf: it.lastValueBytesDict(i)}
-		return it.updateLastIteratedWithCustomValues(updateArg)
+		return it.updateMarshalerWithCustomValues(updateArg)
 	}
 
 	// Bytes have changed since the previous value.
@@ -520,7 +520,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		it.moveToEndOfBytesDict(i, dictIdx)
 
 		updateArg := updateLastIterArg{i: i, bytesFieldBuf: bytesVal}
-		return it.updateLastIteratedWithCustomValues(updateArg)
+		return it.updateMarshalerWithCustomValues(updateArg)
 	}
 
 	// New value that was not in the dict already.
@@ -558,7 +558,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	it.addToBytesDict(i, buf)
 
 	updateArg := updateLastIterArg{i: i, bytesFieldBuf: buf}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshalerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readIntValue(i int) error {
@@ -567,7 +567,7 @@ func (it *iterator) readIntValue(i int) error {
 	}
 
 	updateArg := updateLastIterArg{i: i}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshalerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBoolValue(i int) error {
@@ -580,7 +580,7 @@ func (it *iterator) readBoolValue(i int) error {
 
 	boolVal := boolOpCode == opCodeBoolTrue
 	updateArg := updateLastIterArg{i: i, boolVal: boolVal}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshalerWithCustomValues(updateArg)
 }
 
 type updateLastIterArg struct {
@@ -589,12 +589,10 @@ type updateLastIterArg struct {
 	boolVal       bool
 }
 
-// TODO: Rename this method and fix comment.
-// updateLastIteratedWithCustomValues updates lastIterated with the current
-// value of the custom field in it.customFields at index i. This ensures that
-// when we return it.lastIterated in the call to Current() that all the
-// most recent values are present.
-func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) error {
+// updateMarshalerWithCustomValues updates the marshaled stream with the current
+// value of the custom field at index i. This ensures that marshaled protobuf stream
+// returned by Current() contains the most recent value for all of the custom fields.
+func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error {
 	var (
 		fieldNum       = int32(it.customFields[arg.i].fieldNum)
 		fieldType      = it.customFields[arg.i].fieldType
