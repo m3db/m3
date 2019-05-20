@@ -420,7 +420,7 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	assert.Equal(t, expected, actual.Datapoints())
 }
 
-// negative value offset
+// negative value offset tests
 
 func TestStepIterWithNegativeValueOffset(t *testing.T) {
 	ctrl := gomock.NewController(t)
