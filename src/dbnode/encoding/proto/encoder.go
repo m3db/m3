@@ -70,7 +70,6 @@ type Encoder struct {
 	// Fields that are reused between function calls to
 	// avoid allocations.
 	varIntBuf              [8]byte
-	changedValues          []int32
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
@@ -664,7 +663,6 @@ func (enc *Encoder) encodeNonCustomValues() error {
 	}
 
 	// Reset for re-use.
-	enc.changedValues = enc.changedValues[:0]
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 
 	var (
@@ -672,7 +670,8 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		// Matching entries in two sorted lists in which every element in each list is unique so keep
 		// track of the last index at which a match was found so that subsequent inner loops can start
 		// at the next index.
-		lastMatchIdx = -1
+		lastMatchIdx     = -1
+		numChangedFields = 0
 	)
 	enc.marshalBuf = enc.marshalBuf[:0] // Reset buf for reuse.
 
@@ -693,12 +692,11 @@ func (enc *Encoder) encodeNonCustomValues() error {
 			continue
 		}
 
+		numChangedFields++
 		if curVal == nil {
 			// Interpret as default value.
 			enc.fieldsChangedToDefault = append(enc.fieldsChangedToDefault, existingField.fieldNum)
 		}
-
-		enc.changedValues = append(enc.changedValues, existingField.fieldNum)
 		enc.marshalBuf = append(enc.marshalBuf, curVal...)
 
 		// Need to copy since the encoder no longer owns the original source of the bytes once
@@ -706,7 +704,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		enc.nonCustomFields[i].marshalled = append(enc.nonCustomFields[i].marshalled[:0], curVal...)
 	}
 
-	if len(enc.changedValues) == 0 {
+	if numChangedFields > 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
