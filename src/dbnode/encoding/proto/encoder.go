@@ -667,17 +667,27 @@ func (enc *Encoder) encodeNonCustomValues() error {
 	enc.changedValues = enc.changedValues[:0]
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 
-	currProtoFields := enc.unmarshaller.sortedNonCustomFieldValues()
-	for i, protoField := range enc.nonCustomFields {
-		// TODO: Fix this loop.
+	var (
+		incomingNonCustomFields = enc.unmarshaller.sortedNonCustomFieldValues()
+		// Matching entries in two sorted lists in which every element in each list is unique so keep
+		// track of the last index at which a match was found so that subsequent inner loops can start
+		// at the next index.
+		lastMatchIdx = -1
+	)
+	enc.marshalBuf = enc.marshalBuf[:0] // Reset buf for reuse.
+
+	for i, existingField := range enc.nonCustomFields {
 		var curVal []byte
-		for _, val := range currProtoFields {
-			if protoField.fieldNum == val.fieldNum {
-				curVal = val.marshalled
+		for i := lastMatchIdx + 1; i < len(incomingNonCustomFields); i++ {
+			incomingField := incomingNonCustomFields[i]
+			if existingField.fieldNum == incomingField.fieldNum {
+				curVal = incomingField.marshalled
+				lastMatchIdx = i
+				break
 			}
 		}
 
-		prevVal := protoField.marshalled
+		prevVal := existingField.marshalled
 		if bytes.Equal(prevVal, curVal) {
 			// No change, nothing to encode.
 			continue
@@ -685,10 +695,12 @@ func (enc *Encoder) encodeNonCustomValues() error {
 
 		if curVal == nil {
 			// Interpret as default value.
-			enc.fieldsChangedToDefault = append(enc.fieldsChangedToDefault, protoField.fieldNum)
+			enc.fieldsChangedToDefault = append(enc.fieldsChangedToDefault, existingField.fieldNum)
 		}
 
-		enc.changedValues = append(enc.changedValues, protoField.fieldNum)
+		enc.changedValues = append(enc.changedValues, existingField.fieldNum)
+		enc.marshalBuf = append(enc.marshalBuf, curVal...)
+
 		// Need to copy since the encoder no longer owns the original source of the bytes once
 		// this function returns.
 		enc.nonCustomFields[i].marshalled = append(enc.nonCustomFields[i].marshalled[:0], curVal...)
@@ -699,16 +711,6 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
 		return nil
-	}
-
-	enc.marshalBuf = enc.marshalBuf[:0]
-	for _, fieldNum := range enc.changedValues {
-		// TODO: Fix this loop.
-		for _, field := range currProtoFields {
-			if field.fieldNum == fieldNum {
-				enc.marshalBuf = append(enc.marshalBuf, field.marshalled...)
-			}
-		}
 	}
 
 	// Control bit indicating that proto values have changed.

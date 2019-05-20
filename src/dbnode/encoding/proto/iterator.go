@@ -463,6 +463,7 @@ func (it *iterator) readNonCustomValues() error {
 				nonCustomField.marshalled...)
 
 			lastMatchIdx = i
+			break
 		}
 	}
 
@@ -481,6 +482,7 @@ func (it *iterator) readNonCustomValues() error {
 				// Resize slice to zero so that the existing capacity can be reused later if required.
 				it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
 				lastMatchIdx = i
+				break
 			}
 		}
 	}
