@@ -56,7 +56,7 @@ type iterator struct {
 	schema               *desc.MessageDescriptor
 	schemaDesc           namespace.SchemaDescr
 	stream               encoding.IStream
-	marshaler            customFieldMarshaler
+	marshaller           customFieldMarshaller
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
@@ -70,7 +70,7 @@ type iterator struct {
 	varIntBuf         [8]byte
 	bitsetValues      []int
 	unmarshalProtoBuf checked.Bytes
-	unmarshaler       customFieldUnmarshaler
+	unmarshaller      customFieldUnmarshaller
 
 	consumedFirstMessage bool
 	done                 bool
@@ -88,7 +88,7 @@ func NewIterator(
 	i := &iterator{
 		opts:       opts,
 		stream:     stream,
-		marshaler:  newCustomMarshaler(),
+		marshaller: newCustomMarshaller(),
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),
 	}
 	i.resetSchema(descr)
@@ -106,7 +106,7 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	it.marshaler.reset()
+	it.marshaller.reset()
 
 	if !it.consumedFirstMessage {
 		if err := it.readStreamHeader(); err != nil {
@@ -221,15 +221,15 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		unit = it.tsIterator.TimeUnit
 	)
 
-	marshalerBytes := it.marshaler.bytes()
-	numBytes := len(marshalerBytes)
+	marshallerBytes := it.marshaller.bytes()
+	numBytes := len(marshallerBytes)
 	for _, protoField := range it.nonCustomFields {
 		numBytes += len(protoField.marshalled)
 	}
 
 	it.resetUnmarshalProtoBuffer(numBytes)
 	buf := it.unmarshalProtoBuf.Bytes()[:0]
-	buf = append(buf, it.marshaler.bytes()...)
+	buf = append(buf, it.marshaller.bytes()...)
 	for _, protoField := range it.nonCustomFields {
 		buf = append(buf, protoField.marshalled...)
 	}
@@ -425,20 +425,20 @@ func (it *iterator) readProtoValues() error {
 			itErrPrefix, int(marshalLen), n)
 	}
 
-	if it.unmarshaler == nil {
+	if it.unmarshaller == nil {
 		// Lazy init.
-		it.unmarshaler = newCustomFieldUnmarshaler(customUnmarshalerOptions{
+		it.unmarshaller = newCustomFieldUnmarshaller(customUnmarshallerOptions{
 			// Skip over unknown fields when unmarshaling because its possible that the stream was
 			// encoded with a newer schema.
 			skipUnknownFields: true,
 		})
 	}
 
-	if err := it.unmarshaler.resetAndUnmarshal(it.schema, unmarshalBytes); err != nil {
+	if err := it.unmarshaller.resetAndUnmarshal(it.schema, unmarshalBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", itErrPrefix, err)
 	}
-	customFieldValues := it.unmarshaler.sortedCustomFieldValues()
+	customFieldValues := it.unmarshaller.sortedCustomFieldValues()
 	if len(customFieldValues) > 0 {
 		// If the proto portion of the message has any fields that could  have been custom
 		// encoded then something went wrong on the encoding side.
@@ -446,7 +446,7 @@ func (it *iterator) readProtoValues() error {
 			"%s encoded protobuf portion of message had custom fields", itErrPrefix)
 	}
 
-	unmarshalledProtoFields := it.unmarshaler.nonCustomFieldValues()
+	unmarshalledProtoFields := it.unmarshaller.nonCustomFieldValues()
 	for _, unmarshalledProtoField := range unmarshalledProtoFields {
 		for i, existingProtoField := range it.nonCustomFields {
 			if unmarshalledProtoField.fieldNum == existingProtoField.fieldNum {
@@ -475,7 +475,7 @@ func (it *iterator) readFloatValue(i int) error {
 	}
 
 	updateArg := updateLastIterArg{i: i}
-	return it.updateMarshalerWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
@@ -489,7 +489,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	if bytesChangedControlBit == opCodeNoChange {
 		// No changes to the bytes value.
 		updateArg := updateLastIterArg{i: i, bytesFieldBuf: it.lastValueBytesDict(i)}
-		return it.updateMarshalerWithCustomValues(updateArg)
+		return it.updateMarshallerWithCustomValues(updateArg)
 	}
 
 	// Bytes have changed since the previous value.
@@ -520,7 +520,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		it.moveToEndOfBytesDict(i, dictIdx)
 
 		updateArg := updateLastIterArg{i: i, bytesFieldBuf: bytesVal}
-		return it.updateMarshalerWithCustomValues(updateArg)
+		return it.updateMarshallerWithCustomValues(updateArg)
 	}
 
 	// New value that was not in the dict already.
@@ -558,7 +558,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	it.addToBytesDict(i, buf)
 
 	updateArg := updateLastIterArg{i: i, bytesFieldBuf: buf}
-	return it.updateMarshalerWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readIntValue(i int) error {
@@ -567,7 +567,7 @@ func (it *iterator) readIntValue(i int) error {
 	}
 
 	updateArg := updateLastIterArg{i: i}
-	return it.updateMarshalerWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBoolValue(i int) error {
@@ -580,7 +580,7 @@ func (it *iterator) readBoolValue(i int) error {
 
 	boolVal := boolOpCode == opCodeBoolTrue
 	updateArg := updateLastIterArg{i: i, boolVal: boolVal}
-	return it.updateMarshalerWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 type updateLastIterArg struct {
@@ -589,10 +589,10 @@ type updateLastIterArg struct {
 	boolVal       bool
 }
 
-// updateMarshalerWithCustomValues updates the marshalled stream with the current
+// updateMarshallerWithCustomValues updates the marshalled stream with the current
 // value of the custom field at index i. This ensures that marshalled protobuf stream
 // returned by Current() contains the most recent value for all of the custom fields.
-func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error {
+func (it *iterator) updateMarshallerWithCustomValues(arg updateLastIterArg) error {
 	var (
 		fieldNum       = int32(it.customFields[arg.i].fieldNum)
 		fieldType      = it.customFields[arg.i].fieldType
@@ -613,9 +613,9 @@ func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error
 			err error
 		)
 		if fieldType == float64Field {
-			it.marshaler.encFloat64(fieldNum, val)
+			it.marshaller.encFloat64(fieldNum, val)
 		} else {
-			it.marshaler.encFloat32(fieldNum, float32(val))
+			it.marshaller.encFloat32(fieldNum, float32(val))
 		}
 		return err
 
@@ -625,19 +625,19 @@ func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error
 			val := int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
 			if protoFieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
 				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
-				// however, Protobuf unmarshalers assume that fields of type sint are zigzag. As a result, the
+				// however, Protobuf unmarshallers assume that fields of type sint are zigzag. As a result, the
 				// iterator needs to check the fields protobuf type so that it can perform the correct encoding.
-				it.marshaler.encSInt64(fieldNum, val)
+				it.marshaller.encSInt64(fieldNum, val)
 			} else if protoFieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 {
-				it.marshaler.encSFixedInt64(fieldNum, val)
+				it.marshaller.encSFixedInt64(fieldNum, val)
 			} else {
-				it.marshaler.encInt64(fieldNum, val)
+				it.marshaller.encInt64(fieldNum, val)
 			}
 			return nil
 
 		case unsignedInt64Field:
 			val := it.customFields[arg.i].intEncAndIter.prevIntBits
-			it.marshaler.encUInt64(fieldNum, val)
+			it.marshaller.encUInt64(fieldNum, val)
 			return nil
 
 		case signedInt32Field:
@@ -653,19 +653,19 @@ func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error
 			fieldType := field.GetType()
 			if fieldType == dpb.FieldDescriptorProto_TYPE_SINT32 {
 				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
-				// however, Protobuf unmarshalers assume that fields of type sint are zigzag. As a result, the
+				// however, Protobuf unmarshallers assume that fields of type sint are zigzag. As a result, the
 				// iterator needs to check the fields protobuf type so that it can perform the correct encoding.
-				it.marshaler.encSInt32(fieldNum, val)
+				it.marshaller.encSInt32(fieldNum, val)
 			} else if fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED32 {
-				it.marshaler.encSFixedInt32(fieldNum, val)
+				it.marshaller.encSFixedInt32(fieldNum, val)
 			} else {
-				it.marshaler.encInt32(fieldNum, val)
+				it.marshaller.encInt32(fieldNum, val)
 			}
 			return nil
 
 		case unsignedInt32Field:
 			val := uint32(it.customFields[arg.i].intEncAndIter.prevIntBits)
-			it.marshaler.encUInt32(fieldNum, val)
+			it.marshaller.encUInt32(fieldNum, val)
 			return nil
 
 		default:
@@ -675,11 +675,11 @@ func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error
 		}
 
 	case fieldType == bytesField:
-		it.marshaler.encBytes(fieldNum, arg.bytesFieldBuf)
+		it.marshaller.encBytes(fieldNum, arg.bytesFieldBuf)
 		return nil
 
 	case fieldType == boolField:
-		it.marshaler.encBool(fieldNum, arg.boolVal)
+		it.marshaller.encBool(fieldNum, arg.boolVal)
 		return nil
 
 	default:

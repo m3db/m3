@@ -26,7 +26,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-type customFieldMarshaler interface {
+type customFieldMarshaller interface {
 	encFloat64(tag int32, x float64)
 	encFloat32(tag int32, x float32)
 	encInt32(tag int32, x int32)
@@ -45,17 +45,17 @@ type customFieldMarshaler interface {
 	reset()
 }
 
-type customMarshaler struct {
+type customMarshaller struct {
 	buf *buffer
 }
 
-func newCustomMarshaler() customFieldMarshaler {
-	return &customMarshaler{
+func newCustomMarshaller() customFieldMarshaller {
+	return &customMarshaller{
 		buf: newCodedBuffer(nil),
 	}
 }
 
-func (m *customMarshaler) encFloat64(tag int32, x float64) {
+func (m *customMarshaller) encFloat64(tag int32, x float64) {
 	if x == 0 {
 		// Default values are not included in the stream.
 		return
@@ -65,7 +65,7 @@ func (m *customMarshaler) encFloat64(tag int32, x float64) {
 	m.buf.encodeFixed64(math.Float64bits(x))
 }
 
-func (m *customMarshaler) encFloat32(tag int32, x float32) {
+func (m *customMarshaller) encFloat32(tag int32, x float32) {
 	if x == 0 {
 		// Default values are not included in the stream.
 		return
@@ -75,7 +75,7 @@ func (m *customMarshaler) encFloat32(tag int32, x float32) {
 	m.buf.encodeFixed32(math.Float32bits(x))
 }
 
-func (m *customMarshaler) encBool(tag int32, x bool) {
+func (m *customMarshaller) encBool(tag int32, x bool) {
 	if !x {
 		// Default values are not included in the stream.
 		return
@@ -84,37 +84,37 @@ func (m *customMarshaler) encBool(tag int32, x bool) {
 	m.encUInt64(tag, 1)
 }
 
-func (m *customMarshaler) encInt32(tag int32, x int32) {
+func (m *customMarshaller) encInt32(tag int32, x int32) {
 	m.encUInt64(tag, uint64(x))
 }
 
-func (m *customMarshaler) encSInt32(tag int32, x int32) {
+func (m *customMarshaller) encSInt32(tag int32, x int32) {
 	m.encUInt64(tag, encodeZigZag32(x))
 }
 
-func (m *customMarshaler) encSFixedInt32(tag int32, x int32) {
+func (m *customMarshaller) encSFixedInt32(tag int32, x int32) {
 	m.buf.encodeTagAndWireType(tag, proto.WireFixed32)
 	m.buf.encodeFixed32(uint32(x))
 }
 
-func (m *customMarshaler) encUInt32(tag int32, x uint32) {
+func (m *customMarshaller) encUInt32(tag int32, x uint32) {
 	m.encUInt64(tag, uint64(x))
 }
 
-func (m *customMarshaler) encInt64(tag int32, x int64) {
+func (m *customMarshaller) encInt64(tag int32, x int64) {
 	m.encUInt64(tag, uint64(x))
 }
 
-func (m *customMarshaler) encSInt64(tag int32, x int64) {
+func (m *customMarshaller) encSInt64(tag int32, x int64) {
 	m.encUInt64(tag, encodeZigZag64(x))
 }
 
-func (m *customMarshaler) encSFixedInt64(tag int32, x int64) {
+func (m *customMarshaller) encSFixedInt64(tag int32, x int64) {
 	m.buf.encodeTagAndWireType(tag, proto.WireFixed64)
 	m.buf.encodeFixed64(uint64(x))
 }
 
-func (m *customMarshaler) encUInt64(tag int32, x uint64) {
+func (m *customMarshaller) encUInt64(tag int32, x uint64) {
 	if x == 0 {
 		// Default values are not included in the stream.
 		return
@@ -124,7 +124,7 @@ func (m *customMarshaler) encUInt64(tag int32, x uint64) {
 	m.buf.encodeVarint(x)
 }
 
-func (m *customMarshaler) encBytes(tag int32, x []byte) {
+func (m *customMarshaller) encBytes(tag int32, x []byte) {
 	if len(x) == 0 {
 		// Default values are not included in the stream.
 		return
@@ -134,19 +134,19 @@ func (m *customMarshaler) encBytes(tag int32, x []byte) {
 	m.buf.encodeRawBytes(x)
 }
 
-func (m *customMarshaler) encPartialProto(tag int32, x []byte) {
+func (m *customMarshaller) encPartialProto(tag int32, x []byte) {
 	m.buf.append(x)
 }
 
-func (m *customMarshaler) bytes() []byte {
+func (m *customMarshaller) bytes() []byte {
 	return m.buf.buf
 }
 
-func (m *customMarshaler) setBytes(b []byte) {
+func (m *customMarshaller) setBytes(b []byte) {
 	m.buf.buf = b
 }
 
-func (m *customMarshaler) reset() {
+func (m *customMarshaller) reset() {
 	b := m.buf.buf
 	if b != nil {
 		b = b[:0]

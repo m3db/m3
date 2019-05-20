@@ -38,18 +38,18 @@ var (
 	zeroValue                unmarshalValue
 )
 
-type customFieldUnmarshaler interface {
+type customFieldUnmarshaller interface {
 	sortedCustomFieldValues() sortedCustomFieldValues
 	nonCustomFieldValues() []marshalledField
 	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
 
-type customUnmarshalerOptions struct {
+type customUnmarshallerOptions struct {
 	skipUnknownFields bool
 }
 
-type customUnmarshaler struct {
+type customUnmarshaller struct {
 	schema       *desc.MessageDescriptor
 	decodeBuf    *buffer
 	customValues sortedCustomFieldValues
@@ -57,29 +57,29 @@ type customUnmarshaler struct {
 	nonCustomValues marshalledFields
 	numNonCustom    int
 
-	opts customUnmarshalerOptions
+	opts customUnmarshallerOptions
 }
 
-func newCustomFieldUnmarshaler(opts customUnmarshalerOptions) customFieldUnmarshaler {
-	return &customUnmarshaler{
+func newCustomFieldUnmarshaller(opts customUnmarshallerOptions) customFieldUnmarshaller {
+	return &customUnmarshaller{
 		decodeBuf: newCodedBuffer(nil),
 		opts:      opts,
 	}
 }
 
-func (u *customUnmarshaler) sortedCustomFieldValues() sortedCustomFieldValues {
+func (u *customUnmarshaller) sortedCustomFieldValues() sortedCustomFieldValues {
 	return u.customValues
 }
 
-func (u *customUnmarshaler) numNonCustomValues() int {
+func (u *customUnmarshaller) numNonCustomValues() int {
 	return u.numNonCustom
 }
 
-func (u *customUnmarshaler) nonCustomFieldValues() []marshalledField {
+func (u *customUnmarshaller) nonCustomFieldValues() []marshalledField {
 	return u.nonCustomValues
 }
 
-func (u *customUnmarshaler) unmarshal() error {
+func (u *customUnmarshaller) unmarshal() error {
 	u.customValues = u.customValues[:0]
 
 	if u.nonCustomValues != nil {
@@ -199,7 +199,7 @@ func (u *customUnmarshaler) unmarshal() error {
 // it up to the `jhump/dynamic` package to handle the encoding. This is important because
 // it allows us to use the efficient unmarshal path only for fields that the encoder can
 // actually take advantage of.
-func (u *customUnmarshaler) isCustomField(fd *desc.FieldDescriptor) bool {
+func (u *customUnmarshaller) isCustomField(fd *desc.FieldDescriptor) bool {
 	if fd.IsRepeated() || fd.IsMap() {
 		// Map should always be repeated but include the guard just in case.
 		return false
@@ -215,7 +215,7 @@ func (u *customUnmarshaler) isCustomField(fd *desc.FieldDescriptor) bool {
 
 // skip will skip over the next value in the encoded stream (given that the tag and
 // wiretype have already been decoded).
-func (u *customUnmarshaler) skip(wireType int8) (int, error) {
+func (u *customUnmarshaller) skip(wireType int8) (int, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		bytesSkipped := 4
@@ -264,7 +264,7 @@ func (u *customUnmarshaler) skip(wireType int8) (int, error) {
 	}
 }
 
-func (u *customUnmarshaler) unmarshalCustomField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
+func (u *customUnmarshaller) unmarshalCustomField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		num, err := u.decodeBuf.decodeFixed32()
@@ -380,7 +380,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	}
 }
 
-func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
+func (u *customUnmarshaller) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
 	u.schema = schema
 	u.numNonCustom = 0
 	u.customValues = u.customValues[:0]

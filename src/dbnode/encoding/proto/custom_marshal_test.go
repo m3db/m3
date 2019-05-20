@@ -43,25 +43,25 @@ func TestCustomMarshal(t *testing.T) {
 		},
 	}
 
-	marshaler := newCustomMarshaler()
+	marshaller := newCustomMarshaller()
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("test_case_%d", i), func(t *testing.T) {
-			marshaler.reset()
-			customMarshalVL(t, marshaler, tc.message)
+			marshaller.reset()
+			customMarshalVL(t, marshaller, tc.message)
 
 			unmarshalM := dynamic.NewMessage(testVLSchema)
-			require.NoError(t, unmarshalM.Unmarshal(marshaler.bytes()))
+			require.NoError(t, unmarshalM.Unmarshal(marshaller.bytes()))
 
 			require.True(t, dynamic.Equal(tc.message, unmarshalM))
 		})
 	}
 }
 
-func customMarshalVL(t *testing.T, marshaler customFieldMarshaler, m *dynamic.Message) {
-	marshaler.encFloat64(1, m.GetFieldByNumber(1).(float64))
-	marshaler.encFloat64(2, m.GetFieldByNumber(2).(float64))
-	marshaler.encInt64(3, m.GetFieldByNumber(3).(int64))
-	marshaler.encBytes(4, m.GetFieldByNumber(4).([]byte))
+func customMarshalVL(t *testing.T, marshaller customFieldMarshaller, m *dynamic.Message) {
+	marshaller.encFloat64(1, m.GetFieldByNumber(1).(float64))
+	marshaller.encFloat64(2, m.GetFieldByNumber(2).(float64))
+	marshaller.encInt64(3, m.GetFieldByNumber(3).(int64))
+	marshaller.encBytes(4, m.GetFieldByNumber(4).([]byte))
 
 	// Fields set to their default value are not marshalled in the Protobuf3 format so to generate
 	// the bytes that represent the attributes map we create a new VL message where every field is
@@ -74,7 +74,7 @@ func customMarshalVL(t *testing.T, marshaler customFieldMarshaler, m *dynamic.Me
 		attributeMapBytes, err = attributesM.Marshal()
 	)
 	require.NoError(t, err)
-	marshaler.encPartialProto(5, attributeMapBytes)
+	marshaller.encPartialProto(5, attributeMapBytes)
 }
 
 func mapInterfaceToMapString(ifaceMap map[interface{}]interface{}) map[string]string {

@@ -74,7 +74,7 @@ type Encoder struct {
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	unmarshaler customFieldUnmarshaler
+	unmarshaller customFieldUnmarshaller
 
 	hasEncodedSchema bool
 	closed           bool
@@ -129,13 +129,13 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// it doesn't cause LastEncoded() to produce invalid results.
 	dp.Value = float64(0)
 
-	if enc.unmarshaler == nil {
+	if enc.unmarshaller == nil {
 		// Lazy init.
-		enc.unmarshaler = newCustomFieldUnmarshaler(customUnmarshalerOptions{})
+		enc.unmarshaller = newCustomFieldUnmarshaller(customUnmarshallerOptions{})
 	}
 	// resetAndUnmarshal before any data is written so that the marshalled message can be validated
 	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
-	if err := enc.unmarshaler.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
+	if err := enc.unmarshaller.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
 			"%s error unmarshaling message: %v", encErrPrefix, err)
 	}
@@ -326,7 +326,7 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
-		sortedTopLevelScalarValues    = enc.unmarshaler.sortedCustomFieldValues()
+		sortedTopLevelScalarValues    = enc.unmarshaller.sortedCustomFieldValues()
 		sortedTopLevelScalarValuesIdx = 0
 		lastMarshalledValue           unmarshalValue
 	)
@@ -667,7 +667,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 	enc.changedValues = enc.changedValues[:0]
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 
-	currProtoFields := enc.unmarshaler.nonCustomFieldValues()
+	currProtoFields := enc.unmarshaller.nonCustomFieldValues()
 	for i, protoField := range enc.nonCustomFields {
 		var curVal []byte
 		for _, val := range currProtoFields {

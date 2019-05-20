@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomFieldUnmarshaler(t *testing.T) {
+func TestCustomFieldUnmarshaller(t *testing.T) {
 	// Store in a var to prevent the compiler from complaining about overflow errors.
 	neg1 := -1
 
@@ -116,15 +116,15 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 		},
 	}
 
-	unmarshaler := newCustomFieldUnmarshaler(customUnmarshalerOptions{})
+	unmarshaller := newCustomFieldUnmarshaller(customUnmarshallerOptions{})
 	for _, tc := range testCases {
 		vl := newVL(
 			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
 		marshalledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		unmarshaler.resetAndUnmarshal(testVLSchema, marshalledVL)
-		sortedCustomFieldValues := unmarshaler.sortedCustomFieldValues()
+		unmarshaller.resetAndUnmarshal(testVLSchema, marshalledVL)
+		sortedCustomFieldValues := unmarshaller.sortedCustomFieldValues()
 		require.Equal(t, len(tc.expectedSortedCustomFields), len(sortedCustomFieldValues))
 
 		lastFieldNum := -1
@@ -150,14 +150,14 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 		}
 
 		if len(tc.attributes) > 0 {
-			require.Equal(t, len(tc.attributes), unmarshaler.numNonCustomValues())
-			// m := unmarshaler.nonCustomFieldValues()
+			require.Equal(t, len(tc.attributes), unmarshaller.numNonCustomValues())
+			// m := unmarshaller.nonCustomFieldValues()
 			// assertAttributesEqual(
 			// 	t,
 			// 	tc.attributes,
 			// 	m.GetFieldByName("attributes").(map[interface{}]interface{}))
 		} else {
-			require.Equal(t, 0, unmarshaler.numNonCustomValues())
+			require.Equal(t, 0, unmarshaller.numNonCustomValues())
 		}
 	}
 }
