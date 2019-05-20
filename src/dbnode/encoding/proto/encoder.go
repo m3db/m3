@@ -669,6 +669,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 
 	currProtoFields := enc.unmarshaller.sortedNonCustomFieldValues()
 	for i, protoField := range enc.nonCustomFields {
+		// TODO: Fix this loop.
 		var curVal []byte
 		for _, val := range currProtoFields {
 			if protoField.fieldNum == val.fieldNum {
@@ -702,6 +703,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 
 	enc.marshalBuf = enc.marshalBuf[:0]
 	for _, fieldNum := range enc.changedValues {
+		// TODO: Fix this loop.
 		for _, field := range currProtoFields {
 			if field.fieldNum == fieldNum {
 				enc.marshalBuf = append(enc.marshalBuf, field.marshalled...)
