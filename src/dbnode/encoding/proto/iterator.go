@@ -442,10 +442,17 @@ func (it *iterator) readNonCustomValues() error {
 
 	// Update any non custom fields that have explicitly changed (they were explicitly included
 	// in the marshaled stream).
-	unmarshalledProtoFields := it.unmarshaller.sortedNonCustomFieldValues()
-	for _, unmarshalledProtoField := range unmarshalledProtoFields {
-		for i, existingProtoField := range it.nonCustomFields {
-			if unmarshalledProtoField.fieldNum != existingProtoField.fieldNum {
+	var (
+		unmarshalledNonCustomFields = it.unmarshaller.sortedNonCustomFieldValues()
+		// Matching entries in two sorted lists in which every element in each list is unique so keep
+		// track of the last index at which a match was found so that subsequent inner loops can start
+		// at the next index.
+		lastMatchIdx = -1
+	)
+	for _, nonCustomField := range unmarshalledNonCustomFields {
+		for i := lastMatchIdx + 1; i < len(it.nonCustomFields); i++ {
+			existingNonCustomField := it.nonCustomFields[i]
+			if nonCustomField.fieldNum != existingNonCustomField.fieldNum {
 				continue
 			}
 
@@ -453,21 +460,27 @@ func (it *iterator) readNonCustomValues() error {
 			// capacity to prevent an allocation if possible.
 			it.nonCustomFields[i].marshalled = append(
 				it.nonCustomFields[i].marshalled[:0],
-				unmarshalledProtoField.marshalled...)
+				nonCustomField.marshalled...)
+
+			lastMatchIdx = i
 		}
 	}
 
 	// Update any non custom fields that have been explicitly set to their default value as determined
 	// by the bitset.
 	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
+		// Same comment as above about matching entries in two sorted lists.
+		lastMatchIdx := -1
 		for _, fieldNum := range it.bitsetValues {
-			for i, protoField := range it.nonCustomFields {
-				if fieldNum != int(protoField.fieldNum) {
+			for i := lastMatchIdx + 1; i < len(it.nonCustomFields); i++ {
+				nonCustomField := it.nonCustomFields[i]
+				if fieldNum != int(nonCustomField.fieldNum) {
 					continue
 				}
 
 				// Resize slice to zero so that the existing capacity can be reused later if required.
 				it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
+				lastMatchIdx = i
 			}
 		}
 	}
