@@ -293,6 +293,7 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 			dps[j].Timestamp = tt(dp.Timestamp)
 			dps[j].Value = vt(dp.Value)
 		}
+
 		dpList[i] = dps
 	}
 
