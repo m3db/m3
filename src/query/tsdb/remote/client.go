@@ -22,6 +22,7 @@ package remote
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -99,6 +100,7 @@ func (c *grpcClient) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
+	fmt.Printf("!! fetch not fetchblock\n")
 	iters, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return nil, err
@@ -142,6 +144,7 @@ func (c *grpcClient) fetchRaw(
 	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
 	if err != nil {
+		fmt.Printf("!! client fetch failed: %v\n", err)
 		return nil, err
 	}
 
@@ -151,25 +154,31 @@ func (c *grpcClient) fetchRaw(
 		select {
 		// If query is killed during gRPC streaming, close the channel
 		case <-ctx.Done():
+			fmt.Printf("!! returning early from ctx timeout\n")
 			return nil, ctx.Err()
 		default:
 		}
 
 		result, err := fetchClient.Recv()
 		if err == io.EOF {
+			fmt.Printf("!! received EOF from remote client\n")
 			break
 		}
 
 		if err != nil {
+			fmt.Printf("!! received err from remote client: %v\n", err)
 			return nil, err
 		}
 
 		iters, err := decodeCompressedFetchResponse(result, pools)
 		if err != nil {
+			fmt.Printf("!! err from remote client stream response %v\n", err)
 			return nil, err
 		}
 
 		seriesIterators = append(seriesIterators, iters.Iters()...)
+
+		fmt.Printf("!! append series iterator: %d len\n", len(seriesIterators))
 	}
 
 	return encoding.NewSeriesIterators(
@@ -184,6 +193,7 @@ func (c *grpcClient) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
+	fmt.Printf("!! YES FETCH BLOCKS\n")
 	iters, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
@@ -202,13 +212,17 @@ func (c *grpcClient) FetchBlocks(
 		c.tagOptions,
 	)
 	if err != nil {
+		fmt.Printf("!! err series iters to fetch result: %v\n", err)
 		return block.Result{}, err
 	}
 
 	res, err := storage.FetchResultToBlockResult(fetchResult, query, c.lookbackDuration, options.Enforcer)
 	if err != nil {
+		fmt.Printf("!! err fetch result to block result: %v\n", err)
 		return block.Result{}, err
 	}
+
+	fmt.Printf("!! RETURN FETCH BLOCKS\n")
 
 	return res, nil
 }

@@ -21,7 +21,7 @@
 package remote
 
 import (
-	"log"
+	"fmt"
 	"sync"
 	"time"
 
@@ -92,7 +92,7 @@ func (s *grpcServer) Fetch(
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 
-	log.Printf("!! received remote query: %v\n", message.String())
+	fmt.Printf("!! received remote query: %v\n", message.String())
 
 	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()
@@ -101,26 +101,29 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	log.Printf("!! returning result: %d num_series\n", result.Len())
+	fmt.Printf("!! returning result: %d num_series\n", result.Len())
 
 	pools, err := s.waitForPools()
 	if err != nil {
 		logger.Error("unable to get pools", zap.Error(err))
+		fmt.Printf("!! unable to get pools: %v\n", err)
 		return err
 	}
 
 	response, err := encodeToCompressedFetchResult(result, pools)
 	if err != nil {
 		logger.Error("unable to compress query", zap.Error(err))
+		fmt.Printf("!! unable to compress query: %v\n", err)
 		return err
 	}
 
 	err = stream.Send(response)
 	if err != nil {
+		fmt.Printf("!! unable to send fetch result: %v\n", err)
 		logger.Error("unable to send fetch result", zap.Error(err))
 	}
 
-	return err
+	return nil
 }
 
 func (s *grpcServer) Search(
