@@ -26,6 +26,8 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
+// encoding methods correspond to the scalar types defined in the protobuf 3
+// specificaiton: https://developers.google.com/protocol-buffers/docs/proto3#scalar
 type customFieldMarshaller interface {
 	encFloat64(tag int32, x float64)
 	encFloat32(tag int32, x float32)
