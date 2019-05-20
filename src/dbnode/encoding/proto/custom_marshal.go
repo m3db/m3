@@ -48,7 +48,6 @@ type customFieldMarshaller interface {
 	encPartialProto(x []byte)
 
 	bytes() []byte
-	setBytes(b []byte)
 	reset()
 }
 
@@ -147,10 +146,6 @@ func (m *customMarshaller) encPartialProto(x []byte) {
 
 func (m *customMarshaller) bytes() []byte {
 	return m.buf.buf
-}
-
-func (m *customMarshaller) setBytes(b []byte) {
-	m.buf.buf = b
 }
 
 func (m *customMarshaller) reset() {
