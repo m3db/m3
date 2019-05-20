@@ -12,6 +12,12 @@ metrics:
   samplingRate: 1.0
   extended: none
 
+# Fanout queries to remote clusters
+rpc:
+  enabled: true
+  listenAddress: "0.0.0.0:7202"
+  remoteListenAddresses: ["coordinator-cluster-a:7202"]
+
 clusters:
   - namespaces:
       - namespace: agg
@@ -31,7 +37,7 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - dbnode01:2379
+                - dbnode-cluster-b:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 

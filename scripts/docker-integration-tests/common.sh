@@ -48,10 +48,10 @@ function setup_single_m3db_node {
 }
 
 function wait_for_db_init {
-  local coordinator_port=${COORDINATOR_PORT:-7201}
   local dbnode_host=${DBNODE_HOST:-dbnode01}
   local dbnode_port=${DBNODE_PORT:-9000}
   local dbnode_health_port=${DBNODE_HEALTH_PORT:-9002}
+  local coordinator_port=${COORDINATOR_PORT:-7201}
 
   echo "Wait for API to be available"
   ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \

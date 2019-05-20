@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -91,12 +92,16 @@ func (s *grpcServer) Fetch(
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 
+	log.Printf("!! received remote query: %v\n", message.String())
+
 	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
 		return err
 	}
+
+	log.Printf("!! returning result: %d num_series\n", result.Len())
 
 	pools, err := s.waitForPools()
 	if err != nil {

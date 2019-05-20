@@ -22,16 +22,6 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator-cluster-a.yml:/etc/m3coordinator/m3coordinator.yml"
-  prometheus-cluster-a:
-    expose:
-      - "9090"
-    ports:
-      - "0.0.0.0:9090:9090"
-    networks:
-      - backend
-    image: prom/prometheus:latest
-    volumes:
-      - "./prometheus-cluster-a.yml:/etc/prometheus/prometheus.yml"
   dbnode-cluster-b:
     expose:
       - "9000-9004"
@@ -54,15 +44,5 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator-cluster-b.yml:/etc/m3coordinator/m3coordinator.yml"
-  prometheus-cluster-b:
-    expose:
-      - "9090"
-    ports:
-      - "0.0.0.0:19090:9090"
-    networks:
-      - backend
-    image: prom/prometheus:latest
-    volumes:
-      - "./prometheus-cluster-b.yml:/etc/prometheus/prometheus.yml"
 networks:
   backend:

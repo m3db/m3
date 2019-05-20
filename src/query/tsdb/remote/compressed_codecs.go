@@ -209,6 +209,7 @@ func encodeToCompressedFetchResult(
 			return nil, err
 		}
 
+		// TODO: REMOVE THIS
 		spew.Dump(series)
 
 		seriesList = append(seriesList, series)
@@ -273,7 +274,7 @@ func tagIteratorFromSeries(
 	iteratorPools encoding.IteratorPools,
 ) (ident.TagIterator, error) {
 	if series != nil && len(series.GetCompressedTags()) > 0 {
-		return tagIteratorFromCompressedTagsWithDecoder( 
+		return tagIteratorFromCompressedTagsWithDecoder(
 			series.GetCompressedTags(),
 			iteratorPools,
 		)
