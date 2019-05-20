@@ -293,6 +293,7 @@ func getBinaryOpType(opType promql.ItemType) string {
 	}
 }
 
+// GetUnaryOpType returns the M3 unary op type based on the Prom op type
 func GetUnaryOpType(opType promql.ItemType) (string, bool) {
 	switch opType {
 	case promql.ItemType(itemADD):
