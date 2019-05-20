@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,7 +94,7 @@ func TestCustomFieldUnmarshaller(t *testing.T) {
 			longitude:  2.2,
 			epoch:      1,
 			deliveryID: []byte("789789789789"),
-			attributes: map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"},
+			attributes: map[string]string{"key1": "val1"},
 
 			expectedSortedCustomFields: []unmarshalValue{
 				{
@@ -151,13 +152,29 @@ func TestCustomFieldUnmarshaller(t *testing.T) {
 
 		if len(tc.attributes) > 0 {
 			require.Equal(t, len(tc.attributes), unmarshaller.numNonCustomValues())
-			// m := unmarshaller.nonCustomFieldValues()
-			// assertAttributesEqual(
-			// 	t,
-			// 	tc.attributes,
-			// 	m.GetFieldByName("attributes").(map[interface{}]interface{}))
+			nonCustomFieldValues := unmarshaller.nonCustomFieldValues()
+			require.Equal(t, 1, len(nonCustomFieldValues))
+			require.Equal(t, 5, nonCustomFieldValues[0].fieldNum)
+
+			assertAttributesEqualMarshaledBytes(
+				t,
+				nonCustomFieldValues[0].marshalled,
+				tc.attributes)
 		} else {
 			require.Equal(t, 0, unmarshaller.numNonCustomValues())
 		}
 	}
+}
+
+func assertAttributesEqualMarshaledBytes(
+	t *testing.T,
+	actualMarshalled []byte,
+	attrs map[string]string,
+) {
+	m := dynamic.NewMessage(testVLSchema)
+	m.SetFieldByName("attributes", attrs)
+	expectedMarshalled, err := m.Marshal()
+
+	require.NoError(t, err)
+	require.Equal(t, expectedMarshalled, actualMarshalled)
 }
