@@ -92,6 +92,12 @@ func TestUnary(t *testing.T) {
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
 }
 
+func TestInvalidUnary(t *testing.T) {
+	q := "*up"
+	_, err := Parse(q, models.NewTagOptions())
+	require.Error(t, err)
+}
+
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
 	_, err := Parse(q, models.NewTagOptions())

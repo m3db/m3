@@ -44,19 +44,20 @@ func buildMeta(start time.Time) Metadata {
 	}
 }
 
-func testLazyOpts(offset time.Duration) LazyOptions {
-	tt := func(t time.Time) time.Time { return t.Add(offset) }
+func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
+	tt := func(t time.Time) time.Time { return t.Add(timeOffset) }
 	mt := func(meta Metadata) Metadata {
-		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+		meta.Bounds.Start = meta.Bounds.Start.Add(timeOffset)
 		return meta
 	}
+	vt := func(val float64) float64 { return val * valOffset }
 
-	return NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt)
+	return NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt).SetValueTransform(vt)
 }
 
 func TestLazyOpts(t *testing.T) {
 	off := time.Minute
-	lazyOpts := testLazyOpts(off)
+	lazyOpts := testLazyOpts(off, 1.0)
 
 	now := time.Now()
 	equalTimes := lazyOpts.TimeTransform()(now).Equal(now.Add(off))
@@ -75,7 +76,7 @@ func TestValidOffset(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewLazyBlock(b, testLazyOpts(offset))
+	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
 
 	// ensure functions are marshalled to the underlying block.
 	b.EXPECT().Close().Return(nil)
@@ -126,7 +127,7 @@ func TestStepIter(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewLazyBlock(b, testLazyOpts(offset))
+	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
 	msg := "err"
 	e := errors.New(msg)
 	now := time.Now()
@@ -173,7 +174,7 @@ func TestSeriesIter(t *testing.T) {
 	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
 	offset := time.Minute
-	off := NewLazyBlock(b, testLazyOpts(offset))
+	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
 	msg := "err"
 	e := errors.New(msg)
 	now := time.Now()
@@ -219,7 +220,7 @@ func TestUnconsolidated(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset))
+	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
 
 	// ensure functions are marshalled to the underlying unconsolidated block.
 	b := NewMockUnconsolidatedBlock(ctrl)
@@ -283,7 +284,7 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset))
+	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
 	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)
@@ -354,7 +355,7 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
 	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset))
+	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
 	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)
@@ -412,6 +413,227 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 			ts.Datapoint{
 				Timestamp: now.Add(offset),
 				Value:     12,
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual.Datapoints())
+}
+
+// negative value offset
+
+func TestStepIterWithNegativeValueOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	b := NewMockBlock(ctrl)
+	offset := time.Duration(0)
+	off := NewLazyBlock(b, testLazyOpts(offset, -1.0))
+	msg := "err"
+	e := errors.New(msg)
+	now := time.Now()
+
+	iter := NewMockStepIter(ctrl)
+	b.EXPECT().StepIter().Return(iter, nil)
+	it, err := off.StepIter()
+	require.NoError(t, err)
+
+	// ensure functions are marshalled to the block's underlying step iterator.
+	iter.EXPECT().Close()
+	it.Close()
+
+	iter.EXPECT().Err().Return(e)
+	assert.EqualError(t, it.Err(), msg)
+
+	iter.EXPECT().StepCount().Return(12)
+	assert.Equal(t, 12, it.StepCount())
+
+	seriesMetas := []SeriesMeta{}
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, seriesMetas, it.SeriesMeta())
+
+	iter.EXPECT().Next().Return(true)
+	assert.True(t, it.Next())
+
+	vals := []float64{1, 2, 3}
+	step := NewMockStep(ctrl)
+	step.EXPECT().Values().Return(vals)
+	step.EXPECT().Time().Return(now)
+
+	expectedVals := []float64{-1, -2, -3}
+	iter.EXPECT().Current().Return(step)
+	actual := it.Current()
+	assert.Equal(t, expectedVals, actual.Values())
+	assert.Equal(t, now, actual.Time())
+}
+
+func TestSeriesIterWithNegativeValueOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	b := NewMockBlock(ctrl)
+	offset := time.Duration(0)
+	off := NewLazyBlock(b, testLazyOpts(offset, -1.0))
+	msg := "err"
+	e := errors.New(msg)
+
+	iter := NewMockSeriesIter(ctrl)
+	b.EXPECT().SeriesIter().Return(iter, nil)
+	it, err := off.SeriesIter()
+	require.NoError(t, err)
+
+	// ensure functions are marshalled to the block's underlying series iterator.
+	iter.EXPECT().Close()
+	it.Close()
+
+	iter.EXPECT().Err().Return(e)
+	assert.EqualError(t, it.Err(), msg)
+
+	iter.EXPECT().SeriesCount().Return(12)
+	assert.Equal(t, 12, it.SeriesCount())
+
+	seriesMetas := []SeriesMeta{}
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, seriesMetas, it.SeriesMeta())
+
+	iter.EXPECT().Next().Return(true)
+	assert.True(t, it.Next())
+
+	vals := []float64{1, 2, 3}
+	series := Series{
+		Meta:   SeriesMeta{},
+		values: vals,
+	}
+
+	expectedVals := []float64{-1, -2, -3}
+	iter.EXPECT().Current().Return(series)
+	assert.Equal(t, expectedVals, it.Current().Values())
+}
+
+func TestUnconsolidatedStepIterWithNegativeValueOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	bb := NewMockBlock(ctrl)
+	defer ctrl.Finish()
+	offset := time.Duration(0)
+	offblock := NewLazyBlock(bb, testLazyOpts(offset, -1.0))
+	now := time.Now()
+	msg := "err"
+	e := errors.New(msg)
+
+	// ensure functions are marshalled to the underlying unconsolidated block.
+	b := NewMockUnconsolidatedBlock(ctrl)
+	bb.EXPECT().Unconsolidated().Return(b, nil)
+
+	off, err := offblock.Unconsolidated()
+	assert.NoError(t, err)
+
+	iter := NewMockUnconsolidatedStepIter(ctrl)
+	b.EXPECT().StepIter().Return(iter, nil)
+	it, err := off.StepIter()
+	require.NoError(t, err)
+
+	// ensure functions are marshalled to the block's underlying step iterator.
+	iter.EXPECT().Close()
+	it.Close()
+
+	iter.EXPECT().Err().Return(e)
+	assert.EqualError(t, it.Err(), msg)
+
+	iter.EXPECT().StepCount().Return(12)
+	assert.Equal(t, 12, it.StepCount())
+
+	seriesMetas := []SeriesMeta{}
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, seriesMetas, it.SeriesMeta())
+
+	iter.EXPECT().Next().Return(true)
+	assert.True(t, it.Next())
+
+	vals := []ts.Datapoints{
+		{
+			ts.Datapoint{
+				Timestamp: now,
+				Value:     12,
+			},
+		},
+	}
+
+	step := NewMockUnconsolidatedStep(ctrl)
+	step.EXPECT().Values().Return(vals).AnyTimes()
+	step.EXPECT().Time().Return(now)
+
+	iter.EXPECT().Current().Return(step)
+	actual := it.Current()
+	expected := []ts.Datapoints{
+		{
+			ts.Datapoint{
+				Timestamp: now,
+				Value:     -12,
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual.Values())
+	assert.Equal(t, now, actual.Time())
+}
+
+func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	bb := NewMockBlock(ctrl)
+	defer ctrl.Finish()
+	offset := time.Duration(0)
+	offblock := NewLazyBlock(bb, testLazyOpts(offset, -1.0))
+	now := time.Now()
+	msg := "err"
+	e := errors.New(msg)
+
+	// ensure functions are marshalled to the underlying unconsolidated block.
+	b := NewMockUnconsolidatedBlock(ctrl)
+	bb.EXPECT().Unconsolidated().Return(b, nil)
+
+	off, err := offblock.Unconsolidated()
+	assert.NoError(t, err)
+
+	iter := NewMockUnconsolidatedSeriesIter(ctrl)
+	b.EXPECT().SeriesIter().Return(iter, nil)
+	it, err := off.SeriesIter()
+	require.NoError(t, err)
+
+	// ensure functions are marshalled to the block's underlying series iterator.
+	iter.EXPECT().Close()
+	it.Close()
+
+	iter.EXPECT().Err().Return(e)
+	assert.EqualError(t, it.Err(), msg)
+
+	iter.EXPECT().SeriesCount().Return(12)
+	assert.Equal(t, 12, it.SeriesCount())
+
+	seriesMetas := []SeriesMeta{}
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, seriesMetas, it.SeriesMeta())
+
+	iter.EXPECT().Next().Return(true)
+	assert.True(t, it.Next())
+
+	vals := []ts.Datapoints{
+		{
+			ts.Datapoint{
+				Timestamp: now,
+				Value:     12,
+			},
+		},
+	}
+
+	unconsolidated := UnconsolidatedSeries{
+		datapoints: vals,
+	}
+
+	iter.EXPECT().Current().Return(unconsolidated)
+	actual := it.Current()
+	expected := []ts.Datapoints{
+		{
+			ts.Datapoint{
+				Timestamp: now,
+				Value:     -12,
 			},
 		},
 	}

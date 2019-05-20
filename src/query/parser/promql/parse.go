@@ -285,8 +285,6 @@ func (p *parseState) walk(node pql.Node) error {
 			return fmt.Errorf("only + and - operators allowed for unary expressions, received: %s", n.Op.String())
 		}
 
-		fmt.Println(unaryType)
-
 		return p.addLazyTransform(0, lazy.UnaryType, unaryType)
 
 	default:

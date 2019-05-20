@@ -37,11 +37,6 @@ const (
 	UnaryType = "unary"
 )
 
-const (
-	ItemAdd = "+"
-	ItemSub = "-"
-)
-
 // NewLazyOp creates a new lazy operation
 func NewLazyOp(
 	opType string,

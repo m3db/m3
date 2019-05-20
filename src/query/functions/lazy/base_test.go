@@ -44,19 +44,20 @@ func buildMeta(start time.Time) block.Metadata {
 	}
 }
 
-func testLazyOpts(offset time.Duration) block.LazyOptions {
-	tt := func(t time.Time) time.Time { return t.Add(offset) }
+func testLazyOpts(timeOffset time.Duration, valOffset float64) block.LazyOptions {
+	tt := func(t time.Time) time.Time { return t.Add(timeOffset) }
 	mt := func(meta block.Metadata) block.Metadata {
-		meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+		meta.Bounds.Start = meta.Bounds.Start.Add(timeOffset)
 		return meta
 	}
+	vt := func(val float64) float64 { return val * valOffset }
 
-	return block.NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt)
+	return block.NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt).SetValueTransform(vt)
 }
 
 func TestOffsetOp(t *testing.T) {
 	offset := time.Minute
-	op, err := NewLazyOp(OffsetType, testLazyOpts(offset))
+	op, err := NewLazyOp(OffsetType, testLazyOpts(offset, 1.0))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "offset", op.OpType())
@@ -91,4 +92,44 @@ func TestOffsetOp(t *testing.T) {
 
 	assert.Equal(t, vals, actual.Values())
 	assert.Equal(t, now.Add(offset), actual.Time())
+}
+
+func TestUnaryOp(t *testing.T) {
+	offset := time.Duration(0)
+	op, err := NewLazyOp(UnaryType, testLazyOpts(offset, -1.0))
+	assert.NoError(t, err)
+
+	assert.Equal(t, "unary", op.OpType())
+	assert.Equal(t, "type: unary", op.String())
+
+	base, ok := op.(baseOp)
+	require.True(t, ok)
+
+	node := base.Node(nil, transform.Options{})
+	n, ok := node.(*baseNode)
+	require.True(t, ok)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	b := block.NewMockBlock(ctrl)
+
+	bl := n.processBlock(b)
+	it := block.NewMockStepIter(ctrl)
+	b.EXPECT().StepIter().Return(it, nil)
+
+	iter, err := bl.StepIter()
+	require.NoError(t, err)
+
+	vals := []float64{1, 2, 3, 4}
+	now := time.Now()
+
+	step := block.NewMockStep(ctrl)
+	step.EXPECT().Time().Return(now)
+	step.EXPECT().Values().Return(vals)
+	it.EXPECT().Current().Return(step)
+	actual := iter.Current()
+
+	expectedVals := []float64{-1, -2, -3, -4}
+	assert.Equal(t, expectedVals, actual.Values())
+	assert.Equal(t, now, actual.Time())
 }
