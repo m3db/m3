@@ -115,7 +115,7 @@ func (s *grpcServer) Fetch(
 		logger.Error("unable to send fetch result", zap.Error(err))
 	}
 
-	return err
+	return nil
 }
 
 func (s *grpcServer) Search(

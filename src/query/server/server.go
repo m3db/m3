@@ -218,7 +218,7 @@ func Run(runOpts RunOptions) {
 	if cfg.Backend == config.GRPCStorageType {
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
 		backendStorage, enabled, err = remoteClient(cfg, tagOptions, poolWrapper,
-			readWorkerPool)
+			readWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -557,6 +557,8 @@ func initClusters(
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
+
+		poolWrapper = pools.NewPoolsWrapper(pools.BuildIteratorPools())
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
@@ -647,6 +649,7 @@ func newStorages(
 			tagOptions,
 			poolWrapper,
 			readWorkerPool,
+			instrumentOpts,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -710,12 +713,15 @@ func remoteClient(
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
+	instrumentOpts instrument.Options,
 ) (storage.Storage, bool, error) {
 	if cfg.RPC == nil {
 		return nil, false, nil
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
+		logger := instrumentOpts.Logger()
+		logger.Info("creating RPC client with remotes", zap.Strings("remotes", remotes))
 		client, err := tsdbRemote.NewGRPCClient(
 			remotes,
 			poolWrapper,

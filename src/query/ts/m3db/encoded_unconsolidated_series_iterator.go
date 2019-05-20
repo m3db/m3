@@ -21,7 +21,6 @@
 package m3db
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -61,7 +60,6 @@ func (it *encodedSeriesIterUnconsolidated) Err() error {
 }
 
 func (it *encodedSeriesIterUnconsolidated) Next() bool {
-	fmt.Printf("THIS iter0 next\n")
 	if it.err != nil {
 		return false
 	}

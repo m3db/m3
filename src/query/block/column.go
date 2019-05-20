@@ -285,7 +285,6 @@ func (m *columnBlockSeriesIter) Err() error {
 }
 
 func (m *columnBlockSeriesIter) Next() bool {
-	fmt.Printf("THIS iter4 next\n")
 	m.idx++
 	next := m.idx < m.SeriesCount()
 	if !next {
