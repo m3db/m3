@@ -23,6 +23,7 @@ package proto
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -162,6 +163,7 @@ func TestRoundTrip(t *testing.T) {
 		m := dynamic.NewMessage(testVLSchema)
 		require.NoError(t, m.Unmarshal(annotation))
 
+		fmt.Println(m.String())
 		require.Equal(t, unit, xtime.Second)
 		require.True(t, tc.timestamp.Equal(dp.Timestamp))
 		// Value is meaningless for proto so should always be zero

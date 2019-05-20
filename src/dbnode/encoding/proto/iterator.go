@@ -204,9 +204,15 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	if err := it.readProtoValues(); err != nil {
+	if err := it.readNonCustomValues(); err != nil {
 		it.err = err
 		return false
+	}
+
+	// Update the marshaller bytes (which will be returned by Current()) with the latest value
+	// for every non-custom field.
+	for _, marshalledField := range it.nonCustomFields {
+		it.marshaller.encPartialProto(marshalledField.marshalled)
 	}
 
 	it.consumedFirstMessage = true
@@ -221,19 +227,7 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		unit = it.tsIterator.TimeUnit
 	)
 
-	marshallerBytes := it.marshaller.bytes()
-	numBytes := len(marshallerBytes)
-	for _, protoField := range it.nonCustomFields {
-		numBytes += len(protoField.marshalled)
-	}
-
-	it.resetUnmarshalProtoBuffer(numBytes)
-	buf := it.unmarshalProtoBuf.Bytes()[:0]
-	buf = append(buf, it.marshaller.bytes()...)
-	for _, protoField := range it.nonCustomFields {
-		buf = append(buf, protoField.marshalled...)
-	}
-	return dp, unit, buf
+	return dp, unit, it.marshaller.bytes()
 }
 
 func (it *iterator) Err() error {
@@ -376,7 +370,7 @@ func (it *iterator) readCustomValues() error {
 	return nil
 }
 
-func (it *iterator) readProtoValues() error {
+func (it *iterator) readNonCustomValues() error {
 	protoChangesControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf("%s err reading proto changes control bit: %v", itErrPrefix, err)
@@ -446,22 +440,34 @@ func (it *iterator) readProtoValues() error {
 			"%s encoded protobuf portion of message had custom fields", itErrPrefix)
 	}
 
+	// Update any non custom fields that have explicitly changed (since they were including in the
+	// marshaled stream).
 	unmarshalledProtoFields := it.unmarshaller.nonCustomFieldValues()
 	for _, unmarshalledProtoField := range unmarshalledProtoFields {
 		for i, existingProtoField := range it.nonCustomFields {
-			if unmarshalledProtoField.fieldNum == existingProtoField.fieldNum {
-				// Copy because the underlying bytes get reused between reads.
-				it.nonCustomFields[i].marshalled = append(it.nonCustomFields[i].marshalled[:0], unmarshalledProtoField.marshalled...)
+			if unmarshalledProtoField.fieldNum != existingProtoField.fieldNum {
+				continue
 			}
+
+			// Copy because the underlying bytes get reused between reads. Also try and reuse the existing
+			// capacity to prevent an allocation if possible.
+			it.nonCustomFields[i].marshalled = append(
+				it.nonCustomFields[i].marshalled[:0],
+				unmarshalledProtoField.marshalled...)
 		}
 	}
 
+	// Update any non custom fields that have been explicitly set to their default value as determined
+	// by the bitset.
 	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
 		for _, fieldNum := range it.bitsetValues {
 			for i, protoField := range it.nonCustomFields {
-				if fieldNum == int(protoField.fieldNum) {
-					it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
+				if fieldNum != int(protoField.fieldNum) {
+					continue
 				}
+
+				// Resize slice to zero so that the existing capacity can be reused later if required.
+				it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
 			}
 		}
 	}

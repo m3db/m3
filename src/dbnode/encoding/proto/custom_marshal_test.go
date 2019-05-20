@@ -74,7 +74,7 @@ func customMarshalVL(t *testing.T, marshaller customFieldMarshaller, m *dynamic.
 		attributeMapBytes, err = attributesM.Marshal()
 	)
 	require.NoError(t, err)
-	marshaller.encPartialProto(5, attributeMapBytes)
+	marshaller.encPartialProto(attributeMapBytes)
 }
 
 func mapInterfaceToMapString(ifaceMap map[interface{}]interface{}) map[string]string {

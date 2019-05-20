@@ -41,7 +41,12 @@ type customFieldMarshaller interface {
 	encUInt64(tag int32, x uint64)
 	encBool(tag int32, x bool)
 	encBytes(tag int32, x []byte)
-	encPartialProto(tag int32, x []byte)
+
+	// Used in cases where marshaled protobuf bytes have already been generated
+	// and need to be appended to the stream. Assumes that the <tag, wireType>
+	// tuple has already been included.
+	encPartialProto(x []byte)
+
 	bytes() []byte
 	setBytes(b []byte)
 	reset()
@@ -136,7 +141,7 @@ func (m *customMarshaller) encBytes(tag int32, x []byte) {
 	m.buf.encodeRawBytes(x)
 }
 
-func (m *customMarshaller) encPartialProto(tag int32, x []byte) {
+func (m *customMarshaller) encPartialProto(x []byte) {
 	m.buf.append(x)
 }
 
