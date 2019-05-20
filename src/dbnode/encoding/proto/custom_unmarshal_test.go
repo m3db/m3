@@ -154,7 +154,7 @@ func TestCustomFieldUnmarshaller(t *testing.T) {
 			require.Equal(t, len(tc.attributes), unmarshaller.numNonCustomValues())
 			nonCustomFieldValues := unmarshaller.nonCustomFieldValues()
 			require.Equal(t, 1, len(nonCustomFieldValues))
-			require.Equal(t, 5, nonCustomFieldValues[0].fieldNum)
+			require.Equal(t, int32(5), nonCustomFieldValues[0].fieldNum)
 
 			assertAttributesEqualMarshaledBytes(
 				t,
