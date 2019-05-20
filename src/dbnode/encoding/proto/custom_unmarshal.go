@@ -80,14 +80,12 @@ func (u *customUnmarshaller) sortedNonCustomFieldValues() sortedMarshaledFields 
 }
 
 func (u *customUnmarshaller) unmarshal() error {
-	u.customValues = u.customValues[:0]
+	u.resetCustomAndNonCustomValues()
 
-	if u.nonCustomValues != nil {
-		u.nonCustomValues = u.nonCustomValues[:0]
-	}
-
-	areCustomValuesSorted := true
-	areNonCustomValuesSorted := true
+	var (
+		areCustomValuesSorted    = true
+		areNonCustomValuesSorted = true
+	)
 	for !u.decodeBuf.eof() {
 		tagAndWireTypeStartOffset := u.decodeBuf.index
 		fieldNum, wireType, err := u.decodeBuf.decodeTagAndWireType()
@@ -136,8 +134,7 @@ func (u *customUnmarshaller) unmarshal() error {
 				// but if it proves problematic in the future the issue could be resolved by accumulating the
 				// marshalled tuples into a slice and then sorting by field number to produce a deterministic
 				// result such that equivalent maps always result in equivalent marshalled bytes slices.
-				for i := range u.nonCustomValues {
-					val := u.nonCustomValues[i]
+				for i, val := range u.nonCustomValues {
 					if fieldNum == val.fieldNum {
 						u.nonCustomValues[i].marshalled = append(u.nonCustomValues[i].marshalled, marshalled...)
 						updatedExisting = true
@@ -383,16 +380,21 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 func (u *customUnmarshaller) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
 	u.schema = schema
 	u.numNonCustom = 0
+	u.resetCustomAndNonCustomValues()
+	u.decodeBuf.reset(buf)
+	return u.unmarshal()
+}
+
+func (u *customUnmarshaller) resetCustomAndNonCustomValues() {
+	for i := range u.customValues {
+		u.customValues[i] = marshalValue{}
+	}
 	u.customValues = u.customValues[:0]
 
 	for i := range u.nonCustomValues {
 		u.nonCustomValues[i] = marshalledField{}
 	}
 	u.nonCustomValues = u.nonCustomValues[:0]
-
-	u.decodeBuf.reset(buf)
-
-	return u.unmarshal()
 }
 
 type sortedCustomFieldValues []unmarshalValue

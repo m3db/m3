@@ -671,7 +671,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		// track of the last index at which a match was found so that subsequent inner loops can start
 		// at the next index.
 		lastMatchIdx     = -1
-		numChangedFields = 0
+		numChangedValues = 0
 	)
 	enc.marshalBuf = enc.marshalBuf[:0] // Reset buf for reuse.
 
@@ -692,7 +692,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 			continue
 		}
 
-		numChangedFields++
+		numChangedValues++
 		if curVal == nil {
 			// Interpret as default value.
 			enc.fieldsChangedToDefault = append(enc.fieldsChangedToDefault, existingField.fieldNum)
@@ -704,7 +704,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		enc.nonCustomFields[i].marshalled = append(enc.nonCustomFields[i].marshalled[:0], curVal...)
 	}
 
-	if numChangedFields > 0 {
+	if numChangedValues <= 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
