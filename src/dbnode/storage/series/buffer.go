@@ -247,7 +247,7 @@ func (b *dbBuffer) Write(
 
 	if writeType == ColdWrite {
 		/*
-			Disable until cold writes is ready as this is confusing to users
+			Disable until cold writes is ready as this is confusing to users.
 			if !b.coldWritesEnabled {
 				return false, m3dberrors.ErrColdWritesNotEnabled
 			}
