@@ -667,7 +667,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 	enc.changedValues = enc.changedValues[:0]
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
 
-	currProtoFields := enc.unmarshaller.nonCustomFieldValues()
+	currProtoFields := enc.unmarshaller.sortedNonCustomFieldValues()
 	for i, protoField := range enc.nonCustomFields {
 		var curVal []byte
 		for _, val := range currProtoFields {

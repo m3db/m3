@@ -152,7 +152,7 @@ func TestCustomFieldUnmarshaller(t *testing.T) {
 
 		if len(tc.attributes) > 0 {
 			require.Equal(t, len(tc.attributes), unmarshaller.numNonCustomValues())
-			nonCustomFieldValues := unmarshaller.nonCustomFieldValues()
+			nonCustomFieldValues := unmarshaller.sortedNonCustomFieldValues()
 			require.Equal(t, 1, len(nonCustomFieldValues))
 			require.Equal(t, int32(5), nonCustomFieldValues[0].fieldNum)
 

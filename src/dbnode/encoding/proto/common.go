@@ -148,7 +148,7 @@ type marshalledField struct {
 	marshalled []byte
 }
 
-type marshalledFields []marshalledField
+type sortedMarshaledFields []marshalledField
 
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
@@ -322,14 +322,14 @@ func numBitsRequiredForNumUpToN(n int) int {
 	return count
 }
 
-func (m marshalledFields) Len() int {
+func (m sortedMarshaledFields) Len() int {
 	return len(m)
 }
 
-func (m marshalledFields) Less(i, j int) bool {
+func (m sortedMarshaledFields) Less(i, j int) bool {
 	return m[i].fieldNum < m[j].fieldNum
 }
 
-func (m marshalledFields) Swap(i, j int) {
+func (m sortedMarshaledFields) Swap(i, j int) {
 	m[i], m[j] = m[j], m[i]
 }

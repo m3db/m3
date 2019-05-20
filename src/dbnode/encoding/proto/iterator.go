@@ -440,9 +440,9 @@ func (it *iterator) readNonCustomValues() error {
 			"%s encoded protobuf portion of message had custom fields", itErrPrefix)
 	}
 
-	// Update any non custom fields that have explicitly changed (since they were including in the
-	// marshaled stream).
-	unmarshalledProtoFields := it.unmarshaller.nonCustomFieldValues()
+	// Update any non custom fields that have explicitly changed (they were explicitly included
+	// in the marshaled stream).
+	unmarshalledProtoFields := it.unmarshaller.sortedNonCustomFieldValues()
 	for _, unmarshalledProtoField := range unmarshalledProtoFields {
 		for i, existingProtoField := range it.nonCustomFields {
 			if unmarshalledProtoField.fieldNum != existingProtoField.fieldNum {

@@ -40,7 +40,7 @@ var (
 
 type customFieldUnmarshaller interface {
 	sortedCustomFieldValues() sortedCustomFieldValues
-	nonCustomFieldValues() []marshalledField
+	sortedNonCustomFieldValues() sortedMarshaledFields
 	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
@@ -54,7 +54,7 @@ type customUnmarshaller struct {
 	decodeBuf    *buffer
 	customValues sortedCustomFieldValues
 
-	nonCustomValues marshalledFields
+	nonCustomValues sortedMarshaledFields
 	numNonCustom    int
 
 	opts customUnmarshallerOptions
@@ -75,7 +75,7 @@ func (u *customUnmarshaller) numNonCustomValues() int {
 	return u.numNonCustom
 }
 
-func (u *customUnmarshaller) nonCustomFieldValues() []marshalledField {
+func (u *customUnmarshaller) sortedNonCustomFieldValues() sortedMarshaledFields {
 	return u.nonCustomValues
 }
 
