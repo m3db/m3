@@ -22,6 +22,7 @@ package instrument
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -81,15 +82,27 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 		reporters = append(reporters, r)
 	}
 	if mc.PrometheusReporter != nil {
-		opts := prometheus.ConfigurationOptions{
-			// Override the default registry with an empty one that does not have the default
-			// registered collectors (Go and Process) because the M3 reporters will emit those
-			// metrics anyways and some of the metrics can be expensive to collect. For example,
-			// collecting the number of F.Ds for a process that has many of them can take a long
-			// time and be very CPU intensive, especially the Prometheus implementation which is
-			// less optimized than the M3 implementation.
-			Registry: prom.NewRegistry(),
+		// Override the default registry with an empty one that does not have the default
+		// registered collectors (Go and Process) because the M3 reporters will emit those
+		// metrics anyways and some of the metrics can be expensive to collect.
+		//
+		// We register our own slightly modified process collector that does not emit
+		// the number of F.D.s open for a process and rely on our process reporter to
+		// emit the number of file descriptors.
+		//
+		// For example, collecting the number of F.Ds for a process that has many of
+		// them can take a long time and be very CPU intensive, especially the default
+		// Prometheus implementation which is less optimized than the M3 implementation.
+		//
+		// TODO: Emit the Prometheus process stats from our own process reporter so we
+		// get the same stats regardless of the reporter used.
+		registry := prom.NewRegistry()
+		if err := registry.Register(NewPrometheusProcessCollector(ProcessCollectorOpts{
+			DisableOpenFDs: true,
+		})); err != nil {
+			return nil, nil, fmt.Errorf("could not create process collector: %v", err)
 		}
+		opts := prometheus.ConfigurationOptions{Registry: registry}
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, err
