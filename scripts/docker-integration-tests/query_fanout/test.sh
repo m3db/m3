@@ -51,7 +51,7 @@ curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
 }'
 
 echo "Write data to cluster b"
-curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
+curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-b\",endpoint=\"/request\"}",
   "tags": [
