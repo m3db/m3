@@ -72,6 +72,10 @@ type ProcessCollectorOpts struct {
 //
 // Currently, the collector depends on a Linux-style proc filesystem and
 // therefore only exports metrics for Linux.
+//
+// NB(r): This version of the Prometheus process collector allows skipping emitting
+// open FDs due to excessive load reporting open FDs with processes with
+// a large number of open FDs.
 func NewPrometheusProcessCollector(opts ProcessCollectorOpts) prometheus.Collector {
 	ns := ""
 	if len(opts.Namespace) > 0 {

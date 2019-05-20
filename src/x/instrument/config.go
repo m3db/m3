@@ -83,19 +83,18 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 	}
 	if mc.PrometheusReporter != nil {
 		// Override the default registry with an empty one that does not have the default
-		// registered collectors (Go and Process) because the M3 reporters will emit those
-		// metrics anyways and some of the metrics can be expensive to collect.
+		// registered collectors (Go and Process). The M3 reporters will emit the Go metrics
+		// and the Process metrics are reported by both the M3 process reporter and a
+		// modified Prometheus process collector, which reports everything except the
+		// number of open FDs.
 		//
-		// We register our own slightly modified process collector that does not emit
-		// the number of F.D.s open for a process and rely on our process reporter to
-		// emit the number of file descriptors.
-		//
-		// For example, collecting the number of F.Ds for a process that has many of
-		// them can take a long time and be very CPU intensive, especially the default
-		// Prometheus implementation which is less optimized than the M3 implementation.
+		// Collecting the number of F.Ds for a process that has many of them can take a long
+		// time and be very CPU intensive, especially the default Prometheus collector
+		// implementation which is less optimized than the M3 implementation.
 		//
 		// TODO: Emit the Prometheus process stats from our own process reporter so we
-		// get the same stats regardless of the reporter used.
+		// get the same stats regardless of the reporter used. See issue:
+		// https://github.com/m3db/m3/issues/1649
 		registry := prom.NewRegistry()
 		if err := registry.Register(NewPrometheusProcessCollector(ProcessCollectorOpts{
 			DisableOpenFDs: true,

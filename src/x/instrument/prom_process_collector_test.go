@@ -28,10 +28,9 @@ import (
 	"testing"
 
 	"github.com/m3db/prometheus_client_golang/prometheus"
+	dto "github.com/m3db/prometheus_client_model/go"
 	"github.com/m3db/prometheus_common/expfmt"
 	procfs "github.com/m3db/prometheus_procfs"
-
-	dto "github.com/m3db/prometheus_client_model/go"
 )
 
 func TestProcessCollector(t *testing.T) {
