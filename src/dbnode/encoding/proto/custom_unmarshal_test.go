@@ -79,7 +79,7 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 					v:           math.Float64bits(1.1),
 				},
 				// Note that epoch (field number 3) is not included here because default
-				// value are not included in a marshaled protobuf stream (their absence
+				// value are not included in a marshalled protobuf stream (their absence
 				// implies a default vlaue for a field) which means they're also not
 				// returned by the `sortedCustomFieldValues` method.
 				{
@@ -120,10 +120,10 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 	for _, tc := range testCases {
 		vl := newVL(
 			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
-		marshaledVL, err := vl.Marshal()
+		marshalledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		unmarshaler.resetAndUnmarshal(testVLSchema, marshaledVL)
+		unmarshaler.resetAndUnmarshal(testVLSchema, marshalledVL)
 		sortedCustomFieldValues := unmarshaler.sortedCustomFieldValues()
 		require.Equal(t, len(tc.expectedSortedCustomFields), len(sortedCustomFieldValues))
 

@@ -63,7 +63,7 @@ func customMarshalVL(t *testing.T, marshaler customFieldMarshaler, m *dynamic.Me
 	marshaler.encInt64(3, m.GetFieldByNumber(3).(int64))
 	marshaler.encBytes(4, m.GetFieldByNumber(4).([]byte))
 
-	// Fields set to their default value are not marshaled in the Protobuf3 format so to generate
+	// Fields set to their default value are not marshalled in the Protobuf3 format so to generate
 	// the bytes that represent the attributes map we create a new VL message where every field is
 	// set to its default value except for the attributes map and then Marshal() it into a byte stream
 	// which will create a stream that only includes the attributes field.

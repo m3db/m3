@@ -40,7 +40,7 @@ var (
 
 type customFieldUnmarshaler interface {
 	sortedCustomFieldValues() sortedCustomFieldValues
-	nonCustomFieldValues() []marshaledField
+	nonCustomFieldValues() []marshalledField
 	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
@@ -54,7 +54,7 @@ type customUnmarshaler struct {
 	decodeBuf    *buffer
 	customValues sortedCustomFieldValues
 
-	nonCustomValues marshaledFields
+	nonCustomValues marshalledFields
 	numNonCustom    int
 
 	opts customUnmarshalerOptions
@@ -75,7 +75,7 @@ func (u *customUnmarshaler) numNonCustomValues() int {
 	return u.numNonCustom
 }
 
-func (u *customUnmarshaler) nonCustomFieldValues() []marshaledField {
+func (u *customUnmarshaler) nonCustomFieldValues() []marshalledField {
 	return u.nonCustomValues
 }
 
@@ -114,19 +114,19 @@ func (u *customUnmarshaler) unmarshal() error {
 			}
 
 			var (
-				startIdx  = tagAndWireTypeStartOffset
-				endIdx    = u.decodeBuf.index
-				marshaled = u.decodeBuf.buf[startIdx:endIdx]
+				startIdx   = tagAndWireTypeStartOffset
+				endIdx     = u.decodeBuf.index
+				marshalled = u.decodeBuf.buf[startIdx:endIdx]
 			)
-			// A marshaled Protobuf message consists of a stream of <fieldNumber, wireType, value>
+			// A marshalled Protobuf message consists of a stream of <fieldNumber, wireType, value>
 			// tuples, all of which are optional, with no additional header or footer information.
 			// This means that each tuple within the stream can be thought of as its own complete
-			// marshaled message and as a result we can build up the []marshaledField one field at
+			// marshalled message and as a result we can build up the []marshalledField one field at
 			// a time.
 			updatedExisting := false
 			if fd.IsRepeated() {
 				// If the fd is a repeated type and not using `packed` encoding then their could be multiple
-				// entries in the stream with the same field number so their marshaled bytes needs to be all
+				// entries in the stream with the same field number so their marshalled bytes needs to be all
 				// concatenated together.
 				//
 				// NB(rartoul): This will have an adverse impact on the compression of map types because the
@@ -134,21 +134,21 @@ func (u *customUnmarshaler) unmarshal() error {
 				// maps to have different byte streams which will force the encoder to re-encode the field into
 				// the stream even though it hasn't changed. This naive solution should be good enough for now,
 				// but if it proves problematic in the future the issue could be resolved by accumulating the
-				// marshaled tuples into a slice and then sorting by field number to produce a deterministic
-				// result such that equivalent maps always result in equivalent marshaled bytes slices.
+				// marshalled tuples into a slice and then sorting by field number to produce a deterministic
+				// result such that equivalent maps always result in equivalent marshalled bytes slices.
 				for i := range u.nonCustomValues {
 					val := u.nonCustomValues[i]
 					if fieldNum == val.fieldNum {
-						u.nonCustomValues[i].marshaled = append(u.nonCustomValues[i].marshaled, marshaled...)
+						u.nonCustomValues[i].marshalled = append(u.nonCustomValues[i].marshalled, marshalled...)
 						updatedExisting = true
 						break
 					}
 				}
 			}
 			if !updatedExisting {
-				u.nonCustomValues = append(u.nonCustomValues, marshaledField{
-					fieldNum:  fieldNum,
-					marshaled: marshaled,
+				u.nonCustomValues = append(u.nonCustomValues, marshalledField{
+					fieldNum:   fieldNum,
+					marshalled: marshalled,
 				})
 			}
 
@@ -386,7 +386,7 @@ func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, bu
 	u.customValues = u.customValues[:0]
 
 	for i := range u.nonCustomValues {
-		u.nonCustomValues[i] = marshaledField{}
+		u.nonCustomValues[i] = marshalledField{}
 	}
 	u.nonCustomValues = u.nonCustomValues[:0]
 

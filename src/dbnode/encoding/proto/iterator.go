@@ -61,7 +61,7 @@ type iterator struct {
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
 	customFields    []customFieldState
-	nonCustomFields []marshaledField
+	nonCustomFields []marshalledField
 
 	tsIterator m3tsz.TimestampIterator
 
@@ -224,14 +224,14 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	marshalerBytes := it.marshaler.bytes()
 	numBytes := len(marshalerBytes)
 	for _, protoField := range it.nonCustomFields {
-		numBytes += len(protoField.marshaled)
+		numBytes += len(protoField.marshalled)
 	}
 
 	it.resetUnmarshalProtoBuffer(numBytes)
 	buf := it.unmarshalProtoBuf.Bytes()[:0]
 	buf = append(buf, it.marshaler.bytes()...)
 	for _, protoField := range it.nonCustomFields {
-		buf = append(buf, protoField.marshaled...)
+		buf = append(buf, protoField.marshalled...)
 	}
 	return dp, unit, buf
 }
@@ -407,21 +407,21 @@ func (it *iterator) readProtoValues() error {
 		return fmt.Errorf("%s err reading proto length varint: %v", itErrPrefix, err)
 	}
 
-	if marshalLen > maxMarshaledProtoMessageSize {
+	if marshalLen > maxMarshalledProtoMessageSize {
 		return fmt.Errorf(
-			"%s marshaled protobuf size was %d which is larger than the maximum of %d",
-			itErrPrefix, marshalLen, maxMarshaledProtoMessageSize)
+			"%s marshalled protobuf size was %d which is larger than the maximum of %d",
+			itErrPrefix, marshalLen, maxMarshalledProtoMessageSize)
 	}
 
 	it.resetUnmarshalProtoBuffer(int(marshalLen))
 	unmarshalBytes := it.unmarshalProtoBuf.Bytes()
 	n, err := it.stream.Read(unmarshalBytes)
 	if err != nil {
-		return fmt.Errorf("%s: error reading marshaled proto bytes: %v", itErrPrefix, err)
+		return fmt.Errorf("%s: error reading marshalled proto bytes: %v", itErrPrefix, err)
 	}
 	if n != int(marshalLen) {
 		return fmt.Errorf(
-			"%s tried to read %d marshaled proto bytes but only read %d",
+			"%s tried to read %d marshalled proto bytes but only read %d",
 			itErrPrefix, int(marshalLen), n)
 	}
 
@@ -446,12 +446,12 @@ func (it *iterator) readProtoValues() error {
 			"%s encoded protobuf portion of message had custom fields", itErrPrefix)
 	}
 
-	unmarshaledProtoFields := it.unmarshaler.nonCustomFieldValues()
-	for _, unmarshaledProtoField := range unmarshaledProtoFields {
+	unmarshalledProtoFields := it.unmarshaler.nonCustomFieldValues()
+	for _, unmarshalledProtoField := range unmarshalledProtoFields {
 		for i, existingProtoField := range it.nonCustomFields {
-			if unmarshaledProtoField.fieldNum == existingProtoField.fieldNum {
+			if unmarshalledProtoField.fieldNum == existingProtoField.fieldNum {
 				// Copy because the underlying bytes get reused between reads.
-				it.nonCustomFields[i].marshaled = append(it.nonCustomFields[i].marshaled[:0], unmarshaledProtoField.marshaled...)
+				it.nonCustomFields[i].marshalled = append(it.nonCustomFields[i].marshalled[:0], unmarshalledProtoField.marshalled...)
 			}
 		}
 	}
@@ -460,7 +460,7 @@ func (it *iterator) readProtoValues() error {
 		for _, fieldNum := range it.bitsetValues {
 			for i, protoField := range it.nonCustomFields {
 				if fieldNum == int(protoField.fieldNum) {
-					it.nonCustomFields[i].marshaled = it.nonCustomFields[i].marshaled[:0]
+					it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
 				}
 			}
 		}
@@ -589,8 +589,8 @@ type updateLastIterArg struct {
 	boolVal       bool
 }
 
-// updateMarshalerWithCustomValues updates the marshaled stream with the current
-// value of the custom field at index i. This ensures that marshaled protobuf stream
+// updateMarshalerWithCustomValues updates the marshalled stream with the current
+// value of the custom field at index i. This ensures that marshalled protobuf stream
 // returned by Current() contains the most recent value for all of the custom fields.
 func (it *iterator) updateMarshalerWithCustomValues(arg updateLastIterArg) error {
 	var (

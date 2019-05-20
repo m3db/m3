@@ -38,9 +38,9 @@ const (
 	// limitations, but we want some theoretical maximum so that in the case of data / memory
 	// corruption the iterator can avoid panicing due to trying to allocate a massive byte slice
 	// (MAX_UINT64 for example) and return a reasonable error message instead.
-	maxMarshaledProtoMessageSize = 2 << 29
+	maxMarshalledProtoMessageSize = 2 << 29
 
-	// maxCustomFieldNum is included for the same rationale as maxMarshaledProtoMessageSize.
+	// maxCustomFieldNum is included for the same rationale as maxMarshalledProtoMessageSize.
 	maxCustomFieldNum = 10000
 
 	protoFieldTypeNotFound dpb.FieldDescriptorProto_Type = -1
@@ -143,12 +143,12 @@ var (
 	}
 )
 
-type marshaledField struct {
-	fieldNum  int32
-	marshaled []byte
+type marshalledField struct {
+	fieldNum   int32
+	marshalled []byte
 }
 
-type marshaledFields []marshaledField
+type marshalledFields []marshalledField
 
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
@@ -198,7 +198,7 @@ func newCustomFieldState(
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customAndNonCustomFields(customFields []customFieldState, nonCustomFields []marshaledField, schema *desc.MessageDescriptor) ([]customFieldState, []marshaledField) {
+func customAndNonCustomFields(customFields []customFieldState, nonCustomFields []marshalledField, schema *desc.MessageDescriptor) ([]customFieldState, []marshalledField) {
 	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
 	numNonCustomFields := len(fields) - numCustomFields
@@ -214,11 +214,11 @@ func customAndNonCustomFields(customFields []customFieldState, nonCustomFields [
 
 	if cap(nonCustomFields) >= numNonCustomFields {
 		for i := range nonCustomFields {
-			nonCustomFields[i] = marshaledField{}
+			nonCustomFields[i] = marshalledField{}
 		}
 		nonCustomFields = nonCustomFields[:0]
 	} else {
-		nonCustomFields = make([]marshaledField, 0, numNonCustomFields)
+		nonCustomFields = make([]marshalledField, 0, numNonCustomFields)
 	}
 
 	var (
@@ -236,7 +236,7 @@ func customAndNonCustomFields(customFields []customFieldState, nonCustomFields [
 
 		customFieldType, ok := isCustomField(fieldType, field.IsRepeated())
 		if !ok {
-			nonCustomFields = append(nonCustomFields, marshaledField{fieldNum: fieldNum})
+			nonCustomFields = append(nonCustomFields, marshalledField{fieldNum: fieldNum})
 			continue
 		}
 
@@ -322,14 +322,14 @@ func numBitsRequiredForNumUpToN(n int) int {
 	return count
 }
 
-func (m marshaledFields) Len() int {
+func (m marshalledFields) Len() int {
 	return len(m)
 }
 
-func (m marshaledFields) Less(i, j int) bool {
+func (m marshalledFields) Less(i, j int) bool {
 	return m[i].fieldNum < m[j].fieldNum
 }
 
-func (m marshaledFields) Swap(i, j int) {
+func (m marshalledFields) Swap(i, j int) {
 	m[i], m[j] = m[j], m[i]
 }

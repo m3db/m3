@@ -38,7 +38,7 @@ func TestCustomAndProtoFields(t *testing.T) {
 	testCases := []struct {
 		schema                  *desc.MessageDescriptor
 		expectedCustomFields    []customFieldState
-		expectedNonCustomFields []marshaledField
+		expectedNonCustomFields []marshalledField
 	}{
 		{
 			schema: newVLMessageDescriptor(),
@@ -68,7 +68,7 @@ func TestCustomAndProtoFields(t *testing.T) {
 					protoFieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
 				},
 			},
-			expectedNonCustomFields: []marshaledField{{fieldNum: 5}},
+			expectedNonCustomFields: []marshalledField{{fieldNum: 5}},
 		},
 	}
 

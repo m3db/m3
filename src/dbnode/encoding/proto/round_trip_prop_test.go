@@ -376,17 +376,17 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 
 	// Basic sanity test to protect against bugs in the underlying library:
 	// https://github.com/jhump/protoreflect/issues/181
-	marshaled, err := message.Marshal()
+	marshalled, err := message.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	unmarshaled := dynamic.NewMessage(schema)
-	err = unmarshaled.Unmarshal(marshaled)
+	unmarshalled := dynamic.NewMessage(schema)
+	err = unmarshalled.Unmarshal(marshalled)
 	if err != nil {
 		panic(err)
 	}
-	if !dynamic.MessagesEqual(message, unmarshaled) {
-		panic("generated message that is not equal after being marshaled and unmarshaled")
+	if !dynamic.MessagesEqual(message, unmarshalled) {
+		panic("generated message that is not equal after being marshalled and unmarshalled")
 	}
 
 	return messageAndTimeUnit{

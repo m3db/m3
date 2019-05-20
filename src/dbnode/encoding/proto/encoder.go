@@ -65,7 +65,7 @@ type Encoder struct {
 	numEncoded      int
 	lastEncodedDP   ts.Datapoint
 	customFields    []customFieldState
-	nonCustomFields []marshaledField
+	nonCustomFields []marshalledField
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -114,7 +114,7 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 // in order to implement the encoding.Encoder interface. It accepts a ts.Datapoint, but
 // only the Timestamp field will be used, the Value field will be ignored and will always
 // return 0 on subsequent iteration. In addition, the provided annotation is expected to
-// be a marshaled protobuf message that matches the configured schema.
+// be a marshalled protobuf message that matches the configured schema.
 func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.Annotation) error {
 	if unusableErr := enc.isUsable(); unusableErr != nil {
 		return unusableErr
@@ -133,7 +133,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 		// Lazy init.
 		enc.unmarshaler = newCustomFieldUnmarshaler(customUnmarshalerOptions{})
 	}
-	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
+	// resetAndUnmarshal before any data is written so that the marshalled message can be validated
 	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
 	if err := enc.unmarshaler.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
@@ -328,7 +328,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
 		sortedTopLevelScalarValues    = enc.unmarshaler.sortedCustomFieldValues()
 		sortedTopLevelScalarValuesIdx = 0
-		lastMarshaledValue            unmarshalValue
+		lastMarshalledValue           unmarshalValue
 	)
 
 	// Loop through the customFields slice and sortedTopLevelScalarValues slice (both
@@ -336,14 +336,14 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 	// to its encoded value in the stream (if any).
 	for i, customField := range enc.customFields {
 		if sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues) {
-			lastMarshaledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
+			lastMarshalledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
 		}
 
-		lastMarshaledValueFieldNumber := -1
+		lastMarshalledValueFieldNumber := -1
 
 		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
 		if hasNext {
-			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fieldNumber)
+			lastMarshalledValueFieldNumber = int(lastMarshalledValue.fieldNumber)
 		}
 
 		// Since both the customFields slice and the sortedTopLevelScalarValues slice
@@ -352,9 +352,9 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		// of the current customField, it is safe to conclude that the current customField's
 		// value was not encoded in this message which means that it should be interpreted
 		// as the default value for that field according to the proto3 specification.
-		noMarshaledValue := (!hasNext ||
-			customField.fieldNum != lastMarshaledValueFieldNumber)
-		if noMarshaledValue {
+		noMarshalledValue := (!hasNext ||
+			customField.fieldNum != lastMarshalledValueFieldNumber)
+		if noMarshalledValue {
 			err := enc.encodeZeroValue(i)
 			if err != nil {
 				return err
@@ -364,23 +364,23 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
-			enc.encodeTSZValue(i, lastMarshaledValue.asFloat64())
+			enc.encodeTSZValue(i, lastMarshalledValue.asFloat64())
 
 		case isCustomIntEncodedField(customField.fieldType):
 			if isUnsignedInt(customField.fieldType) {
-				enc.encodeUnsignedIntValue(i, lastMarshaledValue.asUint64())
+				enc.encodeUnsignedIntValue(i, lastMarshalledValue.asUint64())
 			} else {
-				enc.encodeSignedIntValue(i, lastMarshaledValue.asInt64())
+				enc.encodeSignedIntValue(i, lastMarshalledValue.asInt64())
 			}
 
 		case customField.fieldType == bytesField:
-			err := enc.encodeBytesValue(i, lastMarshaledValue.asBytes())
+			err := enc.encodeBytesValue(i, lastMarshalledValue.asBytes())
 			if err != nil {
 				return err
 			}
 
 		case customField.fieldType == boolField:
-			enc.encodeBoolValue(i, lastMarshaledValue.asBool())
+			enc.encodeBoolValue(i, lastMarshalledValue.asBool())
 
 		default:
 			// This should never happen.
@@ -672,11 +672,11 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		var curVal []byte
 		for _, val := range currProtoFields {
 			if protoField.fieldNum == val.fieldNum {
-				curVal = val.marshaled
+				curVal = val.marshalled
 			}
 		}
 
-		prevVal := protoField.marshaled
+		prevVal := protoField.marshalled
 		if bytes.Equal(prevVal, curVal) {
 			// No change, nothing to encode.
 			continue
@@ -690,7 +690,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 		enc.changedValues = append(enc.changedValues, protoField.fieldNum)
 		// Need to copy since the encoder no longer owns the original source of the bytes once
 		// this function returns.
-		enc.nonCustomFields[i].marshaled = append(enc.nonCustomFields[i].marshaled[:0], curVal...)
+		enc.nonCustomFields[i].marshalled = append(enc.nonCustomFields[i].marshalled[:0], curVal...)
 	}
 
 	if len(enc.changedValues) == 0 {
@@ -704,7 +704,7 @@ func (enc *Encoder) encodeNonCustomValues() error {
 	for _, fieldNum := range enc.changedValues {
 		for _, field := range currProtoFields {
 			if field.fieldNum == fieldNum {
-				enc.marshalBuf = append(enc.marshalBuf, field.marshaled...)
+				enc.marshalBuf = append(enc.marshalBuf, field.marshalled...)
 			}
 		}
 	}

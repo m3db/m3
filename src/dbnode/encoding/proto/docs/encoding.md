@@ -95,7 +95,7 @@ In practice, a Protbuf message can have any number of different fields; for perf
 Instead, multiple "logical" streams are interleaved on a per-write basis within one physical stream.
 The remainder of this section outlines the binary format used to accomplish this interleaving.
 
-The binary format begins with a stream header and then the remainder of the stream is a sequence of tuples in the form: `<per-write header, compressed timestamp, compressed custom encoded fields, Protobuf marshaled fields>`
+The binary format begins with a stream header and then the remainder of the stream is a sequence of tuples in the form: `<per-write header, compressed timestamp, compressed custom encoded fields, Protobuf marshalled fields>`
 
 ### Stream Header
 
@@ -197,7 +197,7 @@ Similarly, when decoding the stream, the inverse operation is performed to recon
 Compressing the Protobuf fields is broken into two stages:
 
 1. Custom compressed fields
-2. Protobuf marshaled fields
+2. Protobuf marshalled fields
 
 In the first phase, any eligible custom fields are compressed as described in the "Compression Techniques" section.
 
@@ -226,12 +226,12 @@ Next, 6 bits would be used to encode the number of significant digits in the del
 
 Note that the values encoded for both fields are "self contained" in that they encode all the information required to determine when the end has been reached.
 
-#### Protobuf Marshaled Fields
+#### Protobuf Marshalled Fields
 
 We recommend reading the [Protocol Buffers Encoding](https://developers.google.com/protocol-buffers/docs/encoding) section of the official documentation before reading this section.
 Specifically, understanding how Protobuf messages are (basically) encoded as a stream of tuples in the form of `<field number, wire type, value>` will make understanding this section much easier.
 
-The Protobuf marshaled fields section of the encoding scheme contains all the values that don't currently support performing custom compression.
+The Protobuf marshalled fields section of the encoding scheme contains all the values that don't currently support performing custom compression.
 For the most part, the output of this section is similar to the result of calling `Marshal()` on a message in which all the custom compressed fields have already been removed, and the only remaining fields are ones for which Protobuf will encode directly.
 This is possible because, as described in the Protobuf encoding section linked above, the Protobuf wire format does not encode **any** data for fields which are not set or are set to a default value, so by "clearing" the fields that have already been encoded, they can be omitted when marshaling the remainder of the Protobuf message.
 
@@ -265,13 +265,13 @@ This issue is mitigated by encoding an additional optional (as in it is only enc
 
 The bitset encoding is straightforward: it begins with a `varint` that encodes the length (number of bits) of the bitset, and then the remaining `N` bits are interpreted as a 1-indexed bitset (because field numbers start at 1 not 0) where a value of `1` indicates the field was changed to its default value.
 
-##### Protobuf Marshaled Fields Encoding Format
+##### Protobuf Marshalled Fields Encoding Format
 
-The Protobuf Marshaled Fields section of the encoding begins with a single control bit that indicates whether there have been any changes to the Protobuf encoded portion of the message at all.
+The Protobuf Marshalled Fields section of the encoding begins with a single control bit that indicates whether there have been any changes to the Protobuf encoded portion of the message at all.
 If the control bit is set to `1`, then there have been changes and decoding must continue; if it is set to `0`, then there were no changes and the decoder can skip to the next write (or stop, if at the end of the stream).
 
 If the previous control bit was set to `1`, indicating that there have been changes, then there will be another control bit which indicates whether any fields have been set to a default value.
 If so, then its value will be `1` and the subsequent bits should be interpreted as a `varint` encoding the length of the bitset followed by the actual bitset bits as discussed above.
 If the value is `0`, then there is no bitset to decode.
 
-Finally, this portion of the encoding will end with a final `varint` that encodes the length of the bytes that resulted from calling `Marshal()` on the message (where any custom-encoded or unchanged fields were cleared) followed by the actual marshaled bytes themselves.
+Finally, this portion of the encoding will end with a final `varint` that encodes the length of the bytes that resulted from calling `Marshal()` on the message (where any custom-encoded or unchanged fields were cleared) followed by the actual marshalled bytes themselves.
