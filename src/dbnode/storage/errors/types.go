@@ -36,7 +36,7 @@ var (
 
 	// ErrColdWritesNotEnabled is returned when cold writes are disabled
 	// and a write is too far in the past or future. Note, the error intentionally
-	// excludes anything regarding the cold writes feature until it's release.
+	// excludes anything regarding the cold writes feature until its release.
 	ErrColdWritesNotEnabled = xerrors.NewInvalidParamsError(errors.New(
 		"datapoint is too far in the past or future"))
 )
