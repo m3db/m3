@@ -123,6 +123,7 @@ func (it *lazySeriesIter) Err() error               { return it.it.Err() }
 func (it *lazySeriesIter) SeriesCount() int         { return it.it.SeriesCount() }
 func (it *lazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *lazySeriesIter) Next() bool               { return it.it.Next() }
+
 func (it *lazySeriesIter) Current() Series {
 	var (
 		c    = it.it.Current()
@@ -279,6 +280,7 @@ func (it *ucLazySeriesIter) Err() error               { return it.it.Err() }
 func (it *ucLazySeriesIter) SeriesCount() int         { return it.it.SeriesCount() }
 func (it *ucLazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *ucLazySeriesIter) Next() bool               { return it.it.Next() }
+
 func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c         = it.it.Current()
