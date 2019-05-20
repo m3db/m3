@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -79,7 +79,7 @@ type databaseBuffer interface {
 		id ident.ID,
 		tags ident.Tags,
 		persistFn persist.DataFn,
-                nsCtx namespace.Context,
+		nsCtx namespace.Context,
 	) error
 
 	Flush(
@@ -246,9 +246,12 @@ func (b *dbBuffer) Write(
 	writeType := b.ResolveWriteType(timestamp, now)
 
 	if writeType == ColdWrite {
-		if !b.coldWritesEnabled {
-			return false, m3dberrors.ErrColdWritesNotEnabled
-		}
+		/*
+			Disable until cold writes is ready as this is confusing to users
+			if !b.coldWritesEnabled {
+				return false, m3dberrors.ErrColdWritesNotEnabled
+			}
+		*/
 
 		if now.Add(-b.retentionPeriod).After(timestamp) {
 			return false, m3dberrors.ErrTooPast
