@@ -81,7 +81,7 @@ func (s *fanoutStorage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	stores := filterStores(s.stores, s.writeFilter, query)
+	stores := filterStores(s.stores, s.fetchFilter, query)
 	blockResult := block.Result{}
 	for _, store := range stores {
 		result, err := store.FetchBlocks(ctx, query, options)
