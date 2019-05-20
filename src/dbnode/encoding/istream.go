@@ -63,6 +63,7 @@ func (is *istream) Read(b []byte) (int, error) {
 	if is.remaining == 0 {
 		// Optimized path for when the iterator is already aligned on a byte boundary. Avoids
 		// all the bit manipulation and ReadByte() function calls.
+		// Use ReadFull because the bufferedReader may not return the requested number of bytes.
 		return io.ReadFull(is.r, b)
 	}
 
