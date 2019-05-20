@@ -40,13 +40,15 @@ func FromM3IdentToMetric(
 	iterTags ident.TagIterator,
 	tagOptions models.TagOptions,
 ) (models.Metric, error) {
+	fmt.Printf("!! decoding tags for ID: %v\n", identID.String())
 	tags, err := FromIdentTagIteratorToTags(iterTags, tagOptions)
 	if err != nil {
 		return models.Metric{}, err
 	}
 
 	return models.Metric{
-		ID:   identID.Bytes(),
+		// TODO UNDO UNDO UNDO
+		ID:   append([]byte(nil), identID.Bytes()...),
 		Tags: tags,
 	}, nil
 }
@@ -60,9 +62,11 @@ func FromIdentTagIteratorToTags(
 	for identTags.Next() {
 		identTag := identTags.Current()
 		tags = tags.AddTag(models.Tag{
-			Name:  identTag.Name.Bytes(),
-			Value: identTag.Value.Bytes(),
+			// TODO UNDO UNDO UNDO
+			Name:  append([]byte(nil), identTag.Name.Bytes()...),
+			Value: append([]byte(nil), identTag.Value.Bytes()...),
 		})
+		fmt.Printf("!! decoded tag: %v=%v\n", identTag.Name.String(), identTag.Value.String())
 	}
 
 	if err := identTags.Err(); err != nil {
@@ -116,7 +120,7 @@ func FetchOptionsToAggregateOptions(
 			EndExclusive:   tagQuery.End,
 		},
 		FieldFilter: tagQuery.FilterNameTags,
-		Type:       convertAggregateQueryType(tagQuery.CompleteNameOnly),
+		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
 	}
 }
 

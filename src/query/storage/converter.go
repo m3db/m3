@@ -376,7 +376,9 @@ func SeriesIteratorsToFetchResult(
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	if cleanupSeriesIters {
-		defer seriesIterators.Close()
+		// TODO: UNDO UNDO UNDO
+		// TODO see if this closed things?
+		//defer seriesIterators.Close()
 	}
 
 	iters := seriesIterators.Iters()

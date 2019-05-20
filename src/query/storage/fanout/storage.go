@@ -22,6 +22,7 @@ package fanout
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -91,6 +92,8 @@ func (s *fanoutStorage) FetchBlocks(
 
 		blockResult.Blocks = append(blockResult.Blocks, result.Blocks...)
 	}
+
+	fmt.Printf("!! returning block result with: %d blocks\n", len(blockResult.Blocks))
 
 	return blockResult, nil
 }
