@@ -1,5 +1,12 @@
 # Changelog
 
+# 0.9.3
+
+## Bug Fixes
+
+- **M3Query**: Add docker integration test for query fanout and fix query aggregating results (#1652)
+- **M3DB**: Restore process stats disabled by the open FD counting performance fix (#1648)
+
 # 0.9.2
 
 ## Performance
