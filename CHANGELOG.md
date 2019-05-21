@@ -1,5 +1,9 @@
 # Changelog
 
+# 0.9.4 
+
+- **M3Query**: Adding complete tags query fanout support with integration test (#1656)
+
 # 0.9.3
 
 ## Bug Fixes
