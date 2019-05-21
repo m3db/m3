@@ -135,6 +135,8 @@ enum CompleteTagsType {
 message CompleteTagsRequestOptions {
 	CompleteTagsType type         = 1;
 	repeated bytes filterNameTags = 2;
+	int64 start                   = 3;
+	int64 end                     = 4;
 }
 
 message CompleteTagsRequest {

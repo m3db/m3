@@ -74,7 +74,6 @@ curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
   }
 }'
 
-
 function read {
   RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=test_metric")
   ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster)
@@ -90,3 +89,67 @@ function read_sum {
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff read_sum
+
+echo "Write local tagged data to cluster a"
+curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
+  "namespace": "unagg",
+  "id": "{__name__=\"test_metric\",cluster=\"cluster-b\",endpoint=\"/request\",local-only=\"local\"}",
+  "tags": [
+    {
+      "name": "__name__",
+      "value": "test_metric"
+    },
+    {
+      "name": "cluster",
+      "value": "cluster-b"
+    },
+    {
+      "name": "endpoint",
+      "value": "/request"
+    },
+    {
+      "name": "local-only",
+      "value": "local"
+    }
+  ],
+  "datapoint": {
+    "timestamp":'"$(date +"%s")"',
+    "value": 42.123456789
+  }
+}'
+
+echo "Write remote tagged data to cluster b"
+curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
+  "namespace": "unagg",
+  "id": "{__name__=\"test_metric\",cluster=\"cluster-b\",endpoint=\"/request\",remote-only=\"remote\"}",
+  "tags": [
+    {
+      "name": "__name__",
+      "value": "test_metric"
+    },
+    {
+      "name": "cluster",
+      "value": "cluster-b"
+    },
+    {
+      "name": "endpoint",
+      "value": "/request"
+    },
+    {
+      "name": "remote-only",
+      "value": "remote"
+    }
+  ],
+  "datapoint": {
+    "timestamp":'"$(date +"%s")"',
+    "value": 42.123456789
+  }
+}'
+
+function complete_tags {
+  RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/labels")
+  ACTUAL=$(echo $RESPONSE | jq .data[])
+  test "$(echo $ACTUAL)" = '"__name__" "cluster" "endpoint" "local-only" "remote-only"'
+}
+
+ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags
