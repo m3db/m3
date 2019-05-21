@@ -89,9 +89,9 @@ func (it *lazyStepIter) Current() Step {
 		stepVals = c.Values()
 	)
 
-	vals := make([]float64, len(stepVals))
-	for i, val := range stepVals {
-		vals[i] = vt(val)
+	vals := make([]float64, 0, len(stepVals))
+	for _, val := range stepVals {
+		vals = append(vals, vt(val))
 	}
 
 	return ColStep{
@@ -128,16 +128,17 @@ func (it *lazySeriesIter) Current() Series {
 	var (
 		c    = it.it.Current()
 		vt   = it.opts.ValueTransform()
-		vals = make([]float64, len(c.values))
+		vals = make([]float64, 0, len(c.values))
 	)
 
-	for i, val := range c.values {
-		vals[i] = vt(val)
+	for _, val := range c.values {
+		vals = append(vals, vt(val))
 	}
 
 	c.values = vals
 	return c
 }
+
 func (it *lazySeriesIter) Meta() Metadata {
 	mt := it.opts.MetaTransform()
 	return mt(it.it.Meta())
@@ -237,19 +238,20 @@ func (it *ucLazyStepIter) Current() UnconsolidatedStep {
 	var (
 		c       = it.it.Current()
 		stepDPs = c.Values()
-		dpList  = make([]ts.Datapoints, len(stepDPs))
+		dpList  = make([]ts.Datapoints, 0, len(stepDPs))
 		tt, vt  = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
-	for j, val := range stepDPs {
-		dps := make([]ts.Datapoint, len(val))
-		for i, dp := range val.Datapoints() {
-
-			dps[i].Timestamp = tt(dp.Timestamp)
-			dps[i].Value = vt(dp.Value)
+	for _, val := range stepDPs {
+		dps := make([]ts.Datapoint, 0, len(val))
+		for _, dp := range val.Datapoints() {
+			dps = append(dps, ts.Datapoint{
+				Timestamp: tt(dp.Timestamp),
+				Value:     vt(dp.Value),
+			})
 		}
 
-		dpList[j] = dps
+		dpList = append(dpList, dps)
 	}
 
 	return unconsolidatedStep{
@@ -285,18 +287,20 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c         = it.it.Current()
 		seriesDPs = c.datapoints
-		dpList    = make([]ts.Datapoints, len(seriesDPs))
+		dpList    = make([]ts.Datapoints, 0, len(seriesDPs))
+		tt, vt    = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
-	for i, val := range seriesDPs {
-		dps := make([]ts.Datapoint, len(val))
-		for j, dp := range val.Datapoints() {
-			tt, vt := it.opts.TimeTransform(), it.opts.ValueTransform()
-			dps[j].Timestamp = tt(dp.Timestamp)
-			dps[j].Value = vt(dp.Value)
+	for _, val := range seriesDPs {
+		dps := make([]ts.Datapoint, 0, len(val))
+		for _, dp := range val.Datapoints() {
+			dps = append(dps, ts.Datapoint{
+				Timestamp: tt(dp.Timestamp),
+				Value:     vt(dp.Value),
+			})
 		}
 
-		dpList[i] = dps
+		dpList = append(dpList, dps)
 	}
 
 	c.datapoints = dpList
