@@ -319,6 +319,9 @@ func (it *iterator) readCustomFieldsSchema() error {
 	}
 
 	if it.customFields != nil {
+		for i := range it.customFields {
+			it.customFields[i] = customFieldState{}
+		}
 		it.customFields = it.customFields[:0]
 	} else {
 		it.customFields = make([]customFieldState, 0, numCustomFields)
