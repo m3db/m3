@@ -116,6 +116,10 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// ListenerCh is a programmatic channel to receive the server listener
+	// on once it has opened.
+	ListenerCh chan<- net.Listener
 }
 
 // Run runs the server programmatically given a filename for the configuration file.
@@ -280,11 +284,21 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
+	listener, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		logger.Fatal("unable to listen on listen address",
+			zap.String("address", listenAddress),
+			zap.Error(err))
+	}
+	if runOpts.ListenerCh != nil {
+		runOpts.ListenerCh <- listener
+	}
 	go func() {
 		logger.Info("starting API server", zap.String("address", listenAddress))
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("server error while listening",
-				zap.String("address", listenAddress), zap.Error(err))
+		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server serve error",
+				zap.String("address", listenAddress),
+				zap.Error(err))
 		}
 	}()
 
