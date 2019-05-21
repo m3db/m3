@@ -215,7 +215,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation := iter.Current()
 	m := dynamic.NewMessage(testVLSchema)
 	require.NoError(t, m.Unmarshal(annotation))
@@ -228,7 +228,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.Equal(t, vl1Write.GetFieldByName("deliveryID"), m.GetFieldByName("deliveryID"))
 	require.Equal(t, vl1Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVLSchema)
 	require.NoError(t, m.Unmarshal(annotation))
@@ -251,7 +251,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	buff = bytes.NewBuffer(rawBytes)
 	iter = NewIterator(buff, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))
@@ -271,7 +271,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	_, err = m.TryGetFieldByName("deliveryID")
 	require.Error(t, err)
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))
