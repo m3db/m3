@@ -22,7 +22,6 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -331,7 +330,6 @@ func (m *multiSeriesBlockSeriesIter) SeriesCount() int {
 }
 
 func (m *multiSeriesBlockSeriesIter) Next() bool {
-	fmt.Printf("THIS iter3 next\n")
 	m.index++
 	return m.index < m.SeriesCount()
 }
