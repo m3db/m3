@@ -24,7 +24,6 @@ function retry_with_backoff {
       return 0
     fi
 
-    timeout=10
     echo "Failure! Retrying in $timeout.." 1>&2
     sleep $timeout
     attempt=$(( attempt + 1 ))
