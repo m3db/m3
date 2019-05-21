@@ -232,7 +232,10 @@ func (s *queryServer) CompleteTags(
 }
 
 func TestGRPCBackend(t *testing.T) {
-	var grpcConfigYAML = `
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := lis.Addr().String()
+	var grpcConfigYAML = fmt.Sprintf(`
 listenAddress:
   type: "config"
   value: "127.0.0.1:17221"
@@ -249,7 +252,7 @@ metrics:
 
 rpc:
   remoteListenAddresses:
-    - "127.0.0.1:17222"
+    - "%s"
 
 backend: grpc
 
@@ -268,14 +271,11 @@ writeWorkerPoolPolicy:
   size: 100
   shards: 1000
   killProbability: 0.3
-`
+`, addr)
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	port := "127.0.0.1:17222"
-	lis, err := net.Listen("tcp", port)
-	require.NoError(t, err)
 	s := grpc.NewServer()
 	defer s.GracefulStop()
 	qs := &queryServer{}
