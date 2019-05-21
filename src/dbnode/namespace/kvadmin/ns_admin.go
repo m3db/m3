@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	ErrNotImplemented = errors.New("api not implemented")
+	ErrNotImplemented    = errors.New("api not implemented")
 	ErrNamespaceNotFound = errors.New("namespace is not found")
 )
 
@@ -82,7 +82,7 @@ func (as *adminService) Delete(name string) error {
 	return ErrNotImplemented
 }
 
-func (as *adminService) DeploySchema(name string, protoFileName, msgName string, protos map[string]string) (string, error) {
+func (as *adminService) DeploySchema(name, protoFileName, msgName string, protos map[string]string) (string, error) {
 	currentRegistry, currentVersion, err := as.currentRegistry()
 	if err == kv.ErrNotFound {
 		return "", ErrNamespaceNotFound

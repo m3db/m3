@@ -555,12 +555,14 @@ func Run(runOpts RunOptions) {
 		protoEnabled = true
 	}
 	schemaRegistry := namespace.NewSchemaRegistry(protoEnabled, logger)
-	// TODO [haijun] remove after PR to set schema in etcd is done (plan layed out in issue #1614).
-	// To unblock #1578, we will load user schema from db node configuration into schema registry
-	// at dbnode startup/initialization time, there will be no dynamic schema update.
+	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
+	// we allow loading user schema from db node configuration into schema registry
+	// at dbnode startup/initialization time.
 	if protoEnabled {
 		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
+			dummyDeployID := "first"
 			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
+				dummyDeployID,
 				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
 				logger.Fatal("could not load schema from configuration", zap.Error(err))
 			}

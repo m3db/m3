@@ -44,5 +44,5 @@ type NamespaceMetadataAdminService interface {
 	// An opaque string (deployID) is returned if successful.
 	// Application developer is to include the deployID in their m3db client configuration
 	// when they upgrade their application to use the new schema version.
-	DeploySchema(name string, protoFileName, msgName string, protos map[string]string) (string, error)
+	DeploySchema(name, protoFileName, msgName string, protos map[string]string) (string, error)
 }

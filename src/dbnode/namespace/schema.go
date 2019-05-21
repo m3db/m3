@@ -297,17 +297,30 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 	return dlist, nil
 }
 
-func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName string, contents map[string]string, deployID string, importPath ...string) (*nsproto.SchemaOptions, error) {
-	sh, err := LoadSchemaHistory(schemaOpt)
-	var prevID string
-	if descr, ok := sh.GetLatest(); ok {
-		prevID = descr.DeployId()
-	}
-
+// AppendSchemaOptions appends to a provided SchemaOptions with a new version of schema.
+// The new version of schema is parsed out of the provided protoFile/msgName/contents.
+// schemaOpt: the SchemaOptions to be appended to, if nil, a new SchemaOption is created.
+// deployID: the version ID of the new schema.
+// protoFile: name of the top level proto file.
+// msgName: name of the top level proto message.
+// contents: map of name to proto strings.
+//          Except for the top level proto file, other imported proto files' key must be exactly the same
+//          as how they are imported in the import statement:
+//          E.g. if import.proto is imported as below
+//          import "mainpkg/imported.proto";
+//          Then the map key for improted.proto must be "mainpkg/imported.proto"
+//          See src/dbnode/namesapce/kvadmin test for example.
+func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName string, contents map[string]string, deployID string) (*nsproto.SchemaOptions, error) {
+	schemaHist, err := LoadSchemaHistory(schemaOpt)
 	if err != nil {
 		return schemaOpt, xerrors.Wrap(err, "can not append to invalid schema history")
 	}
-	out, err := parseProto(protoFile, protoStringProvider(contents), importPath...)
+	var prevID string
+	if descr, ok := schemaHist.GetLatest(); ok {
+		prevID = descr.DeployId()
+	}
+
+	out, err := parseProto(protoFile, protoStringProvider(contents))
 	if err != nil {
 		return nil, err
 	}
@@ -328,18 +341,30 @@ func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName st
 	return schemaOpt, nil
 }
 
-func LoadSchemaRegistryFromFile(schemaReg SchemaRegistry, nsID ident.ID, protoFile string, msgName string, importPath ...string) error {
-	schemaOpt, err := AppendSchemaOptions(nil, protoFile, msgName, nil, "first", importPath...)
+func LoadSchemaRegistryFromFile(schemaReg SchemaRegistry, nsID ident.ID, deployID string, protoFile string, msgName string, importPath ...string) error {
+	out, err := parseProto(protoFile, nil, importPath...)
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to parse input proto file %v", protoFile)
+	}
+
+	dlist, err := marshalFileDescriptors(out)
 	if err != nil {
 		return err
 	}
+
+	schemaOpt := &nsproto.SchemaOptions{
+		History: &nsproto.SchemaHistory{
+			Versions: []*nsproto.FileDescriptorSet{{DeployId: deployID, Descriptors: dlist}},
+		},
+		DefaultMessageName: msgName,
+	}
 	schemaHis, err := LoadSchemaHistory(schemaOpt)
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to load schema history from file: %v", protoFile)
+		return xerrors.Wrapf(err, "failed to load schema history from file: %v with msg: %v", protoFile, msgName)
 	}
 	err = schemaReg.SetSchemaHistory(nsID, schemaHis)
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to load schema registry for %v", nsID.String())
+		return xerrors.Wrapf(err, "failed to update schema registry for %v", nsID.String())
 	}
 	return nil
 }
