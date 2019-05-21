@@ -61,9 +61,9 @@ func (b *containerBlock) AddBlock(bl Block) error {
 
 func (b *containerBlock) Close() error {
 	multiErr := xerrors.NewMultiError()
-	multiErr.Add(b.err)
+	multiErr = multiErr.Add(b.err)
 	for _, bl := range b.blocks {
-		multiErr.Add(bl.Close())
+		multiErr = multiErr.Add(bl.Close())
 	}
 
 	return multiErr.FinalError()
@@ -177,11 +177,9 @@ func (it *containerStepIter) Next() bool {
 
 		if i == 0 {
 			next = n
-		} else {
-			if next != n {
-				it.err = errMismatchedStepIter
-				return false
-			}
+		} else if next != n {
+			it.err = errMismatchedStepIter
+			return false
 		}
 	}
 
@@ -354,9 +352,9 @@ type ucContainerBlock struct {
 
 func (b *ucContainerBlock) Close() error {
 	multiErr := xerrors.NewMultiError()
-	multiErr.Add(b.err)
+	multiErr = multiErr.Add(b.err)
 	for _, bl := range b.blocks {
-		multiErr.Add(bl.Close())
+		multiErr = multiErr.Add(bl.Close())
 	}
 
 	return multiErr.FinalError()
@@ -491,11 +489,9 @@ func (it *ucContainerStepIter) Next() bool {
 
 		if i == 0 {
 			next = n
-		} else {
-			if next != n {
-				it.err = errMismatchedUcStepIter
-				return false
-			}
+		} else if next != n {
+			it.err = errMismatchedUcStepIter
+			return false
 		}
 	}
 

@@ -1,4 +1,3 @@
-//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -236,7 +235,7 @@ func TestGRPCBackend(t *testing.T) {
 	var grpcConfigYAML = `
 listenAddress:
   type: "config"
-  value: "127.0.0.1:17201"
+  value: "127.0.0.1:17221"
 
 metrics:
   scope:
@@ -307,13 +306,13 @@ writeWorkerPoolPolicy:
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t, 17201)
+	waitForServerHealthy(t, 17221)
 
 	// Send Prometheus read request
 	promReq := test.GeneratePromReadRequest()
 	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:17201"+remote.PromReadURL, promReqBody)
+		"http://127.0.0.1:17221"+remote.PromReadURL, promReqBody)
 	require.NoError(t, err)
 
 	_, err = http.DefaultClient.Do(req)
