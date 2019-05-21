@@ -99,6 +99,7 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	endTime := timeSpec.End
 
 	opts := storage.NewFetchOptions()
+	opts.Limit = queryCtx.Options.LimitMaxTimeseries
 	opts.BlockType = n.blockType
 	opts.Scope = queryCtx.Scope
 	opts.Enforcer = queryCtx.Enforcer

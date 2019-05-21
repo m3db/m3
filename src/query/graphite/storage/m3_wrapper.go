@@ -43,8 +43,9 @@ var (
 )
 
 type m3WrappedStore struct {
-	m3       storage.Storage
-	enforcer cost.ChainedEnforcer
+	m3               storage.Storage
+	enforcer         cost.ChainedEnforcer
+	queryContextOpts models.QueryContextOptions
 }
 
 // NewM3WrappedStorage creates a graphite storage wrapper around an m3query
@@ -52,12 +53,17 @@ type m3WrappedStore struct {
 func NewM3WrappedStorage(
 	m3storage storage.Storage,
 	enforcer cost.ChainedEnforcer,
+	queryContextOpts models.QueryContextOptions,
 ) Storage {
 	if enforcer == nil {
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	return &m3WrappedStore{m3: m3storage, enforcer: enforcer}
+	return &m3WrappedStore{
+		m3:               m3storage,
+		enforcer:         enforcer,
+		queryContextOpts: queryContextOpts,
+	}
 }
 
 // TranslateQueryToMatchersWithTerminator converts a graphite query to tag
@@ -162,6 +168,7 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
+	fetchOptions.Limit = s.queryContextOpts.LimitMaxTimeseries
 	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
 	defer perQueryEnforcer.Close()
 

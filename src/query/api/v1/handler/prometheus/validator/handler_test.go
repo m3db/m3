@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -303,6 +305,7 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 	debugHandler := NewPromDebugHandler(
 		native.NewPromReadHandler(
 			executor.NewEngine(mockStorage, tally.NewTestScope("test_engine", nil), defaultLookbackDuration, cost.NoopChainedEnforcer()),
+			handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
 			tally.NewTestScope("test", nil),

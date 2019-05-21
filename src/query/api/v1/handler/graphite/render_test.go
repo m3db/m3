@@ -39,7 +39,8 @@ import (
 
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
-	handler := NewRenderHandler(mockStorage, nil)
+	handler := NewRenderHandler(mockStorage,
+		models.QueryContextOptions{}, nil)
 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, newGraphiteReadHTTPRequest(t))
@@ -51,7 +52,8 @@ func TestParseNoQuery(t *testing.T) {
 func TestParseQueryNoResults(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchResult(&storage.FetchResult{}, nil)
-	handler := NewRenderHandler(mockStorage, nil)
+	handler := NewRenderHandler(mockStorage,
+		models.QueryContextOptions{}, nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=-2h&until=now"
@@ -82,7 +84,8 @@ func TestParseQueryResults(t *testing.T) {
 	}
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	handler := NewRenderHandler(mockStorage, nil)
+	handler := NewRenderHandler(mockStorage,
+		models.QueryContextOptions{}, nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
@@ -123,7 +126,8 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	}
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	handler := NewRenderHandler(mockStorage, nil)
+	handler := NewRenderHandler(mockStorage,
+		models.QueryContextOptions{}, nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=" + startStr + "&until=" + endStr + "&maxDataPoints=1"
@@ -158,7 +162,8 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	}
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-	handler := NewRenderHandler(mockStorage, nil)
+	handler := NewRenderHandler(mockStorage,
+		models.QueryContextOptions{}, nil)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=baz.qux&from=%d&until=%d",

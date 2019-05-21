@@ -12,6 +12,10 @@ metrics:
   samplingRate: 1.0
   extended: none
 
+limits:
+  perQuery:
+    maxFetchedSeries: 100
+
 clusters:
   - namespaces:
       - namespace: agg

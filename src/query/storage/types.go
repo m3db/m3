@@ -137,6 +137,12 @@ func NewFetchOptions() *FetchOptions {
 	}
 }
 
+// Clone will clone and return the fetch options.
+func (o *FetchOptions) Clone() *FetchOptions {
+	result := *o
+	return &result
+}
+
 // Querier handles queries against a storage.
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
