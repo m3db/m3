@@ -5,7 +5,7 @@ set -xe
 # expected to be run from root of repository
 cd $GOPATH/src/github.com/m3db/m3
 
-SERVICES=(m3dbnode m3coordinator m3aggregator)
+SERVICES=(  m3coordinator  )
 REVISION=$(git rev-parse HEAD)
 if [[ $SKIP_CLEAN != "true" ]]; then
   make clean
@@ -23,9 +23,7 @@ echo "building docker images"
 
 for svc in ${SERVICES[@]}; do
   # only build if image doesn't exist
-  if [[ "$(docker images -q ${svc}_integration:${REVISION} 2> /dev/null)" == "" ]]; then
     echo "creating image for $svc"
     make ${svc}-linux-amd64
     docker build -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
-  fi
 done

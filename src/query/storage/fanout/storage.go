@@ -175,9 +175,14 @@ func (s *fanoutStorage) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
-	for _, store := range stores {
+	// short circuit complete tags
+	if len(stores) == 1 {
+		return stores[0].CompleteTags(ctx, query, options)
+	}
+
+	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	for i, store := range stores {
 		result, err := store.CompleteTags(ctx, query, options)
 		if err != nil {
 			return nil, err
