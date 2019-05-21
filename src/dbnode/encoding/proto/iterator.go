@@ -185,6 +185,14 @@ func (it *iterator) Next() bool {
 				it.err = fmt.Errorf("%s error reading custom fields schema: %v", itErrPrefix, err)
 				return false
 			}
+
+			// When the encoder changes its schema it will reset all of its nonCustomFields state
+			// which means that the iterator needs to do the same to keep them synchronized at
+			// each point in the stream.
+			for i := range it.nonCustomFields {
+				// Reslice instead of setting to nil to reuse existing capacity if possible.
+				it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
+			}
 		}
 	}
 
