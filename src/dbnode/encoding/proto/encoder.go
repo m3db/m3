@@ -438,7 +438,7 @@ func (enc *Encoder) Reset(
 	capacity int,
 	descr namespace.SchemaDescr,
 ) {
-	enc.SetSchema(descr)
+	enc.resetSchema(descr)
 	enc.reset(start, capacity)
 }
 
@@ -454,8 +454,42 @@ func (enc *Encoder) SetSchema(descr namespace.SchemaDescr) {
 		return
 	}
 
+	enc.schema = descr.Get().MessageDescriptor
 	enc.schemaDesc = descr
-	enc.resetSchema(descr.Get().MessageDescriptor)
+
+	// If the schema is being changed by a call to SetSchema() (I.E the encoder itself isn't being reset) then
+	// the existing state in the customFields and nonCustomFields needs to be maintained otherwise an incorrect
+	// stream will be generated since much of the compression relies upon deltas between individual messages.
+	oldCustomFields, oldNonCustomFields := enc.customFields, enc.nonCustomFields
+	enc.customFields, enc.nonCustomFields = customAndNonCustomFields(nil, nil, enc.schema)
+
+	// Matching values in two sorted lists where each list only contains unique values so use lastMatchIdx to
+	// start the inner loop at the next index after finding a previous match to prevent iterating over the same
+	// values over and over again.
+	lastMatchIdx := -1
+	for i, customField := range enc.customFields {
+		for j := lastMatchIdx + 1; j < len(oldCustomFields); j++ {
+			oldCustomField := oldCustomFields[j]
+			if oldCustomField.fieldNum == customField.fieldNum {
+				enc.customFields[i] = oldCustomField
+				lastMatchIdx = j
+				break
+			}
+		}
+	}
+
+	// Same comment as above.
+	lastMatchIdx = -1
+	for i, nonCustomField := range enc.nonCustomFields {
+		for j := lastMatchIdx + 1; j < len(oldNonCustomFields); j++ {
+			oldNonCustomField := oldNonCustomFields[j]
+			if nonCustomField.fieldNum == oldNonCustomField.fieldNum {
+				enc.nonCustomFields[i] = oldNonCustomField
+				lastMatchIdx = j
+				break
+			}
+		}
+	}
 }
 
 func (enc *Encoder) reset(start time.Time, capacity int) {
@@ -467,16 +501,18 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	// Prevent this from growing too large and remaining in the pools.
 	enc.marshalBuf = nil
 
-	if enc.schema != nil {
-		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
-	}
-
 	enc.closed = false
 	enc.numEncoded = 0
 }
 
-func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
-	enc.schema = schema
+func (enc *Encoder) resetSchema(descr namespace.SchemaDescr) {
+	enc.schemaDesc = descr
+	if descr != nil {
+		enc.schema = descr.Get().MessageDescriptor
+	} else {
+		enc.schema = nil
+	}
+
 	if enc.schema == nil {
 		enc.nonCustomFields = nil
 		enc.customFields = nil

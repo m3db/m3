@@ -132,7 +132,8 @@ func TestRoundTripProp(t *testing.T) {
 			times = append(times, currTime)
 		}
 
-		enc.Reset(currTime, 0, namespace.GetTestSchemaDescr(input.schema))
+		schemaDescr := namespace.GetTestSchemaDescr(input.schema)
+		enc.Reset(currTime, 0, schemaDescr)
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -151,6 +152,15 @@ func TestRoundTripProp(t *testing.T) {
 				return false, fmt.Errorf(
 					"error encoding message: %v, schema: %s", err, input.schema.String())
 			}
+
+			// Ensure that the schema can be set inbetween writes without interfering with the stream.
+			// A new deployID is created each time to bypass the quick check in the SetSchema method
+			// and force the encoder to perform all of the state updates it has to do when a schema
+			// changes but without actually changing the schema (which would make asserting on the
+			// correct output difficult).
+			setSchemaDescr := namespace.GetTestSchemaDescrWithDeployID(
+				input.schema, fmt.Sprintf("deploy_id_%d", i))
+			enc.SetSchema(setSchemaDescr)
 		}
 
 		stream, ok := enc.Stream(encoding.StreamOptions{})
@@ -158,7 +168,7 @@ func TestRoundTripProp(t *testing.T) {
 			return true, nil
 		}
 
-		iter.Reset(stream, namespace.GetTestSchemaDescr(input.schema))
+		iter.Reset(stream, schemaDescr)
 
 		i := 0
 		for iter.Next() {
