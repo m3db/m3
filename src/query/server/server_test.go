@@ -270,9 +270,6 @@ writeWorkerPoolPolicy:
   killProbability: 0.3
 `
 
-	// TODO(arnikola): REVERT
-	t.SkipNow()
-
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 

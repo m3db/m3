@@ -227,6 +227,7 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/prometheus/test.sh
 	@./scripts/docker-integration-tests/carbon/test.sh
 	@./scripts/docker-integration-tests/aggregator/test.sh
+	@./scripts/docker-integration-tests/query_fanout/test.sh
 
 .PHONY: site-build
 site-build:
