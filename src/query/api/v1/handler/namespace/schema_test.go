@@ -24,6 +24,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -38,12 +41,7 @@ import (
 )
 
 const (
-	testSchemaYaml = `
-name: testNamespace
-msgName: mainpkg.TestMessage
-protoName: "mainpkg/test.proto"
-protoMap:
-  "mainpkg/test.proto": 'syntax = "proto3";
+	mainProtoStr = `syntax = "proto3";
 
 package mainpkg;
 
@@ -57,8 +55,9 @@ message TestMessage {
   map<string, string> attributes = 5;
   ImportedMessage an_imported_message = 6;
 }
-'
-  "mainpkg/imported.proto": 'syntax = "proto3";
+`
+	importedProtoStr = `
+syntax = "proto3";
 
 package mainpkg;
 
@@ -68,9 +67,48 @@ message ImportedMessage {
   int64 epoch = 3;
   bytes deliveryID = 4;
 }
-'
+`
+	testSchemaJQ = `
+{
+  name: "testNamespace",
+  msgName: "mainpkg.TestMessage",
+  protoName: "mainpkg/test.proto",
+  protoMap: 
+    {
+      "mainpkg/test.proto": $file1,
+      "mainpkg/imported.proto": $file2
+    }
+}
 `
 )
+
+func genTestJson(t *testing.T) string {
+	tempDir, err := ioutil.TempDir("", "schema_deploy_test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	file1 := filepath.Join(tempDir, "test.proto")
+	file2 := filepath.Join(tempDir, "imported.proto")
+	require.NoError(t, ioutil.WriteFile(file1, []byte(mainProtoStr), 0644))
+	require.NoError(t, ioutil.WriteFile(file2, []byte(importedProtoStr), 0644))
+
+	jqfile := filepath.Join(tempDir, "test.jq")
+	require.NoError(t, ioutil.WriteFile(jqfile, []byte(testSchemaJQ), 0644))
+
+	file1var := "\"$(<" + file1 + ")\""
+	file2var := "\"$(<" + file2 + ")\""
+	cmd := exec.Command("/bin/sh", "-c", "jq -n --arg file1 "+file1var+
+		" --arg file2 "+file2var+" -f "+jqfile)
+	t.Logf("cmd args are %v\n", cmd.Args)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+	t.Logf("generated json is \n%s\n", string(out))
+	return string(out)
+}
+
+func TestGenTestJson(t *testing.T) {
+	genTestJson(t)
+}
 
 func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -83,11 +121,13 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
 
-	yamlInput := `
-        name: testNamespace
+	jsonInput := `
+    {
+        "name": "testNamespace"
+    }
     `
 
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(yamlInput))
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
@@ -128,7 +168,8 @@ func TestSchemaDeploy(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaYaml))
+	testSchemaJson := genTestJson(t)
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJson))
 	require.NotNil(t, req)
 
 	schemaHandler.ServeHTTP(w, req)
@@ -147,12 +188,14 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	schemaHandler := NewSchemaHandler(mockClient)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	yamlInput := `
-        name: "ns-not-found"
+	jsonInput := `
+    {
+        "name": "no-such-namespace"
+    }
     `
 
 	// Ensure adding to an non-existing namespace returns 404
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(yamlInput))
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{

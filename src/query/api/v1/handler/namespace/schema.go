@@ -21,7 +21,6 @@
 package namespace
 
 import (
-	"io/ioutil"
 	"net/http"
 	"path"
 
@@ -34,8 +33,8 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/net/http"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -90,31 +89,14 @@ func (h *SchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	xhttp.WriteProtoMsgJSONResponse(w, &resp, logger)
 }
 
-type SchemaAddRequest struct {
-	Name      string            `yaml:"name"`
-	MsgName   string            `yaml:"msgName"`
-	ProtoName string            `yaml:"protoName"`
-	ProtoMap  map[string]string `yaml:"protoMap,flow"`
-}
-
 func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAddRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
+	var schemaAddReq admin.NamespaceSchemaAddRequest
+	if err := jsonpb.Unmarshal(r.Body, &schemaAddReq); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
-
-	var schemaAddReq SchemaAddRequest
-	if err := yaml.Unmarshal(body, &schemaAddReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-	return &admin.NamespaceSchemaAddRequest{
-		Name:      schemaAddReq.Name,
-		MsgName:   schemaAddReq.MsgName,
-		ProtoName: schemaAddReq.ProtoName,
-		ProtoMap:  schemaAddReq.ProtoMap,
-	}, nil
+	return &schemaAddReq, nil
 }
 
 // Add adds schema to an existing namespace.
