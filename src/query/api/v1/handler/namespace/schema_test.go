@@ -38,16 +38,37 @@ import (
 )
 
 const (
-	testSchemaJSON = `
-{
-		"name": "testNamespace",
-        "msgName": "mainpkg.TestMessage",
-        "protoName": "mainpkg/test.proto",
-        "protoMap":
-        {
-            "mainpkg/test.proto": "syntax = \"proto3\";package mainpkg;message TestMessage {double latitude = 1;double longitude = 2;int64 epoch = 3;bytes deliveryID = 4;map<string, string> attributes = 5;}" 
-        }
+	testSchemaYaml = `
+name: testNamespace
+msgName: mainpkg.TestMessage
+protoName: "mainpkg/test.proto"
+protoMap:
+  "mainpkg/test.proto": 'syntax = "proto3";
+
+package mainpkg;
+
+import "mainpkg/imported.proto";
+
+message TestMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+  map<string, string> attributes = 5;
+  ImportedMessage an_imported_message = 6;
 }
+'
+  "mainpkg/imported.proto": 'syntax = "proto3";
+
+package mainpkg;
+
+message ImportedMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+}
+'
 `
 )
 
@@ -62,13 +83,11 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-        {
-            "name": "testNamespace"
-        }
+	yamlInput := `
+        name: testNamespace
     `
 
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(yamlInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
@@ -109,7 +128,7 @@ func TestSchemaDeploy(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJSON))
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaYaml))
 	require.NotNil(t, req)
 
 	schemaHandler.ServeHTTP(w, req)
@@ -128,14 +147,12 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	schemaHandler := NewSchemaHandler(mockClient)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	jsonInput := `
-        {
-            "name": "ns-not-found"
-        }
+	yamlInput := `
+        name: "ns-not-found"
     `
 
 	// Ensure adding to an non-existing namespace returns 404
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(yamlInput))
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
