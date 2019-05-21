@@ -45,9 +45,8 @@ func newContainerBlock(blocks []Block) AccumulatorBlock {
 }
 
 // NewContainerBlock creates a Container block.
-func NewContainerBlock(initialSize int) AccumulatorBlock {
-	initial := make([]Block, 0, initialSize)
-	return newContainerBlock(initial)
+func NewContainerBlock(blocks ...Block) AccumulatorBlock {
+	return newContainerBlock(blocks)
 }
 
 func (b *containerBlock) AddBlock(bl Block) error {

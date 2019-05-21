@@ -242,14 +242,14 @@ metrics:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: "127.0.0.1:17203"
+    listenAddress: "127.0.0.1:17223"
     onError: stderr
   sanitization: prometheus
   samplingRate: 1.0
 
 rpc:
   remoteListenAddresses:
-    - "127.0.0.1:17202"
+    - "127.0.0.1:17222"
 
 backend: grpc
 
@@ -273,7 +273,7 @@ writeWorkerPoolPolicy:
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	port := "127.0.0.1:17202"
+	port := "127.0.0.1:17222"
 	lis, err := net.Listen("tcp", port)
 	require.NoError(t, err)
 	s := grpc.NewServer()

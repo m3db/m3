@@ -110,16 +110,7 @@ func (s *fanoutStorage) FetchBlocks(
 						return block.Result{}, err
 					}
 				} else {
-					acc := block.NewContainerBlock(2)
-					if err := acc.AddBlock(foundBlock); err != nil {
-						return block.Result{}, err
-					}
-
-					if err := acc.AddBlock(bl); err != nil {
-						return block.Result{}, err
-					}
-
-					blockResult[key] = acc
+					blockResult[key] = block.NewContainerBlock(foundBlock, bl)
 				}
 			} else {
 				blockResult[key] = bl
