@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/prometheus/prometheus/promql"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,6 +96,17 @@ func TestUnary(t *testing.T) {
 func TestInvalidUnary(t *testing.T) {
 	q := "*up"
 	_, err := Parse(q, models.NewTagOptions())
+	require.Error(t, err)
+}
+
+func TestGetUnaryOpType(t *testing.T) {
+	promOpType := promql.ItemType(itemADD)
+	unaryOpType, err := getUnaryOpType(promOpType)
+	require.NoError(t, err)
+	assert.Equal(t, binary.PlusType, unaryOpType)
+
+	promOpType = promql.ItemType(itemEQL)
+	_, err = getUnaryOpType(promOpType)
 	require.Error(t, err)
 }
 

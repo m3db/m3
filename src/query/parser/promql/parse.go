@@ -89,17 +89,36 @@ func validOffset(offset time.Duration) error {
 	return nil
 }
 
-func (p *parseState) addLazyTransform(offset time.Duration, opType, unaryOp string) error {
-	// NB: if offset is <= 0 && unary type is "+", we do not apply any offsets.
-	if offset == 0 && unaryOp == binary.PlusType {
+func (p *parseState) addLazyUnaryTransform(unaryOp string) error {
+	// NB: if unary type is "+", we do not apply any offsets.
+	if unaryOp == binary.PlusType {
+		return nil
+	}
+
+	vt := func(val float64) float64 { return val * -1.0 }
+	lazyOpts := block.NewLazyOpts().SetValueTransform(vt)
+
+	op, err := lazy.NewLazyOp(lazy.UnaryType, lazyOpts)
+	if err != nil {
+		return err
+	}
+
+	opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+	p.edges = append(p.edges, parser.Edge{
+		ParentID: p.lastTransformID(),
+		ChildID:  opTransform.ID,
+	})
+	p.transforms = append(p.transforms, opTransform)
+
+	return nil
+}
+
+func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
+	// NB: if offset is <= 0, we do not apply any offsets.
+	if offset == 0 {
 		return nil
 	} else if offset < 0 {
 		return fmt.Errorf("offset must be positive, received: %v", offset)
-	}
-
-	unaryMultiplier := 1.0
-	if unaryOp == binary.MinusType {
-		unaryMultiplier = -1.0
 	}
 
 	var (
@@ -108,15 +127,13 @@ func (p *parseState) addLazyTransform(offset time.Duration, opType, unaryOp stri
 			meta.Bounds.Start = meta.Bounds.Start.Add(offset)
 			return meta
 		}
-		vt = func(val float64) float64 { return val * unaryMultiplier }
 	)
 
 	lazyOpts := block.NewLazyOpts().
 		SetTimeTransform(tt).
-		SetMetaTransform(mt).
-		SetValueTransform(vt)
+		SetMetaTransform(mt)
 
-	op, err := lazy.NewLazyOp(opType, lazyOpts)
+	op, err := lazy.NewLazyOp(lazy.OffsetType, lazyOpts)
 	if err != nil {
 		return err
 	}
@@ -164,7 +181,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		return p.addLazyTransform(n.Offset, lazy.OffsetType, binary.PlusType)
+		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
@@ -173,7 +190,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
-		return p.addLazyTransform(n.Offset, lazy.OffsetType, binary.PlusType)
+		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.Call:
 		expressions := n.Args
@@ -280,12 +297,12 @@ func (p *parseState) walk(node pql.Node) error {
 			return err
 		}
 
-		unaryType, ok := GetUnaryOpType(n.Op)
-		if !ok {
-			return fmt.Errorf("only + and - operators allowed for unary expressions, received: %s", n.Op.String())
+		unaryOp, err := getUnaryOpType(n.Op)
+		if err != nil {
+			return err
 		}
 
-		return p.addLazyTransform(0, lazy.UnaryType, unaryType)
+		return p.addLazyUnaryTransform(unaryOp)
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)

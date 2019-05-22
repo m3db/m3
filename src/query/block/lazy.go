@@ -236,13 +236,13 @@ func (s unconsolidatedStep) Values() []ts.Datapoints {
 
 func (it *ucLazyStepIter) Current() UnconsolidatedStep {
 	var (
-		c       = it.it.Current()
-		stepDPs = c.Values()
-		dpList  = make([]ts.Datapoints, 0, len(stepDPs))
-		tt, vt  = it.opts.TimeTransform(), it.opts.ValueTransform()
+		c      = it.it.Current()
+		values = c.Values()
+		dpList = make([]ts.Datapoints, 0, len(values))
+		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
-	for _, val := range stepDPs {
+	for _, val := range values {
 		dps := make([]ts.Datapoint, 0, len(val))
 		for _, dp := range val.Datapoints() {
 			dps = append(dps, ts.Datapoint{
@@ -285,13 +285,13 @@ func (it *ucLazySeriesIter) Next() bool               { return it.it.Next() }
 
 func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 	var (
-		c         = it.it.Current()
-		seriesDPs = c.datapoints
-		dpList    = make([]ts.Datapoints, 0, len(seriesDPs))
-		tt, vt    = it.opts.TimeTransform(), it.opts.ValueTransform()
+		c      = it.it.Current()
+		values = c.datapoints
+		dpList = make([]ts.Datapoints, 0, len(values))
+		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
-	for _, val := range seriesDPs {
+	for _, val := range values {
 		dps := make([]ts.Datapoint, 0, len(val))
 		for _, dp := range val.Datapoints() {
 			dps = append(dps, ts.Datapoint{

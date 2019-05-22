@@ -40,7 +40,7 @@ import (
 	"github.com/prometheus/prometheus/promql"
 )
 
-// NewSelectorFromVector creates a new fetchop
+// NewSelectorFromVector creates a new fetchop.
 func NewSelectorFromVector(
 	n *promql.VectorSelector,
 	tagOpts models.TagOptions,
@@ -57,7 +57,7 @@ func NewSelectorFromVector(
 	}, nil
 }
 
-// NewSelectorFromMatrix creates a new fetchop
+// NewSelectorFromMatrix creates a new fetchop.
 func NewSelectorFromMatrix(
 	n *promql.MatrixSelector,
 	tagOpts models.TagOptions,
@@ -75,7 +75,7 @@ func NewSelectorFromMatrix(
 	}, nil
 }
 
-// NewAggregationOperator creates a new aggregation operator based on the type
+// NewAggregationOperator creates a new aggregation operator based on the type.
 func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	opType := expr.Op
 	byteMatchers := make([][]byte, len(expr.Grouping))
@@ -141,7 +141,7 @@ func getAggOpType(opType promql.ItemType) string {
 	}
 }
 
-// NewScalarOperator creates a new scalar operator
+// NewScalarOperator creates a new scalar operator.
 func NewScalarOperator(expr *promql.NumberLiteral) (parser.Params, error) {
 	return scalar.NewScalarOp(
 		func(_ time.Time) float64 { return expr.Val },
@@ -149,7 +149,7 @@ func NewScalarOperator(expr *promql.NumberLiteral) (parser.Params, error) {
 	)
 }
 
-// NewBinaryOperator creates a new binary operator based on the type
+// NewBinaryOperator creates a new binary operator based on the type.
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
 	matching := promMatchingToM3(expr.VectorMatching)
 
@@ -166,7 +166,7 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 	return binary.NewOp(op, nodeParams)
 }
 
-// NewFunctionExpr creates a new function expr based on the type
+// NewFunctionExpr creates a new function expr based on the type.
 func NewFunctionExpr(
 	name string,
 	argValues []interface{},
@@ -248,7 +248,7 @@ func NewFunctionExpr(
 		return p, true, err
 
 	default:
-		// TODO: handle other types
+		// TODO: handle other types.
 		return nil, false, fmt.Errorf("function not supported: %s", name)
 	}
 }
@@ -293,21 +293,21 @@ func getBinaryOpType(opType promql.ItemType) string {
 	}
 }
 
-// GetUnaryOpType returns the M3 unary op type based on the Prom op type
-func GetUnaryOpType(opType promql.ItemType) (string, bool) {
+// getUnaryOpType returns the M3 unary op type based on the Prom op type.
+func getUnaryOpType(opType promql.ItemType) (string, error) {
 	switch opType {
 	case promql.ItemType(itemADD):
-		return binary.PlusType, true
+		return binary.PlusType, nil
 	case promql.ItemType(itemSUB):
-		return binary.MinusType, true
+		return binary.MinusType, nil
 	default:
-		return common.UnknownOpType, false
+		return "", fmt.Errorf("only + and - operators allowed for unary expressions, received: %s", opType.String())
 	}
 }
 
 const promDefaultName = "__name__"
 
-// LabelMatchersToModelMatcher parses promql matchers to model matchers
+// LabelMatchersToModelMatcher parses promql matchers to model matchers.
 func LabelMatchersToModelMatcher(
 	lMatchers []*labels.Matcher,
 	tagOpts models.TagOptions,
@@ -337,8 +337,8 @@ func LabelMatchersToModelMatcher(
 	return matchers, nil
 }
 
-// promTypeToM3 converts a prometheus label type to m3 matcher type
-//TODO(nikunj): Consider merging with prompb code
+// promTypeToM3 converts a prometheus label type to m3 matcher type.
+// TODO(nikunj): Consider merging with prompb code.
 func promTypeToM3(labelType labels.MatchType) (models.MatchType, error) {
 	switch labelType {
 	case labels.MatchEqual:
@@ -371,7 +371,7 @@ func promVectorCardinalityToM3(card promql.VectorMatchCardinality) binary.Vector
 }
 
 func promMatchingToM3(vectorMatching *promql.VectorMatching) *binary.VectorMatching {
-	// vectorMatching can be nil iff at least one of the sides is a scalar
+	// vectorMatching can be nil iff at least one of the sides is a scalar.
 	if vectorMatching == nil {
 		return nil
 	}
