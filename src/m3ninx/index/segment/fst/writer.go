@@ -40,27 +40,25 @@ import (
 var (
 	defaultInitialPostingsOffsetsSize    = 1024
 	defaultInitialFSTTermsOffsetsSize    = 1024
-	defaultInitialDocOffsetsSize         = 1024
 	defaultInitialIntEncoderSize         = 128
 	defaultPilosaRoaringMaxContainerSize = 128
 )
 
 type writer struct {
-	version Version
-	builder sgmt.Builder
-	size    int64
+	version         Version
+	compressionOpts docs.CompressionOptions
+	builder         sgmt.Builder
+	size            int64
 
 	intEncoder      *encoding.Encoder
 	postingsEncoder *pilosa.Encoder
 	fstWriter       *fstWriter
-	docDataWriter   *docs.DataWriter
-	docIndexWriter  *docs.IndexWriter
+	docWriter       docs.Writer
 
 	metadata            []byte
 	docsDataFileWritten bool
 	postingsFileWritten bool
 	fstTermsFileWritten bool
-	docOffsets          []docOffset
 	fstTermsOffsets     []uint64
 	termPostingsOffsets []uint64
 
@@ -80,6 +78,9 @@ type WriterOptions struct {
 	// amount (e.g. 2x). You can disable this to speed up high fixed cost
 	// lookups to during building of the FST however.
 	DisableRegistry bool
+
+	// CompressionOptions configures the Writer's compression options.
+	CompressionOptions *docs.CompressionOptions
 }
 
 // NewWriter returns a new writer.
@@ -97,17 +98,29 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 		return nil, err
 	}
 
+	compressionOpts := DefaultCompression
+	if opts.CompressionOptions != nil {
+		compressionOpts = *opts.CompressionOptions
+	}
+	if !v.supportsDocumentsCompresion() && compressionOpts.Type != docs.NoneCompressionType {
+		return nil, fmt.Errorf("current version [%+v] does not support configured compression options [%+v]", v, compressionOpts)
+	}
+
 	bitmap := pilosaroaring.NewBitmapWithDefaultPooling(defaultPilosaRoaringMaxContainerSize)
 	pl := roaring.NewPostingsListFromBitmap(bitmap)
 
+	dw, err := docs.NewWriter(compressionOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &writer{
 		version:             v,
+		compressionOpts:     compressionOpts,
 		intEncoder:          encoding.NewEncoder(defaultInitialIntEncoderSize),
 		postingsEncoder:     pilosa.NewEncoder(),
 		fstWriter:           newFSTWriter(opts),
-		docDataWriter:       docs.NewDataWriter(nil),
-		docIndexWriter:      docs.NewIndexWriter(nil),
-		docOffsets:          make([]docOffset, 0, defaultInitialDocOffsetsSize),
+		docWriter:           dw,
 		fstTermsOffsets:     make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
 		termPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
 
@@ -124,8 +137,7 @@ func (w *writer) clear() {
 	w.fstWriter.Reset(nil)
 	w.intEncoder.Reset()
 	w.postingsEncoder.Reset()
-	w.docDataWriter.Reset(nil)
-	w.docIndexWriter.Reset(nil)
+	w.docWriter.Reset(0)
 
 	w.metadata = nil
 	w.docsDataFileWritten = false
@@ -133,7 +145,6 @@ func (w *writer) clear() {
 	w.fstTermsFileWritten = false
 	// NB(r): Use a call to reset here instead of creating a new bitmaps
 	// when roaring supports a call to reset.
-	w.docOffsets = w.docOffsets[:0]
 	w.fstTermsOffsets = w.fstTermsOffsets[:0]
 	w.termPostingsOffsets = w.termPostingsOffsets[:0]
 
@@ -151,17 +162,14 @@ func (w *writer) Reset(b sgmt.Builder) error {
 		return nil
 	}
 
-	numDocs := len(b.Docs())
-	metadata := defaultV1Metadata()
-	metadata.NumDocs = int64(numDocs)
-	metadataBytes, err := metadata.Marshal()
+	w.builder = b
+	w.size = int64(len(b.Docs()))
+
+	mdBytes, err := w.newMetadata()
 	if err != nil {
 		return err
 	}
-
-	w.metadata = metadataBytes
-	w.builder = b
-	w.size = int64(numDocs)
+	w.metadata = mdBytes
 	return nil
 }
 
@@ -178,29 +186,18 @@ func (w *writer) Metadata() []byte {
 }
 
 func (w *writer) WriteDocumentsData(iow io.Writer) error {
-	w.docDataWriter.Reset(iow)
-
 	iter, err := w.builder.AllDocs()
-	closer := x.NewSafeCloser(iter)
-	defer closer.Close()
 	if err != nil {
 		return err
 	}
 
-	var currOffset uint64
-	if int64(cap(w.docOffsets)) < w.size {
-		w.docOffsets = make([]docOffset, 0, w.size)
-	}
-	for iter.Next() {
-		id, doc := iter.PostingsID(), iter.Current()
-		n, err := w.docDataWriter.Write(doc)
-		if err != nil {
-			return err
-		}
-		w.docOffsets = append(w.docOffsets, docOffset{ID: id, offset: currOffset})
-		currOffset += uint64(n)
-	}
+	closer := x.NewSafeCloser(iter)
+	defer closer.Close()
 
+	w.docWriter.Reset(w.size)
+	if err := w.docWriter.WriteData(iter, iow); err != nil {
+		return err
+	}
 	w.docsDataFileWritten = true
 	return closer.Close()
 }
@@ -209,15 +206,7 @@ func (w *writer) WriteDocumentsIndex(iow io.Writer) error {
 	if !w.docsDataFileWritten {
 		return fmt.Errorf("documents data file has to be written before documents index file")
 	}
-
-	w.docIndexWriter.Reset(iow)
-	for _, do := range w.docOffsets {
-		if err := w.docIndexWriter.Write(do.ID, do.offset); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return w.docWriter.WriteIndex(iow)
 }
 
 func (w *writer) WritePostingsOffsets(iow io.Writer) error {
@@ -541,13 +530,25 @@ func (w *writer) writeSizeAndMagicNumber(iow io.Writer, size uint64) (uint64, er
 	return uint64(n), nil
 }
 
-func defaultV1Metadata() fswriter.Metadata {
-	return fswriter.Metadata{
-		PostingsFormat: fswriter.PostingsFormat_PILOSAV1_POSTINGS_FORMAT,
+func (w *writer) newMetadata() ([]byte, error) {
+	md := fswriter.Metadata{
+		PostingsFormat:      fswriter.PostingsFormat_PILOSAV1_POSTINGS_FORMAT,
+		NumDocs:             int64(w.size),
+		CompressionType:     fswriter.CompressionType_NONE_COMPRESSION_TYPE,
+		CompressionPageSize: int64(w.compressionOpts.PageSize),
 	}
-}
 
-type docOffset struct {
-	postings.ID
-	offset uint64
+	switch w.compressionOpts.Type {
+	case docs.DeflateCompressionType:
+		md.CompressionType = fswriter.CompressionType_DEFLATE_COMPRESSION_TYPE
+	case docs.SnappyCompressionType:
+		md.CompressionType = fswriter.CompressionType_SNAPPY_COMPRESSION_TYPE
+	case docs.LZ4CompressionType:
+		md.CompressionType = fswriter.CompressionType_LZ4_COMPRESSION_TYPE
+	case docs.NoneCompressionType:
+		md.CompressionType = fswriter.CompressionType_NONE_COMPRESSION_TYPE
+	default:
+		return nil, fmt.Errorf("unknown compression type: %v", w.compressionOpts.Type)
+	}
+	return md.Marshal()
 }

@@ -25,106 +25,76 @@ import (
 	"io"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 )
 
 const initialDataEncoderLen = 1024
 
-// DataWriter writes the data file for documents.
-type DataWriter struct {
-	writer io.Writer
-	enc    *encoding.Encoder
+// rawDataWriter writes the data file for documents.
+type rawDataWriter struct {
+	writer        io.Writer
+	enc           *Encoder
+	currentOffset offset
 }
 
-// NewDataWriter returns a new DataWriter.
-func NewDataWriter(w io.Writer) *DataWriter {
-	return &DataWriter{
+// newRawDataWriter returns a new rawDataWriter.
+func newRawDataWriter(w io.Writer) *rawDataWriter {
+	return &rawDataWriter{
 		writer: w,
-		enc:    encoding.NewEncoder(initialDataEncoderLen),
+		enc:    NewEncoder(initialDataEncoderLen),
 	}
 }
 
-func (w *DataWriter) Write(d doc.Document) (int, error) {
-	n := w.enc.PutBytes(d.ID)
-	n += w.enc.PutUvarint(uint64(len(d.Fields)))
-	for _, f := range d.Fields {
-		n += w.enc.PutBytes(f.Name)
-		n += w.enc.PutBytes(f.Value)
-	}
-
-	if err := w.write(); err != nil {
-		return 0, err
-	}
-
-	return n, nil
-}
-
-func (w *DataWriter) write() error {
-	b := w.enc.Bytes()
-	n, err := w.writer.Write(b)
+func (w *rawDataWriter) Write(d doc.Document) (offset, error) {
+	bytes, err := w.enc.Encode(d)
 	if err != nil {
-		return err
+		return offset{}, err
 	}
-	if n < len(b) {
-		return io.ErrShortWrite
+
+	n, err := w.writer.Write(bytes)
+	if err != nil {
+		return offset{}, err
 	}
-	w.enc.Reset()
+
+	if n < len(bytes) {
+		return offset{}, io.ErrShortWrite
+	}
+
+	current := w.currentOffset
+	w.currentOffset.docOffset += uint64(n)
+	return current, nil
+}
+
+func (w *rawDataWriter) Flush() error {
 	return nil
 }
 
-// Reset resets the DataWriter.
-func (w *DataWriter) Reset(wr io.Writer) {
+// Reset resets the rawDataWriter.
+func (w *rawDataWriter) Reset(wr io.Writer) {
 	w.writer = wr
 	w.enc.Reset()
+	w.currentOffset = offset{}
 }
 
-// DataReader is a reader for the data file for documents.
-type DataReader struct {
+// rawDataReader is a reader for the data file for documents.
+type rawDataReader struct {
 	data []byte
 }
 
-// NewDataReader returns a new DataReader.
-func NewDataReader(data []byte) *DataReader {
-	return &DataReader{
+// newRawDataReader returns a new rawDataReader.
+func newRawDataReader(data []byte) dataReader {
+	return &rawDataReader{
 		data: data,
 	}
 }
 
-func (r *DataReader) Read(offset uint64) (doc.Document, error) {
-	if offset >= uint64(len(r.data)) {
-		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
+// Read reads the document at the provided offset.
+func (r *rawDataReader) Read(o offset) (doc.Document, error) {
+	if o.docOffset >= uint64(len(r.data)) {
+		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", o.docOffset)
 	}
-	dec := encoding.NewDecoder(r.data[int(offset):])
-	id, err := dec.Bytes()
-	if err != nil {
-		return doc.Document{}, err
-	}
+	return NewDecoder().Decode(r.data[int(o.docOffset):])
+}
 
-	x, err := dec.Uvarint()
-	if err != nil {
-		return doc.Document{}, err
-	}
-	n := int(x)
-
-	d := doc.Document{
-		ID:     id,
-		Fields: make([]doc.Field, n),
-	}
-
-	for i := 0; i < n; i++ {
-		name, err := dec.Bytes()
-		if err != nil {
-			return doc.Document{}, err
-		}
-		val, err := dec.Bytes()
-		if err != nil {
-			return doc.Document{}, err
-		}
-		d.Fields[i] = doc.Field{
-			Name:  name,
-			Value: val,
-		}
-	}
-
-	return d, nil
+func (r *rawDataReader) Decompressor() (Decompressor, bool) {
+	return nil, false
 }

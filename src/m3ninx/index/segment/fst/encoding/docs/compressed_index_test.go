@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStoredFieldsIndex(t *testing.T) {
+func TestCompressedStoredFieldsIndex(t *testing.T) {
 	type entry struct {
 		id     postings.ID
 		offset uint64

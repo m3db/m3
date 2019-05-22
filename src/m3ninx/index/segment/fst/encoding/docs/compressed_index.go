@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,40 +23,32 @@ package docs
 import (
 	"fmt"
 	"io"
-	"math"
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-const emptyID = math.MaxUint64
-
-const (
-	indexMetadataSize = 8 // Base postings ID as a uint64.
-
-	initialIndexEncoderLen = 256
-)
-
-// rawIndexWriter is a writer for the index file for documents.
-type rawIndexWriter struct {
+// compressedIndexWriter is a writer for the index file for documents.
+type compressedIndexWriter struct {
 	writer io.Writer
 	enc    *encoding.Encoder
 	ready  bool
 	prev   postings.ID
 }
 
-// newRawIndexWriter returns a new rawIndexWriter.
-func newRawIndexWriter(w io.Writer) indexWriter {
-	return &rawIndexWriter{
+// newCompressedIndexWriter returns a new compressedIndexWriter.
+func newCompressedIndexWriter(w io.Writer) indexWriter {
+	iw := &compressedIndexWriter{
 		writer: w,
 		enc:    encoding.NewEncoder(initialIndexEncoderLen),
 	}
+	return iw
 }
 
 // Write writes the offset for an id. IDs must be written in increasing order but can be
 // non-contiguous.
-func (w *rawIndexWriter) Write(id postings.ID, o offset) error {
+func (w *compressedIndexWriter) Write(id postings.ID, o offset) error {
 	if !w.ready {
 		w.writeMetadata(id)
 		w.ready = true
@@ -66,20 +58,22 @@ func (w *rawIndexWriter) Write(id postings.ID, o offset) error {
 		}
 		for i := 0; i < int(id-w.prev)-1; i++ {
 			w.enc.PutUint64(emptyID)
+			w.enc.PutUint64(emptyID)
 		}
 	}
 
+	w.enc.PutUint64(o.pageOffset)
 	w.enc.PutUint64(o.docOffset)
 	w.prev = id
 
 	return w.write()
 }
 
-func (w *rawIndexWriter) writeMetadata(id postings.ID) {
+func (w *compressedIndexWriter) writeMetadata(id postings.ID) {
 	w.enc.PutUint64(uint64(id))
 }
 
-func (w *rawIndexWriter) write() error {
+func (w *compressedIndexWriter) write() error {
 	b := w.enc.Bytes()
 	n, err := w.writer.Write(b)
 	if err != nil {
@@ -92,25 +86,25 @@ func (w *rawIndexWriter) write() error {
 	return nil
 }
 
-// Reset resets the rawIndexWriter.
-func (w *rawIndexWriter) Reset(wr io.Writer) {
+// Reset resets the compressedIndexWriter.
+func (w *compressedIndexWriter) Reset(wr io.Writer) {
 	w.writer = wr
 	w.enc.Reset()
 	w.ready = false
 }
 
-// rawIndexReader is a reader for the index file for documents.
-type rawIndexReader struct {
+// compressedIndexReader is a reader for the index file for documents.
+type compressedIndexReader struct {
 	data  []byte
 	base  postings.ID
 	limit postings.ID
 	len   int
 }
 
-// newRawIndexReader returns a new rawIndexReader.
-func newRawIndexReader(data []byte) (indexReader, error) {
+// newCompressedIndexReader returns a new compressedIndexReader.
+func newCompressedIndexReader(data []byte) (indexReader, error) {
 	if len(data) == 0 {
-		return &rawIndexReader{}, nil
+		return &compressedIndexReader{}, nil
 	}
 
 	if len(data) < indexMetadataSize {
@@ -118,12 +112,12 @@ func newRawIndexReader(data []byte) (indexReader, error) {
 	}
 
 	payloadLen := len(data) - indexMetadataSize
-	if payloadLen%8 != 0 {
-		return nil, fmt.Errorf("stored fields index payload should be a multiple of 8, found %v", payloadLen%8)
+	if payloadLen%16 != 0 {
+		return nil, fmt.Errorf("stored fields index payload should be a multiple of 16, found %v", payloadLen%16)
 	}
-	count := payloadLen / 8
+	count := payloadLen / 16
 
-	r := &rawIndexReader{
+	r := &compressedIndexReader{
 		data: data,
 	}
 
@@ -138,31 +132,38 @@ func newRawIndexReader(data []byte) (indexReader, error) {
 	return r, nil
 }
 
-func (r *rawIndexReader) Read(id postings.ID) (offset, error) {
+func (r *compressedIndexReader) Read(id postings.ID) (offset, error) {
 	if id < r.base || id >= r.limit {
 		return offset{}, index.ErrDocNotFound
 	}
 
 	idx := r.index(id)
 	dec := encoding.NewDecoder(r.data[idx:])
+	pageOffset, err := dec.Uint64()
+	if err != nil {
+		return offset{}, err
+	}
 	docOffset, err := dec.Uint64()
 	if err != nil {
 		return offset{}, err
 	}
 
-	return offset{docOffset: docOffset}, nil
+	return offset{
+		pageOffset: pageOffset,
+		docOffset:   docOffset,
+	}, nil
 }
 
 // Base returns the base postings ID.
-func (r *rawIndexReader) Base() postings.ID {
+func (r *compressedIndexReader) Base() postings.ID {
 	return r.base
 }
 
 // Len returns the number of postings IDs.
-func (r *rawIndexReader) Len() int {
+func (r *compressedIndexReader) Len() int {
 	return r.len
 }
 
-func (r *rawIndexReader) index(id postings.ID) int {
-	return (int(id-r.base) * 8) + indexMetadataSize
+func (r *compressedIndexReader) index(id postings.ID) int {
+	return (int(id-r.base) * 16) + indexMetadataSize
 }

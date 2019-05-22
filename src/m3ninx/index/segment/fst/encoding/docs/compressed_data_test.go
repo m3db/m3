@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStoredFieldsData(t *testing.T) {
+func TestCompressedStoredFieldsData(t *testing.T) {
 	tests := []struct {
 		name string
 		docs []doc.Document
@@ -80,12 +80,17 @@ func TestStoredFieldsData(t *testing.T) {
 		},
 	}
 
-	w := newRawDataWriter(nil)
+	copts := CompressionOptions{
+		Type:     DeflateCompressionType,
+		PageSize: 1 << 14,
+	}
+	w, err := newCompressedDataWriter(copts, nil)
+	require.NoError(t, err)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var (
 				buf     = new(bytes.Buffer)
-				offsets = make([]offset, 0)
+				offsets []offset
 			)
 			w.Reset(buf)
 
@@ -94,8 +99,11 @@ func TestStoredFieldsData(t *testing.T) {
 				require.NoError(t, err)
 				offsets = append(offsets, n)
 			}
+			require.NoError(t, w.Flush())
 
-			r := newRawDataReader(buf.Bytes())
+			r, err := newCompressedDataReader(
+				ReaderOptions{CompressionOptions: copts}, buf.Bytes())
+			require.NoError(t, err)
 			for i := range test.docs {
 				actual, err := r.Read(offsets[i])
 				require.NoError(t, err)

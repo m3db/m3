@@ -103,6 +103,50 @@ func (sd SegmentData) Validate() error {
 	return nil
 }
 
+// MetadataAndCompressionOptions returns the metadata and compresion options
+// corresponding to the SegmentData provided.
+func (sd SegmentData) MetadataAndCompressionOptions() (
+	fswriter.Metadata,
+	docs.CompressionOptions,
+	error,
+) {
+	var (
+		metadata fswriter.Metadata
+		copts    docs.CompressionOptions
+	)
+	if err := metadata.Unmarshal(sd.Metadata); err != nil {
+		return fswriter.Metadata{}, docs.CompressionOptions{}, err
+	}
+
+	if metadata.PostingsFormat != fswriter.PostingsFormat_PILOSAV1_POSTINGS_FORMAT {
+		return fswriter.Metadata{}, docs.CompressionOptions{},
+			fmt.Errorf("unsupported postings format: %v", metadata.PostingsFormat.String())
+	}
+
+	if !sd.Version.supportsDocumentsCompresion() &&
+		metadata.CompressionType != fswriter.CompressionType_NONE_COMPRESSION_TYPE {
+		return fswriter.Metadata{}, docs.CompressionOptions{},
+			fmt.Errorf("incompatible version[%+v] and compression[%+v]", sd.Version, metadata)
+	}
+
+	copts.PageSize = int(metadata.NumDocs)
+	switch metadata.CompressionType {
+	case fswriter.CompressionType_NONE_COMPRESSION_TYPE:
+		copts.Type = docs.NoneCompressionType
+	case fswriter.CompressionType_SNAPPY_COMPRESSION_TYPE:
+		copts.Type = docs.SnappyCompressionType
+	case fswriter.CompressionType_DEFLATE_COMPRESSION_TYPE:
+		copts.Type = docs.DeflateCompressionType
+	case fswriter.CompressionType_LZ4_COMPRESSION_TYPE:
+		copts.Type = docs.LZ4CompressionType
+	default:
+		return fswriter.Metadata{}, docs.CompressionOptions{},
+			fmt.Errorf("unknown compression type: %v", metadata.CompressionType.String())
+	}
+
+	return metadata, copts, nil
+}
+
 // NewSegment returns a new Segment backed by the provided options.
 // NB(prateek): this method only assumes ownership of the data if it returns a nil error,
 // otherwise, the user is expected to handle the lifecycle of the input.
@@ -111,13 +155,9 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		return nil, err
 	}
 
-	metadata := fswriter.Metadata{}
-	if err := metadata.Unmarshal(data.Metadata); err != nil {
+	md, co, err := data.MetadataAndCompressionOptions()
+	if err != nil {
 		return nil, err
-	}
-
-	if metadata.PostingsFormat != fswriter.PostingsFormat_PILOSAV1_POSTINGS_FORMAT {
-		return nil, fmt.Errorf("unsupported postings format: %v", metadata.PostingsFormat.String())
 	}
 
 	fieldsFST, err := vellum.Load(data.FSTFieldsData)
@@ -127,8 +167,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 
 	var (
 		docsSliceReader = data.DocsReader
-		docsDataReader  *docs.DataReader
-		docsIndexReader *docs.IndexReader
+		docsReader      docs.Reader
 		startInclusive  postings.ID
 		endExclusive    postings.ID
 	)
@@ -136,28 +175,25 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		startInclusive = docsSliceReader.Base()
 		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
 	} else {
-		docsDataReader = docs.NewDataReader(data.DocsData)
-		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData)
+		docsReader, err = docs.NewReader(docs.ReaderOptions{CompressionOptions: co},
+			data.DocsData, data.DocsIdxData)
 		if err != nil {
-			return nil, fmt.Errorf("unable to load documents index: %v", err)
+			return nil, fmt.Errorf("unable to create document reader: %v", err)
 		}
-
-		// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
-		startInclusive = docsIndexReader.Base()
-		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
+		startInclusive, endExclusive = docsReader.Range()
 	}
 
 	return &fsSegment{
 		fieldsFST:       fieldsFST,
-		docsDataReader:  docsDataReader,
-		docsIndexReader: docsIndexReader,
+		docsReader:      docsReader,
 		docsSliceReader: docsSliceReader,
 
-		data:           data,
-		opts:           opts,
-		numDocs:        metadata.NumDocs,
-		startInclusive: startInclusive,
-		endExclusive:   endExclusive,
+		data:            data,
+		opts:            opts,
+		numDocs:         md.NumDocs,
+		compressionOpts: co,
+		startInclusive:  startInclusive,
+		endExclusive:    endExclusive,
 	}, nil
 }
 
@@ -165,15 +201,15 @@ type fsSegment struct {
 	sync.RWMutex
 	closed          bool
 	fieldsFST       *vellum.FST
-	docsDataReader  *docs.DataReader
-	docsIndexReader *docs.IndexReader
+	docsReader      docs.Reader
 	docsSliceReader *docs.SliceReader
 	data            SegmentData
 	opts            Options
 
-	numDocs        int64
-	startInclusive postings.ID
-	endExclusive   postings.ID
+	numDocs         int64
+	compressionOpts docs.CompressionOptions
+	startInclusive  postings.ID
+	endExclusive    postings.ID
 }
 
 func (r *fsSegment) Size() int64 {
@@ -497,12 +533,7 @@ func (r *fsSegment) Doc(id postings.ID) (doc.Document, error) {
 		return r.docsSliceReader.Read(id)
 	}
 
-	offset, err := r.docsIndexReader.Read(id)
-	if err != nil {
-		return doc.Document{}, err
-	}
-
-	return r.docsDataReader.Read(offset)
+	return r.docsReader.Read(id)
 }
 
 func (r *fsSegment) Docs(pl postings.List) (doc.Iterator, error) {

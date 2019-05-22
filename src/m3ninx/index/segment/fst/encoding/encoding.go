@@ -82,6 +82,12 @@ func (e *Encoder) PutBytes(b []byte) int {
 	return n + len(b)
 }
 
+// PutRawBytes encodes a byte slice and returns the number of bytes written.
+func (e *Encoder) PutRawBytes(b []byte) int {
+	e.buf = append(e.buf, b...)
+	return len(b)
+}
+
 // Decoder is a low-level decoder for decoding basic types.
 type Decoder struct {
 	buf []byte

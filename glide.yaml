@@ -129,7 +129,10 @@ import:
     version: feef008d51ad2b3778f85d387ccf91735543008d
 
   - package: github.com/golang/snappy
-    version: 553a641470496b2327abcac10b36396bd98e45c9
+    version: 2a8bb927dd31d8daada140a5d09578521ce5c36a
+
+  - package: github.com/pierrec/lz4
+    version: b8e3f78e075c180caacb7b648fa765c1828024ca
 
   - package: github.com/gorilla/mux
     version: ^1.6.0
