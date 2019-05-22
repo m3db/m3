@@ -26,19 +26,19 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -488,4 +488,23 @@ type BlockRetrieverOptions interface {
 
 	// IdentifierPool returns the identifierPool
 	IdentifierPool() ident.Pool
+}
+
+type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags) bool
+
+// MergeWith is an interface that the fs merger uses to merge data with.
+type MergeWith interface {
+	// Read returns the data for the given block start and series ID, whether
+	// any data was found, and the error encountered (if any).
+	Read(
+		seriesID ident.ID,
+		blockStart xtime.UnixNano,
+		nsCtx namespace.Context,
+	) ([]xio.BlockReader, bool, error)
+
+	// ForEachRemaining is the loop for the second stage of merging. The
+	// fsMerger first loops through the fileset series, merging them with data
+	// in the merge target. The second stage is the go through the merge target
+	// data and write the remaining series that were not merged.
+	ForEachRemaining(blockStart xtime.UnixNano, fn ForEachRemainingFn) error
 }

@@ -24,22 +24,39 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// fsMergeWithMem implements FsMergeWith
+// fsMergeWithMem implements fs.MergeWith
 type fsMergeWithMem struct {
-	shard              *dbShard
+	shard              databaseShard
+	retriever          series.QueryableBlockRetriever
 	dirtySeries        *dirtySeriesMap
 	dirtySeriesToWrite map[xtime.UnixNano]*idList
 }
 
+func newFSMergeWithMem(
+	shard databaseShard,
+	retriever series.QueryableBlockRetriever,
+	dirtySeries *dirtySeriesMap,
+	dirtySeriesToWrite map[xtime.UnixNano]*idList,
+) *fsMergeWithMem {
+	return &fsMergeWithMem{
+		shard:              shard,
+		retriever:          retriever,
+		dirtySeries:        dirtySeries,
+		dirtySeriesToWrite: dirtySeriesToWrite,
+	}
+}
+
 func (m *fsMergeWithMem) Read(
-	blockStart xtime.UnixNano,
 	seriesID ident.ID,
+	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	// Check if this series is in memory (and thus requires merging).
@@ -56,14 +73,10 @@ func (m *fsMergeWithMem) Read(
 	// it.
 	m.dirtySeriesToWrite[blockStart].Remove(element)
 
-	m.shard.RLock()
-	entry, _, err := m.shard.lookupEntryWithLock(element.Value)
-	m.shard.RUnlock()
-
-	nextVersion := m.shard.RetrievableBlockColdVersion(startTime) + 1
+	nextVersion := m.retriever.RetrievableBlockColdVersion(startTime) + 1
 
 	tmpCtx := context.NewContext()
-	blocks, err := entry.Series.FetchBlocksForColdFlush(tmpCtx, startTime, nextVersion, nsCtx)
+	blocks, err := m.shard.FetchBlocksForColdFlush(tmpCtx, element.Value, startTime, nextVersion, nsCtx)
 	tmpCtx.BlockingClose()
 	if err != nil {
 		return nil, false, err
@@ -76,19 +89,17 @@ func (m *fsMergeWithMem) Read(
 	return nil, false, nil
 }
 
-func (m *fsMergeWithMem) ForEachRemaining(blockStart xtime.UnixNano, fn forEachRemainingFn) error {
+func (m *fsMergeWithMem) ForEachRemaining(blockStart xtime.UnixNano, fn fs.ForEachRemainingFn) error {
 	seriesList := m.dirtySeriesToWrite[blockStart]
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
-		m.shard.RLock()
-		entry, _, err := m.shard.lookupEntryWithLock(seriesElement.Value)
-		m.shard.RUnlock()
+		seriesID := seriesElement.Value
+		tags, err := m.shard.TagsFromSeriesID(seriesID)
 		if err != nil {
 			return err
 		}
 
-		series := entry.Series
-		success := fn(series.ID(), series.Tags())
+		success := fn(seriesID, tags)
 		if !success {
 			return errors.New("foreach iteration unsuccessful")
 		}

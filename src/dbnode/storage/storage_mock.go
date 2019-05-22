@@ -1644,6 +1644,21 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts, nsCtx inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), ctx, id, starts, nsCtx)
 }
 
+// FetchBlocksForColdFlush mocks base method
+func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) ([]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, seriesID, start, version, nsCtx)
+	ret0, _ := ret[0].([]xio.BlockReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksForColdFlush indicates an expected call of FetchBlocksForColdFlush
+func (mr *MockdatabaseShardMockRecorder) FetchBlocksForColdFlush(ctx, seriesID, start, version, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksForColdFlush", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksForColdFlush), ctx, seriesID, start, version, nsCtx)
+}
+
 // FetchBlocksMetadataV2 mocks base method
 func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
@@ -1757,6 +1772,21 @@ func (m *MockdatabaseShard) Repair(ctx context.Context, tr time0.Range, repairer
 func (mr *MockdatabaseShardMockRecorder) Repair(ctx, tr, repairer interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, tr, repairer)
+}
+
+// TagsFromSeriesID mocks base method
+func (m *MockdatabaseShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagsFromSeriesID", seriesID)
+	ret0, _ := ret[0].(ident.Tags)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TagsFromSeriesID indicates an expected call of TagsFromSeriesID
+func (mr *MockdatabaseShardMockRecorder) TagsFromSeriesID(seriesID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagsFromSeriesID", reflect.TypeOf((*MockdatabaseShard)(nil).TagsFromSeriesID), seriesID)
 }
 
 // MocknamespaceIndex is a mock of namespaceIndex interface
@@ -3689,57 +3719,4 @@ func (m *MockOptions) SchemaRegistry() namespace.SchemaRegistry {
 func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
-}
-
-// MockFsMergeWith is a mock of FsMergeWith interface
-type MockFsMergeWith struct {
-	ctrl     *gomock.Controller
-	recorder *MockFsMergeWithMockRecorder
-}
-
-// MockFsMergeWithMockRecorder is the mock recorder for MockFsMergeWith
-type MockFsMergeWithMockRecorder struct {
-	mock *MockFsMergeWith
-}
-
-// NewMockFsMergeWith creates a new mock instance
-func NewMockFsMergeWith(ctrl *gomock.Controller) *MockFsMergeWith {
-	mock := &MockFsMergeWith{ctrl: ctrl}
-	mock.recorder = &MockFsMergeWithMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockFsMergeWith) EXPECT() *MockFsMergeWithMockRecorder {
-	return m.recorder
-}
-
-// Read mocks base method
-func (m *MockFsMergeWith) Read(blockStart time0.UnixNano, seriesID ident.ID, nsCtx namespace.Context) ([]xio.BlockReader, bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", blockStart, seriesID, nsCtx)
-	ret0, _ := ret[0].([]xio.BlockReader)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// Read indicates an expected call of Read
-func (mr *MockFsMergeWithMockRecorder) Read(blockStart, seriesID, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockFsMergeWith)(nil).Read), blockStart, seriesID, nsCtx)
-}
-
-// ForEachRemaining mocks base method
-func (m *MockFsMergeWith) ForEachRemaining(blockStart time0.UnixNano, fn forEachRemainingFn) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForEachRemaining", blockStart, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ForEachRemaining indicates an expected call of ForEachRemaining
-func (mr *MockFsMergeWithMockRecorder) ForEachRemaining(blockStart, fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachRemaining", reflect.TypeOf((*MockFsMergeWith)(nil).ForEachRemaining), blockStart, fn)
 }

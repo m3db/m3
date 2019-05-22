@@ -1446,6 +1446,23 @@ func (s *dbShard) FetchBlocks(
 	return reader.FetchBlocks(ctx, starts, nsCtx)
 }
 
+func (s *dbShard) FetchBlocksForColdFlush(
+	ctx context.Context,
+	seriesID ident.ID,
+	start time.Time,
+	version int,
+	nsCtx namespace.Context,
+) ([]xio.BlockReader, error) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(seriesID)
+	s.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return entry.Series.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
+}
+
 func (s *dbShard) fetchActiveBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
@@ -1949,19 +1966,9 @@ func (s *dbShard) ColdFlush(
 		return true
 	})
 
-	mergerResources := fsMergerReusableResources{
-		fsReader:      resources.fsReader,
-		srPool:        s.opts.SegmentReaderPool(),
-		multiIterPool: s.opts.MultiReaderIteratorPool(),
-		identPool:     s.opts.IdentifierPool(),
-		encoderPool:   s.opts.EncoderPool(),
-	}
-	merger := &fsMerger{res: mergerResources}
-	mergeWithMem := &fsMergeWithMem{
-		shard:              s,
-		dirtySeries:        dirtySeries,
-		dirtySeriesToWrite: dirtySeriesToWrite,
-	}
+	merger := fs.NewMerger(resources.fsReader, s.opts.SegmentReaderPool(),
+		s.opts.MultiReaderIteratorPool(), s.opts.IdentifierPool(), s.opts.EncoderPool())
+	mergeWithMem := newFSMergeWithMem(s, s, dirtySeries, dirtySeriesToWrite)
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
 	// a block, we continue to try persisting other blocks.
@@ -2134,6 +2141,17 @@ func (s *dbShard) Repair(
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(ctx, nsCtx, tr, s)
+}
+
+func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, error) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(seriesID)
+	s.RUnlock()
+	if err != nil {
+		return ident.Tags{}, err
+	}
+
+	return entry.Series.Tags(), nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

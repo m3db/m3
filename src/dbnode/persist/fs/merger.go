@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package fs
 
 import (
 	"io"
@@ -28,29 +28,41 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-type fsMergerReusableResources struct {
-	fsReader      fs.DataFileSetReader
+type Merger struct {
+	reader        DataFileSetReader
 	srPool        xio.SegmentReaderPool
 	multiIterPool encoding.MultiReaderIteratorPool
 	identPool     ident.Pool
 	encoderPool   encoding.EncoderPool
 }
 
-type fsMerger struct {
-	res fsMergerReusableResources
+func NewMerger(
+	reader DataFileSetReader,
+	srPool xio.SegmentReaderPool,
+	multiIterPool encoding.MultiReaderIteratorPool,
+	identPool ident.Pool,
+	encoderPool encoding.EncoderPool,
+) *Merger {
+	return &Merger{
+		reader:        reader,
+		srPool:        srPool,
+		multiIterPool: multiIterPool,
+		identPool:     identPool,
+		encoderPool:   encoderPool,
+	}
 }
 
-func (m *fsMerger) Merge(
-	mergeWith FsMergeWith,
+func (m *Merger) Merge(
+	mergeWith MergeWith,
 	ns namespace.Metadata,
 	shard uint32,
 	blockStart xtime.UnixNano,
@@ -60,25 +72,25 @@ func (m *fsMerger) Merge(
 ) error {
 	var multiErr xerrors.MultiError
 
-	fsReader := m.res.fsReader
-	srPool := m.res.srPool
-	multiIterPool := m.res.multiIterPool
-	identPool := m.res.identPool
-	encoderPool := m.res.encoderPool
+	reader := m.reader
+	srPool := m.srPool
+	multiIterPool := m.multiIterPool
+	identPool := m.identPool
+	encoderPool := m.encoderPool
 
 	startTime := blockStart.ToTime()
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
+	openOpts := DataReaderOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  ns.ID(),
 			Shard:      shard,
 			BlockStart: startTime,
 		},
 	}
-	if err := fsReader.Open(openOpts); err != nil {
+	if err := reader.Open(openOpts); err != nil {
 		multiErr = multiErr.Add(err)
 		return multiErr.FinalError()
 	}
-	defer fsReader.Close()
+	defer reader.Close()
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: ns,
@@ -98,7 +110,7 @@ func (m *fsMerger) Merge(
 	// merge target that was not persisted in the first stage.
 
 	// First stage: loop through series on disk.
-	for id, tagsIter, data, _, err := fsReader.Read(); err != io.EOF; id, tagsIter, data, _, err = fsReader.Read() {
+	for id, tagsIter, data, _, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			return multiErr.FinalError()
@@ -109,18 +121,11 @@ func (m *fsMerger) Merge(
 		brs := make([][]xio.BlockReader, 0, 2)
 
 		// Create BlockReader slice out of disk data.
-		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-		sr := srPool.Get()
-		sr.Reset(seg)
-		br := xio.BlockReader{
-			SegmentReader: sr,
-			Start:         startTime,
-			BlockSize:     blockSize,
-		}
+		br := blockReaderFromData(data, srPool, startTime, blockSize)
 		brs = append(brs, []xio.BlockReader{br})
 
 		// Check if this series is in memory (and thus requires merging).
-		encoded, hasData, err := mergeWith.Read(blockStart, id, nsCtx)
+		encoded, hasData, err := mergeWith.Read(id, blockStart, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			return multiErr.FinalError()
@@ -149,7 +154,7 @@ func (m *fsMerger) Merge(
 	// Second stage: loop through rest of the merge target that was not captured
 	// in the first stage.
 	err = mergeWith.ForEachRemaining(blockStart, func(seriesID ident.ID, tags ident.Tags) bool {
-		encoded, hasData, err := mergeWith.Read(blockStart, seriesID, nsCtx)
+		encoded, hasData, err := mergeWith.Read(seriesID, blockStart, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			return false
@@ -180,6 +185,22 @@ func (m *fsMerger) Merge(
 	}
 
 	return multiErr.FinalError()
+}
+
+func blockReaderFromData(
+	data checked.Bytes,
+	srPool xio.SegmentReaderPool,
+	startTime time.Time,
+	blockSize time.Duration,
+) xio.BlockReader {
+	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	sr := srPool.Get()
+	sr.Reset(seg)
+	return xio.BlockReader{
+		SegmentReader: sr,
+		Start:         startTime,
+		BlockSize:     blockSize,
+	}
 }
 
 func persistIter(
