@@ -196,7 +196,11 @@ func newCustomFieldState(
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customAndNonCustomFields(customFields []customFieldState, nonCustomFields []marshalledField, schema *desc.MessageDescriptor) ([]customFieldState, []marshalledField) {
+func customAndNonCustomFields(
+	customFields []customFieldState,
+	nonCustomFields []marshalledField,
+	schema *desc.MessageDescriptor,
+) ([]customFieldState, []marshalledField) {
 	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
 	numNonCustomFields := len(fields) - numCustomFields

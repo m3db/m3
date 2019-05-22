@@ -95,7 +95,7 @@ In practice, a Protbuf message can have any number of different fields; for perf
 Instead, multiple "logical" streams are interleaved on a per-write basis within one physical stream.
 The remainder of this section outlines the binary format used to accomplish this interleaving.
 
-The binary format begins with a stream header and then the remainder of the stream is a sequence of tuples in the form: `<per-write header, compressed timestamp, compressed custom encoded fields, Protobuf marshalled fields>`
+The binary format begins with a stream header, and the the remainder of the stream is a sequence of tuples in the form: `<per-write header, compressed timestamp, compressed custom encoded fields, Protobuf marshalled fields>`
 
 ### Stream Header
 

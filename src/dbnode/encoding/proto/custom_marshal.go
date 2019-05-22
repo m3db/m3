@@ -62,7 +62,7 @@ func newCustomMarshaller() customFieldMarshaller {
 }
 
 func (m *customMarshaller) encFloat64(tag int32, x float64) {
-	if x == 0 {
+	if x == 0.0 {
 		// Default values are not included in the stream.
 		return
 	}
@@ -72,7 +72,7 @@ func (m *customMarshaller) encFloat64(tag int32, x float64) {
 }
 
 func (m *customMarshaller) encFloat32(tag int32, x float32) {
-	if x == 0 {
+	if x == 0.0 {
 		// Default values are not included in the stream.
 		return
 	}
