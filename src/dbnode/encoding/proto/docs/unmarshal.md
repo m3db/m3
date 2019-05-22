@@ -14,7 +14,7 @@ For M3DB, a solution like this is prohibitively inefficient: unmarshalling into 
 It's especially inefficient for Protobuf schemas that are optimized for this package (specifically those that make heavy use of top-level scalar fields where allocating objects on the heap just to wrap primitive types is particularly wasteful).
 
 As a result, this package implements `customFieldUnmarshaller`, which accepts a marshalled Protobuf message (`[]byte`) and exposes methods for unmarshalling the top-level scalar fields (i.e the fields that the encoder can perform custom compression on) in an efficient and reusable manner such that in the general case there are no allocations.
-In addition, it also exposes a `nonCustomFieldValues` method which returns **the marshaled** bytes for every field non top-level scalar field that the unmarshaler couldn't unmarshal.
+In addition, it also exposes a `nonCustomFieldValues` method which returns **the marshalled** bytes for every field non top-level scalar field that the unmarshaler couldn't unmarshal.
 
 ## Implementation
 
@@ -24,7 +24,7 @@ The implementation is broken into two parts:
 
 1. The `buffer`, which is similar to [protoreflect's dynamic codex](https://github.com/jhump/protoreflect/blob/master/dynamic/codec.go) and provides an interface for iterating over a marshalled Protobuf message, one `<fieldNumber, wiretype, value>` tuple at a time.
 
-2. The `customFieldUnmarshaller`, which wraps the `buffer` and exposes an interface for efficiently unmarshalling top-level scalar fields with no allocations, as well as returning the marshaled bytes for any fields that the unmarshaller doesn't have an efficient unmarshalling codepath for (`maps`, `repeated` fields, and nested messages, etc).
+2. The `customFieldUnmarshaller`, which wraps the `buffer` and exposes an interface for efficiently unmarshalling top-level scalar fields with no allocations, as well as returning the marshalled bytes for any fields that the unmarshaller doesn't have an efficient unmarshalling codepath for (`maps`, `repeated` fields, and nested messages, etc).
 
 ### Buffer
 

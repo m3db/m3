@@ -42,7 +42,7 @@ type customFieldMarshaller interface {
 	encBool(tag int32, x bool)
 	encBytes(tag int32, x []byte)
 
-	// Used in cases where marshaled protobuf bytes have already been generated
+	// Used in cases where marshalled protobuf bytes have already been generated
 	// and need to be appended to the stream. Assumes that the <tag, wireType>
 	// tuple has already been included.
 	encPartialProto(x []byte)

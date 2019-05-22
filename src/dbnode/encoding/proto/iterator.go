@@ -452,7 +452,7 @@ func (it *iterator) readNonCustomValues() error {
 	}
 
 	// Update any non custom fields that have explicitly changed (they were explicitly included
-	// in the marshaled stream).
+	// in the marshalled stream).
 	var (
 		unmarshalledNonCustomFields = it.unmarshaller.sortedNonCustomFieldValues()
 		// Matching entries in two sorted lists in which every element in each list is unique so keep
