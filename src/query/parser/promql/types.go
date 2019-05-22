@@ -248,7 +248,6 @@ func NewFunctionExpr(
 		return p, true, err
 
 	default:
-		// TODO: handle other types.
 		return nil, false, fmt.Errorf("function not supported: %s", name)
 	}
 }
