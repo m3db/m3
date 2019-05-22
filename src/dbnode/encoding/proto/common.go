@@ -153,16 +153,17 @@ type sortedMarshalledFields []marshalledField
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
 type customFieldState struct {
-	fieldNum int
-	// Float state. Works as both an encoder and iterator (I.E the encoder calls
-	// the encode methods and the iterator calls the read methods).
-	floatEncAndIter m3tsz.FloatEncoderAndIterator
 	// Bytes State. TODO(rartoul): Wrap this up in an encoderAndIterator like
 	// the floats and ints.
 	bytesFieldDict         []encoderBytesFieldDictState
 	iteratorBytesFieldDict [][]byte
+	// Float state. Works as both an encoder and iterator (I.E the encoder calls
+	// the encode methods and the iterator calls the read methods).
+	floatEncAndIter m3tsz.FloatEncoderAndIterator
 	// Int state.
-	intEncAndIter  intEncoderAndIterator
+	intEncAndIter intEncoderAndIterator
+
+	fieldNum       int
 	protoFieldType dpb.FieldDescriptorProto_Type
 	fieldType      customFieldType
 }
