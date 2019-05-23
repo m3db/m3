@@ -611,7 +611,7 @@ func Run(runOpts RunOptions) {
 	if cfg.Repair != nil {
 		repairOpts := opts.RepairOptions().
 			SetRepairInterval(cfg.Repair.Interval).
-			SetRepairOffset(cfg.Repair.Offset).
+			SetRepairTimeOffset(cfg.Repair.Offset).
 			SetRepairJitter(cfg.Repair.Jitter).
 			SetRepairThrottle(cfg.Repair.Throttle).
 			SetRepairCheckInterval(cfg.Repair.CheckInterval).
