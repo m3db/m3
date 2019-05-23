@@ -81,18 +81,49 @@ func (s *fanoutStorage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	stores := filterStores(s.stores, s.writeFilter, query)
-	blockResult := block.Result{}
+	stores := filterStores(s.stores, s.fetchFilter, query)
+	// Optimization for the single store case
+	if len(stores) == 1 {
+		return stores[0].FetchBlocks(ctx, query, options)
+	}
+
+	// TODO(arnikola): use a genny map here instead, also execute in parallel.
+	blockResult := make(map[string]block.Block, 10)
 	for _, store := range stores {
 		result, err := store.FetchBlocks(ctx, query, options)
 		if err != nil {
 			return block.Result{}, err
 		}
 
-		blockResult.Blocks = append(blockResult.Blocks, result.Blocks...)
+		for _, bl := range result.Blocks {
+			it, err := bl.SeriesIter()
+			if err != nil {
+				return block.Result{}, err
+			}
+
+			key := it.Meta().Bounds.String()
+			if foundBlock, found := blockResult[key]; found {
+				// this block exists. Check to see if it's already an appendable block.
+				if acc, ok := foundBlock.(block.AccumulatorBlock); ok {
+					// already an accumulator block, add current block.
+					if err := acc.AddBlock(bl); err != nil {
+						return block.Result{}, err
+					}
+				} else {
+					blockResult[key] = block.NewContainerBlock(foundBlock, bl)
+				}
+			} else {
+				blockResult[key] = bl
+			}
+		}
 	}
 
-	return blockResult, nil
+	blocks := make([]block.Block, 0, len(blockResult))
+	for _, bl := range blockResult {
+		blocks = append(blocks, bl)
+	}
+
+	return block.Result{Blocks: blocks}, nil
 }
 
 func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, error) {
@@ -144,8 +175,13 @@ func (s *fanoutStorage) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
+	// short circuit complete tags
+	if len(stores) == 1 {
+		return stores[0].CompleteTags(ctx, query, options)
+	}
+
+	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 	for _, store := range stores {
 		result, err := store.CompleteTags(ctx, query, options)
 		if err != nil {

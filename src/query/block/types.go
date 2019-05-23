@@ -45,6 +45,12 @@ type Block interface {
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
 }
 
+type AccumulatorBlock interface {
+	Block
+	// AddBlock adds a block to this accumulator.
+	AddBlock(bl Block) error
+}
+
 // UnconsolidatedBlock represents a group of unconsolidated series across a time bound
 type UnconsolidatedBlock interface {
 	io.Closer

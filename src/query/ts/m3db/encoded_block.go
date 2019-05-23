@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
@@ -130,10 +129,8 @@ func (b *encodedBlock) buildSeriesMeta() error {
 }
 
 func (b *encodedBlock) buildMeta() {
-	tags, metas := utils.DedupeMetadata(b.seriesMetas)
-	b.seriesMetas = metas
 	b.meta = block.Metadata{
-		Tags:   tags,
+		Tags:   models.NewTags(0, b.tagOptions),
 		Bounds: b.consolidation.bounds,
 	}
 }

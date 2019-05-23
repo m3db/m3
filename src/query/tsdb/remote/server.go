@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
@@ -168,5 +167,36 @@ func (s *grpcServer) CompleteTags(
 	message *rpc.CompleteTagsRequest,
 	stream rpc.Query_CompleteTagsServer,
 ) error {
-	return errors.ErrNotImplemented
+	var err error
+
+	ctx := retrieveMetadata(stream.Context())
+	logger := logging.WithContext(ctx)
+	completeTagsQuery, err := decodeCompleteTagsRequest(message)
+	if err != nil {
+		logger.Error("unable to decode complete tags query", zap.Error(err))
+		return err
+	}
+
+	// TODO(r): Allow propagation of limit from RPC request
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+
+	results, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
+	if err != nil {
+		logger.Error("unable to complete tags", zap.Error(err))
+		return err
+	}
+
+	response, err := encodeToCompressedCompleteTagsResult(results)
+	if err != nil {
+		logger.Error("unable to encode complete tags result", zap.Error(err))
+		return err
+	}
+
+	err = stream.SendMsg(response)
+	if err != nil {
+		logger.Error("unable to send complete tags result", zap.Error(err))
+	}
+
+	return err
 }

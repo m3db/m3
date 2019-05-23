@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -209,8 +208,6 @@ func encodeToCompressedFetchResult(
 			return nil, err
 		}
 
-		spew.Dump(series)
-
 		seriesList = append(seriesList, series)
 	}
 
@@ -273,7 +270,7 @@ func tagIteratorFromSeries(
 	iteratorPools encoding.IteratorPools,
 ) (ident.TagIterator, error) {
 	if series != nil && len(series.GetCompressedTags()) > 0 {
-		return tagIteratorFromCompressedTagsWithDecoder( 
+		return tagIteratorFromCompressedTagsWithDecoder(
 			series.GetCompressedTags(),
 			iteratorPools,
 		)

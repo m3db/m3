@@ -116,7 +116,7 @@ func FetchOptionsToAggregateOptions(
 			EndExclusive:   tagQuery.End,
 		},
 		FieldFilter: tagQuery.FilterNameTags,
-		Type:       convertAggregateQueryType(tagQuery.CompleteNameOnly),
+		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
 	}
 }
 

@@ -93,6 +93,80 @@ func encodeCompleteTagsRequest(
 		Options: &rpc.CompleteTagsRequestOptions{
 			Type:           completionType,
 			FilterNameTags: query.FilterNameTags,
+			Start:          fromTime(query.Start),
+			End:            fromTime(query.End),
 		},
 	}, nil
+}
+
+func decodeCompleteTagsRequest(
+	request *rpc.CompleteTagsRequest,
+) (*storage.CompleteTagsQuery, error) {
+	var (
+		opts     = request.GetOptions()
+		matchers = request.GetTagMatchers()
+	)
+
+	completeNameOnly := opts.GetType() == rpc.CompleteTagsType_TAGNAME
+	tagMatchers, err := decodeTagMatchers(matchers)
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage.CompleteTagsQuery{
+		CompleteNameOnly: completeNameOnly,
+		FilterNameTags:   opts.GetFilterNameTags(),
+		TagMatchers:      tagMatchers,
+		Start:            toTime(opts.GetStart()),
+		End:              toTime(opts.GetEnd()),
+	}, nil
+}
+
+func encodeToCompressedCompleteTagsDefaultResult(
+	results *storage.CompleteTagsResult,
+) (*rpc.CompleteTagsResponse, error) {
+	tags := results.CompletedTags
+	values := make([]*rpc.TagValue, 0, len(tags))
+	for _, tag := range tags {
+		values = append(values, &rpc.TagValue{
+			Key:    tag.Name,
+			Values: tag.Values,
+		})
+	}
+
+	return &rpc.CompleteTagsResponse{
+		Value: &rpc.CompleteTagsResponse_Default{
+			Default: &rpc.TagValues{
+				Values: values,
+			},
+		},
+	}, nil
+}
+
+func encodeToCompressedCompleteTagsNameOnlyResult(
+	results *storage.CompleteTagsResult,
+) (*rpc.CompleteTagsResponse, error) {
+	tags := results.CompletedTags
+	names := make([][]byte, 0, len(tags))
+	for _, tag := range tags {
+		names = append(names, tag.Name)
+	}
+
+	return &rpc.CompleteTagsResponse{
+		Value: &rpc.CompleteTagsResponse_NamesOnly{
+			NamesOnly: &rpc.TagNames{
+				Names: names,
+			},
+		},
+	}, nil
+}
+
+func encodeToCompressedCompleteTagsResult(
+	results *storage.CompleteTagsResult,
+) (*rpc.CompleteTagsResponse, error) {
+	if results.CompleteNameOnly {
+		return encodeToCompressedCompleteTagsNameOnlyResult(results)
+	}
+
+	return encodeToCompressedCompleteTagsDefaultResult(results)
 }

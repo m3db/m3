@@ -1,4 +1,3 @@
-//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -49,19 +48,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-var queryPort = 25123
-
 var configYAML = `
 listenAddress:
   type: "config"
-  value: "127.0.0.1:25123"
+  value: "127.0.0.1:0"
 
 metrics:
   scope:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: "127.0.0.1:18202"
+    listenAddress: "127.0.0.1:0"
   sanitization: prometheus
   samplingRate: 1.0
 
@@ -89,7 +86,6 @@ writeWorkerPoolPolicy:
 
 `
 
-//TODO: Use randomly assigned port here
 func TestRun(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
@@ -137,24 +133,30 @@ func TestRun(t *testing.T) {
 			return dbClient, nil
 		})
 
-	interruptCh := make(chan error)
-	doneCh := make(chan struct{})
+	interruptCh := make(chan error, 1)
+	doneCh := make(chan struct{}, 1)
+	listenerCh := make(chan net.Listener, 1)
 	go func() {
 		Run(RunOptions{
 			Config:      cfg,
 			InterruptCh: interruptCh,
+			ListenerCh:  listenerCh,
 		})
 		doneCh <- struct{}{}
 	}()
 
+	// Wait for listener
+	listener := <-listenerCh
+	addr := listener.Addr().String()
+
 	// Wait for server to come up
-	waitForServerHealthy(t, queryPort)
+	waitForServerHealthy(t, addr)
 
 	// Send Prometheus write request
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("http://127.0.0.1:%d", queryPort)+remote.PromWriteURL, promReqBody)
+		fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL), promReqBody)
 	require.NoError(t, err)
 
 	res, err := http.DefaultClient.Do(req)
@@ -180,11 +182,11 @@ func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
 	}
 }
 
-func waitForServerHealthy(t *testing.T, port int) {
+func waitForServerHealthy(t *testing.T, addr string) {
 	maxWait := 10 * time.Second
 	startAt := time.Now()
 	for time.Since(startAt) < maxWait {
-		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/health", port), nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/health", addr), nil)
 		require.NoError(t, err)
 		res, err := http.DefaultClient.Do(req)
 		if err != nil || res.StatusCode != http.StatusOK {
@@ -233,24 +235,26 @@ func (s *queryServer) CompleteTags(
 }
 
 func TestGRPCBackend(t *testing.T) {
-	var grpcConfigYAML = `
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	grpcAddr := lis.Addr().String()
+	var grpcConfigYAML = fmt.Sprintf(`
 listenAddress:
   type: "config"
-  value: "127.0.0.1:17201"
+  value: "127.0.0.1:0"
 
 metrics:
   scope:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: "127.0.0.1:17203"
+    listenAddress: "127.0.0.1:0"
     onError: stderr
   sanitization: prometheus
   samplingRate: 1.0
 
 rpc:
-  remoteListenAddresses:
-    - "127.0.0.1:17202"
+  remoteListenAddresses: ["%s"]
 
 backend: grpc
 
@@ -269,14 +273,11 @@ writeWorkerPoolPolicy:
   size: 100
   shards: 1000
   killProbability: 0.3
-`
+`, grpcAddr)
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	port := "127.0.0.1:17202"
-	lis, err := net.Listen("tcp", port)
-	require.NoError(t, err)
 	s := grpc.NewServer()
 	defer s.GracefulStop()
 	qs := &queryServer{}
@@ -298,22 +299,28 @@ writeWorkerPoolPolicy:
 
 	interruptCh := make(chan error)
 	doneCh := make(chan struct{})
+	listenerCh := make(chan net.Listener, 1)
 	go func() {
 		Run(RunOptions{
 			Config:      cfg,
 			InterruptCh: interruptCh,
+			ListenerCh:  listenerCh,
 		})
 		doneCh <- struct{}{}
 	}()
 
+	// Wait for listener
+	listener := <-listenerCh
+	addr := listener.Addr().String()
+
 	// Wait for server to come up
-	waitForServerHealthy(t, 17201)
+	waitForServerHealthy(t, addr)
 
 	// Send Prometheus read request
 	promReq := test.GeneratePromReadRequest()
 	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:17201"+remote.PromReadURL, promReqBody)
+		fmt.Sprintf("http://%s%s", addr, remote.PromReadURL), promReqBody)
 	require.NoError(t, err)
 
 	_, err = http.DefaultClient.Do(req)
