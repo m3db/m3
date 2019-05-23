@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.9.5
+
+## Bug Fixes
+
+ - **M3DB**: Updated Tally to 3.3.10 to issue correct error message when listen address conflict occurs with Prometheus reporter (#1660)
+
 # 0.9.4 
 
 ## Bug Fixes
