@@ -37,8 +37,8 @@ func TestEncodeDecode(t *testing.T) {
 	bytes, err := e.Encode(b)
 	require.NoError(t, err)
 
-	unmarshaled, err := Unmarshal(bytes)
+	unmarshalled, err := Unmarshal(bytes)
 	require.NoError(t, err)
 
-	require.True(t, b.Equal(unmarshaled))
+	require.True(t, b.Equal(unmarshalled))
 }

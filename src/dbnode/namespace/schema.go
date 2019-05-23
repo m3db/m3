@@ -22,6 +22,7 @@ package namespace
 
 import (
 	"errors"
+
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
@@ -321,4 +322,8 @@ func GenTestSchemaOptions(protoFile string, importPathPrefix ...string) *nsproto
 
 func GetTestSchemaDescr(md *desc.MessageDescriptor) SchemaDescr {
 	return &schemaDescr{md: MessageDescriptor{md}}
+}
+
+func GetTestSchemaDescrWithDeployID(md *desc.MessageDescriptor, deployID string) SchemaDescr {
+	return &schemaDescr{md: MessageDescriptor{md}, deployId: deployID}
 }

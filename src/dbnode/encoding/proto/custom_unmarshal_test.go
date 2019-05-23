@@ -26,10 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomFieldUnmarshaler(t *testing.T) {
+func TestCustomFieldUnmarshaller(t *testing.T) {
 	// Store in a var to prevent the compiler from complaining about overflow errors.
 	neg1 := -1
 
@@ -79,7 +80,7 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 					v:           math.Float64bits(1.1),
 				},
 				// Note that epoch (field number 3) is not included here because default
-				// value are not included in a marshaled protobuf stream (their absence
+				// value are not included in a marshalled protobuf stream (their absence
 				// implies a default vlaue for a field) which means they're also not
 				// returned by the `sortedCustomFieldValues` method.
 				{
@@ -93,7 +94,7 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 			longitude:  2.2,
 			epoch:      1,
 			deliveryID: []byte("789789789789"),
-			attributes: map[string]string{"key1": "val1", "key2": "val2", "key3": "val3"},
+			attributes: map[string]string{"key1": "val1"},
 
 			expectedSortedCustomFields: []unmarshalValue{
 				{
@@ -116,15 +117,15 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 		},
 	}
 
-	unmarshaler := newCustomFieldUnmarshaler()
+	unmarshaller := newCustomFieldUnmarshaller(customUnmarshallerOptions{})
 	for _, tc := range testCases {
 		vl := newVL(
 			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
-		marshaledVL, err := vl.Marshal()
+		marshalledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		unmarshaler.resetAndUnmarshal(testVLSchema, marshaledVL)
-		sortedCustomFieldValues := unmarshaler.sortedCustomFieldValues()
+		unmarshaller.resetAndUnmarshal(testVLSchema, marshalledVL)
+		sortedCustomFieldValues := unmarshaller.sortedCustomFieldValues()
 		require.Equal(t, len(tc.expectedSortedCustomFields), len(sortedCustomFieldValues))
 
 		lastFieldNum := -1
@@ -150,14 +151,30 @@ func TestCustomFieldUnmarshaler(t *testing.T) {
 		}
 
 		if len(tc.attributes) > 0 {
-			require.Equal(t, len(tc.attributes), unmarshaler.numNonCustomValues())
-			m := unmarshaler.nonCustomFieldValues()
-			assertAttributesEqual(
+			require.Equal(t, len(tc.attributes), unmarshaller.numNonCustomValues())
+			nonCustomFieldValues := unmarshaller.sortedNonCustomFieldValues()
+			require.Equal(t, 1, len(nonCustomFieldValues))
+			require.Equal(t, int32(5), nonCustomFieldValues[0].fieldNum)
+
+			assertAttributesEqualMarshalledBytes(
 				t,
-				tc.attributes,
-				m.GetFieldByName("attributes").(map[interface{}]interface{}))
+				nonCustomFieldValues[0].marshalled,
+				tc.attributes)
 		} else {
-			require.Equal(t, 0, unmarshaler.numNonCustomValues())
+			require.Equal(t, 0, unmarshaller.numNonCustomValues())
 		}
 	}
+}
+
+func assertAttributesEqualMarshalledBytes(
+	t *testing.T,
+	actualMarshalled []byte,
+	attrs map[string]string,
+) {
+	m := dynamic.NewMessage(testVLSchema)
+	m.SetFieldByName("attributes", attrs)
+	expectedMarshalled, err := m.Marshal()
+
+	require.NoError(t, err)
+	require.Equal(t, expectedMarshalled, actualMarshalled)
 }

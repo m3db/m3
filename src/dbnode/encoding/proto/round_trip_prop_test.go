@@ -132,7 +132,8 @@ func TestRoundTripProp(t *testing.T) {
 			times = append(times, currTime)
 		}
 
-		enc.Reset(currTime, 0, namespace.GetTestSchemaDescr(input.schema))
+		schemaDescr := namespace.GetTestSchemaDescr(input.schema)
+		enc.Reset(currTime, 0, schemaDescr)
 
 		for i, m := range input.messages {
 			// The encoder will mutate the message so make sure we clone it first.
@@ -140,17 +141,26 @@ func TestRoundTripProp(t *testing.T) {
 			clone.MergeFrom(m.message)
 			cloneBytes, err := clone.Marshal()
 			if err != nil {
-				return false, fmt.Errorf("error marshaling proto message: %v", err)
+				return false, fmt.Errorf("error marshalling proto message: %v", err)
 			}
 
 			if debugLogs {
-				printMessage("encoding", m.message)
+				printMessage(fmt.Sprintf("encoding %d", i), m.message)
 			}
 			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
 				return false, fmt.Errorf(
 					"error encoding message: %v, schema: %s", err, input.schema.String())
 			}
+
+			// Ensure that the schema can be set inbetween writes without interfering with the stream.
+			// A new deployID is created each time to bypass the quick check in the SetSchema method
+			// and force the encoder to perform all of the state updates it has to do when a schema
+			// changes but without actually changing the schema (which would make asserting on the
+			// correct output difficult).
+			setSchemaDescr := namespace.GetTestSchemaDescrWithDeployID(
+				input.schema, fmt.Sprintf("deploy_id_%d", i))
+			enc.SetSchema(setSchemaDescr)
 		}
 
 		stream, ok := enc.Stream(encoding.StreamOptions{})
@@ -158,7 +168,7 @@ func TestRoundTripProp(t *testing.T) {
 			return true, nil
 		}
 
-		iter.Reset(stream, namespace.GetTestSchemaDescr(input.schema))
+		iter.Reset(stream, schemaDescr)
 
 		i := 0
 		for iter.Next() {
@@ -169,7 +179,7 @@ func TestRoundTripProp(t *testing.T) {
 			decodedM := dynamic.NewMessage(input.schema)
 			require.NoError(t, decodedM.Unmarshal(annotation))
 			if debugLogs {
-				printMessage("decoding", decodedM)
+				printMessage(fmt.Sprintf("decoding %d", i), decodedM)
 			}
 
 			require.Equal(t, unit, xtime.Nanosecond)
@@ -377,17 +387,17 @@ func newMessageWithValues(schema *desc.MessageDescriptor, input generatedWrite) 
 
 	// Basic sanity test to protect against bugs in the underlying library:
 	// https://github.com/jhump/protoreflect/issues/181
-	marshaled, err := message.Marshal()
+	marshalled, err := message.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	unmarshaled := dynamic.NewMessage(schema)
-	err = unmarshaled.Unmarshal(marshaled)
+	unmarshalled := dynamic.NewMessage(schema)
+	err = unmarshalled.Unmarshal(marshalled)
 	if err != nil {
 		panic(err)
 	}
-	if !dynamic.MessagesEqual(message, unmarshaled) {
-		panic("generated message that is not equal after being marshaled and unmarshaled")
+	if !dynamic.MessagesEqual(message, unmarshalled) {
+		panic("generated message that is not equal after being marshalled and unmarshalled")
 	}
 
 	return messageAndTimeUnit{

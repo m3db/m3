@@ -155,9 +155,22 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
-	// Make sure we only have to grow the underlying buffer at most
-	// one time before we write one byte at a time in a loop.
+	// Call ensureCapacityFor ahead of time to ensure that the bytes pool is used to
+	// grow the rawBuffer (as opposed to append possibly triggering an allocation if
+	// it wasn't) and that its only grown a maximum of one time regardless of the size
+	// of the []byte being written.
 	os.ensureCapacityFor(len(bytes))
+
+	if !os.hasUnusedBits() {
+		// If the stream is aligned on a byte boundary then all of the WriteByte()
+		// function calls and bit-twiddling can be skipped in favor of a single
+		// copy operation.
+		os.rawBuffer = append(os.rawBuffer, bytes...)
+		// Position 8 indicates that the last byte of the buffer has been completely
+		// filled.
+		os.pos = 8
+		return
+	}
 
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])

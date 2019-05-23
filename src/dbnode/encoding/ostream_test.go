@@ -86,9 +86,9 @@ func testWriteBytes(t *testing.T, o OStream) {
 
 	require.Equal(t, rawBytes, os.rawBuffer)
 
-	b, _ := os.Rawbytes()
+	b, pos := os.Rawbytes()
 	require.Equal(t, rawBytes, b)
-
+	require.Equal(t, 8, pos)
 	require.Equal(t, 8, os.pos)
 }
 

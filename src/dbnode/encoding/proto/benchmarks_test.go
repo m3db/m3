@@ -21,6 +21,7 @@
 package proto
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,52 +29,107 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func BenchmarkEncode(b *testing.B) {
-	m1 := dynamic.NewMessage(testVLSchema)
-	m1.SetFieldByName("latitude", 1.0)
-	m1.SetFieldByName("longitude", 1.0)
-	m1.SetFieldByName("deliveryID", []byte("some-really-really-really-really-long-id-1"))
-	m1Bytes, err := m1.Marshal()
-	handleErr(err)
+func BenchmarkEncoder(b *testing.B) {
+	b.Run("with non custom encoded fields enabled", func(b *testing.B) {
+		benchmarkEncoder(b, true)
+	})
+	b.Run("with non custom encoded fields disabled", func(b *testing.B) {
+		benchmarkEncoder(b, false)
+	})
+}
 
-	m2 := dynamic.NewMessage(testVLSchema)
-	m2.SetFieldByName("latitude", 2.0)
-	m2.SetFieldByName("longitude", 2.0)
-	m2.SetFieldByName("deliveryID", []byte("some-really-really-really-really-long-id-2"))
-	m2Bytes, err := m2.Marshal()
-	handleErr(err)
-
-	m3 := dynamic.NewMessage(testVLSchema)
-	m3.SetFieldByName("latitude", 3.0)
-	m3.SetFieldByName("longitude", 3.0)
-	m3.SetFieldByName("deliveryID", []byte("some-really-really-really-really-long-id-3"))
-	m3Bytes, err := m3.Marshal()
-	handleErr(err)
-
-	m4 := dynamic.NewMessage(testVLSchema)
-	m4.SetFieldByName("latitude", 4.0)
-	m4.SetFieldByName("longitude", 4.0)
-	m4.SetFieldByName("deliveryID", []byte("some-really-really-really-really-long-id-4"))
-	m4Bytes, err := m4.Marshal()
-	handleErr(err)
-
-	messages := [][]byte{
-		m1Bytes, m2Bytes, m3Bytes, m4Bytes,
-	}
-	start := time.Now()
-	encoder := NewEncoder(start, encoding.NewOptions())
+func benchmarkEncoder(b *testing.B, nonCustomFieldsEnabled bool) {
+	var (
+		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
+		start            = time.Now()
+		encoder          = NewEncoder(start, encoding.NewOptions())
+	)
 	encoder.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	for i := 0; i < b.N; i++ {
 		start = start.Add(time.Second)
-		protoBytes := messages[i%len(messages)]
+		for _, protoBytes := range messagesBytes {
+			if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
+func BenchmarkIterator(b *testing.B) {
+	b.Run("with non custom encoded fields enabled", func(b *testing.B) {
+		benchmarkIterator(b, true)
+	})
+	b.Run("with non custom encoded fields disabled", func(b *testing.B) {
+		benchmarkIterator(b, false)
+	})
+}
+
+func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
+	var (
+		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
+		start            = time.Now()
+		encodingOpts     = encoding.NewOptions()
+		encoder          = NewEncoder(start, encodingOpts)
+		schema           = namespace.GetTestSchemaDescr(testVLSchema)
+	)
+	encoder.SetSchema(schema)
+
+	for _, protoBytes := range messagesBytes {
+		start = start.Add(time.Second)
 		if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
 			panic(err)
 		}
 	}
+
+	stream, ok := encoder.Stream(encoding.StreamOptions{})
+	if !ok {
+		panic("encoder had no stream")
+	}
+	segment, err := stream.Segment()
+	handleErr(err)
+
+	iterator := NewIterator(stream, schema, encodingOpts)
+	reader := xio.NewSegmentReader(segment)
+	for i := 0; i < b.N; i++ {
+		reader.Reset(segment)
+		iterator.Reset(reader, schema)
+		for iterator.Next() {
+			iterator.Current()
+		}
+		handleErr(iterator.Err())
+	}
+}
+
+func testMessages(numMessages int, includeAttributes bool) ([]*dynamic.Message, [][]byte) {
+	var (
+		messages      = make([]*dynamic.Message, 0, numMessages)
+		messagesBytes = make([][]byte, 0, numMessages)
+	)
+	for i := 0; i < numMessages; i++ {
+		m := dynamic.NewMessage(testVLSchema)
+		m.SetFieldByName("latitude", float64(i))
+		m.SetFieldByName("longitude", float64(i))
+		m.SetFieldByName("deliveryID", []byte(fmt.Sprintf("some-really-really-really-really-long-id-%d", i)))
+		if includeAttributes {
+			m.SetFieldByName("attributes", map[string]string{
+				fmt.Sprintf("key1_%d", i): fmt.Sprintf("val1_%d", i),
+				fmt.Sprintf("key2_%d", i): fmt.Sprintf("val2_%d", i),
+				fmt.Sprintf("key3_%d", i): fmt.Sprintf("val3_%d", i),
+			})
+		}
+
+		bytes, err := m.Marshal()
+		handleErr(err)
+
+		messagesBytes = append(messagesBytes, bytes)
+		messages = append(messages, m)
+	}
+	return messages, messagesBytes
 }
 
 func handleErr(e error) {

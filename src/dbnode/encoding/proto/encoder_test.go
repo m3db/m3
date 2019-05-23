@@ -29,32 +29,53 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCustomAndProtoFields(t *testing.T) {
 	testCases := []struct {
-		schema               *desc.MessageDescriptor
-		expectedCustomFields []customFieldState
-		expectedProtoFields  []int32
+		schema                  *desc.MessageDescriptor
+		expectedCustomFields    []customFieldState
+		expectedNonCustomFields []marshalledField
 	}{
 		{
 			schema: newVLMessageDescriptor(),
 			expectedCustomFields: []customFieldState{
-				{fieldNum: 1, fieldType: float64Field},     // latitude
-				{fieldNum: 2, fieldType: float64Field},     // longitude
-				{fieldNum: 3, fieldType: signedInt64Field}, // numTrips
-				{fieldNum: 4, fieldType: bytesField},       // deliveryID
+				// latitude
+				{
+					fieldNum:       1,
+					fieldType:      float64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				},
+				// longitude
+				{
+					fieldNum:       2,
+					fieldType:      float64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				},
+				// numTrips
+				{
+					fieldNum:       3,
+					fieldType:      signedInt64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_INT64,
+				},
+				// deliveryID
+				{
+					fieldNum:       4,
+					fieldType:      bytesField,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
+				},
 			},
-			expectedProtoFields: []int32{5},
+			expectedNonCustomFields: []marshalledField{{fieldNum: 5}},
 		},
 	}
 
 	for _, tc := range testCases {
-		tszFields, protoFields := customAndProtoFields(nil, nil, tc.schema)
+		tszFields, nonCustomFields := customAndNonCustomFields(nil, nil, tc.schema)
 		require.Equal(t, tc.expectedCustomFields, tszFields)
-		require.Equal(t, tc.expectedProtoFields, protoFields)
+		require.Equal(t, tc.expectedNonCustomFields, nonCustomFields)
 	}
 }
 
