@@ -87,16 +87,42 @@ type Configuration struct {
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
-	// Whether proto is enabled.
+	// Enabled specifies whether proto is enabled.
 	Enabled bool `yaml:"enabled"`
+	// load user schema from client configuration into schema registry
+	// at startup/initialization time.
+	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
+}
+
+type NamespaceProtoSchema struct {
+	SchemaFilePath string `yaml:"schemaFilePath"`
+	MessageName    string `yaml:"messageName"`
+}
+
+// Validate validates the NamespaceProtoSchema.
+func (c NamespaceProtoSchema) Validate() error {
+	if c.SchemaFilePath == "" {
+		return errors.New("schemaFilePath is required for Proto data mode")
+	}
+
+	if c.MessageName == "" {
+		return errors.New("messageName is required for Proto data mode")
+	}
+
+	return nil
 }
 
 // Validate validates the ProtoConfiguration.
 func (c *ProtoConfiguration) Validate() error {
-	if c == nil {
+	if c == nil || !c.Enabled {
 		return nil
 	}
 
+	for _, schema := range c.SchemaRegistry {
+		if err := schema.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
