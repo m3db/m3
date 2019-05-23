@@ -97,7 +97,7 @@ func genTestJson(t *testing.T) string {
 
 	file1var := "\"$(<" + file1 + ")\""
 	file2var := "\"$(<" + file2 + ")\""
-	cmd := exec.Command("/bin/sh", "-c", "jq -n --arg file1 "+file1var+
+	cmd := exec.Command("sh", "-c", "jq -n --arg file1 "+file1var+
 		" --arg file2 "+file2var+" -f "+jqfile)
 	t.Logf("cmd args are %v\n", cmd.Args)
 	out, err := cmd.CombinedOutput()
