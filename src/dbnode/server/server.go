@@ -614,7 +614,8 @@ func Run(runOpts RunOptions) {
 			SetRepairOffset(cfg.Repair.Offset).
 			SetRepairJitter(cfg.Repair.Jitter).
 			SetRepairThrottle(cfg.Repair.Throttle).
-			SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			SetRepairCheckInterval(cfg.Repair.CheckInterval).
+			SetAdminClient(m3dbClient)
 
 		opts = opts.
 			SetRepairEnabled(cfg.Repair.Enabled).
