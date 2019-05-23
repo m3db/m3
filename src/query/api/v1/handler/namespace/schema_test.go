@@ -213,7 +213,7 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"testNamespace": &nsproto.NamespaceOptions{
+			"testNamespace": {
 				BootstrapEnabled:  true,
 				FlushEnabled:      true,
 				SnapshotEnabled:   true,
