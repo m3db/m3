@@ -608,6 +608,7 @@ func Run(runOpts RunOptions) {
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 
+	opts = opts.SetRepairEnabled(false)
 	if cfg.Repair != nil {
 		repairOpts := opts.RepairOptions().
 			SetRepairInterval(cfg.Repair.Interval).
@@ -620,9 +621,6 @@ func Run(runOpts RunOptions) {
 		opts = opts.
 			SetRepairEnabled(cfg.Repair.Enabled).
 			SetRepairOptions(repairOpts)
-	} else {
-		opts = opts.
-			SetRepairEnabled(false)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
