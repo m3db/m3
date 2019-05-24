@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -36,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -302,8 +302,8 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
-		"namespace": id.String(),
-	})
+			"namespace": id.String(),
+		})
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
@@ -355,8 +355,8 @@ func newDatabaseNamespace(
 	// If proto is disabled, err will always be nil.
 	if err != nil {
 		return nil, fmt.Errorf(
-		"unable to register schema listener for namespace %v, error: %v",
-		metadata.ID().String(), err)
+			"unable to register schema listener for namespace %v, error: %v",
+			metadata.ID().String(), err)
 	}
 	n.schemaListener = sl
 	n.initShards(nopts.BootstrapEnabled())
@@ -509,7 +509,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	}
 
 	n.RLock()
-	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
+	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
 	// Tick through the shards at a capped level of concurrency
@@ -902,7 +902,7 @@ func (n *dbNamespace) Flush(
 		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
-	nsCtx := namespace.Context{Schema: n.schemaDescr}
+	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() {
@@ -994,7 +994,7 @@ func (n *dbNamespace) Snapshot(
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
-	nsCtx = namespace.Context{Schema: n.schemaDescr}
+	nsCtx = n.nsContextWithRLock()
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
@@ -1165,6 +1165,11 @@ func (n *dbNamespace) Repair(
 
 	workers := xsync.NewWorkerPool(repairer.Options().RepairShardConcurrency())
 	workers.Init()
+
+	n.RLock()
+	nsCtx := n.nsContextWithRLock()
+	n.RUnlock()
+
 	for _, shard := range shards {
 		shard := shard
 
@@ -1175,7 +1180,7 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, tr, repairer)
+			metadataRes, err := shard.Repair(ctx, nsCtx, tr, repairer)
 
 			mutex.Lock()
 			if err != nil {
@@ -1236,7 +1241,7 @@ func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
 
 func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
-	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
+	nsCtx := n.nsContextWithRLock()
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
@@ -1245,7 +1250,7 @@ func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, e
 
 func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
-	nsCtx := namespace.Context{ID: n.id, Schema: n.schemaDescr}
+	nsCtx := n.nsContextWithRLock()
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
@@ -1254,7 +1259,7 @@ func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Co
 
 func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	n.RLock()
-	nsCtx := namespace.Context{Schema: n.schemaDescr}
+	nsCtx := n.nsContextWithRLock()
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
 	return shard, nsCtx, err
@@ -1333,4 +1338,8 @@ func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
 	}
 	n.RUnlock()
 	return shardStates
+}
+
+func (n *dbNamespace) nsContextWithRLock() namespace.Context {
+	return namespace.Context{ID: n.id, Schema: n.schemaDescr}
 }
