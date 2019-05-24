@@ -307,6 +307,8 @@ func (s *dbSeries) FetchBlocksForColdFlush(
 	version int,
 	nsCtx namespace.Context,
 ) ([]xio.BlockReader, error) {
+	// This needs a write lock because the version on underlying buckets need
+	// to be modified.
 	s.Lock()
 	defer s.Unlock()
 

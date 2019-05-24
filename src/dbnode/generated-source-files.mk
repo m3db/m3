@@ -130,6 +130,21 @@ genny-map-storage-bootstrap-bootstrapper-commitlog:
 	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_map_gen.go
 	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_new_map_gen.go
 
+# Map generation rule for persist/fs
+.PHONY: genny-map-persist-fs
+genny-map-persist-fs:
+	cd $(m3x_package_path) && make idhashmap-gen                 \
+		pkg=fs                                                   \
+		value_type=checked.Bytes                                 \
+		target_package=$(m3db_package)/src/dbnode/persist/fs     \
+		rename_constructor=newCheckedBytesByIDMap                \
+		rename_constructor_options=newCheckedBytesByIDMapOptions \
+		rename_type_prefix=checkedBytes                          \
+		rename_nogen_value=true
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/src/dbnode/persist/fs/map_gen.go $(m3db_package_path)/src/dbnode/persist/fs/checked_bytes_by_id_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/persist/fs/new_map_gen.go $(m3db_package_path)/src/dbnode/persist/fs/checked_bytes_by_id_new_map_gen.go
+
 # Map generation rule for storage/index/ResultsMap
 .PHONY: genny-map-storage-index-results
 genny-map-storage-index-results:

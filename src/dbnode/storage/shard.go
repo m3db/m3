@@ -1456,7 +1456,7 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
-	if err != nil {
+	if entry == nil || err != nil {
 		return nil, err
 	}
 
@@ -1937,13 +1937,11 @@ func (s *dbShard) ColdFlush(
 	s.RUnlock()
 
 	resources.reset()
-
 	var (
 		multiErr           xerrors.MultiError
 		dirtySeries        = resources.dirtySeries
 		dirtySeriesToWrite = resources.dirtySeriesToWrite
 		idElementPool      = resources.idElementPool
-		blockSize          = s.namespace.Options().RetentionOptions().BlockSize()
 	)
 
 	// First, loop through all series to capture data on which blocks have dirty
@@ -1973,7 +1971,14 @@ func (s *dbShard) ColdFlush(
 	// has its own fileset, if we encounter an error while trying to persist
 	// a block, we continue to try persisting other blocks.
 	for blockStart := range dirtySeriesToWrite {
-		err := merger.Merge(mergeWithMem, s.namespace, s.ID(), blockStart, blockSize, flushPreparer, nsCtx)
+		startTime := blockStart.ToTime()
+		fsID := fs.FileSetFileIdentifier{
+			Namespace:  s.namespace.ID(),
+			Shard:      s.ID(),
+			BlockStart: startTime,
+		}
+
+		err := merger.Merge(fsID, mergeWithMem, flushPreparer, s.namespace.Options(), nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -1981,7 +1986,6 @@ func (s *dbShard) ColdFlush(
 
 		// After writing the full block successfully, update the cold version
 		// in the flush state.
-		startTime := blockStart.ToTime()
 		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
 		s.setFlushStateColdVersion(startTime, nextVersion)
 	}
@@ -2147,7 +2151,7 @@ func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
-	if err != nil {
+	if entry == nil || err != nil {
 		return ident.Tags{}, err
 	}
 

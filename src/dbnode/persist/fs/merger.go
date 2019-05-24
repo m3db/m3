@@ -37,6 +37,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+// Merger is in charge of merging filesets with some target MergeWith interface.
 type Merger struct {
 	reader        DataFileSetReader
 	srPool        xio.SegmentReaderPool
@@ -45,6 +46,7 @@ type Merger struct {
 	encoderPool   encoding.EncoderPool
 }
 
+// NewMerger returns a new Merger.
 func NewMerger(
 	reader DataFileSetReader,
 	srPool xio.SegmentReaderPool,
@@ -61,39 +63,48 @@ func NewMerger(
 	}
 }
 
+// Merge merges data from a fileset with a merge target and persists it.
 func (m *Merger) Merge(
+	fileID FileSetFileIdentifier,
 	mergeWith MergeWith,
-	ns namespace.Metadata,
-	shard uint32,
-	blockStart xtime.UnixNano,
-	blockSize time.Duration,
 	flushPreparer persist.FlushPreparer,
+	nsOpts namespace.Options,
 	nsCtx namespace.Context,
 ) error {
-	var multiErr xerrors.MultiError
+	var (
+		multiErr      xerrors.MultiError
+		reader        = m.reader
+		srPool        = m.srPool
+		multiIterPool = m.multiIterPool
+		identPool     = m.identPool
+		encoderPool   = m.encoderPool
 
-	reader := m.reader
-	srPool := m.srPool
-	multiIterPool := m.multiIterPool
-	identPool := m.identPool
-	encoderPool := m.encoderPool
+		nsID       = fileID.Namespace
+		shard      = fileID.Shard
+		startTime  = fileID.BlockStart
+		blockSize  = nsOpts.RetentionOptions().BlockSize()
+		blockStart = xtime.ToUnixNano(startTime)
+		openOpts   = DataReaderOpenOptions{
+			Identifier: FileSetFileIdentifier{
+				Namespace:  nsID,
+				Shard:      shard,
+				BlockStart: startTime,
+			},
+		}
+	)
 
-	startTime := blockStart.ToTime()
-	openOpts := DataReaderOpenOptions{
-		Identifier: FileSetFileIdentifier{
-			Namespace:  ns.ID(),
-			Shard:      shard,
-			BlockStart: startTime,
-		},
-	}
 	if err := reader.Open(openOpts); err != nil {
 		multiErr = multiErr.Add(err)
 		return multiErr.FinalError()
 	}
 	defer reader.Close()
 
+	nsMd, err := namespace.NewMetadata(nsID, nsOpts)
+	if err != nil {
+		return err
+	}
 	prepareOpts := persist.DataPrepareOptions{
-		NamespaceMetadata: ns,
+		NamespaceMetadata: nsMd,
 		Shard:             shard,
 		BlockStart:        startTime,
 		DeleteIfExists:    false,
@@ -106,8 +117,25 @@ func (m *Merger) Merge(
 
 	// Writing data for a block is done in two stages. The first stage is
 	// to loop through series on disk and merge it with what's in the merge
-	// target. The second stage is to persist the rest of the series in the
-	// merge target that was not persisted in the first stage.
+	// target. Looping through disk in the first stage is done intentionally to
+	// read disk sequentially to optimize for spinning disk access.
+	// The second stage is to persist the rest of the series in the
+	// merge target that were not persisted in the first stage.
+
+	// There will only be one BlockReader slice since we're working within one
+	// block here.
+	brs := make([][]xio.BlockReader, 0, 1)
+	// There will likely be at least two BlockReaders - one for disk data and
+	// one for data from the merge target.
+	br := make([]xio.BlockReader, 0, 2)
+
+	// It's safe to share these between iterations and just reset them each time
+	// because the series gets persisted each loop, so previous iterations'
+	// reader and iterator will never be needed.
+	segReader := srPool.Get()
+	defer segReader.Finalize()
+	multiIter := multiIterPool.Get()
+	defer multiIter.Close()
 
 	// First stage: loop through series on disk.
 	for id, tagsIter, data, _, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
@@ -116,13 +144,10 @@ func (m *Merger) Merge(
 			return multiErr.FinalError()
 		}
 
-		// There will be at most two BlockReader slices: one for disk data
-		// and one for in memory data.
-		brs := make([][]xio.BlockReader, 0, 2)
-
-		// Create BlockReader slice out of disk data.
-		br := blockReaderFromData(data, srPool, startTime, blockSize)
-		brs = append(brs, []xio.BlockReader{br})
+		// Reset BlockReaders.
+		brs = brs[:0]
+		br = br[:0]
+		br = append(br, blockReaderFromData(data, segReader, startTime, blockSize))
 
 		// Check if this series is in memory (and thus requires merging).
 		encoded, hasData, err := mergeWith.Read(id, blockStart, nsCtx)
@@ -130,27 +155,25 @@ func (m *Merger) Merge(
 			multiErr = multiErr.Add(err)
 			return multiErr.FinalError()
 		}
-
 		if hasData {
-			brs = append(brs, encoded)
+			br = append(br, encoded...)
 		}
+		brs = append(brs, br)
 
-		mergedIter := multiIterPool.Get()
-		mergedIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(brs), nsCtx.Schema)
-		defer mergedIter.Close()
+		multiIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(brs), nsCtx.Schema)
 
+		// tagsIter is never nil.
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
 		tagsIter.Close()
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			return multiErr.FinalError()
 		}
-		if err := persistIter(prepared.Persist, mergedIter, id, tags, encoderPool); err != nil {
+		if err := persistIter(prepared.Persist, multiIter, id, tags, encoderPool); err != nil {
 			multiErr = multiErr.Add(err)
 			return multiErr.FinalError()
 		}
 	}
-
 	// Second stage: loop through rest of the merge target that was not captured
 	// in the first stage.
 	err = mergeWith.ForEachRemaining(blockStart, func(seriesID ident.ID, tags ident.Tags) bool {
@@ -161,10 +184,8 @@ func (m *Merger) Merge(
 		}
 
 		if hasData {
-			iter := multiIterPool.Get()
-			iter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize, nsCtx.Schema)
-			defer iter.Close()
-			if err := persistIter(prepared.Persist, iter, seriesID, tags, encoderPool); err != nil {
+			multiIter.Reset(xio.NewSegmentReaderSliceFromBlockReaderSlice(encoded), startTime, blockSize, nsCtx.Schema)
+			if err := persistIter(prepared.Persist, multiIter, seriesID, tags, encoderPool); err != nil {
 				multiErr = multiErr.Add(err)
 				return false
 			}
@@ -189,15 +210,14 @@ func (m *Merger) Merge(
 
 func blockReaderFromData(
 	data checked.Bytes,
-	srPool xio.SegmentReaderPool,
+	segReader xio.SegmentReader,
 	startTime time.Time,
 	blockSize time.Duration,
 ) xio.BlockReader {
 	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-	sr := srPool.Get()
-	sr.Reset(seg)
+	segReader.Reset(seg)
 	return xio.BlockReader{
-		SegmentReader: sr,
+		SegmentReader: segReader,
 		Start:         startTime,
 		BlockSize:     blockSize,
 	}
@@ -221,21 +241,10 @@ func persistIter(
 		return err
 	}
 
-	stream, ok := encoder.Stream(encoding.StreamOptions{})
-	encoder.Close()
-	if !ok {
-		// Don't write out series with no data.
-		return nil
-	}
-
-	segment, err := stream.Segment()
-	if err != nil {
-		return err
-	}
-
+	segment := encoder.Discard()
 	checksum := digest.SegmentChecksum(segment)
 
-	err = persistFn(id, tags, segment, checksum)
+	err := persistFn(id, tags, segment, checksum)
 	id.Finalize()
 	tags.Finalize()
 	if err != nil {
