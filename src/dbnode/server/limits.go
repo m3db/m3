@@ -21,10 +21,15 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
+	"syscall"
 
-	xos "github.com/m3db/m3/src/x/os"
 	xerror "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (
@@ -77,4 +82,76 @@ func validateProcessLimits() error {
 	}
 
 	return multiErr.FinalError()
+}
+
+func raiseRlimitToNROpen() error {
+	cmd := exec.Command("sysctl", "-a")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf(
+			"unable to raise nofile limits: sysctl_stdout_err=%v", err)
+	}
+
+	defer stdout.Close()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf(
+			"unable to raise nofile limits: sysctl_start_err=%v", err)
+	}
+
+	var (
+		scanner = bufio.NewScanner(stdout)
+		limit   uint64
+	)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "nr_open") {
+			continue
+		}
+		equalsIdx := strings.LastIndex(line, "=")
+		if equalsIdx < 0 {
+			return fmt.Errorf(
+				"unable to raise nofile limits: sysctl_parse_stdout_err=%v", err)
+		}
+		value := strings.TrimSpace(line[equalsIdx+1:])
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf(
+				"unable to raise nofile limits: sysctl_eval_stdout_err=%v", err)
+		}
+
+		limit = uint64(n)
+		break
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf(
+			"unable to raise nofile limits: sysctl_read_stdout_err=%v", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf(
+			"unable to raise nofile limits: sysctl_exec_err=%v", err)
+	}
+
+	var limits syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limits); err != nil {
+		return fmt.Errorf(
+			"unable to raise nofile limits: rlimit_get_err=%v", err)
+	}
+
+	if limits.Max >= limit && limits.Cur >= limit {
+		// Limit already set correctly
+		return nil
+	}
+
+	limits.Max = limit
+	limits.Cur = limit
+
+	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limits); err != nil {
+		return fmt.Errorf(
+			"unable to raise nofile limits: rlimit_set_err=%v", err)
+	}
+
+	return nil
 }

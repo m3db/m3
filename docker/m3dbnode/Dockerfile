@@ -26,5 +26,18 @@ COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode /bin/
 COPY --from=builder /go/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
 COPY --from=builder /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh /bin/
 
+# Use setcap and run as specific user
+RUN apk add libcap && \
+    mkdir -p /home/m3dbnode-user && \
+    addgroup -S m3dbnode-group && \
+    adduser -u 1000 -S -h /home/m3dbnode-user -G m3dbnode-group m3dbnode-user && \
+    chown m3dbnode-user:m3dbnode-group /bin/m3dbnode && \
+    setcap cap_ipc_lock=+ep /bin/m3dbnode && \
+    setcap cap_sys_resource=+ep /bin/m3dbnode && \
+    mkdir -p /var/lib && \
+    chown -R m3dbnode-user:m3dbnode-group /var/lib
+
+USER m3dbnode-user
+
 ENTRYPOINT [ "/bin/m3dbnode" ]
 CMD [ "-f", "/etc/m3dbnode/m3dbnode.yml" ]

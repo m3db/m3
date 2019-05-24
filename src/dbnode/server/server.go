@@ -150,6 +150,12 @@ func Run(runOpts RunOptions) {
 	}
 	defer logger.Sync()
 
+	// Raise soft fd limit to hard limit
+	if err := raiseRlimitToNROpen(); err != nil {
+		logger.Warn("unable to raise rlimit", zap.Error(err))
+	}
+
+	// Parse file and directory modes
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		logger.Fatal("could not parse new file mode", zap.Error(err))
