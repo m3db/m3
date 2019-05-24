@@ -599,10 +599,10 @@ func (s *simpleBytesPool) Put(b []byte) {
 
 // offsetFileReader implements io.Reader() and allows an *os.File to be wrapped
 // such that any calls to Read() are issued at the provided offset. This is used
-// to issue reads to specific portions of the index and data file without having
+// to issue reads to specific portions of the index and data files without having
 // to first call Seek(). This reduces the number of syscalls that need to be made
 // and also allows the fds to be shared among concurrent goroutines since the
-// offset managed by the kernel is not being used.
+// internal F.D offset managed by the kernel is not being used.
 type offsetFileReader struct {
 	fd     *os.File
 	offset int64
