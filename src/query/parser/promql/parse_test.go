@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/prometheus/prometheus/promql"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,6 +74,51 @@ func TestDAGWithOffset(t *testing.T) {
 func TestInvalidOffset(t *testing.T) {
 	q := "up offset -2m"
 	_, err := Parse(q, models.NewTagOptions())
+	require.Error(t, err)
+}
+
+func TestNegativeUnary(t *testing.T) {
+	q := "-up"
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), lazy.UnaryType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+}
+
+func TestPositiveUnary(t *testing.T) {
+	q := "+up"
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 1) // "+" defaults to just a fetch operation
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Len(t, edges, 0)
+}
+
+func TestInvalidUnary(t *testing.T) {
+	q := "*up"
+	_, err := Parse(q, models.NewTagOptions())
+	require.Error(t, err)
+}
+
+func TestGetUnaryOpType(t *testing.T) {
+	promOpType := promql.ItemType(itemADD)
+	unaryOpType, err := getUnaryOpType(promOpType)
+	require.NoError(t, err)
+	assert.Equal(t, binary.PlusType, unaryOpType)
+
+	promOpType = promql.ItemType(itemEQL)
+	_, err = getUnaryOpType(promOpType)
 	require.Error(t, err)
 }
 

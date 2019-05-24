@@ -83,12 +83,20 @@ func (it *lazyStepIter) Meta() Metadata {
 }
 
 func (it *lazyStepIter) Current() Step {
-	c := it.it.Current()
-	tt := it.opts.TimeTransform()
+	var (
+		c        = it.it.Current()
+		tt, vt   = it.opts.TimeTransform(), it.opts.ValueTransform()
+		stepVals = c.Values()
+	)
+
+	vals := make([]float64, 0, len(stepVals))
+	for _, val := range stepVals {
+		vals = append(vals, vt(val))
+	}
 
 	return ColStep{
 		time:   tt(c.Time()),
-		values: c.Values(),
+		values: vals,
 	}
 }
 
@@ -115,7 +123,22 @@ func (it *lazySeriesIter) Err() error               { return it.it.Err() }
 func (it *lazySeriesIter) SeriesCount() int         { return it.it.SeriesCount() }
 func (it *lazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *lazySeriesIter) Next() bool               { return it.it.Next() }
-func (it *lazySeriesIter) Current() Series          { return it.it.Current() }
+
+func (it *lazySeriesIter) Current() Series {
+	var (
+		c    = it.it.Current()
+		vt   = it.opts.ValueTransform()
+		vals = make([]float64, 0, len(c.values))
+	)
+
+	for _, val := range c.values {
+		vals = append(vals, vt(val))
+	}
+
+	c.values = vals
+	return c
+}
+
 func (it *lazySeriesIter) Meta() Metadata {
 	mt := it.opts.MetaTransform()
 	return mt(it.it.Meta())
@@ -212,19 +235,28 @@ func (s unconsolidatedStep) Values() []ts.Datapoints {
 }
 
 func (it *ucLazyStepIter) Current() UnconsolidatedStep {
-	c := it.it.Current()
-	for _, val := range c.Values() {
-		for i, dp := range val.Datapoints() {
-			tt, vt := it.opts.TimeTransform(), it.opts.ValueTransform()
-			val[i].Timestamp = tt(dp.Timestamp)
-			val[i].Value = vt(dp.Value)
+	var (
+		c      = it.it.Current()
+		values = c.Values()
+		dpList = make([]ts.Datapoints, 0, len(values))
+		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
+	)
+
+	for _, val := range values {
+		dps := make([]ts.Datapoint, 0, len(val))
+		for _, dp := range val.Datapoints() {
+			dps = append(dps, ts.Datapoint{
+				Timestamp: tt(dp.Timestamp),
+				Value:     vt(dp.Value),
+			})
 		}
+
+		dpList = append(dpList, dps)
 	}
 
-	tt := it.opts.TimeTransform()
 	return unconsolidatedStep{
 		time:   tt(c.Time()),
-		values: c.Values(),
+		values: dpList,
 	}
 }
 
@@ -250,16 +282,28 @@ func (it *ucLazySeriesIter) Err() error               { return it.it.Err() }
 func (it *ucLazySeriesIter) SeriesCount() int         { return it.it.SeriesCount() }
 func (it *ucLazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *ucLazySeriesIter) Next() bool               { return it.it.Next() }
+
 func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
-	c := it.it.Current()
-	for _, val := range c.datapoints {
-		for i, dp := range val.Datapoints() {
-			tt, vt := it.opts.TimeTransform(), it.opts.ValueTransform()
-			val[i].Timestamp = tt(dp.Timestamp)
-			val[i].Value = vt(dp.Value)
+	var (
+		c      = it.it.Current()
+		values = c.datapoints
+		dpList = make([]ts.Datapoints, 0, len(values))
+		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
+	)
+
+	for _, val := range values {
+		dps := make([]ts.Datapoint, 0, len(val))
+		for _, dp := range val.Datapoints() {
+			dps = append(dps, ts.Datapoint{
+				Timestamp: tt(dp.Timestamp),
+				Value:     vt(dp.Value),
+			})
 		}
+
+		dpList = append(dpList, dps)
 	}
 
+	c.datapoints = dpList
 	return c
 }
 
