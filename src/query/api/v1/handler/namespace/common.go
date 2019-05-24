@@ -45,11 +45,16 @@ const (
 
 	// NamespacePathName is the namespace part of the API path.
 	NamespacePathName = "namespace"
+
+	// SchemaPathName is the schema part of the API path.
+	SchemaPathName = "schema"
 )
 
 var (
 	// M3DBServiceNamespacePathName is the M3DB service namespace API path.
 	M3DBServiceNamespacePathName = path.Join(ServicesPathName, M3DBServiceName, NamespacePathName)
+	// M3DBServiceSchemaPathName is the M3DB service schema API path.
+	M3DBServiceSchemaPathName = path.Join(ServicesPathName, M3DBServiceName, SchemaPathName)
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -104,4 +109,8 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
 	deleteHandler := wrapped(NewDeleteHandler(client)).ServeHTTP
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
+
+	// Deploy M3DB schemas.
+	schemaHandler := wrapped(NewSchemaHandler(client)).ServeHTTP
+	r.HandleFunc(M3DBSchemaURL, schemaHandler).Methods(SchemaHTTPMethod)
 }
