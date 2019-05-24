@@ -32,6 +32,9 @@ import (
 const (
 	// OffsetType offsets incoming data point timestamps and metadata by the given offset.
 	OffsetType = "offset"
+
+	// UnaryType offsets incoming data point values by the given operator.
+	UnaryType = "unary"
 )
 
 // NewLazyOp creates a new lazy operation
