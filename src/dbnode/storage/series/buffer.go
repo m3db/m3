@@ -596,10 +596,16 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 ) ([]xio.BlockReader, error) {
 	res := b.fetchBlocks(ctx, []time.Time{start},
 		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx})
-	if len(res) != 1 {
+	if len(res) == 0 {
 		// The lifecycle of calling this function is preceded by first checking
-		// which blocks have cold data that have not yet been flushed, so
-		// something is wrong if we don't get any data here.
+		// which blocks have cold data that have not yet been flushed.
+		// If we don't get data here, it means that it has since fallen out of
+		// retention and has evicted.
+		return nil, nil
+	}
+	if len(res) != 1 {
+		// Must be only one result if anything at all, since fetchBlocks returns
+		// one result per block start.
 		return nil, fmt.Errorf("fetchBlocks did not return just one block for block start %s", start)
 	}
 
