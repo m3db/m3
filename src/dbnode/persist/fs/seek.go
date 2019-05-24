@@ -71,8 +71,6 @@ type seeker struct {
 	indexFd       *os.File
 	indexFileSize int64
 
-	shardDir string
-
 	unreadBuf []byte
 
 	// Bloom filter associated with the shard / block the seeker is responsible
@@ -153,17 +151,17 @@ func (s *seeker) Open(
 		return errClonesShouldNotBeOpened
 	}
 
-	s.shardDir = ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
 	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(s.shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(s.shardDir, blockStart, indexFileSuffix):       &s.indexFd,
-		filesetPathFromTime(s.shardDir, blockStart, dataFileSuffix):        &s.dataFd,
-		filesetPathFromTime(s.shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(s.shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-		filesetPathFromTime(s.shardDir, blockStart, summariesFileSuffix):   &summariesFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
+		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
 	}); err != nil {
 		return err
 	}
@@ -221,7 +219,7 @@ func (s *seeker) Open(
 		s.Close()
 		return fmt.Errorf(
 			"index file digest for file: %s does not match the expected digest: %c",
-			filesetPathFromTime(s.shardDir, blockStart, indexFileSuffix), err,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
 
