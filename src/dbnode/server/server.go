@@ -560,7 +560,7 @@ func Run(runOpts RunOptions) {
 	// at dbnode startup/initialization time.
 	if protoEnabled {
 		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
-			dummyDeployID := "first"
+			dummyDeployID := "fromconfig"
 			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
 				dummyDeployID,
 				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {

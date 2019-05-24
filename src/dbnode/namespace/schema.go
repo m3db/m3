@@ -43,6 +43,8 @@ var (
 	errInvalidSchemaOptions = errors.New("invalid schema options")
 	errEmptyProtoFile       = errors.New("empty proto file")
 	errSyntaxNotProto3      = errors.New("proto syntax is not proto3")
+	errEmptyDeployID        = errors.New("schema deploy ID can not be empty")
+	errDuplicateDeployID    = errors.New("schema deploy ID already exists")
 )
 
 type MessageDescriptor struct {
@@ -311,10 +313,19 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 //          Then the map key for improted.proto must be "mainpkg/imported.proto"
 //          See src/dbnode/namesapce/kvadmin test for example.
 func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName string, contents map[string]string, deployID string) (*nsproto.SchemaOptions, error) {
+	// Verify schema options
 	schemaHist, err := LoadSchemaHistory(schemaOpt)
 	if err != nil {
 		return schemaOpt, xerrors.Wrap(err, "can not append to invalid schema history")
 	}
+	// Verify deploy ID
+	if deployID == "" {
+		return schemaOpt, errEmptyDeployID
+	}
+	if _, ok := schemaHist.Get(deployID); ok {
+		return schemaOpt, errDuplicateDeployID
+	}
+
 	var prevID string
 	if descr, ok := schemaHist.GetLatest(); ok {
 		prevID = descr.DeployId()
