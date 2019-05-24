@@ -86,7 +86,6 @@ func (r shardRepairer) Options() repair.Options {
 func (r shardRepairer) Repair(
 	ctx context.Context,
 	nsCtx namespace.Context,
-	namespace ident.ID,
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
@@ -124,7 +123,7 @@ func (r shardRepairer) Repair(
 
 	// Add peer metadata
 	level := r.rpopts.RepairConsistencyLevel()
-	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end,
+	peerIter, err := session.FetchBlocksMetadataFromPeers(nsCtx.ID, shard.ID(), start, end,
 		level, result.NewOptions())
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
@@ -135,7 +134,7 @@ func (r shardRepairer) Repair(
 
 	metadataRes := metadata.Compare()
 
-	r.recordFn(namespace, shard, metadataRes)
+	r.recordFn(nsCtx.ID, shard, metadataRes)
 
 	return metadataRes, nil
 }

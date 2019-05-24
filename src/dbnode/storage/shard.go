@@ -2076,7 +2076,7 @@ func (s *dbShard) Repair(
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, nsCtx, s.namespace.ID(), tr, s)
+	return repairer.Repair(ctx, nsCtx, tr, s)
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

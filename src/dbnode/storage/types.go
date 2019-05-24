@@ -643,7 +643,6 @@ type databaseShardRepairer interface {
 	Repair(
 		ctx context.Context,
 		nsCtx namespace.Context,
-		namespace ident.ID,
 		tr xtime.Range,
 		shard databaseShard,
 	) (repair.MetadataComparisonResult, error)

@@ -232,7 +232,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
 
 	var (
-		namespace       = ident.StringID("testNamespace")
+		namespaceID     = ident.StringID("testNamespace")
 		start           = now
 		end             = now.Add(rtopts.BlockSize())
 		repairTimeRange = xtime.Range{Start: start, End: end}
@@ -291,7 +291,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		peerIter.EXPECT().Err().Return(nil),
 	)
 	session.EXPECT().
-		FetchBlocksMetadataFromPeers(namespace, shardID, start, end,
+		FetchBlocksMetadataFromPeers(namespaceID, shardID, start, end,
 			rpOpts.RepairConsistencyLevel(), gomock.Any()).
 		Return(peerIter, nil)
 
@@ -303,15 +303,16 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 
 	databaseShardRepairer := newShardRepairer(opts, rpOpts)
 	repairer := databaseShardRepairer.(shardRepairer)
-	repairer.recordFn = func(namespace ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
-		resNamespace = namespace
+	repairer.recordFn = func(nsID ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+		resNamespace = nsID
 		resShard = shard
 		resDiff = diffRes
 	}
 
 	ctx := context.NewContext()
-	repairer.Repair(ctx, namespace, repairTimeRange, shard)
-	require.Equal(t, namespace, resNamespace)
+	nsCtx := namespace.Context{ID: namespaceID}
+	repairer.Repair(ctx, nsCtx, namespaceID, repairTimeRange, shard)
+	require.Equal(t, namespaceID, resNamespace)
 	require.Equal(t, resShard, shard)
 	require.Equal(t, int64(2), resDiff.NumSeries)
 	require.Equal(t, int64(3), resDiff.NumBlocks)
