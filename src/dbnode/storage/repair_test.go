@@ -311,7 +311,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 
 	ctx := context.NewContext()
 	nsCtx := namespace.Context{ID: namespaceID}
-	repairer.Repair(ctx, nsCtx, namespaceID, repairTimeRange, shard)
+	repairer.Repair(ctx, nsCtx, repairTimeRange, shard)
 	require.Equal(t, namespaceID, resNamespace)
 	require.Equal(t, resShard, shard)
 	require.Equal(t, int64(2), resDiff.NumSeries)
