@@ -359,10 +359,11 @@ func (s *seeker) SeekByIndexEntry(
 //
 //     1. Go to the indexLookup and it will give us an offset that is a good starting
 //        point for scanning the index file.
-//     2. Seek to the position that the indexLookup gave us.
-//     3. Reset a decoder with fileDecoderStream (fd wrapped in a bufio.Reader).
+//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
+//        begin at the offset provided by the offset lookup).
+//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
 //     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
-//        file internally) until we've either found the entry we're looking for or gone so
+//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
 func (s *seeker) SeekIndexEntry(
 	id ident.ID,
@@ -454,6 +455,7 @@ func (s *seeker) Close() error {
 	if s.isClone {
 		return nil
 	}
+
 	multiErr := xerrors.NewMultiError()
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
@@ -489,15 +491,11 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		bloomFilter: s.bloomFilter,
 		indexLookup: indexLookupClone,
 		isClone:     true,
-	}
 
-	// File descriptors are not concurrency safe since they have an internal
-	// seek position.
-	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(s.shardDir, s.start.ToTime(), indexFileSuffix): &seeker.indexFd,
-		filesetPathFromTime(s.shardDir, s.start.ToTime(), dataFileSuffix):  &seeker.dataFd,
-	}); err != nil {
-		return nil, err
+		// Index and data fd's are always accessed via the ReadAt() / pread APIs so
+		// they are concurrency safe and can be shared among clones.
+		indexFd: s.indexFd,
+		dataFd:  s.dataFd,
 	}
 
 	return seeker, nil
