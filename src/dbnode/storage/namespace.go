@@ -1165,6 +1165,11 @@ func (n *dbNamespace) Repair(
 
 	workers := xsync.NewWorkerPool(repairer.Options().RepairShardConcurrency())
 	workers.Init()
+
+	n.RLock()
+	nsCtx := n.nsContextWithRLock()
+	n.RUnlock()
+
 	for _, shard := range shards {
 		shard := shard
 
@@ -1175,7 +1180,7 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, tr, repairer)
+			metadataRes, err := shard.Repair(ctx, nsCtx, tr, repairer)
 
 			mutex.Lock()
 			if err != nil {

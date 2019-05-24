@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -2072,10 +2072,11 @@ func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
 
 func (s *dbShard) Repair(
 	ctx context.Context,
+	nsCtx namespace.Context,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, s.namespace.ID(), tr, s)
+	return repairer.Repair(ctx, nsCtx, s.namespace.ID(), tr, s)
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

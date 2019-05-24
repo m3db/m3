@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
@@ -84,6 +85,7 @@ func (r shardRepairer) Options() repair.Options {
 
 func (r shardRepairer) Repair(
 	ctx context.Context,
+	nsCtx namespace.Context,
 	namespace ident.ID,
 	tr xtime.Range,
 	shard databaseShard,
