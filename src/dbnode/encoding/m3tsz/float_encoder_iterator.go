@@ -26,6 +26,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
+const (
+	bits12To6Mask = 4032 // 1111 1100 0000
+	bits6To0Mask  = 63   // 0011 1111
+)
+
 // FloatEncoderAndIterator encapsulates the state required for a logical stream of bits
 // that represent a stream of float values compressed with XOR.
 type FloatEncoderAndIterator struct {
@@ -140,16 +145,13 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 		return nil
 	}
 
-	numLeadingZeros, err := stream.ReadBits(6)
+	numLeadingZeroesAndNumMeaningfulBits, err := stream.ReadBits(12)
 	if err != nil {
 		return err
 	}
 
-	numMeaningfulBits, err := stream.ReadBits(6)
-	if err != nil {
-		return err
-	}
-	numMeaningfulBits = numMeaningfulBits + 1
+	numLeadingZeros := (numLeadingZeroesAndNumMeaningfulBits & bits12To6Mask) >> 6
+	numMeaningfulBits := (numLeadingZeroesAndNumMeaningfulBits & bits6To0Mask) + 1
 
 	meaningfulBits, err := stream.ReadBits(int(numMeaningfulBits))
 	if err != nil {

@@ -400,3 +400,7 @@ func GenTestSchemaOptions(protoFile string, importPath ...string) *nsproto.Schem
 func GetTestSchemaDescr(md *desc.MessageDescriptor) SchemaDescr {
 	return &schemaDescr{md: MessageDescriptor{md}}
 }
+
+func GetTestSchemaDescrWithDeployID(md *desc.MessageDescriptor, deployID string) SchemaDescr {
+	return &schemaDescr{md: MessageDescriptor{md}, deployId: deployID}
+}

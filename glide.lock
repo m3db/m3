@@ -1,5 +1,5 @@
-hash: 00001b34be1109b31e1996a3f7f8ee5ba39b3521018f3bc74ea128bbfad42cbe
-updated: 2019-05-15T17:10:26.266783-04:00
+hash: 88640e940000eacfdf8cce77ed94121794d32f16d40e1c52e37d93965677998f
+updated: 2019-05-23T15:26:57.158244+02:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -183,7 +183,7 @@ imports:
 - name: github.com/google/uuid
   version: c2e93f3ae59f2904160ceaab466009f965df46d6
 - name: github.com/gorilla/mux
-  version: c5c6c98bc25355028a63748a498942a6398ccd22
+  version: ed099d42384823742bba0bf9a72b53b55c9e2e38
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -392,7 +392,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: df976f2515e274675050de7b3f42545de80594fd
 - name: github.com/uber-go/tally
-  version: f331b65108ed41d0a83a6ce650c1ea9c0fe2878f
+  version: 24c699f78afd17db5aac42f83c1c5cad70254294
   subpackages:
   - m3
   - m3/customtransports

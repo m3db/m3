@@ -23,6 +23,7 @@ package proto
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -125,13 +126,13 @@ func TestRoundTrip(t *testing.T) {
 	for i, tc := range testCases {
 		vl := newVL(
 			tc.latitude, tc.longitude, tc.epoch, tc.deliveryID, tc.attributes)
-		marshaledVL, err := vl.Marshal()
+		marshalledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
 		currTime := curr.Add(time.Duration(i) * time.Second)
 		testCases[i].timestamp = currTime
 		// Encoder should ignore value so we set it to make sure it gets ignored.
-		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, xtime.Second, marshaledVL)
+		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, xtime.Second, marshalledVL)
 		require.NoError(t, err)
 
 		lastEncoded, err := enc.LastEncoded()
@@ -143,7 +144,7 @@ func TestRoundTrip(t *testing.T) {
 
 	// Add some sanity to make sure that the compression (especially string compression)
 	// is working properly.
-	numExpectedBytes := 231
+	numExpectedBytes := 233
 	require.Equal(t, numExpectedBytes, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
@@ -162,6 +163,7 @@ func TestRoundTrip(t *testing.T) {
 		m := dynamic.NewMessage(testVLSchema)
 		require.NoError(t, m.Unmarshal(annotation))
 
+		fmt.Println(m.String())
 		require.Equal(t, unit, xtime.Second)
 		require.True(t, tc.timestamp.Equal(dp.Timestamp))
 		// Value is meaningless for proto so should always be zero
@@ -185,25 +187,25 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	attrs := map[string]string{"key1": "val1"}
 	vl1Write := newVL(26.0, 27.0, 10, []byte("some_delivery_id"), attrs)
-	marshaledVL, err := vl1Write.Marshal()
+	marshalledVL, err := vl1Write.Marshal()
 	require.NoError(t, err)
 
 	vl1WriteTime := time.Now().Truncate(time.Second)
-	err = enc.Encode(ts.Datapoint{Timestamp: vl1WriteTime}, xtime.Second, marshaledVL)
+	err = enc.Encode(ts.Datapoint{Timestamp: vl1WriteTime}, xtime.Second, marshalledVL)
 	require.NoError(t, err)
 
 	vl2Write := newVL2(28.0, 29.0, attrs, "some_new_custom_field", map[int]int{1: 2})
-	marshaledVL, err = vl2Write.Marshal()
+	marshalledVL, err = vl2Write.Marshal()
 	require.NoError(t, err)
 
 	vl2WriteTime := vl1WriteTime.Add(time.Second)
-	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
+	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshalledVL)
 	require.Equal(t,
-		"proto encoder: error unmarshaling message: encountered unknown field with field number: 6",
+		"proto encoder: error unmarshalling message: encountered unknown field with field number: 6",
 		err.Error())
 
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
-	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshaledVL)
+	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshalledVL)
 	require.NoError(t, err)
 
 	rawBytes, err := enc.Bytes()
@@ -213,7 +215,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation := iter.Current()
 	m := dynamic.NewMessage(testVLSchema)
 	require.NoError(t, m.Unmarshal(annotation))
@@ -226,7 +228,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.Equal(t, vl1Write.GetFieldByName("deliveryID"), m.GetFieldByName("deliveryID"))
 	require.Equal(t, vl1Write.GetFieldByName("attributes"), m.GetFieldByName("attributes"))
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVLSchema)
 	require.NoError(t, m.Unmarshal(annotation))
@@ -249,7 +251,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	buff = bytes.NewBuffer(rawBytes)
 	iter = NewIterator(buff, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))
@@ -269,7 +271,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	_, err = m.TryGetFieldByName("deliveryID")
 	require.Error(t, err)
 
-	require.True(t, iter.Next())
+	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))

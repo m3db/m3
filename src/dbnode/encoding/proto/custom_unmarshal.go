@@ -29,7 +29,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 var (
@@ -39,50 +38,54 @@ var (
 	zeroValue                unmarshalValue
 )
 
-type customFieldUnmarshaler interface {
+type customFieldUnmarshaller interface {
 	sortedCustomFieldValues() sortedCustomFieldValues
-	nonCustomFieldValues() *dynamic.Message
+	sortedNonCustomFieldValues() sortedMarshalledFields
 	numNonCustomValues() int
 	resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error
 }
 
-type customUnmarshaler struct {
-	schema          *desc.MessageDescriptor
-	decodeBuf       *buffer
-	customValues    sortedCustomFieldValues
-	nonCustomValues *dynamic.Message
-	numNonCustom    int
+type customUnmarshallerOptions struct {
+	skipUnknownFields bool
 }
 
-func newCustomFieldUnmarshaler() customFieldUnmarshaler {
-	return &customUnmarshaler{
+type customUnmarshaller struct {
+	schema       *desc.MessageDescriptor
+	decodeBuf    *buffer
+	customValues sortedCustomFieldValues
+
+	nonCustomValues sortedMarshalledFields
+	numNonCustom    int
+
+	opts customUnmarshallerOptions
+}
+
+func newCustomFieldUnmarshaller(opts customUnmarshallerOptions) customFieldUnmarshaller {
+	return &customUnmarshaller{
 		decodeBuf: newCodedBuffer(nil),
+		opts:      opts,
 	}
 }
 
-func (u *customUnmarshaler) sortedCustomFieldValues() sortedCustomFieldValues {
+func (u *customUnmarshaller) sortedCustomFieldValues() sortedCustomFieldValues {
 	return u.customValues
 }
 
-func (u *customUnmarshaler) numNonCustomValues() int {
+func (u *customUnmarshaller) numNonCustomValues() int {
 	return u.numNonCustom
 }
 
-func (u *customUnmarshaler) nonCustomFieldValues() *dynamic.Message {
-	if u.nonCustomValues == nil {
-		u.nonCustomValues = dynamic.NewMessage(u.schema)
-	}
+func (u *customUnmarshaller) sortedNonCustomFieldValues() sortedMarshalledFields {
 	return u.nonCustomValues
 }
 
-func (u *customUnmarshaler) unmarshal() error {
-	u.customValues = u.customValues[:0]
+func (u *customUnmarshaller) unmarshal() error {
+	u.resetCustomAndNonCustomValues()
 
-	if u.nonCustomValues != nil {
-		u.nonCustomValues.Reset()
-	}
-
-	isSorted := true
+	var (
+		areCustomValuesSorted    = true
+		areNonCustomValuesSorted = true
+	)
 	for !u.decodeBuf.eof() {
 		tagAndWireTypeStartOffset := u.decodeBuf.index
 		fieldNum, wireType, err := u.decodeBuf.decodeTagAndWireType()
@@ -92,33 +95,69 @@ func (u *customUnmarshaler) unmarshal() error {
 
 		fd := u.schema.FindFieldByNumber(fieldNum)
 		if fd == nil {
-			return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
+			if !u.opts.skipUnknownFields {
+				return fmt.Errorf("encountered unknown field with field number: %d", fieldNum)
+			}
+
+			if _, err := u.skip(wireType); err != nil {
+				return err
+			}
+			continue
 		}
 
 		if !u.isCustomField(fd) {
-			if u.nonCustomValues == nil {
-				u.nonCustomValues = dynamic.NewMessage(u.schema)
-			}
-
 			_, err = u.skip(wireType)
 			if err != nil {
 				return err
 			}
 
 			var (
-				startIdx       = tagAndWireTypeStartOffset
-				endIdx         = u.decodeBuf.index
-				marshaledField = u.decodeBuf.buf[startIdx:endIdx]
+				startIdx   = tagAndWireTypeStartOffset
+				endIdx     = u.decodeBuf.index
+				marshalled = u.decodeBuf.buf[startIdx:endIdx]
 			)
-			// A marshaled Protobuf message consists of a stream of <fieldNumber, wireType, value>
+			// A marshalled Protobuf message consists of a stream of <fieldNumber, wireType, value>
 			// tuples, all of which are optional, with no additional header or footer information.
 			// This means that each tuple within the stream can be thought of as its own complete
-			// marshaled message and as a result we can build up the nonCustomValues *dynamic.Message
-			// one field at a time by calling UnmarshalMerge() on sub-slices that contain a complete
-			// tuple.
-			if err := u.nonCustomValues.UnmarshalMerge(marshaledField); err != nil {
-				return err
+			// marshalled message and as a result we can build up the []marshalledField one field at
+			// a time.
+			updatedExisting := false
+			if fd.IsRepeated() {
+				// If the fd is a repeated type and not using `packed` encoding then their could be multiple
+				// entries in the stream with the same field number so their marshalled bytes needs to be all
+				// concatenated together.
+				//
+				// NB(rartoul): This will have an adverse impact on the compression of map types because the
+				// key/val pairs can be encoded in any order. This means that its possible for two equivalent
+				// maps to have different byte streams which will force the encoder to re-encode the field into
+				// the stream even though it hasn't changed. This naive solution should be good enough for now,
+				// but if it proves problematic in the future the issue could be resolved by accumulating the
+				// marshalled tuples into a slice and then sorting by field number to produce a deterministic
+				// result such that equivalent maps always result in equivalent marshalled bytes slices.
+				for i, val := range u.nonCustomValues {
+					if fieldNum == val.fieldNum {
+						u.nonCustomValues[i].marshalled = append(u.nonCustomValues[i].marshalled, marshalled...)
+						updatedExisting = true
+						break
+					}
+				}
 			}
+			if !updatedExisting {
+				u.nonCustomValues = append(u.nonCustomValues, marshalledField{
+					fieldNum:   fieldNum,
+					marshalled: marshalled,
+				})
+			}
+
+			if areNonCustomValuesSorted && len(u.nonCustomValues) > 1 {
+				// Check if the slice is sorted as it's built to avoid resorting
+				// unnecessarily at the end.
+				lastFieldNum := u.nonCustomValues[len(u.nonCustomValues)-1].fieldNum
+				if fieldNum < lastFieldNum {
+					areNonCustomValuesSorted = false
+				}
+			}
+
 			u.numNonCustom++
 			continue
 		}
@@ -128,12 +167,12 @@ func (u *customUnmarshaler) unmarshal() error {
 			return err
 		}
 
-		if isSorted && len(u.customValues) > 1 {
+		if areCustomValuesSorted && len(u.customValues) > 1 {
 			// Check if the slice is sorted as it's built to avoid resorting
 			// unnecessarily at the end.
 			lastFieldNum := u.customValues[len(u.customValues)-1].fieldNumber
 			if fieldNum < lastFieldNum {
-				isSorted = false
+				areCustomValuesSorted = false
 			}
 		}
 
@@ -143,8 +182,11 @@ func (u *customUnmarshaler) unmarshal() error {
 	u.decodeBuf.reset(u.decodeBuf.buf)
 
 	// Avoid resorting if possible.
-	if !isSorted {
+	if !areCustomValuesSorted {
 		sort.Sort(u.customValues)
+	}
+	if !areNonCustomValuesSorted {
+		sort.Sort(u.nonCustomValues)
 	}
 
 	return nil
@@ -154,7 +196,7 @@ func (u *customUnmarshaler) unmarshal() error {
 // it up to the `jhump/dynamic` package to handle the encoding. This is important because
 // it allows us to use the efficient unmarshal path only for fields that the encoder can
 // actually take advantage of.
-func (u *customUnmarshaler) isCustomField(fd *desc.FieldDescriptor) bool {
+func (u *customUnmarshaller) isCustomField(fd *desc.FieldDescriptor) bool {
 	if fd.IsRepeated() || fd.IsMap() {
 		// Map should always be repeated but include the guard just in case.
 		return false
@@ -170,7 +212,7 @@ func (u *customUnmarshaler) isCustomField(fd *desc.FieldDescriptor) bool {
 
 // skip will skip over the next value in the encoded stream (given that the tag and
 // wiretype have already been decoded).
-func (u *customUnmarshaler) skip(wireType int8) (int, error) {
+func (u *customUnmarshaller) skip(wireType int8) (int, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		bytesSkipped := 4
@@ -219,7 +261,7 @@ func (u *customUnmarshaler) skip(wireType int8) (int, error) {
 	}
 }
 
-func (u *customUnmarshaler) unmarshalCustomField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
+func (u *customUnmarshaller) unmarshalCustomField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
 	switch wireType {
 	case proto.WireFixed32:
 		num, err := u.decodeBuf.decodeFixed32()
@@ -274,7 +316,8 @@ func (u *customUnmarshaler) unmarshalCustomField(fd *desc.FieldDescriptor, wireT
 }
 
 func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, error) {
-	val := unmarshalValue{fieldNumber: fd.GetNumber(), v: v}
+	fieldNum := fd.GetNumber()
+	val := unmarshalValue{fieldNumber: fieldNum, v: v}
 	switch fd.GetType() {
 	case dpb.FieldDescriptorProto_TYPE_BOOL,
 		dpb.FieldDescriptorProto_TYPE_UINT64,
@@ -287,27 +330,30 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	case dpb.FieldDescriptorProto_TYPE_UINT32,
 		dpb.FieldDescriptorProto_TYPE_FIXED32:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows uint32", v, fieldNum)
 		}
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_INT32,
 		dpb.FieldDescriptorProto_TYPE_ENUM:
 		s := int64(v)
-		if s > math.MaxInt32 || s < math.MinInt32 {
-			return zeroValue, dynamic.NumericOverflowError
+		if s > math.MaxInt32 {
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows int32", v, fieldNum)
+		}
+		if s < math.MinInt32 {
+			return zeroValue, fmt.Errorf("%d (field num %d) underflows int32", v, fieldNum)
 		}
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SFIXED32:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows int32", v, fieldNum)
 		}
 		return val, nil
 
 	case dpb.FieldDescriptorProto_TYPE_SINT32:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows int32", v, fieldNum)
 		}
 		val.v = uint64(decodeZigZag32(v))
 		return val, nil
@@ -318,7 +364,7 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 
 	case dpb.FieldDescriptorProto_TYPE_FLOAT:
 		if v > math.MaxUint32 {
-			return zeroValue, dynamic.NumericOverflowError
+			return zeroValue, fmt.Errorf("%d (field num %d) overflows uint32", v, fieldNum)
 		}
 		float32Val := math.Float32frombits(uint32(v))
 		float64Bits := math.Float64bits(float64(float32Val))
@@ -331,18 +377,24 @@ func unmarshalSimpleField(fd *desc.FieldDescriptor, v uint64) (unmarshalValue, e
 	}
 }
 
-func (u *customUnmarshaler) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
-	if schema != u.schema {
-		u.nonCustomValues = dynamic.NewMessage(schema)
-		u.nonCustomValues.Reset()
-	}
-
+func (u *customUnmarshaller) resetAndUnmarshal(schema *desc.MessageDescriptor, buf []byte) error {
 	u.schema = schema
 	u.numNonCustom = 0
-	u.customValues = u.customValues[:0]
+	u.resetCustomAndNonCustomValues()
 	u.decodeBuf.reset(buf)
-
 	return u.unmarshal()
+}
+
+func (u *customUnmarshaller) resetCustomAndNonCustomValues() {
+	for i := range u.customValues {
+		u.customValues[i] = unmarshalValue{}
+	}
+	u.customValues = u.customValues[:0]
+
+	for i := range u.nonCustomValues {
+		u.nonCustomValues[i] = marshalledField{}
+	}
+	u.nonCustomValues = u.nonCustomValues[:0]
 }
 
 type sortedCustomFieldValues []unmarshalValue

@@ -37,7 +37,6 @@ import (
 
 	"github.com/cespare/xxhash"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 // Make sure encoder implements encoding.Encoder.
@@ -63,20 +62,18 @@ type Encoder struct {
 	schemaDesc namespace.SchemaDescr
 	schema     *desc.MessageDescriptor
 
-	numEncoded    int
-	lastEncodedDP ts.Datapoint
-	lastEncoded   *dynamic.Message
-	customFields  []customFieldState
-	protoFields   []int32
+	numEncoded      int
+	lastEncodedDP   ts.Datapoint
+	customFields    []customFieldState
+	nonCustomFields []marshalledField
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
 	varIntBuf              [8]byte
-	changedValues          []int32
 	fieldsChangedToDefault []int32
 	marshalBuf             []byte
 
-	unmarshaler customFieldUnmarshaler
+	unmarshaller customFieldUnmarshaller
 
 	hasEncodedSchema bool
 	closed           bool
@@ -116,7 +113,7 @@ func NewEncoder(start time.Time, opts encoding.Options) *Encoder {
 // in order to implement the encoding.Encoder interface. It accepts a ts.Datapoint, but
 // only the Timestamp field will be used, the Value field will be ignored and will always
 // return 0 on subsequent iteration. In addition, the provided annotation is expected to
-// be a marshaled protobuf message that matches the configured schema.
+// be a marshalled protobuf message that matches the configured schema.
 func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.Annotation) error {
 	if unusableErr := enc.isUsable(); unusableErr != nil {
 		return unusableErr
@@ -131,15 +128,15 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 	// it doesn't cause LastEncoded() to produce invalid results.
 	dp.Value = float64(0)
 
-	if enc.unmarshaler == nil {
+	if enc.unmarshaller == nil {
 		// Lazy init.
-		enc.unmarshaler = newCustomFieldUnmarshaler()
+		enc.unmarshaller = newCustomFieldUnmarshaller(customUnmarshallerOptions{})
 	}
-	// resetAndUnmarshal before any data is written so that the marshaled message can be validated
+	// resetAndUnmarshal before any data is written so that the marshalled message can be validated
 	// upfront, otherwise errors could be encountered mid-write leaving the stream in a corrupted state.
-	if err := enc.unmarshaler.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
+	if err := enc.unmarshaller.resetAndUnmarshal(enc.schema, protoBytes); err != nil {
 		return fmt.Errorf(
-			"%s error unmarshaling message: %v", encErrPrefix, err)
+			"%s error unmarshalling message: %v", encErrPrefix, err)
 	}
 
 	if enc.numEncoded == 0 {
@@ -328,9 +325,9 @@ func (enc *Encoder) encodeCustomSchemaTypes() {
 
 func (enc *Encoder) encodeProto(buf []byte) error {
 	var (
-		sortedTopLevelScalarValues    = enc.unmarshaler.sortedCustomFieldValues()
+		sortedTopLevelScalarValues    = enc.unmarshaller.sortedCustomFieldValues()
 		sortedTopLevelScalarValuesIdx = 0
-		lastMarshaledValue            unmarshalValue
+		lastMarshalledValue           unmarshalValue
 	)
 
 	// Loop through the customFields slice and sortedTopLevelScalarValues slice (both
@@ -338,14 +335,14 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 	// to its encoded value in the stream (if any).
 	for i, customField := range enc.customFields {
 		if sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues) {
-			lastMarshaledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
+			lastMarshalledValue = sortedTopLevelScalarValues[sortedTopLevelScalarValuesIdx]
 		}
 
-		lastMarshaledValueFieldNumber := -1
+		lastMarshalledValueFieldNumber := -1
 
 		hasNext := sortedTopLevelScalarValuesIdx < len(sortedTopLevelScalarValues)
 		if hasNext {
-			lastMarshaledValueFieldNumber = int(lastMarshaledValue.fieldNumber)
+			lastMarshalledValueFieldNumber = int(lastMarshalledValue.fieldNumber)
 		}
 
 		// Since both the customFields slice and the sortedTopLevelScalarValues slice
@@ -354,9 +351,9 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		// of the current customField, it is safe to conclude that the current customField's
 		// value was not encoded in this message which means that it should be interpreted
 		// as the default value for that field according to the proto3 specification.
-		noMarshaledValue := (!hasNext ||
-			customField.fieldNum != lastMarshaledValueFieldNumber)
-		if noMarshaledValue {
+		noMarshalledValue := (!hasNext ||
+			customField.fieldNum != lastMarshalledValueFieldNumber)
+		if noMarshalledValue {
 			err := enc.encodeZeroValue(i)
 			if err != nil {
 				return err
@@ -366,23 +363,23 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 
 		switch {
 		case isCustomFloatEncodedField(customField.fieldType):
-			enc.encodeTSZValue(i, lastMarshaledValue.asFloat64())
+			enc.encodeTSZValue(i, lastMarshalledValue.asFloat64())
 
 		case isCustomIntEncodedField(customField.fieldType):
 			if isUnsignedInt(customField.fieldType) {
-				enc.encodeUnsignedIntValue(i, lastMarshaledValue.asUint64())
+				enc.encodeUnsignedIntValue(i, lastMarshalledValue.asUint64())
 			} else {
-				enc.encodeSignedIntValue(i, lastMarshaledValue.asInt64())
+				enc.encodeSignedIntValue(i, lastMarshalledValue.asInt64())
 			}
 
 		case customField.fieldType == bytesField:
-			err := enc.encodeBytesValue(i, lastMarshaledValue.asBytes())
+			err := enc.encodeBytesValue(i, lastMarshalledValue.asBytes())
 			if err != nil {
 				return err
 			}
 
 		case customField.fieldType == boolField:
-			enc.encodeBoolValue(i, lastMarshaledValue.asBool())
+			enc.encodeBoolValue(i, lastMarshalledValue.asBool())
 
 		default:
 			// This should never happen.
@@ -394,8 +391,7 @@ func (enc *Encoder) encodeProto(buf []byte) error {
 		sortedTopLevelScalarValuesIdx++
 	}
 
-	otherValues := enc.unmarshaler.nonCustomFieldValues()
-	if err := enc.encodeProtoValues(otherValues); err != nil {
+	if err := enc.encodeNonCustomValues(); err != nil {
 		return err
 	}
 
@@ -466,14 +462,13 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 	enc.stream.Reset(enc.newBuffer(capacity))
 	enc.timestampEncoder = m3tsz.NewTimestampEncoder(
 		start, enc.opts.DefaultTimeUnit(), enc.opts)
-	enc.lastEncoded = nil
 	enc.lastEncodedDP = ts.Datapoint{}
 
 	// Prevent this from growing too large and remaining in the pools.
 	enc.marshalBuf = nil
 
 	if enc.schema != nil {
-		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
+		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
 	}
 
 	enc.closed = false
@@ -483,16 +478,10 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
 	if enc.schema == nil {
-		enc.protoFields = nil
+		enc.nonCustomFields = nil
 		enc.customFields = nil
-		enc.lastEncoded = nil
 	} else {
-		enc.customFields, enc.protoFields = customAndProtoFields(enc.customFields, enc.protoFields, enc.schema)
-
-		// TODO(rartoul): Reset instead of allocate once we have an easy way to compare
-		// schemas to see if they have changed:
-		// https://github.com/m3db/m3/issues/1471
-		enc.lastEncoded = dynamic.NewMessage(schema)
+		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
 		enc.hasEncodedSchema = false
 	}
 }
@@ -632,6 +621,11 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	// which is acceptable for now, but in the future we may want to make the code able
 	// to do the comparison even if the bytes aren't aligned on a byte boundary in order
 	// to improve the compression.
+	//
+	// Also this implementation had the side-effect of making encoding and decoding of
+	// []byte values much faster because for long []byte the encoder and iterator can avoid
+	// bit manipulation and calling WriteByte() / ReadByte() in a loop and can instead read the
+	// entire []byte in one go.
 	enc.padToNextByte()
 
 	// Track the byte position we're going to start at so we can store it in the LRU after.
@@ -643,8 +637,8 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 
 	enc.addToBytesDict(i, encoderBytesFieldDictState{
 		hash:     hash,
-		startPos: bytePos,
-		length:   length,
+		startPos: uint32(bytePos),
+		length:   uint32(length),
 	})
 	return nil
 }
@@ -657,8 +651,8 @@ func (enc *Encoder) encodeBoolValue(i int, val bool) {
 	}
 }
 
-func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
-	if len(enc.protoFields) == 0 {
+func (enc *Encoder) encodeNonCustomValues() error {
+	if len(enc.nonCustomFields) == 0 {
 		// Fast path, skip all the encoding logic entirely because there are
 		// no fields that require proto encoding.
 		// TODO(rartoul): Note that the encoding scheme could be further optimized
@@ -669,78 +663,74 @@ func (enc *Encoder) encodeProtoValues(m *dynamic.Message) error {
 	}
 
 	// Reset for re-use.
-	enc.changedValues = enc.changedValues[:0]
-	changedFields := enc.changedValues
-
 	enc.fieldsChangedToDefault = enc.fieldsChangedToDefault[:0]
-	fieldsChangedToDefault := enc.fieldsChangedToDefault
 
-	if enc.lastEncoded == nil {
-		enc.lastEncoded = dynamic.NewMessage(enc.schema)
-	}
+	var (
+		incomingNonCustomFields = enc.unmarshaller.sortedNonCustomFieldValues()
+		// Matching entries in two sorted lists in which every element in each list is unique so keep
+		// track of the last index at which a match was found so that subsequent inner loops can start
+		// at the next index.
+		lastMatchIdx     = -1
+		numChangedValues = 0
+	)
+	enc.marshalBuf = enc.marshalBuf[:0] // Reset buf for reuse.
 
-	for _, fieldNum := range enc.protoFields {
-		var (
-			field       = enc.schema.FindFieldByNumber(fieldNum)
-			fieldNumInt = int(fieldNum)
-			prevVal     = enc.lastEncoded.GetFieldByNumber(fieldNumInt)
-			curVal      = m.GetFieldByNumber(fieldNumInt)
-		)
-
-		if fieldsEqual(curVal, prevVal) {
-			// Clear fields that haven't changed.
-			if err := m.TryClearFieldByNumber(fieldNumInt); err != nil {
-				return fmt.Errorf("error: %v clearing field: %d", err, fieldNumInt)
-			}
-		} else {
-			isDefaultValue, err := isDefaultValue(field, curVal)
-			if err != nil {
-				return fmt.Errorf(
-					"error: %v, checking if %v is default value for field %s",
-					err, curVal, field.String())
-			}
-			if isDefaultValue {
-				fieldsChangedToDefault = append(fieldsChangedToDefault, fieldNum)
-			}
-
-			changedFields = append(changedFields, fieldNum)
-			if err := enc.lastEncoded.TrySetFieldByNumber(fieldNumInt, curVal); err != nil {
-				return fmt.Errorf(
-					"error: %v setting field %d with value %v on lastEncoded",
-					err, fieldNumInt, curVal)
+	for i, existingField := range enc.nonCustomFields {
+		var curVal []byte
+		for i := lastMatchIdx + 1; i < len(incomingNonCustomFields); i++ {
+			incomingField := incomingNonCustomFields[i]
+			if existingField.fieldNum == incomingField.fieldNum {
+				curVal = incomingField.marshalled
+				lastMatchIdx = i
+				break
 			}
 		}
+
+		prevVal := existingField.marshalled
+		if bytes.Equal(prevVal, curVal) {
+			// No change, nothing to encode.
+			continue
+		}
+
+		numChangedValues++
+		if curVal == nil {
+			// Interpret as default value.
+			enc.fieldsChangedToDefault = append(enc.fieldsChangedToDefault, existingField.fieldNum)
+		}
+		enc.marshalBuf = append(enc.marshalBuf, curVal...)
+
+		// Need to copy since the encoder no longer owns the original source of the bytes once
+		// this function returns.
+		enc.nonCustomFields[i].marshalled = append(enc.nonCustomFields[i].marshalled[:0], curVal...)
 	}
 
-	if len(changedFields) == 0 {
+	if numChangedValues <= 0 {
 		// Only want to skip encoding if nothing has changed AND we've already
 		// encoded the first message.
 		enc.stream.WriteBit(opCodeNoChange)
 		return nil
 	}
 
-	marshaled, err := m.MarshalAppend(enc.marshalBuf[:0])
-	if err != nil {
-		return fmt.Errorf("%s error trying to marshal protobuf: %v", encErrPrefix, err)
-	}
-	// Make sure we update the marshalBuf with the returned slice in case a new one was
-	// allocated as part of the MarshalAppend call.
-	enc.marshalBuf = marshaled
-
 	// Control bit indicating that proto values have changed.
 	enc.stream.WriteBit(opCodeChange)
-	if len(fieldsChangedToDefault) > 0 {
+	if len(enc.fieldsChangedToDefault) > 0 {
 		// Control bit indicating that some fields have been set to default values
 		// and that a bitset will follow specifying which fields have changed.
 		enc.stream.WriteBit(opCodeFieldsSetToDefaultProtoMarshal)
-		enc.encodeBitset(fieldsChangedToDefault)
+		enc.encodeBitset(enc.fieldsChangedToDefault)
 	} else {
 		// Control bit indicating that none of the changed fields have been set to
 		// their default values so we can do a clean merge on read.
 		enc.stream.WriteBit(opCodeNoFieldsSetToDefaultProtoMarshal)
 	}
-	enc.encodeVarInt(uint64(len(marshaled)))
-	enc.stream.WriteBytes(marshaled)
+
+	// This wastes up to 7 bits of space per encoded message but significantly improves encoding and
+	// decoding speed due to the fact that the OStream and IStream can write and read the data with
+	// the equivalent of one memcpy as opposed to having to decode one byte at a time due to lack
+	// of alignment.
+	enc.padToNextByte()
+	enc.encodeVarInt(uint64(len(enc.marshalBuf)))
+	enc.stream.WriteBytes(enc.marshalBuf)
 
 	return nil
 }
@@ -763,7 +753,7 @@ func (enc *Encoder) bytesMatchEncodedDictionaryValue(
 		prevEncodedBytesEnd   = prevEncodedBytesStart + dictState.length
 	)
 
-	if prevEncodedBytesEnd > len(streamBytes) {
+	if prevEncodedBytesEnd > uint32(len(streamBytes)) {
 		// Should never happen.
 		return false, fmt.Errorf(
 			"bytes position in LRU is outside of stream bounds, streamSize: %d, startPos: %d, length: %d",

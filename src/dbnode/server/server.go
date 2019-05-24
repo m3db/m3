@@ -64,7 +64,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/tchannel"
+	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -610,9 +610,20 @@ func Run(runOpts RunOptions) {
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 
-	opts = opts.
-		// Feature currently not working.
-		SetRepairEnabled(false)
+	opts = opts.SetRepairEnabled(false)
+	if cfg.Repair != nil {
+		repairOpts := opts.RepairOptions().
+			SetRepairInterval(cfg.Repair.Interval).
+			SetRepairTimeOffset(cfg.Repair.Offset).
+			SetRepairTimeJitter(cfg.Repair.Jitter).
+			SetRepairThrottle(cfg.Repair.Throttle).
+			SetRepairCheckInterval(cfg.Repair.CheckInterval).
+			SetAdminClient(m3dbClient)
+
+		opts = opts.
+			SetRepairEnabled(cfg.Repair.Enabled).
+			SetRepairOptions(repairOpts)
+	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
 	// same topology that will be passed to the cluster so that when we make
