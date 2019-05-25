@@ -41,8 +41,9 @@ var (
 	// M3DBSchemaURL is the url for the M3DB schema handler.
 	M3DBSchemaURL = path.Join(handler.RoutePrefixV1, M3DBServiceSchemaPathName)
 
-	// SchemaHTTPMethod is the HTTP method used with this resource.
-	SchemaHTTPMethod = http.MethodPost
+	// SchemaDeployHTTPMethod is the HTTP method used to append to this resource.
+	SchemaDeployHTTPMethod = http.MethodPost
+
 )
 
 // SchemaHandler is the handler for namespace schema upserts.
@@ -118,4 +119,76 @@ func (h *SchemaHandler) Add(addReq *admin.NamespaceSchemaAddRequest, opts handle
 		return emptyRep, err
 	}
 	return admin.NamespaceSchemaAddResponse{DeployID: deployID}, nil
+}
+
+// SchemaResetHandler is the handler for namespace schema reset.
+type SchemaResetHandler Handler
+
+// NewSchemaResetHandler returns a new instance of SchemaHandler.
+func NewSchemaResetHandler(client clusterclient.Client) *SchemaResetHandler {
+	return &SchemaResetHandler{client: client}
+}
+
+func (h *SchemaResetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := logging.WithContext(ctx)
+
+	md, rErr := h.parseRequest(r)
+	if rErr != nil {
+		logger.Error("unable to parse request", zap.Error(rErr))
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	resp, err := h.Reset(md, opts)
+	if err != nil {
+		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
+			logger.Error("namespaces metadata key does not exist", zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+		if err == kvadmin.ErrNamespaceNotFound || xerrors.InnerError(err) == kvadmin.ErrNamespaceNotFound {
+			logger.Error("namespace does not exist", zap.Error(err))
+			xhttp.Error(w, err, http.StatusNotFound)
+			return
+		}
+
+		logger.Error("unable to reset schema for namespace", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
+}
+
+func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaResetRequest, *xhttp.ParseError) {
+	defer r.Body.Close()
+
+	var schemaResetReq admin.NamespaceSchemaResetRequest
+	if err := jsonpb.Unmarshal(r.Body, &schemaResetReq); err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+	return &schemaResetReq, nil
+}
+
+// Reset resets schema for an existing namespace.
+func (h *SchemaResetHandler) Reset(addReq *admin.NamespaceSchemaResetRequest, opts handler.ServiceOptions) (*admin.NamespaceSchemaResetResponse, error) {
+	var emptyRep = admin.NamespaceSchemaResetResponse{}
+
+	kvOpts := kv.NewOverrideOptions().
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+
+	store, err := h.client.Store(kvOpts)
+	if err != nil {
+		return &emptyRep, err
+	}
+
+	schemaAdmin := newAdminService(store, M3DBNodeNamespacesKey, nil)
+	err = schemaAdmin.ResetSchema(addReq.Name)
+	if err != nil {
+		return &emptyRep, err
+	}
+	return &emptyRep, nil
 }

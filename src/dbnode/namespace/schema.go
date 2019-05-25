@@ -316,14 +316,14 @@ func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName st
 	// Verify schema options
 	schemaHist, err := LoadSchemaHistory(schemaOpt)
 	if err != nil {
-		return schemaOpt, xerrors.Wrap(err, "can not append to invalid schema history")
+		return nil, xerrors.Wrap(err, "can not append to invalid schema history")
 	}
 	// Verify deploy ID
 	if deployID == "" {
-		return schemaOpt, errEmptyDeployID
+		return nil, errEmptyDeployID
 	}
 	if _, ok := schemaHist.Get(deployID); ok {
-		return schemaOpt, errDuplicateDeployID
+		return nil, errDuplicateDeployID
 	}
 
 	var prevID string
@@ -333,7 +333,7 @@ func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName st
 
 	out, err := parseProto(protoFile, protoStringProvider(contents))
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Wrapf(err, "failed to parse schema from %v", protoFile)
 	}
 
 	dlist, err := marshalFileDescriptors(out)
@@ -348,6 +348,10 @@ func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName st
 		}
 	}
 	schemaOpt.History.Versions = append(schemaOpt.History.Versions, &nsproto.FileDescriptorSet{DeployId: deployID, PrevId: prevID, Descriptors: dlist})
+
+	if _, err := LoadSchemaHistory(schemaOpt); err != nil {
+		return nil, xerrors.Wrap(err, "new schema is not valid")
+	}
 
 	return schemaOpt, nil
 }

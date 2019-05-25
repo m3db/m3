@@ -141,3 +141,17 @@ func (mr *MockNamespaceMetadataAdminServiceMockRecorder) DeploySchema(name, prot
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeploySchema", reflect.TypeOf((*MockNamespaceMetadataAdminService)(nil).DeploySchema), name, protoFileName, msgName, protos)
 }
+
+// ResetSchema mocks base method
+func (m *MockNamespaceMetadataAdminService) ResetSchema(name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetSchema", name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetSchema indicates an expected call of ResetSchema
+func (mr *MockNamespaceMetadataAdminServiceMockRecorder) ResetSchema(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetSchema", reflect.TypeOf((*MockNamespaceMetadataAdminService)(nil).ResetSchema), name)
+}

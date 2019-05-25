@@ -244,3 +244,35 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Equal(t, "{\"error\":\"namespace is not found\"}\n", string(body))
 }
+
+func TestSchemaReset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	schemaHandler := NewSchemaResetHandler(mockClient)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+
+	mockAdminSvc := kvadmin.NewMockNamespaceMetadataAdminService(ctrl)
+	newAdminService = func(kv.Store, string, func() string) kvadmin.NamespaceMetadataAdminService { return mockAdminSvc }
+	defer func() { newAdminService = kvadmin.NewAdminService }()
+
+	mockAdminSvc.EXPECT().ResetSchema("testNamespace").Return(nil)
+
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+    {
+        "name": "testNamespace"
+    }
+	`
+	req := httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	schemaHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{}", string(body))
+}
