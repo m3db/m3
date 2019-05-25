@@ -36,11 +36,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SetupNamespaceTest(t *testing.T) (*client.MockClient, *kv.MockStore, *gomock.Controller) {
+func setupNamespaceTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *kv.MockStore) {
 	logging.InitWithCores(nil)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
@@ -50,11 +47,14 @@ func SetupNamespaceTest(t *testing.T) (*client.MockClient, *kv.MockStore, *gomoc
 
 	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
 
-	return mockClient, mockKV, ctrl
+	return mockClient, mockKV
 }
 
 func TestNamespaceGetHandler(t *testing.T) {
-	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	getHandler := NewGetHandler(mockClient)
 
 	// Test no namespace

@@ -49,7 +49,7 @@ func TestLoadSchemaHistory(t *testing.T) {
 }
 
 func TestParseProto(t *testing.T) {
-	out, err := parseProto("mainpkg/main.proto", "testdata")
+	out, err := parseProto("mainpkg/main.proto", nil, "testdata")
 	require.NoError(t, err)
 	require.Len(t, out, 3)
 	for _, o := range out {
@@ -62,7 +62,7 @@ func TestParseProto(t *testing.T) {
 }
 
 func TestDistinctIndirectDependency(t *testing.T) {
-	out, err := parseProto("deduppkg/main.proto", "testdata")
+	out, err := parseProto("deduppkg/main.proto", nil, "testdata")
 	require.NoError(t, err)
 	require.Len(t, out, 4)
 	for _, o := range out {
@@ -89,7 +89,7 @@ func TestDistinctIndirectDependency(t *testing.T) {
 }
 
 func TestInvalidSchemaOptions(t *testing.T) {
-	out, _ := parseProto("mainpkg/main.proto", "testdata")
+	out, _ := parseProto("mainpkg/main.proto", nil, "testdata")
 
 	dlist, _ := marshalFileDescriptors(out)
 
@@ -137,13 +137,13 @@ func TestInvalidSchemaOptions(t *testing.T) {
 }
 
 func TestParseNotProto3(t *testing.T) {
-	_, err := parseProto("mainpkg/notproto3.proto", "testdata")
+	_, err := parseProto("mainpkg/notproto3.proto", nil, "testdata")
 	require.Error(t, err)
 	require.Equal(t, errSyntaxNotProto3, xerrors.InnerError(err))
 }
 
 func TestSchemaHistorySortedDescending(t *testing.T) {
-	out, _ := parseProto("mainpkg/main.proto", "testdata")
+	out, _ := parseProto("mainpkg/main.proto", nil, "testdata")
 
 	dlist, _ := marshalFileDescriptors(out)
 	schemaOpt := &nsproto.SchemaOptions{
@@ -162,7 +162,7 @@ func TestSchemaHistorySortedDescending(t *testing.T) {
 }
 
 func TestSchemaOptionsLineageBroken(t *testing.T) {
-	out, _ := parseProto("mainpkg/main.proto", "testdata")
+	out, _ := parseProto("mainpkg/main.proto", nil, "testdata")
 
 	dlist, _ := marshalFileDescriptors(out)
 	schemaOpt := &nsproto.SchemaOptions{
@@ -180,7 +180,7 @@ func TestSchemaOptionsLineageBroken(t *testing.T) {
 }
 
 func TestSchemaHistoryCheckLineage(t *testing.T) {
-	out, _ := parseProto("mainpkg/main.proto", "testdata")
+	out, _ := parseProto("mainpkg/main.proto", nil, "testdata")
 
 	dlist, _ := marshalFileDescriptors(out)
 
