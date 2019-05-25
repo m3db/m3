@@ -315,8 +315,7 @@ func (s *seeker) SeekByIndexEntry(
 	entry IndexEntry,
 	resources ReusableSeekerResources,
 ) (checked.Bytes, error) {
-	resources.offsetFileReader.reset(s.dataFd)
-	resources.offsetFileReader.setOffset(entry.Offset)
+	resources.offsetFileReader.reset(s.dataFd, entry.Offset)
 
 	// Obtain an appropriately sized buffer.
 	var buffer checked.Bytes
@@ -374,8 +373,7 @@ func (s *seeker) SeekIndexEntry(
 		return IndexEntry{}, err
 	}
 
-	resources.offsetFileReader.reset(s.indexFd)
-	resources.offsetFileReader.setOffset(offset)
+	resources.offsetFileReader.reset(s.indexFd, offset)
 	resources.fileDecoderStream.Reset(resources.offsetFileReader)
 	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
 
@@ -597,6 +595,8 @@ func (s *simpleBytesPool) Put(b []byte) {
 	s.pool = append(s.pool, b[:])
 }
 
+var _ io.Reader = &offsetFileReader{}
+
 // offsetFileReader implements io.Reader() and allows an *os.File to be wrapped
 // such that any calls to Read() are issued at the provided offset. This is used
 // to issue reads to specific portions of the index and data files without having
@@ -618,10 +618,7 @@ func (p *offsetFileReader) Read(b []byte) (n int, err error) {
 	return n, err
 }
 
-func (p *offsetFileReader) reset(fd *os.File) {
+func (p *offsetFileReader) reset(fd *os.File, offset int64) {
 	p.fd = fd
-}
-
-func (p *offsetFileReader) setOffset(offset int64) {
 	p.offset = offset
 }
