@@ -36,12 +36,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"github.com/jhump/protoreflect"
 	"go.uber.org/zap"
 )
 
@@ -137,6 +139,137 @@ func (r shardRepairer) Repair(
 	r.recordFn(nsCtx.ID, shard, metadataRes)
 
 	return metadataRes, nil
+}
+
+func (r shardRepairer) shadowCompare(
+	ctx context.Context,
+	blockStart time.Time,
+	localBlocks block.FetchBlocksMetadataResults,
+	session client.AdminSession,
+	shard databaseShard,
+	nsCtx namespace.Context,
+) error {
+	var (
+		start = blockStart
+		end   = blockStart.Add(time.Hour)
+		localM = dynamic.NewMessage(nsCtx.Schema)
+		peerM = dynamic.NewMessage(nsCtx.Schema)
+	)
+	localIter := block.NewFilteredBlocksMetadataIter(localBlocks)
+	for localIter.Next() {
+		seriesID, _ := localIter.Current()
+		localBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
+		if err != nil {
+			return err
+		}
+		if len(localBlocks) != 1 {
+			r.logger.Error("expected 1 local blocks", zap.Int("actual", len(localBlocks)))
+			continue
+		}
+
+		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, blockStart, blockStart.Add(time.Hour))
+		if err != nil {
+			return err
+		}
+
+		segmentReaders := make([]xio.SegmentReader, 0, len(localBlocks[0]))
+		for _, blockReader := range localBlocks[0] {
+			seg, err := blockReader.Segment()
+			if err != nil {
+				return fmt.Errorf(
+					"error retrieving segment for series %s, err: %v",
+					seriesID.String(), err)
+			}
+			segmentReaders = append(segmentReaders, xio.NewSegmentReader(seg))
+		}
+
+		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
+		localSeriesIter.Reset(segmentReaders, start, time.Hour, nsCtx.Schema)
+
+		i := 0
+		for localSeriesIter.Next() {
+			if !peerSeriesIter.Next() {
+				r.logger.Error(
+					"series had next locally, but not from peers",
+					zap.String("series", seriesID.String()))
+				break
+			}
+
+			localDP, localUnit, localAnnotation := localSeriesIter.Current()
+			peerDP, peerUnit, peerAnnotation := peerSeriesIter.Current()
+
+			if !localDP.Timestamp.Equal(peerDP.Timestamp) {
+				r.logger.Error(
+					"timestamps did not match",
+					zap.Int("index", i),
+					zap.Time("local", localDP.Timestamp),
+					zap.Time("peer", peerDP.Timestamp))
+				break
+			}
+
+			if localDP.Value != peerDP.Value {
+				r.logger.Error(
+					"Values did not match",
+					zap.Int("index", i),
+					zap.Float64("local", localDP.Value),
+					zap.Float64("peer", peerDP.Value))
+				break
+			}
+
+			if localUnit != peerUnit {
+				r.logger.Error(
+					"Values did not match",
+					zap.Int("index", i),
+					zap.Int("local", localUnit),
+					zap.Int("peer", peerUnit))
+				break
+			}
+
+			err :=localM.Unmarshal(localAnnotation)
+			if err != nil {
+				r.logger.Error(
+					"Unable to unmarshal local annotation",
+					zap.Int("index", i),
+					zap.Error(err),
+				)
+				break
+			}
+
+			err :=peerM.Unmarshal(peerAnnotation)
+			if err != nil {
+				r.logger.Error(
+					"Unable to unmarshal peer annotation",
+					zap.Int("index", i),
+					zap.Error(err),
+				)
+				break
+			}
+
+			if !dynamic.Equal(localM, peerM) {
+				r.logger.Error(
+					"Local message does not equal peer message",
+					zap.Int("index", i),
+					zap.String("local", localM.String()),
+					zap.String("peer", peerM.String()),
+				)
+				break
+			}
+
+			if !bytes.Equal(localAnnotation, peerAnnotation) {
+				r.logger.Error(
+					"Local message equals peer message, but annotations do not match",
+					zap.Int("index", i),
+					zap.String("local", string(localAnnotation)),
+					zap.String("peer", string(peerAnnotation)),
+				)
+				break
+			}
+
+			i++
+		}
+	}
+
+	return nil
 }
 
 func (r shardRepairer) recordDifferences(
