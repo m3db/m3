@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -42,8 +43,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/uber-go/tally"
-	"github.com/jhump/protoreflect"
 	"go.uber.org/zap"
 )
 
@@ -150,10 +151,10 @@ func (r shardRepairer) shadowCompare(
 	nsCtx namespace.Context,
 ) error {
 	var (
-		start = blockStart
-		end   = blockStart.Add(time.Hour)
+		start  = blockStart
+		end    = blockStart.Add(time.Hour)
 		localM = dynamic.NewMessage(nsCtx.Schema)
-		peerM = dynamic.NewMessage(nsCtx.Schema)
+		peerM  = dynamic.NewMessage(nsCtx.Schema)
 	)
 	localIter := block.NewFilteredBlocksMetadataIter(localBlocks)
 	for localIter.Next() {
@@ -191,7 +192,8 @@ func (r shardRepairer) shadowCompare(
 			if !peerSeriesIter.Next() {
 				r.logger.Error(
 					"series had next locally, but not from peers",
-					zap.String("series", seriesID.String()))
+					zap.String("series", seriesID.String()),
+					zap.Error(peerSeriesIter.Err()))
 				break
 			}
 
@@ -225,7 +227,7 @@ func (r shardRepairer) shadowCompare(
 				break
 			}
 
-			err :=localM.Unmarshal(localAnnotation)
+			err = localM.Unmarshal(localAnnotation)
 			if err != nil {
 				r.logger.Error(
 					"Unable to unmarshal local annotation",
@@ -235,7 +237,7 @@ func (r shardRepairer) shadowCompare(
 				break
 			}
 
-			err :=peerM.Unmarshal(peerAnnotation)
+			err = peerM.Unmarshal(peerAnnotation)
 			if err != nil {
 				r.logger.Error(
 					"Unable to unmarshal peer annotation",
@@ -266,6 +268,13 @@ func (r shardRepairer) shadowCompare(
 			}
 
 			i++
+		}
+
+		if localIter.Err() != nil {
+			r.logger.Error(
+				"Local iterator error",
+				zap.Error(localIter.Err()),
+			)
 		}
 	}
 
