@@ -118,6 +118,10 @@ func (r shardRepairer) Repair(
 	}
 	ctx.RegisterCloser(localMetadata)
 
+	if err := r.shadowCompare(ctx, start, localMetadata, session, shard, nsCtx); err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
+
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	err = metadata.AddLocalMetadata(origin, localIter)
 	if err != nil {
