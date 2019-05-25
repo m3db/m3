@@ -153,8 +153,8 @@ func (r shardRepairer) shadowCompare(
 	var (
 		start  = blockStart
 		end    = blockStart.Add(time.Hour)
-		localM = dynamic.NewMessage(nsCtx.Schema)
-		peerM  = dynamic.NewMessage(nsCtx.Schema)
+		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
+		peerM  = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	)
 	localIter := block.NewFilteredBlocksMetadataIter(localBlocks)
 	for localIter.Next() {
@@ -222,8 +222,8 @@ func (r shardRepairer) shadowCompare(
 				r.logger.Error(
 					"Values did not match",
 					zap.Int("index", i),
-					zap.Int("local", localUnit),
-					zap.Int("peer", peerUnit))
+					zap.Int("local", int(localUnit)),
+					zap.Int("peer", int(peerUnit)))
 				break
 			}
 
