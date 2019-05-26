@@ -75,6 +75,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/lockfile"
 	"github.com/m3db/m3/src/x/mmap"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -150,9 +151,16 @@ func Run(runOpts RunOptions) {
 	}
 	defer logger.Sync()
 
-	// Raise soft fd limit to hard limit
-	if err := raiseRlimitToNROpen(); err != nil {
+	// Raise fd limits to nr_open system limit
+	result, err := xos.RaiseProcessNoFileToNROpen()
+	if err != nil {
 		logger.Warn("unable to raise rlimit", zap.Error(err))
+	} else {
+		logger.Info("raised rlimit no file fds limit",
+			zap.Bool("required", result.RaiseRequired),
+			zap.Uint64("sysNROpenValue", result.NROpenValue),
+			zap.Uint64("noFileMaxValue", result.NoFileMaxValue),
+			zap.Uint64("noFileCurrValue", result.NoFileCurrValue))
 	}
 
 	// Parse file and directory modes

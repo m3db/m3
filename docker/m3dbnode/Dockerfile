@@ -28,7 +28,6 @@ COPY --from=builder /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh 
 
 # Use setcap and run as specific user
 RUN apk add libcap && \
-    setcap cap_ipc_lock=+ep /bin/m3dbnode && \
     setcap cap_sys_resource=+ep /bin/m3dbnode
 
 ENTRYPOINT [ "/bin/m3dbnode" ]
