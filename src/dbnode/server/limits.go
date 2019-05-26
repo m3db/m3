@@ -124,6 +124,11 @@ func raiseRlimitToNROpen() error {
 		break
 	}
 
+	if limit == 0 {
+		return fmt.Errorf(
+			"unable to raise nofile limits: sysctl_limit_err=limit not parsed")
+	}
+
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf(
 			"unable to raise nofile limits: sysctl_read_stdout_err=%v", err)
