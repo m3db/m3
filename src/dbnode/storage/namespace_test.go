@@ -415,6 +415,7 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(time.Now(), nil, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.ColdFlush(nil))
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
@@ -424,6 +425,7 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 
 	ns.bootstrapState = Bootstrapped
 	require.NoError(t, ns.WarmFlush(time.Now(), nil, nil))
+	require.NoError(t, ns.ColdFlush(nil))
 }
 
 func TestNamespaceFlushSkipFlushed(t *testing.T) {

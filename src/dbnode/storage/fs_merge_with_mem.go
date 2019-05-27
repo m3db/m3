@@ -45,7 +45,7 @@ func newFSMergeWithMem(
 	retriever series.QueryableBlockRetriever,
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
-) *fsMergeWithMem {
+) fs.MergeWith {
 	return &fsMergeWithMem{
 		shard:              shard,
 		retriever:          retriever,

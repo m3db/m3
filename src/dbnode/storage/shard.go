@@ -148,6 +148,8 @@ type dbShard struct {
 	lookup                   *shardMap
 	list                     *list.List
 	bootstrapState           BootstrapState
+	newMergerFn              fs.NewMergerFn
+	newFSMergeWithMemFn      newFSMergeWithMemFn
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
@@ -245,28 +247,30 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	s := &dbShard{
-		opts:               opts,
-		seriesOpts:         seriesOpts,
-		nowFn:              opts.ClockOptions().NowFn(),
-		state:              dbShardStateOpen,
-		namespace:          namespaceMetadata,
-		shard:              shard,
-		namespaceReaderMgr: namespaceReaderMgr,
-		increasingIndex:    increasingIndex,
-		seriesPool:         opts.DatabaseSeriesPool(),
-		reverseIndex:       reverseIndex,
-		lookup:             newShardMap(shardMapOptions{}),
-		list:               list.New(),
-		filesetBeforeFn:    fs.DataFileSetsBefore,
-		deleteFilesFn:      fs.DeleteFiles,
-		snapshotFilesFn:    fs.SnapshotFiles,
-		sleepFn:            time.Sleep,
-		identifierPool:     opts.IdentifierPool(),
-		contextPool:        opts.ContextPool(),
-		flushState:         newShardFlushState(),
-		tickWg:             &sync.WaitGroup{},
-		logger:             opts.InstrumentOptions().Logger(),
-		metrics:            newDatabaseShardMetrics(shard, scope),
+		opts:                opts,
+		seriesOpts:          seriesOpts,
+		nowFn:               opts.ClockOptions().NowFn(),
+		state:               dbShardStateOpen,
+		namespace:           namespaceMetadata,
+		shard:               shard,
+		namespaceReaderMgr:  namespaceReaderMgr,
+		increasingIndex:     increasingIndex,
+		seriesPool:          opts.DatabaseSeriesPool(),
+		reverseIndex:        reverseIndex,
+		lookup:              newShardMap(shardMapOptions{}),
+		list:                list.New(),
+		newMergerFn:         fs.NewMerger,
+		newFSMergeWithMemFn: newFSMergeWithMem,
+		filesetBeforeFn:     fs.DataFileSetsBefore,
+		deleteFilesFn:       fs.DeleteFiles,
+		snapshotFilesFn:     fs.SnapshotFiles,
+		sleepFn:             time.Sleep,
+		identifierPool:      opts.IdentifierPool(),
+		contextPool:         opts.ContextPool(),
+		flushState:          newShardFlushState(),
+		tickWg:              &sync.WaitGroup{},
+		logger:              opts.InstrumentOptions().Logger(),
+		metrics:             newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope)
@@ -1964,9 +1968,9 @@ func (s *dbShard) ColdFlush(
 		return true
 	})
 
-	merger := fs.NewMerger(resources.fsReader, s.opts.SegmentReaderPool(),
+	merger := s.newMergerFn(resources.fsReader, s.opts.SegmentReaderPool(),
 		s.opts.MultiReaderIteratorPool(), s.opts.IdentifierPool(), s.opts.EncoderPool())
-	mergeWithMem := newFSMergeWithMem(s, s, dirtySeries, dirtySeriesToWrite)
+	mergeWithMem := s.newFSMergeWithMemFn(s, s, dirtySeries, dirtySeriesToWrite)
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
 	// a block, we continue to try persisting other blocks.

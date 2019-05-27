@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
@@ -508,3 +509,25 @@ type MergeWith interface {
 	// was not already handled by a call to Read().
 	ForEachRemaining(blockStart xtime.UnixNano, fn ForEachRemainingFn) error
 }
+
+// Merger is in charge of merging filesets with some target MergeWith interface.
+type Merger interface {
+	// Merge merges the specified fileset file with a merge target.
+	Merge(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		flushPreparer persist.FlushPreparer,
+		nsOpts namespace.Options,
+		nsCtx namespace.Context,
+	) error
+}
+
+// NewMergerFn is the function to call to get a new Merger. Mostly used as a
+// convenience for testing.
+type NewMergerFn func(
+	reader DataFileSetReader,
+	srPool xio.SegmentReaderPool,
+	multiIterPool encoding.MultiReaderIteratorPool,
+	identPool ident.Pool,
+	encoderPool encoding.EncoderPool,
+) Merger

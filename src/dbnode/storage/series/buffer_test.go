@@ -1360,7 +1360,9 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{reader}, opts, nsCtx)
 	assert.Equal(t, 1, buffer.bucketsMap[blockStartNano3].buckets[0].version)
 
-	// Try to fetch from a block that only has warm buckets, which should error.
-	_, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
-	assert.Error(t, err)
+	// Try to fetch from a block that only has warm buckets. It has no data
+	// but is not an error.
+	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
+	assert.NoError(t, err)
+	requireReaderValuesEqual(t, []value{}, [][]xio.BlockReader{reader}, opts, nsCtx)
 }

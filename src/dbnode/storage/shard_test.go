@@ -30,8 +30,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -318,6 +320,126 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		ColdVersion: 0,
 		NumFailures: 0,
 	}, flushState)
+}
+
+type testDirtySeries struct {
+	id         ident.ID
+	dirtyTimes []time.Time
+}
+
+func optimizedTimesFromTimes(times []time.Time) series.OptimizedTimes {
+	var ret series.OptimizedTimes
+	for _, t := range times {
+		ret.Add(xtime.ToUnixNano(t))
+	}
+	return ret
+}
+
+func TestShardColdFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	now := time.Now()
+	nowFn := func() time.Time {
+		return now
+	}
+	opts := DefaultTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
+	shard := testDatabaseShard(t, opts)
+	shard.bootstrapState = Bootstrapped
+	shard.newMergerFn = newMergerTestFn
+	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
+
+	t0 := now.Truncate(blockSize).Add(-10 * blockSize)
+	t1 := t0.Add(1 * blockSize)
+	t2 := t0.Add(2 * blockSize)
+	t3 := t0.Add(3 * blockSize)
+	t4 := t0.Add(4 * blockSize)
+	t5 := t0.Add(5 * blockSize)
+	t6 := t0.Add(6 * blockSize)
+	t7 := t0.Add(7 * blockSize)
+	dirtyData := []testDirtySeries{
+		{id: ident.StringID("id0"), dirtyTimes: []time.Time{t0, t2, t3, t4}},
+		{id: ident.StringID("id1"), dirtyTimes: []time.Time{t1}},
+		{id: ident.StringID("id2"), dirtyTimes: []time.Time{t3, t4, t5}},
+		{id: ident.StringID("id3"), dirtyTimes: []time.Time{t6, t7}},
+	}
+	for _, ds := range dirtyData {
+		curr := series.NewMockDatabaseSeries(ctrl)
+		curr.EXPECT().ID().Return(ds.id)
+		curr.EXPECT().NeedsColdFlushBlockStarts().
+			Return(optimizedTimesFromTimes(ds.dirtyTimes))
+		shard.list.PushBack(lookup.NewEntry(curr, 0))
+	}
+
+	preparer := persist.NewMockFlushPreparer(ctrl)
+	fsReader := fs.NewMockDataFileSetReader(ctrl)
+	resources := coldFlushReuseableResources{
+		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
+		idElementPool:      newIDElementPool(nil),
+		fsReader:           fsReader,
+	}
+	nsCtx := namespace.Context{}
+
+	// Assert that flush state cold versions all start at 0.
+	for i := t0; i.Before(t7.Add(blockSize)); i = i.Add(blockSize) {
+		assert.Equal(t, 0, shard.RetrievableBlockColdVersion(i))
+	}
+	shard.ColdFlush(preparer, resources, nsCtx)
+	// After a cold flush, all previously dirty block starts should be updated
+	// to version 1.
+	for i := t0; i.Before(t7.Add(blockSize)); i = i.Add(blockSize) {
+		assert.Equal(t, 1, shard.RetrievableBlockColdVersion(i))
+	}
+}
+
+func newMergerTestFn(
+	reader fs.DataFileSetReader,
+	srPool xio.SegmentReaderPool,
+	multiIterPool encoding.MultiReaderIteratorPool,
+	identPool ident.Pool,
+	encoderPool encoding.EncoderPool,
+) fs.Merger {
+	return &noopMerger{}
+}
+
+type noopMerger struct{}
+
+func (m *noopMerger) Merge(
+	fileID fs.FileSetFileIdentifier,
+	mergeWith fs.MergeWith,
+	flushPreparer persist.FlushPreparer,
+	nsOpts namespace.Options,
+	nsCtx namespace.Context,
+) error {
+	return nil
+}
+
+func newFSMergeWithMemTestFn(
+	shard databaseShard,
+	retriever series.QueryableBlockRetriever,
+	dirtySeries *dirtySeriesMap,
+	dirtySeriesToWrite map[xtime.UnixNano]*idList,
+) fs.MergeWith {
+	return &noopMergeWith{}
+}
+
+type noopMergeWith struct{}
+
+func (m *noopMergeWith) Read(
+	seriesID ident.ID,
+	blockStart xtime.UnixNano,
+	nsCtx namespace.Context,
+) ([]xio.BlockReader, bool, error) {
+	return nil, false, nil
+}
+
+func (m *noopMergeWith) ForEachRemaining(
+	blockStart xtime.UnixNano,
+	fn fs.ForEachRemainingFn,
+) error {
+	return nil
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {

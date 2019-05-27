@@ -37,8 +37,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// Merger is in charge of merging filesets with some target MergeWith interface.
-type Merger struct {
+type merger struct {
 	reader        DataFileSetReader
 	srPool        xio.SegmentReaderPool
 	multiIterPool encoding.MultiReaderIteratorPool
@@ -53,8 +52,8 @@ func NewMerger(
 	multiIterPool encoding.MultiReaderIteratorPool,
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
-) *Merger {
-	return &Merger{
+) Merger {
+	return &merger{
 		reader:        reader,
 		srPool:        srPool,
 		multiIterPool: multiIterPool,
@@ -64,7 +63,7 @@ func NewMerger(
 }
 
 // Merge merges data from a fileset with a merge target and persists it.
-func (m *Merger) Merge(
+func (m *merger) Merge(
 	fileID FileSetFileIdentifier,
 	mergeWith MergeWith,
 	flushPreparer persist.FlushPreparer,
@@ -90,6 +89,7 @@ func (m *Merger) Merge(
 				Shard:      shard,
 				BlockStart: startTime,
 			},
+			FileSetType: persist.FileSetFlushType,
 		}
 	)
 
