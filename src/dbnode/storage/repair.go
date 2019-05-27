@@ -112,11 +112,31 @@ func (r shardRepairer) Repair(
 		IncludeSizes:     true,
 		IncludeChecksums: true,
 	}
-	localMetadata, _, err := shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, PageToken{}, opts)
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
-	}
+	var (
+		currLocalMetadata block.FetchBlocksMetadataResults
+		localMetadata     block.FetchBlocksMetadataResults
+		pageToken         PageToken
+	)
 	ctx.RegisterCloser(localMetadata)
+
+	for {
+		currLocalMetadata, pageToken, err = shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, pageToken, opts)
+		if err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
+
+		if pageToken == nil {
+			break
+		}
+
+		if localMetadata == nil {
+			localMetadata = currLocalMetadata
+		} else {
+			for _, result := range currLocalMetadata.Results() {
+				localMetadata.Add(result)
+			}
+		}
+	}
 
 	if err := r.shadowCompare(ctx, start, localMetadata, session, shard, nsCtx); err != nil {
 		return repair.MetadataComparisonResult{}, err
@@ -278,6 +298,13 @@ func (r shardRepairer) shadowCompare(
 			r.logger.Error(
 				"Local iterator error",
 				zap.Error(localIter.Err()),
+			)
+		} else {
+			r.logger.Info(
+				"All values for series match",
+				zap.Int("numDPs", i),
+				zap.String("series", seriesID.String()),
+				zap.Time("blockStart", blockStart),
 			)
 		}
 	}
