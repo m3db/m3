@@ -27,18 +27,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEpochDiceConstructor(t *testing.T) {
-	dice, err := NewEpochDice(0)
+func TestDiceConstructor(t *testing.T) {
+	dice, err := NewDice(0)
 	require.Error(t, err)
 	require.Nil(t, dice)
 
-	dice, err = NewEpochDice(2)
+	dice, err = NewDice(2)
 	require.Error(t, err)
 	require.Nil(t, dice)
 }
 
-func TestEpochDice(t *testing.T) {
-	r, err := NewEpochDice(1)
+func TestDice(t *testing.T) {
+	r, err := NewDice(1)
 	require.NoError(t, err)
 
 	assert.Equal(t, float64(1.0), r.Rate())
