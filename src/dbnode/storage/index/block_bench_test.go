@@ -113,6 +113,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 // gomock generated ones is really slow so makes them almost
 // useless to use in benchmarks
 type mockOnIndexSeries struct {
+	needsUpdate bool
 }
 
 var _ OnIndexSeries = mockOnIndexSeries{}
@@ -122,4 +123,11 @@ func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano) {
 }
 func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {
 
+}
+func (m mockOnIndexSeries) OnIndexPrepare() {
+
+}
+
+func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
+	return m.needsUpdate
 }
