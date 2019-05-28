@@ -23,8 +23,8 @@ package server
 import (
 	"fmt"
 
-	xos "github.com/m3db/m3/src/x/os"
 	xerror "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (

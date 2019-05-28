@@ -31,6 +31,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -75,6 +76,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/lockfile"
 	"github.com/m3db/m3/src/x/mmap"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -92,6 +94,8 @@ const (
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 	filePathPrefixLockFile           = ".lock"
 	defaultServiceName               = "m3dbnode"
+	raiseProcessLimitsEnvVar         = "PROCESS_LIMITS_RAISE"
+	raiseProcessLimitsEnvVarTrue     = "true"
 )
 
 // RunOptions provides options for running the server
@@ -150,6 +154,22 @@ func Run(runOpts RunOptions) {
 	}
 	defer logger.Sync()
 
+	raiseLimits := strings.TrimSpace(os.Getenv(raiseProcessLimitsEnvVar))
+	if raiseLimits == raiseProcessLimitsEnvVarTrue {
+		// Raise fd limits to nr_open system limit
+		result, err := xos.RaiseProcessNoFileToNROpen()
+		if err != nil {
+			logger.Warn("unable to raise rlimit", zap.Error(err))
+		} else {
+			logger.Info("raised rlimit no file fds limit",
+				zap.Bool("required", result.RaisePerformed),
+				zap.Uint64("sysNROpenValue", result.NROpenValue),
+				zap.Uint64("noFileMaxValue", result.NoFileMaxValue),
+				zap.Uint64("noFileCurrValue", result.NoFileCurrValue))
+		}
+	}
+
+	// Parse file and directory modes
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		logger.Fatal("could not parse new file mode", zap.Error(err))
