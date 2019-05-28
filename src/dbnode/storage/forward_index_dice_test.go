@@ -34,14 +34,14 @@ func optionsWithIndexValues(
 	indexThreshold float64,
 	retOpts retention.Options,
 ) Options {
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 
 	idxOpts := opts.IndexOptions()
 	idxOpts = idxOpts.
 		SetForwardIndexProbability(indexProb).
 		SetForwardIndexThreshold(indexThreshold)
 
-	opts = defaultTestDatabaseOptions.
+	opts = DefaultTestOptions().
 		SetIndexOptions(idxOpts)
 
 	if retOpts != nil {

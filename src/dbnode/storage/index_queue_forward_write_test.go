@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -53,7 +53,7 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 		SetForwardIndexProbability(1).
 		SetForwardIndexThreshold(1)
 
-	opts := testDatabaseOptions().
+	opts := DefaultTestOptions().
 		SetIndexOptions(idxOpts)
 
 	var (
