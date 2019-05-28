@@ -1,6 +1,18 @@
 # Changelog
 
-# 0.9.4 
+# 0.9.5
+
+## Performance
+
+- **M3DB**: Use ReadAt() pread syscall to reduce syscalls per time series data read and half the number of open FDs with default configuration (#1664)
+
+## Bug Fixes
+
+- **M3Query**: Add missing support for PromQL unary expressions (#1647)
+- **M3DB**: Call setrlimit to set open FDs hard limit for docker image and in Dockerfile use setcap to enable capability (#1666)
+- **M3DB**: Updated Tally to 3.3.10 to issue correct error message when listen address conflict occurs with Prometheus reporter (#1660)
+
+# 0.9.4
 
 ## Bug Fixes
 
