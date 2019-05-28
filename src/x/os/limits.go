@@ -31,7 +31,7 @@ type ProcessLimits struct {
 // RaiseProcessNoFileToNROpenResult captures the result of trying to
 // raise the process num files open limit to the nr_open system value.
 type RaiseProcessNoFileToNROpenResult struct {
-	RaiseRequired   bool
+	RaisePerformed  bool
 	NROpenValue     uint64
 	NoFileMaxValue  uint64
 	NoFileCurrValue uint64

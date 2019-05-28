@@ -88,7 +88,7 @@ func RaiseProcessNoFileToNROpen() (RaiseProcessNoFileToNROpenResult, error) {
 	if limits.Max >= limit && limits.Cur >= limit {
 		// Limit already set correctly
 		return RaiseProcessNoFileToNROpenResult{
-			RaiseRequired:   false,
+			RaisePerformed:  false,
 			NROpenValue:     limit,
 			NoFileMaxValue:  limits.Max,
 			NoFileCurrValue: limits.Cur,
@@ -104,7 +104,7 @@ func RaiseProcessNoFileToNROpen() (RaiseProcessNoFileToNROpenResult, error) {
 	}
 
 	return RaiseProcessNoFileToNROpenResult{
-		RaiseRequired:   true,
+		RaisePerformed:  true,
 		NROpenValue:     limit,
 		NoFileMaxValue:  limits.Max,
 		NoFileCurrValue: limits.Cur,
