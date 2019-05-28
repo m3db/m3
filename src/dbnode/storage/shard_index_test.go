@@ -27,25 +27,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 
 	lock := sync.Mutex{}
 	indexWrites := []doc.Document{}
@@ -108,7 +108,7 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	lock := sync.RWMutex{}
 	indexWrites := []doc.Document{}
 
@@ -185,7 +185,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	var numCalls int32
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	blockSize := time.Hour
 	now := time.Now()
 	nextWriteTime := now.Truncate(blockSize)
@@ -280,7 +280,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 		}).
 		AnyTimes()
 
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	shard := testDatabaseShardWithIndexFn(t, opts, idx)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()

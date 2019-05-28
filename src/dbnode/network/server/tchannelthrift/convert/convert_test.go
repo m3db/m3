@@ -174,7 +174,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 			Limit:          10,
 		},
 		Type: index.AggregateTagNamesAndValues,
-		TermFilter: index.AggregateTermFilter{
+		FieldFilter: index.AggregateFieldFilter{
 			[]byte("some"),
 			[]byte("string"),
 		},

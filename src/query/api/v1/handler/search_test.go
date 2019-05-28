@@ -99,15 +99,19 @@ func searchServer(t *testing.T) *SearchHandler {
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(mockTaggedIDsIter, false, nil).AnyTimes()
 
-	search := &SearchHandler{store: storage}
-	return search
+	search := NewSearchHandler(storage,
+		NewFetchOptionsBuilder(FetchOptionsBuilderOptions{}))
+	h, ok := search.(*SearchHandler)
+	require.True(t, ok)
+	return h
 }
 
 func TestSearchResponse(t *testing.T) {
 	searchHandler := searchServer(t)
 
-	opts := newFetchOptions(100)
-	results, err := searchHandler.search(context.TODO(), generateSearchReq(), &opts)
+	opts := storage.NewFetchOptions()
+	opts.Limit = 100
+	results, err := searchHandler.search(context.TODO(), generateSearchReq(), opts)
 	require.NoError(t, err)
 
 	assert.Equal(t, []byte(testID), results.Metrics[0].ID)

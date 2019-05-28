@@ -36,6 +36,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type Series struct {
@@ -68,7 +69,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		i++
 	}
 
-	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
+	iterAlloc := func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
 		return iter.Decode(r)
 	}
@@ -80,7 +81,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	reader := xio.NewSegmentReader(segment)
 
 	multiReader := encoding.NewMultiReaderIterator(iterAlloc, nil)
-	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockSize)
+	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockSize, nil)
 
 	orig := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 		ID:             ident.StringID("foo"),
@@ -117,7 +118,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			}
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
-			iter.Reset(readers, start, bs)
+			iter.Reset(readers, start, bs, nil)
 
 			inserted := false
 			for i := range series.Blocks {

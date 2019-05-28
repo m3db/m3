@@ -24,23 +24,43 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+// StreamOptions is an options struct that can be passed to Encoder.Stream()
+// to modify its behavior.
+type StreamOptions struct {
+	// Optional bytes into which the stream should be copied. If left
+	// nil then the checked bytes pool on the encoder will be used instead.
+	// TODO(rartoul): Actually use this field in the Stream API() in a subsequent
+	// P.R.
+	Bytes checked.Bytes
+}
+
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
+	// SetSchema sets up the schema needed by schema-aware encoder to encode the stream.
+	// SetSchema can be called multiple times between reset for mid-stream schema changes.
+	SetSchema(descr namespace.SchemaDescr)
+
 	// Encode encodes a datapoint and optionally an annotation.
+	// Schema must be set prior to Encode for schema-aware encoder. A schema can be set
+	// via Reset/DiscardReset/SetSchema.
 	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
-	Stream() xio.SegmentReader
+	// A boolean is returned indicating whether the returned xio.SegmentReader contains
+	// any data (true) or is empty (false) to encourage callers to remember to handle
+	// the special case where there is an empty stream.
+	Stream(opts StreamOptions) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
 	NumEncoded() int
@@ -54,7 +74,8 @@ type Encoder interface {
 	Len() int
 
 	// Reset resets the start time of the encoder and the internal state.
-	Reset(t time.Time, capacity int)
+	// Reset sets up the schema for schema-aware encoders such as proto encoders.
+	Reset(t time.Time, capacity int, schema namespace.SchemaDescr)
 
 	// Close closes the encoder and if pooled will return to the pool.
 	Close()
@@ -63,7 +84,8 @@ type Encoder interface {
 	Discard() ts.Segment
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
-	DiscardReset(t time.Time, capacity int) ts.Segment
+	// DiscardReset sets up the schema for schema-aware encoders such as proto encoders.
+	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
 }
 
 // NewEncoderFn creates a new encoder
@@ -145,8 +167,8 @@ type Iterator interface {
 type ReaderIterator interface {
 	Iterator
 
-	// Reset resets the iterator to read from a new reader.
-	Reset(reader io.Reader)
+	// Reset resets the iterator to read from a new reader with a new schema (for schema aware iterators).
+	Reset(reader io.Reader, schema namespace.SchemaDescr)
 }
 
 // MultiReaderIterator is an iterator that iterates in order over a list of sets of
@@ -154,11 +176,11 @@ type ReaderIterator interface {
 type MultiReaderIterator interface {
 	Iterator
 
-	// Reset resets the iterator to read from a slice of readers.
-	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration)
+	// Reset resets the iterator to read from a slice of readers with a new schema (for schema aware iterators).
+	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration, schema namespace.SchemaDescr)
 
-	// Reset resets the iterator to read from a slice of slice readers.
-	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator)
+	// Reset resets the iterator to read from a slice of slice readers with a new schema (for schema aware iterators).
+	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, schema namespace.SchemaDescr)
 
 	// Readers exposes the underlying ReaderSliceOfSlicesIterator for this MultiReaderIterator
 	Readers() xio.ReaderSliceOfSlicesIterator
@@ -252,7 +274,7 @@ type NewDecoderFn func() Decoder
 type EncoderAllocate func() Encoder
 
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
-type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
+type ReaderIteratorAllocate func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
 
 // IStream encapsulates a readable stream.
 type IStream interface {

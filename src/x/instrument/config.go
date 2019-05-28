@@ -22,9 +22,11 @@ package instrument
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
+	prom "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/multi"
@@ -80,7 +82,26 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 		reporters = append(reporters, r)
 	}
 	if mc.PrometheusReporter != nil {
-		var opts prometheus.ConfigurationOptions
+		// Override the default registry with an empty one that does not have the default
+		// registered collectors (Go and Process). The M3 reporters will emit the Go metrics
+		// and the Process metrics are reported by both the M3 process reporter and a
+		// modified Prometheus process collector, which reports everything except the
+		// number of open FDs.
+		//
+		// Collecting the number of F.Ds for a process that has many of them can take a long
+		// time and be very CPU intensive, especially the default Prometheus collector
+		// implementation which is less optimized than the M3 implementation.
+		//
+		// TODO: Emit the Prometheus process stats from our own process reporter so we
+		// get the same stats regardless of the reporter used. See issue:
+		// https://github.com/m3db/m3/issues/1649
+		registry := prom.NewRegistry()
+		if err := registry.Register(NewPrometheusProcessCollector(ProcessCollectorOpts{
+			DisableOpenFDs: true,
+		})); err != nil {
+			return nil, nil, fmt.Errorf("could not create process collector: %v", err)
+		}
+		opts := prometheus.ConfigurationOptions{Registry: registry}
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, err

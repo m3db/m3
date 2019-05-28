@@ -51,9 +51,6 @@ var (
 
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
-
-	// errDecodedIndexEntryHadNoID is returned when the decoded index entry has no idea.
-	errDecodedIndexEntryHadNoID = instrument.InvariantErrorf("decoded index entry had no ID")
 )
 
 const (
@@ -73,8 +70,6 @@ type seeker struct {
 	dataFd        *os.File
 	indexFd       *os.File
 	indexFileSize int64
-
-	shardDir string
 
 	unreadBuf []byte
 
@@ -156,17 +151,17 @@ func (s *seeker) Open(
 		return errClonesShouldNotBeOpened
 	}
 
-	s.shardDir = ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
 	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(s.shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(s.shardDir, blockStart, indexFileSuffix):       &s.indexFd,
-		filesetPathFromTime(s.shardDir, blockStart, dataFileSuffix):        &s.dataFd,
-		filesetPathFromTime(s.shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(s.shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-		filesetPathFromTime(s.shardDir, blockStart, summariesFileSuffix):   &summariesFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
+		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
 	}); err != nil {
 		return err
 	}
@@ -224,7 +219,7 @@ func (s *seeker) Open(
 		s.Close()
 		return fmt.Errorf(
 			"index file digest for file: %s does not match the expected digest: %c",
-			filesetPathFromTime(s.shardDir, blockStart, indexFileSuffix), err,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
 
@@ -320,13 +315,7 @@ func (s *seeker) SeekByIndexEntry(
 	entry IndexEntry,
 	resources ReusableSeekerResources,
 ) (checked.Bytes, error) {
-	newOffset, err := s.dataFd.Seek(entry.Offset, os.SEEK_SET)
-	if err != nil {
-		return nil, err
-	}
-	if newOffset != entry.Offset {
-		return nil, fmt.Errorf("tried to seek to: %d, but seeked to: %d", entry.Offset, newOffset)
-	}
+	resources.offsetFileReader.reset(s.dataFd, entry.Offset)
 
 	// Obtain an appropriately sized buffer.
 	var buffer checked.Bytes
@@ -343,7 +332,7 @@ func (s *seeker) SeekByIndexEntry(
 
 	// Copy the actual data into the underlying buffer.
 	underlyingBuf := buffer.Bytes()
-	n, err := io.ReadFull(s.dataFd, underlyingBuf)
+	n, err := io.ReadFull(resources.offsetFileReader, underlyingBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -367,10 +356,11 @@ func (s *seeker) SeekByIndexEntry(
 //
 //     1. Go to the indexLookup and it will give us an offset that is a good starting
 //        point for scanning the index file.
-//     2. Seek to the position that the indexLookup gave us.
-//     3. Reset a decoder with fileDecoderStream (fd wrapped in a bufio.Reader).
+//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
+//        begin at the offset provided by the offset lookup).
+//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
 //     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
-//        file internally) until we've either found the entry we're looking for or gone so
+//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
 func (s *seeker) SeekIndexEntry(
 	id ident.ID,
@@ -383,16 +373,8 @@ func (s *seeker) SeekIndexEntry(
 		return IndexEntry{}, err
 	}
 
-	seekedOffset, err := s.indexFd.Seek(offset, os.SEEK_SET)
-	if err != nil {
-		return IndexEntry{}, err
-	}
-	if seekedOffset != offset {
-		return IndexEntry{}, instrument.InvariantErrorf(
-			"tried to seek to offset: %d, but seeked to: %d", seekedOffset, offset)
-	}
-
-	resources.fileDecoderStream.Reset(s.indexFd)
+	resources.offsetFileReader.reset(s.indexFd, offset)
+	resources.fileDecoderStream.Reset(resources.offsetFileReader)
 	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
 
 	idBytes := id.Bytes()
@@ -417,7 +399,8 @@ func (s *seeker) SeekIndexEntry(
 		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return IndexEntry{}, errDecodedIndexEntryHadNoID
+			return IndexEntry{},
+				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
 		}
 
 		comparison := bytes.Compare(entry.ID, idBytes)
@@ -468,6 +451,7 @@ func (s *seeker) Close() error {
 	if s.isClone {
 		return nil
 	}
+
 	multiErr := xerrors.NewMultiError()
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
@@ -503,15 +487,11 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		bloomFilter: s.bloomFilter,
 		indexLookup: indexLookupClone,
 		isClone:     true,
-	}
 
-	// File descriptors are not concurrency safe since they have an internal
-	// seek position.
-	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(s.shardDir, s.start.ToTime(), indexFileSuffix): &seeker.indexFd,
-		filesetPathFromTime(s.shardDir, s.start.ToTime(), dataFileSuffix):  &seeker.dataFd,
-	}); err != nil {
-		return nil, err
+		// Index and data fd's are always accessed via the ReadAt() / pread APIs so
+		// they are concurrency safe and can be shared among clones.
+		indexFd: s.indexFd,
+		dataFd:  s.dataFd,
 	}
 
 	return seeker, nil
@@ -544,6 +524,7 @@ type ReusableSeekerResources struct {
 	xmsgpackDecoder   *xmsgpack.Decoder
 	fileDecoderStream *bufio.Reader
 	byteDecoderStream xmsgpack.ByteDecoderStream
+	offsetFileReader  *offsetFileReader
 	// This pool should only be used for calling DecodeIndexEntry. We use a
 	// special pool here to avoid the overhead of channel synchronization, as
 	// well as ref counting that comes with the checked bytes pool. In addition,
@@ -560,6 +541,7 @@ func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 		xmsgpackDecoder:           xmsgpack.NewDecoder(opts.DecodingOptions()),
 		fileDecoderStream:         bufio.NewReaderSize(nil, seekReaderSize),
 		byteDecoderStream:         xmsgpack.NewByteDecoderStream(nil),
+		offsetFileReader:          newOffsetFileReader(),
 		decodeIndexEntryBytesPool: newSimpleBytesPool(),
 	}
 }
@@ -611,4 +593,32 @@ func (s *simpleBytesPool) Put(b []byte) {
 	}
 
 	s.pool = append(s.pool, b[:])
+}
+
+var _ io.Reader = &offsetFileReader{}
+
+// offsetFileReader implements io.Reader() and allows an *os.File to be wrapped
+// such that any calls to Read() are issued at the provided offset. This is used
+// to issue reads to specific portions of the index and data files without having
+// to first call Seek(). This reduces the number of syscalls that need to be made
+// and also allows the fds to be shared among concurrent goroutines since the
+// internal F.D offset managed by the kernel is not being used.
+type offsetFileReader struct {
+	fd     *os.File
+	offset int64
+}
+
+func newOffsetFileReader() *offsetFileReader {
+	return &offsetFileReader{}
+}
+
+func (p *offsetFileReader) Read(b []byte) (n int, err error) {
+	n, err = p.fd.ReadAt(b, p.offset)
+	p.offset += int64(n)
+	return n, err
+}
+
+func (p *offsetFileReader) reset(fd *os.File, offset int64) {
+	p.fd = fd
+	p.offset = offset
 }

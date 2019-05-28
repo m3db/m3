@@ -81,21 +81,26 @@ func validateSeriesInternals(t *testing.T, it encoding.SeriesIterator) {
 	}
 }
 
-func validateSeries(t *testing.T, it encoding.SeriesIterator) {
-	defer it.Close()
-
-	expectedValues := [60]float64{}
+func expectedValues() []float64 {
+	expectedValues := make([]float64, 60)
 	for i := 2; i < 30; i++ {
 		expectedValues[i] = float64(i) + 1
 	}
 	for i := 0; i < 30; i++ {
 		expectedValues[i+30] = float64(i) + 101
 	}
-	for i := 2; i < 60; i++ {
+	return expectedValues[2:]
+
+}
+
+func validateSeries(t *testing.T, it encoding.SeriesIterator) {
+	defer it.Close()
+
+	for i, expectedValue := range expectedValues() {
 		require.True(t, it.Next())
 		dp, unit, annotation := it.Current()
-		require.Equal(t, expectedValues[i], dp.Value)
-		require.Equal(t, seriesStart.Add(time.Duration(i-2)*time.Minute), dp.Timestamp)
+		require.Equal(t, expectedValue, dp.Value)
+		require.Equal(t, seriesStart.Add(time.Duration(i)*time.Minute), dp.Timestamp)
 		uv, err := unit.Value()
 		assert.NoError(t, err)
 		assert.Equal(t, time.Second, uv)

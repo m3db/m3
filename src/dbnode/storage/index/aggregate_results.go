@@ -199,7 +199,7 @@ func (r *aggregatedResults) addTermWithLock(
 
 	// if a term filter is provided, ensure this field matches the filter,
 	// otherwise ignore it.
-	filter := r.aggregateOpts.TermFilter
+	filter := r.aggregateOpts.FieldFilter
 	if filter != nil && !filter.Allow(term) {
 		return nil
 	}
@@ -244,7 +244,7 @@ func (r *aggregatedResults) addFieldWithLock(
 
 	// if a term filter is provided, ensure this field matches the filter,
 	// otherwise ignore it.
-	filter := r.aggregateOpts.TermFilter
+	filter := r.aggregateOpts.FieldFilter
 	if filter != nil && !filter.Allow(term) {
 		return nil
 	}

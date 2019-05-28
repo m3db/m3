@@ -24,35 +24,58 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCustomAndProtoFields(t *testing.T) {
 	testCases := []struct {
-		schema               *desc.MessageDescriptor
-		expectedCustomFields []customFieldState
-		expectedProtoFields  []int32
+		schema                  *desc.MessageDescriptor
+		expectedCustomFields    []customFieldState
+		expectedNonCustomFields []marshalledField
 	}{
 		{
 			schema: newVLMessageDescriptor(),
 			expectedCustomFields: []customFieldState{
-				{fieldNum: 1, fieldType: float64Field},     // latitude
-				{fieldNum: 2, fieldType: float64Field},     // longitude
-				{fieldNum: 3, fieldType: signedInt64Field}, // numTrips
-				{fieldNum: 4, fieldType: bytesField},       // deliveryID
+				// latitude
+				{
+					fieldNum:       1,
+					fieldType:      float64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				},
+				// longitude
+				{
+					fieldNum:       2,
+					fieldType:      float64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_DOUBLE,
+				},
+				// numTrips
+				{
+					fieldNum:       3,
+					fieldType:      signedInt64Field,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_INT64,
+				},
+				// deliveryID
+				{
+					fieldNum:       4,
+					fieldType:      bytesField,
+					protoFieldType: dpb.FieldDescriptorProto_TYPE_BYTES,
+				},
 			},
-			expectedProtoFields: []int32{5},
+			expectedNonCustomFields: []marshalledField{{fieldNum: 5}},
 		},
 	}
 
 	for _, tc := range testCases {
-		tszFields, protoFields := customAndProtoFields(nil, nil, tc.schema)
+		tszFields, nonCustomFields := customAndNonCustomFields(nil, nil, tc.schema)
 		require.Equal(t, tc.expectedCustomFields, tszFields)
-		require.Equal(t, tc.expectedProtoFields, protoFields)
+		require.Equal(t, tc.expectedNonCustomFields, nonCustomFields)
 	}
 }
 
@@ -65,4 +88,42 @@ func TestClosedEncoderIsNotUsable(t *testing.T) {
 
 	_, err = enc.LastEncoded()
 	require.Equal(t, errEncoderClosed, err)
+}
+
+func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
+	start := time.Now().Truncate(time.Second)
+	enc := newTestEncoder(start)
+	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
+
+	vl := newVL(1.0, 2.0, 3, []byte("some-delivery-id"), nil)
+	vlBytes, err := vl.Marshal()
+	require.NoError(t, err)
+
+	dp := ts.Datapoint{Timestamp: start.Add(time.Second)}
+	err = enc.Encode(dp, xtime.Second, vlBytes)
+	require.NoError(t, err)
+
+	bytesBeforeBadWrite := getCurrEncoderBytes(t, enc)
+
+	dp = ts.Datapoint{Timestamp: start.Add(2 * time.Second)}
+	err = enc.Encode(dp, xtime.Second, []byte("not-valid-proto"))
+	require.Error(t, err)
+
+	bytesAfterBadWrite := getCurrEncoderBytes(t, enc)
+	// Ensure that the encoder detect that the protobuf message was invalid
+	// before writing any data.
+	require.Equal(t, bytesBeforeBadWrite, bytesAfterBadWrite)
+}
+
+func getCurrEncoderBytes(t *testing.T, enc *Encoder) []byte {
+	stream, ok := enc.Stream(encoding.StreamOptions{})
+	require.True(t, ok)
+
+	currSeg, err := stream.Segment()
+	require.NoError(t, err)
+
+	if currSeg.Tail != nil {
+		require.Equal(t, 0, currSeg.Tail.Len())
+	}
+	return currSeg.Head.Bytes()
 }

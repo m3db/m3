@@ -163,7 +163,7 @@ func (s *ExecutionState) createNode(
 
 	transformParams, ok := step.Transform.Op.(transform.Params)
 	if !ok {
-		return nil, fmt.Errorf("invalid transform step, %s", step)
+		return nil, fmt.Errorf("invalid transform step: %s", step)
 	}
 
 	transformNode, controller := CreateTransform(step.ID(), transformParams, options)

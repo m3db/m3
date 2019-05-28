@@ -49,6 +49,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type testBlockRetrieverOptions struct {
@@ -150,7 +151,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
-	ropts := testNs1Metadata(t).Options().RetentionOptions()
+	nsMeta := testNs1Metadata(t)
+	ropts := nsMeta.Options().RetentionOptions()
+	nsCtx := namespace.NewContextFrom(nsMeta)
 
 	now := time.Now().Truncate(ropts.BlockSize())
 	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
@@ -218,7 +221,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	)
 	bytesPool.Init()
 
-	onRetrieve := block.OnRetrieveBlockFn(func(id ident.ID, tagsIter ident.TagIterator, startTime time.Time, segment ts.Segment) {
+	onRetrieve := block.OnRetrieveBlockFn(func(id ident.ID, tagsIter ident.TagIterator, startTime time.Time, segment ts.Segment, nsCtx namespace.Context) {
 		// TagsFromTagsIter requires a series ID to try and share bytes so we just pass
 		// an empty string because we don't care about efficiency.
 		tags, err := convert.TagsFromTagsIter(ident.StringID(""), tagsIter, idPool)
@@ -252,7 +255,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve)
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve, nsCtx)
 					require.NoError(t, err)
 					results = append(results, streamResult{
 						ctx:        ctx,
@@ -319,7 +322,9 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 
 	// Setup constants and config
 	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
-	rOpts := testNs1Metadata(t).Options().RetentionOptions()
+	nsMeta := testNs1Metadata(t)
+	rOpts := nsMeta.Options().RetentionOptions()
+	nsCtx := namespace.NewContextFrom(nsMeta)
 	shard := uint32(0)
 	blockStart := time.Now().Truncate(rOpts.BlockSize())
 
@@ -344,7 +349,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
-		ident.StringID("not-exists"), blockStart, nil)
+		ident.StringID("not-exists"), blockStart, nil, nsCtx)
 	assert.NoError(t, err)
 
 	segment, err := segmentReader.Segment()
@@ -365,6 +370,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	// Setup constants and config.
 	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 	rOpts := testNs1Metadata(t).Options().RetentionOptions()
+	nsCtx := namespace.NewContextFrom(testNs1Metadata(t))
 	shard := uint32(0)
 	blockStart := time.Now().Truncate(rOpts.BlockSize())
 
@@ -417,12 +423,13 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 			tagsIter ident.TagIterator,
 			startTime time.Time,
 			segment ts.Segment,
+			nsCtx namespace.Context,
 		) {
 			require.Equal(t, ident.EmptyTagIterator, tagsIter)
 			for tagsIter.Next() {
 			}
 			require.NoError(t, tagsIter.Err())
-		}))
+		}), nsCtx)
 
 	_, err = retriever.Stream(ctx, shard,
 		ident.StringID("tags"), blockStart, block.OnRetrieveBlockFn(func(
@@ -430,13 +437,14 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 			tagsIter ident.TagIterator,
 			startTime time.Time,
 			segment ts.Segment,
+			nsCtx namespace.Context,
 		) {
 			for tagsIter.Next() {
 				currTag := tagsIter.Current()
 				require.True(t, tag.Equal(currTag))
 			}
 			require.NoError(t, tagsIter.Err())
-		}))
+		}), nsCtx)
 
 	require.NoError(t, err)
 }
@@ -481,6 +489,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	var (
 		fsOpts     = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 		rOpts      = testNs1Metadata(t).Options().RetentionOptions()
+		nsCtx      = namespace.NewContextFrom(testNs1Metadata(t))
 		shard      = uint32(0)
 		blockStart = time.Now().Truncate(rOpts.BlockSize())
 
@@ -519,7 +528,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	ctx := context.NewContext()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
-		ident.StringID("not-exists"), blockStart, nil)
+		ident.StringID("not-exists"), blockStart, nil, nsCtx)
 	require.NoError(t, err)
 
 	segment, err := segmentReader.Segment()

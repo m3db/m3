@@ -22,9 +22,6 @@
 
 - [M3 and a new age of metrics and monitoring in an increasingly complex world](https://fosdem.org/2019/schedule/event/m3_and_a_new_age_of_metrics_and_monitoring_in_an_increasingly_complex_world/) By Rob Skillington - Feb 3, 2019.
 
-- [Building Operators at Uber](https://www.youtube.com/watch?v=Ti5z1v-3jWA) By Matt Schallert & Paul Schooss - Mar 11,
-  2019.
+- [Building Operators at Uber](https://www.youtube.com/watch?v=Ti5z1v-3jWA) By Matt Schallert & Paul Schooss - Mar 11, 2019.
 
-## Upcoming Talks
-
-- [M3 and Prometheus, Monitoring at Planet Scale for Everyone](https://kccnceu19.sched.com/event/MPbX/m3-and-prometheus-monitoring-at-planet-scale-for-everyone-rob-skillington-uber) By Rob Skillington - May 22, 2019
+- [M3 and Prometheus, Monitoring at Planet Scale for Everyone](https://kccnceu19.sched.com/event/MPbX/m3-and-prometheus-monitoring-at-planet-scale-for-everyone-rob-skillington-uber) By Rob Skillington - May 22, 2019. [Video](https://www.youtube.com/watch?v=EFutyuIpFXQ)

@@ -25,31 +25,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/storage/series"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestShardWriteSyncRefCount(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	testShardWriteSyncRefCount(t, opts)
 }
 
 func TestShardWriteSyncRefCountVerifyNoCopyAnnotation(t *testing.T) {
-	opts := testDatabaseOptions().
+	opts := DefaultTestOptions().
 		// Set bytes pool to nil to ensure we're not using it to copy annotations
 		// on the sync path.
 		SetBytesPool(nil)
@@ -159,7 +158,7 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		opts      = testDatabaseOptions()
+		opts      = DefaultTestOptions()
 		indexOpts = opts.IndexOptions().
 				SetInsertMode(index.InsertSync)
 	)
@@ -178,7 +177,7 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	var (
 		now   = time.Now()
-		opts  = testDatabaseOptions()
+		opts  = DefaultTestOptions()
 		shard = testDatabaseShardWithIndexFn(t, opts, idx)
 	)
 
@@ -243,7 +242,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	defer closer.Close()
 
 	now := time.Now()
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().
 			SetMetricsScope(scope).
@@ -348,7 +347,7 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		opts      = testDatabaseOptions()
+		opts      = DefaultTestOptions()
 		indexOpts = opts.IndexOptions().
 				SetInsertMode(index.InsertSync)
 	)
@@ -372,7 +371,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	defer closer.Close()
 
 	now := time.Now()
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().
 			SetMetricsScope(scope).

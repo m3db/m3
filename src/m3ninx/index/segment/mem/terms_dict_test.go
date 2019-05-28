@@ -176,6 +176,27 @@ func (t *termsDictionaryTestSuite) TestContainsTerm() {
 	props.TestingRun(t.T())
 }
 
+func (t *termsDictionaryTestSuite) TestContainsField() {
+	props := getProperties()
+	props.Property(
+		"The dictionary should support field lookups",
+		prop.ForAll(
+			func(f doc.Field, id postings.ID) (bool, error) {
+				t.termsDict.Insert(f, id)
+
+				if ok := t.termsDict.ContainsField(f.Name); !ok {
+					return false, fmt.Errorf("id of new document '%v' is not in postings list of matching documents", id)
+				}
+
+				return true, nil
+			},
+			genField(),
+			genDocID(),
+		))
+
+	props.TestingRun(t.T())
+}
+
 func (t *termsDictionaryTestSuite) TestMatchTerm() {
 	props := getProperties()
 	props.Property(

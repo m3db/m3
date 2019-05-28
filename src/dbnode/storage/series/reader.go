@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -73,8 +74,9 @@ func NewReaderUsingRetriever(
 func (r Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
+	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
-	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil)
+	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil, nsCtx)
 }
 
 func (r Reader) readersWithBlocksMapAndBuffer(
@@ -82,6 +84,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	start, end time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
+	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	// TODO(r): pool these results arrays
 	var results [][]xio.BlockReader
@@ -156,7 +159,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 			case r.retriever != nil:
 				// Try to stream from disk
 				if r.retriever.IsBlockRetrievable(blockAt) {
-					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve)
+					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve, nsCtx)
 					if err != nil {
 						return nil, err
 					}
@@ -168,7 +171,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		}
 
 		if seriesBuffer != nil {
-			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size))
+			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size), nsCtx)
 			if err != nil {
 				return nil, err
 			}
@@ -192,8 +195,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 func (r Reader) FetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
+	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
-	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, nil, nil)
+	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, nil, nil, nsCtx)
 }
 
 func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
@@ -201,6 +205,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	starts []time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
+	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	var (
 		// TODO(r): pool these results arrays
@@ -237,7 +242,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(start) {
-				streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve)
+				streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve, nsCtx)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
@@ -254,7 +259,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	}
 
 	if seriesBuffer != nil && !seriesBuffer.IsEmpty() {
-		bufferResults := seriesBuffer.FetchBlocks(ctx, starts)
+		bufferResults := seriesBuffer.FetchBlocks(ctx, starts, nsCtx)
 		res = append(res, bufferResults...)
 	}
 

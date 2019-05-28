@@ -56,6 +56,15 @@ backgroundHealthCheckFailLimit: 4
 backgroundHealthCheckFailThrottleFactor: 0.5
 hashing:
   seed: 42
+proto:
+  enabled: false
+  schema_registry:
+    "ns1:2d":
+      schemaFilePath: "file/path/to/ns1/schema"
+      messageName: "ns1_msg_name"
+    ns2:
+      schemaFilePath: "file/path/to/ns2/schema"
+      messageName: "ns2_msg_name"
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -107,6 +116,13 @@ hashing:
 		BackgroundHealthCheckFailThrottleFactor: &numHalf,
 		HashingConfiguration: &HashingConfiguration{
 			Seed: 42,
+		},
+		Proto: &ProtoConfiguration{
+			Enabled: false,
+			SchemaRegistry: map[string]NamespaceProtoSchema{
+				"ns1:2d": {SchemaFilePath: "file/path/to/ns1/schema", MessageName: "ns1_msg_name"},
+				"ns2": {SchemaFilePath: "file/path/to/ns2/schema", MessageName: "ns2_msg_name"},
+			},
 		},
 	}
 

@@ -31,6 +31,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3/src/dbnode/network/server/httpjson/node"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
@@ -60,7 +62,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -75,12 +76,12 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/lockfile"
 	"github.com/m3db/m3/src/x/mmap"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/coreos/etcd/embed"
-	"github.com/jhump/protoreflect/desc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -93,6 +94,8 @@ const (
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 	filePathPrefixLockFile           = ".lock"
 	defaultServiceName               = "m3dbnode"
+	raiseProcessLimitsEnvVar         = "PROCESS_LIMITS_RAISE"
+	raiseProcessLimitsEnvVarTrue     = "true"
 )
 
 // RunOptions provides options for running the server
@@ -151,6 +154,22 @@ func Run(runOpts RunOptions) {
 	}
 	defer logger.Sync()
 
+	raiseLimits := strings.TrimSpace(os.Getenv(raiseProcessLimitsEnvVar))
+	if raiseLimits == raiseProcessLimitsEnvVarTrue {
+		// Raise fd limits to nr_open system limit
+		result, err := xos.RaiseProcessNoFileToNROpen()
+		if err != nil {
+			logger.Warn("unable to raise rlimit", zap.Error(err))
+		} else {
+			logger.Info("raised rlimit no file fds limit",
+				zap.Bool("required", result.RaisePerformed),
+				zap.Uint64("sysNROpenValue", result.NROpenValue),
+				zap.Uint64("noFileMaxValue", result.NoFileMaxValue),
+				zap.Uint64("noFileCurrValue", result.NoFileCurrValue))
+		}
+	}
+
+	// Parse file and directory modes
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		logger.Fatal("could not parse new file mode", zap.Error(err))
@@ -173,16 +192,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	defer fslock.Release()
-
-	var schema *desc.MessageDescriptor
-	if cfg.Proto != nil {
-		logger.Info("Probuf data mode enabled")
-		schema, err = proto.ParseProtoSchema(
-			cfg.Proto.SchemaFilePath, cfg.Proto.MessageName)
-		if err != nil {
-			logger.Fatal("error parsing protobuffer schema", zap.Error(err))
-		}
-	}
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -436,7 +445,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, schema, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -561,6 +570,25 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 
+	var protoEnabled bool
+	if cfg.Proto != nil && cfg.Proto.Enabled {
+		protoEnabled = true
+	}
+	schemaRegistry := namespace.NewSchemaRegistry(protoEnabled, logger)
+	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
+	// we allow loading user schema from db node configuration into schema registry
+	// at dbnode startup/initialization time.
+	if protoEnabled {
+		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
+			dummyDeployID := "fromconfig"
+			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
+				dummyDeployID,
+				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
+				logger.Fatal("could not load schema from configuration", zap.Error(err))
+			}
+		}
+	}
+
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := cfg.Client.NewAdminClient(
 		client.ConfigurationParameters{
@@ -578,12 +606,15 @@ func Run(runOpts RunOptions) {
 			return opts.SetOrigin(origin)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			if cfg.Proto != nil {
-				adminOpts := opts.SetEncodingProto(schema,
-					encoding.NewOptions())
-				return adminOpts.(client.AdminOptions)
+			if cfg.Proto != nil && cfg.Proto.Enabled {
+				return opts.SetEncodingProto(
+					encoding.NewOptions(),
+				).(client.AdminOptions)
 			}
 			return opts
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetSchemaRegistry(schemaRegistry)
 		},
 	)
 	if err != nil {
@@ -599,9 +630,20 @@ func Run(runOpts RunOptions) {
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 
-	opts = opts.
-		// Feature currently not working.
-		SetRepairEnabled(false)
+	opts = opts.SetRepairEnabled(false)
+	if cfg.Repair != nil {
+		repairOpts := opts.RepairOptions().
+			SetRepairInterval(cfg.Repair.Interval).
+			SetRepairTimeOffset(cfg.Repair.Offset).
+			SetRepairTimeJitter(cfg.Repair.Jitter).
+			SetRepairThrottle(cfg.Repair.Throttle).
+			SetRepairCheckInterval(cfg.Repair.CheckInterval).
+			SetAdminClient(m3dbClient)
+
+		opts = opts.
+			SetRepairEnabled(cfg.Repair.Enabled).
+			SetRepairOptions(repairOpts)
+	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
 	// same topology that will be passed to the cluster so that when we make
@@ -612,7 +654,8 @@ func Run(runOpts RunOptions) {
 	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := newTopoMapProvider(topo)
-	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+	bs, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
+		opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
 		logger.Fatal("could not create bootstrap process", zap.Error(err))
 	}
@@ -627,7 +670,8 @@ func Run(runOpts RunOptions) {
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+			updated, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
+				opts, topoMapProvider, origin, m3dbClient)
 			if err != nil {
 				logger.Error("updated bootstrapper list failed", zap.Error(err))
 				return
@@ -661,6 +705,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create cluster topology watch", zap.Error(err))
 	}
 
+	opts = opts.SetSchemaRegistry(schemaRegistry)
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatal("could not construct database", zap.Error(err))
@@ -1033,7 +1078,6 @@ func kvWatchBootstrappers(
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
 	logger *zap.Logger,
-	schema *desc.MessageDescriptor,
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
@@ -1197,25 +1241,24 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		if schema != nil {
+		if cfg.Proto != nil && cfg.Proto.Enabled {
 			enc := proto.NewEncoder(time.Time{}, encodingOpts)
-			enc.SetSchema(schema)
 			return enc
 		}
 
 		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		if schema != nil {
-			return proto.NewIterator(r, schema, encodingOpts)
+	iteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+		if cfg.Proto != nil && cfg.Proto.Enabled {
+			return proto.NewIterator(r, descr, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	multiIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := iteratorPool.Get()
-		iter.Reset(r)
+		iter.Reset(r, descr)
 		return iter
 	})
 
@@ -1270,7 +1313,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type fetchTaggedResultAccumulatorOpts struct {
@@ -245,6 +246,7 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	pools fetchTaggedPools,
 	elems fetchTaggedIDResults,
+	descr namespace.SchemaDescr,
 ) encoding.SeriesIterator {
 	numElems := len(elems)
 	iters := pools.MultiReaderIteratorArray().Get(numElems)[:numElems]
@@ -252,7 +254,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 		slicesIter := pools.ReaderSliceOfSlicesIterator().Get()
 		slicesIter.Reset(elem.Segments)
 		multiIter := pools.MultiReaderIterator().Get()
-		multiIter.ResetSliceOfSlices(slicesIter)
+		multiIter.ResetSliceOfSlices(slicesIter, descr)
 		iters[idx] = multiIter
 	}
 
@@ -281,7 +283,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 }
 
 func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
-	limit int, pools fetchTaggedPools,
+	limit int, pools fetchTaggedPools, descr namespace.SchemaDescr,
 ) (encoding.SeriesIterators, bool, error) {
 	results := fetchTaggedIDResultsSortedByID(accum.fetchResponses)
 	sort.Sort(results)
@@ -298,7 +300,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	count := 0
 	moreElems := false
 	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
-		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems)
+		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems, descr)
 		result.SetAt(count, seriesIter)
 		count++
 		moreElems = hasMore

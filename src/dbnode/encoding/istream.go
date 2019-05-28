@@ -60,6 +60,13 @@ func (is *istream) ReadBit() (Bit, error) {
 
 // Read reads len(b) bytes.
 func (is *istream) Read(b []byte) (int, error) {
+	if is.remaining == 0 {
+		// Optimized path for when the iterator is already aligned on a byte boundary. Avoids
+		// all the bit manipulation and ReadByte() function calls.
+		// Use ReadFull because the bufferedReader may not return the requested number of bytes.
+		return io.ReadFull(is.r, b)
+	}
+
 	var (
 		i   int
 		err error
@@ -96,6 +103,7 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
+
 	var res uint64
 	for numBits >= 8 {
 		byteRead, err := is.ReadByte()
@@ -105,13 +113,25 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		res = (res << 8) | uint64(byteRead)
 		numBits -= 8
 	}
+
 	for numBits > 0 {
-		bitRead, err := is.ReadBit()
-		if err != nil {
-			return 0, err
+		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
+		// has been performed to optimize this loop as its heavily used in the hot path.
+		if is.remaining == 0 {
+			if err := is.readByteFromStream(); err != nil {
+				return 0, err
+			}
 		}
-		res = (res << 1) | uint64(bitRead)
-		numBits--
+
+		numToRead := numBits
+		if is.remaining < numToRead {
+			numToRead = is.remaining
+		}
+		bits := is.current >> uint(8-numToRead)
+		is.current <<= uint(numToRead)
+		is.remaining -= numToRead
+		res = (res << uint64(numToRead)) | uint64(bits)
+		numBits -= numToRead
 	}
 	return res, nil
 }

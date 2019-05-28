@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -90,18 +91,18 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 }
 
 // FetchBlocks mocks base method
-func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time) ([]block.FetchBlockResult, error) {
+func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time, arg2 namespace.Context) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocks", arg0, arg1)
+	ret := m.ctrl.Call(m, "FetchBlocks", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocks indicates an expected call of FetchBlocks
-func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocks), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocks), arg0, arg1, arg2)
 }
 
 // FetchBlocksMetadata mocks base method
@@ -120,18 +121,18 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 int) (FlushOutcome, error) {
+func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 int, arg4 namespace.Context) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(FlushOutcome)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockDatabaseSeriesMockRecorder) Flush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Flush(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockDatabaseSeries)(nil).Flush), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockDatabaseSeries)(nil).Flush), arg0, arg1, arg2, arg3, arg4)
 }
 
 // ID mocks base method
@@ -203,30 +204,30 @@ func (mr *MockDatabaseSeriesMockRecorder) OnEvictedFromWiredList(arg0, arg1 inte
 }
 
 // OnRetrieveBlock mocks base method
-func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment) {
+func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment, arg4 namespace.Context) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3)
+	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3, arg4)
 }
 
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2, arg3, arg4)
 }
 
 // ReadEncoded mocks base method
-func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time) ([][]xio.BlockReader, error) {
+func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time, arg3 namespace.Context) ([][]xio.BlockReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ReadEncoded", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabaseSeries)(nil).ReadEncoded), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabaseSeries)(nil).ReadEncoded), arg0, arg1, arg2, arg3)
 }
 
 // Reset mocks base method
@@ -242,17 +243,17 @@ func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, ar
 }
 
 // Snapshot mocks base method
-func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn) error {
+func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2, arg3)
 }
 
 // Tags mocks base method
@@ -270,18 +271,18 @@ func (mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockDatabaseSeries) Tick(arg0 map[time0.UnixNano]BlockState) (TickResult, error) {
+func (m *MockDatabaseSeries) Tick(arg0 map[time0.UnixNano]BlockState, arg1 namespace.Context) (TickResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", arg0)
+	ret := m.ctrl.Call(m, "Tick", arg0, arg1)
 	ret0, _ := ret[0].(TickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockDatabaseSeriesMockRecorder) Tick(arg0 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockDatabaseSeries)(nil).Tick), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockDatabaseSeries)(nil).Tick), arg0, arg1)
 }
 
 // Write mocks base method
@@ -365,16 +366,16 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockVersion(arg0 
 }
 
 // Stream mocks base method
-func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock) (xio.BlockReader, error) {
+func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock, arg4 namespace.Context) (xio.BlockReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Stream indicates an expected call of Stream
-func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3, arg4)
 }

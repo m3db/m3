@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"

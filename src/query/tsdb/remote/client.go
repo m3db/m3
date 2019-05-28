@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -56,11 +58,12 @@ type grpcClient struct {
 	pools            encoding.IteratorPools
 	poolErr          error
 	lookbackDuration time.Duration
+	opts             m3db.Options
 }
 
 const initResultSize = 10
 
-// NewGRPCClient creates grpc client
+// NewGRPCClient creates grpc client.
 func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
@@ -82,6 +85,11 @@ func NewGRPCClient(
 		return nil, err
 	}
 
+	opts := m3db.NewOptions().
+		SetTagOptions(tagOptions).
+		SetLookbackDuration(lookbackDuration).
+		SetConsolidationFunc(consolidators.TakeLast)
+
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
 		tagOptions:       tagOptions,
@@ -90,10 +98,11 @@ func NewGRPCClient(
 		poolWrapper:      poolWrapper,
 		readWorkerPool:   readWorkerPool,
 		lookbackDuration: lookbackDuration,
+		opts:             opts,
 	}, nil
 }
 
-// Fetch reads from remote client storage
+// Fetch reads from remote client storage.
 func (c *grpcClient) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -184,9 +193,33 @@ func (c *grpcClient) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	iters, err := c.fetchRaw(ctx, query, options)
+	opts := c.opts
+
+	// If using decoded block, return the legacy path.
+	if options.BlockType == models.TypeDecodedBlock {
+		fetchResult, err := c.Fetch(ctx, query, options)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		return storage.FetchResultToBlockResult(fetchResult, query, c.opts.LookbackDuration(), options.Enforcer)
+	}
+
+	raw, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
+	}
+
+	// If using multiblock, update options to reflect this.
+	if options.BlockType == models.TypeMultiBlock {
+		opts = opts.
+			SetSplitSeriesByBlock(true)
+	}
+
+	bounds := models.Bounds{
+		Start:    query.Start,
+		Duration: query.End.Sub(query.Start),
+		StepSize: query.Interval,
 	}
 
 	enforcer := options.Enforcer
@@ -194,23 +227,19 @@ func (c *grpcClient) FetchBlocks(
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(
-		iters,
-		c.readWorkerPool,
-		true,
-		enforcer,
-		c.tagOptions,
+	blocks, err := m3db.ConvertM3DBSeriesIterators(
+		raw,
+		bounds,
+		opts,
 	)
+
 	if err != nil {
 		return block.Result{}, err
 	}
 
-	res, err := storage.FetchResultToBlockResult(fetchResult, query, c.lookbackDuration, options.Enforcer)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return res, nil
+	return block.Result{
+		Blocks: blocks,
+	}, nil
 }
 
 func (c *grpcClient) SearchSeries(

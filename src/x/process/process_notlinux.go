@@ -29,7 +29,20 @@ import (
 var errNotAvailable = errors.New(
 	"cannot get process file descriptors, only available on linux")
 
-// NumFDs returns the number of file descriptors for a given process.
+// NumFDs returns the number of file descriptors for a given process and is not available
+// on non-linux systems.
 func NumFDs(pid int) (int, error) {
+	return 0, errNotAvailable
+}
+
+// NumFDsWithDefaultBatchSleep returns the number of file descriptors for a given process
+// and is not available on non-linux systems.
+func NumFDsWithDefaultBatchSleep(pid int) (int, error) {
+	return 0, errNotAvailable
+}
+
+// NumFDsWithBatchSleep returns the number of file descriptors for a given process and is
+// not available on non-linux systems.
+func NumFDsWithBatchSleep(pid int) (int, error) {
 	return 0, errNotAvailable
 }

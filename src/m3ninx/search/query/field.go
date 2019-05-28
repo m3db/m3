@@ -41,6 +41,11 @@ func NewFieldQuery(field []byte) search.Query {
 	}
 }
 
+// Field returns the field []byte.
+func (q *FieldQuery) Field() []byte {
+	return q.field
+}
+
 // Searcher returns a searcher over the provided readers.
 func (q *FieldQuery) Searcher() (search.Searcher, error) {
 	return searcher.NewFieldSearcher(q.field)

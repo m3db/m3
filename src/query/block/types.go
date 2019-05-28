@@ -45,6 +45,12 @@ type Block interface {
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
 }
 
+type AccumulatorBlock interface {
+	Block
+	// AddBlock adds a block to this accumulator.
+	AddBlock(bl Block) error
+}
+
 // UnconsolidatedBlock represents a group of unconsolidated series across a time bound
 type UnconsolidatedBlock interface {
 	io.Closer
@@ -182,4 +188,29 @@ func TakeLast(values ts.Datapoints) float64 {
 	}
 
 	return math.NaN()
+}
+
+// TimeTransform transforms a timestamp.
+type TimeTransform func(time.Time) time.Time
+
+// MetaTransform transforms meta data.
+type MetaTransform func(meta Metadata) Metadata
+
+// ValueTransform transform a float64.
+type ValueTransform func(float64) float64
+
+// LazyOptions describes options for lazy blocks.
+type LazyOptions interface {
+	// SetTimeTransform sets the time transform function.
+	SetTimeTransform(TimeTransform) LazyOptions
+	// TimeTransform returns the time transform function.
+	TimeTransform() TimeTransform
+	// SetMetaTransform sets the meta transform function.
+	SetMetaTransform(MetaTransform) LazyOptions
+	// MetaTransform returns the meta transform function.
+	MetaTransform() MetaTransform
+	// SetValueTransform sets the value transform function.
+	SetValueTransform(ValueTransform) LazyOptions
+	// ValueTransform returns the value transform function.
+	ValueTransform() ValueTransform
 }

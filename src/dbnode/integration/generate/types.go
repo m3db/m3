@@ -30,7 +30,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 )
+
+type AnnotationGenerator interface {
+	Next() []byte
+}
 
 // BlockConfig represents the configuration to generate a SeriesBlock
 type BlockConfig struct {
@@ -38,19 +43,27 @@ type BlockConfig struct {
 	Tags      ident.Tags
 	NumPoints int
 	Start     time.Time
+	AnnGen    AnnotationGenerator
+}
+
+type UpdateBlockConfig func([]BlockConfig)
+
+type TestValue struct {
+	ts.Datapoint
+	ts.Annotation
 }
 
 // Series represents a generated series of data
 type Series struct {
 	ID   ident.ID
 	Tags ident.Tags
-	Data []ts.Datapoint
+	Data []TestValue
 }
 
 // SeriesDataPoint represents a single data point of a generated series of data
 type SeriesDataPoint struct {
-	ts.Datapoint
-	ID ident.ID
+	Value TestValue
+	ID    ident.ID
 }
 
 // SeriesDataPointsByTime are a sorted list of SeriesDataPoints
@@ -66,11 +79,11 @@ type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 type Writer interface {
 	// WriteData writes the data as data files.
 	WriteData(
-		ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+		nsCtx ns.Context, shards sharding.ShardSet, data SeriesBlocksByStart) error
 
 	// WriteSnapshot writes the data as snapshot files.
 	WriteSnapshot(
-		ns ident.ID,
+		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		snapshotInterval time.Duration,
@@ -78,7 +91,7 @@ type Writer interface {
 
 	// WriteDataWithPredicate writes all data that passes the predicate test as data files.
 	WriteDataWithPredicate(
-		ns ident.ID,
+		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		pred WriteDatapointPredicate,
@@ -86,7 +99,7 @@ type Writer interface {
 
 	// WriteSnapshotWithPredicate writes all data that passes the predicate test as snapshot files.
 	WriteSnapshotWithPredicate(
-		ns ident.ID,
+		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		pred WriteDatapointPredicate,
@@ -158,4 +171,4 @@ type Options interface {
 }
 
 // WriteDatapointPredicate returns a boolean indicating whether a datapoint should be written.
-type WriteDatapointPredicate func(dp ts.Datapoint) bool
+type WriteDatapointPredicate func(dp TestValue) bool

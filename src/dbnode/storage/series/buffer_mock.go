@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -77,62 +78,61 @@ func (mr *MockdatabaseBufferMockRecorder) Write(ctx, timestamp, value, unit, ann
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, error) {
+func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart)
-	ret0, _ := ret[0].(xio.SegmentReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, id, tags, persistFn, nsCtx)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart, id, tags, persistFn, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart, id, tags, persistFn, nsCtx)
 }
 
 // Flush mocks base method
-func (m *MockdatabaseBuffer) Flush(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, version int) (FlushOutcome, error) {
+func (m *MockdatabaseBuffer) Flush(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, version int, nsCtx namespace.Context) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", ctx, blockStart, id, tags, persistFn, version)
+	ret := m.ctrl.Call(m, "Flush", ctx, blockStart, id, tags, persistFn, version, nsCtx)
 	ret0, _ := ret[0].(FlushOutcome)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockdatabaseBufferMockRecorder) Flush(ctx, blockStart, id, tags, persistFn, version interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Flush(ctx, blockStart, id, tags, persistFn, version, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseBuffer)(nil).Flush), ctx, blockStart, id, tags, persistFn, version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseBuffer)(nil).Flush), ctx, blockStart, id, tags, persistFn, version, nsCtx)
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time, nsCtx namespace.Context) ([][]xio.BlockReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", ctx, start, end)
+	ret := m.ctrl.Call(m, "ReadEncoded", ctx, start, end, nsCtx)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockdatabaseBufferMockRecorder) ReadEncoded(ctx, start, end interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) ReadEncoded(ctx, start, end, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseBuffer)(nil).ReadEncoded), ctx, start, end)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseBuffer)(nil).ReadEncoded), ctx, start, end, nsCtx)
 }
 
 // FetchBlocks mocks base method
-func (m *MockdatabaseBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
+func (m *MockdatabaseBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocks", ctx, starts)
+	ret := m.ctrl.Call(m, "FetchBlocks", ctx, starts, nsCtx)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	return ret0
 }
 
 // FetchBlocks indicates an expected call of FetchBlocks
-func (mr *MockdatabaseBufferMockRecorder) FetchBlocks(ctx, starts interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) FetchBlocks(ctx, starts, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseBuffer)(nil).FetchBlocks), ctx, starts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseBuffer)(nil).FetchBlocks), ctx, starts, nsCtx)
 }
 
 // FetchBlocksMetadata mocks base method
@@ -179,17 +179,17 @@ func (mr *MockdatabaseBufferMockRecorder) Stats() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseBuffer) Tick(versions map[time0.UnixNano]BlockState) bufferTickResult {
+func (m *MockdatabaseBuffer) Tick(versions map[time0.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", versions)
+	ret := m.ctrl.Call(m, "Tick", versions, nsCtx)
 	ret0, _ := ret[0].(bufferTickResult)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseBufferMockRecorder) Tick(versions interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Tick(versions, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseBuffer)(nil).Tick), versions)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseBuffer)(nil).Tick), versions, nsCtx)
 }
 
 // Bootstrap mocks base method

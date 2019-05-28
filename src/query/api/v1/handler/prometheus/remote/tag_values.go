@@ -56,8 +56,9 @@ var (
 
 // TagValuesHandler represents a handler for search tags endpoint.
 type TagValuesHandler struct {
-	storage storage.Storage
-	nowFn   clock.NowFn
+	storage             storage.Storage
+	fetchOptionsBuilder handler.FetchOptionsBuilder
+	nowFn               clock.NowFn
 }
 
 // TagValuesResponse is the response that gets returned to the user
@@ -68,11 +69,13 @@ type TagValuesResponse struct {
 // NewTagValuesHandler returns a new instance of handler.
 func NewTagValuesHandler(
 	storage storage.Storage,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	nowFn clock.NowFn,
 ) http.Handler {
 	return &TagValuesHandler{
-		storage: storage,
-		nowFn:   nowFn,
+		storage:             storage,
+		fetchOptionsBuilder: fetchOptionsBuilder,
+		nowFn:               nowFn,
 	}
 }
 
@@ -88,7 +91,12 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := storage.NewFetchOptions()
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to get tag values", zap.Error(err))

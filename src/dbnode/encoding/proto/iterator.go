@@ -28,13 +28,15 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 const (
@@ -48,16 +50,18 @@ var (
 )
 
 type iterator struct {
-	opts                   encoding.Options
-	err                    error
-	schema                 *desc.MessageDescriptor
-	stream                 encoding.IStream
-	lastIterated           *dynamic.Message
-	lastIteratedProtoBytes []byte
-	byteFieldDictLRUSize   int
+	nsID                 ident.ID
+	opts                 encoding.Options
+	err                  error
+	schema               *desc.MessageDescriptor
+	schemaDesc           namespace.SchemaDescr
+	stream               encoding.IStream
+	marshaller           customFieldMarshaller
+	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
-	customFields []customFieldState
+	customFields    []customFieldState
+	nonCustomFields []marshalledField
 
 	tsIterator m3tsz.TimestampIterator
 
@@ -66,6 +70,7 @@ type iterator struct {
 	varIntBuf         [8]byte
 	bitsetValues      []int
 	unmarshalProtoBuf checked.Bytes
+	unmarshaller      customFieldUnmarshaller
 
 	consumedFirstMessage bool
 	done                 bool
@@ -75,34 +80,33 @@ type iterator struct {
 // NewIterator creates a new iterator.
 func NewIterator(
 	reader io.Reader,
-	schema *desc.MessageDescriptor,
+	descr namespace.SchemaDescr,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
 	stream := encoding.NewIStream(reader)
 
-	var currCustomFields []customFieldState
-	if schema != nil {
-		currCustomFields, _ = customAndProtoFields(nil, nil, schema)
-	}
-	return &iterator{
-		opts:         opts,
-		schema:       schema,
-		stream:       stream,
-		lastIterated: dynamic.NewMessage(schema),
-		customFields: currCustomFields,
-
+	i := &iterator{
+		opts:       opts,
+		stream:     stream,
+		marshaller: newCustomMarshaller(),
 		tsIterator: m3tsz.NewTimestampIterator(opts, true),
 	}
+	i.resetSchema(descr)
+	return i
 }
 
 func (it *iterator) Next() bool {
 	if it.schema == nil {
-		it.err = errIteratorSchemaIsRequired
+		// It is a programmatic error that schema is not set at all prior to iterating, panic to fix it asap.
+		it.err = instrument.InvariantErrorf(errIteratorSchemaIsRequired.Error())
+		return false
 	}
 
 	if !it.hasNext() {
 		return false
 	}
+
+	it.marshaller.reset()
 
 	if !it.consumedFirstMessage {
 		if err := it.readStreamHeader(); err != nil {
@@ -182,10 +186,13 @@ func (it *iterator) Next() bool {
 				return false
 			}
 
-			// A schema change invalidates all of the existing state. This means that
-			// lastIterated needs to be reset otherwise previous values for fields that
-			// no longer exist would still be returned.
-			it.lastIterated = dynamic.NewMessage(it.schema)
+			// When the encoder changes its schema it will reset all of its nonCustomFields state
+			// which means that the iterator needs to do the same to keep them synchronized at
+			// each point in the stream.
+			for i := range it.nonCustomFields {
+				// Reslice instead of setting to nil to reuse existing capacity if possible.
+				it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
+			}
 		}
 	}
 
@@ -205,20 +212,15 @@ func (it *iterator) Next() bool {
 		return false
 	}
 
-	if err := it.readProtoValues(); err != nil {
+	if err := it.readNonCustomValues(); err != nil {
 		it.err = err
 		return false
 	}
 
-	// Keep the annotation version of the last iterated protobuf message up to
-	// date so we can return it in subsequent calls to Current(), otherwise we'd
-	// have to marshal it in the Current() call where we can't handle errors.
-	it.lastIteratedProtoBytes, err = it.lastIterated.MarshalAppend(
-		it.lastIteratedProtoBytes[:0])
-	if err != nil {
-		it.err = fmt.Errorf(
-			"%s: error marshaling last iterated proto message: %v", itErrPrefix, err)
-		return false
+	// Update the marshaller bytes (which will be returned by Current()) with the latest value
+	// for every non-custom field.
+	for _, marshalledField := range it.nonCustomFields {
+		it.marshaller.encPartialProto(marshalledField.marshalled)
 	}
 
 	it.consumedFirstMessage = true
@@ -232,31 +234,38 @@ func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		}
 		unit = it.tsIterator.TimeUnit
 	)
-	return dp, unit, it.lastIteratedProtoBytes
+
+	return dp, unit, it.marshaller.bytes()
 }
 
 func (it *iterator) Err() error {
 	return it.err
 }
 
-func (it *iterator) Reset(reader io.Reader) {
+func (it *iterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {
+	it.resetSchema(descr)
 	it.stream.Reset(reader)
 	it.tsIterator = m3tsz.NewTimestampIterator(it.opts, true)
 
 	it.err = nil
 	it.consumedFirstMessage = false
-	it.lastIterated = dynamic.NewMessage(it.schema)
-	it.lastIteratedProtoBytes = nil
-	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
 	it.done = false
 	it.closed = false
 	it.byteFieldDictLRUSize = 0
 }
 
-// SetSchema sets the encoders schema.
-func (it *iterator) SetSchema(schema *desc.MessageDescriptor) {
-	it.schema = schema
-	it.customFields, _ = customAndProtoFields(it.customFields, nil, it.schema)
+// setSchema sets the schema for the iterator.
+func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
+	if schemaDesc == nil {
+		it.schemaDesc = nil
+		it.schema = nil
+		it.customFields = nil
+		return
+	}
+
+	it.schemaDesc = schemaDesc
+	it.schema = schemaDesc.Get().MessageDescriptor
+	it.customFields, it.nonCustomFields = customAndNonCustomFields(it.customFields, nil, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -265,7 +274,7 @@ func (it *iterator) Close() {
 	}
 
 	it.closed = true
-	it.Reset(nil)
+	it.Reset(nil, nil)
 	it.stream.Reset(nil)
 
 	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() > maxCapacityUnmarshalBufferRetain {
@@ -310,6 +319,9 @@ func (it *iterator) readCustomFieldsSchema() error {
 	}
 
 	if it.customFields != nil {
+		for i := range it.customFields {
+			it.customFields[i] = customFieldState{}
+		}
 		it.customFields = it.customFields[:0]
 	} else {
 		it.customFields = make([]customFieldState, 0, numCustomFields)
@@ -326,7 +338,16 @@ func (it *iterator) readCustomFieldsSchema() error {
 			continue
 		}
 
-		it.customFields = append(it.customFields, newCustomFieldState(i, fieldType))
+		var (
+			fieldDesc      = it.schema.FindFieldByNumber(int32(i))
+			protoFieldType = protoFieldTypeNotFound
+		)
+		if fieldDesc != nil {
+			protoFieldType = fieldDesc.GetType()
+		}
+
+		customFieldState := newCustomFieldState(i, protoFieldType, fieldType)
+		it.customFields = append(it.customFields, customFieldState)
 	}
 
 	return nil
@@ -360,7 +381,7 @@ func (it *iterator) readCustomValues() error {
 	return nil
 }
 
-func (it *iterator) readProtoValues() error {
+func (it *iterator) readNonCustomValues() error {
 	protoChangesControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf("%s err reading proto changes control bit: %v", itErrPrefix, err)
@@ -385,70 +406,94 @@ func (it *iterator) readProtoValues() error {
 		}
 	}
 
+	it.skipToNextByte()
 	marshalLen, err := it.readVarInt()
 	if err != nil {
 		return fmt.Errorf("%s err reading proto length varint: %v", itErrPrefix, err)
 	}
 
-	if marshalLen > maxMarshaledProtoMessageSize {
+	if marshalLen > maxMarshalledProtoMessageSize {
 		return fmt.Errorf(
-			"%s marshaled protobuf size was %d which is larger than the maximum of %d",
-			itErrPrefix, marshalLen, maxMarshaledProtoMessageSize)
+			"%s marshalled protobuf size was %d which is larger than the maximum of %d",
+			itErrPrefix, marshalLen, maxMarshalledProtoMessageSize)
 	}
 
 	it.resetUnmarshalProtoBuffer(int(marshalLen))
 	unmarshalBytes := it.unmarshalProtoBuf.Bytes()
 	n, err := it.stream.Read(unmarshalBytes)
 	if err != nil {
-		return fmt.Errorf("%s: error reading marshaled proto bytes: %v", itErrPrefix, err)
+		return fmt.Errorf("%s: error reading marshalled proto bytes: %v", itErrPrefix, err)
 	}
 	if n != int(marshalLen) {
 		return fmt.Errorf(
-			"%s tried to read %d marshaled proto bytes but only read %d",
+			"%s tried to read %d marshalled proto bytes but only read %d",
 			itErrPrefix, int(marshalLen), n)
 	}
 
-	m := dynamic.NewMessage(it.schema)
-	err = m.Unmarshal(unmarshalBytes)
-	if err != nil {
-		return fmt.Errorf("error unmarshaling protobuf: %v", err)
+	if it.unmarshaller == nil {
+		// Lazy init.
+		it.unmarshaller = newCustomFieldUnmarshaller(customUnmarshallerOptions{
+			// Skip over unknown fields when unmarshalling because its possible that the stream was
+			// encoded with a newer schema.
+			skipUnknownFields: true,
+		})
 	}
 
-	for _, field := range m.GetKnownFields() {
-		var (
-			messageType = field.GetMessageType()
-			fieldNumInt = int(field.GetNumber())
-		)
-		if messageType == nil && !field.IsRepeated() {
-			continue
-		}
-
-		curVal := m.GetFieldByNumber(fieldNumInt)
-		isDefaultValue, err := isDefaultValue(field, curVal)
-		if err != nil {
-			return fmt.Errorf(
-				"%s error: %v checking if %v is default value for field %s",
-				itErrPrefix, err, curVal, field.String())
-		}
-
-		if isDefaultValue {
-			// The value may appear as a default value simply because it hasn't changed
-			// since the last message. Ignore for now and if it truly changed to become
-			// a default value it will get handled when we loop through the bitset later.
-			continue
-		}
-
-		// If the unmarshaled value is not the default value for the field then
-		// we know it has changed and needs to be updated.
-		it.lastIterated.SetFieldByNumber(fieldNumInt, curVal)
+	if err := it.unmarshaller.resetAndUnmarshal(it.schema, unmarshalBytes); err != nil {
+		return fmt.Errorf(
+			"%s error unmarshalling message: %v", itErrPrefix, err)
+	}
+	customFieldValues := it.unmarshaller.sortedCustomFieldValues()
+	if len(customFieldValues) > 0 {
+		// If the proto portion of the message has any fields that could  have been custom
+		// encoded then something went wrong on the encoding side.
+		return fmt.Errorf(
+			"%s encoded protobuf portion of message had custom fields", itErrPrefix)
 	}
 
-	if fieldsSetToDefaultControlBit == 1 {
+	// Update any non custom fields that have explicitly changed (they were explicitly included
+	// in the marshalled stream).
+	var (
+		unmarshalledNonCustomFields = it.unmarshaller.sortedNonCustomFieldValues()
+		// Matching entries in two sorted lists in which every element in each list is unique so keep
+		// track of the last index at which a match was found so that subsequent inner loops can start
+		// at the next index.
+		lastMatchIdx = -1
+	)
+	for _, nonCustomField := range unmarshalledNonCustomFields {
+		for i := lastMatchIdx + 1; i < len(it.nonCustomFields); i++ {
+			existingNonCustomField := it.nonCustomFields[i]
+			if nonCustomField.fieldNum != existingNonCustomField.fieldNum {
+				continue
+			}
+
+			// Copy because the underlying bytes get reused between reads. Also try and reuse the existing
+			// capacity to prevent an allocation if possible.
+			it.nonCustomFields[i].marshalled = append(
+				it.nonCustomFields[i].marshalled[:0],
+				nonCustomField.marshalled...)
+
+			lastMatchIdx = i
+			break
+		}
+	}
+
+	// Update any non custom fields that have been explicitly set to their default value as determined
+	// by the bitset.
+	if fieldsSetToDefaultControlBit == opCodeFieldsSetToDefaultProtoMarshal {
+		// Same comment as above about matching entries in two sorted lists.
+		lastMatchIdx := -1
 		for _, fieldNum := range it.bitsetValues {
-			if err := it.lastIterated.TryClearFieldByNumber(fieldNum); err != nil {
-				return fmt.Errorf(
-					"%s: error clearing field number: %d, err: %v",
-					itErrPrefix, fieldNum, err)
+			for i := lastMatchIdx + 1; i < len(it.nonCustomFields); i++ {
+				nonCustomField := it.nonCustomFields[i]
+				if fieldNum != int(nonCustomField.fieldNum) {
+					continue
+				}
+
+				// Resize slice to zero so that the existing capacity can be reused later if required.
+				it.nonCustomFields[i].marshalled = it.nonCustomFields[i].marshalled[:0]
+				lastMatchIdx = i
+				break
 			}
 		}
 	}
@@ -462,7 +507,7 @@ func (it *iterator) readFloatValue(i int) error {
 	}
 
 	updateArg := updateLastIterArg{i: i}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBytesValue(i int, customField customFieldState) error {
@@ -475,7 +520,8 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 
 	if bytesChangedControlBit == opCodeNoChange {
 		// No changes to the bytes value.
-		return nil
+		updateArg := updateLastIterArg{i: i, bytesFieldBuf: it.lastValueBytesDict(i)}
+		return it.updateMarshallerWithCustomValues(updateArg)
 	}
 
 	// Bytes have changed since the previous value.
@@ -503,14 +549,10 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		}
 
 		bytesVal := customField.iteratorBytesFieldDict[dictIdx]
-		if it.schema.FindFieldByNumber(int32(customField.fieldNum)).GetType() == dpb.FieldDescriptorProto_TYPE_STRING {
-			it.lastIterated.SetFieldByNumber(customField.fieldNum, string(bytesVal))
-		} else {
-			it.lastIterated.SetFieldByNumber(customField.fieldNum, bytesVal)
-		}
-
 		it.moveToEndOfBytesDict(i, dictIdx)
-		return nil
+
+		updateArg := updateLastIterArg{i: i, bytesFieldBuf: bytesVal}
+		return it.updateMarshallerWithCustomValues(updateArg)
 	}
 
 	// New value that was not in the dict already.
@@ -526,21 +568,29 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 			itErrPrefix, err)
 	}
 
-	buf := make([]byte, 0, bytesLen)
-	for j := 0; j < int(bytesLen); j++ {
-		b, err := it.stream.ReadByte()
-		if err != nil {
-			return fmt.Errorf(
-				"%s error trying to read byte in readBytes: %v",
-				itErrPrefix, err)
-		}
-		buf = append(buf, b)
+	// Reuse the byte slice that is about to be evicted (if any) to read into instead of
+	// allocating if possible.
+	buf := it.nextToBeEvicted(i)
+	if cap(buf) < int(bytesLen) {
+		buf = make([]byte, bytesLen)
+	}
+	buf = buf[:bytesLen]
+
+	n, err := it.stream.Read(buf)
+	if err != nil {
+		return fmt.Errorf(
+			"%s error trying to read byte in readBytes: %v",
+			itErrPrefix, err)
+	}
+	if bytesLen != uint64(n) {
+		return fmt.Errorf(
+			"%s tried to read %d bytes but only read: %d", itErrPrefix, bytesLen, n)
 	}
 
 	it.addToBytesDict(i, buf)
 
 	updateArg := updateLastIterArg{i: i, bytesFieldBuf: buf}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readIntValue(i int) error {
@@ -549,7 +599,7 @@ func (it *iterator) readIntValue(i int) error {
 	}
 
 	updateArg := updateLastIterArg{i: i}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 func (it *iterator) readBoolValue(i int) error {
@@ -562,7 +612,7 @@ func (it *iterator) readBoolValue(i int) error {
 
 	boolVal := boolOpCode == opCodeBoolTrue
 	updateArg := updateLastIterArg{i: i, boolVal: boolVal}
-	return it.updateLastIteratedWithCustomValues(updateArg)
+	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
 type updateLastIterArg struct {
@@ -571,21 +621,17 @@ type updateLastIterArg struct {
 	boolVal       bool
 }
 
-// updateLastIteratedWithCustomValues updates lastIterated with the current
-// value of the custom field in it.customFields at index i. This ensures that
-// when we return it.lastIterated in the call to Current() that all the
-// most recent values are present.
-func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) error {
-	if it.lastIterated == nil {
-		it.lastIterated = dynamic.NewMessage(it.schema)
-	}
-
+// updateMarshallerWithCustomValues updates the marshalled stream with the current
+// value of the custom field at index i. This ensures that marshalled protobuf stream
+// returned by Current() contains the most recent value for all of the custom fields.
+func (it *iterator) updateMarshallerWithCustomValues(arg updateLastIterArg) error {
 	var (
-		fieldNum  = it.customFields[arg.i].fieldNum
-		fieldType = it.customFields[arg.i].fieldType
+		fieldNum       = int32(it.customFields[arg.i].fieldNum)
+		fieldType      = it.customFields[arg.i].fieldType
+		protoFieldType = it.customFields[arg.i].protoFieldType
 	)
 
-	if field := it.schema.FindFieldByNumber(int32(fieldNum)); field == nil {
+	if protoFieldType == protoFieldTypeNotFound {
 		// This can happen when the field being decoded does not exist (or is reserved)
 		// in the current schema, but the message was encoded with a schema in which the
 		// field number did exist.
@@ -599,9 +645,9 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 			err error
 		)
 		if fieldType == float64Field {
-			err = it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+			it.marshaller.encFloat64(fieldNum, val)
 		} else {
-			err = it.lastIterated.TrySetFieldByNumber(fieldNum, float32(val))
+			it.marshaller.encFloat32(fieldNum, float32(val))
 		}
 		return err
 
@@ -609,37 +655,65 @@ func (it *iterator) updateLastIteratedWithCustomValues(arg updateLastIterArg) er
 		switch fieldType {
 		case signedInt64Field:
 			val := int64(it.customFields[arg.i].intEncAndIter.prevIntBits)
-			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+			if protoFieldType == dpb.FieldDescriptorProto_TYPE_SINT64 {
+				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
+				// however, Protobuf unmarshallers assume that fields of type sint are zigzag encoded. As a result,
+				// the iterator needs to check the fields protobuf type so that it can perform the correct encoding.
+				it.marshaller.encSInt64(fieldNum, val)
+			} else if protoFieldType == dpb.FieldDescriptorProto_TYPE_SFIXED64 {
+				it.marshaller.encSFixedInt64(fieldNum, val)
+			} else {
+				it.marshaller.encInt64(fieldNum, val)
+			}
+			return nil
 
 		case unsignedInt64Field:
 			val := it.customFields[arg.i].intEncAndIter.prevIntBits
-			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+			it.marshaller.encUInt64(fieldNum, val)
+			return nil
 
 		case signedInt32Field:
-			val := int32(it.customFields[arg.i].intEncAndIter.prevIntBits)
-			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+			var (
+				val   = int32(it.customFields[arg.i].intEncAndIter.prevIntBits)
+				field = it.schema.FindFieldByNumber(fieldNum)
+			)
+			if field == nil {
+				return fmt.Errorf(
+					"updating last iterated with value, could not find field number %d in schema", fieldNum)
+			}
+
+			fieldType := field.GetType()
+			if fieldType == dpb.FieldDescriptorProto_TYPE_SINT32 {
+				// The encoding / compression schema in this package treats Protobuf int32 and sint32 the same,
+				// however, Protobuf unmarshallers assume that fields of type sint are zigzag encoded. As a result,
+				// the iterator needs to check the fields protobuf type so that it can perform the correct encoding.
+				it.marshaller.encSInt32(fieldNum, val)
+			} else if fieldType == dpb.FieldDescriptorProto_TYPE_SFIXED32 {
+				it.marshaller.encSFixedInt32(fieldNum, val)
+			} else {
+				it.marshaller.encInt32(fieldNum, val)
+			}
+			return nil
 
 		case unsignedInt32Field:
 			val := uint32(it.customFields[arg.i].intEncAndIter.prevIntBits)
-			return it.lastIterated.TrySetFieldByNumber(fieldNum, val)
+			it.marshaller.encUInt32(fieldNum, val)
+			return nil
 
 		default:
 			return fmt.Errorf(
 				"%s expected custom int encoded field but field type was: %v",
 				itErrPrefix, fieldType)
 		}
+
 	case fieldType == bytesField:
-		// TODO(rartoul): Could make this more efficient with unsafe string conversion or by pre-processing
-		// schemas to only have bytes since its all the same over the wire.
-		// https://github.com/m3db/m3/issues/1471
-		schemaField := it.schema.FindFieldByNumber(int32(fieldNum))
-		schemaFieldType := schemaField.GetType()
-		if schemaFieldType == dpb.FieldDescriptorProto_TYPE_STRING {
-			return it.lastIterated.TrySetFieldByNumber(fieldNum, string(arg.bytesFieldBuf))
-		}
-		return it.lastIterated.TrySetFieldByNumber(fieldNum, arg.bytesFieldBuf)
+		it.marshaller.encBytes(fieldNum, arg.bytesFieldBuf)
+		return nil
+
 	case fieldType == boolField:
-		return it.lastIterated.TrySetFieldByNumber(fieldNum, arg.boolVal)
+		it.marshaller.encBool(fieldNum, arg.boolVal)
+		return nil
+
 	default:
 		return fmt.Errorf(
 			"%s unhandled fieldType: %v", itErrPrefix, fieldType)
@@ -751,6 +825,25 @@ func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	}
 
 	existing[len(existing)-1] = b
+}
+
+func (it *iterator) lastValueBytesDict(fieldIdx int) []byte {
+	dict := it.customFields[fieldIdx].iteratorBytesFieldDict
+	return dict[len(dict)-1]
+}
+
+func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
+	dict := it.customFields[fieldIdx].iteratorBytesFieldDict
+	if len(dict) == 0 {
+		return nil
+	}
+
+	if len(dict) < it.byteFieldDictLRUSize {
+		// Next add won't trigger an eviction.
+		return nil
+	}
+
+	return dict[0]
 }
 
 func (it *iterator) readBits(numBits int) (uint64, error) {

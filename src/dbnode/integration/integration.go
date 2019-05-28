@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -37,16 +38,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 
-	"go.uber.org/zap"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -232,7 +232,7 @@ func newDefaultBootstrappableTestSetups(
 		case bootstrapper.NoOpAllBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uninitialized.NewuninitializedTopologyBootstrapperProvider(
+			uninitialized.NewUninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().
 					SetInstrumentOptions(instrumentOpts), nil)
 		default:
@@ -314,7 +314,7 @@ func writeTestDataToDisk(
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(metadata.ID(), setup.shardSet, seriesMaps)
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
@@ -327,7 +327,7 @@ func writeTestSnapshotsToDiskWithPredicate(
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		metadata.ID(), setup.shardSet, seriesMaps, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

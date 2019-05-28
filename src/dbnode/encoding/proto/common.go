@@ -34,17 +34,19 @@ import (
 type Schema *desc.MessageDescriptor
 
 const (
-	// ~1GiB is an intentionally a very large number to avoid users ever running into any
+	// ~1GiB is an intentionally large number to avoid users ever running into any
 	// limitations, but we want some theoretical maximum so that in the case of data / memory
 	// corruption the iterator can avoid panicing due to trying to allocate a massive byte slice
 	// (MAX_UINT64 for example) and return a reasonable error message instead.
-	maxMarshaledProtoMessageSize = 2 << 29
+	maxMarshalledProtoMessageSize = 2 << 29
 
-	// maxCustomFieldNum is included for the same rationale as maxMarshaledProtoMessageSize.
+	// maxCustomFieldNum is included for the same rationale as maxMarshalledProtoMessageSize.
 	maxCustomFieldNum = 10000
+
+	protoFieldTypeNotFound dpb.FieldDescriptorProto_Type = -1
 )
 
-type customFieldType int
+type customFieldType int8
 
 const (
 	// All the protobuf field types that we can perform custom encoding /
@@ -141,23 +143,29 @@ var (
 	}
 )
 
+type marshalledField struct {
+	fieldNum   int32
+	marshalled []byte
+}
+
+type sortedMarshalledFields []marshalledField
+
 // customFieldState is used to track any required state for encoding / decoding a single
 // field in the encoder / iterator respectively.
 type customFieldState struct {
-	fieldNum  int
-	fieldType customFieldType
-
-	// Float state. Works as both an encoder and iterator (I.E the encoder calls
-	// the encode methods and the iterator calls the read methods).
-	floatEncAndIter m3tsz.FloatEncoderAndIterator
-
 	// Bytes State. TODO(rartoul): Wrap this up in an encoderAndIterator like
 	// the floats and ints.
 	bytesFieldDict         []encoderBytesFieldDictState
 	iteratorBytesFieldDict [][]byte
-
+	// Float state. Works as both an encoder and iterator (I.E the encoder calls
+	// the encode methods and the iterator calls the read methods).
+	floatEncAndIter m3tsz.FloatEncoderAndIterator
 	// Int state.
 	intEncAndIter intEncoderAndIterator
+
+	fieldNum       int
+	protoFieldType dpb.FieldDescriptorProto_Type
+	fieldType      customFieldType
 }
 
 type encoderBytesFieldDictState struct {
@@ -167,13 +175,20 @@ type encoderBytesFieldDictState struct {
 	// by comparing the bytes against those we already wrote into the
 	// stream.
 	hash     uint64
-	startPos int
-	length   int
+	startPos uint32
+	length   uint32
 }
 
-func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldState {
-	s := customFieldState{fieldNum: fieldNum, fieldType: fieldType}
-	if isUnsignedInt(fieldType) {
+func newCustomFieldState(
+	fieldNum int,
+	protoFieldType dpb.FieldDescriptorProto_Type,
+	customFieldType customFieldType,
+) customFieldState {
+	s := customFieldState{
+		fieldNum:       fieldNum,
+		fieldType:      customFieldType,
+		protoFieldType: protoFieldType}
+	if isUnsignedInt(customFieldType) {
 		s.intEncAndIter.unsigned = true
 	}
 	return s
@@ -181,43 +196,66 @@ func newCustomFieldState(fieldNum int, fieldType customFieldType) customFieldSta
 
 // TODO(rartoul): Improve this function to be less naive and actually explore nested messages
 // for fields that we can use our custom compression on: https://github.com/m3db/m3/issues/1471
-func customAndProtoFields(s []customFieldState, protoFields []int32, schema *desc.MessageDescriptor) ([]customFieldState, []int32) {
+func customAndNonCustomFields(
+	customFields []customFieldState,
+	nonCustomFields []marshalledField,
+	schema *desc.MessageDescriptor,
+) ([]customFieldState, []marshalledField) {
 	fields := schema.GetFields()
 	numCustomFields := numCustomFields(schema)
-	numProtoFields := len(fields) - numCustomFields
+	numNonCustomFields := len(fields) - numCustomFields
 
-	if cap(s) >= numCustomFields {
-		for i := range s {
-			s[i] = customFieldState{}
+	if cap(customFields) >= numCustomFields {
+		for i := range customFields {
+			customFields[i] = customFieldState{}
 		}
-		s = s[:0]
+		customFields = customFields[:0]
 	} else {
-		s = make([]customFieldState, 0, numCustomFields)
+		customFields = make([]customFieldState, 0, numCustomFields)
 	}
 
-	if cap(protoFields) >= numProtoFields {
-		protoFields = protoFields[:0]
+	if cap(nonCustomFields) >= numNonCustomFields {
+		for i := range nonCustomFields {
+			nonCustomFields[i] = marshalledField{}
+		}
+		nonCustomFields = nonCustomFields[:0]
 	} else {
-		protoFields = make([]int32, 0, numProtoFields)
+		nonCustomFields = make([]marshalledField, 0, numNonCustomFields)
 	}
 
+	var (
+		prevFieldNum int32 = -1
+		isSorted           = true
+	)
 	for _, field := range fields {
-		customFieldType, ok := isCustomField(field.GetType(), field.IsRepeated())
+		var (
+			fieldType = field.GetType()
+			fieldNum  = field.GetNumber()
+		)
+		if fieldNum < prevFieldNum {
+			isSorted = false
+		}
+
+		customFieldType, ok := isCustomField(fieldType, field.IsRepeated())
 		if !ok {
-			protoFields = append(protoFields, field.GetNumber())
+			nonCustomFields = append(nonCustomFields, marshalledField{fieldNum: fieldNum})
 			continue
 		}
 
-		fieldState := newCustomFieldState(int(field.GetNumber()), customFieldType)
-		s = append(s, fieldState)
+		fieldState := newCustomFieldState(int(fieldNum), fieldType, customFieldType)
+		customFields = append(customFields, fieldState)
 	}
 
-	// Should already be sorted by fieldNum, but do it again just to be sure.
-	sort.Slice(s, func(a, b int) bool {
-		return s[a].fieldNum < s[b].fieldNum
-	})
+	if !isSorted {
+		sort.Slice(customFields, func(a, b int) bool {
+			return customFields[a].fieldNum < customFields[b].fieldNum
+		})
+		sort.Slice(nonCustomFields, func(a, b int) bool {
+			return nonCustomFields[a].fieldNum < nonCustomFields[b].fieldNum
+		})
+	}
 
-	return s, protoFields
+	return customFields, nonCustomFields
 }
 
 func isCustomFloatEncodedField(t customFieldType) bool {
@@ -284,4 +322,16 @@ func numBitsRequiredForNumUpToN(n int) int {
 		n = n >> 1
 	}
 	return count
+}
+
+func (m sortedMarshalledFields) Len() int {
+	return len(m)
+}
+
+func (m sortedMarshalledFields) Less(i, j int) bool {
+	return m[i].fieldNum < m[j].fieldNum
+}
+
+func (m sortedMarshalledFields) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
 }

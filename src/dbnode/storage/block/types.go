@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -135,6 +135,7 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
+
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -170,7 +171,7 @@ type DatabaseBlock interface {
 	WasRetrievedFromDisk() bool
 
 	// Reset resets the block start time, duration, and the segment.
-	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
+	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context)
 
 	// ResetFromDisk resets the block start time, duration, segment, and id.
 	ResetFromDisk(
@@ -178,6 +179,7 @@ type DatabaseBlock interface {
 		blockSize time.Duration,
 		segment ts.Segment,
 		id ident.ID,
+		nsCtx namespace.Context,
 	)
 
 	// Discard closes the block, but returns the (unfinalized) segment.
@@ -226,6 +228,7 @@ type OnRetrieveBlock interface {
 		tags ident.TagIterator,
 		startTime time.Time,
 		segment ts.Segment,
+		nsCtx namespace.Context,
 	)
 }
 
@@ -241,6 +244,7 @@ type OnRetrieveBlockFn func(
 	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
+	nsCtx namespace.Context,
 )
 
 // OnRetrieveBlock implements the OnRetrieveBlock interface.
@@ -249,8 +253,9 @@ func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
+	nsCtx namespace.Context,
 ) {
-	fn(id, tags, startTime, segment)
+	fn(id, tags, startTime, segment, nsCtx)
 }
 
 // RetrievableBlockMetadata describes a retrievable block.
@@ -273,6 +278,7 @@ type DatabaseBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
+		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 }
 
@@ -284,6 +290,7 @@ type DatabaseShardBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
+		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 }
 

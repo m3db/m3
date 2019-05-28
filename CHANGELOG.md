@@ -1,5 +1,53 @@
 # Changelog
 
+# 0.9.5
+
+## Performance
+
+- **M3DB**: Use ReadAt() pread syscall to reduce syscalls per time series data read and half the number of open FDs with default configuration (#1664)
+
+## Bug Fixes
+
+- **M3Query**: Add missing support for PromQL unary expressions (#1647)
+- **M3DB**: Call setrlimit to set open FDs hard limit for docker image and in Dockerfile use setcap to enable capability (#1666)
+- **M3DB**: Updated Tally to 3.3.10 to issue correct error message when listen address conflict occurs with Prometheus reporter (#1660)
+
+# 0.9.4
+
+## Bug Fixes
+
+- **M3Query**: Adding complete tags query fanout support with integration test (#1656)
+
+# 0.9.3
+
+## Bug Fixes
+
+- **M3Query**: Add docker integration test for query fanout and fix query aggregating results (#1652)
+- **M3DB**: Restore process stats disabled by the open FD counting performance fix (#1648)
+
+# 0.9.2
+
+## Performance
+
+- **M3Query**: Add default and config to limit the number of unique time series fetch from a single DB node to fulfill a query (default 10,000) (#1644)
+- **M3Query**: Fix and throttle file descriptor stat emission excessive allocation, also disable Prometheus process collector which had the same issue (#1633)
+
+## Bug Fixes
+
+- **M3DB**: Fix ReturnUnfulfilledForCorruptCommitLogFiles not propagating to bootstrapper options, causing peer bootstrapper to begin when it should not (#1639)
+- **M3Query**: Fix PromReadInstantHandler not correctly responding with error message when query encounters error (#1611)
+
+# 0.9.1
+
+## Performance
+
+- **M3DB**: Use index aggregate query to speed up the [/label/<label_name>/values endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-label-values) (#1628)
+
+## Bug Fixes
+
+- **M3Query**: Fixed an issue causing untyped step sizes to fail parsing, now defaults to using seconds as the time unit (#1617)
+- **M3Query**: Accept both GET and POST for series match endpoint (#1606)
+
 # 0.9.0
 
 ## Features

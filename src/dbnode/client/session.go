@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -70,6 +70,7 @@ const (
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
 	blockMetadataChBufSize               = 4096
+	shardResultCapacity                  = 4096
 )
 
 type resultTypeEnum string
@@ -888,7 +889,7 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 }
 
 func (s *session) Write(
-	namespace, id ident.ID,
+	nsID, id ident.ID,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -896,7 +897,7 @@ func (s *session) Write(
 ) error {
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
-	w.args.namespace, w.args.id = namespace, id
+	w.args.namespace, w.args.id = nsID, id
 	w.args.tags = ident.EmptyTagIterator
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
@@ -906,7 +907,7 @@ func (s *session) Write(
 }
 
 func (s *session) WriteTagged(
-	namespace, id ident.ID,
+	nsID, id ident.ID,
 	tags ident.TagIterator,
 	t time.Time,
 	value float64,
@@ -915,7 +916,7 @@ func (s *session) WriteTagged(
 ) error {
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
-	w.args.namespace, w.args.id, w.args.tags = namespace, id, tags
+	w.args.namespace, w.args.id, w.args.tags = nsID, id, tags
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
@@ -925,7 +926,7 @@ func (s *session) WriteTagged(
 
 func (s *session) writeAttempt(
 	wType writeAttemptType,
-	namespace, id ident.ID,
+	nsID, id ident.ID,
 	inputTags ident.TagIterator,
 	t time.Time,
 	value float64,
@@ -951,7 +952,7 @@ func (s *session) writeAttempt(
 	}
 
 	state, majority, enqueued, err := s.writeAttemptWithRLock(
-		wType, namespace, id, inputTags, timestamp, value, timeType, annotation)
+		wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1081,12 +1082,12 @@ func (s *session) writeAttemptWithRLock(
 }
 
 func (s *session) Fetch(
-	namespace ident.ID,
+	nsID ident.ID,
 	id ident.ID,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterator, error) {
 	tsIDs := ident.NewIDsIterator(id)
-	results, err := s.FetchIDs(namespace, tsIDs, startInclusive, endExclusive)
+	results, err := s.FetchIDs(nsID, tsIDs, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -1100,12 +1101,12 @@ func (s *session) Fetch(
 }
 
 func (s *session) FetchIDs(
-	namespace ident.ID,
+	nsID ident.ID,
 	ids ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
 	f := s.pools.fetchAttempt.Get()
-	f.args.namespace, f.args.ids = namespace, ids
+	f.args.namespace, f.args.ids = nsID, ids
 	f.args.start, f.args.end = startInclusive, endExclusive
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
@@ -1203,6 +1204,7 @@ func (s *session) FetchTaggedIDs(
 func (s *session) fetchTaggedAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
+	nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
@@ -1244,7 +1246,7 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools)
+	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1409,6 +1411,7 @@ func (s *session) fetchIDsAttempt(
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 		startFetchAttempt      = s.nowFn()
+		nsCtx                  = namespace.NewContextFor(inputNamespace, s.opts.SchemaRegistry())
 	)
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
@@ -1557,7 +1560,7 @@ func (s *session) fetchIDsAttempt(
 				slicesIter := s.pools.readerSliceOfSlicesIterator.Get()
 				slicesIter.Reset(result.([]*rpc.Segments))
 				multiIter := s.pools.multiReaderIterator.Get()
-				multiIter.ResetSliceOfSlices(slicesIter)
+				multiIter.ResetSliceOfSlices(slicesIter, nsCtx.Schema)
 				// Results is pre-allocated after creating fetch ops for this ID below
 				resultsLock.Lock()
 				results[success] = multiIter
@@ -1917,7 +1920,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts result.Options,
 ) (result.ShardResult, error) {
 	var (
-		result = newBulkBlocksResult(s.opts, opts,
+		nsCtx  = namespace.NewContextFrom(nsMetadata)
+		result = newBulkBlocksResult(nsCtx, s.opts, opts,
 			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
 		progress = s.newPeerMetadataStreamingProgressMetrics(shard,
@@ -1988,7 +1992,8 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		result   = newStreamBlocksResult(s.opts, opts, outputCh,
+		nsCtx    = namespace.NewContextFrom(nsMetadata)
+		result   = newStreamBlocksResult(nsCtx, s.opts, opts, outputCh,
 			s.pools.tagDecoder.Get(), s.pools.id)
 		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
@@ -3100,6 +3105,7 @@ type blocksResult interface {
 }
 
 type baseBlocksResult struct {
+	nsCtx                   namespace.Context
 	blockOpts               block.Options
 	blockAllocSize          int
 	contextPool             context.Pool
@@ -3108,11 +3114,13 @@ type baseBlocksResult struct {
 }
 
 func newBaseBlocksResult(
+	nsCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 ) baseBlocksResult {
 	blockOpts := resultOpts.DatabaseBlockOptions()
 	return baseBlocksResult{
+		nsCtx:                   nsCtx,
 		blockOpts:               blockOpts,
 		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
 		contextPool:             opts.ContextPool(),
@@ -3143,11 +3151,11 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.Reset(readers, start, blockSize)
+	iter.Reset(readers, start, blockSize, b.nsCtx.Schema)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
-	encoder.Reset(start, b.blockAllocSize)
+	encoder.Reset(start, b.blockAllocSize, b.nsCtx.Schema)
 
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
@@ -3180,7 +3188,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
 		mergedBlock := segments.Merged
-		result.Reset(start, durationConvert(mergedBlock.BlockSize), b.segmentForBlock(mergedBlock))
+		result.Reset(start, durationConvert(mergedBlock.BlockSize), b.segmentForBlock(mergedBlock), b.nsCtx)
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -3211,7 +3219,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 
 		// Set the block data
-		result.Reset(start, blockSize, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard(), b.nsCtx)
 
 	default:
 		result.Close() // return block to pool
@@ -3229,9 +3237,11 @@ type streamBlocksResult struct {
 	outputCh   chan<- peerBlocksDatapoint
 	tagDecoder serialize.TagDecoder
 	idPool     ident.Pool
+	nsCtx      namespace.Context
 }
 
 func newStreamBlocksResult(
+	nsCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 	outputCh chan<- peerBlocksDatapoint,
@@ -3239,7 +3249,8 @@ func newStreamBlocksResult(
 	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
+		nsCtx:            nsCtx,
+		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
 		outputCh:         outputCh,
 		tagDecoder:       tagDecoder,
 		idPool:           idPool,
@@ -3328,17 +3339,20 @@ type bulkBlocksResult struct {
 	result         result.ShardResult
 	tagDecoderPool serialize.TagDecoderPool
 	idPool         ident.Pool
+	nsCtx          namespace.Context
 }
 
 func newBulkBlocksResult(
+	nsCtx namespace.Context,
 	opts Options,
 	resultOpts result.Options,
 	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
-		result:           result.NewShardResult(4096, resultOpts),
+		nsCtx:            nsCtx,
+		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
+		result:           result.NewShardResult(shardResultCapacity, resultOpts),
 		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,
 	}
@@ -3422,7 +3436,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-		result.Reset(start, blockSize, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard(), r.nsCtx)
 
 		tmpCtx.Close()
 	}

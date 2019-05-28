@@ -39,7 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -939,17 +939,26 @@ func (i *nsIndex) AggregateQuery(
 ) (index.AggregateQueryResult, error) {
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
-	results.Reset(i.nsMetadata.ID(), index.AggregateResultsOptions{
-		SizeLimit:  opts.Limit,
-		TermFilter: opts.TermFilter,
-		Type:       opts.Type,
-	})
+	aopts := index.AggregateResultsOptions{
+		SizeLimit:   opts.Limit,
+		FieldFilter: opts.FieldFilter,
+		Type:        opts.Type,
+	}
 	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.
+	// default to block.Query()
 	fn := i.execBlockQueryFn
+	// use block.Aggregate() when possible
 	if query.Equal(allQuery) {
 		fn = i.execBlockAggregateQueryFn
 	}
+	field, isField := idx.FieldQuery(query.Query)
+	if isField {
+		fn = i.execBlockAggregateQueryFn
+		aopts.FieldFilter = aopts.FieldFilter.AddIfMissing(field)
+	}
+	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
+	results.Reset(i.nsMetadata.ID(), aopts)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn)
 	if err != nil {
 		return index.AggregateQueryResult{}, err

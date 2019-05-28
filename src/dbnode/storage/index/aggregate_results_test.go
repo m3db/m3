@@ -213,13 +213,13 @@ func expectedTermsOnly(ex map[string][]string) map[string][]string {
 	return m
 }
 
-func toFilter(strs ...string) AggregateTermFilter {
+func toFilter(strs ...string) AggregateFieldFilter {
 	b := make([][]byte, len(strs))
 	for i, s := range strs {
 		b[i] = []byte(s)
 	}
 
-	return AggregateTermFilter(b)
+	return AggregateFieldFilter(b)
 }
 
 var mergeTests = []struct {
@@ -247,7 +247,7 @@ var mergeTests = []struct {
 	},
 	{
 		name: "no limit empty filter",
-		opts: AggregateResultsOptions{TermFilter: toFilter()},
+		opts: AggregateResultsOptions{FieldFilter: toFilter()},
 		expected: map[string][]string{
 			"foo":  []string{"bar", "biz", "baz"},
 			"fizz": []string{"bar"},
@@ -257,12 +257,12 @@ var mergeTests = []struct {
 	},
 	{
 		name:     "no limit matchless filter",
-		opts:     AggregateResultsOptions{TermFilter: toFilter("zig")},
+		opts:     AggregateResultsOptions{FieldFilter: toFilter("zig")},
 		expected: map[string][]string{},
 	},
 	{
 		name: "empty limit with filter",
-		opts: AggregateResultsOptions{TermFilter: toFilter("buzz")},
+		opts: AggregateResultsOptions{FieldFilter: toFilter("buzz")},
 		expected: map[string][]string{
 			"buzz": []string{"bar", "bag"},
 		},
@@ -270,7 +270,7 @@ var mergeTests = []struct {
 	{
 		name: "with limit with filter",
 		opts: AggregateResultsOptions{
-			SizeLimit: 2, TermFilter: toFilter("buzz", "qux", "fizz")},
+			SizeLimit: 2, FieldFilter: toFilter("buzz", "qux", "fizz")},
 		expected: map[string][]string{
 			"fizz": []string{"bar"},
 			"buzz": []string{"bar", "bag"},

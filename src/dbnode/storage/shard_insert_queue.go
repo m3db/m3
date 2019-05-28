@@ -35,6 +35,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -140,6 +141,7 @@ type dbShardPendingRetrievedBlock struct {
 	tags    ident.TagIterator
 	start   time.Time
 	segment ts.Segment
+	nsCtx   namespace.Context
 }
 
 func (b *dbShardInsertBatch) reset() {

@@ -62,7 +62,10 @@ const testAddJSON = `
 `
 
 func TestNamespaceAddHandler(t *testing.T) {
-	mockClient, mockKV, _ := SetupNamespaceTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	addHandler := NewAddHandler(mockClient)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
@@ -79,8 +82,6 @@ func TestNamespaceAddHandler(t *testing.T) {
 	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 	addHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
@@ -107,7 +108,10 @@ func TestNamespaceAddHandler(t *testing.T) {
 }
 
 func TestNamespaceAddHandler_Conflict(t *testing.T) {
-	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	addHandler := NewAddHandler(mockClient)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 

@@ -40,7 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -80,6 +80,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
+	nsCtx := namespace.NewContextFrom(nsMeta)
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
 		func(input propTestInput) (bool, error) {
@@ -186,8 +187,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 					}
 
-					reader := encoder.Stream()
-					if reader != nil {
+					reader, ok := encoder.Stream(encoding.StreamOptions{})
+					if ok {
 						seg, err := reader.Segment()
 						if err != nil {
 							return false, err
@@ -409,7 +410,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						dataResult.Unfulfilled().String())
 				}
 			}
-			err = verifyShardResultsAreCorrect(values, blockSize, dataResult.ShardResults(), bootstrapOpts)
+			err = verifyShardResultsAreCorrect(nsCtx, values, blockSize, dataResult.ShardResults(), bootstrapOpts)
 			if err != nil {
 				return false, err
 			}

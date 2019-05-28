@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/jhump/protoreflect/desc"
 	tchannel "github.com/uber/tchannel-go"
 )
 
@@ -234,8 +233,8 @@ type Options interface {
 	// SetEncodingM3TSZ sets M3TSZ encoding.
 	SetEncodingM3TSZ() Options
 
-	// SetEncodingProto sets proto encoding based on the provided schema.
-	SetEncodingProto(schema *desc.MessageDescriptor, encodingOpts encoding.Options) Options
+	// SetEncodingProto sets proto encoding.
+	SetEncodingProto(encodingOpts encoding.Options) Options
 
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
@@ -500,6 +499,12 @@ type Options interface {
 
 	// ReaderIteratorAllocate returns the readerIteratorAllocate.
 	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
+
+	// SetSchemaRegistry sets the schema registry.
+	SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions
+
+	// SchemaRegistry returns the schema registry.
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 // AdminOptions is a set of administration client options.

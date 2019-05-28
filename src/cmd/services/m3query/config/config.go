@@ -30,6 +30,7 @@ import (
 	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -62,6 +63,8 @@ var (
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
+
+	defaultStorageQueryLimit = 10000
 )
 
 // Configuration is the configuration for the query service.
@@ -125,7 +128,11 @@ type Configuration struct {
 
 	// Cache configurations.
 	//
-	// Deprecated: cache configurations are no longer supported. Remove from file.
+	// Deprecated: cache configurations are no longer supported. Remove from file
+	// when we can make breaking changes.
+	// (If/when removed it will make existing configurations with the cache
+	// stanza not able to startup the binary since we parse YAML in strict mode
+	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
 }
 
@@ -168,8 +175,8 @@ type ResultOptions struct {
 	KeepNans bool `yaml:"keepNans"`
 }
 
-// LimitsConfiguration represents limitations on resource usage in the query instance. Limits are split between per-query
-// and global limits.
+// LimitsConfiguration represents limitations on resource usage in the query
+// instance. Limits are split between per-query and global limits.
 type LimitsConfiguration struct {
 	// deprecated: use PerQuery.MaxComputedDatapoints instead.
 	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
@@ -195,18 +202,22 @@ func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
 	return lc.DeprecatedMaxComputedDatapoints
 }
 
-// GlobalLimitsConfiguration represents limits on resource usage across a query instance. Zero or negative values imply no limit.
+// GlobalLimitsConfiguration represents limits on resource usage across a query
+// instance. Zero or negative values imply no limit.
 type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the total number of datapoints actually fetched by all queries at any given time.
+	// MaxFetchedDatapoints limits the total number of datapoints actually
+	// fetched by all queries at any given time.
 	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
 }
 
-// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+// AsLimitManagerOptions converts this configuration to
+// cost.LimitManagerOptions for MaxFetchedDatapoints.
 func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
 	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
-// PerQueryLimitsConfiguration represents limits on resource usage within a single query. Zero or negative values imply no limit.
+// PerQueryLimitsConfiguration represents limits on resource usage within a
+// single query. Zero or negative values imply no limit.
 type PerQueryLimitsConfiguration struct {
 	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
 	// returned by a query. It's determined purely
@@ -217,13 +228,32 @@ type PerQueryLimitsConfiguration struct {
 	// this field directly.
 	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
 
-	// MaxFetchedDatapoints limits the number of datapoints actually used by a given query.
+	// MaxFetchedDatapoints limits the number of datapoints actually used by a
+	// given query.
 	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+
+	// MaxFetchedSeries limits the number of time series returned by a storage node.
+	MaxFetchedSeries int64 `yaml:"maxFetchedSeries"`
 }
 
-// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+// AsLimitManagerOptions converts this configuration to
+// cost.LimitManagerOptions for MaxFetchedDatapoints.
 func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
 	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+// AsFetchOptionsBuilderOptions converts this configuration to
+// handler.FetchOptionsBuilderOptions.
+func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handler.FetchOptionsBuilderOptions {
+	if l.MaxFetchedSeries <= 0 {
+		return handler.FetchOptionsBuilderOptions{
+			Limit: defaultStorageQueryLimit,
+		}
+	}
+
+	return handler.FetchOptionsBuilderOptions{
+		Limit: int(l.MaxFetchedSeries),
+	}
 }
 
 func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {

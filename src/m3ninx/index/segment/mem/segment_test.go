@@ -543,6 +543,50 @@ func TestSegmentContainsID(t *testing.T) {
 	require.NoError(t, segment.Close())
 }
 
+func TestSegmentContainsField(t *testing.T) {
+	docs := []doc.Document{
+		doc.Document{
+			ID: []byte("abc"),
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("apple"),
+				},
+				doc.Field{
+					Name:  []byte("colour"),
+					Value: []byte("red"),
+				},
+			},
+		},
+		doc.Document{
+			ID: []byte("cde"),
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("banana"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+	}
+	b1 := index.NewBatch(docs, index.AllowPartialUpdates())
+	segment, err := NewSegment(0, testOptions)
+	require.NoError(t, err)
+
+	err = segment.InsertBatch(b1)
+	require.NoError(t, err)
+	for _, d := range docs {
+		for _, f := range d.Fields {
+			ok, err := segment.ContainsField(f.Name)
+			require.NoError(t, err)
+			require.True(t, ok)
+		}
+	}
+}
+
 func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
 	b1 := index.NewBatch(
 		[]doc.Document{

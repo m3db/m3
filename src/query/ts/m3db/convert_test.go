@@ -150,15 +150,16 @@ func verifyMetas(
 	meta block.Metadata,
 	metas []block.SeriesMeta,
 ) {
-	require.Equal(t, 1, meta.Tags.Len())
-	val, found := meta.Tags.Get([]byte("a"))
-	assert.True(t, found)
-	assert.Equal(t, []byte("b"), val)
-
+	require.Equal(t, 0, meta.Tags.Len())
 	for i, m := range metas {
 		assert.Equal(t, []byte(fmt.Sprintf("abc%d", i)), m.Name)
-		require.Equal(t, 1, m.Tags.Len())
-		val, found := m.Tags.Get([]byte("c"))
+		require.Equal(t, 2, m.Tags.Len())
+
+		val, found := m.Tags.Get([]byte("a"))
+		assert.True(t, found)
+		assert.Equal(t, []byte("b"), val)
+
+		val, found = m.Tags.Get([]byte("c"))
 		assert.True(t, found)
 		assert.Equal(t, []byte(fmt.Sprint(i)), val)
 	}

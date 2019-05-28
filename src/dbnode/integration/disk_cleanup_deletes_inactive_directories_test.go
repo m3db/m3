@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )

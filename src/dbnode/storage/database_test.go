@@ -31,17 +31,14 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -50,12 +47,12 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
@@ -70,44 +67,10 @@ var (
 					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
 					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestNs1Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	defaultTestNs2Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-	defaultTestDatabaseOptions Options
+	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	testSchemaHistory  = prototest.NewSchemaHistory()
 )
-
-func init() {
-	opts := newOptions(pool.NewObjectPoolOptions().
-		SetSize(16))
-
-	// Use a no-op options manager to avoid spinning up a goroutine to listen
-	// for updates, which causes problems with leaktest in individual test
-	// executions
-	runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
-		runtime.NewOptions())
-
-	pm, err := fs.NewPersistManager(fs.NewOptions().
-		SetRuntimeOptionsManager(runtimeOptionsMgr))
-	if err != nil {
-		panic(err)
-	}
-
-	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
-		InstrumentOptions: opts.InstrumentOptions(),
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer stopReporting()
-
-	indexOpts := opts.IndexOptions().
-		SetPostingsListCache(plCache)
-	defaultTestDatabaseOptions = opts.
-		SetIndexOptions(indexOpts).
-		SetSeriesCachePolicy(series.CacheAll).
-		SetPersistManager(pm).
-		SetRepairEnabled(false).
-		SetCommitLogOptions(opts.CommitLogOptions())
-}
 
 type nsMapCh chan namespace.Map
 
@@ -162,14 +125,6 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 	return nsMap
 }
 
-func testDatabaseOptions() Options {
-	// NB(r): We don't need to recreate the options multiple
-	// times as they are immutable - we save considerable
-	// memory by doing this avoiding creating default pools
-	// several times.
-	return defaultTestDatabaseOptions
-}
-
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
@@ -181,17 +136,27 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 
 func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdatabase {
 	db := NewMockdatabase(ctrl)
-	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	if len(ns) != 0 {
 		db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
 	}
 	return db
 }
 
+type newTestDatabaseOpt struct {
+	bs    BootstrapState
+	nsMap namespace.Map
+	dbOpt Options
+}
+
+func defaultTestDatabase(t *testing.T, ctrl *gomock.Controller, bs BootstrapState) (*db, nsMapCh, xmetrics.TestStatsReporter) {
+	return newTestDatabase(t, ctrl, newTestDatabaseOpt{bs: bs, nsMap: testNamespaceMap(t), dbOpt: DefaultTestOptions()})
+}
+
 func newTestDatabase(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	bs BootstrapState,
+	opt newTestDatabaseOpt,
 ) (*db, nsMapCh, xmetrics.TestStatsReporter) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, _ := tally.NewRootScope(tally.ScopeOptions{
@@ -199,9 +164,9 @@ func newTestDatabase(
 	}, 100*time.Millisecond)
 
 	mapCh := make(nsMapCh, 10)
-	mapCh <- testNamespaceMap(t)
+	mapCh <- opt.nsMap
 
-	opts := testDatabaseOptions()
+	opts := opt.dbOpt
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().SetMetricsScope(scope)).
 		SetRepairEnabled(false).
@@ -217,7 +182,7 @@ func newTestDatabase(
 	d := database.(*db)
 	m := d.mediator.(*mediator)
 	bsm := newBootstrapManager(d, m, opts).(*bootstrapManager)
-	bsm.state = bs
+	bsm.state = opt.bs
 	m.databaseBootstrapManager = bsm
 
 	return d, mapCh, testReporter
@@ -239,7 +204,7 @@ func TestDatabaseOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -253,7 +218,7 @@ func TestDatabaseClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -267,7 +232,7 @@ func TestDatabaseTerminate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -284,7 +249,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -299,7 +264,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -324,7 +289,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -343,7 +308,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -367,7 +332,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -387,7 +352,7 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -403,7 +368,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -436,7 +401,7 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -464,7 +429,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -499,7 +464,7 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, testReporter := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, testReporter := defaultTestDatabase(t, ctrl, Bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
 		close(mapCh)
@@ -543,7 +508,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, testReporter := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, testReporter := defaultTestDatabase(t, ctrl, Bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
 		close(mapCh)
@@ -604,7 +569,7 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
 		close(mapCh)
@@ -619,13 +584,11 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	sr, err := namespace.LoadSchemaRegistry(namespace.GenTestSchemaOptions("namespace/schematest"))
-
 	// construct new namespace Map
 	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
 	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts.SetSchemaRegistry(sr))
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
 	require.NoError(t, err)
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
 	require.NoError(t, err)
@@ -648,10 +611,115 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
 
-	actualSchema, found := ns2.SchemaRegistry().GetLatest()
-	require.True(t, found)
-	expectedSchema, _ := sr.GetLatest()
-	require.True(t, expectedSchema.Equal(actualSchema))
+	// Ensure schema is not set and no error
+	require.Nil(t, ns1.Schema())
+	require.Nil(t, ns2.Schema())
+	schema, err := d.Options().SchemaRegistry().GetLatestSchema(defaultTestNs2ID)
+	require.NoError(t, err)
+	require.Nil(t, schema)
+}
+
+func TestDatabaseCreateSchemaNotSet(t *testing.T) {
+	protoTestDatabaseOptions := DefaultTestOptions().
+		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Start the database with two namespaces, one miss configured (missing schema).
+	nsID1 := ident.StringID("testns1")
+	md1, err := namespace.NewMetadata(nsID1, defaultTestNs1Opts.SetSchemaHistory(testSchemaHistory))
+	require.NoError(t, err)
+	nsID2 := ident.StringID("testns2")
+	md2, err := namespace.NewMetadata(nsID2, defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, newTestDatabaseOpt{bs: Bootstrapped, nsMap: nsMap, dbOpt: protoTestDatabaseOptions})
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 1)
+
+	_, ok := d.Namespace(nsID1)
+	require.True(t, ok)
+	_, ok = d.Namespace(nsID2)
+	require.False(t, ok)
+}
+
+func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
+	protoTestDatabaseOptions := DefaultTestOptions().
+		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Start db with no namespaces.
+	d, mapCh, _ := newTestDatabase(t, ctrl, newTestDatabaseOpt{bs: Bootstrapped, dbOpt: protoTestDatabaseOptions})
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 0)
+
+	// construct new namespace Map
+	nsID3 := ident.StringID("testns3")
+	md3, err := namespace.NewMetadata(nsID3, defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	time.Sleep(10 * time.Millisecond)
+
+	// ensure the namespace3 is not created successfully.
+	nses = d.Namespaces()
+	require.Len(t, nses, 0)
+
+	// Update nsID3 schema
+	md3, err = namespace.NewMetadata(nsID3, defaultTestNs1Opts.SetSchemaHistory(testSchemaHistory))
+	require.NoError(t, err)
+	nsMap, err = namespace.NewMap([]namespace.Metadata{md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// Ensure the namespace3 is created successfully.
+	nses = d.Namespaces()
+	require.Len(t, nses, 1)
+	ns3, ok := d.Namespace(nsID3)
+	require.True(t, ok)
+
+	// Ensure schema is set for ns1
+	require.NotNil(t, ns3.Schema())
+
+	schema, err := d.Options().SchemaRegistry().GetLatestSchema(nsID3)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+
 }
 
 func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
@@ -666,7 +734,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
@@ -764,7 +832,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
@@ -787,7 +855,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
@@ -846,7 +914,7 @@ func testDatabaseWriteBatch(t *testing.T,
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
@@ -981,7 +1049,7 @@ func TestDatabaseBootstrapState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -1012,7 +1080,7 @@ func TestDatabaseIsBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -1104,7 +1172,7 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
-			d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+			d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 			defer func() {
 				close(mapCh)
 			}()
@@ -1147,7 +1215,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
@@ -1219,7 +1287,7 @@ func TestDatabaseIsOverloaded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()

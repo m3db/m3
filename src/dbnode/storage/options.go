@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -144,6 +144,7 @@ type options struct {
 	writeBatchPool                 *ts.WriteBatchPool
 	bufferBucketPool               *series.BufferBucketPool
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
+	schemaReg                      namespace.SchemaRegistry
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -201,6 +202,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		writeBatchPool:                 writeBatchPool,
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
+		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -428,14 +430,14 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
@@ -659,4 +661,14 @@ func (o *options) SetBufferBucketVersionsPool(value *series.BufferBucketVersions
 
 func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
+}
+
+func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
+	opts := *o
+	opts.schemaReg = registry
+	return &opts
+}
+
+func (o *options) SchemaRegistry() namespace.SchemaRegistry {
+	return o.schemaReg
 }

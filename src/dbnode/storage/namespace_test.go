@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -36,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -91,7 +91,7 @@ func newTestNamespaceWithIDOpts(
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
-	dopts := testDatabaseOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
+	dopts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
@@ -129,7 +129,7 @@ func newTestNamespaceWithTruncateType(
 	index namespaceIndex,
 	truncateType series.TruncateType,
 ) (*dbNamespace, closerFn) {
-	opts := testDatabaseOptions().
+	opts := DefaultTestOptions().
 		SetRuntimeOptionsManager(runtime.NewOptionsManager()).
 		SetTruncateType(truncateType)
 
@@ -152,7 +152,7 @@ func TestNamespaceTick(t *testing.T) {
 	defer closer()
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, nil)
+		shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any(), gomock.Any()).Return(tickResult{}, nil)
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
@@ -171,9 +171,9 @@ func TestNamespaceTickError(t *testing.T) {
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		if i == 0 {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, fakeErr)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any(), gomock.Any()).Return(tickResult{}, fakeErr)
 		} else {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, nil)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any(), gomock.Any()).Return(tickResult{}, nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -267,7 +267,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	defer closer()
 
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
+	shard.EXPECT().ReadEncoded(ctx, id, start, end, gomock.Any()).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
@@ -306,7 +306,7 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil).Return(nil, nil)
+	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil, gomock.Any()).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
@@ -448,7 +448,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		shard.EXPECT().FlushState(blockStart).Return(s)
 		if s.Status != fileOpSuccess {
-			shard.EXPECT().Flush(blockStart, nil).Return(nil)
+			shard.EXPECT().Flush(blockStart, gomock.Any(), gomock.Any()).Return(nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -597,7 +597,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
-			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.shardSnapshotErr)
+			shard.EXPECT().Snapshot(blockStart, now, gomock.Any(), gomock.Any()).Return(tc.shardSnapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
@@ -651,7 +651,7 @@ func TestNamespaceRepair(t *testing.T) {
 			}
 		}
 		shard.EXPECT().
-			Repair(gomock.Any(), repairTimeRange, repairer).
+			Repair(gomock.Any(), gomock.Any(), repairTimeRange, repairer).
 			Return(res, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -674,13 +674,13 @@ func TestNamespaceShardAt(t *testing.T) {
 	s1.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[1] = s1
 
-	_, err := ns.readableShardAt(0)
+	_, _, err := ns.readableShardAt(0)
 	require.NoError(t, err)
-	_, err = ns.readableShardAt(1)
+	_, _, err = ns.readableShardAt(1)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead.Error(), err.Error())
-	_, err = ns.readableShardAt(2)
+	_, _, err = ns.readableShardAt(2)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 2", err.Error())
@@ -702,7 +702,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
-	dopts := testDatabaseOptions()
+	dopts := DefaultTestOptions()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
@@ -767,7 +767,7 @@ type needsFlushTestCase struct {
 
 func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	shards := sharding.NewShards(shardNumbers, shard.Available)
-	dopts := testDatabaseOptions()
+	dopts := DefaultTestOptions()
 
 	var (
 		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
@@ -908,7 +908,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = DefaultTestOptions()
 	)
 
 	var (
@@ -949,7 +949,7 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = DefaultTestOptions()
 	)
 	testNs, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -1001,7 +1001,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = DefaultTestOptions()
 	)
 	testNs, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)

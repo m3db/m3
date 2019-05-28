@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
@@ -44,7 +44,7 @@ import (
 )
 
 func testNamespaceIndexOptions() index.Options {
-	return testDatabaseOptions().IndexOptions()
+	return DefaultTestOptions().IndexOptions()
 }
 
 func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceIndex, *MocknamespaceIndexInsertQueue) {
@@ -55,7 +55,7 @@ func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceInde
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	return idx, q
 }
@@ -72,7 +72,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -91,7 +91,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 }
@@ -108,7 +108,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -187,7 +187,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 
 	opts := testNamespaceIndexOptions().SetInsertMode(index.InsertSync)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
-	dbIdx, err := newNamespaceIndex(md, testDatabaseOptions().SetIndexOptions(opts))
+	dbIdx, err := newNamespaceIndex(md, DefaultTestOptions().SetIndexOptions(opts))
 	assert.NoError(t, err)
 
 	idx, ok := dbIdx.(*nsIndex)
@@ -285,7 +285,7 @@ func setupIndex(t *testing.T,
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions().
 		SetIndexOptions(testNamespaceIndexOptions().SetInsertMode(index.InsertSync)))
 	assert.NoError(t, err)
 

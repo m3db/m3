@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/query/util/opentracing"
+	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 
 	"go.uber.org/zap"
 )
@@ -99,6 +99,7 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	endTime := timeSpec.End
 
 	opts := storage.NewFetchOptions()
+	opts.Limit = queryCtx.Options.LimitMaxTimeseries
 	opts.BlockType = n.blockType
 	opts.Scope = queryCtx.Scope
 	opts.Enforcer = queryCtx.Enforcer
