@@ -87,8 +87,8 @@ func newForwardIndexDice(
 	}, nil
 }
 
-// forwardIndexing decides if a timestamp is eligible for forward index writes.
-func (o *forwardIndexDice) forwardIndexing(timestamp time.Time) bool {
+// roll decides if a timestamp is eligible for forward index writes.
+func (o *forwardIndexDice) roll(timestamp time.Time) bool {
 	if !o.enabled {
 		return false
 	}

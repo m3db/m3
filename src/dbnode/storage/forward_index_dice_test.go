@@ -63,7 +63,7 @@ func TestDisabledForwardIndexDice(t *testing.T) {
 	end := start.Add(time.Hour)
 
 	for ts := start; ts.Before(end); ts = ts.Add(time.Second) {
-		require.False(t, dice.forwardIndexing(ts))
+		require.False(t, dice.roll(ts))
 	}
 }
 
@@ -102,7 +102,7 @@ func TestAlwaysOnForwardIndexDice(t *testing.T) {
 	)
 
 	for ts := start; ts.Before(end); ts = ts.Add(time.Second) {
-		indexing := dice.forwardIndexing(ts)
+		indexing := dice.roll(ts)
 		if ts.Before(threshold) {
 			require.False(t, indexing)
 		} else {
@@ -143,7 +143,7 @@ func TestCustomDice(t *testing.T) {
 
 	sample := 0
 	for ts := start; ts.Before(end); ts = ts.Add(time.Second) {
-		indexing := dice.forwardIndexing(ts)
+		indexing := dice.roll(ts)
 
 		if ts.Before(threshold) {
 			require.False(t, indexing)

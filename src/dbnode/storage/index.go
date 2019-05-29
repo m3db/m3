@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -513,47 +513,58 @@ func (i *nsIndex) writeBatches(
 		// on the provided inserts to terminate quicker during shutdown.
 		return
 	}
-	now := i.nowFn()
-	blockSize := i.blockSize
-	futureLimit := now.Add(1 * i.bufferFuture)
-	pastLimit := now.Add(-1 * i.bufferPast)
-	batchOptions := batch.Options()
+	var (
+		now                 = i.nowFn()
+		blockSize           = i.blockSize
+		futureLimit         = now.Add(1 * i.bufferFuture)
+		pastLimit           = now.Add(-1 * i.bufferPast)
+		batchOptions        = batch.Options()
+		forwardIndexDice    = i.forwardIndexDice
+		forwardIndexEnabled = forwardIndexDice.enabled
+
+		forwardIndexBatch *index.WriteBatch
+	)
 	// NB(r): Release lock early to avoid writing batches impacting ticking
 	// speed, etc.
 	// Sometimes foreground compaction can take a long time during heavy inserts.
 	// Each lookup to ensureBlockPresent checks that index is still open, etc.
 	i.state.RUnlock()
 
-	forwardWriteBatch := index.NewWriteBatch(batchOptions)
+	if forwardIndexEnabled {
+		// NB(arnikola): Don't initialize forward index batch if forward indexing
+		// is not enabled.
+		forwardIndexBatch = index.NewWriteBatch(batchOptions)
+	}
 	// Ensure timestamp is not too old/new based on retention policies and that
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
-			if !futureLimit.After(entry.Timestamp) {
+			ts := entry.Timestamp
+			if !futureLimit.After(ts) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
 			}
 
-			if !entry.Timestamp.After(pastLimit) {
+			if !ts.After(pastLimit) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
 				return
 			}
 
-			if i.forwardIndexDice.forwardIndexing(entry.Timestamp) {
-				forwardEntryTimestamp := entry.Timestamp.Truncate(blockSize).Add(blockSize)
+			if forwardIndexDice.roll(ts) {
+				forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
 				xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
 				if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
-					forwardWriteEntry := entry
-					forwardWriteEntry.Timestamp = forwardEntryTimestamp
-					forwardWriteEntry.OnIndexSeries.OnIndexPrepare()
-					forwardWriteBatch.Append(forwardWriteEntry, d)
+					forwardIndexEntry := entry
+					forwardIndexEntry.Timestamp = forwardEntryTimestamp
+					forwardIndexEntry.OnIndexSeries.OnIndexPrepare()
+					forwardIndexBatch.Append(forwardIndexEntry, d)
 				}
 			}
 		})
 
-	if forwardWriteBatch.Len() > 0 {
-		batch.AppendAll(forwardWriteBatch)
+	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
+		batch.AppendAll(forwardIndexBatch)
 	}
 
 	// Sort the inserts by which block they're applicable for, and do the inserts

@@ -22,7 +22,8 @@ package dice
 
 import (
 	"fmt"
-	"math/rand"
+
+	"github.com/MichaelTJones/pcg"
 )
 
 // Dice is an interface that allows for random sampling.
@@ -41,13 +42,14 @@ func NewDice(rate float64) (Dice, error) {
 	}
 
 	return &epoch{
-		r: int64(1.0 / rate),
+		r:   uint64(1.0 / rate),
+		rng: pcg.NewPCG64(),
 	}, nil
 }
 
 type epoch struct {
-	r      int64
-	jitter int64
+	r   uint64
+	rng *pcg.PCG64
 }
 
 func (d *epoch) Rate() float64 {
@@ -55,5 +57,5 @@ func (d *epoch) Rate() float64 {
 }
 
 func (d *epoch) Roll() bool {
-	return rand.Int63()%d.r == 0
+	return d.rng.Random()%d.r == 0
 }
