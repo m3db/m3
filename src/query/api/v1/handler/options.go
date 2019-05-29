@@ -60,6 +60,7 @@ type ServiceOptions struct {
 	M3Agg *M3AggServiceOptions
 
 	DryRun bool
+	Force bool
 }
 
 // M3AggServiceOptions contains the service options that are
@@ -79,6 +80,7 @@ func NewServiceOptions(
 		ServiceZone:        DefaultServiceZone,
 
 		DryRun: false,
+		Force: false,
 
 		M3Agg: &M3AggServiceOptions{
 			MaxAggregationWindowSize: defaultM3AggMaxAggregationWindowSize,
@@ -94,6 +96,9 @@ func NewServiceOptions(
 	}
 	if v := strings.TrimSpace(headers.Get(HeaderDryRun)); v == "true" {
 		opts.DryRun = true
+	}
+	if v := strings.TrimSpace(headers.Get(HeaderForce)); v == "true" {
+		opts.Force = true
 	}
 
 	if m3AggOpts != nil {

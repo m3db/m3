@@ -273,6 +273,17 @@ func TestSchemaReset(t *testing.T) {
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+	req.Header.Add("Force", "true")
+
+	schemaHandler.ServeHTTP(w, req)
+
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "{}", string(body))
 }

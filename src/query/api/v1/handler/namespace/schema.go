@@ -35,6 +35,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
+	"fmt"
 )
 
 var (
@@ -175,6 +176,9 @@ func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSche
 // Reset resets schema for an existing namespace.
 func (h *SchemaResetHandler) Reset(addReq *admin.NamespaceSchemaResetRequest, opts handler.ServiceOptions) (*admin.NamespaceSchemaResetResponse, error) {
 	var emptyRep = admin.NamespaceSchemaResetResponse{}
+	if !opts.Force {
+		return &emptyRep, fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
+	}
 
 	kvOpts := kv.NewOverrideOptions().
 		SetEnvironment(opts.ServiceEnvironment).
