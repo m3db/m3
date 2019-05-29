@@ -248,6 +248,9 @@ func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
 		}
 		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
 		if err != nil {
+			d.log.Warn("failed to update latest schema for namespace",
+				zap.Stringer("namespace", metadata.ID()),
+				zap.Error(err))
 			merr.Add(fmt.Errorf("failed to update latest schema for namespace %v, error: %v",
 				metadata.ID().String(), err))
 		}

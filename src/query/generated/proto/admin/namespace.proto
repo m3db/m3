@@ -35,3 +35,12 @@ message NamespaceSchemaAddRequest {
 message NamespaceSchemaAddResponse {
   string deployID = 1;
 }
+
+message NamespaceSchemaResetRequest {
+  // Name is the namespace name.
+  // Reset schema to non-existent namespace will get 404.
+  string name = 1;
+}
+
+message NamespaceSchemaResetResponse {
+}

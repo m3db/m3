@@ -45,4 +45,7 @@ type NamespaceMetadataAdminService interface {
 	// Application developer is to include the deployID in their m3db client configuration
 	// when they upgrade their application to use the new schema version.
 	DeploySchema(name, protoFileName, msgName string, protos map[string]string) (string, error)
+
+	// ResetSchema reset schema for the specified namespace.
+	ResetSchema(name string) error
 }

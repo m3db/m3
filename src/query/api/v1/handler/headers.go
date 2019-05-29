@@ -50,4 +50,6 @@ const (
 	// HeaderDryRun is the header used to specify whether this should be a dry
 	// run.
 	HeaderDryRun = "Dry-Run"
+	// HeaderForce is the header used to specify whether this should be a forced operation.
+	HeaderForce = "Force"
 )
