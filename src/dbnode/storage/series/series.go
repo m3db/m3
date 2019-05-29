@@ -310,9 +310,10 @@ func (s *dbSeries) FetchBlocksForColdFlush(
 	// This needs a write lock because the version on underlying buckets need
 	// to be modified.
 	s.Lock()
-	defer s.Unlock()
+	br, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
+	s.Unlock()
 
-	return s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
+	return br, err
 }
 
 func (s *dbSeries) FetchBlocks(

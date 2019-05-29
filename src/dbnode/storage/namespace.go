@@ -981,9 +981,16 @@ type idAndBlockStart struct {
 
 type coldFlushReuseableResources struct {
 	// dirtySeries is a map from a composite key of <series ID, block start>
-	// to an element in a list in the dirtySeriesToWrite map. This composite key
-	// is deliberately made so that this map stays one level deep, making it
-	// easier to share between shard loops, minimizing the need for allocations.
+	// to an element in a list in the dirtySeriesToWrite map. This map is used
+	// to quickly test whether a series is dirty for a particular block start.
+	//
+	// The composite key is deliberately made so that this map stays one level
+	// deep, making it easier to share between shard loops, minimizing the need
+	// for allocations.
+	//
+	// Having a reference to the element in the dirtySeriesToWrite list enables
+	// efficient removal of the series that have been read and subsequent
+	// iterating through remaining series to be read.
 	dirtySeries *dirtySeriesMap
 	// dirtySeriesToWrite is a map from block start to a list of dirty series
 	// that have yet to be written to disk.

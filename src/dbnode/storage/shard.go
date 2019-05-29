@@ -1968,8 +1968,9 @@ func (s *dbShard) ColdFlush(
 		return true
 	})
 
-	merger := s.newMergerFn(resources.fsReader, s.opts.SegmentReaderPool(),
-		s.opts.MultiReaderIteratorPool(), s.opts.IdentifierPool(), s.opts.EncoderPool())
+	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
+		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),
+		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.namespace.Options())
 	mergeWithMem := s.newFSMergeWithMemFn(s, s, dirtySeries, dirtySeriesToWrite)
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
@@ -1982,7 +1983,7 @@ func (s *dbShard) ColdFlush(
 			BlockStart: startTime,
 		}
 
-		err := merger.Merge(fsID, mergeWithMem, flushPreparer, s.namespace.Options(), nsCtx)
+		err := merger.Merge(fsID, mergeWithMem, flushPreparer, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue

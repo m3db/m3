@@ -493,7 +493,7 @@ type BlockRetrieverOptions interface {
 
 // ForEachRemainingFn is the function that is run on each of the remaining
 // series of the merge target that did not intersect with the fileset.
-type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags) bool
+type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags) error
 
 // MergeWith is an interface that the fs merger uses to merge data with.
 type MergeWith interface {
@@ -517,7 +517,6 @@ type Merger interface {
 		fileID FileSetFileIdentifier,
 		mergeWith MergeWith,
 		flushPreparer persist.FlushPreparer,
-		nsOpts namespace.Options,
 		nsCtx namespace.Context,
 	) error
 }
@@ -526,8 +525,10 @@ type Merger interface {
 // convenience for testing.
 type NewMergerFn func(
 	reader DataFileSetReader,
+	blockAllocSize int,
 	srPool xio.SegmentReaderPool,
 	multiIterPool encoding.MultiReaderIteratorPool,
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
+	nsOpts namespace.Options,
 ) Merger

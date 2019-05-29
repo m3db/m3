@@ -396,10 +396,12 @@ func TestShardColdFlush(t *testing.T) {
 
 func newMergerTestFn(
 	reader fs.DataFileSetReader,
+	blockAllocSize int,
 	srPool xio.SegmentReaderPool,
 	multiIterPool encoding.MultiReaderIteratorPool,
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
+	nsOpts namespace.Options,
 ) fs.Merger {
 	return &noopMerger{}
 }
@@ -410,7 +412,6 @@ func (m *noopMerger) Merge(
 	fileID fs.FileSetFileIdentifier,
 	mergeWith fs.MergeWith,
 	flushPreparer persist.FlushPreparer,
-	nsOpts namespace.Options,
 	nsCtx namespace.Context,
 ) error {
 	return nil

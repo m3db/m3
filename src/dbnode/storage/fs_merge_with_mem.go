@@ -21,8 +21,6 @@
 package storage
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -32,7 +30,12 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// fsMergeWithMem implements fs.MergeWith
+// fsMergeWithMem implements fs.MergeWith, where the merge target is data in
+// memory. It relies on data structures being passed in that are created
+// within the shard informing fsMergeWithMem which series require merging.
+// These data structures enable efficient reading of data as well as keeping
+// track of which series were read so that the remaining series can be looped
+// through.
 type fsMergeWithMem struct {
 	shard              databaseShard
 	retriever          series.QueryableBlockRetriever
@@ -99,9 +102,9 @@ func (m *fsMergeWithMem) ForEachRemaining(blockStart xtime.UnixNano, fn fs.ForEa
 			return err
 		}
 
-		success := fn(seriesID, tags)
-		if !success {
-			return errors.New("foreach iteration unsuccessful")
+		err = fn(seriesID, tags)
+		if err != nil {
+			return err
 		}
 	}
 

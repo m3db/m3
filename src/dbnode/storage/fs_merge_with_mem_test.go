@@ -161,9 +161,9 @@ func TestForEachRemaining(t *testing.T) {
 
 	var forEachCalls []ident.ID
 	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
-	mergeWith.ForEachRemaining(0, func(seriesID ident.ID, tags ident.Tags) bool {
+	mergeWith.ForEachRemaining(0, func(seriesID ident.ID, tags ident.Tags) error {
 		forEachCalls = append(forEachCalls, seriesID)
-		return true
+		return nil
 	})
 	require.Len(t, forEachCalls, 2)
 	assert.Equal(t, id0, forEachCalls[0])
@@ -181,9 +181,9 @@ func TestForEachRemaining(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, fetchedBlocks, res)
 	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
-	err = mergeWith.ForEachRemaining(1, func(seriesID ident.ID, tags ident.Tags) bool {
+	err = mergeWith.ForEachRemaining(1, func(seriesID ident.ID, tags ident.Tags) error {
 		forEachCalls = append(forEachCalls, seriesID)
-		return true
+		return nil
 	})
 	require.NoError(t, err)
 	require.Len(t, forEachCalls, 2)
@@ -193,17 +193,17 @@ func TestForEachRemaining(t *testing.T) {
 	// Test call with error getting tags.
 	shard.EXPECT().
 		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, errors.New("bad-tags"))
-	err = mergeWith.ForEachRemaining(4, func(seriesID ident.ID, tags ident.Tags) bool {
+	err = mergeWith.ForEachRemaining(4, func(seriesID ident.ID, tags ident.Tags) error {
 		// This function won't be called with the above error.
-		return true
+		return errors.New("unreachable")
 	})
 	assert.Error(t, err)
 
 	// Test call with bad function execution.
 	shard.EXPECT().
 		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil)
-	err = mergeWith.ForEachRemaining(4, func(seriesID ident.ID, tags ident.Tags) bool {
-		return false
+	err = mergeWith.ForEachRemaining(4, func(seriesID ident.ID, tags ident.Tags) error {
+		return errors.New("bad")
 	})
 	assert.Error(t, err)
 }

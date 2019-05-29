@@ -600,7 +600,7 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 		// The lifecycle of calling this function is preceded by first checking
 		// which blocks have cold data that have not yet been flushed.
 		// If we don't get data here, it means that it has since fallen out of
-		// retention and has evicted.
+		// retention and has been evicted.
 		return nil, nil
 	}
 	if len(res) != 1 {

@@ -81,7 +81,8 @@ func init() {
 }
 
 func TestMergeWithIntersection(t *testing.T) {
-	// This test uses id0-id5.
+	// This test scenario is when there is an overlap in series data between
+	// disk and the merge target.
 	// id0-id3 is on disk, while the merge target has id1-id5.
 	// Both have id1, but they don't have datapoints with overlapping
 	// timestamps.
@@ -186,32 +187,244 @@ func TestMergeWithIntersection(t *testing.T) {
 		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
-	persisted := testMergeWith(t, diskData, mergeTargetData)
-	// Assert same number of expected series IDs.
-	require.Equal(t, expected.Len(), len(persisted))
+	testMergeWith(t, diskData, mergeTargetData, expected)
+}
 
-	for _, actualData := range persisted {
-		id := actualData.id
-		expectedData, exists := expected.Get(id)
-		require.True(t, exists)
-		seg := ts.NewSegment(expectedData, nil, ts.FinalizeHead)
+func TestMergeWithFullIntersection(t *testing.T) {
+	// This test scenario is when the merge target contains only and all data
+	// from disk.
+	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+	}))
+	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+	}))
 
-		expectedDPs := datapointsFromSegment(t, seg)
-		actualDPs := datapointsFromSegment(t, actualData.segment)
-		// Assert same number of datapoints for this series.
-		require.Equal(t, len(expectedDPs), len(actualDPs))
-		for i := range expectedDPs {
-			// Check each datapoint matches what's expected.
-			assert.Equal(t, expectedDPs[i], actualDPs[i])
-		}
-	}
+	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	mergeTargetData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 7},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 8},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 9},
+	}))
+	mergeTargetData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 10},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 11},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 12},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 13},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 14},
+	}))
+
+	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 7},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 8},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 9},
+	}))
+	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 10},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 11},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 12},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 13},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 14},
+	}))
+
+	testMergeWith(t, diskData, mergeTargetData, expected)
+}
+
+func TestMergeWithNoIntersection(t *testing.T) {
+	// This test scenario is when there is no overlap between disk data and
+	// merge target data (series from one source does not exist in the other).
+	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+	}))
+	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+	}))
+	diskData.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
+		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
+		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+	}))
+
+	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	mergeTargetData.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
+		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
+		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+	}))
+	mergeTargetData.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+	}))
+	mergeTargetData.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
+		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
+		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+	}))
+
+	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+	}))
+	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+	}))
+	expected.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
+		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
+		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+	}))
+	expected.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
+		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
+		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+	}))
+	expected.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+	}))
+	expected.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
+		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
+		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+	}))
+
+	testMergeWith(t, diskData, mergeTargetData, expected)
+}
+
+func TestMergeWithNoMergeTargetData(t *testing.T) {
+	// This test scenario is when there is no data in the merge target.
+	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+	}))
+	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+	}))
+	diskData.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
+		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
+		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+	}))
+
+	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+
+	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
+		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+	}))
+	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
+		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+	}))
+	expected.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
+		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
+		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
+		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
+		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+	}))
+
+	testMergeWith(t, diskData, mergeTargetData, expected)
+}
+
+func TestMergeWithNoDiskData(t *testing.T) {
+	// This test scenario is there is no data on disk.
+	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+
+	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	mergeTargetData.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
+		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
+		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+	}))
+	mergeTargetData.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+	}))
+	mergeTargetData.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
+		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
+		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+	}))
+
+	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+	expected.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
+		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
+		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+	}))
+	expected.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+	}))
+	expected.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
+		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
+		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
+		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
+		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+	}))
+
+	testMergeWith(t, diskData, mergeTargetData, expected)
+}
+
+func TestMergeWithNoData(t *testing.T) {
+	// This test scenario is there is no data on disk or the merge target.
+	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+
+	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+
+	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
+
+	testMergeWith(t, diskData, mergeTargetData, expected)
 }
 
 func testMergeWith(
 	t *testing.T,
 	diskData *checkedBytesMap,
 	mergeTargetData *checkedBytesMap,
-) []persistedData {
+	expectedData *checkedBytesMap,
+) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	reader := mockReaderFromData(ctrl, diskData)
@@ -231,18 +444,43 @@ func testMergeWith(
 		}, nil)
 	nsCtx := namespace.Context{}
 
-	merger := NewMerger(reader, srPool, multiIterPool, identPool, encoderPool)
+	nsOpts := namespace.NewOptions()
+	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, nsOpts)
 	fsID := FileSetFileIdentifier{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      uint32(8),
 		BlockStart: startTime,
 	}
-	nsOpts := namespace.NewOptions()
 	mergeWith := mockMergeWithFromData(t, ctrl, diskData, mergeTargetData)
-	err := merger.Merge(fsID, mergeWith, preparer, nsOpts, nsCtx)
+	err := merger.Merge(fsID, mergeWith, preparer, nsCtx)
 	require.NoError(t, err)
 
-	return persisted
+	assertPersistedAsExpected(t, persisted, expectedData)
+}
+
+func assertPersistedAsExpected(
+	t *testing.T,
+	persisted []persistedData,
+	expectedData *checkedBytesMap,
+) {
+	// Assert same number of expected series IDs.
+	require.Equal(t, expectedData.Len(), len(persisted))
+
+	for _, actualData := range persisted {
+		id := actualData.id
+		data, exists := expectedData.Get(id)
+		require.True(t, exists)
+		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+
+		expectedDPs := datapointsFromSegment(t, seg)
+		actualDPs := datapointsFromSegment(t, actualData.segment)
+		// Assert same number of datapoints for this series.
+		require.Equal(t, len(expectedDPs), len(actualDPs))
+		for i := range expectedDPs {
+			// Check each datapoint matches what's expected.
+			assert.Equal(t, expectedDPs[i], actualDPs[i])
+		}
+	}
 }
 
 func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
