@@ -45,6 +45,20 @@ func TestConvertMetricPartToMatcher(t *testing.T) {
 	}
 }
 
+func TestConverWildcardToMatcher(t *testing.T) {
+	metric := "*"
+	for i := 0; i < 100; i++ {
+		expected := models.Matcher{
+			Type: models.MatchField,
+			Name: graphite.TagName(i),
+		}
+
+		actual, err := convertMetricPartToMatcher(i, metric)
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	}
+}
+
 func TestConvertAlphanumericMetricPartToMatcher(t *testing.T) {
 	metric := "abcdefg"
 	expected := models.Matcher{
@@ -61,9 +75,8 @@ func TestConvertAlphanumericMetricPartToMatcher(t *testing.T) {
 func TestMatcherTerminator(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		expected := models.Matcher{
-			Type:  models.MatchNotRegexp,
-			Name:  graphite.TagName(i),
-			Value: []byte(".*"),
+			Type: models.MatchNotField,
+			Name: graphite.TagName(i),
 		}
 
 		actual := matcherTerminator(i)

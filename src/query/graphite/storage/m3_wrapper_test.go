@@ -66,9 +66,9 @@ func TestTranslateQuery(t *testing.T) {
 		{Type: models.MatchEqual, Name: graphite.TagName(3), Value: []byte("terminator")},
 		{Type: models.MatchEqual, Name: graphite.TagName(4), Value: []byte("will")},
 		{Type: models.MatchEqual, Name: graphite.TagName(5), Value: []byte("be")},
-		{Type: models.MatchRegexp, Name: graphite.TagName(6), Value: []byte(`[^\.]*`)},
+		{Type: models.MatchField, Name: graphite.TagName(6)},
 		{Type: models.MatchRegexp, Name: graphite.TagName(7), Value: []byte(`back[^\.]`)},
-		{Type: models.MatchNotRegexp, Name: graphite.TagName(8), Value: []byte(".*")},
+		{Type: models.MatchNotField, Name: graphite.TagName(8)},
 	}
 
 	assert.Equal(t, expected, matchers)

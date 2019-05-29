@@ -38,6 +38,9 @@ enum MatcherType {
 	// matcher name rather than value
 	EXISTS    = 4;
 	NOTEXISTS = 5;
+	// ALL superceeds other matcher types
+	// and does no filtering
+	ALL       = 6;
 }
 
 message FetchResponse {

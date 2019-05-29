@@ -192,6 +192,17 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 		}
 		return query, nil
 
+	case models.MatchNotField:
+		negate = true
+		fallthrough
+	case models.MatchField:
+		query := idx.NewFieldQuery(matcher.Name)
+		if negate {
+			query = idx.NewNegationQuery(query)
+		}
+
+		return query, nil
+
 	case models.MatchAll:
 		return idx.NewAllQuery(), nil
 

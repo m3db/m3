@@ -154,6 +154,28 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			},
 		},
 		{
+			name:     "field match",
+			expected: "field(t1)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchField,
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
+				},
+			},
+		},
+		{
+			name:     "field match negated",
+			expected: "negation(field(t1))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotField,
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
+				},
+			},
+		},
+		{
 			name:     "all matchers",
 			expected: "all()",
 			matchers: models.Matchers{},
