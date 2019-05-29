@@ -26,8 +26,5 @@ COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode /bin/
 COPY --from=builder /go/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
 COPY --from=builder /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh /bin/
 
-# Set the environment variable to raise the limit on startup
-ENV PROCESS_LIMITS_RAISE true
-
 ENTRYPOINT [ "/bin/m3dbnode" ]
 CMD [ "-f", "/etc/m3dbnode/m3dbnode.yml" ]
