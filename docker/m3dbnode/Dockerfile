@@ -1,5 +1,5 @@
-# Stage 1: build
-FROM golang:1.10-alpine AS builder
+# stage 1: build
+FROM golang:1.12-alpine AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install Glide
@@ -26,8 +26,8 @@ COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode /bin/
 COPY --from=builder /go/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
 COPY --from=builder /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh /bin/
 
-# Use setcap to set +e "effective" and +p "permitted" to adjust the 
-# SYS_RESOURCE so the process can raise the hard file limit with 
+# Use setcap to set +e "effective" and +p "permitted" to adjust the
+# SYS_RESOURCE so the process can raise the hard file limit with
 # setrlimit
 RUN apk add libcap && \
     setcap cap_sys_resource=+ep /bin/m3dbnode
