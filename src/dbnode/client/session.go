@@ -36,13 +36,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -103,7 +103,7 @@ var (
 	// the connect consistency level specified is not recognized
 	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
 	// errSessionHasNoHostQueueForHost is raised when host queue requested for a missing host
-	errSessionHasNoHostQueueForHost = errors.New("session has no host queue for host")
+	errSessionHasNoHostQueueForHost = newHostNotAvailableError(errors.New("session has no host queue for host"))
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
@@ -2319,11 +2319,28 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 	fetchFn := func() error {
 		borrowErr := peer.BorrowConnection(checkedAttemptFn)
+		// Don't retry if the host is not available to prevent exponential
+		// backoff from causing this to take a long time when subsequent
+		// requests will fail.
+		if isHostNotAvailableError(borrowErr) {
+			borrowErr = xerrors.NewNonRetryableError(borrowErr)
+		}
 		return xerrors.FirstError(borrowErr, attemptErr)
 	}
 
 	for moreResults {
 		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
+			// Check if the error was a hostNotAvailableError wrapped in a
+			// nonRetryableError. If so, return the hostNotAvailableError
+			// instead of the non-retryable error since the error is technically
+			// retryable, it was only wrapped to prevent the exponential backoff
+			// in the actual retrier.
+			if xerrors.IsNonRetryableError(err) {
+				inner := xerrors.GetInnerNonRetryableError(err)
+				if isHostNotAvailableError(inner) {
+					err = inner
+				}
+			}
 			return startPageToken, err
 		}
 	}
@@ -2835,9 +2852,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		err := xerrors.FirstError(borrowErr, attemptErr)
 		// Do not retry if cannot borrow the connection or
 		// if the connection pool has no connections
-		switch err {
-		case errSessionHasNoHostQueueForHost,
-			errConnectionPoolHasNoConnections:
+		if isHostNotAvailableError(err) {
 			err = xerrors.NewNonRetryableError(err)
 		}
 		return err

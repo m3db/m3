@@ -94,6 +94,23 @@ func NumError(err error) int {
 	return 0
 }
 
+type hostNotAvailableError struct {
+	err error
+}
+
+func (h hostNotAvailableError) Error() string {
+	return h.err.Error()
+}
+
+func newHostNotAvailableError(err error) hostNotAvailableError {
+	return hostNotAvailableError{err: err}
+}
+
+func isHostNotAvailableError(e error) bool {
+	_, ok := e.(hostNotAvailableError)
+	return ok
+}
+
 type consistencyResultError interface {
 	error
 
