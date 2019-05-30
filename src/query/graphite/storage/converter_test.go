@@ -45,7 +45,7 @@ func TestConvertMetricPartToMatcher(t *testing.T) {
 	}
 }
 
-func TestConverWildcardToMatcher(t *testing.T) {
+func TestConvertWildcardToMatcher(t *testing.T) {
 	metric := "*"
 	for i := 0; i < 100; i++ {
 		expected := models.Matcher{

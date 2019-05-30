@@ -86,11 +86,11 @@ const (
 	MatcherType_REGEXP    MatcherType = 2
 	MatcherType_NOTREGEXP MatcherType = 3
 	// EXISTS and NOTEXISTS apply only to
-	// matcher name rather than value
+	// matcher name rather than value.
 	MatcherType_EXISTS    MatcherType = 4
 	MatcherType_NOTEXISTS MatcherType = 5
-	// ALL superceeds other matcher types
-	// and does no filtering
+	// ALL supercedes other matcher types
+	// and does no filtering.
 	MatcherType_ALL MatcherType = 6
 )
 
