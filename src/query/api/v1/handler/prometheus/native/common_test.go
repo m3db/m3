@@ -453,7 +453,7 @@ func TestSanitizeSeries(t *testing.T) {
 		series = append(series, ts.NewSeries([]byte(d.name), vals, tags))
 	}
 
-	series = sanitizeSeries(series)
+	series = filterNaNSeries(series)
 	require.Equal(t, 3, len(series))
 	assert.Equal(t, "2", string(series[0].Name()))
 	assert.Equal(t, "4", string(series[1].Name()))
