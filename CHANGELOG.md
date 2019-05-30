@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.9.6
+
+## Bug Fixes
+
+- **M3DB**: Revert Docker setcap change to allow image to run with no special flags (#1672)
+
 # 0.9.5
 
 ## Performance

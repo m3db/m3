@@ -39,6 +39,8 @@
 		NamespaceAddRequest
 		NamespaceSchemaAddRequest
 		NamespaceSchemaAddResponse
+		NamespaceSchemaResetRequest
+		NamespaceSchemaResetResponse
 		PlacementInitRequest
 		PlacementGetResponse
 		PlacementAddRequest

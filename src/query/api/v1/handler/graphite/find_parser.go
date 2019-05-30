@@ -125,9 +125,9 @@ func parseFindParamsToQueries(r *http.Request) (
 
 	clonedMatchers := make([]models.Matcher, len(matchers))
 	copy(clonedMatchers, matchers)
-	// NB: change terminator from `MatchNotRegexp` to `MatchRegexp` to ensure
+	// NB: change terminator from `MatchNotField` to `MatchField` to ensure
 	// segments with children are matched.
-	clonedMatchers[len(clonedMatchers)-1].Type = models.MatchRegexp
+	clonedMatchers[len(clonedMatchers)-1].Type = models.MatchField
 	childQuery := &storage.CompleteTagsQuery{
 		CompleteNameOnly: false,
 		FilterNameTags:   filter,

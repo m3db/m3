@@ -127,7 +127,7 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 		matchers: []models.Matcher{
 			{Type: models.MatchEqual, Name: b("__g0__"), Value: b("foo")},
 			{Type: models.MatchRegexp, Name: b("__g1__"), Value: b(`b[^\.]*`)},
-			{Type: models.MatchNotRegexp, Name: b("__g2__"), Value: b(".*")},
+			{Type: models.MatchNotField, Name: b("__g2__")},
 		},
 	}
 
@@ -146,7 +146,7 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 		matchers: []models.Matcher{
 			{Type: models.MatchEqual, Name: b("__g0__"), Value: b("foo")},
 			{Type: models.MatchRegexp, Name: b("__g1__"), Value: b(`b[^\.]*`)},
-			{Type: models.MatchRegexp, Name: b("__g2__"), Value: b(".*")},
+			{Type: models.MatchField, Name: b("__g2__")},
 		},
 	}
 

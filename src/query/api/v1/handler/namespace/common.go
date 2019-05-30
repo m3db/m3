@@ -112,5 +112,9 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
 
 	// Deploy M3DB schemas.
 	schemaHandler := wrapped(NewSchemaHandler(client)).ServeHTTP
-	r.HandleFunc(M3DBSchemaURL, schemaHandler).Methods(SchemaHTTPMethod)
+	r.HandleFunc(M3DBSchemaURL, schemaHandler).Methods(SchemaDeployHTTPMethod)
+
+	// Reset M3DB schemas.
+	schemaResetHandler := wrapped(NewSchemaResetHandler(client)).ServeHTTP
+	r.HandleFunc(M3DBSchemaURL, schemaResetHandler).Methods(DeleteHTTPMethod)
 }

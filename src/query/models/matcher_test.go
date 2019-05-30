@@ -35,69 +35,6 @@ func newMatcher(t *testing.T, mType MatchType, value string) Matcher {
 	return m
 }
 
-func TestMatcher(t *testing.T) {
-	tests := []struct {
-		matcher Matcher
-		value   string
-		match   bool
-	}{
-		{
-			matcher: newMatcher(t, MatchEqual, "bar"),
-			value:   "bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchEqual, "bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchNotEqual, "bar"),
-			value:   "bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchNotEqual, "bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchRegexp, "bar"),
-			value:   "bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchRegexp, "bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchRegexp, ".*bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchNotRegexp, "bar"),
-			value:   "bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchNotRegexp, "bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchNotRegexp, ".*bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-	}
-
-	for _, test := range tests {
-		assert.Equal(t, test.match, test.matcher.Matches([]byte(test.value)))
-	}
-}
-
 func TestMatcher_String(t *testing.T) {
 	m := newMatcher(t, MatchEqual, "foo")
 	m.Name = []byte(`key`)

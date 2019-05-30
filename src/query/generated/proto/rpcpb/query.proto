@@ -35,9 +35,12 @@ enum MatcherType {
 	REGEXP    = 2;
 	NOTREGEXP = 3;
 	// EXISTS and NOTEXISTS apply only to
-	// matcher name rather than value
+	// matcher name rather than value.
 	EXISTS    = 4;
 	NOTEXISTS = 5;
+	// ALL supercedes other matcher types
+	// and does no filtering.
+	ALL       = 6;
 }
 
 message FetchResponse {

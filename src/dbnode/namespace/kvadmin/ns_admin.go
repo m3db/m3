@@ -82,6 +82,36 @@ func (as *adminService) Delete(name string) error {
 	return ErrNotImplemented
 }
 
+func (as *adminService) ResetSchema(name string) error {
+	currentRegistry, currentVersion, err := as.currentRegistry()
+	if err == kv.ErrNotFound {
+		return ErrNamespaceNotFound
+	}
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to load current namespace metadatas for %s", as.key)
+	}
+
+	var targetMeta *nsproto.NamespaceOptions
+	for nsID, nsOpts := range currentRegistry.GetNamespaces() {
+		if nsID == name {
+			targetMeta = nsOpts
+			break
+		}
+	}
+	if targetMeta == nil {
+		return ErrNamespaceNotFound
+	}
+
+	// Clear schema options in place.
+	targetMeta.SchemaOptions = nil
+
+	_, err = as.store.CheckAndSet(as.key, currentVersion, currentRegistry)
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to reset schema for namespace %s", name)
+	}
+	return nil
+}
+
 func (as *adminService) DeploySchema(name, protoFileName, msgName string, protos map[string]string) (string, error) {
 	currentRegistry, currentVersion, err := as.currentRegistry()
 	if err == kv.ErrNotFound {
