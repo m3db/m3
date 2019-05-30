@@ -44,8 +44,9 @@ type fileRegistry struct {
 
 	entries map[string]*fileStatus
 
-	clockOpts clock.Options
-	logger    *zap.Logger
+	clockOpts      clock.Options
+	instrumentOpts instrument.Options
+	logger         *zap.Logger
 }
 
 // NewFileRegistry creates a new file registry.
@@ -54,9 +55,10 @@ func NewFileRegistry(
 	instrumentOpts instrument.Options,
 ) FileRegistry {
 	return &fileRegistry{
-		entries:   make(map[string]*fileStatus),
-		clockOpts: clockOpts,
-		logger:    instrumentOpts.Logger(),
+		entries:        make(map[string]*fileStatus),
+		clockOpts:      clockOpts,
+		instrumentOpts: instrumentOpts,
+		logger:         instrumentOpts.Logger(),
 	}
 }
 
@@ -127,7 +129,7 @@ func (r *fileRegistry) newFileStatusOrExisting(filePath string) (*fileStatus, er
 
 	status, ok = r.entries[pathAbs]
 	if !ok {
-		status = newFileStatus(pathAbs, r.clockOpts.NowFn(), r.logger)
+		status = newFileStatus(pathAbs, r.clockOpts.NowFn(), r.instrumentOpts)
 		r.entries[pathAbs] = status
 	}
 
@@ -142,18 +144,17 @@ type fileStatus struct {
 	refs      []*fileRef
 
 	nowFn clock.NowFn
-
-	logger *zap.Logger
+	iopts instrument.Options
 }
 
-func newFileStatus(pathAbs string, nowFn clock.NowFn, logger *zap.Logger) *fileStatus {
+func newFileStatus(pathAbs string, nowFn clock.NowFn, iopts instrument.Options) *fileStatus {
 	f := &fileStatus{
 		status: FileStatus{
 			Type: AvailableFileStatusType,
 		},
 		pathAbs: pathAbs,
 		nowFn:   nowFn,
-		logger:  logger,
+		iopts:   iopts,
 	}
 	watchable := watch.NewWatchable()
 	watchable.Update(f.status)
@@ -210,8 +211,10 @@ func (f *fileStatus) NotifyAndRemove() error {
 	}
 
 	if f.numRefs() > 0 {
-		f.logger.Error("timed out for delayed remove of file",
-			zap.String("path", f.pathAbs))
+		instrument.EmitAndLogInvariantViolation(f.iopts, func(l *zap.Logger) {
+			l.Error("delayed remove of file timed out",
+				zap.String("path", f.pathAbs))
+		})
 	}
 
 	return os.Remove(f.pathAbs)
@@ -314,8 +317,8 @@ func (f *fileRef) Readdirnames(n int) ([]string, error) {
 	return f.ref.Readdirnames(n)
 }
 
-func (f *fileRef) Seek(offset int64, whence int) (ret int64, err error) {
-
+func (f *fileRef) Seek(offset int64, whence int) (int64, error) {
+	return f.ref.Seek(offset, whence)
 }
 
 func (f *fileRef) Stat() (os.FileInfo, error) {
