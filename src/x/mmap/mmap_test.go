@@ -31,11 +31,19 @@ import (
 
 type mmapFdFuncType func(fd, offset, length int64, opts Options) (Result, error)
 
+func open(filePath string) (File, error) {
+	fd, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return fd, nil
+}
+
 func TestMmapFile(t *testing.T) {
 	fd, err := ioutil.TempFile("", "testfile")
 	assert.NoError(t, err)
 
-	result, err := File(fd, Options{})
+	result, err := NewFile(fd, Options{})
 	assert.NoError(t, err)
 	assert.NoError(t, result.Warning)
 	assert.Equal(t, []byte{}, result.Result)
@@ -52,17 +60,17 @@ func TestMmapFiles(t *testing.T) {
 	fd2Path := fd2.Name()
 
 	var (
-		bytes1 = []byte{}
-		bytes2 = []byte{}
+		file1, file2   File
+		bytes1, bytes2 []byte
 	)
-	result, err := Files(os.Open, map[string]FileDesc{
+	result, err := NewFiles(open, map[string]FileDesc{
 		fd1Path: FileDesc{
-			File:    &fd1,
+			File:    &file1,
 			Bytes:   &bytes1,
 			Options: Options{},
 		},
 		fd2Path: FileDesc{
-			File:    &fd2,
+			File:    &file2,
 			Bytes:   &bytes2,
 			Options: Options{},
 		},
@@ -70,6 +78,9 @@ func TestMmapFiles(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NoError(t, result.Warning)
+
+	assert.NotNil(t, file1)
+	assert.NotNil(t, file2)
 }
 
 func TestMmapFilesHandlesError(t *testing.T) {
@@ -77,20 +88,18 @@ func TestMmapFilesHandlesError(t *testing.T) {
 	assert.NoError(t, err)
 	fd1Path := fd1.Name()
 
-	fd2, err := ioutil.TempFile("", "doesnt-matter")
-	assert.NoError(t, err)
 	var (
-		bytes1 = []byte{}
-		bytes2 = []byte{}
+		file1, file2   File
+		bytes1, bytes2 []byte
 	)
-	_, err = Files(os.Open, map[string]FileDesc{
+	_, err = NewFiles(open, map[string]FileDesc{
 		fd1Path: FileDesc{
-			File:    &fd1,
+			File:    &file1,
 			Bytes:   &bytes1,
 			Options: Options{},
 		},
 		"does_not_exist": FileDesc{
-			File:    &fd2,
+			File:    &file2,
 			Bytes:   &bytes2,
 			Options: Options{},
 		},
@@ -109,11 +118,13 @@ func TestMmapFilesHandlesWarnings(t *testing.T) {
 	assert.NoError(t, err)
 	fd1Path := fd1.Name()
 
-	bytes1 := []byte{}
-
-	result, err := Files(os.Open, map[string]FileDesc{
+	var (
+		file1  File
+		bytes1 []byte
+	)
+	result, err := NewFiles(open, map[string]FileDesc{
 		fd1Path: FileDesc{
-			File:    &fd1,
+			File:    &file1,
 			Bytes:   &bytes1,
 			Options: Options{},
 		},

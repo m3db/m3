@@ -21,8 +21,6 @@
 package fs
 
 import (
-	"os"
-
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/x/mmap"
@@ -68,7 +66,7 @@ func newManagedConcurrentBloomFilter(
 }
 
 func newManagedConcurrentBloomFilterFromFile(
-	bloomFilterFd *os.File,
+	bloomFilterFd File,
 	bloomFilterFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
 	numElementsM uint,

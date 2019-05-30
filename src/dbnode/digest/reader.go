@@ -26,7 +26,6 @@ import (
 	"hash"
 	"hash/adler32"
 	"io"
-	"os"
 )
 
 var (
@@ -57,7 +56,7 @@ type FdWithDigestReader interface {
 }
 
 type fdWithDigestReader struct {
-	fd               *os.File
+	fd               File
 	bufReader        *bufio.Reader
 	readerWithDigest ReaderWithDigest
 	single           [1]byte
@@ -73,7 +72,7 @@ func NewFdWithDigestReader(bufferSize int) FdWithDigestReader {
 }
 
 // Reset resets the underlying file descriptor and the buffered reader.
-func (r *fdWithDigestReader) Reset(fd *os.File) {
+func (r *fdWithDigestReader) Reset(fd File) {
 	r.fd = fd
 	r.bufReader.Reset(fd)
 	r.readerWithDigest.Reset(r.bufReader)
@@ -83,7 +82,7 @@ func (r *fdWithDigestReader) Read(b []byte) (int, error) {
 	return r.readerWithDigest.Read(b)
 }
 
-func (r *fdWithDigestReader) Fd() *os.File {
+func (r *fdWithDigestReader) Fd() File {
 	return r.fd
 }
 

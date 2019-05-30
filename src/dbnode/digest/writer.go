@@ -23,7 +23,6 @@ package digest
 import (
 	"bufio"
 	"io"
-	"os"
 )
 
 // FdWithDigestWriter provides a buffered writer for writing to the underlying file.
@@ -47,7 +46,7 @@ func NewFdWithDigestWriter(bufferSize int) FdWithDigestWriter {
 	}
 }
 
-func (w *fdWithDigestWriter) Reset(fd *os.File) {
+func (w *fdWithDigestWriter) Reset(fd File) {
 	w.FdWithDigest.Reset(fd)
 	w.writer.Reset(fd)
 }

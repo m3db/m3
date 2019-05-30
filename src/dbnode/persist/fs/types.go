@@ -25,20 +25,22 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3/src/x/close"
+
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -162,6 +164,23 @@ type DataFileSetReader interface {
 	MetadataRead() int
 }
 
+// DataFileSetSeekerStatusType is the seeker status type.
+type DataFileSetSeekerStatusType uint
+
+const (
+	// NotOpenDataFileSetSeekerStatusType describes seeker is not open.
+	NotOpenDataFileSetSeekerStatusType DataFileSetSeekerStatusType = iota
+	// OpenDataFileSetSeekerStatusType describes seeker is open.
+	OpenDataFileSetSeekerStatusType
+	// RemovedDataFileSetSeekerStatusType describes seeker's files have been removed.
+	RemovedDataFileSetSeekerStatusType
+)
+
+// DataFileSetSeekerStatus is the status struct.
+type DataFileSetSeekerStatus struct {
+	Type DataFileSetSeekerStatusType
+}
+
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
 type DataFileSetSeeker interface {
 	io.Closer
@@ -173,6 +192,9 @@ type DataFileSetSeeker interface {
 		start time.Time,
 		resources ReusableSeekerResources,
 	) error
+
+	// Status returns the current status of the seeker.
+	Status() DataFileSetSeekerStatus
 
 	// SeekByID returns the data for specified ID provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or ID cannot be found.
@@ -323,6 +345,63 @@ type IndexFileSetReader interface {
 	// it must be called after reading all the segment file sets otherwise
 	// it returns an error.
 	Validate() error
+}
+
+// FileStatus describes the current file status.
+type FileStatus struct {
+	Type FileStatusType
+}
+
+// FileStatusType is a type of file status
+type FileStatusType uint
+
+const (
+	// AvailableFileStatusType describes an available file (exists/readable).
+	AvailableFileStatusType FileStatusType = iota
+	// RemovingFileStatusType describes a file that is being removed and
+	// waiting for ref counts to close.
+	RemovingFileStatusType
+	// RemovedFileStatusType describes a file that is deleted after
+	// ref counts have closed.
+	RemovedFileStatusType
+)
+
+// File is a the os.File methods that wraps the close and provides
+// ref counting for file deletion.
+type File interface {
+	// Status methods.
+	Status() FileStatus
+	PathAbs() string
+
+	// Watchers.
+	WatchStatus(watcher FileStatusWatcher) close.SimpleCloser
+
+	// os.File methods.
+	Close() error
+	Fd() uintptr
+	Name() string
+	Read(b []byte) (int, error)
+	ReadAt(b []byte, off int64) (int, error)
+	Readdir(n int) ([]os.FileInfo, error)
+	Readdirnames(n int) ([]string, error)
+	Seek(offset int64, whence int) (ret int64, err error)
+	Stat() (os.FileInfo, error)
+	Sync() error
+	Write(b []byte) (int, error)
+	WriteAt(b []byte, off int64) (int, error)
+}
+
+// FileStatusWatcher implements a watcher of file status.
+type FileStatusWatcher interface {
+	OnFileStatusChange(f File, status FileStatus)
+}
+
+// FileRegistry is a file lifecycle manager and should always be used in place
+// of os.Open to ensure
+type FileRegistry interface {
+	Open(filePath string) (File, error)
+	OpenFile(filePath string, flag int, perm os.FileMode) (File, error)
+	Remove(filePath string) error
 }
 
 // Options represents the options for filesystem persistence.

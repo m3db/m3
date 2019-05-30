@@ -22,14 +22,23 @@ package mmap
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
+// File is the minimum interface required for file access,
+// it allows mocked files to be used with this package.
+type File interface {
+	io.Closer
+	Name() string
+	Fd() uintptr
+}
+
 // FileOpener is the signature of a function that MmapFiles can use
 // to open files
-type FileOpener func(filePath string) (*os.File, error)
+type FileOpener func(filePath string) (File, error)
 
 // Package-level global for easy mocking
 var mmapFdFn = Fd
@@ -37,7 +46,7 @@ var mmapFdFn = Fd
 // FileDesc contains the fields required for Mmaping a file using MmapFiles
 type FileDesc struct {
 	// file is the *os.File ref to store
-	File **os.File
+	File *File
 	// bytes is the []byte slice ref to store the mmap'd address
 	Bytes *[]byte
 	// options specifies options to use when mmaping a file
@@ -75,8 +84,8 @@ type FilesResult struct {
 	Warning error
 }
 
-// Files is a utility function for mmap'ing a group of files at once
-func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
+// NewFiles is a utility function for mmap'ing a group of files at once.
+func NewFiles(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
@@ -87,7 +96,7 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 			break
 		}
 
-		result, err := File(fd, desc.Options)
+		result, err := NewFile(fd, desc.Options)
 		if err != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, err))
 			break
@@ -118,8 +127,8 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 	return FilesResult{Warning: multiWarn.FinalError()}, multiErr.FinalError()
 }
 
-// File mmap's a file
-func File(file *os.File, opts Options) (Result, error) {
+// NewFile mmap's a file.
+func NewFile(file File, opts Options) (Result, error) {
 	name := file.Name()
 	stat, err := os.Stat(name)
 	if err != nil {

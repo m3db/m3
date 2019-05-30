@@ -23,27 +23,38 @@ package digest
 import (
 	"hash"
 	"hash/adler32"
+	"io"
 	"os"
 
 	xclose "github.com/m3db/m3/src/x/close"
 )
+
+// File is a file as required for digest purposes.
+type File interface {
+	io.Reader
+	io.Writer
+	io.Closer
+	Name() string
+	Seek(offset int64, whence int) (ret int64, err error)
+	Stat() (os.FileInfo, error)
+}
 
 // FdWithDigest is a container for a file descriptor and the digest for the file contents.
 type FdWithDigest interface {
 	xclose.Closer
 
 	// Fd returns the file descriptor.
-	Fd() *os.File
+	Fd() File
 
 	// Digest returns the digest.
 	Digest() hash.Hash32
 
 	// Reset resets the file descriptor and the digest.
-	Reset(fd *os.File)
+	Reset(fd File)
 }
 
 type fdWithDigest struct {
-	fd     *os.File
+	fd     File
 	digest hash.Hash32
 }
 
@@ -53,7 +64,7 @@ func newFdWithDigest() FdWithDigest {
 	}
 }
 
-func (fwd *fdWithDigest) Fd() *os.File {
+func (fwd *fdWithDigest) Fd() File {
 	return fwd.fd
 }
 
@@ -61,7 +72,7 @@ func (fwd *fdWithDigest) Digest() hash.Hash32 {
 	return fwd.digest
 }
 
-func (fwd *fdWithDigest) Reset(fd *os.File) {
+func (fwd *fdWithDigest) Reset(fd File) {
 	fwd.fd = fd
 	fwd.digest.Reset()
 }

@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -67,6 +67,8 @@ const (
 
 type seekerManager struct {
 	sync.RWMutex
+
+	registry FileRegistry
 
 	opts             Options
 	fetchConcurrency int
@@ -122,6 +124,7 @@ type seekerManagerPendingClose struct {
 
 // NewSeekerManager returns a new TSDB file set seeker manager.
 func NewSeekerManager(
+	registry FileRegistry,
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
 	fetchConcurrency int,
@@ -391,6 +394,7 @@ func (m *seekerManager) newOpenSeeker(
 	defer m.unreadBuf.Unlock()
 
 	seekerIface := NewSeeker(
+		m.registry,
 		m.filePathPrefix,
 		m.opts.DataReaderBufferSize(),
 		m.opts.InfoReaderBufferSize(),
@@ -555,6 +559,7 @@ func (m *seekerManager) openCloseLoop() {
 			byTime.RLock()
 			for blockStartNano := range byTime.seekers {
 				blockStart := blockStartNano.ToTime()
+				// TODO: Check if seeker.Status() returns removed
 				if blockStart.Before(earliestSeekableBlockStart) {
 					shouldClose = append(shouldClose, seekerManagerPendingClose{
 						shard:      uint32(shard),

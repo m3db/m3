@@ -71,7 +71,7 @@ var (
 	defaultBufioReaderSize = bufio.NewReader(nil).Size()
 )
 
-type fileOpener func(filePath string) (*os.File, error)
+type fileOpener func(filePath string) (File, error)
 
 // LazyEvalBool is a boolean that is lazily evaluated.
 type LazyEvalBool uint8
@@ -267,7 +267,7 @@ func NewFileSetFile(id FileSetFileIdentifier, filePathPrefix string) FileSetFile
 	}
 }
 
-func openFiles(opener fileOpener, fds map[string]**os.File) error {
+func openFiles(opener fileOpener, fds map[string]*File) error {
 	var firstErr error
 	for filePath, fdPtr := range fds {
 		fd, err := opener(filePath)

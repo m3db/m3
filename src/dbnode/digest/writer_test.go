@@ -34,7 +34,7 @@ const (
 	testWriterBufferSize = 10
 )
 
-func createTestFdWithDigestWriter(t *testing.T) (*fdWithDigestWriter, *os.File, *mockDigest) {
+func createTestFdWithDigestWriter(t *testing.T) (*fdWithDigestWriter, File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
 	writer := NewFdWithDigestWriter(testWriterBufferSize).(*fdWithDigestWriter)
 	writer.FdWithDigest.(*fdWithDigest).digest = md
@@ -43,7 +43,7 @@ func createTestFdWithDigestWriter(t *testing.T) (*fdWithDigestWriter, *os.File, 
 	return writer, fd, md
 }
 
-func createTestFdWithDigestContentsWriter(t *testing.T) (*fdWithDigestContentsWriter, *os.File, *mockDigest) {
+func createTestFdWithDigestContentsWriter(t *testing.T) (*fdWithDigestContentsWriter, File, *mockDigest) {
 	fwd, fd, md := createTestFdWithDigestWriter(t)
 	writer := NewFdWithDigestContentsWriter(testWriterBufferSize).(*fdWithDigestContentsWriter)
 	writer.FdWithDigestWriter = fwd

@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
@@ -67,8 +66,8 @@ type seeker struct {
 	start     xtime.UnixNano
 	blockSize time.Duration
 
-	dataFd        *os.File
-	indexFd       *os.File
+	dataFd        File
+	indexFd       File
 	indexFileSize int64
 
 	unreadBuf []byte
@@ -92,6 +91,7 @@ type IndexEntry struct {
 
 // NewSeeker returns a new seeker.
 func NewSeeker(
+	registry FileRegistry,
 	filePathPrefix string,
 	dataBufferSize int,
 	infoBufferSize int,
@@ -100,6 +100,7 @@ func NewSeeker(
 	opts Options,
 ) DataFileSetSeeker {
 	return newSeeker(seekerOpts{
+		registry:       registry,
 		filePathPrefix: filePathPrefix,
 		dataBufferSize: dataBufferSize,
 		infoBufferSize: infoBufferSize,
@@ -110,6 +111,7 @@ func NewSeeker(
 }
 
 type seekerOpts struct {
+	registry       FileRegistry
 	filePathPrefix string
 	infoBufferSize int
 	dataBufferSize int
@@ -152,10 +154,10 @@ func (s *seeker) Open(
 	}
 
 	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
-	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
+	var infoFd, digestFd, bloomFilterFd, summariesFd File
 
 	// Open necessary files
-	if err := openFiles(os.Open, map[string]**os.File{
+	if err := openFiles(s.opts.registry.Open, map[string]*File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
@@ -264,6 +266,25 @@ func (s *seeker) Open(
 	}
 
 	return err
+}
+
+func (s *seeker) Status() DataFileSetSeekerStatus {
+	if s.indexFd == nil || s.dataFd == nil {
+		return DataFileSetSeekerStatus{
+			Type: NotOpenDataFileSetSeekerStatusType,
+		}
+	}
+
+	if s.indexFd.Status().Type != AvailableFileStatusType ||
+		s.dataFd.Status().Type != AvailableFileStatusType {
+		return DataFileSetSeekerStatus{
+			Type: RemovedDataFileSetSeekerStatusType,
+		}
+	}
+
+	return DataFileSetSeekerStatus{
+		Type: OpenDataFileSetSeekerStatusType,
+	}
 }
 
 func (s *seeker) prepareUnreadBuf(size int) {
@@ -604,7 +625,7 @@ var _ io.Reader = &offsetFileReader{}
 // and also allows the fds to be shared among concurrent goroutines since the
 // internal F.D offset managed by the kernel is not being used.
 type offsetFileReader struct {
-	fd     *os.File
+	fd     File
 	offset int64
 }
 
@@ -618,7 +639,7 @@ func (p *offsetFileReader) Read(b []byte) (n int, err error) {
 	return n, err
 }
 
-func (p *offsetFileReader) reset(fd *os.File, offset int64) {
+func (p *offsetFileReader) reset(fd File, offset int64) {
 	p.fd = fd
 	p.offset = offset
 }

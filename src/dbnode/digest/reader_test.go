@@ -32,7 +32,7 @@ const (
 	testReaderBufferSize = 10
 )
 
-func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, *mockDigest) {
+func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
 	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
 	reader.readerWithDigest.(*readerWithDigest).digest = md
@@ -40,14 +40,14 @@ func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, 
 	return reader, fd, md
 }
 
-func createTestFdWithDigestContentsReader(t *testing.T) (*fdWithDigestContentsReader, *os.File, *mockDigest) {
+func createTestFdWithDigestContentsReader(t *testing.T) (*fdWithDigestContentsReader, File, *mockDigest) {
 	fdr, fd, md := createTestFdWithDigestReader(t)
 	reader := NewFdWithDigestContentsReader(testReaderBufferSize).(*fdWithDigestContentsReader)
 	reader.FdWithDigestReader = fdr
 	return reader, fd, md
 }
 
-func bufferFor(t *testing.T, fd *os.File) []byte {
+func bufferFor(t *testing.T, fd File) []byte {
 	stat, err := fd.Stat()
 	require.NoError(t, err)
 	size := int(stat.Size())
@@ -138,7 +138,7 @@ func TestFdWithDigestReadAllFileReadError(t *testing.T) {
 		os.Remove(fd.Name())
 	}()
 
-	reader.Reset(nil)
+	reader.Reset(fd)
 	buf := bufferFor(t, fd)
 	_, err := reader.ReadAllAndValidate(buf, 0)
 	require.Error(t, err)

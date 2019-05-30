@@ -49,7 +49,7 @@ func (md *mockDigest) Size() int           { return 0 }
 func (md *mockDigest) BlockSize() int      { return 0 }
 func (md *mockDigest) Sum32() uint32       { return md.digest }
 
-func createTestFdWithDigest(t *testing.T) (*os.File, *mockDigest) {
+func createTestFdWithDigest(t *testing.T) (File, *mockDigest) {
 	fd := createTempFile(t)
 	md := &mockDigest{}
 	return fd, md
