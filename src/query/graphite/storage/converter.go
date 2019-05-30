@@ -25,8 +25,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-var (
-	wildcard = []byte(".*")
+const (
+	wildcard = "*"
 )
 
 func convertMetricPartToMatcher(
@@ -34,6 +34,13 @@ func convertMetricPartToMatcher(
 	metric string,
 ) (models.Matcher, error) {
 	var matchType models.MatchType
+	if metric == wildcard {
+		return models.Matcher{
+			Type: models.MatchField,
+			Name: graphite.TagName(count),
+		}, nil
+	}
+
 	value, isRegex, err := graphite.GlobToRegexPattern(metric)
 	if err != nil {
 		return models.Matcher{}, err
@@ -54,8 +61,7 @@ func convertMetricPartToMatcher(
 
 func matcherTerminator(count int) models.Matcher {
 	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: wildcard,
+		Type: models.MatchNotField,
+		Name: graphite.TagName(count),
 	}
 }

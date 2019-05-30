@@ -120,6 +120,8 @@ const (
 	MatchNotEqual
 	MatchRegexp
 	MatchNotRegexp
+	MatchField
+	MatchNotField
 	MatchAll
 )
 
