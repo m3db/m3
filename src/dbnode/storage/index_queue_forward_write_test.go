@@ -95,23 +95,26 @@ func setupForwardIndex(
 	assert.NoError(t, err)
 
 	var (
-		ts   = idx.(*nsIndex).state.latestBlock.StartTime()
-		next = ts.Truncate(blockSize).Add(blockSize)
-		id   = ident.StringID("foo")
-		tags = ident.NewTags(
+		ts     = idx.(*nsIndex).state.latestBlock.StartTime()
+		nextTs = ts.Add(blockSize)
+		next   = ts.Truncate(blockSize).Add(blockSize)
+		id     = ident.StringID("foo")
+		tags   = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
 		lifecycle = index.NewMockOnIndexSeries(ctrl)
 	)
 
-	lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts))
-	lifecycle.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts))
+	gomock.InOrder(
+		lifecycle.EXPECT().NeedsIndexUpdate(xtime.ToUnixNano(next)).Return(true),
+		lifecycle.EXPECT().OnIndexPrepare(),
 
-	lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts.Add(blockSize)))
-	lifecycle.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts.Add(blockSize)))
+		lifecycle.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts)),
+		lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts)),
 
-	lifecycle.EXPECT().NeedsIndexUpdate(xtime.ToUnixNano(next)).Return(true)
-	lifecycle.EXPECT().OnIndexPrepare()
+		lifecycle.EXPECT().OnIndexSuccess(xtime.ToUnixNano(nextTs)),
+		lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(nextTs)),
+	)
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycle)
 	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
@@ -134,10 +137,12 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
-	for _, start := range []time.Time{now, now.Add(blockSize)} {
+	nextBlockTime := now.Add(blockSize)
+	queryTimes := []time.Time{now, nextBlockTime}
+	for _, ts := range queryTimes {
 		res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
-			StartInclusive: start.Add(-1 * time.Minute),
-			EndExclusive:   start.Add(1 * time.Minute),
+			StartInclusive: ts.Add(-1 * time.Minute),
+			EndExclusive:   ts.Add(1 * time.Minute),
 		})
 		require.NoError(t, err)
 
@@ -167,12 +172,14 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
-	for _, start := range []time.Time{now, now.Add(blockSize)} {
+	nextBlockTime := now.Add(blockSize)
+	queryTimes := []time.Time{now, nextBlockTime}
+	for _, ts := range queryTimes {
 		res, err := idx.AggregateQuery(ctx, index.Query{Query: reQuery},
 			index.AggregationOptions{
 				QueryOptions: index.QueryOptions{
-					StartInclusive: start.Add(-1 * time.Minute),
-					EndExclusive:   start.Add(1 * time.Minute),
+					StartInclusive: ts.Add(-1 * time.Minute),
+					EndExclusive:   ts.Add(1 * time.Minute),
 				},
 			},
 		)
