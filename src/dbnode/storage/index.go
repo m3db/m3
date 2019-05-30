@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -113,6 +113,10 @@ type nsIndex struct {
 	queriesWg sync.WaitGroup
 
 	metrics nsIndexMetrics
+
+	// forwardIndexDice determines if an incoming index write should be dual
+	// written to the next block.
+	forwardIndexDice forwardIndexDice
 }
 
 type nsIndexState struct {
@@ -292,6 +296,14 @@ func newNamespaceIndexWithOptions(
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
 	}
 
+	// set up forward index dice.
+	dice, err := newForwardIndexDice(newIndexOpts.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	idx.forwardIndexDice = dice
+
 	// allocate indexing queue and start it up.
 	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
 	if err := queue.Start(); err != nil {
@@ -302,7 +314,7 @@ func newNamespaceIndexWithOptions(
 	// allocate the current block to ensure we're able to index as soon as we return
 	currentBlock := nowFn().Truncate(idx.blockSize)
 	idx.state.RLock()
-	_, err := idx.ensureBlockPresentWithRLock(currentBlock)
+	_, err = idx.ensureBlockPresentWithRLock(currentBlock)
 	idx.state.RUnlock()
 	if err != nil {
 		return nil, err
@@ -501,30 +513,59 @@ func (i *nsIndex) writeBatches(
 		// on the provided inserts to terminate quicker during shutdown.
 		return
 	}
-	now := i.nowFn()
-	futureLimit := now.Add(1 * i.bufferFuture)
-	pastLimit := now.Add(-1 * i.bufferPast)
+	var (
+		now                 = i.nowFn()
+		blockSize           = i.blockSize
+		futureLimit         = now.Add(1 * i.bufferFuture)
+		pastLimit           = now.Add(-1 * i.bufferPast)
+		batchOptions        = batch.Options()
+		forwardIndexDice    = i.forwardIndexDice
+		forwardIndexEnabled = forwardIndexDice.enabled
+
+		forwardIndexBatch *index.WriteBatch
+	)
 	// NB(r): Release lock early to avoid writing batches impacting ticking
 	// speed, etc.
 	// Sometimes foreground compaction can take a long time during heavy inserts.
 	// Each lookup to ensureBlockPresent checks that index is still open, etc.
 	i.state.RUnlock()
 
+	if forwardIndexEnabled {
+		// NB(arnikola): Don't initialize forward index batch if forward indexing
+		// is not enabled.
+		forwardIndexBatch = index.NewWriteBatch(batchOptions)
+	}
 	// Ensure timestamp is not too old/new based on retention policies and that
-	// doc is valid.
+	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
-			if !futureLimit.After(entry.Timestamp) {
+			ts := entry.Timestamp
+			if !futureLimit.After(ts) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
 			}
 
-			if !entry.Timestamp.After(pastLimit) {
+			if !ts.After(pastLimit) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
 				return
 			}
+
+			if forwardIndexDice.roll(ts) {
+				forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
+				xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
+				if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
+					forwardIndexEntry := entry
+					forwardIndexEntry.Timestamp = forwardEntryTimestamp
+					forwardIndexEntry.OnIndexSeries.OnIndexPrepare()
+					forwardIndexBatch.Append(forwardIndexEntry, d)
+				}
+			}
 		})
+
+	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
+		batch.AppendAll(forwardIndexBatch)
+	}
 
 	// Sort the inserts by which block they're applicable for, and do the inserts
 	// for each block, making sure to not try to insert any entries already marked

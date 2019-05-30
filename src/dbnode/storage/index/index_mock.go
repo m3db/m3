@@ -602,6 +602,32 @@ func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize(blockStart interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexFinalize), blockStart)
 }
 
+// OnIndexPrepare mocks base method
+func (m *MockOnIndexSeries) OnIndexPrepare() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "OnIndexPrepare")
+}
+
+// OnIndexPrepare indicates an expected call of OnIndexPrepare
+func (mr *MockOnIndexSeriesMockRecorder) OnIndexPrepare() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexPrepare", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexPrepare))
+}
+
+// NeedsIndexUpdate mocks base method
+func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time0.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsIndexUpdate", indexBlockStartForWrite)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsIndexUpdate indicates an expected call of NeedsIndexUpdate
+func (mr *MockOnIndexSeriesMockRecorder) NeedsIndexUpdate(indexBlockStartForWrite interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsIndexUpdate", reflect.TypeOf((*MockOnIndexSeries)(nil).NeedsIndexUpdate), indexBlockStartForWrite)
+}
+
 // MockBlock is a mock of Block interface
 type MockBlock struct {
 	ctrl     *gomock.Controller

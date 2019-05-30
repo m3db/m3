@@ -269,6 +269,23 @@ type OnIndexSeries interface {
 	// during the course of indexing. `blockStart` is the startTime of the index
 	// block for which the write was attempted.
 	OnIndexFinalize(blockStart xtime.UnixNano)
+
+	// OnIndexPrepare prepares the Entry to be handed off to the indexing sub-system.
+	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
+	// the callback executed on the entry once the indexing is completed releases this
+	// reference.
+	OnIndexPrepare()
+
+	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
+	// for the provided blockStart. It only allows a single index attempt at a time
+	// for a single entry.
+	// NB(prateek): NeedsIndexUpdate is a CAS, i.e. when this method returns true, it
+	// also sets state on the entry to indicate that a write for the given blockStart
+	// is going to be sent to the index, and other go routines should not attempt the
+	// same write. Callers are expected to ensure they follow this guideline.
+	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
+	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
+	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
 }
 
 // Block represents a collection of segments. Each `Block` is a complete reverse
@@ -433,6 +450,11 @@ func (b *WriteBatch) Append(
 ) {
 	// Append just using the result from the current entry
 	b.appendWithResult(entry, doc, &entry.resultVal)
+}
+
+// Options returns the WriteBatchOptions for this batch.
+func (b *WriteBatch) Options() WriteBatchOptions {
+	return b.opts
 }
 
 // AppendAll appends all entries from another batch to this batch
