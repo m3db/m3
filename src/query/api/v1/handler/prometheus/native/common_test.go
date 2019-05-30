@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -351,14 +352,6 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 						]
 					],
 					"step_size_ms": 10000
-				},
-				{
-					"metric": {
-						"biz": "baz",
-						"qux": "qaz"
-					},
-					"values": [],
-					"step_size_ms": 10000
 				}
 			]
 		}
@@ -428,4 +421,41 @@ func mustPrettyJSON(t *testing.T, str string) string {
 	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
 	require.NoError(t, err)
 	return string(pretty)
+}
+
+func TestSanitizeSeries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	nan := math.NaN()
+	testData := []struct {
+		name string
+		data []float64
+	}{
+		{"1", []float64{nan, nan, nan, nan}},
+		{"2", []float64{nan, nan, nan, 1}},
+		{"3", []float64{nan, nan, nan, nan}},
+		{"4", []float64{nan, nan, 1, nan}},
+		{"5", []float64{1, 1, 1, 1}},
+		{"6", []float64{nan, nan, nan, nan}},
+	}
+
+	series := make([]*ts.Series, 0, len(testData))
+	tags := models.NewTags(0, models.NewTagOptions())
+	for _, d := range testData {
+		vals := ts.NewMockValues(ctrl)
+		dps := make(ts.Datapoints, 0, len(d.data))
+		for _, p := range d.data {
+			dps = append(dps, ts.Datapoint{Value: p})
+		}
+
+		vals.EXPECT().Datapoints().Return(dps)
+		series = append(series, ts.NewSeries([]byte(d.name), vals, tags))
+	}
+
+	series = filterNaNSeries(series)
+	require.Equal(t, 3, len(series))
+	assert.Equal(t, "2", string(series[0].Name()))
+	assert.Equal(t, "4", string(series[1].Name()))
+	assert.Equal(t, "5", string(series[2].Name()))
 }
