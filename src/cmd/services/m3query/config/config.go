@@ -406,6 +406,18 @@ type ClusterManagementConfiguration struct {
 	Etcd etcdclient.Configuration `yaml:"etcd"`
 }
 
+// RemoteZones is a set of remote zone configurations.
+type RemoteZones []RemoteZone
+
+// RemoteZone is the configuration for a single remote zone.
+type RemoteZone struct {
+	// Name is the name for the remote zone.
+	Name string `yaml:"name"`
+	// RemoteListenAddresses is the remote listen addresses to call for remote
+	// coordinator calls in the remote zone.
+	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+}
+
 // RPCConfiguration is the RPC configuration for the coordinator for
 // the GRPC server used for remote coordinator to coordinator calls.
 type RPCConfiguration struct {
@@ -415,8 +427,14 @@ type RPCConfiguration struct {
 	// ListenAddress is the RPC server listen address.
 	ListenAddress string `yaml:"listenAddress"`
 
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
+	// RemoteZones are the configuration settings for remote coordinator zones.
+	RemoteZones RemoteZones `yaml:"remoteZones"`
+
+	// RemoteListenAddresses is the remote listen addresses to call for
+	// remote coordinator calls.
+	//
+	// NB: this is deprecated in favor of using RemoteZones, as setting
+	// RemoteListenAddresses will only allow for a single remote zone to be used.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
 }
 

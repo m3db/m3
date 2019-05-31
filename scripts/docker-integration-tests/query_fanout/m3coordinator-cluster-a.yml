@@ -16,7 +16,11 @@ metrics:
 rpc:
   enabled: true
   listenAddress: "0.0.0.0:7202"
-  remoteListenAddresses: ["coordinator-cluster-b:7202"]
+  remoteZones:
+    - name: "cluster-b"
+      remoteListenAddresses: ["coordinator-cluster-b:7202"]
+    - name: "cluster-c"
+      remoteListenAddresses: ["coordinator-cluster-c:7202"]
 
 clusters:
   - namespaces:
