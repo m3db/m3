@@ -52,20 +52,36 @@ type Engine interface {
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error
 
+	// Opts returns the engine options.
 	Opts() EngineOptions
+	// SetOpts sets the engine options.
 	SetOpts(EngineOptions) Engine
 }
 
 // EngineOptions can be used to pass custom flags to engine.
 type EngineOptions interface {
+	// QueryContextOptions returns the query context options.
 	QueryContextOptions() models.QueryContextOptions
+	// SetQueryContextOptions sets the query context options.
 	SetQueryContextOptions(models.QueryContextOptions) EngineOptions
+
+	// CostScopte returns the scope used for metrics.
 	CostScope() tally.Scope
+	// SetCostScope sets the scope used for metrics.
 	SetCostScope(tally.Scope) EngineOptions
+
+	// GlobalEnforcer returns the query cost enforcer
 	GlobalEnforcer() qcost.ChainedEnforcer
+	// SetGlobalEnforcer sets the query cost enforcer
 	SetGlobalEnforcer(qcost.ChainedEnforcer) EngineOptions
+
+	// Store returns the storage
 	Store() storage.Storage
+	// SetStore sets the storage
 	SetStore(storage.Storage) EngineOptions
+
+	// LookbackDuration returns the query lookback duration
 	LookbackDuration() time.Duration
+	// SetLookbackDuration sets the query lookback duration
 	SetLookbackDuration(time.Duration) EngineOptions
 }
