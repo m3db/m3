@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/opentracing"
+	"github.com/m3db/m3/src/x/opentracing"
 
 	"github.com/uber-go/tally"
 )
@@ -173,7 +173,7 @@ func (e *Engine) ExecuteExpr(
 		return
 	}
 
-	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "executing")
+	sp, ctx := opentracing.StartSpanFromContext(ctx, "executing")
 	defer sp.Finish()
 
 	result := state.resultNode

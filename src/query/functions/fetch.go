@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
+	"github.com/m3db/m3/src/x/opentracing"
 
 	"go.uber.org/zap"
 )
@@ -90,7 +90,7 @@ func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage,
 
 func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	ctx := queryCtx.Ctx
-	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "fetch")
+	sp, ctx := opentracing.StartSpanFromContext(ctx, "fetch")
 	defer sp.Finish()
 
 	timeSpec := n.timespec
