@@ -79,3 +79,27 @@ resultOptions:
 # for quick local setup (which this config will send data to).
 tracing:
   backend: jaeger
+
+# limits place logical limitations on the resource usage of the query service,
+# expressed primarily in the number of datapoints used by a query.
+limits:
+  # perQuery limits apply to each individual call to the query service, and
+  # are evaluated in isolation.
+  perQuery:
+    # maxFetchedDatapoints limits the number of datapoints used in the
+    # course of a query. They are evaluated across all time series in the query;
+    # roughly, the number of datapoints for a
+    # query = num_series * resolution * length_of_query
+    # TODO (andrewmains12): the numbers here are not representative of
+    # production worloads; provide guidance on tweaking these.
+    maxFetchedDatapoints: 100000 # 100k
+
+  # global limits are calculated across queries, and limit the resources used
+  # by *all* in-flight queries
+  global:
+    # maxFetchedDatapoints limits the total number of datapoints used
+    # by all running queries at any given time. See limits.perQuery.maxFetchedDatapoints
+    # for a discussion on how these are calculated.
+    # TODO (andrewmains12): the numbers here are not representative of
+    # production worloads; provide guidance on tweaking these.
+    maxFetchedDatapoints: 1000000 # 1 million
