@@ -176,7 +176,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
-		h.scope.Tagged(remoteSource), h.timeoutOpts)
+		h.fetchOptionsBuilder, h.scope.Tagged(remoteSource), h.timeoutOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
 		h.downsamplerAndWriter,
 		h.tagOptions,
