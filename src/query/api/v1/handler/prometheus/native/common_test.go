@@ -291,12 +291,18 @@ func TestRenderResultsJSON(t *testing.T) {
 }
 
 func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
-	start := time.Unix(1535948880, 0)
-	buffer := bytes.NewBuffer(nil)
-	params := models.RequestParams{}
-	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
-	valsWithNaN.SetValueAt(1, math.NaN())
+	var (
+		start       = time.Unix(1535948880, 0)
+		buffer      = bytes.NewBuffer(nil)
+		step        = 10 * time.Second
+		valsWithNaN = ts.NewFixedStepValues(step, 2, 1, start)
+		params      = models.RequestParams{
+			Start: start,
+			End:   start.Add(2 * step),
+		}
+	)
 
+	valsWithNaN.SetValueAt(1, math.NaN())
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
 			valsWithNaN, test.TagSliceToTags([]models.Tag{
@@ -304,12 +310,12 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+			ts.NewFixedStepValues(step, 2, 2, start), test.TagSliceToTags([]models.Tag{
 				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
 				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
+			ts.NewFixedStepValues(step, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
 				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
 				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
@@ -438,22 +444,33 @@ func TestSanitizeSeries(t *testing.T) {
 		{"4", []float64{nan, nan, 1, nan}},
 		{"5", []float64{1, 1, 1, 1}},
 		{"6", []float64{nan, nan, nan, nan}},
+		{"no values", []float64{}},
+		{"non-nan point is too early", []float64{1, nan, nan, nan, nan}},
+		{"non-nan point is too late ", []float64{nan, nan, nan, nan, 1}},
 	}
 
-	series := make([]*ts.Series, 0, len(testData))
-	tags := models.NewTags(0, models.NewTagOptions())
+	var (
+		series = make([]*ts.Series, 0, len(testData))
+		tags   = models.NewTags(0, models.NewTagOptions())
+		now    = time.Now()
+		step   = time.Minute
+		start  = now.Add(step)
+		end    = now.Add(step * 3)
+	)
+
 	for _, d := range testData {
 		vals := ts.NewMockValues(ctrl)
 		dps := make(ts.Datapoints, 0, len(d.data))
-		for _, p := range d.data {
-			dps = append(dps, ts.Datapoint{Value: p})
+		for i, p := range d.data {
+			timestamp := now.Add(time.Duration(i) * step)
+			dps = append(dps, ts.Datapoint{Value: p, Timestamp: timestamp})
 		}
 
 		vals.EXPECT().Datapoints().Return(dps)
 		series = append(series, ts.NewSeries([]byte(d.name), vals, tags))
 	}
 
-	series = filterNaNSeries(series)
+	series = filterNaNSeries(series, start, end)
 	require.Equal(t, 3, len(series))
 	assert.Equal(t, "2", string(series[0].Name()))
 	assert.Equal(t, "4", string(series[1].Name()))
