@@ -70,18 +70,18 @@ type EngineOptions interface {
 	// SetCostScope sets the scope used for metrics.
 	SetCostScope(tally.Scope) EngineOptions
 
-	// GlobalEnforcer returns the query cost enforcer
+	// GlobalEnforcer returns the query cost enforcer.
 	GlobalEnforcer() qcost.ChainedEnforcer
-	// SetGlobalEnforcer sets the query cost enforcer
+	// SetGlobalEnforcer sets the query cost enforcer.
 	SetGlobalEnforcer(qcost.ChainedEnforcer) EngineOptions
 
-	// Store returns the storage
+	// Store returns the storage.
 	Store() storage.Storage
-	// SetStore sets the storage
+	// SetStore sets the storage.
 	SetStore(storage.Storage) EngineOptions
 
-	// LookbackDuration returns the query lookback duration
+	// LookbackDuration returns the query lookback duration.
 	LookbackDuration() time.Duration
-	// SetLookbackDuration sets the query lookback duration
+	// SetLookbackDuration sets the query lookback duration.
 	SetLookbackDuration(time.Duration) EngineOptions
 }

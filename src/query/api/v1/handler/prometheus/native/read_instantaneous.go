@@ -87,10 +87,9 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	engineOpts := h.engine.Opts().SetQueryContextOptions(
-		models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOpts.Limit,
-		})
+	engineOpts := h.engine.Opts().SetQueryContextOptions(models.QueryContextOptions{
+		LimitMaxTimeseries: fetchOpts.Limit,
+	})
 	h.engine = h.engine.SetOpts(engineOpts)
 
 	result, err := read(ctx, h.engine, h.tagOpts, w, params)

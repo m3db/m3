@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ type engineOptions struct {
 	lookbackDuration    time.Duration
 }
 
-// NewEngineOpts returns a new instance of QueryExecutor.
+// NewEngineOpts returns a new instance of options used to create an engine.
 func NewEngineOpts() EngineOptions {
 	return &engineOptions{}
 }
