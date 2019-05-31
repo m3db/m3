@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
+
 	"github.com/uber-go/tally"
 )
 
