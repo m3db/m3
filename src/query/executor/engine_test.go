@@ -49,8 +49,10 @@ func TestEngine_Execute(t *testing.T) {
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
+	engineOpts := NewEngineOpts().SetStore(store).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
+	engine := NewEngine(engineOpts)
+	go engine.Execute(context.TODO(), &storage.FetchQuery{}, results)
 	res := <-results
 	assert.NotNil(t, res.Err)
 }
@@ -68,8 +70,10 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 		require.NoError(t, err)
 
 		results := make(chan Query)
-		engine := NewEngine(mock.NewMockStorage(), tally.NewTestScope("", nil), defaultLookbackDuration, mockParent)
-		go engine.ExecuteExpr(context.TODO(), parser, &EngineOptions{}, models.RequestParams{
+		engineOpts := NewEngineOpts().SetStore(mock.NewMockStorage()).SetCostScope(tally.NewTestScope("", nil)).
+			SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(mockParent)
+		engine := NewEngine(engineOpts)
+		go engine.ExecuteExpr(context.TODO(), parser, models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),
 			End:   time.Now(),
 			Step:  time.Second,

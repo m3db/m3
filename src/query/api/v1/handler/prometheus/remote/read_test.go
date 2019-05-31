@@ -71,8 +71,10 @@ func setupServer(t *testing.T) *httptest.Server {
 
 func readHandler(store storage.Storage, timeoutOpts *prometheus.TimeoutOpts) *PromReadHandler {
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	engineOpts := executor.NewEngineOpts().SetStore(store).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(nil)
 	return &PromReadHandler{
-		engine:              executor.NewEngine(store, tally.NewTestScope("test", nil), defaultLookbackDuration, nil),
+		engine:              executor.NewEngine(engineOpts),
 		promReadMetrics:     promReadTestMetrics,
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
@@ -84,9 +86,10 @@ func TestPromReadParsing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(nil)
 	promRead := &PromReadHandler{
-		engine: executor.NewEngine(storage, tally.NewTestScope("test", nil),
-			defaultLookbackDuration, nil),
+		engine:              executor.NewEngine(engineOpts),
 		promReadMetrics:     promReadTestMetrics,
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
 	}
@@ -102,8 +105,10 @@ func TestPromFetchTimeoutParsing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(nil)
 	promRead := &PromReadHandler{
-		engine:          executor.NewEngine(storage, tally.NewTestScope("test", nil), defaultLookbackDuration, nil),
+		engine:          executor.NewEngine(engineOpts),
 		promReadMetrics: promReadTestMetrics,
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: 2 * time.Minute,
@@ -193,8 +198,10 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(scope).
+		SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(nil)
 	promRead := &PromReadHandler{
-		engine:              executor.NewEngine(storage, scope, defaultLookbackDuration, nil),
+		engine:              executor.NewEngine(engineOpts),
 		promReadMetrics:     readMetrics,
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),

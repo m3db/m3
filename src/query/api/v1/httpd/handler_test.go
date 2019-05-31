@@ -64,11 +64,12 @@ func makeTagOptions() models.TagOptions {
 
 func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
+	engineOpts := executor.NewEngineOpts().SetStore(store).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
 	return NewHandler(
 		downsamplerAndWriter,
 		makeTagOptions(),
-		executor.NewEngine(store, tally.NewTestScope("test", nil),
-			time.Minute, nil),
+		executor.NewEngine(engineOpts),
 		nil,
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
@@ -88,7 +89,9 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 
 	negValue := -1 * time.Second
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
-	engine := executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
+	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
+	engine := executor.NewEngine(engineOpts)
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
 		cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
@@ -106,7 +109,9 @@ func TestHandlerFetchTimeout(t *testing.T) {
 
 	fourMin := 4 * time.Minute
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
-	engine := executor.NewEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
+	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(tally.NewTestScope("test", nil)).
+		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
+	engine := executor.NewEngine(engineOpts)
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
 		nil, nil, cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),

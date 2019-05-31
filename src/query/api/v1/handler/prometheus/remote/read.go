@@ -26,11 +26,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -51,7 +51,7 @@ const (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine              *executor.Engine
+	engine              executor.Engine
 	promReadMetrics     promReadMetrics
 	timeoutOpts         *prometheus.TimeoutOpts
 	fetchOptionsBuilder handler.FetchOptionsBuilder
@@ -59,7 +59,7 @@ type PromReadHandler struct {
 
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
-	engine *executor.Engine,
+	engine executor.Engine,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	scope tally.Scope,
 	timeoutOpts *prometheus.TimeoutOpts,
@@ -187,15 +187,14 @@ func (h *PromReadHandler) read(
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	opts := &executor.EngineOptions{
-		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: limit,
-		},
-	}
+	engineOpts := h.engine.Opts().SetQueryContextOptions(models.QueryContextOptions{
+		LimitMaxTimeseries: limit,
+	})
+	h.engine = h.engine.SetOpts(engineOpts)
 
 	// Detect clients closing connections
 	handler.CloseWatcher(ctx, cancel, w)
-	go h.engine.Execute(ctx, query, opts, results)
+	go h.engine.Execute(ctx, query, results)
 
 	promResults := make([]*prompb.QueryResult, 0, 1)
 	for result := range results {

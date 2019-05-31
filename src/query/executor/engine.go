@@ -33,18 +33,9 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// Engine executes a Query.
-type Engine struct {
-	metrics          *engineMetrics
-	costScope        tally.Scope
-	globalEnforcer   qcost.ChainedEnforcer
-	store            storage.Storage
-	lookbackDuration time.Duration
-}
-
-// EngineOptions can be used to pass custom flags to engine.
-type EngineOptions struct {
-	QueryContextOptions models.QueryContextOptions
+type engine struct {
+	opts    EngineOptions
+	metrics *engineMetrics
 }
 
 // Query is the result after execution.
@@ -55,20 +46,15 @@ type Query struct {
 
 // NewEngine returns a new instance of QueryExecutor.
 func NewEngine(
-	store storage.Storage,
-	scope tally.Scope,
-	lookbackDuration time.Duration,
-	factory qcost.ChainedEnforcer,
-) *Engine {
-	if factory == nil {
-		factory = qcost.NoopChainedEnforcer()
+	engineOpts EngineOptions,
+) Engine {
+	if engineOpts.GlobalEnforcer() == nil {
+		engineOpts = engineOpts.SetGlobalEnforcer(qcost.NoopChainedEnforcer())
 	}
-	return &Engine{
-		metrics:          newEngineMetrics(scope),
-		costScope:        scope,
-		store:            store,
-		lookbackDuration: lookbackDuration,
-		globalEnforcer:   factory,
+
+	return &engine{
+		metrics: newEngineMetrics(engineOpts.CostScope()),
+		opts:    engineOpts,
 	}
 }
 
@@ -118,19 +104,27 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 	}
 }
 
-// Execute runs the query and closes the results channel once done
-func (e *Engine) Execute(
+func (e *engine) Opts() EngineOptions {
+	return e.opts
+}
+
+func (e *engine) SetOpts(v EngineOptions) Engine {
+	engine := *e
+	engine.opts = v
+	return &engine
+}
+
+func (e *engine) Execute(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	opts *EngineOptions,
 	results chan *storage.QueryResult,
 ) {
 	defer close(results)
 
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
+	fetchOpts.Limit = e.opts.QueryContextOptions().LimitMaxTimeseries
 
-	result, err := e.store.Fetch(ctx, query, fetchOpts)
+	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
 	if err != nil {
 		results <- &storage.QueryResult{Err: err}
 		return
@@ -139,18 +133,16 @@ func (e *Engine) Execute(
 	results <- &storage.QueryResult{FetchResult: result}
 }
 
-// ExecuteExpr runs the query DAG and closes the results channel once done
 // nolint: unparam
-func (e *Engine) ExecuteExpr(
+func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
-	opts *EngineOptions,
 	params models.RequestParams,
 	results chan Query,
 ) {
 	defer close(results)
 
-	perQueryEnforcer := e.globalEnforcer.Child(qcost.QueryLevel)
+	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
 	req := newRequest(e, params)
 
@@ -179,8 +171,8 @@ func (e *Engine) ExecuteExpr(
 	result := state.resultNode
 	results <- Query{Result: result}
 
-	queryCtx := models.NewQueryContext(ctx, e.costScope, perQueryEnforcer,
-		opts.QueryContextOptions)
+	queryCtx := models.NewQueryContext(ctx, e.opts.CostScope(), perQueryEnforcer,
+		e.opts.QueryContextOptions())
 	if err := state.Execute(queryCtx); err != nil {
 		result.abort(err)
 	} else {
@@ -188,7 +180,6 @@ func (e *Engine) ExecuteExpr(
 	}
 }
 
-// Close kills all running queries and prevents new queries from being attached.
-func (e *Engine) Close() error {
+func (e *engine) Close() error {
 	return nil
 }
