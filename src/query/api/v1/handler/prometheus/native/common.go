@@ -240,13 +240,21 @@ func parseQuery(r *http.Request) (string, error) {
 	return queries[0], nil
 }
 
-func filterNaNSeries(series []*ts.Series) []*ts.Series {
+func filterNaNSeries(series []*ts.Series,
+	start time.Time,
+	end time.Time,
+) []*ts.Series {
 	filtered := series[:0]
 	for _, s := range series {
 		dps := s.Values().Datapoints()
 		hasVal := false
 		for _, dp := range dps {
 			if !math.IsNaN(dp.Value) {
+				ts := dp.Timestamp
+				if ts.Before(start) || ts.After(end) {
+					continue
+				}
+
 				hasVal = true
 				break
 			}
@@ -268,7 +276,7 @@ func renderResultsJSON(
 ) {
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
 	if !keepNans {
-		series = filterNaNSeries(series)
+		series = filterNaNSeries(series, params.Start, params.End)
 	}
 
 	jw := json.NewWriter(w)
