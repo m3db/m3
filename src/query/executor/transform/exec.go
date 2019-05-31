@@ -24,7 +24,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/util/opentracing"
+	"github.com/m3db/m3/src/x/opentracing"
 )
 
 // simpleOpNode defines the contract for OpNode instances which
@@ -48,7 +48,7 @@ func ProcessSimpleBlock(
 	ID parser.NodeID,
 	b block.Block,
 ) error {
-	sp, ctx := opentracingutil.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
+	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
 	nextBlock, err := node.ProcessBlock(queryCtx.WithContext(ctx), ID, b)
 	sp.Finish()
 	if err != nil {

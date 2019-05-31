@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracingext "github.com/opentracing/opentracing-go/ext"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -189,7 +189,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	result, err := read(ctx, engine, opts, h.tagOpts, w, params)
 	if err != nil {
-		sp := opentracingutil.SpanFromContextOrNoop(ctx)
+		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))

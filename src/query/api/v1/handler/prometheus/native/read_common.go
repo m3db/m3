@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/ts"
-	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
@@ -49,13 +49,13 @@ func read(
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
-	sp := opentracingutil.SpanFromContextOrNoop(ctx)
+	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
-		opentracingutil.Time("params.start", params.Start),
-		opentracingutil.Time("params.end", params.End),
-		opentracingutil.Time("params.now", params.Now),
-		opentracingutil.Duration("params.step", params.Step),
+		xopentracing.Time("params.start", params.Start),
+		xopentracing.Time("params.end", params.End),
+		xopentracing.Time("params.now", params.Now),
+		xopentracing.Duration("params.step", params.Step),
 	)
 
 	// Detect clients closing connections
