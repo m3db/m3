@@ -302,9 +302,11 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 	logging.InitWithCores(nil)
 
 	mockStorage := mock.NewMockStorage()
+	engineOpts := executor.NewEngineOpts().SetStore(mockStorage).SetCostScope(tally.NewTestScope("test_engine", nil)).
+		SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(cost.NoopChainedEnforcer())
 	debugHandler := NewPromDebugHandler(
 		native.NewPromReadHandler(
-			executor.NewEngine(mockStorage, tally.NewTestScope("test_engine", nil), defaultLookbackDuration, cost.NoopChainedEnforcer()),
+			executor.NewEngine(engineOpts),
 			handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},

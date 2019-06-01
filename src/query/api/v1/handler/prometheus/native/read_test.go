@@ -63,7 +63,7 @@ func TestPromReadHandler_Read(t *testing.T) {
 	r, parseErr := parseParams(req, timeoutOpts)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, err := read(context.TODO(), promRead.engine, setup.EngineOpts,
+	seriesList, err := read(context.TODO(), promRead.engine, setup.QueryOpts,
 		promRead.tagOpts, httptest.NewRecorder(), r)
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
@@ -122,7 +122,7 @@ func newReadRequest(t *testing.T, params url.Values) *http.Request {
 type testSetup struct {
 	Storage     mock.Storage
 	Handlers    testSetupHandlers
-	EngineOpts  *executor.EngineOptions
+	QueryOpts   *executor.QueryOptions
 	TimeoutOpts *prometheus.TimeoutOpts
 }
 
@@ -135,8 +135,9 @@ func newTestSetup() *testSetup {
 	mockStorage := mock.NewMockStorage()
 
 	scope := tally.NoopScope
-	engine := executor.NewEngine(mockStorage, scope,
-		time.Minute, nil)
+	engineOpts := executor.NewEngineOpts().SetStore(mockStorage).SetCostScope(scope).
+		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
+	engine := executor.NewEngine(engineOpts)
 	fetchOptsBuilderCfg := handler.FetchOptionsBuilderOptions{}
 	fetchOptsBuilder := handler.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 	tagOpts := models.NewTagOptions()
@@ -155,7 +156,7 @@ func newTestSetup() *testSetup {
 			Read:        read,
 			InstantRead: instantRead,
 		},
-		EngineOpts:  &executor.EngineOptions{},
+		QueryOpts:   &executor.QueryOptions{},
 		TimeoutOpts: timeoutOpts,
 	}
 }
