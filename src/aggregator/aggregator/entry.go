@@ -54,9 +54,9 @@ var (
 	errEmptyMetadatas              = errors.New("empty metadata list")
 	errNoApplicableMetadata        = errors.New("no applicable metadata")
 	errNoPipelinesInMetadata       = errors.New("no pipelines in metadata")
-	errTooFarInTheFuture           = errors.New("too far in the future")
-	errTooFarInThePast             = errors.New("too far in the past")
-	errArrivedTooLate              = errors.New("arrived too late")
+	errTooFarInTheFuture           = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
+	errTooFarInThePast             = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
+	errArrivedTooLate              = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
 )
 
 type rateLimitEntryMetrics struct {

@@ -232,6 +232,11 @@ func (e MultiError) Error() string {
 	return b.String()
 }
 
+// Errors returns all the errors to inspect individually.
+func (e MultiError) Errors() []error {
+	return e.errors
+}
+
 // Add adds an error returns a new MultiError object.
 func (e MultiError) Add(err error) MultiError {
 	if err == nil {

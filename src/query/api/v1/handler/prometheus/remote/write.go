@@ -25,6 +25,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/m3db/m3/src/dbnode/client"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -33,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -99,14 +102,33 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.write(r.Context(), req)
-	if err != nil {
+	batchErr := h.write(r.Context(), req)
+	if batchErr != nil {
+		numBadRequest := 0
+		errs := batchErr.Errors()
+		lastErr := batchErr.LastError()
+		for _, err := range errs {
+			switch {
+			case client.IsBadRequestError(err):
+				fallthrough
+			case xerrors.IsInvalidParams(err):
+				numBadRequest++
+			}
+		}
+
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
+
 		logger := logging.WithContext(r.Context())
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
-			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+			zap.Error(lastErr))
+
+		status := http.StatusInternalServerError
+		if numBadRequest == len(errs) {
+			status = http.StatusBadRequest
+		}
+
+		xhttp.Error(w, lastErr, status)
 		return
 	}
 
@@ -127,7 +149,7 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 	return &req, nil
 }
 
-func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
+func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) ingest.BatchError {
 	iter := newPromTSIter(r.Timeseries, h.tagOptions)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
 }
