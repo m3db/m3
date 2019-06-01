@@ -77,7 +77,7 @@ type Handler struct {
 	handler              http.Handler
 	storage              storage.Storage
 	downsamplerAndWriter ingest.DownsamplerAndWriter
-	engine               *executor.Engine
+	engine               executor.Engine
 	clusters             m3.Clusters
 	clusterClient        clusterclient.Client
 	config               config.Configuration
@@ -100,7 +100,7 @@ func (h *Handler) Router() http.Handler {
 func NewHandler(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
-	engine *executor.Engine,
+	engine executor.Engine,
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,

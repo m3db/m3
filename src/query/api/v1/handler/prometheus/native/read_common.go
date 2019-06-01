@@ -40,8 +40,8 @@ import (
 
 func read(
 	reqCtx context.Context,
-	engine *executor.Engine,
-	opts *executor.EngineOptions,
+	engine executor.Engine,
+	opts *executor.QueryOptions,
 	tagOpts models.TagOptions,
 	w http.ResponseWriter,
 	params models.RequestParams,
