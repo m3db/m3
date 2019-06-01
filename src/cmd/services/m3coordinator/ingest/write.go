@@ -142,6 +142,8 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 			return err
 		}
 
+		defer appender.Finalize()
+
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
@@ -178,8 +180,6 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 				return err
 			}
 		}
-
-		appender.Finalize()
 	}
 
 	return nil
