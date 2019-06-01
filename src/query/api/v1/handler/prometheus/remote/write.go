@@ -25,9 +25,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/m3db/m3/src/dbnode/client"
-
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
