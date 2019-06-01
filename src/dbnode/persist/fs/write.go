@@ -98,6 +98,7 @@ type indexEntries []indexEntry
 func (e indexEntries) releaseRefs() {
 	for i := range e {
 		e[i].id = nil
+		e[i].tags = ident.Tags{}
 	}
 }
 
