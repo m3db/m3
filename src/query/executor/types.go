@@ -43,7 +43,6 @@ type Engine interface {
 	)
 
 	// ExecuteExpr runs the query DAG and closes the results channel once done.
-	// nolint: unparam
 	ExecuteExpr(
 		ctx context.Context,
 		parser parser.Parser,
