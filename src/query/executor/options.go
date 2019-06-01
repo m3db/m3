@@ -24,18 +24,16 @@ import (
 	"time"
 
 	qcost "github.com/m3db/m3/src/query/cost"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/uber-go/tally"
 )
 
 type engineOptions struct {
-	queryContextOptions models.QueryContextOptions
-	costScope           tally.Scope
-	globalEnforcer      qcost.ChainedEnforcer
-	store               storage.Storage
-	lookbackDuration    time.Duration
+	costScope        tally.Scope
+	globalEnforcer   qcost.ChainedEnforcer
+	store            storage.Storage
+	lookbackDuration time.Duration
 }
 
 // NewEngineOpts returns a new instance of options used to create an engine.
