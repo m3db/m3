@@ -41,6 +41,7 @@ import (
 func read(
 	reqCtx context.Context,
 	engine executor.Engine,
+	opts *executor.QueryOptions,
 	tagOpts models.TagOptions,
 	w http.ResponseWriter,
 	params models.RequestParams,
@@ -68,7 +69,7 @@ func read(
 
 	// Results is closed by execute
 	results := make(chan executor.Query)
-	go engine.ExecuteExpr(ctx, parser, params, results)
+	go engine.ExecuteExpr(ctx, parser, opts, params, results)
 	// Block slices are sorted by start time
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)

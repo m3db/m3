@@ -187,14 +187,15 @@ func (h *PromReadHandler) read(
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	engineOpts := h.engine.Opts().SetQueryContextOptions(models.QueryContextOptions{
-		LimitMaxTimeseries: limit,
-	})
-	h.engine = h.engine.SetOpts(engineOpts)
+
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: limit,
+		}}
 
 	// Detect clients closing connections
 	handler.CloseWatcher(ctx, cancel, w)
-	go h.engine.Execute(ctx, query, results)
+	go h.engine.Execute(ctx, query, queryOpts, results)
 
 	promResults := make([]*prompb.QueryResult, 0, 1)
 	for result := range results {

@@ -38,6 +38,7 @@ type Engine interface {
 	Execute(
 		ctx context.Context,
 		query *storage.FetchQuery,
+		opts *QueryOptions,
 		results chan *storage.QueryResult,
 	)
 
@@ -46,26 +47,17 @@ type Engine interface {
 	ExecuteExpr(
 		ctx context.Context,
 		parser parser.Parser,
+		opts *QueryOptions,
 		params models.RequestParams,
 		results chan Query,
 	)
 
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error
-
-	// Opts returns the engine options.
-	Opts() EngineOptions
-	// SetOpts sets the engine options.
-	SetOpts(EngineOptions) Engine
 }
 
-// EngineOptions can be used to pass custom flags to engine.
+// EngineOptions are used to create an engine.
 type EngineOptions interface {
-	// QueryContextOptions returns the query context options.
-	QueryContextOptions() models.QueryContextOptions
-	// SetQueryContextOptions sets the query context options.
-	SetQueryContextOptions(models.QueryContextOptions) EngineOptions
-
 	// CostScopte returns the scope used for metrics.
 	CostScope() tally.Scope
 	// SetCostScope sets the scope used for metrics.

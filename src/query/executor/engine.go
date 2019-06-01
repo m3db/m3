@@ -38,6 +38,11 @@ type engine struct {
 	metrics *engineMetrics
 }
 
+// QueryOptions can be used to pass custom flags to engine.
+type QueryOptions struct {
+	QueryContextOptions models.QueryContextOptions
+}
+
 // Query is the result after execution.
 type Query struct {
 	Err    error
@@ -104,25 +109,16 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 	}
 }
 
-func (e *engine) Opts() EngineOptions {
-	return e.opts
-}
-
-func (e *engine) SetOpts(v EngineOptions) Engine {
-	engine := *e
-	engine.opts = v
-	return &engine
-}
-
 func (e *engine) Execute(
 	ctx context.Context,
 	query *storage.FetchQuery,
+	opts *QueryOptions,
 	results chan *storage.QueryResult,
 ) {
 	defer close(results)
 
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = e.opts.QueryContextOptions().LimitMaxTimeseries
+	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
 
 	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
 	if err != nil {
@@ -137,6 +133,7 @@ func (e *engine) Execute(
 func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
+	opts *QueryOptions,
 	params models.RequestParams,
 	results chan Query,
 ) {
@@ -172,7 +169,7 @@ func (e *engine) ExecuteExpr(
 	results <- Query{Result: result}
 
 	queryCtx := models.NewQueryContext(ctx, e.opts.CostScope(), perQueryEnforcer,
-		e.opts.QueryContextOptions())
+		opts.QueryContextOptions)
 	if err := state.Execute(queryCtx); err != nil {
 		result.abort(err)
 	} else {

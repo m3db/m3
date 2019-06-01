@@ -82,13 +82,3 @@ func (o *engineOptions) SetLookbackDuration(v time.Duration) EngineOptions {
 	opts.lookbackDuration = v
 	return &opts
 }
-
-func (o *engineOptions) QueryContextOptions() models.QueryContextOptions {
-	return o.queryContextOptions
-}
-
-func (o *engineOptions) SetQueryContextOptions(v models.QueryContextOptions) EngineOptions {
-	opts := *o
-	opts.queryContextOptions = v
-	return &opts
-}

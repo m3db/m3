@@ -138,12 +138,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engineOpts := h.engine.Opts().SetQueryContextOptions(models.QueryContextOptions{
-		LimitMaxTimeseries: fetchOpts.Limit,
-	})
-	h.engine = h.engine.SetOpts(engineOpts)
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		}}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts)
 	if respErr != nil {
 		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
@@ -168,6 +168,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	w http.ResponseWriter,
 	r *http.Request,
 	engine executor.Engine,
+	opts *executor.QueryOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
@@ -187,7 +188,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, h.tagOpts, w, params)
+	result, err := read(ctx, engine, opts, h.tagOpts, w, params)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))

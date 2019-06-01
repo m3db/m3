@@ -87,12 +87,12 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	engineOpts := h.engine.Opts().SetQueryContextOptions(models.QueryContextOptions{
-		LimitMaxTimeseries: fetchOpts.Limit,
-	})
-	h.engine = h.engine.SetOpts(engineOpts)
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		}}
 
-	result, err := read(ctx, h.engine, h.tagOpts, w, params)
+	result, err := read(ctx, h.engine, queryOpts, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
 		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)

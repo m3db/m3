@@ -37,6 +37,7 @@ import (
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -62,14 +63,25 @@ func makeTagOptions() models.TagOptions {
 	return models.NewTagOptions().SetMetricName([]byte("some_name"))
 }
 
+func newEngine(
+	s storage.Storage,
+	scope tally.Scope,
+	lookbackDuration time.Duration,
+	enforcer qcost.ChainedEnforcer,
+) executor.Engine {
+	engineOpts := executor.NewEngineOpts().SetStore(s).SetCostScope(scope).
+		SetLookbackDuration(lookbackDuration).SetGlobalEnforcer(enforcer)
+
+	return executor.NewEngine(engineOpts)
+}
+
 func setupHandler(store storage.Storage) (*Handler, error) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
-	engineOpts := executor.NewEngineOpts().SetStore(store).SetCostScope(tally.NewTestScope("test", nil)).
-		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
+	engine := newEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
 	return NewHandler(
 		downsamplerAndWriter,
 		makeTagOptions(),
-		executor.NewEngine(engineOpts),
+		engine,
 		nil,
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
@@ -89,9 +101,7 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 
 	negValue := -1 * time.Second
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
-	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(tally.NewTestScope("test", nil)).
-		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
-	engine := executor.NewEngine(engineOpts)
+	engine := newEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
 		cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
@@ -109,9 +119,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 
 	fourMin := 4 * time.Minute
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
-	engineOpts := executor.NewEngineOpts().SetStore(storage).SetCostScope(tally.NewTestScope("test", nil)).
-		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
-	engine := executor.NewEngine(engineOpts)
+	engine := newEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
 		nil, nil, cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),

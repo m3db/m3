@@ -63,7 +63,7 @@ func TestPromReadHandler_Read(t *testing.T) {
 	r, parseErr := parseParams(req, timeoutOpts)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, err := read(context.TODO(), promRead.engine,
+	seriesList, err := read(context.TODO(), promRead.engine, setup.QueryOpts,
 		promRead.tagOpts, httptest.NewRecorder(), r)
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
@@ -122,6 +122,7 @@ func newReadRequest(t *testing.T, params url.Values) *http.Request {
 type testSetup struct {
 	Storage     mock.Storage
 	Handlers    testSetupHandlers
+	QueryOpts   *executor.QueryOptions
 	TimeoutOpts *prometheus.TimeoutOpts
 }
 
@@ -155,6 +156,7 @@ func newTestSetup() *testSetup {
 			Read:        read,
 			InstantRead: instantRead,
 		},
+		QueryOpts:   &executor.QueryOptions{},
 		TimeoutOpts: timeoutOpts,
 	}
 }
