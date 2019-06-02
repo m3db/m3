@@ -109,8 +109,11 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engine := executor.NewEngine(s, h.scope.SubScope("debug_engine"), h.lookbackDuration, nil)
-	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine, &executor.EngineOptions{})
+	engineOpts := executor.NewEngineOpts().SetStore(s).SetCostScope(h.scope.SubScope("debug_engine")).
+		SetLookbackDuration(h.lookbackDuration).SetGlobalEnforcer(nil)
+
+	engine := executor.NewEngine(engineOpts)
+	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine, &executor.QueryOptions{})
 	if respErr != nil {
 		logger.Error("unable to read data", zap.Error(respErr.Err))
 		xhttp.Error(w, respErr.Err, respErr.Code)
