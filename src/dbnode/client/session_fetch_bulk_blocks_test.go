@@ -36,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -226,6 +226,149 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	metadataResult := resultMetadataFromBlocks(blocks)
 	// Skip the first client which is the client for the origin
 	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
+
+	// Expect the fetch blocks calls
+	participating := len(mockClients) - 1
+	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
+		blocks, batchSize, participating,
+		func(blockIdx int) (clientIdx int) {
+			// Round robin to match the best peer selection algorithm
+			return blockIdx % participating
+		})
+	// Skip the first client which is the client for the origin
+	for i, client := range mockClients[1:] {
+		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
+	}
+
+	// Make sure peer selection is round robin to match our expected
+	// peer fetch calls
+	session.pickBestPeerFn = newRoundRobinPickBestPeerFn()
+
+	// Fetch blocks
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued
+		for {
+			qsMutex.RLock()
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			qsMutex.RUnlock()
+			if assigned == len(blocks) {
+				qsMutex.Lock()
+				defer qsMutex.Unlock()
+				for _, q := range qs {
+					q.drain()
+				}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	rangeStart := start
+	rangeEnd := start.Add(blockSize * (24 - 1))
+	bootstrapOpts := newResultTestOptions()
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Assert result
+	assertFetchBootstrapBlocksResult(t, blocks, result)
+
+	assert.NoError(t, session.Close())
+}
+
+// TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier was added as a regression test
+// to ensure that in the scenario where a peer is not available (hard down) but the others are
+// available the streamBlocksMetadataFromPeers does not wait for all of the exponential retries
+// to the downed host to fail before continuing. This is important because if the client waits for
+// all the retries to the downed host to complete it can block each metadata fetch for up to 30 seconds
+// due to the exponential backoff logic in the retrier.
+func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	require.NoError(t, session.Open())
+
+	batchSize := opts.FetchSeriesBlocksBatchSize()
+
+	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+
+	blocks := []testBlocks{
+		{
+			id: fooID,
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 1),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{1, 2},
+						tail: []byte{3},
+					}},
+				},
+			},
+		},
+		{
+			id: barID,
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 2),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{4, 5},
+						tail: []byte{6},
+					}},
+				},
+			},
+		},
+		{
+			id: bazID,
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 3),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{7, 8},
+						tail: []byte{9},
+					}},
+				},
+			},
+		},
+	}
+
+	// Expect the fetch metadata calls
+	metadataResult := resultMetadataFromBlocks(blocks)
+	// Skip the first client which is the client for the origin
+	mockClients[1:3].expectFetchMetadataAndReturn(metadataResult, opts)
+	mockClients[3].EXPECT().
+		FetchBlocksMetadataRawV2(gomock.Any(), gomock.Any()).
+		Return(ret, nil)
 
 	// Expect the fetch blocks calls
 	participating := len(mockClients) - 1

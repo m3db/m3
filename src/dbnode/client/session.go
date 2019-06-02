@@ -2138,7 +2138,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 				var err error
 				currPageToken, err = s.streamBlocksMetadataFromPeer(namespace, shardID,
 					peer, start, end, currPageToken, metadataCh, resultOpts, progress)
-
 				// Set error or success if err is nil
 				errs.setError(idx, err)
 
