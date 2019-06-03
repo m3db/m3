@@ -772,8 +772,8 @@ func remoteClient(
 	var (
 		lookback        = *cfg.LookbackDuration
 		rpc             = cfg.RPC
-		remoteZones     = rpc.RemoteZones
-		zoneCount       = len(remoteZones)
+		remotes         = rpc.Remotes
+		zoneCount       = len(remotes)
 		listenAddresses = rpc.RemoteListenAddresses
 		logger          = instrumentOpts.Logger()
 	)
@@ -787,7 +787,7 @@ func remoteClient(
 		}
 
 		logger.Info(
-			"creating RPC client with remotes",
+			"creating RPC client with remote",
 			zap.Strings("addresses", listenAddresses),
 		)
 
@@ -802,10 +802,10 @@ func remoteClient(
 	}
 
 	remoteStores := make([]storage.Storage, 0, zoneCount)
-	for _, zone := range remoteZones {
+	for _, zone := range remotes {
 		logger.Info(
 			"creating RPC client with remotes",
-			zap.String("zone", zone.Name),
+			zap.String("name", zone.Name),
 			zap.Strings("addresses", zone.RemoteListenAddresses),
 		)
 
