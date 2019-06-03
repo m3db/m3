@@ -153,5 +153,5 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodDuration\":\"48h0m0s\",\"blockSizeDuration\":\"2h0m0s\",\"bufferFutureDuration\":\"10m0s\",\"bufferPastDuration\":\"10m0s\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodDuration\":\"1h0m0s\",\"futureRetentionPeriodDuration\":\"0s\"},\"snapshotEnabled\":true,\"indexOptions\":null,\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"cleanupEnabled\":false,\"coldWritesEnabled\":false,\"flushEnabled\":true,\"indexOptions\":null,\"repairEnabled\":false,\"retentionOptions\":{\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodDuration\":\"1h0m0s\",\"blockSizeDuration\":\"2h0m0s\",\"bufferFutureDuration\":\"10m0s\",\"bufferPastDuration\":\"10m0s\",\"futureRetentionPeriodDuration\":\"0s\",\"retentionPeriodDuration\":\"48h0m0s\"},\"schemaOptions\":null,\"snapshotEnabled\":true,\"writesToCommitLog\":true}}}}", string(body))
 }
