@@ -261,8 +261,9 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"),
-		*cfg.LookbackDuration, perQueryEnforcer)
+	engineOpts := executor.NewEngineOpts().SetStore(backendStorage).SetCostScope(scope.SubScope("engine")).
+		SetLookbackDuration(*cfg.LookbackDuration).SetGlobalEnforcer(perQueryEnforcer)
+	engine := executor.NewEngine(engineOpts)
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
