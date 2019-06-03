@@ -145,45 +145,8 @@ func newRoundRobinPickBestPeerFn() pickBestPeerFn {
 	}
 }
 
-func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSessionTestAdminOptions()
-	s, err := newSession(opts)
-	require.NoError(t, err)
-	session := s.(*session)
-
-	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
-	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-
-	// Don't drain the peer blocks queue, explicitly drain ourselves to
-	// avoid unpredictable batches being retrieved from peers
-	var (
-		qs      []*peerBlocksQueue
-		qsMutex sync.RWMutex
-	)
-	session.newPeerBlocksQueueFn = func(
-		peer peer,
-		maxQueueSize int,
-		_ time.Duration,
-		workers xsync.WorkerPool,
-		processFn processFn,
-	) *peerBlocksQueue {
-		qsMutex.Lock()
-		defer qsMutex.Unlock()
-		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
-		qs = append(qs, q)
-		return q
-	}
-
-	require.NoError(t, session.Open())
-
-	batchSize := opts.FetchSeriesBlocksBatchSize()
-
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
-	blocks := []testBlocks{
+func newTestBlocks(start time.Time) []testBlocks {
+	return []testBlocks{
 		{
 			id: fooID,
 			blocks: []testBlock{
@@ -221,6 +184,46 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 			},
 		},
 	}
+}
+func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	require.NoError(t, session.Open())
+
+	var (
+		batchSize = opts.FetchSeriesBlocksBatchSize()
+		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks    = newTestBlocks(start)
+	)
 
 	// Expect the fetch metadata calls
 	metadataResult := resultMetadataFromBlocks(blocks)
@@ -310,13 +313,19 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	var (
 		mockHostQueues MockHostQueues
 		mockClients    MockTChanNodes
+		hostShardSets  = sessionTestHostAndShards(sessionTestShardSet())
 	)
-	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
+	// Skip the last one because it is going to be manually configured to return an error.
 	for i := 0; i < len(hostShardSets)-1; i++ {
 		host := hostShardSets[i].Host()
 		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
 		mockHostQueues = append(mockHostQueues, hostQueue)
-		mockClients = append(mockClients, client)
+
+		if i != 0 {
+			// Skip creating a client for the origin because it will never be called so we want
+			// to avoid setting up expectations for it.
+			mockClients = append(mockClients, client)
+		}
 	}
 
 	// Construct the last hostQueue with a connection pool that will error out.
@@ -365,60 +374,20 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 		qs = append(qs, q)
 		return q
 	}
-
 	require.NoError(t, session.Open())
 
-	batchSize := opts.FetchSeriesBlocksBatchSize()
+	var (
+		batchSize = opts.FetchSeriesBlocksBatchSize()
+		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks    = newTestBlocks(start)
 
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
-	blocks := []testBlocks{
-		{
-			id: fooID,
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 1),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{1, 2},
-						tail: []byte{3},
-					}},
-				},
-			},
-		},
-		{
-			id: barID,
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 2),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{4, 5},
-						tail: []byte{6},
-					}},
-				},
-			},
-		},
-		{
-			id: bazID,
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 3),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{7, 8},
-						tail: []byte{9},
-					}},
-				},
-			},
-		},
-	}
-
-	// Expect the fetch metadata calls.
-	metadataResult := resultMetadataFromBlocks(blocks)
-	// Skip the first client which is the client for the origin. Skip the last
-	// client because its going to return an error.
-	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
+		// Expect the fetch metadata calls.
+		metadataResult = resultMetadataFromBlocks(blocks)
+	)
+	mockClients.expectFetchMetadataAndReturn(metadataResult, opts)
 
 	// Expect the fetch blocks calls.
-	participating := len(mockClients) - 1
+	participating := len(mockClients)
 	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
 		blocks, batchSize, participating,
 		func(blockIdx int) (clientIdx int) {
@@ -426,7 +395,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 			return blockIdx % participating
 		})
 	// Skip the first client which is the client for the origin.
-	for i, client := range mockClients[1:] {
+	for i, client := range mockClients {
 		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
 	}
 
