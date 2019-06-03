@@ -365,11 +365,23 @@ func newDatabaseNamespace(
 	return n, nil
 }
 
-// SetSchema implements namespace.SchemaListener.
-func (n *dbNamespace) SetSchema(value namespace.SchemaDescr) {
+// SetSchemaHistory implements namespace.SchemaListener.
+func (n *dbNamespace) SetSchemaHistory(value namespace.SchemaHistory) {
 	n.Lock()
-	n.schemaDescr = value
-	n.Unlock()
+	defer n.Unlock()
+
+	metadata, err := namespace.NewMetadata(n.ID(), n.nopts.SetSchemaHistory(value))
+	if err != nil {
+		n.log.Error("can not update namespace metadata with empty schema history", zap.Stringer("namespace", n.ID()), zap.Error(err))
+		return
+	}
+
+	if schema, ok := value.GetLatest(); ok {
+		n.schemaDescr = schema
+		n.metadata = metadata
+	} else {
+		n.log.Error("can not update namespace schema to empty", zap.Stringer("namespace", n.ID()))
+	}
 }
 
 func (n *dbNamespace) reportStatusLoop() {
@@ -437,6 +449,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 
 	n.Lock()
+	metadata := n.metadata
 	existing = n.shards
 	for _, shard := range existing {
 		if shard == nil {
@@ -453,7 +466,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 			n.shards[shard] = existing[shard]
 		} else {
 			bootstrapEnabled := n.nopts.BootstrapEnabled()
-			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
+			n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
@@ -764,6 +777,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	callStart := n.nowFn()
 
 	n.Lock()
+	metadata := n.metadata
 	if n.bootstrapState == Bootstrapping {
 		n.Unlock()
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
@@ -812,7 +826,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 		shardIDs[i] = shard.ID()
 	}
 
-	bootstrapResult, err := process.Run(start, n.metadata, shardIDs)
+	bootstrapResult, err := process.Run(start, metadata, shardIDs)
 	if err != nil {
 		n.log.Error("bootstrap aborted due to error",
 			zap.Stringer("namespace", n.id),
