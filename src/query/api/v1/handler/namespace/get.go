@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -31,8 +32,10 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
 )
 
@@ -71,6 +74,19 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Registry: &nsRegistry,
 	}
 
+	urlParams := r.URL.Query()
+	if strings.ToLower(urlParams.Get("debug")) == "true" {
+		nanosToDurationMap, err := nanosToDuration(resp)
+		if err != nil {
+			logger.Error("error converting nano fields to duration", zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		xhttp.WriteJSONResponse(w, nanosToDurationMap, logger)
+		return
+	}
+
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
@@ -99,4 +115,20 @@ func (h *GetHandler) Get() (nsproto.Registry, error) {
 	}
 
 	return protoRegistry, nil
+}
+
+func nanosToDuration(resp proto.Message) (map[string]interface{}, error) {
+	marshaler := jsonpb.Marshaler{EmitDefaults: true}
+	nsString, err := marshaler.MarshalToString(resp)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal namespace to string: %v", err)
+	}
+
+	ioReader := strings.NewReader(nsString)
+	toDuration, err := xhttp.NanosToDurationBytes(ioReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return toDuration, nil
 }

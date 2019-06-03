@@ -21,6 +21,7 @@
 package xhttp
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -57,6 +58,42 @@ func TestDurationToNanosBytes(t *testing.T) {
 
 		if output != nil {
 			assert.Equal(t, v.output, string(output))
+		}
+	}
+}
+
+func TestNanoToDurationBytes(t *testing.T) {
+	type ret struct {
+		output    map[string]interface{}
+		shouldErr bool
+	}
+	testCases := map[string]ret{
+		`{"field":"value"}`:                                                               ret{map[string]interface{}{"field": "value"}, false},
+		`{"fieldNanos":1000000000}`:                                                       ret{map[string]interface{}{"fieldDuration": "1s"}, false},
+		`{"fieldNanos":0}`:                                                                ret{map[string]interface{}{"fieldDuration": "0s"}, false},
+		`{"field":"value","fieldNanos":1000000000}`:                                       ret{map[string]interface{}{"field": "value", "fieldDuration": "1s"}, false},
+		`{"realNanos":50,"nanoNanos":100,"normalDuration":"200ns"}`:                       ret{map[string]interface{}{"nanoDuration": "100ns", "normalDuration": "200ns", "realDuration": "50ns"}, false},
+		`{"field":"value","moreFields":{"innerNanos":2000000,"innerField":"innerValue"}}`: ret{map[string]interface{}{"field": "value", "moreFields": map[string]interface{}{"innerField": "innerValue", "innerDuration": "2ms"}}, false},
+		`not json`:                                 ret{nil, true},
+		`{"fieldNanos":[]}`:                        ret{nil, true},
+		`{"fieldNanos":{}}`:                        ret{nil, true},
+		`{"fieldNanos":"badNanos"}`:                ret{nil, true},
+		`{"fieldNanos":100.5}`:                     ret{nil, true},
+		`{"moreFields":{"innerNanos":"badNanos"}}`: ret{nil, true},
+	}
+
+	for k, v := range testCases {
+		output, err := NanosToDurationBytes(strings.NewReader(k))
+		if v.shouldErr {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+		}
+
+		if output != nil {
+			if !reflect.DeepEqual(v.output, output) {
+				t.Errorf("expected = %v, actual %v", v, output)
+			}
 		}
 	}
 }
