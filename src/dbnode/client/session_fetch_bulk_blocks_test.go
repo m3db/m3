@@ -289,12 +289,61 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestAdminOptions()
+	opts := newSessionTestAdminOptions().
+		// Set bootstrap consistency level to unstrict majority because there are only 3 nodes in the
+		// cluster. The first one will not return data because it is the origin and the last node will
+		// return an error.
+		SetBootstrapConsistencyLevel(topology.ReadConsistencyLevelUnstrictMajority).
+		// Configure the stream blocks retrier such that if the short-circuit logic did not work the
+		// test would timeout.
+		SetStreamBlocksRetrier(xretry.NewRetrier(
+			xretry.NewOptions().
+				SetBackoffFactor(10).
+				SetMaxRetries(10).
+				SetInitialBackoff(30 * time.Second).
+				SetJitter(true),
+		))
 	s, err := newSession(opts)
 	require.NoError(t, err)
 	session := s.(*session)
 
-	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	var (
+		mockHostQueues MockHostQueues
+		mockClients    MockTChanNodes
+	)
+	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
+	for i := 0; i < len(hostShardSets)-1; i++ {
+		host := hostShardSets[i].Host()
+		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
+		mockHostQueues = append(mockHostQueues, hostQueue)
+		mockClients = append(mockClients, client)
+	}
+
+	// Construct the last hostQueue with a connection pool that will error out.
+	host := hostShardSets[len(hostShardSets)-1].Host()
+	connectionPool := NewMockconnectionPool(ctrl)
+	connectionPool.EXPECT().
+		NextClient().
+		Return(nil, errConnectionPoolHasNoConnections).
+		AnyTimes()
+	hostQueue := NewMockhostQueue(ctrl)
+	hostQueue.EXPECT().Open()
+	hostQueue.EXPECT().Host().Return(host).AnyTimes()
+	hostQueue.EXPECT().
+		ConnectionCount().
+		Return(opts.MinConnectionCount()).
+		Times(sessionTestShards)
+	hostQueue.EXPECT().
+		ConnectionPool().
+		Return(connectionPool).
+		AnyTimes()
+	hostQueue.EXPECT().
+		BorrowConnection(gomock.Any()).
+		Return(errConnectionPoolHasNoConnections).
+		AnyTimes()
+	hostQueue.EXPECT().Close()
+	mockHostQueues = append(mockHostQueues, hostQueue)
+
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
 
 	// Don't drain the peer blocks queue, explicitly drain ourselves to
@@ -362,34 +411,32 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 		},
 	}
 
-	// Expect the fetch metadata calls
+	// Expect the fetch metadata calls.
 	metadataResult := resultMetadataFromBlocks(blocks)
-	// Skip the first client which is the client for the origin
-	mockClients[1:3].expectFetchMetadataAndReturn(metadataResult, opts)
-	mockClients[3].EXPECT().
-		FetchBlocksMetadataRawV2(gomock.Any(), gomock.Any()).
-		Return(ret, nil)
+	// Skip the first client which is the client for the origin. Skip the last
+	// client because its going to return an error.
+	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
 
-	// Expect the fetch blocks calls
+	// Expect the fetch blocks calls.
 	participating := len(mockClients) - 1
 	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
 		blocks, batchSize, participating,
 		func(blockIdx int) (clientIdx int) {
-			// Round robin to match the best peer selection algorithm
+			// Round robin to match the best peer selection algorithm.
 			return blockIdx % participating
 		})
-	// Skip the first client which is the client for the origin
+	// Skip the first client which is the client for the origin.
 	for i, client := range mockClients[1:] {
 		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
 	}
 
 	// Make sure peer selection is round robin to match our expected
-	// peer fetch calls
+	// peer fetch calls.
 	session.pickBestPeerFn = newRoundRobinPickBestPeerFn()
 
-	// Fetch blocks
+	// Fetch blocks.
 	go func() {
-		// Trigger peer queues to drain explicitly when all work enqueued
+		// Trigger peer queues to drain explicitly when all work enqueued.
 		for {
 			qsMutex.RLock()
 			assigned := 0
@@ -416,7 +463,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	// Assert result
+	// Assert result.
 	assertFetchBootstrapBlocksResult(t, blocks, result)
 
 	assert.NoError(t, session.Close())
@@ -1940,22 +1987,33 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	for i := 0; i < len(hostShardSets); i++ {
 		host := hostShardSets[i].Host()
-		client := rpc.NewMockTChanNode(ctrl)
-		connectionPool := NewMockconnectionPool(ctrl)
-		connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
-		hostQueue := NewMockhostQueue(ctrl)
-		hostQueue.EXPECT().Open()
-		hostQueue.EXPECT().Host().Return(host).AnyTimes()
-		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
-		hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
-		hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
-			fn(client)
-		}).Return(nil).AnyTimes()
-		hostQueue.EXPECT().Close()
+		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
 		hostQueues = append(hostQueues, hostQueue)
 		clients = append(clients, client)
 	}
 	return hostQueues, clients
+}
+
+func defaultHostAndClientWithExpect(
+	ctrl *gomock.Controller,
+	host topology.Host,
+	opts AdminOptions,
+) (*MockhostQueue, *rpc.MockTChanNode) {
+	client := rpc.NewMockTChanNode(ctrl)
+	connectionPool := NewMockconnectionPool(ctrl)
+	connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
+
+	hostQueue := NewMockhostQueue(ctrl)
+	hostQueue.EXPECT().Open()
+	hostQueue.EXPECT().Host().Return(host).AnyTimes()
+	hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
+	hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
+	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
+		fn(client)
+	}).Return(nil).AnyTimes()
+	hostQueue.EXPECT().Close()
+
+	return hostQueue, client
 }
 
 func resultMetadataFromBlocks(
