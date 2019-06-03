@@ -66,11 +66,12 @@ import (
 )
 
 const (
-	clusterConnectWaitInterval           = 10 * time.Millisecond
-	blocksMetadataChannelInitialCapacity = 4096
-	gaugeReportInterval                  = 500 * time.Millisecond
-	blockMetadataChBufSize               = 4096
-	shardResultCapacity                  = 4096
+	clusterConnectWaitInterval                     = 10 * time.Millisecond
+	blocksMetadataChannelInitialCapacity           = 4096
+	gaugeReportInterval                            = 500 * time.Millisecond
+	blockMetadataChBufSize                         = 4096
+	shardResultCapacity                            = 4096
+	streamBlocksMetadataFromPeerErrorSleepInterval = 1 * time.Millisecond
 )
 
 type resultTypeEnum string
@@ -2154,6 +2155,12 @@ func (s *session) streamBlocksMetadataFromPeers(
 					atomic.AddInt32(&success, 1)
 					return
 				}
+
+				// Prevent the loop from spinning too aggressively if
+				// streamBlocksMetadataFromPeer is short-circuiting (which can happen in
+				// the situation that the peer is hard-down / has no connections available
+				// for it in the connection pool).
+				time.Sleep(streamBlocksMetadataFromPeerErrorSleepInterval)
 			}
 		}()
 	}
