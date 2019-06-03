@@ -2322,27 +2322,20 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 	fetchFn := func() error {
 		borrowErr := peer.BorrowConnection(checkedAttemptFn)
-		// Don't retry if the host is not available to prevent exponential
-		// backoff from causing this to take a long time when subsequent
-		// requests will fail.
-		if isHostNotAvailableError(borrowErr) {
-			borrowErr = xerrors.NewNonRetryableError(borrowErr)
-		}
 		return xerrors.FirstError(borrowErr, attemptErr)
 	}
 
 	for moreResults {
 		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
-			// Check if the error was a hostNotAvailableError wrapped in a
-			// nonRetryableError. If so, return the hostNotAvailableError
-			// instead of the non-retryable error since the error is technically
-			// retryable, it was only wrapped to prevent the exponential backoff
-			// in the actual retrier.
-			if xerrors.IsNonRetryableError(err) {
-				inner := xerrors.GetInnerNonRetryableError(err)
-				if isHostNotAvailableError(inner) {
-					err = inner
-				}
+			// Check if the error was a hostNotAvailableError. If so, return the
+			// raw (retryable) hostNotAvailableError since the error is technically
+			// retryable but was wrapped to prevent the exponential backoff in the
+			// actual retrier.
+			if isHostNotAvailableError(err) {
+				// hostNotAvailable is non-retryable by default, but in this case we want
+				// to return a retryable error so that the caller can continue retrying
+				// indefinitely until consistency is reached.
+				err = xerrors.GetInnerNonRetryableError(err)
 			}
 			return startPageToken, err
 		}
@@ -2853,11 +2846,6 @@ func (s *session) streamBlocksBatchFromPeer(
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})
 		err := xerrors.FirstError(borrowErr, attemptErr)
-		// Do not retry if cannot borrow the connection or
-		// if the connection pool has no connections
-		if isHostNotAvailableError(err) {
-			err = xerrors.NewNonRetryableError(err)
-		}
 		return err
 	}); err != nil {
 		blocksErr := fmt.Errorf(

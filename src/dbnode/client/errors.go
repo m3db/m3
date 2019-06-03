@@ -102,12 +102,16 @@ func (h hostNotAvailableError) Error() string {
 	return h.err.Error()
 }
 
-func newHostNotAvailableError(err error) hostNotAvailableError {
-	return hostNotAvailableError{err: err}
+func newHostNotAvailableError(err error) error {
+	return xerrors.NewNonRetryableError(hostNotAvailableError{err: err})
 }
 
-func isHostNotAvailableError(e error) bool {
-	_, ok := e.(hostNotAvailableError)
+func isHostNotAvailableError(err error) bool {
+	inner := xerrors.GetInnerNonRetryableError(err)
+	if inner == nil {
+		return false
+	}
+	_, ok := inner.(hostNotAvailableError)
 	return ok
 }
 
