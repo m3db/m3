@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -500,6 +501,7 @@ type MergeWith interface {
 	// Read returns the data for the given block start and series ID, whether
 	// any data was found, and the error encountered (if any).
 	Read(
+		ctx context.Context,
 		seriesID ident.ID,
 		blockStart xtime.UnixNano,
 		nsCtx namespace.Context,
@@ -521,8 +523,7 @@ type Merger interface {
 	) error
 }
 
-// NewMergerFn is the function to call to get a new Merger. Mostly used as a
-// convenience for testing.
+// NewMergerFn is the function to call to get a new Merger.
 type NewMergerFn func(
 	reader DataFileSetReader,
 	blockAllocSize int,

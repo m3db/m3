@@ -66,8 +66,10 @@ const (
 	//    block being recently flushed
 	// 2) The number of buckets that contain ColdWrites within a cold flush
 	//    cycle
+	// TODO(juchan): revisit this after ColdWrites usage to see if this number
+	// is sane.
 	optimizedTimesArraySize = 8
-	writableBucketVer       = 0
+	writableBucketVersion   = 0
 )
 
 type databaseBuffer interface {
@@ -125,7 +127,7 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
-	NeedsColdFlushBlockStarts() OptimizedTimes
+	ColdFlushBlockStarts() OptimizedTimes
 
 	Stats() bufferStats
 
@@ -309,12 +311,12 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
-func (b *dbBuffer) NeedsColdFlushBlockStarts() OptimizedTimes {
+func (b *dbBuffer) ColdFlushBlockStarts() OptimizedTimes {
 	var times OptimizedTimes
 
 	for t, bucketVersions := range b.bucketsMap {
 		for _, bucket := range bucketVersions.buckets {
-			if bucket.version == writableBucketVer && bucket.writeType == ColdWrite {
+			if bucket.version == writableBucketVersion && bucket.writeType == ColdWrite {
 				times.Add(t)
 				break
 			}
@@ -816,7 +818,7 @@ func (b *dbBuffer) inOrderBlockStartsRemove(removeTime time.Time) {
 // BufferBucketVersions is a container for different versions of buffer buckets.
 // Bucket versions are how the buffer separates writes that have been written
 // to disk as a fileset and writes that have not. The bucket with a version of
-// `writableBucketVer` is the bucket that all writes go into (as thus is the
+// `writableBucketVersion` is the bucket that all writes go into (as thus is the
 // bucket version that have not yet been persisted). After a bucket gets
 // persisted, its version gets set to a version that the shard passes down to it
 // (since the shard knows what has been fully persisted to disk).
@@ -879,7 +881,7 @@ func (b *BufferBucketVersions) merge(writeType WriteType, nsCtx namespace.Contex
 	res := 0
 	for _, bucket := range b.buckets {
 		// Only makes sense to merge buckets that are writable.
-		if bucket.version == writableBucketVer && writeType == bucket.writeType {
+		if bucket.version == writableBucketVersion && writeType == bucket.writeType {
 			merges, err := bucket.merge(nsCtx)
 			if err != nil {
 				return 0, err
@@ -900,7 +902,7 @@ func (b *BufferBucketVersions) removeBucketsUpToVersion(
 
 	for _, bucket := range b.buckets {
 		bVersion := bucket.version
-		if bucket.writeType == writeType && bVersion != writableBucketVer &&
+		if bucket.writeType == writeType && bVersion != writableBucketVersion &&
 			bVersion <= version {
 			// We no longer need to keep any version which is equal to
 			// or less than the retrievable version, since that means
@@ -931,7 +933,7 @@ func (b *BufferBucketVersions) bootstrap(bl block.DatabaseBlock) {
 
 func (b *BufferBucketVersions) writableBucket(writeType WriteType) (*BufferBucket, bool) {
 	for _, bucket := range b.buckets {
-		if bucket.version == writableBucketVer && bucket.writeType == writeType {
+		if bucket.version == writableBucketVersion && bucket.writeType == writeType {
 			return bucket, true
 		}
 	}
@@ -1014,7 +1016,7 @@ func (b *BufferBucket) resetTo(
 	})
 	b.bootstrapped = nil
 	// We would only ever create a bucket for it to be writable.
-	b.version = writableBucketVer
+	b.version = writableBucketVersion
 	b.writeType = writeType
 }
 

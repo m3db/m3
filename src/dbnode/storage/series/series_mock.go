@@ -90,6 +90,20 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseSeries)(nil).Close))
 }
 
+// ColdFlushBlockStarts mocks base method
+func (m *MockDatabaseSeries) ColdFlushBlockStarts() OptimizedTimes {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushBlockStarts")
+	ret0, _ := ret[0].(OptimizedTimes)
+	return ret0
+}
+
+// ColdFlushBlockStarts indicates an expected call of ColdFlushBlockStarts
+func (mr *MockDatabaseSeriesMockRecorder) ColdFlushBlockStarts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushBlockStarts", reflect.TypeOf((*MockDatabaseSeries)(nil).ColdFlushBlockStarts))
+}
+
 // FetchBlocks mocks base method
 func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time, arg2 namespace.Context) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -175,20 +189,6 @@ func (m *MockDatabaseSeries) IsEmpty() bool {
 func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockDatabaseSeries)(nil).IsEmpty))
-}
-
-// NeedsColdFlushBlockStarts mocks base method
-func (m *MockDatabaseSeries) NeedsColdFlushBlockStarts() OptimizedTimes {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NeedsColdFlushBlockStarts")
-	ret0, _ := ret[0].(OptimizedTimes)
-	return ret0
-}
-
-// NeedsColdFlushBlockStarts indicates an expected call of NeedsColdFlushBlockStarts
-func (mr *MockDatabaseSeriesMockRecorder) NeedsColdFlushBlockStarts() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsColdFlushBlockStarts", reflect.TypeOf((*MockDatabaseSeries)(nil).NeedsColdFlushBlockStarts))
 }
 
 // NumActiveBlocks mocks base method

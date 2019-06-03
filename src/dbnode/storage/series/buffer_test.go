@@ -1201,7 +1201,7 @@ func TestOptimizedTimes(t *testing.T) {
 	}
 }
 
-func TestNeedsColdFlushBlockStarts(t *testing.T) {
+func TestColdFlushBlockStarts(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
 	blockSize := rops.BlockSize()
@@ -1261,7 +1261,7 @@ func TestNeedsColdFlushBlockStarts(t *testing.T) {
 	}
 
 	buffer, _ := newTestBufferWithCustomData(t, bds, opts, nil)
-	flushStarts := buffer.NeedsColdFlushBlockStarts()
+	flushStarts := buffer.ColdFlushBlockStarts()
 
 	// All three cold blocks should report that they are dirty.
 	assert.Equal(t, 3, flushStarts.Len())
@@ -1274,7 +1274,7 @@ func TestNeedsColdFlushBlockStarts(t *testing.T) {
 	buffer.bucketsMap[xtime.ToUnixNano(blockStart2)].buckets[0].version = 1
 	buffer.bucketsMap[xtime.ToUnixNano(blockStart3)].buckets[0].version = 1
 
-	flushStarts = buffer.NeedsColdFlushBlockStarts()
+	flushStarts = buffer.ColdFlushBlockStarts()
 	assert.Equal(t, 1, flushStarts.Len())
 	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart1)))
 }

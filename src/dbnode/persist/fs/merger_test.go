@@ -506,6 +506,7 @@ func mockReaderFromData(
 ) *MockDataFileSetReader {
 	reader := NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(gomock.Any()).Return(nil)
+	reader.EXPECT().Entries().Return(diskData.Len()).Times(2)
 	reader.EXPECT().Close().Return(nil)
 	tagIter := ident.NewTagsIterator(ident.NewTags(ident.StringTag("tag-key0", "tag-val0")))
 	fakeChecksum := uint32(42)
@@ -548,10 +549,10 @@ func mockMergeWithFromData(
 			require.True(t, ok)
 			segReader := srPool.Get()
 			br := []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)}
-			mergeWith.EXPECT().Read(id, gomock.Any(), gomock.Any()).
+			mergeWith.EXPECT().Read(gomock.Any(), id, gomock.Any(), gomock.Any()).
 				Return(br, true, nil)
 		} else {
-			mergeWith.EXPECT().Read(id, gomock.Any(), gomock.Any()).
+			mergeWith.EXPECT().Read(gomock.Any(), id, gomock.Any(), gomock.Any()).
 				Return(nil, false, nil)
 		}
 	}
@@ -561,7 +562,7 @@ func mockMergeWithFromData(
 			data := val.Value()
 			segReader := srPool.Get()
 			br := []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)}
-			mergeWith.EXPECT().Read(id, gomock.Any(), gomock.Any()).
+			mergeWith.EXPECT().Read(gomock.Any(), id, gomock.Any(), gomock.Any()).
 				Return(br, true, nil)
 
 			// Capture remaining items so that we can call the ForEachRemaining

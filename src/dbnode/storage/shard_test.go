@@ -367,7 +367,7 @@ func TestShardColdFlush(t *testing.T) {
 	for _, ds := range dirtyData {
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ds.id)
-		curr.EXPECT().NeedsColdFlushBlockStarts().
+		curr.EXPECT().ColdFlushBlockStarts().
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
 		shard.list.PushBack(lookup.NewEntry(curr, 0))
 	}
@@ -429,6 +429,7 @@ func newFSMergeWithMemTestFn(
 type noopMergeWith struct{}
 
 func (m *noopMergeWith) Read(
+	ctx context.Context,
 	seriesID ident.ID,
 	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,

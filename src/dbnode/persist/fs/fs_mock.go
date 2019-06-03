@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	time0 "github.com/m3db/m3/src/x/time"
 
@@ -1204,9 +1205,9 @@ func (mr *MockMergeWithMockRecorder) ForEachRemaining(arg0, arg1 interface{}) *g
 }
 
 // Read mocks base method
-func (m *MockMergeWith) Read(arg0 ident.ID, arg1 time0.UnixNano, arg2 namespace.Context) ([]xio.BlockReader, bool, error) {
+func (m *MockMergeWith) Read(arg0 context.Context, arg1 ident.ID, arg2 time0.UnixNano, arg3 namespace.Context) ([]xio.BlockReader, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Read", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]xio.BlockReader)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -1214,7 +1215,7 @@ func (m *MockMergeWith) Read(arg0 ident.ID, arg1 time0.UnixNano, arg2 namespace.
 }
 
 // Read indicates an expected call of Read
-func (mr *MockMergeWithMockRecorder) Read(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockMergeWithMockRecorder) Read(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockMergeWith)(nil).Read), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockMergeWith)(nil).Read), arg0, arg1, arg2, arg3)
 }

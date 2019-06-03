@@ -129,6 +129,12 @@ func (m *flushManager) Flush(
 	if err == nil {
 		if err = m.dataColdFlush(namespaces); err != nil {
 			multiErr = multiErr.Add(err)
+			// If cold flush fails, we can't proceed to snapshotting because
+			// commit log logic just checks for a successful snapshot checkpoint
+			// file. Therefore if a cold flush fails and a snapshot succeeds,
+			// the writes from the failed cold flush might be lost when commit
+			// logs get cleaned up.
+			return multiErr.FinalError()
 		}
 
 		// Snapshots must be done after a cold flush because cleanup logic just

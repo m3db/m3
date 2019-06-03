@@ -122,8 +122,8 @@ type DatabaseSeries interface {
 		nsCtx namespace.Context,
 	) error
 
-	// NeedsColdFlushBlockStarts returns the block starts that need cold flushes.
-	NeedsColdFlushBlockStarts() OptimizedTimes
+	// ColdFlushBlockStarts returns the block starts that need cold flushes.
+	ColdFlushBlockStarts() OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()

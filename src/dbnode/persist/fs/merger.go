@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -80,7 +81,7 @@ func (m *merger) Merge(
 	mergeWith MergeWith,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
-) error {
+) (err error) {
 	var (
 		reader         = m.reader
 		blockAllocSize = m.blockAllocSize
@@ -108,7 +109,13 @@ func (m *merger) Merge(
 	if err := reader.Open(openOpts); err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer func() {
+		// Only set the error here if not set by the end of the function, since
+		// all other errors take precedence.
+		if err == nil {
+			err = reader.Close()
+		}
+	}()
 
 	nsMd, err := namespace.NewMetadata(nsID, nsOpts)
 	if err != nil {
@@ -141,23 +148,26 @@ func (m *merger) Merge(
 		// Initialize this here with nil to be reset before each iteration's
 		// use.
 		sliceOfSlices = xio.NewReaderSliceOfSlicesFromBlockReadersIterator(nil)
+		// Reused context for use in mergeWith.Read, since they all do a
+		// BlockingClose after usage.
+		ctx = context.NewContext()
 
 		// We keep track of IDs/tags to finalize at the end of merging. This
 		// only applies to those that come from disk Reads, since the whole
-		// lifecycle of those IDs/tags are contained to this function.  We don't
-		// want finalize this series ID since it is from memory and other
-		// components may have ownership over it.
+		// lifecycle of those IDs/tags are contained to this function. We don't
+		// want finalize the IDs from memory since other components may have
+		// ownership over it.
 		//
 		// We must only finalize these at the end of this function, since the
 		// flush preparer's underlying writer holds on to those references
 		// until it is closed (closing the PreparedDataPersist at the end of
 		// this merge closes the underlying writer).
-		idsToFinalize  []ident.ID
-		tagsToFinalize []ident.Tags
+		idsToFinalize  = make([]ident.ID, 0, reader.Entries())
+		tagsToFinalize = make([]ident.Tags, 0, reader.Entries())
 	)
-	defer segReader.Finalize()
-	defer multiIter.Close()
 	defer func() {
+		segReader.Finalize()
+		multiIter.Close()
 		for _, res := range idsToFinalize {
 			res.Finalize()
 		}
@@ -186,7 +196,7 @@ func (m *merger) Merge(
 		br = append(br, blockReaderFromData(data, segReader, startTime, blockSize))
 
 		// Check if this series is in memory (and thus requires merging).
-		mergeWithData, hasData, err := mergeWith.Read(id, blockStart, nsCtx)
+		mergeWithData, hasData, err := mergeWith.Read(ctx, id, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}
@@ -213,7 +223,7 @@ func (m *merger) Merge(
 	// Second stage: loop through rest of the merge target that was not captured
 	// in the first stage.
 	err = mergeWith.ForEachRemaining(blockStart, func(seriesID ident.ID, tags ident.Tags) error {
-		mergeWithData, hasData, err := mergeWith.Read(seriesID, blockStart, nsCtx)
+		mergeWithData, hasData, err := mergeWith.Read(ctx, seriesID, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}
@@ -272,16 +282,12 @@ func persistIter(
 		}
 	}
 	if err := it.Err(); err != nil {
+		encoder.Close()
 		return err
 	}
 
 	segment := encoder.Discard()
 	checksum := digest.SegmentChecksum(segment)
 
-	err := persistFn(id, tags, segment, checksum)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return persistFn(id, tags, segment, checksum)
 }

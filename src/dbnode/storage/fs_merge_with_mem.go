@@ -58,6 +58,7 @@ func newFSMergeWithMem(
 }
 
 func (m *fsMergeWithMem) Read(
+	ctx context.Context,
 	seriesID ident.ID,
 	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,
@@ -78,9 +79,8 @@ func (m *fsMergeWithMem) Read(
 
 	nextVersion := m.retriever.RetrievableBlockColdVersion(startTime) + 1
 
-	tmpCtx := context.NewContext()
-	blocks, err := m.shard.FetchBlocksForColdFlush(tmpCtx, element.Value, startTime, nextVersion, nsCtx)
-	tmpCtx.BlockingClose()
+	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, element.Value, startTime, nextVersion, nsCtx)
+	ctx.BlockingClose()
 	if err != nil {
 		return nil, false, err
 	}

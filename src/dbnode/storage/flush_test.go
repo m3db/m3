@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -171,7 +170,10 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 		mockSnapshotPersist = persist.NewMockSnapshotPreparer(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(fakeErr).Times(2)
+	gomock.InOrder(
+		mockFlushPersist.EXPECT().DoneFlush().Return(fakeErr),
+		mockFlushPersist.EXPECT().DoneFlush().Return(nil),
+	)
 	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
@@ -193,10 +195,7 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	multiErr := xerrors.NewMultiError()
-	multiErr = multiErr.Add(fakeErr)
-	multiErr = multiErr.Add(fakeErr)
-	require.EqualError(t, multiErr.FinalError(), fm.Flush(now, DatabaseBootstrapState{}).Error())
+	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
 }
 
 // TestFlushManagerFlushDoneSnapshotError makes sure that snapshot errors do not

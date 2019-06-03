@@ -1953,7 +1953,7 @@ func (s *dbShard) ColdFlush(
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		seriesID := curr.ID()
-		blockStarts := curr.NeedsColdFlushBlockStarts()
+		blockStarts := curr.ColdFlushBlockStarts()
 		blockStarts.ForEach(func(t xtime.UnixNano) {
 			seriesList := dirtySeriesToWrite[t]
 			if seriesList == nil {

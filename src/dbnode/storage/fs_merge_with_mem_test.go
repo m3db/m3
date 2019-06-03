@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -47,6 +48,7 @@ func TestRead(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
 	version := 0
+	ctx := context.NewContext()
 	nsCtx := namespace.Context{}
 	fetchedBlocks := []xio.BlockReader{xio.BlockReader{}}
 	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version).AnyTimes()
@@ -79,7 +81,7 @@ func TestRead(t *testing.T) {
 	for _, d := range data {
 		require.True(t, dirtySeries.Contains(idAndBlockStart{blockStart: d.start, id: d.id}))
 		beforeLen := dirtySeriesToWrite[d.start].Len()
-		res, exists, err := mergeWith.Read(d.id, d.start, nsCtx)
+		res, exists, err := mergeWith.Read(ctx, d.id, d.start, nsCtx)
 		require.NoError(t, err)
 		assert.True(t, exists)
 		assert.Equal(t, fetchedBlocks, res)
@@ -89,7 +91,7 @@ func TestRead(t *testing.T) {
 	}
 
 	// Test Read with non-existent dirty block/series.
-	res, exists, err := mergeWith.Read(ident.StringID("not-present"), 10, nsCtx)
+	res, exists, err := mergeWith.Read(ctx, ident.StringID("not-present"), 10, nsCtx)
 	assert.Nil(t, res)
 	assert.False(t, exists)
 	assert.NoError(t, err)
@@ -100,7 +102,7 @@ func TestRead(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), badFetchID, gomock.Any(), version+1, nsCtx).
 		Return(nil, errors.New("fetch error"))
-	res, exists, err = mergeWith.Read(badFetchID, 11, nsCtx)
+	res, exists, err = mergeWith.Read(ctx, badFetchID, 11, nsCtx)
 	assert.Nil(t, res)
 	assert.False(t, exists)
 	assert.Error(t, err)
@@ -111,7 +113,7 @@ func TestRead(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), emptyDataID, gomock.Any(), version+1, nsCtx).
 		Return(nil, nil)
-	res, exists, err = mergeWith.Read(emptyDataID, 12, nsCtx)
+	res, exists, err = mergeWith.Read(ctx, emptyDataID, 12, nsCtx)
 	assert.Nil(t, res)
 	assert.False(t, exists)
 	assert.NoError(t, err)
@@ -124,6 +126,7 @@ func TestForEachRemaining(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
 	version := 0
+	ctx := context.NewContext()
 	nsCtx := namespace.Context{}
 	fetchedBlocks := []xio.BlockReader{xio.BlockReader{}}
 	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version).AnyTimes()
@@ -176,7 +179,7 @@ func TestForEachRemaining(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id3, xtime.UnixNano(1).ToTime(), version+1, nsCtx).
 		Return(fetchedBlocks, nil)
-	res, exists, err := mergeWith.Read(id3, 1, nsCtx)
+	res, exists, err := mergeWith.Read(ctx, id3, 1, nsCtx)
 	require.NoError(t, err)
 	assert.True(t, exists)
 	assert.Equal(t, fetchedBlocks, res)
