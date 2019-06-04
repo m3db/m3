@@ -113,11 +113,11 @@ func (r shardRepairer) Repair(
 		IncludeChecksums: true,
 	}
 	var (
-		currLocalMetadata block.FetchBlocksMetadataResults
-		localMetadata     block.FetchBlocksMetadataResults
-		pageToken         PageToken
+		accumLocalMetadata block.FetchBlocksMetadataResults
+		currLocalMetadata  block.FetchBlocksMetadataResults
+		pageToken          PageToken
 	)
-	ctx.RegisterCloser(localMetadata)
+	ctx.RegisterCloser(accumLocalMetadata)
 
 	for {
 		currLocalMetadata, pageToken, err = shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, pageToken, opts)
@@ -126,23 +126,26 @@ func (r shardRepairer) Repair(
 		}
 
 		if pageToken == nil {
+			// Regardless of the limit passed to FetchBlocksMetadataV2, iteration can only safely terminate
+			// when an empty pageToken is returned indicating that there is no more metadata.
 			break
 		}
 
-		if localMetadata == nil {
-			localMetadata = currLocalMetadata
-		} else {
-			for _, result := range currLocalMetadata.Results() {
-				localMetadata.Add(result)
-			}
+		if accumLocalMetadata == nil {
+			accumLocalMetadata = currLocalMetadata
+			continue
+		}
+
+		for _, result := range currLocalMetadata.Results() {
+			accumLocalMetadata.Add(result)
 		}
 	}
 
-	if err := r.shadowCompare(ctx, start, localMetadata, session, shard, nsCtx); err != nil {
+	if err := r.shadowCompare(ctx, start, accumLocalMetadata, session, shard, nsCtx); err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
+	localIter := block.NewFilteredBlocksMetadataIter(accumLocalMetadata)
 	err = metadata.AddLocalMetadata(origin, localIter)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
