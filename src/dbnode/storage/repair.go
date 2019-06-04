@@ -113,24 +113,30 @@ func (r shardRepairer) Repair(
 		IncludeChecksums: true,
 	}
 	var (
-		localMetadata block.FetchBlocksMetadataResults
-		pageToken     PageToken
+		accumLocalMetadata block.FetchBlocksMetadataResults
+		pageToken          PageToken
 	)
-	ctx.RegisterCloser(localMetadata)
+	ctx.RegisterCloser(accumLocalMetadata)
 
 	for {
+		// It's possible for FetchBlocksMetadataV2 to not return all the metadata at once even if
+		// math.MaxInt64 is passed as the limit due to its implementation and the different phases
+		// of the page token. As a result, the only way to ensure that all the metadata has been
+		// fetched is to continue looping until a nil pageToken is returned.
 		var currLocalMetadata block.FetchBlocksMetadataResults
 		currLocalMetadata, pageToken, err = shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, pageToken, opts)
 		if err != nil {
 			return repair.MetadataComparisonResult{}, err
 		}
 
-		if currLocalMetadata != nil {
-			if localMetadata == nil {
-				localMetadata = currLocalMetadata
-			} else {
+		if accumLocalMetadata == nil {
+			// Set if not exist.
+			accumLocalMetadata = currLocalMetadata
+		} else {
+			// Otherwise merge.
+			if currLocalMetadata != nil {
 				for _, result := range currLocalMetadata.Results() {
-					localMetadata.Add(result)
+					accumLocalMetadata.Add(result)
 				}
 			}
 		}
@@ -140,14 +146,15 @@ func (r shardRepairer) Repair(
 		}
 	}
 
-	if err := r.shadowCompare(ctx, start, localMetadata, session, shard, nsCtx); err != nil {
+	// TODO: Wire into config.
+	if err := r.shadowCompare(ctx, start, accumLocalMetadata, session, shard, nsCtx); err != nil {
 		r.logger.Error(
 			"Shadow compare failed",
 			zap.Error(err))
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
+	localIter := block.NewFilteredBlocksMetadataIter(accumLocalMetadata)
 	err = metadata.AddLocalMetadata(origin, localIter)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
@@ -174,7 +181,7 @@ func (r shardRepairer) Repair(
 func (r shardRepairer) shadowCompare(
 	ctx context.Context,
 	blockStart time.Time,
-	localBlocks block.FetchBlocksMetadataResults,
+	localMetadataBlocks block.FetchBlocksMetadataResults,
 	session client.AdminSession,
 	shard databaseShard,
 	nsCtx namespace.Context,
@@ -185,42 +192,20 @@ func (r shardRepairer) shadowCompare(
 		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 		peerM  = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	)
-	for _, result := range localBlocks.Results() {
+	for _, result := range localMetadataBlocks.Results() {
 		seriesID := result.ID
-		localBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
-		if err != nil {
-			return err
-		}
-
-		if len(localBlocks) != 1 {
-			r.logger.Error(
-				"expected 1 local blocks",
-				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("blockStart", blockStart),
-				zap.String("series", seriesID.String()),
-				zap.Int("actual", len(localBlocks)),
-			)
-			continue
-		}
-
 		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
 		if err != nil {
 			return err
 		}
 
-		segmentReaders := make([]xio.SegmentReader, 0, len(localBlocks[0]))
-		for _, blockReader := range localBlocks[0] {
-			seg, err := blockReader.Segment()
-			if err != nil {
-				return fmt.Errorf(
-					"error retrieving segment for series %s, err: %v",
-					seriesID.String(), err)
-			}
-			segmentReaders = append(segmentReaders, xio.NewSegmentReader(seg))
+		localSeriesDataBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
+		if err != nil {
+			return err
 		}
-
+		localSeriesSliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(localSeriesDataBlocks)
 		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
-		localSeriesIter.Reset(segmentReaders, start, time.Hour, nsCtx.Schema)
+		localSeriesIter.ResetSliceOfSlices(localSeriesSliceOfSlices, nsCtx.Schema)
 
 		var (
 			i             = 0
@@ -273,6 +258,11 @@ func (r shardRepairer) shadowCompare(
 				)
 				foundMismatch = true
 				break
+			}
+
+			if nsCtx.Schema == nil {
+				// Remaining shadow logic is proto-specific.
+				continue
 			}
 
 			err = localM.Unmarshal(localAnnotation)
