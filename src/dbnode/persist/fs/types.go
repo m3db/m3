@@ -26,19 +26,19 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -323,6 +323,57 @@ type IndexFileSetReader interface {
 	// it must be called after reading all the segment file sets otherwise
 	// it returns an error.
 	Validate() error
+}
+
+// FileRegistry is a file lifecycle manager and should always be used in place
+// of os.Open to ensure.
+type FileRegistry interface {
+	Open(path string, leaser FileLeaser) (File, error)
+	OpenFile(path string, flag int, perm os.FileMode, leaser FileLeaser) (File, error)
+	Remove(filePath string) error
+	RemoveFiles(filePaths []string) error
+	RemoveAll(dirPath string) error
+	RemoveAllIter(iter FilesAbsolutePathsIterator) error
+}
+
+// FilesAbsolutePathsIterator allows iteration of files using their
+// absolute paths.
+type FilesAbsolutePathsIterator interface {
+	Duplicate() FilesAbsolutePathsIterator
+	Next() bool
+	CurrentPathAbs() string
+	Err() error
+	Close() error
+}
+
+// FileLeaser is an leaser of a file, who can be requested to be release
+// any of it's leases at any time.
+type FileLeaser interface {
+	// Release requests the file leaser to close files it has leased,
+	// it must have closed the file before returning from a call to release.
+	Release(iter FilesAbsolutePathsIterator) error
+}
+
+// File is a the os.File methods that wraps the close and provides
+// ref counting for file deletion.
+type File interface {
+	// File registry methods.
+	Equal(otherFile File) bool
+	PathAbs() string
+
+	// os.File methods.
+	Close() error
+	Fd() uintptr
+	Name() string
+	Read(b []byte) (int, error)
+	ReadAt(b []byte, off int64) (int, error)
+	Readdir(n int) ([]os.FileInfo, error)
+	Readdirnames(n int) ([]string, error)
+	Seek(offset int64, whence int) (ret int64, err error)
+	Stat() (os.FileInfo, error)
+	Sync() error
+	Write(b []byte) (int, error)
+	WriteAt(b []byte, off int64) (int, error)
 }
 
 // Options represents the options for filesystem persistence.
