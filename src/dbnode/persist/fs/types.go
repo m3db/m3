@@ -326,7 +326,8 @@ type IndexFileSetReader interface {
 }
 
 // FileRegistry is a file lifecycle manager and should always be used in place
-// of os.Open to ensure.
+// of os.Open to ensure that files can be safely removed by asking any owners
+// to release leases to the file.
 type FileRegistry interface {
 	Open(path string, leaser FileLeaser) (File, error)
 	OpenFile(path string, flag int, perm os.FileMode, leaser FileLeaser) (File, error)
