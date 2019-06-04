@@ -236,16 +236,24 @@ func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
 		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
 		if curSchema != nil {
 			curSchemaID = curSchema.DeployId()
+			if len(curSchemaID) == 0 {
+				d.log.Warn("can not update namespace schema with empty deploy ID", zap.Stringer("namespace", metadata.ID()),
+					zap.String("currentSchemaID", curSchemaID))
+				merr.Add(fmt.Errorf("can not update namespace(%v) schema with empty deploy ID", metadata.ID().String()))
+				continue
+			}
 		}
 		// Log schema update.
 		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
 		if !found {
-			merr.Add(fmt.Errorf("can not updating namespace(%v) schema to empty", metadata.ID().String()))
+			d.log.Warn("can not update namespace schema to empty", zap.Stringer("namespace", metadata.ID()),
+				zap.String("currentSchema", curSchemaID))
+			merr.Add(fmt.Errorf("can not update namespace(%v) schema to empty", metadata.ID().String()))
 			continue
-		} else {
-			d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
-				zap.String("current schema", curSchemaID), zap.String("latest schema", latestSchema.DeployId()))
 		}
+		d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
+			zap.String("currentSchema", curSchemaID), zap.String("latestSchema", latestSchema.DeployId()))
+
 		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
 		if err != nil {
 			d.log.Warn("failed to update latest schema for namespace",
