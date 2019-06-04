@@ -236,10 +236,18 @@ func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
 		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
 		if curSchema != nil {
 			curSchemaId = curSchema.DeployId()
+			if len(curSchemaId) == 0 {
+				d.log.Warn("can not update namespace schema to with empty deploy ID", zap.Stringer("namespace", metadata.ID()),
+					zap.String("current schema id", curSchemaId))
+				merr.Add(fmt.Errorf("can not updating namespace(%v) schema with empty deploy ID", metadata.ID().String()))
+				continue
+			}
 		}
 		// Log schema update.
 		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
 		if !found {
+			d.log.Warn("can not update namespace schema to empty", zap.Stringer("namespace", metadata.ID()),
+				zap.String("current schema", curSchemaId))
 			merr.Add(fmt.Errorf("can not updating namespace(%v) schema to empty", metadata.ID().String()))
 			continue
 		} else {
