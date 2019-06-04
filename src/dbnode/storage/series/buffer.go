@@ -127,7 +127,7 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
-	ColdFlushBlockStarts() OptimizedTimes
+	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
 	Stats() bufferStats
 
@@ -311,12 +311,22 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
-func (b *dbBuffer) ColdFlushBlockStarts() OptimizedTimes {
+func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
 	var times OptimizedTimes
 
 	for t, bucketVersions := range b.bucketsMap {
 		for _, bucket := range bucketVersions.buckets {
-			if bucket.version == writableBucketVersion && bucket.writeType == ColdWrite {
+			if bucket.writeType == ColdWrite &&
+				// We need to cold flush this bucket if it either:
+				// 1) Has new cold writes that need to be flushed, or
+				// 2) This bucket version is higher than what has been
+				//    successfully flushed. This can happen if a cold flush was
+				//    attempted, changing this bucket version, but fails to
+				//    completely finish (which is what the shard block state
+				//    signifies). In this case, we need to try to flush this
+				//    bucket again.
+				(bucket.version == writableBucketVersion ||
+					blockStates[xtime.ToUnixNano(bucket.start)].ColdVersion < bucket.version) {
 				times.Add(t)
 				break
 			}

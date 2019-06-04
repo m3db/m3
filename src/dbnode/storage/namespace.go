@@ -1001,6 +1001,22 @@ type coldFlushReuseableResources struct {
 	fsReader      fs.DataFileSetReader
 }
 
+func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, error) {
+	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return coldFlushReuseableResources{}, nil
+	}
+
+	return coldFlushReuseableResources{
+		// TODO(juchan): consider setting these options.
+		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
+		// TODO(juchan): set pool options.
+		idElementPool: newIDElementPool(nil),
+		fsReader:      fsReader,
+	}, nil
+}
+
 func (r *coldFlushReuseableResources) reset() {
 	for _, seriesList := range r.dirtySeriesToWrite {
 		if seriesList != nil {
@@ -1037,17 +1053,9 @@ func (n *dbNamespace) ColdFlush(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 
-	fsReader, err := fs.NewReader(n.opts.BytesPool(), n.opts.CommitLogOptions().FilesystemOptions())
+	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
 		return err
-	}
-	resources := coldFlushReuseableResources{
-		// TODO(juchan): consider setting these options.
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
-		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
-		// TODO(juchan): set pool options.
-		idElementPool: newIDElementPool(nil),
-		fsReader:      fsReader,
 	}
 	for _, shard := range shards {
 		err := shard.ColdFlush(flushPersist, resources, nsCtx)

@@ -1191,17 +1191,17 @@ func (m *MockMergeWith) EXPECT() *MockMergeWithMockRecorder {
 }
 
 // ForEachRemaining mocks base method
-func (m *MockMergeWith) ForEachRemaining(arg0 time0.UnixNano, arg1 ForEachRemainingFn) error {
+func (m *MockMergeWith) ForEachRemaining(arg0 context.Context, arg1 time0.UnixNano, arg2 ForEachRemainingFn, arg3 namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForEachRemaining", arg0, arg1)
+	ret := m.ctrl.Call(m, "ForEachRemaining", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ForEachRemaining indicates an expected call of ForEachRemaining
-func (mr *MockMergeWithMockRecorder) ForEachRemaining(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockMergeWithMockRecorder) ForEachRemaining(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachRemaining", reflect.TypeOf((*MockMergeWith)(nil).ForEachRemaining), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachRemaining", reflect.TypeOf((*MockMergeWith)(nil).ForEachRemaining), arg0, arg1, arg2, arg3)
 }
 
 // Read mocks base method

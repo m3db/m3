@@ -358,6 +358,11 @@ func statusIsRetrievable(status fileOpStatus) bool {
 		status))
 }
 
+func (s *dbShard) hasWarmFlushed(blockStart time.Time) bool {
+	flushState := s.FlushState(blockStart)
+	return statusIsRetrievable(flushState.WarmStatus)
+}
+
 // RetrievableBlockColdVersion implements series.QueryableBlockRetriever
 func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
@@ -1948,13 +1953,21 @@ func (s *dbShard) ColdFlush(
 		idElementPool      = resources.idElementPool
 	)
 
+	blockStates := s.BlockStatesSnapshot()
 	// First, loop through all series to capture data on which blocks have dirty
 	// series and add them to the resources for further processing.
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		seriesID := curr.ID()
-		blockStarts := curr.ColdFlushBlockStarts()
+		blockStarts := curr.ColdFlushBlockStarts(blockStates)
 		blockStarts.ForEach(func(t xtime.UnixNano) {
+			// Cold flushes can only happen on blockStarts that have been
+			// warm flushed, because warm flush logic does not currently
+			// perform any merging logic.
+			if !s.hasWarmFlushed(t.ToTime()) {
+				return
+			}
+
 			seriesList := dirtySeriesToWrite[t]
 			if seriesList == nil {
 				seriesList = newIDList(idElementPool)

@@ -123,7 +123,7 @@ type DatabaseSeries interface {
 	) error
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
-	ColdFlushBlockStarts() OptimizedTimes
+	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()

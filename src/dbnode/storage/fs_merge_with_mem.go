@@ -80,7 +80,6 @@ func (m *fsMergeWithMem) Read(
 	nextVersion := m.retriever.RetrievableBlockColdVersion(startTime) + 1
 
 	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, element.Value, startTime, nextVersion, nsCtx)
-	ctx.BlockingClose()
 	if err != nil {
 		return nil, false, err
 	}
@@ -92,7 +91,12 @@ func (m *fsMergeWithMem) Read(
 	return nil, false, nil
 }
 
-func (m *fsMergeWithMem) ForEachRemaining(blockStart xtime.UnixNano, fn fs.ForEachRemainingFn) error {
+func (m *fsMergeWithMem) ForEachRemaining(
+	ctx context.Context,
+	blockStart xtime.UnixNano,
+	fn fs.ForEachRemainingFn,
+	nsCtx namespace.Context,
+) error {
 	seriesList := m.dirtySeriesToWrite[blockStart]
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
@@ -102,9 +106,15 @@ func (m *fsMergeWithMem) ForEachRemaining(blockStart xtime.UnixNano, fn fs.ForEa
 			return err
 		}
 
-		err = fn(seriesID, tags)
+		mergeWithData, hasData, err := m.Read(ctx, seriesID, blockStart, nsCtx)
 		if err != nil {
 			return err
+		}
+		if hasData {
+			err = fn(seriesID, tags, mergeWithData)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

@@ -566,11 +566,11 @@ func (s *dbSeries) Snapshot(
 	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
 
-func (s *dbSeries) ColdFlushBlockStarts() OptimizedTimes {
+func (s *dbSeries) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.buffer.ColdFlushBlockStarts()
+	return s.buffer.ColdFlushBlockStarts(blockStates)
 }
 
 func (s *dbSeries) Close() {

@@ -180,17 +180,17 @@ func (mr *MockdatabaseBufferMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // ColdFlushBlockStarts mocks base method
-func (m *MockdatabaseBuffer) ColdFlushBlockStarts() OptimizedTimes {
+func (m *MockdatabaseBuffer) ColdFlushBlockStarts(blockStates map[time0.UnixNano]BlockState) OptimizedTimes {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushBlockStarts")
+	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", blockStates)
 	ret0, _ := ret[0].(OptimizedTimes)
 	return ret0
 }
 
 // ColdFlushBlockStarts indicates an expected call of ColdFlushBlockStarts
-func (mr *MockdatabaseBufferMockRecorder) ColdFlushBlockStarts() *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) ColdFlushBlockStarts(blockStates interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushBlockStarts", reflect.TypeOf((*MockdatabaseBuffer)(nil).ColdFlushBlockStarts))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushBlockStarts", reflect.TypeOf((*MockdatabaseBuffer)(nil).ColdFlushBlockStarts), blockStates)
 }
 
 // Stats mocks base method

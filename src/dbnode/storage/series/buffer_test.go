@@ -1260,23 +1260,59 @@ func TestColdFlushBlockStarts(t *testing.T) {
 		},
 	}
 
+	blockStartNano1 := xtime.ToUnixNano(blockStart1)
+	blockStartNano2 := xtime.ToUnixNano(blockStart2)
+	blockStartNano3 := xtime.ToUnixNano(blockStart3)
+
 	buffer, _ := newTestBufferWithCustomData(t, bds, opts, nil)
-	flushStarts := buffer.ColdFlushBlockStarts()
+	blockStates := make(map[xtime.UnixNano]BlockState)
+	blockStates[blockStartNano1] = BlockState{
+		WarmRetrievable: true,
+		ColdVersion:     0,
+	}
+	blockStates[blockStartNano2] = BlockState{
+		WarmRetrievable: true,
+		ColdVersion:     0,
+	}
+	blockStates[blockStartNano3] = BlockState{
+		WarmRetrievable: true,
+		ColdVersion:     0,
+	}
+	flushStarts := buffer.ColdFlushBlockStarts(blockStates)
 
 	// All three cold blocks should report that they are dirty.
 	assert.Equal(t, 3, flushStarts.Len())
-	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart1)))
-	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart2)))
-	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart3)))
+	assert.True(t, flushStarts.Contains(blockStartNano1))
+	assert.True(t, flushStarts.Contains(blockStartNano2))
+	assert.True(t, flushStarts.Contains(blockStartNano3))
 
 	// Simulate that block2 and block3 are flushed (but not yet evicted from
 	// memory), so only block1 should report as dirty.
-	buffer.bucketsMap[xtime.ToUnixNano(blockStart2)].buckets[0].version = 1
-	buffer.bucketsMap[xtime.ToUnixNano(blockStart3)].buckets[0].version = 1
+	buffer.bucketsMap[blockStartNano2].buckets[0].version = 1
+	buffer.bucketsMap[blockStartNano3].buckets[0].version = 1
+	blockStates[blockStartNano2] = BlockState{
+		WarmRetrievable: true,
+		ColdVersion:     1,
+	}
+	blockStates[blockStartNano3] = BlockState{
+		WarmRetrievable: true,
+		ColdVersion:     1,
+	}
 
-	flushStarts = buffer.ColdFlushBlockStarts()
+	flushStarts = buffer.ColdFlushBlockStarts(blockStates)
 	assert.Equal(t, 1, flushStarts.Len())
 	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart1)))
+
+	// Simulate blockStart3 didn't get fully flushed, so it should be flushed
+	// again.
+	blockStates[blockStartNano3] = BlockState{
+		WarmRetrievable: true,
+		ColdVersion:     0,
+	}
+	flushStarts = buffer.ColdFlushBlockStarts(blockStates)
+	assert.Equal(t, 2, flushStarts.Len())
+	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart1)))
+	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart3)))
 }
 
 func TestFetchBlocksForColdFlush(t *testing.T) {

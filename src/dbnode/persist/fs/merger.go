@@ -48,10 +48,11 @@ type merger struct {
 }
 
 // NewMerger returns a new Merger. This implementation is in charge of merging
-// the data from an existing fileset with a merge target, giving precendence
-// to the data from the merge target. This merged data is then persisted.
+// the data from an existing fileset with a merge target. If data for a series
+// at a timestamp exists both on disk and the merge target, data from the merge
+// target will be used. This merged data is then persisted.
 //
-// Note that the merger it does not know how or where this merged data is
+// Note that the merger does not know how or where this merged data is
 // persisted since it just uses the flushPreparer that is passed in. Further,
 // it does not signal to the database of the existence of the newly persisted
 // data, nor does it clean up the original fileset.
@@ -76,6 +77,8 @@ func NewMerger(
 }
 
 // Merge merges data from a fileset with a merge target and persists it.
+// The caller is responsible for finalizing all resources used for the
+// MergeWith passed here.
 func (m *merger) Merge(
 	fileID FileSetFileIdentifier,
 	mergeWith MergeWith,
@@ -140,9 +143,9 @@ func (m *merger) Merge(
 		// one for data from the merge target.
 		br = make([]xio.BlockReader, 0, 2)
 
-		// It's safe to share these between iterations and just reset them each time
-		// because the series gets persisted each loop, so previous iterations'
-		// reader and iterator will never be needed.
+		// It's safe to share these between iterations and just reset them each
+		// time because the series gets persisted each loop, so the previous
+		// iterations' reader and iterator will never be needed.
 		segReader = srPool.Get()
 		multiIter = multiIterPool.Get()
 		// Initialize this here with nil to be reset before each iteration's
@@ -150,7 +153,7 @@ func (m *merger) Merge(
 		sliceOfSlices = xio.NewReaderSliceOfSlicesFromBlockReadersIterator(nil)
 		// Reused context for use in mergeWith.Read, since they all do a
 		// BlockingClose after usage.
-		ctx = context.NewContext()
+		tmpCtx = context.NewContext()
 
 		// We keep track of IDs/tags to finalize at the end of merging. This
 		// only applies to those that come from disk Reads, since the whole
@@ -196,7 +199,8 @@ func (m *merger) Merge(
 		br = append(br, blockReaderFromData(data, segReader, startTime, blockSize))
 
 		// Check if this series is in memory (and thus requires merging).
-		mergeWithData, hasData, err := mergeWith.Read(ctx, id, blockStart, nsCtx)
+		tmpCtx.Reset()
+		mergeWithData, hasData, err := mergeWith.Read(tmpCtx, id, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}
@@ -208,7 +212,8 @@ func (m *merger) Merge(
 		sliceOfSlices.Reset(brs)
 		multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
 
-		// tagsIter is never nil.
+		// tagsIter is never nil. These tags will be valid as long as the IDs
+		// are valid, and the IDs are valid for the duration of the file writing.
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
 		tagsIter.Close()
 		tagsToFinalize = append(tagsToFinalize, tags)
@@ -219,26 +224,22 @@ func (m *merger) Merge(
 			id, tags, blockAllocSize, nsCtx.Schema, encoderPool); err != nil {
 			return err
 		}
+		tmpCtx.BlockingClose()
 	}
-	// Second stage: loop through rest of the merge target that was not captured
-	// in the first stage.
-	err = mergeWith.ForEachRemaining(blockStart, func(seriesID ident.ID, tags ident.Tags) error {
-		mergeWithData, hasData, err := mergeWith.Read(ctx, seriesID, blockStart, nsCtx)
-		if err != nil {
-			return err
-		}
-
-		if hasData {
+	// Second stage: loop through any series in the merge target that were not
+	// captured in the first stage.
+	tmpCtx.Reset()
+	err = mergeWith.ForEachRemaining(
+		tmpCtx, blockStart,
+		func(seriesID ident.ID, tags ident.Tags, mergeWithData []xio.BlockReader) error {
 			brs = brs[:0]
 			brs = append(brs, mergeWithData)
 			sliceOfSlices.Reset(brs)
 			multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
 			return persistIter(prepared.Persist, multiIter, startTime,
 				seriesID, tags, blockAllocSize, nsCtx.Schema, encoderPool)
-		}
-
-		return nil
-	})
+		}, nsCtx)
+	tmpCtx.BlockingClose()
 	if err != nil {
 		return err
 	}

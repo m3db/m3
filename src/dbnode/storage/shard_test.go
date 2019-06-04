@@ -358,6 +358,18 @@ func TestShardColdFlush(t *testing.T) {
 	t5 := t0.Add(5 * blockSize)
 	t6 := t0.Add(6 * blockSize)
 	t7 := t0.Add(7 * blockSize)
+	// Mark t0-t6 (not t7) as having been warm flushed. Cold flushes can only
+	// happen after a successful warm flush because warm flushes currently don't
+	// have merging logic. This means that all blocks except t7 should
+	// successfully cold flush.
+	shard.markWarmFlushStateSuccess(t0)
+	shard.markWarmFlushStateSuccess(t1)
+	shard.markWarmFlushStateSuccess(t2)
+	shard.markWarmFlushStateSuccess(t3)
+	shard.markWarmFlushStateSuccess(t4)
+	shard.markWarmFlushStateSuccess(t5)
+	shard.markWarmFlushStateSuccess(t6)
+
 	dirtyData := []testDirtySeries{
 		{id: ident.StringID("id0"), dirtyTimes: []time.Time{t0, t2, t3, t4}},
 		{id: ident.StringID("id1"), dirtyTimes: []time.Time{t1}},
@@ -367,7 +379,7 @@ func TestShardColdFlush(t *testing.T) {
 	for _, ds := range dirtyData {
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ds.id)
-		curr.EXPECT().ColdFlushBlockStarts().
+		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
 		shard.list.PushBack(lookup.NewEntry(curr, 0))
 	}
@@ -387,11 +399,13 @@ func TestShardColdFlush(t *testing.T) {
 		assert.Equal(t, 0, shard.RetrievableBlockColdVersion(i))
 	}
 	shard.ColdFlush(preparer, resources, nsCtx)
-	// After a cold flush, all previously dirty block starts should be updated
+	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
-	for i := t0; i.Before(t7.Add(blockSize)); i = i.Add(blockSize) {
+	for i := t0; i.Before(t6.Add(blockSize)); i = i.Add(blockSize) {
 		assert.Equal(t, 1, shard.RetrievableBlockColdVersion(i))
 	}
+	// t7 shouldn't be cold flushed because it hasn't been warm flushed.
+	assert.Equal(t, 0, shard.RetrievableBlockColdVersion(t7))
 }
 
 func newMergerTestFn(
@@ -438,8 +452,10 @@ func (m *noopMergeWith) Read(
 }
 
 func (m *noopMergeWith) ForEachRemaining(
+	ctx context.Context,
 	blockStart xtime.UnixNano,
 	fn fs.ForEachRemainingFn,
+	nsCtx namespace.Context,
 ) error {
 	return nil
 }

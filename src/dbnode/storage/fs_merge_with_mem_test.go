@@ -164,10 +164,10 @@ func TestForEachRemaining(t *testing.T) {
 
 	var forEachCalls []ident.ID
 	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
-	mergeWith.ForEachRemaining(0, func(seriesID ident.ID, tags ident.Tags) error {
+	mergeWith.ForEachRemaining(ctx, 0, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		forEachCalls = append(forEachCalls, seriesID)
 		return nil
-	})
+	}, nsCtx)
 	require.Len(t, forEachCalls, 2)
 	assert.Equal(t, id0, forEachCalls[0])
 	assert.Equal(t, id1, forEachCalls[1])
@@ -184,10 +184,10 @@ func TestForEachRemaining(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, fetchedBlocks, res)
 	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
-	err = mergeWith.ForEachRemaining(1, func(seriesID ident.ID, tags ident.Tags) error {
+	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		forEachCalls = append(forEachCalls, seriesID)
 		return nil
-	})
+	}, nsCtx)
 	require.NoError(t, err)
 	require.Len(t, forEachCalls, 2)
 	assert.Equal(t, id2, forEachCalls[0])
@@ -196,18 +196,18 @@ func TestForEachRemaining(t *testing.T) {
 	// Test call with error getting tags.
 	shard.EXPECT().
 		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, errors.New("bad-tags"))
-	err = mergeWith.ForEachRemaining(4, func(seriesID ident.ID, tags ident.Tags) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		// This function won't be called with the above error.
 		return errors.New("unreachable")
-	})
+	}, nsCtx)
 	assert.Error(t, err)
 
 	// Test call with bad function execution.
 	shard.EXPECT().
 		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil)
-	err = mergeWith.ForEachRemaining(4, func(seriesID ident.ID, tags ident.Tags) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		return errors.New("bad")
-	})
+	}, nsCtx)
 	assert.Error(t, err)
 }
 

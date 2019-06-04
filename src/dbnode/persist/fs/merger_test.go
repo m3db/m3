@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -559,12 +560,6 @@ func mockMergeWithFromData(
 	for _, val := range mergeTargetData.Iter() {
 		id := val.Key()
 		if !diskData.Contains(id) {
-			data := val.Value()
-			segReader := srPool.Get()
-			br := []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)}
-			mergeWith.EXPECT().Read(gomock.Any(), id, gomock.Any(), gomock.Any()).
-				Return(br, true, nil)
-
 			// Capture remaining items so that we can call the ForEachRemaining
 			// fn on them later.
 			remaining = append(remaining, id)
@@ -572,11 +567,16 @@ func mockMergeWithFromData(
 	}
 
 	mergeWith.EXPECT().
-		ForEachRemaining(xtime.ToUnixNano(startTime), gomock.Any()).
+		ForEachRemaining(gomock.Any(), xtime.ToUnixNano(startTime), gomock.Any(), gomock.Any()).
 		Return(nil).
-		Do(func(blockStart xtime.UnixNano, fn ForEachRemainingFn) {
+		Do(func(ctx context.Context, blockStart xtime.UnixNano, fn ForEachRemainingFn, nsCtx namespace.Context) {
 			for _, id := range remaining {
-				fn(id, ident.Tags{})
+				data, ok := mergeTargetData.Get(id)
+				if ok {
+					segReader := srPool.Get()
+					br := []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)}
+					fn(id, ident.Tags{}, br)
+				}
 			}
 		})
 

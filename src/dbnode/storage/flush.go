@@ -130,18 +130,16 @@ func (m *flushManager) Flush(
 		if err = m.dataColdFlush(namespaces); err != nil {
 			multiErr = multiErr.Add(err)
 			// If cold flush fails, we can't proceed to snapshotting because
-			// commit log logic just checks for a successful snapshot checkpoint
-			// file. Therefore if a cold flush fails and a snapshot succeeds,
-			// the writes from the failed cold flush might be lost when commit
-			// logs get cleaned up.
+			// commit log cleanup logic uses the presence of a successful
+			// snapshot checkpoint file to determine which commit log files are
+			// safe to delete. Therefore if a cold flush fails and a snapshot
+			// succeeds, the writes from the failed cold flush might be lost
+			// when commit logs get cleaned up, leaving the node in an undurable
+			// state such that if it restarted, it would not be able to recover
+			// the cold writes from its commit log.
 			return multiErr.FinalError()
 		}
 
-		// Snapshots must be done after a cold flush because cleanup logic just
-		// checks for a successful snapshot checkpoint file. If snapshotting
-		// went first and succeeded and then a cold flush fails, the old
-		// commitlogs would still get cleaned up. If the node then restarted,
-		// cold writes would be lost.
 		if err = m.dataSnapshot(namespaces, tickStart, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
