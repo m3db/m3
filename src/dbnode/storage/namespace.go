@@ -370,18 +370,19 @@ func (n *dbNamespace) SetSchemaHistory(value namespace.SchemaHistory) {
 	n.Lock()
 	defer n.Unlock()
 
+	schema, ok := value.GetLatest()
+	if !ok {
+		n.log.Error("can not update namespace schema to empty", zap.Stringer("namespace", n.ID()))
+	}
+
 	metadata, err := namespace.NewMetadata(n.ID(), n.nopts.SetSchemaHistory(value))
 	if err != nil {
 		n.log.Error("can not update namespace metadata with empty schema history", zap.Stringer("namespace", n.ID()), zap.Error(err))
 		return
 	}
 
-	if schema, ok := value.GetLatest(); ok {
-		n.schemaDescr = schema
-		n.metadata = metadata
-	} else {
-		n.log.Error("can not update namespace schema to empty", zap.Stringer("namespace", n.ID()))
-	}
+	n.schemaDescr = schema
+	n.metadata = metadata
 }
 
 func (n *dbNamespace) reportStatusLoop() {
