@@ -21,10 +21,11 @@
 package namespace
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"path"
-	"strings"
+	"strconv"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -51,6 +52,10 @@ var (
 	GetHTTPMethod = http.MethodGet
 )
 
+const (
+	debugParam = "debug"
+)
+
 // GetHandler is the handler for namespace gets.
 type GetHandler Handler
 
@@ -74,8 +79,7 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Registry: &nsRegistry,
 	}
 
-	urlParams := r.URL.Query()
-	if strings.ToLower(urlParams.Get("debug")) == "true" {
+	if debug, err := strconv.ParseBool(r.URL.Query().Get(debugParam)); err == nil && debug {
 		nanosToDurationMap, err := nanosToDuration(resp)
 		if err != nil {
 			logger.Error("error converting nano fields to duration", zap.Error(err))
@@ -119,13 +123,10 @@ func (h *GetHandler) Get() (nsproto.Registry, error) {
 
 func nanosToDuration(resp proto.Message) (map[string]interface{}, error) {
 	marshaler := jsonpb.Marshaler{EmitDefaults: true}
-	nsString, err := marshaler.MarshalToString(resp)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal namespace to string: %v", err)
-	}
+	buf := new(bytes.Buffer)
+	marshaler.Marshal(buf, resp)
 
-	ioReader := strings.NewReader(nsString)
-	toDuration, err := xhttp.NanosToDurationBytes(ioReader)
+	toDuration, err := xhttp.NanosToDurationBytes(buf)
 	if err != nil {
 		return nil, err
 	}
