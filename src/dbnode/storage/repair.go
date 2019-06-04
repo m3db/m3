@@ -113,39 +113,41 @@ func (r shardRepairer) Repair(
 		IncludeChecksums: true,
 	}
 	var (
-		accumLocalMetadata block.FetchBlocksMetadataResults
-		currLocalMetadata  block.FetchBlocksMetadataResults
-		pageToken          PageToken
+		localMetadata block.FetchBlocksMetadataResults
+		pageToken     PageToken
 	)
-	ctx.RegisterCloser(accumLocalMetadata)
+	ctx.RegisterCloser(localMetadata)
 
 	for {
+		var currLocalMetadata block.FetchBlocksMetadataResults
 		currLocalMetadata, pageToken, err = shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, pageToken, opts)
 		if err != nil {
 			return repair.MetadataComparisonResult{}, err
 		}
 
+		if currLocalMetadata != nil {
+			if localMetadata == nil {
+				localMetadata = currLocalMetadata
+			} else {
+				for _, result := range currLocalMetadata.Results() {
+					localMetadata.Add(result)
+				}
+			}
+		}
+
 		if pageToken == nil {
-			// Regardless of the limit passed to FetchBlocksMetadataV2, iteration can only safely terminate
-			// when an empty pageToken is returned indicating that there is no more metadata.
 			break
-		}
-
-		if accumLocalMetadata == nil {
-			accumLocalMetadata = currLocalMetadata
-			continue
-		}
-
-		for _, result := range currLocalMetadata.Results() {
-			accumLocalMetadata.Add(result)
 		}
 	}
 
-	if err := r.shadowCompare(ctx, start, accumLocalMetadata, session, shard, nsCtx); err != nil {
+	if err := r.shadowCompare(ctx, start, localMetadata, session, shard, nsCtx); err != nil {
+		r.logger.Error(
+			"Shadow compare failed",
+			zap.Error(err))
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	localIter := block.NewFilteredBlocksMetadataIter(accumLocalMetadata)
+	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	err = metadata.AddLocalMetadata(origin, localIter)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
@@ -183,19 +185,25 @@ func (r shardRepairer) shadowCompare(
 		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 		peerM  = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	)
-	localIter := block.NewFilteredBlocksMetadataIter(localBlocks)
-	for localIter.Next() {
-		seriesID, _ := localIter.Current()
+	for _, result := range localBlocks.Results() {
+		seriesID := result.ID
 		localBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
 		}
+
 		if len(localBlocks) != 1 {
-			r.logger.Error("expected 1 local blocks", zap.Int("actual", len(localBlocks)))
+			r.logger.Error(
+				"expected 1 local blocks",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("blockStart", blockStart),
+				zap.String("series", seriesID.String()),
+				zap.Int("actual", len(localBlocks)),
+			)
 			continue
 		}
 
-		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, blockStart, blockStart.Add(time.Hour))
+		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
 		if err != nil {
 			return err
 		}
@@ -214,13 +222,20 @@ func (r shardRepairer) shadowCompare(
 		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
 		localSeriesIter.Reset(segmentReaders, start, time.Hour, nsCtx.Schema)
 
-		i := 0
+		var (
+			i             = 0
+			foundMismatch = false
+		)
 		for localSeriesIter.Next() {
 			if !peerSeriesIter.Next() {
 				r.logger.Error(
 					"series had next locally, but not from peers",
+					zap.String("namespace", nsCtx.ID.String()),
+					zap.Time("blockStart", blockStart),
 					zap.String("series", seriesID.String()),
-					zap.Error(peerSeriesIter.Err()))
+					zap.Error(peerSeriesIter.Err()),
+				)
+				foundMismatch = true
 				break
 			}
 
@@ -232,7 +247,9 @@ func (r shardRepairer) shadowCompare(
 					"timestamps did not match",
 					zap.Int("index", i),
 					zap.Time("local", localDP.Timestamp),
-					zap.Time("peer", peerDP.Timestamp))
+					zap.Time("peer", peerDP.Timestamp),
+				)
+				foundMismatch = true
 				break
 			}
 
@@ -241,7 +258,9 @@ func (r shardRepairer) shadowCompare(
 					"Values did not match",
 					zap.Int("index", i),
 					zap.Float64("local", localDP.Value),
-					zap.Float64("peer", peerDP.Value))
+					zap.Float64("peer", peerDP.Value),
+				)
+				foundMismatch = true
 				break
 			}
 
@@ -250,7 +269,9 @@ func (r shardRepairer) shadowCompare(
 					"Values did not match",
 					zap.Int("index", i),
 					zap.Int("local", int(localUnit)),
-					zap.Int("peer", int(peerUnit)))
+					zap.Int("peer", int(peerUnit)),
+				)
+				foundMismatch = true
 				break
 			}
 
@@ -261,6 +282,7 @@ func (r shardRepairer) shadowCompare(
 					zap.Int("index", i),
 					zap.Error(err),
 				)
+				foundMismatch = true
 				break
 			}
 
@@ -271,6 +293,7 @@ func (r shardRepairer) shadowCompare(
 					zap.Int("index", i),
 					zap.Error(err),
 				)
+				foundMismatch = true
 				break
 			}
 
@@ -281,6 +304,7 @@ func (r shardRepairer) shadowCompare(
 					zap.String("local", localM.String()),
 					zap.String("peer", peerM.String()),
 				)
+				foundMismatch = true
 				break
 			}
 
@@ -291,23 +315,37 @@ func (r shardRepairer) shadowCompare(
 					zap.String("local", string(localAnnotation)),
 					zap.String("peer", string(peerAnnotation)),
 				)
+				foundMismatch = true
 				break
 			}
 
 			i++
 		}
 
-		if localIter.Err() != nil {
+		if localSeriesIter.Err() != nil {
 			r.logger.Error(
-				"Local iterator error",
-				zap.Error(localIter.Err()),
+				"Local series iterator experienced an error",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("blockStart", blockStart),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+				zap.Error(localSeriesIter.Err()),
+			)
+		} else if foundMismatch {
+			r.logger.Error(
+				"Found mismatch between series",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("blockStart", blockStart),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
 			)
 		} else {
 			r.logger.Info(
 				"All values for series match",
-				zap.Int("numDPs", i),
-				zap.String("series", seriesID.String()),
+				zap.String("namespace", nsCtx.ID.String()),
 				zap.Time("blockStart", blockStart),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
 			)
 		}
 	}
