@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/x/ident"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -310,6 +312,19 @@ func (c Configuration) NewAdminClient(
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
+		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
+		// Load schema from config if it is available.
+		// If admin client is initialized by dbnode, the schema registry can be overridden
+		// by admin custom options.
+		for nsID, protoConfig := range c.Proto.SchemaRegistry {
+			dummyDeployID := "fromconfig"
+			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
+				dummyDeployID,
+				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
+				return nil, xerrors.Wrapf(err, "could not load schema from configuration for namespace: %s", nsID)
+			}
+		}
+		v.SetSchemaRegistry(schemaRegistry)
 	}
 
 	// Apply programtic custom options last
