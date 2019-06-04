@@ -147,7 +147,9 @@ func (r shardRepairer) Repair(
 	}
 
 	// TODO: Wire into config.
-	if err := r.shadowCompare(ctx, start, accumLocalMetadata, session, shard, nsCtx); err != nil {
+	// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
+	// issues with the repair feature. It should not be enabled for production use-cases.
+	if err := r.shadowCompare(ctx, start, end, accumLocalMetadata, session, shard, nsCtx); err != nil {
 		r.logger.Error(
 			"Shadow compare failed",
 			zap.Error(err))
@@ -176,171 +178,6 @@ func (r shardRepairer) Repair(
 	r.recordFn(nsCtx.ID, shard, metadataRes)
 
 	return metadataRes, nil
-}
-
-func (r shardRepairer) shadowCompare(
-	ctx context.Context,
-	blockStart time.Time,
-	localMetadataBlocks block.FetchBlocksMetadataResults,
-	session client.AdminSession,
-	shard databaseShard,
-	nsCtx namespace.Context,
-) error {
-	var (
-		start  = blockStart
-		end    = blockStart.Add(time.Hour)
-		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
-		peerM  = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
-	)
-	for _, result := range localMetadataBlocks.Results() {
-		seriesID := result.ID
-		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
-		if err != nil {
-			return err
-		}
-
-		localSeriesDataBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
-		if err != nil {
-			return err
-		}
-		localSeriesSliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(localSeriesDataBlocks)
-		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
-		localSeriesIter.ResetSliceOfSlices(localSeriesSliceOfSlices, nsCtx.Schema)
-
-		var (
-			i             = 0
-			foundMismatch = false
-		)
-		for localSeriesIter.Next() {
-			if !peerSeriesIter.Next() {
-				r.logger.Error(
-					"series had next locally, but not from peers",
-					zap.String("namespace", nsCtx.ID.String()),
-					zap.Time("blockStart", blockStart),
-					zap.String("series", seriesID.String()),
-					zap.Error(peerSeriesIter.Err()),
-				)
-				foundMismatch = true
-				break
-			}
-
-			localDP, localUnit, localAnnotation := localSeriesIter.Current()
-			peerDP, peerUnit, peerAnnotation := peerSeriesIter.Current()
-
-			if !localDP.Timestamp.Equal(peerDP.Timestamp) {
-				r.logger.Error(
-					"timestamps did not match",
-					zap.Int("index", i),
-					zap.Time("local", localDP.Timestamp),
-					zap.Time("peer", peerDP.Timestamp),
-				)
-				foundMismatch = true
-				break
-			}
-
-			if localDP.Value != peerDP.Value {
-				r.logger.Error(
-					"Values did not match",
-					zap.Int("index", i),
-					zap.Float64("local", localDP.Value),
-					zap.Float64("peer", peerDP.Value),
-				)
-				foundMismatch = true
-				break
-			}
-
-			if localUnit != peerUnit {
-				r.logger.Error(
-					"Values did not match",
-					zap.Int("index", i),
-					zap.Int("local", int(localUnit)),
-					zap.Int("peer", int(peerUnit)),
-				)
-				foundMismatch = true
-				break
-			}
-
-			if nsCtx.Schema == nil {
-				// Remaining shadow logic is proto-specific.
-				continue
-			}
-
-			err = localM.Unmarshal(localAnnotation)
-			if err != nil {
-				r.logger.Error(
-					"Unable to unmarshal local annotation",
-					zap.Int("index", i),
-					zap.Error(err),
-				)
-				foundMismatch = true
-				break
-			}
-
-			err = peerM.Unmarshal(peerAnnotation)
-			if err != nil {
-				r.logger.Error(
-					"Unable to unmarshal peer annotation",
-					zap.Int("index", i),
-					zap.Error(err),
-				)
-				foundMismatch = true
-				break
-			}
-
-			if !dynamic.Equal(localM, peerM) {
-				r.logger.Error(
-					"Local message does not equal peer message",
-					zap.Int("index", i),
-					zap.String("local", localM.String()),
-					zap.String("peer", peerM.String()),
-				)
-				foundMismatch = true
-				break
-			}
-
-			if !bytes.Equal(localAnnotation, peerAnnotation) {
-				r.logger.Error(
-					"Local message equals peer message, but annotations do not match",
-					zap.Int("index", i),
-					zap.String("local", string(localAnnotation)),
-					zap.String("peer", string(peerAnnotation)),
-				)
-				foundMismatch = true
-				break
-			}
-
-			i++
-		}
-
-		if localSeriesIter.Err() != nil {
-			r.logger.Error(
-				"Local series iterator experienced an error",
-				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("blockStart", blockStart),
-				zap.String("series", seriesID.String()),
-				zap.Int("numDPs", i),
-				zap.Error(localSeriesIter.Err()),
-			)
-		} else if foundMismatch {
-			r.logger.Error(
-				"Found mismatch between series",
-				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("blockStart", blockStart),
-				zap.String("series", seriesID.String()),
-				zap.Int("numDPs", i),
-			)
-		} else {
-			r.logger.Info(
-				"All values for series match",
-				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("blockStart", blockStart),
-				zap.String("series", seriesID.String()),
-				zap.Int("numDPs", i),
-			)
-		}
-	}
-
-	return nil
 }
 
 func (r shardRepairer) recordDifferences(
@@ -645,3 +482,182 @@ func (r repairerNoOp) Start()        {}
 func (r repairerNoOp) Stop()         {}
 func (r repairerNoOp) Repair() error { return nil }
 func (r repairerNoOp) Report()       {}
+
+func (r shardRepairer) shadowCompare(
+	ctx context.Context,
+	start time.Time,
+	end time.Time,
+	localMetadataBlocks block.FetchBlocksMetadataResults,
+	session client.AdminSession,
+	shard databaseShard,
+	nsCtx namespace.Context,
+) error {
+	var (
+		// Reset between uses.
+		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
+		peerM  = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
+	)
+	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
+		seriesID := result.ID
+		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
+		if err != nil {
+			return err
+		}
+		defer peerSeriesIter.Close()
+
+		// TODO: Use local context here.
+		localSeriesDataBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
+		if err != nil {
+			return err
+		}
+		localSeriesSliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(localSeriesDataBlocks)
+		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
+		localSeriesIter.ResetSliceOfSlices(localSeriesSliceOfSlices, nsCtx.Schema)
+
+		var (
+			i             = 0
+			foundMismatch = false
+		)
+		for localSeriesIter.Next() {
+			if !peerSeriesIter.Next() {
+				r.logger.Error(
+					"series had next locally, but not from peers",
+					zap.String("namespace", nsCtx.ID.String()),
+					zap.Time("start", start),
+					zap.Time("end", end),
+					zap.String("series", seriesID.String()),
+					zap.Error(peerSeriesIter.Err()),
+				)
+				foundMismatch = true
+				break
+			}
+
+			localDP, localUnit, localAnnotation := localSeriesIter.Current()
+			peerDP, peerUnit, peerAnnotation := peerSeriesIter.Current()
+
+			if !localDP.Timestamp.Equal(peerDP.Timestamp) {
+				r.logger.Error(
+					"timestamps did not match",
+					zap.Int("index", i),
+					zap.Time("local", localDP.Timestamp),
+					zap.Time("peer", peerDP.Timestamp),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if localDP.Value != peerDP.Value {
+				r.logger.Error(
+					"Values did not match",
+					zap.Int("index", i),
+					zap.Float64("local", localDP.Value),
+					zap.Float64("peer", peerDP.Value),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if localUnit != peerUnit {
+				r.logger.Error(
+					"Values did not match",
+					zap.Int("index", i),
+					zap.Int("local", int(localUnit)),
+					zap.Int("peer", int(peerUnit)),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if nsCtx.Schema == nil {
+				// Remaining shadow logic is proto-specific.
+				continue
+			}
+
+			err = localM.Unmarshal(localAnnotation)
+			if err != nil {
+				r.logger.Error(
+					"Unable to unmarshal local annotation",
+					zap.Int("index", i),
+					zap.Error(err),
+				)
+				foundMismatch = true
+				break
+			}
+
+			err = peerM.Unmarshal(peerAnnotation)
+			if err != nil {
+				r.logger.Error(
+					"Unable to unmarshal peer annotation",
+					zap.Int("index", i),
+					zap.Error(err),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if !dynamic.Equal(localM, peerM) {
+				r.logger.Error(
+					"Local message does not equal peer message",
+					zap.Int("index", i),
+					zap.String("local", localM.String()),
+					zap.String("peer", peerM.String()),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if !bytes.Equal(localAnnotation, peerAnnotation) {
+				r.logger.Error(
+					"Local message equals peer message, but annotations do not match",
+					zap.Int("index", i),
+					zap.String("local", string(localAnnotation)),
+					zap.String("peer", string(peerAnnotation)),
+				)
+				foundMismatch = true
+				break
+			}
+
+			i++
+		}
+
+		if localSeriesIter.Err() != nil {
+			r.logger.Error(
+				"Local series iterator experienced an error",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("start", start),
+				zap.Time("end", end),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+				zap.Error(localSeriesIter.Err()),
+			)
+		} else if foundMismatch {
+			r.logger.Error(
+				"Found mismatch between series",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("start", start),
+				zap.Time("end", end),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+			)
+		} else {
+			r.logger.Info(
+				"All values for series match",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("start", start),
+				zap.Time("end", end),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+			)
+		}
+
+		return nil
+	}
+
+	for _, result := range localMetadataBlocks.Results() {
+		if err := compareResultFunc(result); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
