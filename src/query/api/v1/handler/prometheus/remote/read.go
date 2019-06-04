@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -50,17 +51,24 @@ const (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine          *executor.Engine
-	promReadMetrics promReadMetrics
-	timeoutOpts     *prometheus.TimeoutOpts
+	engine              executor.Engine
+	promReadMetrics     promReadMetrics
+	timeoutOpts         *prometheus.TimeoutOpts
+	fetchOptionsBuilder handler.FetchOptionsBuilder
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(engine *executor.Engine, scope tally.Scope, timeoutOpts *prometheus.TimeoutOpts) http.Handler {
+func NewPromReadHandler(
+	engine executor.Engine,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
+	scope tally.Scope,
+	timeoutOpts *prometheus.TimeoutOpts,
+) http.Handler {
 	return &PromReadHandler{
-		engine:          engine,
-		promReadMetrics: newPromReadMetrics(scope),
-		timeoutOpts:     timeoutOpts,
+		engine:              engine,
+		promReadMetrics:     newPromReadMetrics(scope),
+		timeoutOpts:         timeoutOpts,
+		fetchOptionsBuilder: fetchOptionsBuilder,
 	}
 }
 
@@ -72,9 +80,12 @@ type promReadMetrics struct {
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	return promReadMetrics{
-		fetchSuccess:      scope.Counter("fetch.success"),
-		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("fetch.errors"),
-		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("fetch.errors"),
+		fetchSuccess: scope.
+			Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
+			Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
+			Counter("fetch.errors"),
 	}
 }
 
@@ -97,7 +108,13 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.read(ctx, w, req, timeout)
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	result, err := h.read(ctx, w, req, timeout, fetchOpts.Limit)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -153,10 +170,11 @@ func (h *PromReadHandler) read(
 	w http.ResponseWriter,
 	r *prompb.ReadRequest,
 	timeout time.Duration,
+	limit int,
 ) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
-		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
+		return nil, fmt.Errorf("only one query at a time is currently supported")
 	}
 
 	ctx, cancel := context.WithTimeout(reqCtx, timeout)
@@ -170,10 +188,14 @@ func (h *PromReadHandler) read(
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
 
-	opts := &executor.EngineOptions{}
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: limit,
+		}}
+
 	// Detect clients closing connections
 	handler.CloseWatcher(ctx, cancel, w)
-	go h.engine.Execute(ctx, query, opts, results)
+	go h.engine.Execute(ctx, query, queryOpts, results)
 
 	promResults := make([]*prompb.QueryResult, 0, 1)
 	for result := range results {

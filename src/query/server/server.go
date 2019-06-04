@@ -185,7 +185,6 @@ func Run(runOpts RunOptions) {
 		backendStorage      storage.Storage
 		clusterClient       clusterclient.Client
 		downsampler         downsample.Downsampler
-		enabled             bool
 		fetchOptsBuilderCfg = cfg.Limits.PerQuery.AsFetchOptionsBuilderOptions()
 		fetchOptsBuilder    = handler.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 		queryCtxOpts        = models.QueryContextOptions{
@@ -217,11 +216,11 @@ func Run(runOpts RunOptions) {
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
-	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
-	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
+		// For grpc backend, we need to setup only the grpc client and a storage
+		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
-		backendStorage, enabled, err = remoteClient(cfg, tagOptions, poolWrapper,
+		remotes, enabled, err := remoteClient(cfg, tagOptions, poolWrapper,
 			readWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
@@ -230,8 +229,17 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("need remote clients for grpc backend")
 		}
 
+		var (
+			r = filter.AllowAll
+			w = filter.AllowAll
+			c = filter.CompleteTagsAllowAll
+		)
+
+		backendStorage = fanout.NewStorage(remotes, r, w, c)
 		logger.Info("setup grpc backend")
 	} else {
+		// For m3db backend, we need to make connections to the m3db cluster
+		// which generates a session and use the storage with the session.
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
 			runOpts.DBClient, instrumentOptions)
 		if err != nil {
@@ -253,8 +261,9 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"),
-		*cfg.LookbackDuration, perQueryEnforcer)
+	engineOpts := executor.NewEngineOpts().SetStore(backendStorage).SetCostScope(scope.SubScope("engine")).
+		SetLookbackDuration(*cfg.LookbackDuration).SetGlobalEnforcer(perQueryEnforcer)
+	engine := executor.NewEngine(engineOpts)
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
@@ -658,7 +667,7 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(
+		remoteStorages, enabled, err := remoteClient(
 			cfg,
 			tagOptions,
 			poolWrapper,
@@ -670,7 +679,7 @@ func newStorages(
 		}
 
 		if enabled {
-			stores = append(stores, remoteStorage)
+			stores = append(stores, remoteStorages...)
 			remoteEnabled = enabled
 		}
 	}
@@ -722,36 +731,94 @@ func newStorages(
 	return fanoutStorage, cleanup, nil
 }
 
+func remoteZoneStorage(
+	remoteAddresses []string,
+	lookbackDuration time.Duration,
+	tagOptions models.TagOptions,
+	poolWrapper *pools.PoolWrapper,
+	readWorkerPool xsync.PooledWorkerPool,
+) (storage.Storage, error) {
+	if len(remoteAddresses) == 0 {
+		// No addresses; skip.
+		return nil, nil
+	}
+
+	client, err := tsdbRemote.NewGRPCClient(
+		remoteAddresses,
+		poolWrapper,
+		readWorkerPool,
+		tagOptions,
+		lookbackDuration,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	remoteStorage := remote.NewStorage(client)
+	return remoteStorage, nil
+}
+
 func remoteClient(
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	instrumentOpts instrument.Options,
-) (storage.Storage, bool, error) {
+) ([]storage.Storage, bool, error) {
 	if cfg.RPC == nil {
 		return nil, false, nil
 	}
 
-	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		logger := instrumentOpts.Logger()
-		logger.Info("creating RPC client with remotes", zap.Strings("remotes", remotes))
-		client, err := tsdbRemote.NewGRPCClient(
-			remotes,
-			poolWrapper,
-			readWorkerPool,
-			tagOptions,
-			*cfg.LookbackDuration,
+	var (
+		lookback        = *cfg.LookbackDuration
+		rpc             = cfg.RPC
+		remotes         = rpc.Remotes
+		zoneCount       = len(remotes)
+		listenAddresses = rpc.RemoteListenAddresses
+		logger          = instrumentOpts.Logger()
+	)
+
+	// NB: if no remote zones are provided, fallback to legacy listen addresses
+	// for determining remote clients. This legacy approach is capped to a single
+	// zone.
+	if zoneCount == 0 {
+		if len(listenAddresses) == 0 {
+			return nil, false, nil
+		}
+
+		logger.Info(
+			"creating RPC client with remote",
+			zap.Strings("addresses", listenAddresses),
 		)
+
+		remote, err := remoteZoneStorage(listenAddresses, lookback, tagOptions,
+			poolWrapper, readWorkerPool)
+
 		if err != nil {
 			return nil, false, err
 		}
 
-		remoteStorage := remote.NewStorage(client)
-		return remoteStorage, true, nil
+		return []storage.Storage{remote}, true, nil
 	}
 
-	return nil, false, nil
+	remoteStores := make([]storage.Storage, 0, zoneCount)
+	for _, zone := range remotes {
+		logger.Info(
+			"creating RPC client with remotes",
+			zap.String("name", zone.Name),
+			zap.Strings("addresses", zone.RemoteListenAddresses),
+		)
+
+		remote, err := remoteZoneStorage(zone.RemoteListenAddresses, lookback,
+			tagOptions, poolWrapper, readWorkerPool)
+		if err != nil {
+			return nil, false, err
+		}
+
+		remoteStores = append(remoteStores, remote)
+	}
+
+	return remoteStores, true, nil
 }
 
 func startGRPCServer(

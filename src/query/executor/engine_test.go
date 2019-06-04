@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/cost"
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
@@ -40,6 +41,18 @@ import (
 	"github.com/uber-go/tally"
 )
 
+func newEngine(
+	s storage.Storage,
+	scope tally.Scope,
+	lookbackDuration time.Duration,
+	enforcer qcost.ChainedEnforcer,
+) Engine {
+	engineOpts := NewEngineOpts().SetStore(s).SetCostScope(scope).
+		SetLookbackDuration(lookbackDuration).SetGlobalEnforcer(enforcer)
+
+	return NewEngine(engineOpts)
+}
+
 func TestEngine_Execute(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
@@ -49,8 +62,8 @@ func TestEngine_Execute(t *testing.T) {
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
+	engine := newEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
+	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &QueryOptions{}, results)
 	res := <-results
 	assert.NotNil(t, res.Err)
 }
@@ -68,8 +81,8 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 		require.NoError(t, err)
 
 		results := make(chan Query)
-		engine := NewEngine(mock.NewMockStorage(), tally.NewTestScope("", nil), defaultLookbackDuration, mockParent)
-		go engine.ExecuteExpr(context.TODO(), parser, &EngineOptions{}, models.RequestParams{
+		engine := newEngine(mock.NewMockStorage(), tally.NewTestScope("", nil), defaultLookbackDuration, mockParent)
+		go engine.ExecuteExpr(context.TODO(), parser, &QueryOptions{}, models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),
 			End:   time.Now(),
 			Step:  time.Second,

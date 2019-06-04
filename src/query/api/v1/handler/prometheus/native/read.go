@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
-	opentracingutil "github.com/m3db/m3/src/query/util/opentracing"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracingext "github.com/opentracing/opentracing-go/ext"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -62,7 +62,7 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine              *executor.Engine
+	engine              executor.Engine
 	fetchOptionsBuilder handler.FetchOptionsBuilder
 	tagOpts             models.TagOptions
 	limitsCfg           *config.LimitsConfiguration
@@ -107,7 +107,7 @@ type RespError struct {
 
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
-	engine *executor.Engine,
+	engine executor.Engine,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
@@ -138,11 +138,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, &executor.EngineOptions{
+	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
-		},
-	})
+		}}
+
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts)
 	if respErr != nil {
 		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
@@ -166,8 +167,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *PromReadHandler) ServeHTTPWithEngine(
 	w http.ResponseWriter,
 	r *http.Request,
-	engine *executor.Engine,
-	opts *executor.EngineOptions,
+	engine executor.Engine,
+	opts *executor.QueryOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
@@ -189,7 +190,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	result, err := read(ctx, engine, opts, h.tagOpts, w, params)
 	if err != nil {
-		sp := opentracingutil.SpanFromContextOrNoop(ctx)
+		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
