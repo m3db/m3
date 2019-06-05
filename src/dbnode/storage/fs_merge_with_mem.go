@@ -69,17 +69,25 @@ func (m *fsMergeWithMem) Read(
 		return nil, false, nil
 	}
 
-	startTime := blockStart.ToTime()
-
 	// Series is in memory, so it will get merged with disk and
 	// written in this loop. Therefore, we need to remove it from
 	// the "to write" list so that the later loop does not rewrite
 	// it.
 	m.dirtySeriesToWrite[blockStart].Remove(element)
 
+	return m.fetchBlocks(ctx, element.Value, blockStart, nsCtx)
+}
+
+func (m *fsMergeWithMem) fetchBlocks(
+	ctx context.Context,
+	id ident.ID,
+	blockStart xtime.UnixNano,
+	nsCtx namespace.Context,
+) ([]xio.BlockReader, bool, error) {
+	startTime := blockStart.ToTime()
 	nextVersion := m.retriever.RetrievableBlockColdVersion(startTime) + 1
 
-	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, element.Value, startTime, nextVersion, nsCtx)
+	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -106,7 +114,7 @@ func (m *fsMergeWithMem) ForEachRemaining(
 			return err
 		}
 
-		mergeWithData, hasData, err := m.Read(ctx, seriesID, blockStart, nsCtx)
+		mergeWithData, hasData, err := m.fetchBlocks(ctx, seriesID, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}

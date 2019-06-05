@@ -164,6 +164,12 @@ func TestForEachRemaining(t *testing.T) {
 
 	var forEachCalls []ident.ID
 	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
+	shard.EXPECT().
+		FetchBlocksForColdFlush(gomock.Any(), id0, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
+		Return(fetchedBlocks, nil)
+	shard.EXPECT().
+		FetchBlocksForColdFlush(gomock.Any(), id1, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
+		Return(fetchedBlocks, nil)
 	mergeWith.ForEachRemaining(ctx, 0, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		forEachCalls = append(forEachCalls, seriesID)
 		return nil
@@ -184,6 +190,12 @@ func TestForEachRemaining(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, fetchedBlocks, res)
 	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
+	shard.EXPECT().
+		FetchBlocksForColdFlush(gomock.Any(), id2, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
+		Return(fetchedBlocks, nil)
+	shard.EXPECT().
+		FetchBlocksForColdFlush(gomock.Any(), id4, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
+		Return(fetchedBlocks, nil)
 	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		forEachCalls = append(forEachCalls, seriesID)
 		return nil
@@ -196,6 +208,9 @@ func TestForEachRemaining(t *testing.T) {
 	// Test call with error getting tags.
 	shard.EXPECT().
 		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, errors.New("bad-tags"))
+	shard.EXPECT().
+		FetchBlocksForColdFlush(gomock.Any(), id8, xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
+		Return(fetchedBlocks, nil)
 	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		// This function won't be called with the above error.
 		return errors.New("unreachable")
