@@ -14,6 +14,9 @@ docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-a
 docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-b
 docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-b
 
+docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-c
+docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-c
+
 # think of this as a defer func() in golang
 function defer {
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
@@ -24,6 +27,9 @@ DBNODE_HOST=dbnode-cluster-a DBDNODE_PORT=9000 DBNODE_HEALTH_PORT=9002 COORDINAT
  setup_single_m3db_node
 
 DBNODE_HOST=dbnode-cluster-b DBDNODE_PORT=19000 DBNODE_HEALTH_PORT=19002 COORDINATOR_PORT=17201 \
+ setup_single_m3db_node
+
+DBNODE_HOST=dbnode-cluster-c DBDNODE_PORT=29000 DBNODE_HEALTH_PORT=29002 COORDINATOR_PORT=27201 \
  setup_single_m3db_node
 
 echo "Write data to cluster a"
@@ -74,10 +80,34 @@ curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
   }
 }'
 
+echo "Write data to cluster c"
+curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
+  "namespace": "unagg",
+  "id": "{__name__=\"test_metric\",cluster=\"cluster-c\",endpoint=\"/request\"}",
+  "tags": [
+    {
+      "name": "__name__",
+      "value": "test_metric"
+    },
+    {
+      "name": "cluster",
+      "value": "cluster-c"
+    },
+    {
+      "name": "endpoint",
+      "value": "/request"
+    }
+  ],
+  "datapoint": {
+    "timestamp":'"$(date +"%s")"',
+    "value": 42.123456789
+  }
+}'
+
 function read {
   RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=test_metric")
   ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster)
-  test "$(echo $ACTUAL)" = '"cluster-a" "cluster-b"'
+  test "$(echo $ACTUAL)" = '"cluster-a" "cluster-b" "cluster-c"'
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff read
@@ -85,7 +115,7 @@ ATTEMPTS=5 TIMEOUT=1 retry_with_backoff read
 function read_sum {
   RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=sum(test_metric)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[].value[1])
-  test $ACTUAL = '"84.246913578"'
+  test $ACTUAL = '"126.370370367"'
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff read_sum
@@ -146,10 +176,38 @@ curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
   }
 }'
 
+echo "Write remote tagged data to cluster c"
+curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
+  "namespace": "unagg",
+  "id": "{__name__=\"test_metric\",cluster=\"cluster-c\",endpoint=\"/request\",third-cluster=\"third\"}",
+  "tags": [
+    {
+      "name": "__name__",
+      "value": "test_metric"
+    },
+    {
+      "name": "cluster",
+      "value": "cluster-c"
+    },
+    {
+      "name": "endpoint",
+      "value": "/request"
+    },
+    {
+      "name": "third-cluster",
+      "value": "third"
+    }
+  ],
+  "datapoint": {
+    "timestamp":'"$(date +"%s")"',
+    "value": 42.123456789
+  }
+}'
+
 function complete_tags {
   RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/labels")
   ACTUAL=$(echo $RESPONSE | jq .data[])
-  test "$(echo $ACTUAL)" = '"__name__" "cluster" "endpoint" "local-only" "remote-only"'
+  test "$(echo $ACTUAL)" = '"__name__" "cluster" "endpoint" "local-only" "remote-only" "third-cluster"'
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags

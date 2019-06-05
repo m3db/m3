@@ -37,10 +37,12 @@ type mockListener struct {
 	value SchemaDescr
 }
 
-func (l *mockListener) SetSchema(value SchemaDescr) {
+func (l *mockListener) SetSchemaHistory(value SchemaHistory) {
 	l.Lock()
 	defer l.Unlock()
-	l.value = value
+	if s, ok := value.GetLatest(); ok {
+		l.value = s
+	}
 }
 
 func (l *mockListener) Schema() SchemaDescr {
