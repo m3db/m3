@@ -875,6 +875,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#viewing-a-namespace" title="Viewing a Namespace" class="md-nav__link">
+    Viewing a Namespace
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1301,6 +1308,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#viewing-a-namespace" title="Viewing a Namespace" class="md-nav__link">
+    Viewing a Namespace
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1469,6 +1483,10 @@ Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/names
 <h3 id="modifying-a-namespace">Modifying a Namespace</h3>
 <p>There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example, it is never safe to modify the blockSize of a namespace.</p>
 <p>Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.</p>
+<h3 id="viewing-a-namespace">Viewing a Namespace</h3>
+<p>In order to view a namespace and its attributes, use the <code>GET</code> <code>/api/v1/namespace</code> API on a M3Coordinator instance.
+Additionally, for readability/debugging purposes, you can add the <code>debug=true</code> parameter to the URL to view block sizes, buffer sizes, etc.
+in duration format as opposed to nanoseconds (default).</p>
 <h2 id="namespace-attributes">Namespace Attributes</h2>
 <h3 id="bootstrapenabled">bootstrapEnabled</h3>
 <p>This controls whether M3DB will attempt to <a href="../bootstrapping/">bootstrap</a> the namespace on startup. This value should always be set to <code>true</code> unless you have a very good reason to change it as setting it to <code>false</code> can cause data loss when restarting nodes.</p>
