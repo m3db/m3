@@ -375,6 +375,55 @@ type FetchBlocksMetadataResultsPool interface {
 	Put(res FetchBlocksMetadataResults)
 }
 
+type LeaseManager interface {
+	RegisterLeaser(leaser Leaser) error
+	OpenLease(
+		leaser Leaser,
+		descriptor LeaseDescriptor, 
+		state LeaseState,
+	) error
+	UpdateOpenLeases(
+		descriptor LeaseDescriptor,
+		state LeaseState,
+	) (UpdateLeasesResult, error)
+}
+
+type UpdateLeasesResult struct {
+	LeasersUpdatedLease int
+	LeasersNoOpenLease int
+}
+
+type LeaseDescriptor struct {
+	Namespace   ident.ID
+	Shard       int
+	BlockStart  time.Time
+}
+
+type LeaseState struct {
+	Volume int
+}
+
+type LeaseVerifier interface {
+	VerifyLease(
+		descriptor LeaseDescriptor, 
+		state LeaseState,
+	) error
+}
+
+type UpdateOpenLeaseResult uint
+
+const (
+	UpdatedOpenLease UpdateOpenLeaseResult = iota
+	NoOpenLease
+)
+
+type Leaser interface {
+	UpdateOpenLease(
+		descriptor LeaseDescriptor,
+		state LeaseState,
+	) (UpdateOpenLeaseResult, error)
+}
+
 // Options represents the options for a database block
 type Options interface {
 	// SetClockOptions sets the clock options
