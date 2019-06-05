@@ -73,14 +73,14 @@ message ImportedMessage {
   name: "testNamespace",
   msgName: "mainpkg.TestMessage",
   protoName: "mainpkg/test.proto",
-  protoMap: 
+  protoMap:
     {
       "mainpkg/test.proto": $file1,
       "mainpkg/imported.proto": $file2
     }
 }
 `
-	testSchemaJson = `
+	testSchemaJSON = `
         {
           "name": "testNamespace",
           "msgName": "mainpkg.TestMessage",
@@ -93,7 +93,7 @@ message ImportedMessage {
 `
 )
 
-func genTestJson(t *testing.T) string {
+func genTestJSON(t *testing.T) string {
 	tempDir, err := ioutil.TempDir("", "schema_deploy_test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
@@ -119,7 +119,7 @@ func genTestJson(t *testing.T) string {
 
 func TestGenTestJson(t *testing.T) {
 	t.Skip("skip for now as jq is not installed on buildkite")
-	genTestJson(t)
+	genTestJSON(t)
 }
 
 func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
@@ -182,7 +182,7 @@ func TestSchemaDeploy(t *testing.T) {
 
 	// TODO [haijun] buildkite does not have jq, so use the pre-generated json string.
 	//testSchemaJson := genTestJson(t)
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJson))
+	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJSON))
 	require.NotNil(t, req)
 
 	schemaHandler.ServeHTTP(w, req)
