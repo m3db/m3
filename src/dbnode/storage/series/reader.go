@@ -290,7 +290,9 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 			}
 		}
 
-		res = append(res, block.NewFetchBlockResult(start, blockReaders, nil))
+		if len(blockReaders) > 0 {
+			res = append(res, block.NewFetchBlockResult(start, blockReaders, nil))
+		}
 	}
 
 	if seriesBuffer != nil && !seriesBuffer.IsEmpty() {
@@ -307,7 +309,12 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 
 			currBufferResult := bufferResults[bufferIdx]
 			if blockResult.Start.Equal(currBufferResult.Start) {
-				res[i].Blocks = append(res[i].Blocks, currBufferResult.Blocks...)
+				fmt.Println("adding to existing")
+				if currBufferResult.Err != nil {
+					res[i].Err = currBufferResult.Err
+				} else {
+					res[i].Blocks = append(res[i].Blocks, currBufferResult.Blocks...)
+				}
 				bufferIdx++
 				continue
 			}
@@ -316,6 +323,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		// Add any buffer results for which there was no existing blockstart
 		// to the end.
 		if bufferIdx < len(bufferResults) {
+			fmt.Println("appending")
 			res = append(res, bufferResults[bufferIdx:]...)
 		}
 	}

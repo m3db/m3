@@ -21,17 +21,22 @@
 package series
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
@@ -83,65 +88,298 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	}
 }
 
+type readerFetchBlocksTestCase struct {
+	title           string
+	times           []time.Time
+	cachedBlocks    map[xtime.UnixNano]streamResponse
+	diskBlocks      map[xtime.UnixNano]streamResponse
+	bufferBlocks    map[xtime.UnixNano]block.FetchBlockResult
+	expectedResults []block.FetchBlockResult
+}
+
+type streamResponse struct {
+	blockReader xio.BlockReader
+	err         error
+}
+
 func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	var (
+		opts      = newSeriesTestOptions()
+		ropts     = opts.RetentionOptions()
+		blockSize = ropts.BlockSize()
+		end       = opts.ClockOptions().NowFn()().Truncate(blockSize)
+		start     = end.Add(-2 * blockSize)
+	)
 
-	opts := newSeriesTestOptions()
-	ropts := opts.RetentionOptions()
-
-	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
-	start := end.Add(-2 * ropts.BlockSize())
-
-	onRetrieveBlock := block.NewMockOnRetrieveBlock(ctrl)
-
-	retriever := NewMockQueryableBlockRetriever(ctrl)
-	retriever.EXPECT().IsBlockRetrievable(start).Return(true)
-	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true)
-
-	var blockReaders []xio.BlockReader
-	for i := 0; i < 2; i++ {
-		reader := xio.NewMockSegmentReader(ctrl)
-
-		block := xio.BlockReader{
-			SegmentReader: reader,
-			Start:         start,
-			BlockSize:     ropts.BlockSize() * time.Duration(i+1),
-		}
-
-		blockReaders = append(blockReaders, block)
+	testCases := []readerFetchBlocksTestCase{
+		{
+			// Should return an empty slice if there is no data.
+			title: "Handle no data",
+			times: []time.Time{start},
+		},
+		{
+			// Read one block from disk which should return an error.
+			title: "Handles disk read errors",
+			times: []time.Time{start},
+			diskBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					err: errors.New("some-error"),
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+		},
+		{
+			// Read one block from the disk cache which should return an error.
+			title: "Handles disk cache read errors",
+			times: []time.Time{start},
+			cachedBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					err: errors.New("some-error"),
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+		},
+		{
+			// Read one block from the buffer which should return an error.
+			title: "Handles buffer read errors",
+			times: []time.Time{start},
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+		},
+		{
+			// Read one block from the disk cache.
+			title: "Handles disk cache reads (should not query disk)",
+			times: []time.Time{start},
+			cachedBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+			},
+		},
+		{
+			// Read two blocks, each of which should be returned from disk.
+			title: "Handles multiple disk reads",
+			times: []time.Time{start, start.Add(blockSize)},
+			diskBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+				xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start.Add(blockSize),
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+				{
+					Start:  start.Add(blockSize),
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+				},
+			},
+		},
+		{
+			// Read one block from the buffer.
+			title: "Handles buffer reads",
+			times: []time.Time{start},
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+			},
+		},
+		{
+			title: "Combines data from disk cache and buffer",
+			times: []time.Time{start},
+			cachedBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Blocks: []xio.BlockReader{
+						// One from disk cache.
+						xio.BlockReader{Start: start, BlockSize: blockSize},
+						// One from buffer.
+						xio.BlockReader{Start: start, BlockSize: blockSize},
+					},
+				},
+			},
+		},
+		{
+			title: "Combines data from disk  and buffer",
+			times: []time.Time{start},
+			diskBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Blocks: []xio.BlockReader{
+						// One from disk.
+						xio.BlockReader{Start: start, BlockSize: blockSize},
+						// One from buffer.
+						xio.BlockReader{Start: start, BlockSize: blockSize},
+					},
+				},
+			},
+		},
 	}
 
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	retriever.EXPECT().
-		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, nil, gomock.Any()).
-		Return(blockReaders[0], nil)
-	retriever.EXPECT().
-		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), nil, gomock.Any()).
-		Return(blockReaders[1], nil)
+			var (
+				onRetrieveBlock = block.NewMockOnRetrieveBlock(ctrl)
+				retriever       = NewMockQueryableBlockRetriever(ctrl)
+				diskCache       = block.NewMockDatabaseSeriesBlocks(ctrl)
+				buffer          = NewMockdatabaseBuffer(ctrl)
+				bufferReturn    []block.FetchBlockResult
+			)
 
-	reader := NewReaderUsingRetriever(
-		ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
+			ctx := opts.ContextPool().Get()
+			defer ctx.Close()
 
-	// Check reads as expected
-	times := []time.Time{
-		start,
-		start.Add(ropts.BlockSize()),
-	}
+			// Setup mocks.
+			for _, currTime := range tc.times {
+				cachedBlocks, wasInDiskCache := tc.cachedBlocks[xtime.ToUnixNano(currTime)]
+				if wasInDiskCache {
+					// If the data was in the disk cache then expect a read from it but don't expect
+					// disk reads.
+					b := block.NewMockDatabaseBlock(ctrl)
+					if cachedBlocks.err != nil {
+						b.EXPECT().Stream(ctx).Return(xio.BlockReader{}, cachedBlocks.err)
+					} else {
+						b.EXPECT().Stream(ctx).Return(cachedBlocks.blockReader, nil)
+					}
+					diskCache.EXPECT().BlockAt(currTime).Return(b, true)
+				} else {
+					// If the data was not in the disk cache then expect that and setup a query
+					// for disk.
+					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
+					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
+					if !ok {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false)
+					} else {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true)
+						if diskBlocks.err != nil {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, nil, gomock.Any()).
+								Return(xio.BlockReader{}, diskBlocks.err)
+						} else {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, nil, gomock.Any()).
+								Return(diskBlocks.blockReader, nil)
+						}
+					}
+				}
 
-	r, err := reader.FetchBlocks(ctx, times, namespace.Context{})
-	require.NoError(t, err)
-	require.Equal(t, 2, len(r))
+				// Prepare buffer response one block at a time.
+				bufferBlocks, wasInBuffer := tc.bufferBlocks[xtime.ToUnixNano(currTime)]
+				if wasInBuffer {
+					bufferReturn = append(bufferReturn, bufferBlocks)
+				}
+			}
 
-	for i, result := range r {
-		assert.Equal(t, times[i], result.Start)
-		require.Equal(t, 1, len(result.Blocks))
-		br := result.Blocks[0]
-		assert.Equal(t, ropts.BlockSize()*time.Duration(i+1), br.BlockSize)
-		assert.Equal(t, blockReaders[i], br)
+			// Expect final buffer result (batched function call).
+			if len(tc.bufferBlocks) == 0 {
+				buffer.EXPECT().IsEmpty().Return(true)
+			} else {
+				buffer.EXPECT().IsEmpty().Return(false)
+				buffer.EXPECT().
+					FetchBlocks(ctx, tc.times, namespace.Context{}).
+					Return(bufferReturn)
+			}
+
+			reader := NewReaderUsingRetriever(
+				ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
+
+			r, err := reader.fetchBlocksWithBlocksMapAndBuffer(ctx, tc.times, diskCache, buffer, namespace.Context{})
+			require.NoError(t, err)
+			require.Equal(t, len(tc.expectedResults), len(r))
+
+			for i, result := range r {
+				expectedResult := tc.expectedResults[i]
+				assert.Equal(t, expectedResult.Start, result.Start)
+				require.Equal(t, len(expectedResult.Blocks), len(result.Blocks))
+				fmt.Println(expectedResult)
+				fmt.Println(result)
+				if expectedResult.Err != nil {
+					require.True(t, strings.Contains(result.Err.Error(), expectedResult.Err.Error()))
+				}
+			}
+		})
 	}
 }
