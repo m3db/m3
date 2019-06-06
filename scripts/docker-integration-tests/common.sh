@@ -54,7 +54,7 @@ function wait_for_db_init {
   local coordinator_port=${COORDINATOR_PORT:-7201}
 
   echo "Wait for API to be available"
-  ATTEMPTS=64 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
@@ -94,7 +94,7 @@ function wait_for_db_init {
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
   echo "Wait until bootstrapped"
-  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
 }
 
