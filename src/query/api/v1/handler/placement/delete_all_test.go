@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/cluster/kv"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -64,5 +65,15 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+		// Test delete not found error
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Delete().Return(kv.ErrNotFound)
+		handler.ServeHTTP(serviceName, w, req)
+
+		resp = w.Result()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }

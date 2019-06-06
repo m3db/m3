@@ -658,16 +658,16 @@ func (m *MockSchemaListener) EXPECT() *MockSchemaListenerMockRecorder {
 	return m.recorder
 }
 
-// SetSchema mocks base method
-func (m *MockSchemaListener) SetSchema(value SchemaDescr) {
+// SetSchemaHistory mocks base method
+func (m *MockSchemaListener) SetSchemaHistory(value SchemaHistory) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSchema", value)
+	m.ctrl.Call(m, "SetSchemaHistory", value)
 }
 
-// SetSchema indicates an expected call of SetSchema
-func (mr *MockSchemaListenerMockRecorder) SetSchema(value interface{}) *gomock.Call {
+// SetSchemaHistory indicates an expected call of SetSchemaHistory
+func (mr *MockSchemaListenerMockRecorder) SetSchemaHistory(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchema", reflect.TypeOf((*MockSchemaListener)(nil).SetSchema), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaHistory", reflect.TypeOf((*MockSchemaListener)(nil).SetSchemaHistory), value)
 }
 
 // MockSchemaRegistry is a mock of SchemaRegistry interface

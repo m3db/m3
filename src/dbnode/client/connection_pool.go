@@ -46,7 +46,7 @@ const (
 
 var (
 	errConnectionPoolClosed           = errors.New("connection pool closed")
-	errConnectionPoolHasNoConnections = errors.New("connection pool has no connections")
+	errConnectionPoolHasNoConnections = newHostNotAvailableError(errors.New("connection pool has no connections"))
 )
 
 type connPool struct {

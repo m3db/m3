@@ -64,11 +64,11 @@ func (s State) durationString() string {
 
 // Request represents a single request.
 type Request struct {
-	engine *Engine
+	engine *engine
 	params models.RequestParams
 }
 
-func newRequest(engine *Engine, params models.RequestParams) *Request {
+func newRequest(engine *engine, params models.RequestParams) *Request {
 	return &Request{engine: engine, params: params}
 }
 
@@ -101,7 +101,7 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 		logging.WithContext(ctx).Info("logical plan", zap.String("plan", lp.String()))
 	}
 
-	pp, err := plan.NewPhysicalPlan(lp, r.engine.store, r.params, r.engine.lookbackDuration)
+	pp, err := plan.NewPhysicalPlan(lp, r.engine.opts.Store(), r.params, r.engine.opts.LookbackDuration())
 	if err != nil {
 		return plan.PhysicalPlan{}, err
 	}
@@ -118,7 +118,7 @@ func (r *Request) generateExecutionState(ctx context.Context, pp plan.PhysicalPl
 		"generate_execution_state")
 	defer sp.Finish()
 
-	state, err := GenerateExecutionState(pp, r.engine.store)
+	state, err := GenerateExecutionState(pp, r.engine.opts.Store())
 	// free up resources
 	if err != nil {
 		return nil, err

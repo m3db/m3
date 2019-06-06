@@ -154,21 +154,13 @@ func (sr *schemaRegistry) RegisterListener(
 	<-watch.C()
 
 	// Deliver the current schema
-	if schema, ok := watchable.Get().(SchemaHistory).GetLatest(); ok {
-		listener.SetSchema(schema)
-	} else if sr.logger != nil {
-		sr.logger.Error("can not update schema listener with empty schema history")
-	}
+	listener.SetSchemaHistory(watchable.Get().(SchemaHistory))
 
 	// Spawn a new goroutine that will terminate when the
 	// watchable terminates on the close of the runtime options manager
 	go func() {
 		for range watch.C() {
-			if schema, ok := watchable.Get().(SchemaHistory).GetLatest(); ok {
-				listener.SetSchema(schema)
-			} else if sr.logger != nil {
-				sr.logger.Error("can not update schema listener with empty schema history")
-			}
+			listener.SetSchemaHistory(watchable.Get().(SchemaHistory))
 		}
 	}()
 
