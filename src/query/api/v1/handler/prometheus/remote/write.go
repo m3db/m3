@@ -109,7 +109,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, err := range errs {
 			switch {
 			case client.IsBadRequestError(err):
-				fallthrough
+				numBadRequest++
 			case xerrors.IsInvalidParams(err):
 				numBadRequest++
 			}

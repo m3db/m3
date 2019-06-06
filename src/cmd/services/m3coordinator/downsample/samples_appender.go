@@ -116,7 +116,7 @@ func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
 			}
 		}
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender.
