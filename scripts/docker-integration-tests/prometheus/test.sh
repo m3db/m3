@@ -5,8 +5,13 @@ set -xe
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/docker-compose.yml
-PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.1.0
+PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.3.0
+JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 export REVISION
+
+echo "Pull containers required for test"
+docker pull $PROMREMOTECLI_IMAGE
+docker pull $JQ_IMAGE
 
 echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
@@ -47,14 +52,14 @@ function test_prometheus_remote_write_too_old_returns_400_status_code {
   echo "Test write into the past returns HTTP 400"
   hour_ago=$(expr $(date +"%s") - 3600) 
   out=$(docker run -it --rm --network host ${PROMREMOTECLI_IMAGE} -u http://0.0.0.0:7201/api/v1/prom/remote/write -t=__name__:foo -d=${hour_ago},3.142)
-  if [[ "$?" == "0" ]]; then
+  success=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .success)
+  status=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .statusCode)
+  if [[ "$success" != "false" ]]; then
     echo "Expected request to fail"
     return 1
   fi
-  if ! sh -c "echo $out | grep 'instead got: 400'"; then
-    echo "Expected to return 400 status code"
-    echo "Actual:"
-    echo $out
+  if [[ "$status" != "400" ]]; then
+    echo "Expected request to return status code 400: actual=${status}"
     return 1
   fi
   echo "Returned 400 status code as expected"
