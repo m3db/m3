@@ -217,14 +217,20 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	var (
-		// Two-dimensional slice such that the first dimension is unique by blockstart
-		// and the second dimension is blocks of data for that blockstart (not necessarily
-		// in chronological order).
+		// Two-dimensional slice (each block.FetchBlockResult has a []xio.BlockReader internally)
+		// such that the first dimension is unique by blockstart and the second dimension is blocks
+		// of data for that blockstart (not necessarily in chronological order).
 		//
 		// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
-		// [][]block.FetchBlockResult{
-		//   {Blocks: []xio.BlockReader{block0, block1, block2}}, // <- 2P.M
-		//   {Blocks: []xio.BlockReader{block0}}, // <-4P.M
+		// []block.FetchBlockResult{
+		//   block.FetchBlockResult{
+		//     Start: 2P.M,
+		//     Blocks: []xio.BlockReader{block0, block1, block2},
+		//   },
+		//   block.FetchBlockResult{
+		//     Start: 4P.M,
+		//     Blocks: []xio.BlockReader{block0},
+		//   },
 		// }
 		res         = make([]block.FetchBlockResult, 0, len(starts))
 		cachePolicy = r.opts.CachePolicy()
