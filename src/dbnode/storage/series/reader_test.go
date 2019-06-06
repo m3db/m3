@@ -106,7 +106,9 @@ var (
 	opts      = newSeriesTestOptions()
 	ropts     = opts.RetentionOptions()
 	blockSize = ropts.BlockSize()
-	start     = opts.ClockOptions().NowFn()().Truncate(blockSize)
+	// Subtract a few blocksizes to make sure the test cases don't try and query into
+	// the future.
+	start = opts.ClockOptions().NowFn()().Truncate(blockSize).Add(-5 * blockSize)
 )
 
 var robustReaderTestCases = []readTestCase{
@@ -439,7 +441,7 @@ var robustReaderTestCases = []readTestCase{
 	},
 }
 
-func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
+func TestReaderFetchBlocksRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -512,7 +514,6 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 
 			r, err := reader.fetchBlocksWithBlocksMapAndBuffer(ctx, tc.times, diskCache, buffer, namespace.Context{})
 			require.NoError(t, err)
-			fmt.Println(r)
 			require.Equal(t, len(tc.expectedResults), len(r))
 
 			for i, result := range r {
@@ -527,6 +528,131 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 						require.Equal(t, expectedResult.Start, block.Start)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestReaderReadEncodedRobust(t *testing.T) {
+	for _, tc := range robustReaderTestCases {
+		t.Run(tc.title, func(t *testing.T) {
+			fmt.Println(tc.title)
+			fmt.Println("---------------------")
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			var (
+				onRetrieveBlock = block.NewMockOnRetrieveBlock(ctrl)
+				retriever       = NewMockQueryableBlockRetriever(ctrl)
+				diskCache       = block.NewMockDatabaseSeriesBlocks(ctrl)
+				buffer          = NewMockdatabaseBuffer(ctrl)
+			)
+
+			ctx := opts.ContextPool().Get()
+			defer ctx.Close()
+
+			// Setup mocks.
+			for _, currTime := range tc.times {
+				cachedBlocks, wasInDiskCache := tc.cachedBlocks[xtime.ToUnixNano(currTime)]
+				if wasInDiskCache {
+					// If the data was in the disk cache then expect a read from it but don't expect
+					// disk reads.
+					b := block.NewMockDatabaseBlock(ctrl)
+					b.EXPECT().SetLastReadTime(gomock.Any()).AnyTimes()
+					if cachedBlocks.err != nil {
+						b.EXPECT().Stream(ctx).Return(xio.BlockReader{}, cachedBlocks.err)
+					} else {
+						b.EXPECT().Stream(ctx).Return(cachedBlocks.blockReader, nil)
+					}
+					diskCache.EXPECT().BlockAt(currTime).Return(b, true)
+					if cachedBlocks.err != nil {
+						// Stop setting up mocks since the function will early return.
+						break
+					}
+				} else {
+					// If the data was not in the disk cache then expect that and setup a query
+					// for disk.
+					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
+					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
+					if !ok {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false)
+					} else {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true)
+						if diskBlocks.err != nil {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
+								Return(xio.BlockReader{}, diskBlocks.err)
+							break
+						} else {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
+								Return(diskBlocks.blockReader, nil)
+						}
+					}
+				}
+
+				// Setup buffer mocks.
+				bufferBlocks, wasInBuffer := tc.bufferBlocks[xtime.ToUnixNano(currTime)]
+				fmt.Println("expecting read encoded from", currTime, "to", currTime.Add(blockSize))
+				if wasInBuffer {
+					if bufferBlocks.Err != nil {
+						buffer.EXPECT().
+							ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
+							Return(nil, bufferBlocks.Err)
+					} else {
+						buffer.EXPECT().
+							ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
+							Return([][]xio.BlockReader{bufferBlocks.Blocks}, nil)
+					}
+				} else {
+					buffer.EXPECT().
+						ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
+						Return(nil, nil)
+				}
+			}
+
+			var (
+				reader = NewReaderUsingRetriever(
+					ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
+				start = tc.times[0]
+				// End is not inclusive so add blocksize to the last time.
+				end = tc.times[len(tc.times)-1].Add(blockSize)
+			)
+			r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, diskCache, buffer, namespace.Context{})
+
+			anyContainErr := false
+			for _, sr := range tc.cachedBlocks {
+				if sr.err != nil {
+					anyContainErr = true
+					break
+				}
+			}
+			for _, sr := range tc.diskBlocks {
+				if sr.err != nil {
+					anyContainErr = true
+					break
+				}
+			}
+			for _, br := range tc.bufferBlocks {
+				if br.Err != nil {
+					anyContainErr = true
+					break
+				}
+			}
+
+			if anyContainErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.Equal(t, len(tc.expectedResults), len(r))
+
+			for i, result := range r {
+				expectedResult := tc.expectedResults[i]
+				for _, br := range result {
+					assert.Equal(t, expectedResult.Start, br.Start)
+				}
+				require.Equal(t, len(expectedResult.Blocks), len(result))
 			}
 		})
 	}
