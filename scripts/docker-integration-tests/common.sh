@@ -54,7 +54,7 @@ function wait_for_db_init {
   local coordinator_port=${COORDINATOR_PORT:-7201}
 
   echo "Wait for API to be available"
-  ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+  ATTEMPTS=64 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
@@ -76,11 +76,11 @@ function wait_for_db_init {
   }'
 
   echo "Wait until placement is init'd"
-  ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
 
   echo "Wait until agg namespace is init'd"
-  ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
 
   echo "Adding unagg namespace"
@@ -90,11 +90,11 @@ function wait_for_db_init {
   }'
 
   echo "Wait until unagg namespace is init'd"
-  ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
+  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
   echo "Wait until bootstrapped"
-  ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
 }
 

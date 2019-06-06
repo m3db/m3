@@ -51,7 +51,8 @@ function test_prometheus_remote_write_too_old_returns_400_status_code {
   # Test writing too far into the past returns an HTTP 400 status code
   echo "Test write into the past returns HTTP 400"
   hour_ago=$(expr $(date +"%s") - 3600) 
-  out=$(docker run -it --rm --network backend ${PROMREMOTECLI_IMAGE} -u http://coordinator01:7201/api/v1/prom/remote/write -t=__name__:foo -d=${hour_ago},3.142)
+  network=$(docker network ls --format '{{.ID}}' | tail -n 1)
+  out=$(docker run -it --rm --network $network $PROMREMOTECLI_IMAGE -u http://coordinator01:7201/api/v1/prom/remote/write -t=__name__:foo -d=${hour_ago},3.142)
   success=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .success)
   status=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .statusCode)
   if [[ "$success" != "false" ]]; then
