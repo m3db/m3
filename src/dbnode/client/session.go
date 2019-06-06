@@ -36,13 +36,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -71,6 +71,8 @@ const (
 	gaugeReportInterval                  = 500 * time.Millisecond
 	blockMetadataChBufSize               = 4096
 	shardResultCapacity                  = 4096
+	hostNotAvailableMinSleepInterval     = 1 * time.Millisecond
+	hostNotAvailableMaxSleepInterval     = 100 * time.Millisecond
 )
 
 type resultTypeEnum string
@@ -103,7 +105,7 @@ var (
 	// the connect consistency level specified is not recognized
 	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
 	// errSessionHasNoHostQueueForHost is raised when host queue requested for a missing host
-	errSessionHasNoHostQueueForHost = errors.New("session has no host queue for host")
+	errSessionHasNoHostQueueForHost = newHostNotAvailableError(errors.New("session has no host queue for host"))
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
@@ -2112,7 +2114,8 @@ func (s *session) streamBlocksMetadataFromPeers(
 				// returned it will likely not be nil, this lets us restart fetching
 				// if we need to (if consistency has not been achieved yet) without
 				// losing place in the pagination.
-				currPageToken pageToken
+				currPageToken                     pageToken
+				currHostNotAvailableSleepInterval = hostNotAvailableMinSleepInterval
 			)
 			condition := func() bool {
 				if firstAttempt {
@@ -2120,13 +2123,17 @@ func (s *session) streamBlocksMetadataFromPeers(
 					firstAttempt = false
 					return true
 				}
-				currLevel := level.value()
-				majority := int(majority)
-				enqueued := int(enqueued)
-				success := int(atomic.LoadInt32(&success))
 
-				doRetry := !topology.ReadConsistencyAchieved(currLevel, majority, enqueued, success) &&
-					errs.getAbortError() == nil
+				var (
+					currLevel = level.value()
+					majority  = int(majority)
+					enqueued  = int(enqueued)
+					success   = int(atomic.LoadInt32(&success))
+				)
+				metReadConsistency := topology.ReadConsistencyAchieved(
+					currLevel, majority, enqueued, success)
+				doRetry := !metReadConsistency && errs.getAbortError() == nil
+
 				if doRetry {
 					// Track that we are reattempting the fetch metadata
 					// pagination from a peer
@@ -2138,19 +2145,33 @@ func (s *session) streamBlocksMetadataFromPeers(
 				var err error
 				currPageToken, err = s.streamBlocksMetadataFromPeer(namespace, shardID,
 					peer, start, end, currPageToken, metadataCh, resultOpts, progress)
-
 				// Set error or success if err is nil
 				errs.setError(idx, err)
 
-				// Check exit criteria
+				// hostNotAvailable is a NonRetryableError for the purposes of short-circuiting
+				// the automatic retry functionality, but in this case the client should avoid
+				// aborting and continue retrying at this level until consistency can be reached.
+				if isHostNotAvailableError(err) {
+					// Prevent the loop from spinning too aggressively in the short-circuiting case.
+					time.Sleep(currHostNotAvailableSleepInterval)
+					currHostNotAvailableSleepInterval = minDuration(
+						currHostNotAvailableSleepInterval*2,
+						hostNotAvailableMaxSleepInterval,
+					)
+					continue
+				}
+
 				if err != nil && xerrors.IsNonRetryableError(err) {
 					errs.setAbortError(err)
 					return // Cannot recover from this error, so we break from the loop
 				}
+
 				if err == nil {
 					atomic.AddInt32(&success, 1)
 					return
 				}
+
+				// There was a retryable error, continue looping.
 			}
 		}()
 	}
@@ -2833,13 +2854,6 @@ func (s *session) streamBlocksBatchFromPeer(
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})
 		err := xerrors.FirstError(borrowErr, attemptErr)
-		// Do not retry if cannot borrow the connection or
-		// if the connection pool has no connections
-		switch err {
-		case errSessionHasNoHostQueueForHost,
-			errConnectionPoolHasNoConnections:
-			err = xerrors.NewNonRetryableError(err)
-		}
 		return err
 	}); err != nil {
 		blocksErr := fmt.Errorf(
@@ -3882,4 +3896,11 @@ func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogra
 		histogramDurationBucketsVersionTag: histogramDurationBucketsVersion,
 	})
 	return sub.Histogram(name, histogramDurationBuckets())
+}
+
+func minDuration(x, y time.Duration) time.Duration {
+	if x < y {
+		return x
+	}
+	return y
 }
