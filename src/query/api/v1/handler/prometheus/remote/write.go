@@ -23,6 +23,7 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -103,16 +104,30 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	batchErr := h.write(r.Context(), req)
 	if batchErr != nil {
-		numBadRequest := 0
-		errs := batchErr.Errors()
-		lastErr := batchErr.LastError()
+		var (
+			errs              = batchErr.Errors()
+			lastRegularErr    string
+			lastBadRequestErr string
+			numRegular        int
+			numBadRequest     int
+		)
 		for _, err := range errs {
 			switch {
 			case client.IsBadRequestError(err):
 				numBadRequest++
+				lastBadRequestErr = err.Error()
 			case xerrors.IsInvalidParams(err):
 				numBadRequest++
+				lastBadRequestErr = err.Error()
+			default:
+				numRegular++
+				lastRegularErr = err.Error()
 			}
+		}
+
+		status := http.StatusInternalServerError
+		if numBadRequest == len(errs) {
+			status = http.StatusBadRequest
 		}
 
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
@@ -120,14 +135,26 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger := logging.WithContext(r.Context())
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
-			zap.Error(lastErr))
+			zap.Int("httpResponseStatusCode", status),
+			zap.Int("numRegularErrors", numRegular),
+			zap.Int("numBadRequestErrors", numBadRequest),
+			zap.String("lastRegularError", lastRegularErr),
+			zap.String("lastBadRequestErr", lastBadRequestErr))
 
-		status := http.StatusInternalServerError
-		if numBadRequest == len(errs) {
-			status = http.StatusBadRequest
+		var resultErr string
+		if lastRegularErr != "" {
+			resultErr = fmt.Sprintf("retryable_errors: count=%d, last=%s",
+				numRegular, lastRegularErr)
 		}
-
-		xhttp.Error(w, lastErr, status)
+		if lastBadRequestErr != "" {
+			var sep string
+			if lastRegularErr != "" {
+				sep = ", "
+			}
+			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
+				resultErr, sep, numBadRequest, lastBadRequestErr)
+		}
+		xhttp.Error(w, errors.New(resultErr), status)
 		return
 	}
 
