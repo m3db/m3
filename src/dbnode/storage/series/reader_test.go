@@ -22,6 +22,7 @@ package series
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -350,9 +351,9 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 			},
 		},
 		{
-			title: "Combines data from all sources for different block starts",
-			times: []time.Time{start, start.Add(blockSize), start.Add(2 * blockSize)},
-			// First block from cache.
+			title: "Combines data from all sources for different block starts and same block starts",
+			times: []time.Time{start, start.Add(blockSize), start.Add(2 * blockSize), start.Add(3 * blockSize)},
+			// Block 1 and 3 from disk cache.
 			cachedBlocks: map[xtime.UnixNano]streamResponse{
 				xtime.ToUnixNano(start): streamResponse{
 					blockReader: xio.BlockReader{
@@ -361,8 +362,15 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 						BlockSize:     blockSize,
 					},
 				},
+				xtime.ToUnixNano(start.Add(2 * blockSize)): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start.Add(2 * blockSize),
+						BlockSize:     blockSize,
+					},
+				},
 			},
-			// Second block from disk.
+			// blocks 2 and 4 from disk.
 			diskBlocks: map[xtime.UnixNano]streamResponse{
 				xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
 					blockReader: xio.BlockReader{
@@ -371,9 +379,24 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 						BlockSize:     blockSize,
 					},
 				},
+				xtime.ToUnixNano(start.Add(3 * blockSize)): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start.Add(3 * blockSize),
+						BlockSize:     blockSize,
+					},
+				},
 			},
-			// Third block from buffer.
+			// Blocks 1, 2, and 3 from buffer.
 			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start:  start,
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				},
+				xtime.ToUnixNano(start.Add(blockSize)): {
+					Start:  start.Add(blockSize),
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+				},
 				xtime.ToUnixNano(start.Add(2 * blockSize)): {
 					Start:  start.Add(2 * blockSize),
 					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
@@ -383,19 +406,35 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 				{
 					Start: start,
 					Blocks: []xio.BlockReader{
+						// One from disk cache.
+						xio.BlockReader{Start: start, BlockSize: blockSize},
+						// One from buffer.
 						xio.BlockReader{Start: start, BlockSize: blockSize},
 					},
 				},
 				{
 					Start: start.Add(blockSize),
 					Blocks: []xio.BlockReader{
+						// One from disk.
+						xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+						// One from buffer.
 						xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
 					},
 				},
 				{
 					Start: start.Add(2 * blockSize),
 					Blocks: []xio.BlockReader{
+						// One from disk cache.
 						xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+						// One from buffer.
+						xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					},
+				},
+				{
+					Start: start.Add(3 * blockSize),
+					Blocks: []xio.BlockReader{
+						// One from disk.
+						xio.BlockReader{Start: start.Add(3 * blockSize), BlockSize: blockSize},
 					},
 				},
 			},
@@ -474,6 +513,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 
 			r, err := reader.fetchBlocksWithBlocksMapAndBuffer(ctx, tc.times, diskCache, buffer, namespace.Context{})
 			require.NoError(t, err)
+			fmt.Println(r)
 			require.Equal(t, len(tc.expectedResults), len(r))
 
 			for i, result := range r {
