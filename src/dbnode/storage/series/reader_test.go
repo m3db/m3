@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -536,8 +535,6 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			fmt.Println(tc.title)
-			fmt.Println("---------------------")
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -593,7 +590,6 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 
 				// Setup buffer mocks.
 				bufferBlocks, wasInBuffer := tc.bufferBlocks[xtime.ToUnixNano(currTime)]
-				fmt.Println("expecting read encoded from", currTime, "to", currTime.Add(blockSize))
 				if wasInBuffer {
 					if bufferBlocks.Err != nil {
 						buffer.EXPECT().
