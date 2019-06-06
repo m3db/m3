@@ -234,7 +234,16 @@ func (e MultiError) Error() string {
 
 // Errors returns all the errors to inspect individually.
 func (e MultiError) Errors() []error {
-	return e.errors
+	if e.err == nil {
+		return nil // No errors
+	}
+	// Need to prepend the first error to result
+	// since we avoid allocating array if we don't need it
+	// when we accumulate the first error
+	result := make([]error, 1+len(e.errors))
+	result[0] = e.err
+	copy(result[1:], e.errors)
+	return result
 }
 
 // Add adds an error returns a new MultiError object.

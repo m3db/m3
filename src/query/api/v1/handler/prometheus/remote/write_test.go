@@ -23,7 +23,7 @@ package remote
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -31,11 +31,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	"github.com/m3db/m3/src/dbnode/x/metrics"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -79,13 +80,14 @@ func TestPromWrite(t *testing.T) {
 func TestPromWriteError(t *testing.T) {
 	logging.InitWithCores(nil)
 
-	anError := fmt.Errorf("an error")
+	multiErr := xerrors.NewMultiError().Add(errors.New("an error"))
+	batchErr := ingest.BatchError(multiErr)
 
 	ctrl := gomock.NewController(t)
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	mockDownsamplerAndWriter.EXPECT().
 		WriteBatch(gomock.Any(), gomock.Any()).
-		Return(anError)
+		Return(batchErr)
 
 	promWrite, err := NewPromWriteHandler(mockDownsamplerAndWriter,
 		models.NewTagOptions(), tally.NoopScope)
@@ -103,7 +105,7 @@ func TestPromWriteError(t *testing.T) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.True(t, bytes.Contains(body, []byte(anError.Error())))
+	require.True(t, bytes.Contains(body, []byte(batchErr.Error())))
 }
 
 func TestWriteErrorMetricCount(t *testing.T) {
