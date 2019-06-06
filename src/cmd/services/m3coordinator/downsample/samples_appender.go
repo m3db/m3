@@ -146,7 +146,7 @@ func (a *multiSamplesAppender) AppendCounterSample(value int64) error {
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendCounterSample(value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
@@ -154,7 +154,7 @@ func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeSample(value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value int64) error {
@@ -162,7 +162,7 @@ func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value int64
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendCounterTimedSample(t, value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64) error {
@@ -170,5 +170,5 @@ func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeTimedSample(t, value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
