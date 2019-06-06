@@ -2154,14 +2154,14 @@ func (s *session) streamBlocksMetadataFromPeers(
 				if isHostNotAvailableError(err) {
 					// Prevent the loop from spinning too aggressively in the short-circuiting case.
 					time.Sleep(currHostNotAvailableSleepInterval)
-					currHostNotAvailableMinSleepInterval = minDuration(
+					currHostNotAvailableSleepInterval = minDuration(
 						currHostNotAvailableSleepInterval*2,
 						hostNotAvailableMaxSleepInterval,
 					)
 					continue
 				}
 
-				if isNonRetryableErr && xerrors.IsNonRetryableError(err) {
+				if err != nil && xerrors.IsNonRetryableError(err) {
 					errs.setAbortError(err)
 					return // Cannot recover from this error, so we break from the loop
 				}
@@ -3898,7 +3898,7 @@ func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogra
 	return sub.Histogram(name, histogramDurationBuckets())
 }
 
-func minDuration(x, y time.Duration) {
+func minDuration(x, y time.Duration) time.Duration {
 	if x < y {
 		return x
 	}
