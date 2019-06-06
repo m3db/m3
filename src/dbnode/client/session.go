@@ -2125,14 +2125,14 @@ func (s *session) streamBlocksMetadataFromPeers(
 				}
 
 				var (
-					currLevel          = level.value()
-					majority           = int(majority)
-					enqueued           = int(enqueued)
-					success            = int(atomic.LoadInt32(&success))
-					metReadConsistency = topology.ReadConsistencyAchieved(
-						currLevel, majority, enqueued, success)
-					doRetry = !metReadConsistency && errs.getAbortError() == nil
+					currLevel = level.value()
+					majority  = int(majority)
+					enqueued  = int(enqueued)
+					success   = int(atomic.LoadInt32(&success))
 				)
+				metReadConsistency := topology.ReadConsistencyAchieved(
+					currLevel, majority, enqueued, success)
+				doRetry := !metReadConsistency && errs.getAbortError() == nil
 
 				if doRetry {
 					// Track that we are reattempting the fetch metadata
