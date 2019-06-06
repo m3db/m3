@@ -66,12 +66,13 @@ import (
 )
 
 const (
-	clusterConnectWaitInterval                     = 10 * time.Millisecond
-	blocksMetadataChannelInitialCapacity           = 4096
-	gaugeReportInterval                            = 500 * time.Millisecond
-	blockMetadataChBufSize                         = 4096
-	shardResultCapacity                            = 4096
-	streamBlocksMetadataFromPeerErrorSleepInterval = 1 * time.Millisecond
+	clusterConnectWaitInterval           = 10 * time.Millisecond
+	blocksMetadataChannelInitialCapacity = 4096
+	gaugeReportInterval                  = 500 * time.Millisecond
+	blockMetadataChBufSize               = 4096
+	shardResultCapacity                  = 4096
+	hostNotAvailableMinSleepInterval     = 1 * time.Millisecond
+	hostNotAvailableMaxSleepInterval     = 10 * time.Millisecond
 )
 
 type resultTypeEnum string
@@ -2113,7 +2114,8 @@ func (s *session) streamBlocksMetadataFromPeers(
 				// returned it will likely not be nil, this lets us restart fetching
 				// if we need to (if consistency has not been achieved yet) without
 				// losing place in the pagination.
-				currPageToken pageToken
+				currPageToken                     pageToken
+				currHostNotAvailableSleepInterval = hostNotAvailableMinSleepInterval
 			)
 			condition := func() bool {
 				if firstAttempt {
@@ -2146,21 +2148,30 @@ func (s *session) streamBlocksMetadataFromPeers(
 				// Set error or success if err is nil
 				errs.setError(idx, err)
 
-				// Check exit criteria
-				if err != nil && xerrors.IsNonRetryableError(err) {
+				// hostNotAvailable is a NonRetryableError for the purposes of short-circuiting
+				// the automatic retry functionality, but in this case the client should avoid
+				// aborting and continue retrying at this level until consistency can be reached.
+				if isHostNotAvailableError(err) {
+					// Prevent the loop from spinning too aggressively in the short-circuiting case.
+					time.Sleep(currHostNotAvailableSleepInterval)
+					currHostNotAvailableMinSleepInterval = minDuration(
+						currHostNotAvailableSleepInterval*2,
+						hostNotAvailableMaxSleepInterval,
+					)
+					continue
+				}
+
+				if isNonRetryableErr && xerrors.IsNonRetryableError(err) {
 					errs.setAbortError(err)
 					return // Cannot recover from this error, so we break from the loop
 				}
+
 				if err == nil {
 					atomic.AddInt32(&success, 1)
 					return
 				}
 
-				// Prevent the loop from spinning too aggressively if
-				// streamBlocksMetadataFromPeer is short-circuiting (which can happen in
-				// the situation that the peer is hard-down / has no connections available
-				// for it in the connection pool).
-				time.Sleep(streamBlocksMetadataFromPeerErrorSleepInterval)
+				// There was a retryable error, continue looping.
 			}
 		}()
 	}
@@ -2334,16 +2345,6 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 	for moreResults {
 		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
-			// Check if the error was a hostNotAvailableError. If so, return the
-			// raw (retryable) hostNotAvailableError since the error is technically
-			// retryable but was wrapped to prevent the exponential backoff in the
-			// actual retrier.
-			if isHostNotAvailableError(err) {
-				// hostNotAvailable is non-retryable by default, but in this case we want
-				// to return a retryable error so that the caller can continue retrying
-				// indefinitely until consistency is reached.
-				err = xerrors.GetInnerNonRetryableError(err)
-			}
 			return startPageToken, err
 		}
 	}
@@ -3895,4 +3896,11 @@ func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogra
 		histogramDurationBucketsVersionTag: histogramDurationBucketsVersion,
 	})
 	return sub.Histogram(name, histogramDurationBuckets())
+}
+
+func minDuration(x, y time.Duration) {
+	if x < y {
+		return x
+	}
+	return y
 }
