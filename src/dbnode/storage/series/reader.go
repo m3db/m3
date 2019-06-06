@@ -309,7 +309,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 
 			currBufferResult := bufferResults[bufferIdx]
 			if blockResult.Start.Equal(currBufferResult.Start) {
-				fmt.Println("adding to existing")
 				if currBufferResult.Err != nil {
 					res[i].Err = currBufferResult.Err
 				} else {
@@ -323,7 +322,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		// Add any buffer results for which there was no existing blockstart
 		// to the end.
 		if bufferIdx < len(bufferResults) {
-			fmt.Println("appending")
 			res = append(res, bufferResults[bufferIdx:]...)
 		}
 	}

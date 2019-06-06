@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -294,6 +293,62 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 				},
 			},
 		},
+		// Both disk cache and buffer have data for same blockstart but buffer has an
+		// error. The error should be propagated to the caller (not masked by the
+		// valid data from the disk cache).
+		{
+			title: "Handles buffer and disk cache merge with buffer error",
+			times: []time.Time{start},
+			cachedBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+		},
+		// Both disk and buffer have data for same blockstart but buffer has an
+		// error. The error should be propagated to the caller (not masked by the
+		// valid data from the disk cache).
+		{
+			title: "Handles buffer and disk merge with buffer error",
+			times: []time.Time{start},
+			cachedBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start): {
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Err:   errors.New("some-error"),
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -373,11 +428,11 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 			for i, result := range r {
 				expectedResult := tc.expectedResults[i]
 				assert.Equal(t, expectedResult.Start, result.Start)
-				require.Equal(t, len(expectedResult.Blocks), len(result.Blocks))
-				fmt.Println(expectedResult)
-				fmt.Println(result)
+
 				if expectedResult.Err != nil {
 					require.True(t, strings.Contains(result.Err.Error(), expectedResult.Err.Error()))
+				} else {
+					require.Equal(t, len(expectedResult.Blocks), len(result.Blocks))
 				}
 			}
 		})
